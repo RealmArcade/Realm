@@ -57,9 +57,9 @@ public partial class GameHost
 	private void SetupReplayPlayers()
 	{
 		var players = new List<(int PeerId, string Name)>();
-		if (GameContext.ReplayPlayback.Header.Players != null)
+		if (GameContext.ReplayPlayback.Header?.Players is { } headerPlayers)
 		{
-			foreach (var p in GameContext.ReplayPlayback.Header.Players)
+			foreach (var p in headerPlayers)
 			{
 				players.Add((p.PeerId, p.Name));
 			}

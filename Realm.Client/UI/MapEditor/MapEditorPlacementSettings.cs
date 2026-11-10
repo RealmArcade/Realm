@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 
@@ -13,9 +13,9 @@ public class MapEditorPlacementSettings
 	private CheckBox _chkRandomRotation;
 	private CheckBox _chkRandomScale;
 	private CheckBox _chkClumpMode;
-	private Slider _sldClumpCount;
+	private Slider _sldClumpCount = null!;
 	private Label _lblClumpCountValue;
-	private Slider _sldClumpScale;
+	private Slider _sldClumpScale = null!;
 	private Label _lblClumpScaleValue;
 	private bool _randomRotationBeforeClumpMode;
 
@@ -38,7 +38,7 @@ public class MapEditorPlacementSettings
 		_sldPlacementRotate.ValueChanged += (val) =>
 		{
 			_lblPlacementRotateValue.Text = val.ToString("F0") + "°";
-			if (GameContext.Host != null) GameContext.EditorService.EditorPlacementRotation = (float)val;
+			if (GameContext.Host != null) GameContext.EditorService.Tools.PlacementRotation = (float)val;
 		};
 
 		_sldPlacementScale.ValueChanged += (val) =>
@@ -49,13 +49,13 @@ public class MapEditorPlacementSettings
 
 		_chkRandomRotation.Toggled += (buttonPressed) =>
 		{
-			if (GameContext.Host != null) GameContext.EditorService.EditorRandomRotation = buttonPressed;
+			if (GameContext.Host != null) GameContext.EditorService.Tools.RandomRotation = buttonPressed;
 			UpdateVisibility();
 		};
 
 		_chkRandomScale.Toggled += (buttonPressed) =>
 		{
-			if (GameContext.Host != null) GameContext.EditorService.EditorRandomScale = buttonPressed;
+			if (GameContext.Host != null) GameContext.EditorService.Tools.RandomScale = buttonPressed;
 			UpdateVisibility();
 		};
 
@@ -67,7 +67,7 @@ public class MapEditorPlacementSettings
 				if (!_chkRandomRotation.ButtonPressed)
 				{
 					_chkRandomRotation.SetPressedNoSignal(true);
-					if (GameContext.Host != null) GameContext.EditorService.EditorRandomRotation = true;
+					if (GameContext.Host != null) GameContext.EditorService.Tools.RandomRotation = true;
 				}
 			}
 			else
@@ -105,7 +105,7 @@ public class MapEditorPlacementSettings
 		if (_chkRandomRotation.ButtonPressed == _randomRotationBeforeClumpMode) return;
 
 		_chkRandomRotation.SetPressedNoSignal(_randomRotationBeforeClumpMode);
-		if (GameContext.Host != null) GameContext.EditorService.EditorRandomRotation = _randomRotationBeforeClumpMode;
+		if (GameContext.Host != null) GameContext.EditorService.Tools.RandomRotation = _randomRotationBeforeClumpMode;
 	}
 
 	private void UpdateVisibility()

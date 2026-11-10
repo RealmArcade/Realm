@@ -4,6 +4,10 @@ using MemoryPack;
 
 namespace Realm.Ecs.Replication;
 
+/// <summary>
+///     One change to a unit's ability state: which unit it belongs to, how the ability is addressed, and the flag byte that
+///     says what changed. A slot index of -1 means the change names the ability instead of pointing at a slot.
+/// </summary>
 [MemoryPackable]
 public partial struct AbilityStateDelta
 {
@@ -22,6 +26,10 @@ public partial struct AbilityStateDelta
 	public string AbilityId;
 }
 
+/// <summary>
+///     The set of replicated components one unit currently holds, as a bitmask over the unit slot table, so a peer can tell
+///     a component it holds from one the authority has removed.
+/// </summary>
 [MemoryPackable]
 public partial struct UnitComponentPresence
 {
@@ -29,6 +37,10 @@ public partial struct UnitComponentPresence
 	public ulong Mask;
 }
 
+/// <summary>
+///     One replicated catalog row: the channel it belongs to, its key within that channel, and its value - text in
+///     <see cref="Value" /> and, for rows that carry a number, the same value parsed in <see cref="Number" />.
+/// </summary>
 [MemoryPackable]
 public partial struct CatalogEntry
 {
@@ -38,6 +50,9 @@ public partial struct CatalogEntry
 	public float Number;
 }
 
+/// <summary>
+///     A world-space text label: what it reads, where it sits, its colour and font size, and whether it is drawn.
+/// </summary>
 public struct StaticTextState
 {
 	public string Text;
@@ -47,6 +62,10 @@ public struct StaticTextState
 	public bool Visible;
 }
 
+/// <summary>
+///     One change to a world-space text label, addressed by handle: its text, placement, colour and font size, plus the
+///     flags that say whether it became visible and whether it was destroyed.
+/// </summary>
 [MemoryPackable]
 public partial struct StaticTextDelta
 {

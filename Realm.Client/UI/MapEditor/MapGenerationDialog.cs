@@ -75,7 +75,7 @@ public partial class MapGenerationDialog : Control
 		AddChild(center);
 
 		var panel = new PanelContainer { Name = "GenerationPanel", CustomMinimumSize = new Vector2(510f, 490f) };
-		panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(panel);
 		center.AddChild(panel);
 
 		var background = new TextureRect
@@ -248,10 +248,14 @@ public partial class MapGenerationDialog : Control
 
 	private void StyleActionButton(Button button)
 	{
+		var fontAwesomeFont = _hud?.GetFontAwesomeFont();
+		if (fontAwesomeFont != null)
+		{
+			button.AddThemeFontOverride("font", fontAwesomeFont);
+		}
+
 		button.AddThemeFontSizeOverride("font_size", 12);
-		button.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		button.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonStyleBoxes(button);
 		button.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 	}
 

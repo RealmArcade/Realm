@@ -17,8 +17,12 @@ namespace Realm.Client.Core
 	{
 		public Decal SpawnDecalExternal(Vector3 position)
 		{
-			var entity = GameContext.World.Create();
+			if (GameContext.World is not { } world)
+				throw new InvalidOperationException("Cannot spawn a decal without a running simulation.");
+
+			var entity = world.Create();
 			var decal = new Decal3D();
+			decal.Name = "Decal_Decal3D";
 			decal.Entity = entity;
 			decal.DecalId = "logo";
 			decal.TextureAlbedo = GD.Load<Texture2D>("res://icon.svg");
@@ -31,17 +35,17 @@ namespace Realm.Client.Core
 			position.Y = GetTerrainHeightAt(position);
 			decal.Position = position;
 
-			GameContext.World.Add(entity, new Position(new System.Numerics.Vector3(position.X, position.Y, position.Z)));
-			GameContext.World.Add(entity, new RotationY(0.0f));
-			GameContext.World.Add(entity, new ModelScale(1.0f));
+			world.Add(entity, new Position(new System.Numerics.Vector3(position.X, position.Y, position.Z)));
+			world.Add(entity, new RotationY(0.0f));
+			world.Add(entity, new ModelScale(1.0f));
 
 			if (GameContext.SessionState.IsMapEditorMode)
 			{
-				decal.RotationDegrees = new Vector3(0.0f, GameContext.EditorService.EditorPlacementRotation, 0.0f);
+				decal.RotationDegrees = new Vector3(0.0f, GameContext.EditorService.Tools.PlacementRotation, 0.0f);
 				decal.Size = new Vector3(6.0f, 20.0f, 6.0f) * (EditorPlacementScale <= 0.001f ? 1.0f : EditorPlacementScale);
 				decal.Scale = Vector3.One;
-				GameContext.World.Set(entity, new RotationY(GameContext.EditorService.EditorPlacementRotation));
-				GameContext.World.Set(entity, new ModelScale(EditorPlacementScale));
+				world.Set(entity, new RotationY(GameContext.EditorService.Tools.PlacementRotation));
+				world.Set(entity, new ModelScale(EditorPlacementScale));
 			}
 
 			return decal;
@@ -99,9 +103,9 @@ namespace Realm.Client.Core
 				{
 					pos.Y = targetY;
 					unit.GlobalPosition = pos;
-					if (GameContext.World.IsAlive(unit.Entity))
+					if (GameContext.World is { } world && world.IsAlive(unit.Entity))
 					{
-						GameContext.World.Set(unit.Entity, new Position(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
+						world.Set(unit.Entity, new Position(new System.Numerics.Vector3(pos.X, pos.Y, pos.Z)));
 					}
 				}
 			}
@@ -212,8 +216,12 @@ namespace Realm.Client.Core
 
 		public Decal SpawnDecalExternalWithParams(string decalId, Vector3 position, Vector3 rotationDegrees, float scale)
 		{
-			var entity = GameContext.World.Create();
+			if (GameContext.World is not { } world)
+				throw new InvalidOperationException("Cannot spawn a decal without a running simulation.");
+
+			var entity = world.Create();
 			var decal = new Decal3D();
+			decal.Name = "Decal_Decal3D";
 			decal.Entity = entity;
 			decal.DecalId = string.IsNullOrEmpty(decalId) ? "logo" : decalId;
 			decal.TextureAlbedo = LoadDecalTexture(decalId);
@@ -227,10 +235,10 @@ namespace Realm.Client.Core
 			decal.RotationDegrees = rotationDegrees;
 			decal.Scale = Vector3.One;
 
-			GameContext.World.Add(entity, new Position(new System.Numerics.Vector3(position.X, position.Y, position.Z)));
-			GameContext.World.Add(entity, new Rotation3D(new System.Numerics.Vector3(rotationDegrees.X, rotationDegrees.Y, rotationDegrees.Z)));
-			GameContext.World.Add(entity, new RotationY(rotationDegrees.Y));
-			GameContext.World.Add(entity, new ModelScale(scale));
+			world.Add(entity, new Position(new System.Numerics.Vector3(position.X, position.Y, position.Z)));
+			world.Add(entity, new Rotation3D(new System.Numerics.Vector3(rotationDegrees.X, rotationDegrees.Y, rotationDegrees.Z)));
+			world.Add(entity, new RotationY(rotationDegrees.Y));
+			world.Add(entity, new ModelScale(scale));
 
 			ApplyDecalPropertiesFromMetadata(decal, decalId);
 
@@ -271,7 +279,7 @@ namespace Realm.Client.Core
 			if (indexA == indexB) return;
 
 			TerrainSplatWeights[,] splatBefore = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
-			TerrainSplatWeights[,] cliffBefore = null;
+			TerrainSplatWeights[,]? cliffBefore = null;
 
 			if (GroundTerrain.CliffSplatMap != null)
 			{
@@ -284,14 +292,14 @@ namespace Realm.Client.Core
 			if (!anyChanged) return;
 
 			TerrainSplatWeights[,] splatAfter = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
-			TerrainSplatWeights[,] cliffAfter = null;
+			TerrainSplatWeights[,]? cliffAfter = null;
 
 			if (GroundTerrain.CliffSplatMap != null)
 			{
 				cliffAfter = (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone();
 			}
 
-			var action = new TerrainModifyAction((TerrainCell[,])null, (TerrainCell[,])null, splatBefore, splatAfter, null, null, cliffBefore, cliffAfter);
+			var action = new TerrainModifyAction((TerrainCell[,]?)null, (TerrainCell[,]?)null, splatBefore, splatAfter, null, null, cliffBefore, cliffAfter);
 			EditorHistoryManager.RecordAction(action);
 			EditorHasUnsavedChanges = true;
 
@@ -303,7 +311,7 @@ namespace Realm.Client.Core
 			}
 		}
 
-		private bool SwapAllSplats(TerrainSplatWeights[,] map, int indexA, int indexB)
+		private bool SwapAllSplats(TerrainSplatWeights[,]? map, int indexA, int indexB)
 		{
 			if (map == null) return false;
 
@@ -361,7 +369,7 @@ namespace Realm.Client.Core
 		{
 			if (GroundTerrain != null)
 			{
-				GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+				GameContext.EditorService.Surface.AttachSplatMaps(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 			}
 		}
 
@@ -372,7 +380,7 @@ namespace Realm.Client.Core
 			newWidth = Math.Clamp((int)Math.Round(newWidth / 32.0) * 32, 32, 512);
 			newDepth = Math.Clamp((int)Math.Round(newDepth / 32.0) * 32, 32, 512);
 
-			var before = MapStateSnapshot.CreateSnapshot();
+			if (MapStateSnapshot.CreateSnapshot() is not { } before) return;
 
 			int oldWidth = GroundTerrain.Width;
 			int oldDepth = GroundTerrain.Depth;
@@ -385,7 +393,7 @@ namespace Realm.Client.Core
 
 			GroundTerrain.ResizeTerrain(newWidth, newDepth);
 
-			GameContext.EditorService.SetTerrainSplatMap(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
+			GameContext.EditorService.Surface.AttachSplatMaps(GroundTerrain.SplatMap, GroundTerrain.CliffSplatMap);
 			DeleteEntitiesOutsideBounds();
 			GameContext.PropMultiMesh?.RebuildAll();
 
@@ -398,8 +406,10 @@ namespace Realm.Client.Core
 			EditorHasUnsavedChanges = true;
 			GameContext.MapEditorHud?.ShowFeedbackExternal($"Map resized to {newWidth}x{newDepth}");
 
-			var after = MapStateSnapshot.CreateSnapshot();
-			EditorHistoryManager.RecordAction(new MapResizeAction(before, after));
+			if (MapStateSnapshot.CreateSnapshot() is { } after)
+			{
+				EditorHistoryManager.RecordAction(new MapResizeAction(before, after));
+			}
 		}
 
 		public void PerformFloodFillPathing(Vector3 clickPos, int pathingMask, bool pathingAdd)
@@ -411,7 +421,7 @@ namespace Realm.Client.Core
 			if (result.Before != null && result.After != null)
 			{
 				GroundTerrain.UpdateMeshAndPhysics(false, false);
-				var action = new TerrainModifyAction((TerrainCell[,])null, (TerrainCell[,])null, null, null, result.Before, result.After);
+				var action = new TerrainModifyAction((TerrainCell[,]?)null, (TerrainCell[,]?)null, null, null, result.Before, result.After);
 				EditorHistoryManager.RecordAction(action);
 				EditorHasUnsavedChanges = true;
 				GameContext.MapEditorHud?.ShowFeedbackExternal("Flood filled pathing area");
@@ -425,7 +435,7 @@ namespace Realm.Client.Core
 
 			WaterType activeMode = EditorWaterMode;
 			byte activeProfile = ActiveWaterProfileIndex;
-			float waterHeight = GameContext.EditorService.EditorWaterHeight;
+			float waterHeight = GameContext.EditorService.Tools.WaterHeight;
 
 			var result = GameContext.EditorService.PerformWaterFloodFill(clickPos, activeMode, activeProfile, waterHeight, EditorMirrorMode, isRemoveAction);
 			if (result.BeforeCells == null || result.AfterCells == null) return;
@@ -444,10 +454,11 @@ namespace Realm.Client.Core
 		{
 			int vertexCount = selWidth * selDepth;
 			var vertices = new Vector3[vertexCount];
-			int width = GroundTerrain.Width;
-			int depth = GroundTerrain.Depth;
-			float quadSize = GroundTerrain.QuadSize;
-			var cells = GroundTerrain.Cells;
+			var ground = RequireGroundTerrain();
+			int width = ground.Width;
+			int depth = ground.Depth;
+			float quadSize = ground.QuadSize;
+			var cells = ground.Cells;
 			float halfW = width * 0.5f;
 			float halfD = depth * 0.5f;
 
@@ -488,7 +499,7 @@ namespace Realm.Client.Core
 			indices[iIdx++] = v01;
 		}
 
-		private void RebuildCoordinateMeshInstance(MeshInstance3D meshInstance, int minX, int minZ, int maxX, int maxZ, Color color, float yOffset = 0.15f)
+		private void RebuildCoordinateMeshInstance(MeshInstance3D? meshInstance, int minX, int minZ, int maxX, int maxZ, Color color, float yOffset = 0.15f)
 		{
 			if (meshInstance == null || GroundTerrain?.Cells == null) return;
 
@@ -599,7 +610,7 @@ namespace Realm.Client.Core
 				return new List<IEditorAction>();
 			}
 
-			var bounds = GameContext.EditorService.GetCurrentSelectionBounds();
+			var bounds = GameContext.EditorService.Interaction.GetSelectionBounds();
 			var terrainSnapshotBefore = CreateTerrainSnapshot();
 
 			var eraseTargets = new List<Node3D>();
@@ -614,9 +625,9 @@ namespace Realm.Client.Core
 				candidatePositions.Add(node3D.Position);
 			}
 
-			var eraseResult = GameContext.EditorService.BuildEraseAreaResult(
+			var eraseResult = GameContext.EditorService.Surface.EraseArea(
 				bounds.Item1, bounds.Item2, bounds.Item3, bounds.Item4,
-				GameContext.EditorService.PasteOptionHeights, GameContext.EditorService.PasteOptionTextures, GameContext.EditorService.PasteOptionEntities, PasteOptionPathing,
+				GameContext.EditorService.Tools.PasteHeights, GameContext.EditorService.Tools.PasteTextures, GameContext.EditorService.Tools.PasteEntities, PasteOptionPathing,
 				CollectionsMarshal.AsSpan(candidatePositions), EditorBrushIsSquare);
 
 			ApplyEraseResultTerrainModifications(eraseResult, bounds.Item1, bounds.Item2, bounds.Item3, bounds.Item4);
@@ -635,19 +646,19 @@ namespace Realm.Client.Core
 
 		private bool CanEraseArea()
 		{
-			return GroundTerrain?.Cells != null &&
-			       GroundTerrain.SplatMap != null &&
-			       GameContext.EditorService.SelectionStart != null &&
-			       GameContext.EditorService.SelectionEnd != null;
+			return GroundTerrain is { Cells: not null, SplatMap: not null } &&
+			       GameContext.EditorService.Interaction.SelectionStart != null &&
+			       GameContext.EditorService.Interaction.SelectionEnd != null;
 		}
 
-		private (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,] Cliff) CreateTerrainSnapshot()
+		private (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,]? Cliff) CreateTerrainSnapshot()
 		{
+			var ground = RequireGroundTerrain();
 			return (
-				(TerrainCell[,])GroundTerrain.Cells.Clone(),
-				(TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone(),
-				(int[,])GroundTerrain.PathingCodes.Clone(),
-				GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null
+				(TerrainCell[,])ground.Cells.Clone(),
+				(TerrainSplatWeights[,])ground.SplatMap.Clone(),
+				(int[,])ground.PathingCodes.Clone(),
+				ground.CliffSplatMap != null ? (TerrainSplatWeights[,])ground.CliffSplatMap.Clone() : null
 			);
 		}
 
@@ -661,23 +672,24 @@ namespace Realm.Client.Core
 				AlignAllEntitiesToTerrain(affected);
 			}
 
-			GroundTerrain.UpdateMeshAndPhysics(eraseResult.HeightsModified, false, affected, eraseResult.HeightsModified);
+			RequireGroundTerrain().UpdateMeshAndPhysics(eraseResult.HeightsModified, false, affected, eraseResult.HeightsModified);
 			if (eraseResult.PathingModified)
 			{
 				UpdatePathingOverlay();
 			}
 		}
 
-		private List<IEditorAction> BuildEraseActions(EraseAreaResult eraseResult, (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,] Cliff) snapshotBefore, List<Node3D> eraseTargets)
+		private List<IEditorAction> BuildEraseActions(EraseAreaResult eraseResult, (TerrainCell[,] Cells, TerrainSplatWeights[,] Splat, int[,] Pathing, TerrainSplatWeights[,]? Cliff) snapshotBefore, List<Node3D> eraseTargets)
 		{
 			var actions = new List<IEditorAction>();
 
 			if (eraseResult.TerrainModified)
 			{
-				var cellsAfter = (TerrainCell[,])GroundTerrain.Cells.Clone();
-				var splatAfter = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
-				var pathingAfter = (int[,])GroundTerrain.PathingCodes.Clone();
-				var cliffAfter = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
+				var ground = RequireGroundTerrain();
+				var cellsAfter = (TerrainCell[,])ground.Cells.Clone();
+				var splatAfter = (TerrainSplatWeights[,])ground.SplatMap.Clone();
+				var pathingAfter = (int[,])ground.PathingCodes.Clone();
+				var cliffAfter = ground.CliffSplatMap != null ? (TerrainSplatWeights[,])ground.CliffSplatMap.Clone() : null;
 
 				var action = new TerrainModifyAction(snapshotBefore.Cells, cellsAfter, snapshotBefore.Splat, splatAfter, snapshotBefore.Pathing, pathingAfter, snapshotBefore.Cliff, cliffAfter);
 				actions.Add(action);

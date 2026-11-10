@@ -89,7 +89,7 @@ public static class PseudoSocketCache
 		{ "topright", "TopRight" }
 	};
 
-	public static IReadOnlyList<PseudoSocketPoint> GetGeneratedSockets(Node3D modelRoot, string modelPath)
+	public static IReadOnlyList<PseudoSocketPoint> GetGeneratedSockets(Node3D? modelRoot, string modelPath)
 	{
 		string cacheKey = GetModelCacheKey(modelRoot, modelPath);
 
@@ -112,7 +112,7 @@ public static class PseudoSocketCache
 		return points;
 	}
 
-	public static IReadOnlyList<PseudoSocketPoint> GetSockets(Node3D modelRoot, string modelPath, IReadOnlyList<PseudoSocketAnchor>? authorAnchors = null, IReadOnlyList<string>? realSocketIds = null)
+	public static IReadOnlyList<PseudoSocketPoint> GetSockets(Node3D? modelRoot, string modelPath, IReadOnlyList<PseudoSocketAnchor>? authorAnchors = null, IReadOnlyList<string>? realSocketIds = null)
 	{
 		var generated = GetGeneratedSockets(modelRoot, modelPath);
 
@@ -254,7 +254,7 @@ public static class PseudoSocketCache
 		}
 	}
 
-	private static Aabb ResolveModelBounds(Node3D modelRoot, string cacheKey)
+	private static Aabb ResolveModelBounds(Node3D? modelRoot, string cacheKey)
 	{
 		lock (_cacheLock)
 		{
@@ -263,6 +263,8 @@ public static class PseudoSocketCache
 				return cachedBounds;
 			}
 		}
+
+		if (modelRoot == null) return new Aabb();
 
 		Aabb bounds = modelRoot.CalculateLocalBounds();
 
@@ -340,9 +342,9 @@ public static class PseudoSocketCache
 		return merged;
 	}
 
-	private static string GetModelCacheKey(Node3D modelRoot, string modelPath)
+	private static string GetModelCacheKey(Node3D? modelRoot, string modelPath)
 	{
-		string resolved = ModelCache.ResolveModelPath(modelPath);
+		string? resolved = ModelCache.ResolveModelPath(modelPath);
 		if (!string.IsNullOrEmpty(resolved)) return resolved;
 
 		if (!string.IsNullOrEmpty(modelPath)) return modelPath;

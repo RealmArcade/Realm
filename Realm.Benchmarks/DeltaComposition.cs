@@ -1,6 +1,6 @@
 namespace Realm.Benchmarks;
 
-public sealed record DeltaComposition(
+public record DeltaComposition(
 	double FrameBytes,
 	double SerializedBytes,
 	double UnitBytes,

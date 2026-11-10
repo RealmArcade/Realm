@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using Godot;
 using Realm.Client.Animation;
@@ -35,20 +36,20 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		{ "Dance", "💃" }
 	};
 
-	private Node3D _previewModelRoot;
-	private AnimationPlayer _animPlayer;
+	private Node3D? _previewModelRoot;
+	private AnimationPlayer? _animPlayer;
 
-	private LineEdit _txtPreviewRanim;
-	private Action<string> _setPreviewRanimValue;
-	private OptionButton _optTargetAction;
-	private VBoxContainer _actionListContainer;
-	private VBoxContainer _configuredAttachmentsContainer;
+	private LineEdit _txtPreviewRanim = null!;
+	private Action<string> _setPreviewRanimValue = null!;
+	private OptionButton _optTargetAction = null!;
+	private VBoxContainer _actionListContainer = null!;
+	private VBoxContainer _configuredAttachmentsContainer = null!;
 
 	private readonly Dictionary<string, Node3D> _socketAnchorNodes = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, Node3D> _attachmentVisualNodes = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, bool> _attachmentVisibilities = new(StringComparer.OrdinalIgnoreCase);
 
-	private Node _sourceSelectedObject;
+	private Node _sourceSelectedObject = null!;
 	private string _currentUnitId = "";
 	private string _currentPreviewRanim = "";
 	private float _currentSpeed = 1.0f;
@@ -73,10 +74,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 	{
 		Add3DPreviewViewport(BodyContainer, new Vector2(480, 220));
 
-		var topControlsVBox = new VBoxContainer();
-		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
-		topControlsVBox.AddThemeConstantOverride("separation", 6);
-		BodyContainer.AddChild(topControlsVBox);
+		var topControlsVBox = CreateTopControlsColumn();
 
 		var presetRow = AddCameraPresetToolbar(topControlsVBox, includeBack: true);
 
@@ -208,7 +206,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		RebuildActionListUI();
 	}
 
-	private string ResolveModelPath(string unitId, string providedModelPath)
+	private string? ResolveModelPath(string unitId, string? providedModelPath)
 	{
 		if (!string.IsNullOrEmpty(providedModelPath) || string.IsNullOrEmpty(unitId))
 			return providedModelPath;
@@ -233,7 +231,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		return providedModelPath;
 	}
 
-	public void OpenForUnitId(string unitId, string modelPath = null)
+	public void OpenForUnitId(string unitId, string? modelPath = null)
 	{
 		_currentUnitId = unitId;
 		TitleLabel.Text = $"{TranslationServer.Translate("Unit Animation Studio")} - {unitId}";
@@ -246,7 +244,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		OpenDialog();
 		ResetCameraDefault();
 
-		Node3D loadedModel = null;
+		Node3D? loadedModel = null;
 		if (!string.IsNullOrEmpty(modelPath))
 		{
 			var loaded = ModelCache.GetModel(modelPath);
@@ -266,7 +264,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		RebuildActionListUI();
 	}
 
-	private void CopyAnimationsToWorking(Dictionary<string, List<UnitAnimationEntry>> sourceAnims)
+	private void CopyAnimationsToWorking(Dictionary<string, List<UnitAnimationEntry>>? sourceAnims)
 	{
 		if (sourceAnims == null) return;
 		foreach (var kvp in sourceAnims)
@@ -315,9 +313,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		card.Name = "Card_PanelContainer";
 		card.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
+		var row = UIStyle.CreateRowContainer();
 
 		row.AddChild(CreateVisibilityButton(key, isVisible));
 		row.AddChild(CreateSocketBadge(entry));
@@ -358,7 +354,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 	private Label CreateSocketBadge(ConfiguredAttachmentEntry entry)
 	{
-		string parentAttId = entry.Orientation.ParentAttachmentId;
+		string? parentAttId = entry.Orientation.ParentAttachmentId;
 		bool isChild = !string.IsNullOrEmpty(parentAttId);
 		string badgeText = isChild
 			? $"[{entry.SocketId} ➔ {Path.GetFileNameWithoutExtension(parentAttId)}]"
@@ -615,7 +611,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 	private void AddCurrentPreviewToSelectedAction()
 	{
-		string animFile = GetValidPreviewAnimationOrNull();
+		string? animFile = GetValidPreviewAnimationOrNull();
 		if (animFile == null) return;
 
 		string actionType = GetSelectedActionType();
@@ -633,9 +629,9 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		RebuildActionListUI();
 	}
 
-	private string GetValidPreviewAnimationOrNull()
+	private string? GetValidPreviewAnimationOrNull()
 	{
-		string animFile = _currentPreviewRanim?.Trim();
+		string? animFile = _currentPreviewRanim?.Trim();
 		if (string.IsNullOrEmpty(animFile))
 		{
 			Hud?.ShowFeedback(TranslationServer.Translate("Please select an animation in the preview field first."));
@@ -701,297 +697,6 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private void ClearPreviewModel()
-	{
-		ClearAttachmentVisuals();
-		_socketAnchorNodes.Clear();
-		if (_previewModelRoot != null && GodotObject.IsInstanceValid(_previewModelRoot))
-		{
-			if (_animPlayer != null && GodotObject.IsInstanceValid(_animPlayer))
-			{
-				_animPlayer.Stop(true);
-			}
-
-			_previewModelRoot.GetParent()?.RemoveChild(_previewModelRoot);
-			_previewModelRoot.QueueFree();
-			_previewModelRoot = null;
-			_animPlayer = null;
-		}
-	}
-
-	private void ClearAttachmentVisuals()
-	{
-		foreach (var kvp in _attachmentVisualNodes)
-		{
-			if (kvp.Value != null && GodotObject.IsInstanceValid(kvp.Value))
-			{
-				kvp.Value.GetParent()?.RemoveChild(kvp.Value);
-				kvp.Value.QueueFree();
-			}
-		}
-
-		_attachmentVisualNodes.Clear();
-	}
-
-	private void SetupPreviewModel(Node sourceModelRoot)
-	{
-		if (sourceModelRoot == null || PreviewSubViewport == null) return;
-
-		var clonedNode = (Node3D)sourceModelRoot.Duplicate((int)DuplicateFlags.UseInstantiation);
-		if (clonedNode == null) return;
-
-		RemoveAllBoneAttachments(clonedNode);
-
-		clonedNode.Position = Vector3.Zero;
-		clonedNode.Rotation = Vector3.Zero;
-		clonedNode.Scale = Vector3.One;
-
-		PreviewSubViewport.AddChild(clonedNode);
-		_previewModelRoot = clonedNode;
-
-		if (_previewModelRoot.IsInsideTree())
-		{
-			_previewModelRoot.PropagateNotification((int)Node3D.NotificationTransformChanged);
-		}
-
-		FrameCameraOnNode(_previewModelRoot);
-
-		SetupSocketAnchors();
-		MountAllConfiguredAttachments();
-
-		_animPlayer = AnimationRetargetingService.FindOrCreateAnimationPlayer(_previewModelRoot);
-	}
-
-	private void SetupSocketAnchors()
-	{
-		_socketAnchorNodes.Clear();
-		if (_previewModelRoot == null || !GodotObject.IsInstanceValid(_previewModelRoot)) return;
-
-		Aabb modelAabb = CalculatePreviewModelAabb(_previewModelRoot);
-		var skeleton = SkeletonValidator.FindSkeleton(_previewModelRoot);
-
-		if (skeleton != null)
-		{
-			AddPseudoAnchor("Ground", new Vector3(0, modelAabb.Position.Y, 0));
-			AddPseudoAnchor("Center", new Vector3(0, modelAabb.GetCenter().Y, 0));
-			AddPseudoAnchor("Overhead", new Vector3(0, modelAabb.End.Y + 0.3f, 0));
-			AddPseudoAnchor("Pivot", Vector3.Zero);
-
-			AddBoneAnchor(skeleton, HumanoidBone.RightHand, "RightHand");
-			AddBoneAnchor(skeleton, HumanoidBone.LeftHand, "LeftHand");
-			AddBoneAnchor(skeleton, HumanoidBone.Chest, "Chest");
-			AddBoneAnchor(skeleton, HumanoidBone.Hips, "Hips");
-			AddBoneAnchor(skeleton, HumanoidBone.Head, "Head");
-			AddBoneAnchor(skeleton, HumanoidBone.LeftFoot, "LeftFoot");
-			AddBoneAnchor(skeleton, HumanoidBone.RightFoot, "RightFoot");
-		}
-		else
-		{
-			AddPseudoAnchor("Center", modelAabb.GetCenter());
-			AddPseudoAnchor("Top", new Vector3(modelAabb.GetCenter().X, modelAabb.End.Y, modelAabb.GetCenter().Z));
-			AddPseudoAnchor("Base", new Vector3(modelAabb.GetCenter().X, modelAabb.Position.Y, modelAabb.GetCenter().Z));
-			AddPseudoAnchor("Pivot", Vector3.Zero);
-		}
-	}
-
-	private void AddPseudoAnchor(string socketId, Vector3 pos)
-	{
-		string normSocket = ObjectAttachmentDialog.NormalizeSocketId(socketId);
-		var anchor = new Node3D { Name = $"PreviewSocketAnchor_{normSocket}" };
-		anchor.Position = pos;
-		_previewModelRoot.AddChild(anchor);
-		_socketAnchorNodes[normSocket] = anchor;
-	}
-
-	private void AddBoneAnchor(Skeleton3D skeleton, HumanoidBone bone, string socketId)
-	{
-		string normSocket = ObjectAttachmentDialog.NormalizeSocketId(socketId);
-		int boneIdx = skeleton.FindBoneInSkeleton(bone);
-		if (boneIdx >= 0)
-		{
-			var ba = new BoneAttachment3D
-			{
-				Name = $"PreviewBoneAttachment_{normSocket}",
-				BoneName = skeleton.GetBoneName(boneIdx),
-				BoneIdx = boneIdx
-			};
-			skeleton.AddChild(ba);
-			_socketAnchorNodes[normSocket] = ba;
-		}
-	}
-
-	private void MountAllConfiguredAttachments()
-	{
-		ClearAttachmentVisuals();
-		if (_previewModelRoot == null || !GodotObject.IsInstanceValid(_previewModelRoot)) return;
-		if (string.IsNullOrEmpty(_currentUnitId)) return;
-
-		var configured = ObjectAttachmentDialog.GetConfiguredAttachmentsForObject(_currentUnitId);
-
-		foreach (var entry in configured)
-		{
-			if (string.IsNullOrEmpty(entry.Orientation.ParentAttachmentId))
-			{
-				MountAttachmentVisual(entry);
-			}
-		}
-
-		foreach (var entry in configured)
-		{
-			if (!string.IsNullOrEmpty(entry.Orientation.ParentAttachmentId))
-			{
-				MountAttachmentVisual(entry);
-			}
-		}
-	}
-
-	private Node3D ResolveAttachmentTarget(Node3D targetAnchor, string parentAttachmentId)
-	{
-		if (string.IsNullOrEmpty(parentAttachmentId))
-			return targetAnchor;
-
-		var parentMesh = Unit3D.FindAttachmentInNode(targetAnchor, parentAttachmentId)
-		                 ?? (_previewModelRoot != null ? Unit3D.FindAttachmentInNode(_previewModelRoot, parentAttachmentId) : null);
-
-		return parentMesh ?? targetAnchor;
-	}
-
-	private void MountAttachmentVisual(ConfiguredAttachmentEntry entry)
-	{
-		string normSocket = ObjectAttachmentDialog.NormalizeSocketId(entry.SocketId);
-		if (IsInvalidSocketAnchor(normSocket, out var targetAnchor)) return;
-
-		if (IsInvalidAttachmentId(entry.AttachmentId)) return;
-
-		Node3D loaded = Unit3D.ResolveAndInstantiateAttachment(entry.AttachmentId, out _, out _, out _);
-		if (loaded == null) return;
-
-		string key = ObjectAttachmentDialog.GetAttachmentKey(normSocket, entry.AttachmentId, entry.Index, entry.Orientation.ParentAttachmentId);
-
-		SetupAttachmentMetadata(loaded, entry.AttachmentId, key);
-		ApplyAttachmentTransform(loaded, entry.Orientation);
-		ApplyAttachmentVisibility(loaded, key);
-
-		Node3D attachTarget = ResolveAttachmentTarget(targetAnchor, entry.Orientation.ParentAttachmentId);
-		attachTarget.AddChild(loaded);
-		_attachmentVisualNodes[key] = loaded;
-	}
-
-	private bool IsInvalidSocketAnchor(string normSocket, out Node3D targetAnchor)
-	{
-		if (!_socketAnchorNodes.TryGetValue(normSocket, out targetAnchor)) return true;
-		if (targetAnchor == null) return true;
-		if (!GodotObject.IsInstanceValid(targetAnchor)) return true;
-		return false;
-	}
-
-	private bool IsInvalidAttachmentId(string attachmentId)
-	{
-		if (string.IsNullOrEmpty(attachmentId)) return true;
-		if (attachmentId.Equals("null", StringComparison.OrdinalIgnoreCase)) return true;
-		if (attachmentId.Equals("none", StringComparison.OrdinalIgnoreCase)) return true;
-		return false;
-	}
-
-	private void SetupAttachmentMetadata(Node3D loaded, string attachmentId, string key)
-	{
-		string cleanAttId = attachmentId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase)
-			? attachmentId
-			: Path.GetFileNameWithoutExtension(attachmentId);
-
-		loaded.Name = $"AttVisual_{key}";
-		loaded.SetMeta("AttachmentId", attachmentId);
-		loaded.SetMeta("CleanAttachmentId", cleanAttId);
-	}
-
-	private void ApplyAttachmentTransform(Node3D loaded, HandAttachmentOrientation orientation)
-	{
-		loaded.Position = orientation.Position.ToGodotVector3() + (loaded.Transform.Basis.Y * orientation.NormalOffset);
-		loaded.RotationDegrees = orientation.RotationDegrees.ToGodotVector3();
-
-		var scaleVec = orientation.ScaleVector.ToGodotVector3();
-		if (scaleVec == Vector3.Zero)
-		{
-			float scale = orientation.Scale <= 0f ? 1.0f : orientation.Scale;
-			loaded.Scale = Vector3.One * scale;
-		}
-		else
-		{
-			loaded.Scale = scaleVec;
-		}
-	}
-
-	private void ApplyAttachmentVisibility(Node3D loaded, string key)
-	{
-		if (!_attachmentVisibilities.TryGetValue(key, out bool vis))
-		{
-			loaded.Visible = true;
-		}
-		else
-		{
-			loaded.Visible = vis;
-		}
-	}
-
-
-
-	private static Aabb CalculatePreviewModelAabb(Node3D root)
-	{
-		Aabb combinedAabb = new Aabb();
-		bool hasAabb = false;
-
-		void Collect(Node current)
-		{
-			if (current is MeshInstance3D meshInst && meshInst.Mesh != null && meshInst.Visible)
-			{
-				Transform3D relXform = root.GlobalTransform.AffineInverse() * meshInst.GlobalTransform;
-				Realm.Client.Utils.MathUtils.UpdateAabbWithMeshCorners(ref combinedAabb, ref hasAabb, meshInst, relXform);
-			}
-
-			foreach (Node child in current.GetChildren())
-			{
-				if (child is not BoneAttachment3D && !child.Name.ToString().StartsWith("PreviewSocketAnchor_") && !child.Name.ToString().StartsWith("AttVisual_"))
-				{
-					Collect(child);
-				}
-			}
-		}
-
-		Collect(root);
-		if (!hasAabb)
-		{
-			combinedAabb = new Aabb(new Vector3(-0.5f, 0f, -0.5f), new Vector3(1.0f, 1.8f, 1.0f));
-		}
-
-		return combinedAabb;
-	}
-
-	private static void RemoveAllBoneAttachments(Node node)
-	{
-		if (node == null) return;
-		var boneAttachments = new List<BoneAttachment3D>();
-		CollectBoneAttachmentsRecursive(node, boneAttachments);
-		foreach (var ba in boneAttachments)
-		{
-			ba.GetParent()?.RemoveChild(ba);
-			ba.QueueFree();
-		}
-	}
-
-	private static void CollectBoneAttachmentsRecursive(Node node, List<BoneAttachment3D> list)
-	{
-		if (node is BoneAttachment3D ba)
-		{
-			list.Add(ba);
-			return;
-		}
-
-		foreach (Node child in node.GetChildren())
-		{
-			CollectBoneAttachmentsRecursive(child, list);
-		}
-	}
-
 	private void PlayCurrentPreview()
 	{
 		if (!string.IsNullOrEmpty(_currentPreviewRanim))
@@ -1027,9 +732,9 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		return true;
 	}
 
-	private RealmAnimationData LoadOrGetFallbackAnimationData(string animFileName, string animName)
+	private RealmAnimationData? LoadOrGetFallbackAnimationData(string animFileName, string animName)
 	{
-		string filePath = AnimationRetargetingService.ResolveAnimationFilePath(animFileName, _currentUnitId);
+		string? filePath = AnimationRetargetingService.ResolveAnimationFilePath(animFileName, _currentUnitId);
 		if (!string.IsNullOrEmpty(filePath))
 		{
 			return AnimationRetargetingService.GetOrLoadRanimData(filePath);
@@ -1050,7 +755,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 
 		if (PlayExistingAnimation(animName)) return;
 
-		RealmAnimationData animData = LoadOrGetFallbackAnimationData(animFileName, animName);
+		RealmAnimationData? animData = LoadOrGetFallbackAnimationData(animFileName, animName);
 
 		if (animData != null && AnimationRetargetingService.RetargetAndBind(animData, _previewModelRoot, animName, out _))
 		{

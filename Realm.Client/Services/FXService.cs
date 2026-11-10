@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Ecs;
@@ -14,10 +14,9 @@ namespace Realm.Client.Services;
 
 public class FXService
 {
-	private readonly Dictionary<string, string> _resolvedPathCache = new(StringComparer.OrdinalIgnoreCase);
-	private readonly Dictionary<string, Texture2D?> _textureCache = new(StringComparer.OrdinalIgnoreCase);
-	private readonly Dictionary<string, (SpriteFrames Frames, int FrameWidth)> _spriteFramesCache = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Stack<AnimatedSprite3D> _spritePool = new();
+	private readonly FxAssetCache _assets = new();
+	private readonly FloatingCombatText _floatingText = new();
 	private int _activeSpritesCount = 0;
 	private const int MaxActiveSprites = 64;
 
@@ -100,50 +99,8 @@ public class FXService
 		SpawnTargetIndicator(parent, position, indicatorColor);
 	}
 
-	public (SpriteFrames Frames, int FrameWidth)? TryGetSpritesheetFrames(string texturePath, int columns, int rows, float framesPerSecond, bool loop)
-	{
-		if (string.IsNullOrWhiteSpace(texturePath)) return null;
-
-		int safeColumns = Math.Max(1, columns);
-		int safeRows = Math.Max(1, rows);
-		float safeFramesPerSecond = framesPerSecond > 0.0001f ? framesPerSecond : 12.0f;
-
-		string fullPath = ResolveTexturePathCached(texturePath);
-		string framesKey = $"{fullPath}|{safeColumns}|{safeRows}|{safeFramesPerSecond:F4}|{loop}";
-
-		if (_spriteFramesCache.TryGetValue(framesKey, out var cachedFrames))
-		{
-			return cachedFrames;
-		}
-
-		Texture2D? texture = LoadTextureCached(fullPath);
-		if (texture == null) return null;
-
-		int totalFrames = safeColumns * safeRows;
-		var frames = new SpriteFrames();
-		frames.AddAnimation("play");
-		frames.SetAnimationLoopMode("play", loop ? SpriteFrames.LoopMode.Linear : SpriteFrames.LoopMode.None);
-		frames.SetAnimationSpeed("play", safeFramesPerSecond);
-
-		int frameWidth = Math.Max(1, texture.GetWidth() / safeColumns);
-		int frameHeight = Math.Max(1, texture.GetHeight() / safeRows);
-
-		for (int frameIndex = 0; frameIndex < totalFrames; frameIndex++)
-		{
-			int col = frameIndex % safeColumns;
-			int row = frameIndex / safeColumns;
-			var atlasFrame = new AtlasTexture
-			{
-				Atlas = texture,
-				Region = new Rect2(col * frameWidth, row * frameHeight, frameWidth, frameHeight)
-			};
-			frames.AddFrame("play", atlasFrame);
-		}
-
-		cachedFrames = (frames, frameWidth);
-		_spriteFramesCache[framesKey] = cachedFrames;
-		return cachedFrames;
-	}
+	public (SpriteFrames Frames, int FrameWidth)? TryGetSpritesheetFrames(string texturePath, int columns, int rows, float framesPerSecond, bool loop) =>
+		_assets.TryGetSpritesheetFrames(texturePath, columns, rows, framesPerSecond, loop);
 
 	public VfxSequenceInstance3D? SpawnVfxSequence(VfxAttachmentConfig? sequenceConfig, Node parent, Vector3 worldPosition, float scaleMultiplier, int targetEntityId = -1, Node3D? anchor = null)
 	{
@@ -151,6 +108,7 @@ public class FXService
 		if (parent == null || !GodotObject.IsInstanceValid(parent)) return null;
 
 		var sequence = new VfxSequenceInstance3D();
+		sequence.Name = "VfxSequence_VfxSequenceInstance3D";
 		sequence.Initialize(sequenceConfig, worldPosition, scaleMultiplier, targetEntityId, anchor);
 		parent.AddChild(sequence);
 		_activeVfxSequences.Add(sequence);
@@ -374,93 +332,10 @@ public class FXService
 		_spritePool.Push(sprite);
 	}
 
-	private string ResolveTexturePathCached(string texturePath)
-	{
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		string key = $"{wsPath}|{texturePath}";
-		if (_resolvedPathCache.TryGetValue(key, out var cached))
-		{
-			return cached;
-		}
 
-		string resolved = ResolveTexturePath(texturePath, wsPath);
-		_resolvedPathCache[key] = resolved;
-		return resolved;
-	}
 
-	private static string ResolveTexturePath(string texturePath, string wsPath)
-	{
-		if (texturePath.StartsWith("res://") || File.Exists(texturePath))
-			return texturePath;
 
-		string fullPath = Path.Combine(wsPath, texturePath.Replace('/', Path.DirectorySeparatorChar));
-		if (File.Exists(fullPath)) return fullPath;
 
-		fullPath = Path.Combine(wsPath, "Assets", "vfx", Path.GetFileName(texturePath));
-		if (File.Exists(fullPath)) return fullPath;
-
-		string rtexCandidate = Path.ChangeExtension(fullPath, ".rtex");
-		if (File.Exists(rtexCandidate)) return rtexCandidate;
-
-		return fullPath;
-	}
-
-	private Texture2D? LoadTextureCached(string fullPath)
-	{
-		if (_textureCache.TryGetValue(fullPath, out var cached) && (cached == null || GodotObject.IsInstanceValid(cached)))
-		{
-			return cached;
-		}
-
-		var loaded = LoadTexture(fullPath);
-		_textureCache[fullPath] = loaded;
-		return loaded;
-	}
-
-	private static Texture2D? LoadTexture(string fullPath)
-	{
-		if (fullPath.StartsWith("res://"))
-		{
-			return GD.Load<Texture2D>(fullPath);
-		}
-
-		if (!File.Exists(fullPath))
-			return null;
-
-		Image? img = null;
-		if (fullPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-		{
-			img = LoadRtexImage(fullPath);
-		}
-		else
-		{
-			img = Image.LoadFromFile(fullPath);
-		}
-
-		if (img == null) return null;
-
-		if (!img.HasMipmaps())
-		{
-			img.GenerateMipmaps();
-		}
-
-		return ImageTexture.CreateFromImage(img);
-	}
-
-	private static Image? LoadRtexImage(string fullPath)
-	{
-		byte[] rtexBytes = File.ReadAllBytes(fullPath);
-		byte[]? webpBytes = RtexFile.GetLayer(rtexBytes, 0);
-		if (webpBytes == null || webpBytes.Length == 0) return null;
-
-		var img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
-		if (img.LoadWebpFromBuffer(webpBytes) != Error.Ok)
-		{
-			img.LoadPngFromBuffer(webpBytes);
-		}
-
-		return img;
-	}
 
 	public void FlashDamageUnit(Unit3D unit)
 	{
@@ -578,29 +453,20 @@ public class FXService
 		tween.Chain().TweenCallback(Callable.From(meshInstance.QueueFree));
 	}
 
-	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string weaponId = null, Entity targetEntity = default, int ownerPlayerIndex = 0, bool honourDestination = false)
+	public void SpawnWeaponProjectile(Node3D parent, Vector3 start, Vector3 target, string? weaponId = null, Entity targetEntity = default, int ownerPlayerIndex = 0, bool honourDestination = false)
 	{
-		WeaponMetadata weaponMeta = null;
-		bool hasWeapon = false;
-		if (!string.IsNullOrEmpty(weaponId) && GameHost.WeaponRegistry.TryGetValue(weaponId, out var registeredWeapon))
-		{
-			weaponMeta = registeredWeapon;
-			hasWeapon = true;
-		}
-		else if (GameHost.WeaponRegistry.TryGetValue("arrow", out var defaultArrow))
-		{
-			weaponMeta = defaultArrow;
-			hasWeapon = true;
-		}
-
 		var projectile = VisualProjectilePool.Rent(parent);
 
 		Vector3 spawnPos = start + new Vector3(0, 1.2f, 0);
 		Vector3 targetPos = target + new Vector3(0, 1.2f, 0);
 
-		if (hasWeapon)
+		if (!string.IsNullOrEmpty(weaponId) && GameHost.WeaponRegistry.TryGetValue(weaponId, out var registeredWeapon))
 		{
-			projectile.Initialize(weaponMeta, spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex, honourDestination);
+			projectile.Initialize(registeredWeapon, spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex, honourDestination);
+		}
+		else if (GameHost.WeaponRegistry.TryGetValue("arrow", out var defaultArrow))
+		{
+			projectile.Initialize(defaultArrow, spawnPos, targetPos, targetEntity, p => VisualProjectilePool.Return(p), ownerPlayerIndex, honourDestination);
 		}
 		else
 		{
@@ -613,167 +479,17 @@ public class FXService
 		SpawnWeaponProjectile(parent, start, target, "arrow", default, ownerPlayerIndex);
 	}
 
-	private struct ActiveFloatingLabel
-	{
-		public Label3D Label;
-		public Vector3 StartPosition;
-		public Color BaseColor;
-		public float Elapsed;
-	}
 
-	private readonly Stack<Label3D> _floatingLabelPool = new();
-	private readonly ActiveFloatingLabel[] _activeFloatingLabels = new ActiveFloatingLabel[MaxActiveFloatingLabels];
-	private int _activeFloatingLabelsCount = 0;
-	private const int MaxActiveFloatingLabels = 48;
-	private const float FloatingLabelDuration = 1.0f;
-	private const float FloatingLabelRiseDistance = 1.6f;
 
-	private Label3D RentFloatingLabel(Node3D parent)
-	{
-		Label3D label = null;
-		while (_floatingLabelPool.Count > 0)
-		{
-			var cand = _floatingLabelPool.Pop();
-			if (cand != null && GodotObject.IsInstanceValid(cand))
-			{
-				label = cand;
-				break;
-			}
-		}
 
-		if (label == null)
-		{
-			label = new Label3D { Name = "FloatingCombatText" };
-			label.Billboard = BaseMaterial3D.BillboardModeEnum.Enabled;
-		}
 
-		label.Visible = true;
-		if (label.GetParent() != parent)
-		{
-			if (label.GetParent() != null)
-			{
-				label.GetParent().RemoveChild(label);
-			}
-			parent.AddChild(label);
-		}
+	public void UpdateFloatingLabels(float fDelta) => _floatingText.Update(fDelta);
 
-		return label;
-	}
+	public void SpawnDamageNumber(Node3D parent, Vector3 worldPosition, float amount, bool isCritical = false) =>
+		_floatingText.SpawnDamage(parent, worldPosition, amount, isCritical);
 
-	private void ReturnFloatingLabel(Label3D label)
-	{
-		if (label == null || !GodotObject.IsInstanceValid(label)) return;
-		label.Visible = false;
-		_floatingLabelPool.Push(label);
-	}
-
-	public void UpdateFloatingLabels(float fDelta)
-	{
-		for (int i = _activeFloatingLabelsCount - 1; i >= 0; i--)
-		{
-			ref var entry = ref _activeFloatingLabels[i];
-			if (entry.Label == null || !GodotObject.IsInstanceValid(entry.Label))
-			{
-				int lastIdx = --_activeFloatingLabelsCount;
-				if (i < lastIdx)
-				{
-					_activeFloatingLabels[i] = _activeFloatingLabels[lastIdx];
-				}
-				_activeFloatingLabels[lastIdx] = default;
-				continue;
-			}
-
-			entry.Elapsed += fDelta;
-			if (entry.Elapsed >= FloatingLabelDuration)
-			{
-				ReturnFloatingLabel(entry.Label);
-				int lastIdx = --_activeFloatingLabelsCount;
-				if (i < lastIdx)
-				{
-					_activeFloatingLabels[i] = _activeFloatingLabels[lastIdx];
-				}
-				_activeFloatingLabels[lastIdx] = default;
-				continue;
-			}
-
-			float t = entry.Elapsed / FloatingLabelDuration;
-			float oneMinusT = 1.0f - t;
-			float easedRise = 1.0f - (oneMinusT * oneMinusT * oneMinusT);
-			entry.Label.Position = new Vector3(
-				entry.StartPosition.X,
-				entry.StartPosition.Y + FloatingLabelRiseDistance * easedRise,
-				entry.StartPosition.Z);
-			entry.Label.Modulate = new Color(
-				entry.BaseColor.R,
-				entry.BaseColor.G,
-				entry.BaseColor.B,
-				1.0f - t);
-		}
-	}
-
-	public void SpawnDamageNumber(Node3D parent, Vector3 worldPosition, float amount, bool isCritical = false)
-	{
-		if (!GameSettings.FloatingCombatText) return;
-		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
-		if (_activeFloatingLabelsCount >= MaxActiveFloatingLabels) return;
-
-		int amountInt = (int)Math.Round(amount);
-		if (amountInt <= 0) return;
-
-		bool isHeavyOrCrit = isCritical || amount >= 75f;
-		Color baseColor = isHeavyOrCrit ? new Color(1.0f, 0.85f, 0.2f, 1.0f) : new Color(1.0f, 0.25f, 0.25f, 1.0f);
-
-		var label = RentFloatingLabel(parent);
-		label.Text = isHeavyOrCrit ? $"CRIT! -{amountInt}" : $"-{amountInt}";
-		label.Modulate = baseColor;
-		label.OutlineModulate = Colors.Black;
-		label.OutlineSize = isHeavyOrCrit ? 14 : 10;
-		label.FontSize = isHeavyOrCrit ? 52 : 38;
-
-		float offsetX = (float)GD.RandRange(-0.25, 0.25);
-		float offsetZ = (float)GD.RandRange(-0.25, 0.25);
-		Vector3 startPosition = worldPosition + new Vector3(offsetX, 1.8f, offsetZ);
-		label.Position = startPosition;
-
-		_activeFloatingLabels[_activeFloatingLabelsCount++] = new ActiveFloatingLabel
-		{
-			Label = label,
-			StartPosition = startPosition,
-			BaseColor = baseColor,
-			Elapsed = 0f
-		};
-	}
-
-	public void SpawnHealNumber(Node3D parent, Vector3 worldPosition, float amount)
-	{
-		if (!GameSettings.FloatingCombatText) return;
-		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
-		if (_activeFloatingLabelsCount >= MaxActiveFloatingLabels) return;
-
-		int amountInt = (int)Math.Round(amount);
-		if (amountInt <= 0) return;
-
-		Color baseColor = new Color(0.2f, 0.95f, 0.3f, 1.0f);
-		var label = RentFloatingLabel(parent);
-		label.Text = $"+{amountInt}";
-		label.Modulate = baseColor;
-		label.OutlineModulate = Colors.Black;
-		label.OutlineSize = 10;
-		label.FontSize = 38;
-
-		float offsetX = (float)GD.RandRange(-0.25, 0.25);
-		float offsetZ = (float)GD.RandRange(-0.25, 0.25);
-		Vector3 startPosition = worldPosition + new Vector3(offsetX, 1.8f, offsetZ);
-		label.Position = startPosition;
-
-		_activeFloatingLabels[_activeFloatingLabelsCount++] = new ActiveFloatingLabel
-		{
-			Label = label,
-			StartPosition = startPosition,
-			BaseColor = baseColor,
-			Elapsed = 0f
-		};
-	}
+	public void SpawnHealNumber(Node3D parent, Vector3 worldPosition, float amount) =>
+		_floatingText.SpawnHeal(parent, worldPosition, amount);
 
 	public void SpawnTargetIndicator(Node3D parent, Vector3 position, Color color)
 	{
@@ -943,7 +659,7 @@ public class FXService
 
 	public void RenderBatchedRibbonTrails(Camera3D camera)
 	{
-		Node parent = GameContext.Host ?? (Node)camera?.GetViewport();
+		Node? parent = GameContext.Host as Node ?? camera.GetViewport();
 		if (parent == null || !GodotObject.IsInstanceValid(parent)) return;
 
 		EnsureBatchedRibbonNodes(parent);

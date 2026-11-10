@@ -16,8 +16,8 @@ public class EditorSaveState
 	public int PaintTextureIndex;
 	public int CliffPaintTextureIndex;
 	public EditorTool ActiveTool;
-	public string ActivePlaceId;
-	public CopiedAreaTemplate CopiedArea;
+	public string ActivePlaceId = null!;
+	public CopiedAreaTemplate? CopiedArea;
 	public Vector2I? SelectionStart;
 	public Vector2I? SelectionEnd;
 	public bool HasCameraPosition;

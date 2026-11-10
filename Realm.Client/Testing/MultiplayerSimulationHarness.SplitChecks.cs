@@ -17,8 +17,6 @@ namespace Realm.Client.Testing;
 public partial class MultiplayerSimulationHarness
 {
 	private const float SplitScenarioTimeoutSeconds = 120f;
-	private const float SummaryPositionToleranceMeters = 15f;
-
 	private async Task RunSplitScenarioAsync(LobbyManager lobby, GameHost gameHost)
 	{
 		var failures = new List<string>();
@@ -110,7 +108,7 @@ public partial class MultiplayerSimulationHarness
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MP_HARNESS] Could not write split_report.json: {exception.Message}");
+			GameLog.LogError($"[MP_HARNESS] Could not write split_report.json: {exception.Message}");
 		}
 	}
 
@@ -193,7 +191,7 @@ public partial class MultiplayerSimulationHarness
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MP_HARNESS] Could not write {fileName}: {exception.Message}");
+			GameLog.LogError($"[MP_HARNESS] Could not write {fileName}: {exception.Message}");
 		}
 	}
 

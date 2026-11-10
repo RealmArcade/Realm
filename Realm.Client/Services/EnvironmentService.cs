@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Realm.Ecs;
@@ -39,9 +39,7 @@ public class EnvironmentService
 	private LiveEnvironmentState _fromState;
 	private LiveEnvironmentState _toState;
 
-	private CpuParticles3D? _weatherParticles = null;
-	private string _activeWeatherVisualType = "clear";
-	private int _activeParticleDensity = 0;
+	private readonly WeatherParticleEffects _weatherEffects = new();
 
 	public EnvironmentService()
 	{
@@ -111,11 +109,7 @@ public class EnvironmentService
 		};
 	}
 
-	private static Node3D? GetEnvironmentHost()
-	{
-		Node3D? host = GameContext.Host;
-		return host != null && GodotObject.IsInstanceValid(host) ? host : null;
-	}
+	private static Node3D? GetEnvironmentHost() => WeatherParticleEffects.GetEnvironmentHost();
 
 	public void ApplyPreset(EnvironmentPresetConfig preset)
 	{
@@ -350,9 +344,10 @@ public class EnvironmentService
 	public string GetCurrentWeather()
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
+		if (GameContext.World is { } world && worldEntity != Entity.Null
+		                              && world.IsAlive(worldEntity) && world.Has<WeatherState>(worldEntity))
 		{
-			return GameContext.World.Get<WeatherState>(worldEntity).CurrentWeather;
+			return world.Get<WeatherState>(worldEntity).CurrentWeather;
 		}
 
 		return "clear";
@@ -361,9 +356,10 @@ public class EnvironmentService
 	public void SetCurrentWeather(string weather)
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
+		if (GameContext.World is { } world && worldEntity != Entity.Null
+		                              && world.IsAlive(worldEntity) && world.Has<WeatherState>(worldEntity))
 		{
-			ref var state = ref GameContext.World.Get<WeatherState>(worldEntity);
+			ref var state = ref world.Get<WeatherState>(worldEntity);
 			state.CurrentWeather = weather;
 		}
 	}
@@ -371,9 +367,10 @@ public class EnvironmentService
 	public float GetBaseFogDensity()
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
+		if (GameContext.World is { } world && worldEntity != Entity.Null
+		                              && world.IsAlive(worldEntity) && world.Has<WeatherState>(worldEntity))
 		{
-			return GameContext.World.Get<WeatherState>(worldEntity).BaseFogDensity;
+			return world.Get<WeatherState>(worldEntity).BaseFogDensity;
 		}
 
 		return 0f;
@@ -382,9 +379,10 @@ public class EnvironmentService
 	public void SetBaseFogDensity(float density)
 	{
 		var worldEntity = FindWorldEntity();
-		if (worldEntity != Entity.Null && GameContext.World.IsAlive(worldEntity) && GameContext.World.Has<WeatherState>(worldEntity))
+		if (GameContext.World is { } world && worldEntity != Entity.Null
+		                              && world.IsAlive(worldEntity) && world.Has<WeatherState>(worldEntity))
 		{
-			ref var state = ref GameContext.World.Get<WeatherState>(worldEntity);
+			ref var state = ref world.Get<WeatherState>(worldEntity);
 			state.BaseFogDensity = density;
 		}
 	}
@@ -433,13 +431,12 @@ public class EnvironmentService
 
 	private float CalculateFogDensity(Camera3D camera3D, float baseFogDensity)
 	{
-		bool isValidCamera = camera3D != null && GodotObject.IsInstanceValid(camera3D);
-		if (!isValidCamera || baseFogDensity <= 0f)
+		if (camera3D is not { } camera || !GodotObject.IsInstanceValid(camera) || baseFogDensity <= 0f)
 		{
 			return _currentState.FogDensity;
 		}
 
-		float height = camera3D.GlobalPosition.Y;
+		float height = camera.GlobalPosition.Y;
 		float scale = 18.0f / Mathf.Max(8.0f, height);
 		float scaledDensity = baseFogDensity * scale;
 
@@ -451,144 +448,9 @@ public class EnvironmentService
 		return scaledDensity;
 	}
 
-	public void ApplyWeatherVisuals(string weatherType, int particleDensity = 0)
-	{
-		if (GameSettings.DisableWeatherEffects)
-		{
-			Cleanup();
-			return;
-		}
+	public void ApplyWeatherVisuals(string weatherType, int particleDensity = 0) => _weatherEffects.ApplyWeatherVisuals(weatherType, particleDensity);
 
-		Node3D host = GetEnvironmentHost();
-		if (host == null) return;
-
-		weatherType = (weatherType ?? "clear").Trim().ToLowerInvariant();
-
-		if (!IsValidWeather(weatherType))
-		{
-			Cleanup();
-			return;
-		}
-
-		int count = GetParticleDensity(weatherType, particleDensity);
-
-		if (_activeWeatherVisualType == weatherType && GodotObject.IsInstanceValid(_weatherParticles))
-		{
-			UpdateExistingWeatherParticles(count);
-			return;
-		}
-
-		Cleanup();
-
-		_activeWeatherVisualType = weatherType;
-		_activeParticleDensity = count;
-
-		_weatherParticles = InitializeWeatherParticles(count);
-		ConfigureParticleType(_weatherParticles, weatherType);
-
-		Node3D parentNode = GetWeatherHost(host);
-		parentNode.AddChild(_weatherParticles);
-		UpdateWeatherParticlePosition(GameContext.Host?.MainCamera);
-	}
-
-	private bool IsValidWeather(string weatherType)
-	{
-		return weatherType == "rain" || weatherType == "snow";
-	}
-
-	private int GetParticleDensity(string weatherType, int particleDensity)
-	{
-		if (particleDensity > 0) return particleDensity;
-		return weatherType == "rain" ? 800 : 600;
-	}
-
-	private Node3D GetWeatherHost(Node3D host)
-	{
-		if (host is GameHost && GameContext.Host?.MainNode is Node3D node3D)
-		{
-			return node3D;
-		}
-
-		return host;
-	}
-
-	private void UpdateExistingWeatherParticles(int newCount)
-	{
-		if (_activeParticleDensity != newCount)
-		{
-			_activeParticleDensity = newCount;
-			_weatherParticles.Amount = Mathf.Clamp(newCount, 10, 5000);
-		}
-
-		UpdateWeatherParticlePosition(GameContext.Host?.MainCamera);
-	}
-
-	private CpuParticles3D InitializeWeatherParticles(int count)
-	{
-		var particles = new CpuParticles3D
-		{
-			Name = "ActiveWeatherParticles",
-			Amount = Mathf.Clamp(count, 10, 5000),
-			Preprocess = 2.0f,
-			EmissionShape = CpuParticles3D.EmissionShapeEnum.Box,
-			EmissionBoxExtents = new Vector3(150f, 1f, 150f)
-		};
-		return particles;
-	}
-
-	private void ConfigureParticleType(CpuParticles3D particles, string weatherType)
-	{
-		if (weatherType == "rain")
-		{
-			particles.Lifetime = 2.0f;
-			var mesh = new BoxMesh { Size = new Vector3(0.05f, 1.5f, 0.05f) };
-			var mat = new StandardMaterial3D
-			{
-				AlbedoColor = new Color(0.5f, 0.6f, 0.9f, 0.4f),
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-			mesh.Material = mat;
-			particles.Mesh = mesh;
-			particles.Direction = new Vector3(0.1f, -1f, 0f);
-			particles.Spread = 5f;
-			particles.InitialVelocityMin = 20f;
-			particles.InitialVelocityMax = 30f;
-		}
-		else if (weatherType == "snow")
-		{
-			particles.Lifetime = 4.0f;
-			particles.Preprocess = 4.0f;
-			var mesh = new BoxMesh { Size = new Vector3(0.12f, 0.12f, 0.12f) };
-			var mat = new StandardMaterial3D
-			{
-				AlbedoColor = new Color(0.95f, 0.95f, 1.0f, 0.8f),
-				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded
-			};
-			mesh.Material = mat;
-			particles.Mesh = mesh;
-			particles.Direction = new Vector3(0.1f, -1f, 0.05f);
-			particles.Spread = 20f;
-			particles.InitialVelocityMin = 2f;
-			particles.InitialVelocityMax = 5f;
-		}
-	}
-
-	public void UpdateWeatherParticlePosition(Camera3D? camera)
-	{
-		if (GodotObject.IsInstanceValid(_weatherParticles))
-		{
-			if (camera != null && GodotObject.IsInstanceValid(camera))
-			{
-				_weatherParticles.GlobalPosition = new Vector3(camera.GlobalPosition.X, Mathf.Max(35f, camera.GlobalPosition.Y + 10f), camera.GlobalPosition.Z);
-			}
-			else
-			{
-				_weatherParticles.GlobalPosition = new Vector3(0f, 35f, 0f);
-			}
-		}
-	}
+	public void UpdateWeatherParticlePosition(Camera3D? camera) => _weatherEffects.UpdateWeatherParticlePosition(camera);
 
 	public void SyncWeatherEffectsWithSettings()
 	{
@@ -617,17 +479,7 @@ public class EnvironmentService
 		worldEnv.Environment.FogDensity = 0f;
 	}
 
-	public void Cleanup()
-	{
-		if (GodotObject.IsInstanceValid(_weatherParticles))
-		{
-			_weatherParticles.QueueFree();
-			_weatherParticles = null;
-		}
-
-		_activeWeatherVisualType = "clear";
-		_activeParticleDensity = 0;
-	}
+	public void Cleanup() => _weatherEffects.Cleanup();
 
 	public string SetWeather(string weatherType)
 	{
@@ -672,22 +524,7 @@ public class EnvironmentService
 		};
 	}
 
-	private void ApplyWeatherToTarget(Node3D? targetHost, string weather, int particleDensity)
-	{
-		if (targetHost == null) return;
-
-		ApplyWeatherVisuals(weather, particleDensity);
-
-		if (weather == "clear")
-		{
-			var worldEnv = targetHost.GetNodeOrNull<WorldEnvironment>("WorldEnvironment");
-			if (worldEnv?.Environment != null)
-			{
-				worldEnv.Environment.FogEnabled = false;
-				worldEnv.Environment.FogDensity = 0f;
-			}
-		}
-	}
+	private void ApplyWeatherToTarget(Node3D? targetHost, string weather, int particleDensity) => _weatherEffects.ApplyWeatherToTarget(targetHost, weather, particleDensity);
 
 	public string CycleWeather()
 	{
@@ -862,7 +699,7 @@ public class EnvironmentService
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) SetTimeOfDay(Entity worldEntity, int timeOfDayIndex, float cycleDuration)
 	{
-		if (!GameContext.World.IsAlive(worldEntity) || !GameContext.World.Has<WorldState>(worldEntity))
+		if (GameContext.World is not { } world || !world.IsAlive(worldEntity) || !world.Has<WorldState>(worldEntity))
 		{
 			return (0, 0f);
 		}
@@ -882,7 +719,7 @@ public class EnvironmentService
 
 	public (int TimeOfDayIndex, float TimeOfDayTimer) CycleTimeOfDay(Entity worldEntity, float cycleDuration)
 	{
-		if (!GameContext.World.IsAlive(worldEntity) || !GameContext.World.Has<WorldState>(worldEntity))
+		if (GameContext.World is not { } world || !world.IsAlive(worldEntity) || !world.Has<WorldState>(worldEntity))
 		{
 			return (0, 0f);
 		}

@@ -2,6 +2,10 @@ using DotRecast.Core.Numerics;
 
 namespace Realm.Ecs.Services
 {
+	/// <summary>
+	///     Outcome of finding a navmesh starting point for an entity that began off the mesh: what was asked for, what was
+	///     found, and how far the start had to move to reach it.
+	/// </summary>
 	public readonly struct NavMeshStartRecovery
 	{
 		public readonly bool UsedFallback;

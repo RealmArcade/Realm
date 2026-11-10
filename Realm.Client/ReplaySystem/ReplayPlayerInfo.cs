@@ -13,8 +13,8 @@ public partial class ReplayPlayerInfo
 	/// </summary>
 	public long AccountId { get; set; }
 
-	public string Name { get; set; }
-	public string Faction { get; set; }
+	public string Name { get; set; } = null!;
+	public string Faction { get; set; } = null!;
 	public float ColorR { get; set; }
 	public float ColorG { get; set; }
 	public float ColorB { get; set; }

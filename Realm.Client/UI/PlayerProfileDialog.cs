@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Threading.Tasks;
 using Godot;
@@ -29,16 +29,16 @@ public partial class PlayerProfileDialog : Control
 	private static readonly Color SuccessColor = new(0.55f, 0.95f, 0.55f);
 	private static readonly Color FailureColor = new(0.95f, 0.6f, 0.4f);
 
-	private Label _userNameValueLabel;
-	private VBoxContainer _statsRows;
-	private VBoxContainer _signedOutBox;
-	private Button _signInButton;
-	private VBoxContainer _signedInBox;
-	private Label _identityLabel;
-	private Button _signOutButton;
-	private Label _warningLabel;
-	private Label _statusLabel;
-	private UserNameChangeDialog _nameChangeDialog;
+	private Label _userNameValueLabel = null!;
+	private VBoxContainer _statsRows = null!;
+	private VBoxContainer _signedOutBox = null!;
+	private Button _signInButton = null!;
+	private VBoxContainer _signedInBox = null!;
+	private Label _identityLabel = null!;
+	private Button _signOutButton = null!;
+	private Label _warningLabel = null!;
+	private Label _statusLabel = null!;
+	private UserNameChangeDialog _nameChangeDialog = null!;
 	private bool _busy;
 	private bool _serverRefusesSteam;
 	private bool _authorityUnreachable;
@@ -84,7 +84,7 @@ public partial class PlayerProfileDialog : Control
 		backdrop.SetAnchorsPreset(LayoutPreset.FullRect);
 		backdrop.MouseFilter = MouseFilterEnum.Stop;
 		backdrop.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		backdrop.AddThemeStyleboxOverride("panel", CreateBackdropStyle());
+		UIStyle.ApplyScreenBackground(backdrop, "res://Assets/UI/player_profile_bg.webp");
 		AddChild(backdrop);
 
 		var center = new CenterContainer { Name = "PlayerProfileCenter" };
@@ -94,7 +94,8 @@ public partial class PlayerProfileDialog : Control
 		var card = new PanelContainer { Name = "PlayerProfileCard" };
 		card.CustomMinimumSize = new Vector2(560, 0);
 		card.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		card.AddThemeStyleboxOverride("panel", CreateCardStyle());
+		card.AddThemeStyleboxOverride("panel", UIStyle.CreateArtworkPlate(
+			"res://Assets/UI/player_profile_card_bg.webp", 24, 24, 24, 24, 40));
 		center.AddChild(card);
 
 		var margin = new MarginContainer { Name = "PlayerProfileMargin" };
@@ -130,35 +131,6 @@ public partial class PlayerProfileDialog : Control
 		column.AddChild(CreateBackButton());
 	}
 
-	private static StyleBox CreateBackdropStyle()
-	{
-		Texture2D backdropTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_bg.webp");
-		if (backdropTexture == null) return UIStyle.CreateBgGradient();
-
-		return new StyleBoxTexture { Texture = backdropTexture };
-	}
-
-	private static StyleBox CreateCardStyle()
-	{
-		Texture2D cardTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_card_bg.webp");
-		if (cardTexture == null) return UIStyle.CreateStonePanel();
-
-		var style = new StyleBoxTexture
-		{
-			Texture = cardTexture,
-			TextureMarginLeft = 40,
-			TextureMarginRight = 40,
-			TextureMarginTop = 40,
-			TextureMarginBottom = 40,
-			ContentMarginLeft = 24,
-			ContentMarginRight = 24,
-			ContentMarginTop = 24,
-			ContentMarginBottom = 24
-		};
-
-		return style;
-	}
-
 	private Label CreateTitleLabel()
 	{
 		var title = new Label { Name = "PlayerProfileTitle" };
@@ -177,7 +149,7 @@ public partial class PlayerProfileDialog : Control
 	private TextureRect CreateFactionFlag()
 	{
 		var factionFlag = new TextureRect { Name = "PlayerProfileFactionFlag" };
-		Texture2D flagTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
+		Texture2D? flagTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
 		if (flagTexture == null) flagTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/profile_frame_normal.webp");
 
 		factionFlag.Texture = flagTexture;
@@ -224,17 +196,16 @@ public partial class PlayerProfileDialog : Control
 		if (UIStyle.FontAwesome != null) button.AddThemeFontOverride("font", UIStyle.FontAwesome);
 		button.AddThemeFontSizeOverride("font_size", 15);
 		button.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
+		UIStyle.ApplyGoldHoverColors(button);
 		button.CustomMinimumSize = new Vector2(34, 34);
 		button.TooltipText = TranslationServer.Translate("Change your username");
 		button.FocusMode = FocusModeEnum.None;
 		button.MouseDefaultCursorShape = CursorShape.PointingHand;
-		button.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		UIStyle.ApplyButtonStyleBoxes(button);
+		button.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
 		button.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			OpenUserNameChangeDialog();
 		};
 
@@ -309,7 +280,7 @@ public partial class PlayerProfileDialog : Control
 	private Button CreateActionButton(Node parent, string textKey, string iconPath = "")
 	{
 		var button = new Button { Name = $"PlayerProfile{textKey.Replace(" ", string.Empty)}Button" };
-		UIStyle.ApplyButtonStyleBoxes(button);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
 		UIStyle.ApplyButtonText(button, TranslationServer.Translate(textKey), 14);
 		button.CustomMinimumSize = new Vector2(0, 42);
 		button.AddThemeConstantOverride("icon_max_width", 20);
@@ -346,7 +317,7 @@ public partial class PlayerProfileDialog : Control
 		bool signedIn = GameContext.Account.IsSignedIn;
 		bool steamAvailable = GameContext.Steam.IsAvailable;
 
-		if (signedIn) AdoptAccountNameAsLocalName();
+		if (signedIn) GameContext.Account.AdoptDisplayNameAsLocalName();
 
 		_userNameValueLabel.Text = signedIn
 			? GameContext.Account.DisplayName
@@ -358,21 +329,6 @@ public partial class PlayerProfileDialog : Control
 		_signInButton.Disabled = _busy || _serverRefusesSteam;
 
 		RefreshWarning();
-	}
-
-	/// <summary>
-	///     Makes the name the account goes by the name this machine falls back to when it is signed out, so the local name tracks
-	///     the most recent name the player actually used instead of freezing whatever was typed before the first sign-in. The
-	///     account's name is canonical already, so it is stored as it stands and never re-validated here.
-	/// </summary>
-	private static void AdoptAccountNameAsLocalName()
-	{
-		string accountName = GameContext.Account.DisplayName;
-		if (accountName.Length == 0) return;
-		if (string.Equals(accountName, GameSettings.PlayerName, StringComparison.Ordinal)) return;
-
-		GameSettings.PlayerName = accountName;
-		GameSettings.Save();
 	}
 
 	private void RefreshWarning()
@@ -519,7 +475,7 @@ public partial class PlayerProfileDialog : Control
 		AccountOperationResult result = await SignInWithSteamAsync(GameContext.Steam.UserName.Trim(), false);
 		if (!GodotObject.IsInstanceValid(this) || result.Succeeded) return;
 
-		if (IsDisplayNameRefusal(result.ErrorCode))
+		if (AccountService.IsDisplayNameRefusal(result.ErrorCode))
 		{
 			ClearStatus();
 			OpenNameConflictDialog(result);
@@ -650,19 +606,6 @@ public partial class PlayerProfileDialog : Control
 		return UserNameChangeResult.Refused(DescribeErrorCode(result.ErrorCode, result.Message));
 	}
 
-	public static bool IsDisplayNameRefusal(string errorCode)
-	{
-		return errorCode is AccountErrorCodes.DisplayNameEmpty
-			or AccountErrorCodes.DisplayNameTooShort
-			or AccountErrorCodes.DisplayNameTooLong
-			or AccountErrorCodes.DisplayNameTooManyBytes
-			or AccountErrorCodes.DisplayNameDisallowedCharacter
-			or AccountErrorCodes.DisplayNameCombiningMarkWithoutBase
-			or AccountErrorCodes.DisplayNameNeedsLetterOrDigit
-			or AccountErrorCodes.DisplayNameAlreadyTaken
-			or AccountErrorCodes.DisplayNameVisuallySimilar;
-	}
-
 	private async Task SignOutAsync()
 	{
 		SetBusy(true);
@@ -756,46 +699,29 @@ public partial class PlayerProfileDialog : Control
 		button.CustomMinimumSize = new Vector2(210, 48);
 		button.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		button.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		button.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		button.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		button.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			QueueFree();
 		};
 
-		Texture2D buttonTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_button.webp");
+		Texture2D? buttonTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/player_profile_button.webp");
 		if (buttonTexture != null)
 		{
-			var normalStyle = new StyleBoxTexture
-			{
-				Texture = buttonTexture,
-				ContentMarginLeft = 16,
-				ContentMarginRight = 16,
-				ContentMarginTop = 8,
-				ContentMarginBottom = 8
-			};
-
-			var hoverStyle = (StyleBoxTexture)normalStyle.Duplicate();
-			hoverStyle.ModulateColor = new Color(1.15f, 1.15f, 1.2f);
-
-			var pressedStyle = (StyleBoxTexture)normalStyle.Duplicate();
-			pressedStyle.ModulateColor = new Color(0.85f, 0.85f, 0.9f);
-
-			button.AddThemeStyleboxOverride("normal", normalStyle);
-			button.AddThemeStyleboxOverride("hover", hoverStyle);
-			button.AddThemeStyleboxOverride("pressed", pressedStyle);
+			UIStyle.ApplyTintedArtworkButton(button, "res://Assets/UI/player_profile_button.webp",
+				new Color(1f, 1f, 1f), new Color(1.15f, 1.15f, 1.2f), new Color(0.85f, 0.85f, 0.9f),
+				16, 16, 8, 8);
 			button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		}
 		else
 		{
-			UIStyle.ApplyButtonStyleBoxes(button);
+			UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
 		}
 
 		button.AddThemeFontOverride("font", UIStyle.FontNorseBold);
 		button.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
-		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
+		UIStyle.ApplyGoldHoverAndFocusColors(button);
 		button.AddThemeFontSizeOverride("font_size", 18);
 
 		return button;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using Godot;
@@ -30,7 +30,7 @@ public static class ShaderIncludeExpander
 		for (int lineIndex = 0; lineIndex < lines.Length; lineIndex++)
 		{
 			string line = lines[lineIndex];
-			string includePath = TryReadIncludePath(line);
+			string? includePath = TryReadIncludePath(line);
 			if (includePath == null)
 			{
 				builder.Append(line);
@@ -47,7 +47,7 @@ public static class ShaderIncludeExpander
 		return builder.ToString();
 	}
 
-	private static string TryReadIncludePath(string line)
+	private static string? TryReadIncludePath(string line)
 	{
 		string trimmed = line.TrimStart();
 		if (!trimmed.StartsWith(IncludeDirective, StringComparison.Ordinal)) return null;
@@ -68,7 +68,7 @@ public static class ShaderIncludeExpander
 		if (FileAccess.FileExists(path))
 		{
 			using var resourceFile = FileAccess.Open(path, FileAccess.ModeFlags.Read);
-			string resourceCode = resourceFile?.GetAsText();
+			string? resourceCode = resourceFile?.GetAsText();
 			if (!string.IsNullOrEmpty(resourceCode)) return resourceCode;
 		}
 

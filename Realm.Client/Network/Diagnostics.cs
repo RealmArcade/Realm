@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.Network;
 
@@ -37,7 +38,7 @@ public class Diagnostics
 		try
 		{
 			udp.Client.Bind(new IPEndPoint(IPAddress.Any, diagPort));
-			GD.Print($"[Diagnostics] Host listening on UDP port {diagPort}");
+			GameLog.LogToConsole($"[Diagnostics] Host listening on UDP port {diagPort}");
 
 			while (!token.IsCancellationRequested)
 			{
@@ -50,7 +51,7 @@ public class Diagnostics
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[Diagnostics] Host listener exception: {ex.Message}");
+			GameLog.LogError($"[Diagnostics] Host listener exception: {ex.Message}");
 		}
 	}
 
@@ -73,7 +74,7 @@ public class Diagnostics
 
 	public static async Task<DiagnosticResult> RunClientDiagnosticsAsync(string hostIp, int diagPort, Action<DiagnosticResult> onProgressUpdate)
 	{
-		GD.Print($"[Diagnostics] Starting diagnostic test to {hostIp}:{diagPort}...");
+		GameLog.LogToConsole($"[Diagnostics] Starting diagnostic test to {hostIp}:{diagPort}...");
 
 		using var udp = new UdpClient();
 		udp.ExclusiveAddressUse = false;
@@ -107,7 +108,7 @@ public class Diagnostics
 		stopwatch.Stop();
 
 		var finalResult = ComputeMetrics(received, receivedRtts);
-		GD.Print($"[Diagnostics] Final results - Loss: {finalResult.LossPercentage}%, Avg RTT: {finalResult.AvgRtt}ms, Jitter: {finalResult.Jitter}ms");
+		GameLog.LogToConsole($"[Diagnostics] Final results - Loss: {finalResult.LossPercentage}%, Avg RTT: {finalResult.AvgRtt}ms, Jitter: {finalResult.Jitter}ms");
 		return finalResult;
 	}
 
@@ -126,7 +127,7 @@ public class Diagnostics
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[Diagnostics] Client receive error: {ex.Message}");
+				GameLog.LogError($"[Diagnostics] Client receive error: {ex.Message}");
 				break;
 			}
 		}
@@ -174,7 +175,7 @@ public class Diagnostics
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[Diagnostics] Client send error: {ex.Message}");
+				GameLog.LogError($"[Diagnostics] Client send error: {ex.Message}");
 			}
 
 			await Task.Delay(DelayBetweenPacketsMilliseconds);

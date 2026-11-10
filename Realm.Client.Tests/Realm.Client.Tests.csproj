@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8981</NoWarn>
+    <NoWarn>$(NoWarn);CS8981</NoWarn>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
@@ -27,7 +27,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="gdunit4_testadapter_v5/GdUnit4TestRunnerScene.cs" />
     <Compile Include="MapEditorUxTests.cs" />
     <Compile Include="MapImportVerificationTests.cs" />
     <Compile Include="MultiplayerEcsSyncTests.cs" />

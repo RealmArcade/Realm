@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -11,20 +11,20 @@ namespace Realm.Client.UI.MapEditor;
 [GlobalClass]
 public partial class ImportFromMapDialog : FloatingDialogBase
 {
-	private OptionButton _optImportKind;
-	private OptionButton _optMapSource;
-	private OptionButton _optCodeScope;
-	private LineEdit _txtSearch;
-	private CheckBox _chkOnlyMissing;
-	private Label _lblItemCount;
-	private Label _lblSummary;
-	private ScrollContainer _assetScroll;
-	private VBoxContainer _assetList;
-	private Button _btnSelectAll;
-	private Button _btnSelectNone;
-	private Button _btnImportSelected;
-	private Button _btnAddArchive;
-	private Button _btnAddFolder;
+	private OptionButton _optImportKind = null!;
+	private OptionButton _optMapSource = null!;
+	private OptionButton _optCodeScope = null!;
+	private LineEdit _txtSearch = null!;
+	private CheckBox _chkOnlyMissing = null!;
+	private Label _lblItemCount = null!;
+	private Label _lblSummary = null!;
+	private ScrollContainer _assetScroll = null!;
+	private VBoxContainer _assetList = null!;
+	private Button _btnSelectAll = null!;
+	private Button _btnSelectNone = null!;
+	private Button _btnImportSelected = null!;
+	private Button _btnAddArchive = null!;
+	private Button _btnAddFolder = null!;
 
 	private readonly List<MapAssetImportSource> _sources = new();
 	private readonly List<MapAssetImportCandidate> _assetCandidates = new();
@@ -52,184 +52,12 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 		Exported = 2
 	}
 
-	public ImportFromMapDialog(MapEditorHUD hud)
+	public ImportFromMapDialog(MapEditorHUD? hud)
 		: base(hud, TranslationServer.Translate("Import From Map"), new Vector2(760, 680))
 	{
 		SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 30, 45, 70, 70);
 		BuildControls();
 		SetFooterCloseOnly();
-	}
-
-	private void BuildControls()
-	{
-		BodyContainer.AddThemeConstantOverride("separation", 8);
-
-		var kindRow = new HBoxContainer();
-		kindRow.Name = "KindRow_HBoxContainer";
-		kindRow.AddThemeConstantOverride("separation", 8);
-
-		var lblKind = new Label();
-		lblKind.Name = "LblKind_Label";
-		lblKind.Text = TranslationServer.Translate("Import Type:");
-		lblKind.AddThemeFontSizeOverride("font_size", 11);
-		lblKind.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		lblKind.VerticalAlignment = VerticalAlignment.Center;
-		kindRow.AddChild(lblKind);
-
-		_optImportKind = new OptionButton();
-		_optImportKind.Name = "OptImportKind_OptionButton";
-		_optImportKind.CustomMinimumSize = new Vector2(180, 26);
-		_optImportKind.AddThemeFontSizeOverride("font_size", 11);
-		_optImportKind.FocusMode = FocusModeEnum.None;
-		_optImportKind.TooltipText = TranslationServer.Translate("Choose whether to copy assets, configured templates with their dependencies, or map script code");
-		AddImportKindItem(TranslationServer.Translate("Assets"), nameof(ImportKind.Assets));
-		AddImportKindItem(TranslationServer.Translate("Templates"), nameof(ImportKind.Templates));
-		AddImportKindItem(TranslationServer.Translate("Code"), nameof(ImportKind.Code));
-		_optImportKind.ItemSelected += _ => OnImportKindChanged();
-		kindRow.AddChild(_optImportKind);
-
-		BodyContainer.AddChild(kindRow);
-
-		var sourceRow = new HBoxContainer();
-		sourceRow.Name = "SourceRow_HBoxContainer";
-		sourceRow.AddThemeConstantOverride("separation", 8);
-
-		var lblSource = new Label();
-		lblSource.Name = "LblSource_Label";
-		lblSource.Text = TranslationServer.Translate("Source Map:");
-		lblSource.AddThemeFontSizeOverride("font_size", 11);
-		lblSource.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		lblSource.VerticalAlignment = VerticalAlignment.Center;
-		sourceRow.AddChild(lblSource);
-
-		_optMapSource = new OptionButton();
-		_optMapSource.Name = "OptMapSource_OptionButton";
-		_optMapSource.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_optMapSource.CustomMinimumSize = new Vector2(0, 26);
-		_optMapSource.AddThemeFontSizeOverride("font_size", 11);
-		_optMapSource.FocusMode = FocusModeEnum.None;
-		_optMapSource.ItemSelected += _ => OnSourceChanged();
-		sourceRow.AddChild(_optMapSource);
-
-		_btnAddArchive = CreateActionButton("BtnAddArchive_Button", "📥 " + TranslationServer.Translate("Add .rmap"), () => PromptAddExternalMap(selectFolder: false), TranslationServer.Translate("Copy a map package into storage and use it as the source map"), 92);
-		sourceRow.AddChild(_btnAddArchive);
-
-		_btnAddFolder = CreateActionButton("BtnAddFolder_Button", "📂 " + TranslationServer.Translate("Add Folder"), () => PromptAddExternalMap(selectFolder: true), TranslationServer.Translate("Copy a map folder into storage and use it as the source map"), 100);
-		sourceRow.AddChild(_btnAddFolder);
-
-		BodyContainer.AddChild(sourceRow);
-
-		var filterRow = new HBoxContainer();
-		filterRow.Name = "FilterRow_HBoxContainer";
-		filterRow.AddThemeConstantOverride("separation", 8);
-
-		_optCodeScope = new OptionButton();
-		_optCodeScope.Name = "OptCodeScope_OptionButton";
-		_optCodeScope.CustomMinimumSize = new Vector2(130, 26);
-		_optCodeScope.AddThemeFontSizeOverride("font_size", 11);
-		_optCodeScope.FocusMode = FocusModeEnum.None;
-		_optCodeScope.TooltipText = TranslationServer.Translate("Choose between curated [Export] items, individual classes, or whole namespaces");
-		_optCodeScope.AddItem(TranslationServer.Translate("Classes"), (int)CodeScope.Classes);
-		_optCodeScope.AddItem(TranslationServer.Translate("Namespaces"), (int)CodeScope.Namespaces);
-		_optCodeScope.AddItem(TranslationServer.Translate("Exported"), (int)CodeScope.Exported);
-		_optCodeScope.ItemSelected += _ => OnCodeScopeChanged();
-		_optCodeScope.Visible = false;
-		filterRow.AddChild(_optCodeScope);
-
-		_txtSearch = new LineEdit();
-		_txtSearch.Name = "TxtSearch_LineEdit";
-		_txtSearch.PlaceholderText = GetSearchPlaceholder();
-		_txtSearch.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtSearch.CustomMinimumSize = new Vector2(0, 26);
-		_txtSearch.AddThemeFontSizeOverride("font_size", 11);
-		_txtSearch.TextChanged += _ => RebuildItemRows();
-		filterRow.AddChild(_txtSearch);
-
-		_chkOnlyMissing = new CheckBox();
-		_chkOnlyMissing.Name = "ChkOnlyMissing_CheckBox";
-		_chkOnlyMissing.Set("icon_max_width", 0);
-		_chkOnlyMissing.Text = TranslationServer.Translate("Only missing");
-		_chkOnlyMissing.AddThemeFontSizeOverride("font_size", 11);
-		_chkOnlyMissing.FocusMode = FocusModeEnum.None;
-		_chkOnlyMissing.ButtonPressed = true;
-		_chkOnlyMissing.TooltipText = TranslationServer.Translate("Hide items this map already contains");
-		_chkOnlyMissing.Toggled += _ => RebuildItemRows();
-		filterRow.AddChild(_chkOnlyMissing);
-
-		BodyContainer.AddChild(filterRow);
-
-		var actionRow = new HBoxContainer();
-		actionRow.Name = "ActionRow_HBoxContainer";
-		actionRow.AddThemeConstantOverride("separation", 8);
-
-		_lblItemCount = new Label();
-		_lblItemCount.Name = "LblItemCount_Label";
-		_lblItemCount.Text = "0 " + TranslationServer.Translate("items");
-		_lblItemCount.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_lblItemCount.AddThemeFontSizeOverride("font_size", 10);
-		_lblItemCount.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlowDim);
-		actionRow.AddChild(_lblItemCount);
-
-		_btnSelectAll = CreateActionButton("BtnSelectAll_Button", TranslationServer.Translate("Select All"), OnSelectAllPressed, TranslationServer.Translate("Select every listed item"), 90);
-		actionRow.AddChild(_btnSelectAll);
-
-		_btnSelectNone = CreateActionButton("BtnSelectNone_Button", TranslationServer.Translate("Select None"), OnSelectNonePressed, TranslationServer.Translate("Clear the selection"), 95);
-		actionRow.AddChild(_btnSelectNone);
-
-		_btnImportSelected = CreateActionButton("BtnImportSelected_Button", TranslationServer.Translate("Import Selected"), OnImportSelectedPressed, TranslationServer.Translate("Copy the selected items into this map"), 130);
-		actionRow.AddChild(_btnImportSelected);
-
-		BodyContainer.AddChild(actionRow);
-
-		var listPanel = new PanelContainer();
-		listPanel.Name = "ListPanel_PanelContainer";
-		listPanel.CustomMinimumSize = new Vector2(0, 360);
-		listPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
-		listPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-		BodyContainer.AddChild(listPanel);
-
-		_assetScroll = new ScrollContainer();
-		_assetScroll.Name = "AssetScroll_ScrollContainer";
-		_assetScroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_assetScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_assetScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		listPanel.AddChild(_assetScroll);
-
-		_assetList = new VBoxContainer();
-		_assetList.Name = "AssetList_VBoxContainer";
-		_assetList.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_assetList.AddThemeConstantOverride("separation", 2);
-		_assetScroll.AddChild(_assetList);
-
-		_lblSummary = new Label();
-		_lblSummary.Name = "LblSummary_Label";
-		_lblSummary.AutowrapMode = TextServer.AutowrapMode.Word;
-		_lblSummary.CustomMinimumSize = new Vector2(700, 0);
-		_lblSummary.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_lblSummary.AddThemeFontSizeOverride("font_size", 10);
-		_lblSummary.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		BodyContainer.AddChild(_lblSummary);
-	}
-
-	private void AddImportKindItem(string label, string kindKey)
-	{
-		int index = _optImportKind.ItemCount;
-		_optImportKind.AddItem(label, index);
-		_optImportKind.SetItemMetadata(index, kindKey);
-	}
-
-	private Button CreateActionButton(string nodeName, string text, Action onPressed, string tooltip, int minimumWidth)
-	{
-		var button = new Button();
-		button.Name = nodeName;
-		button.Set("icon_max_width", 0);
-		button.Text = text;
-		button.CustomMinimumSize = new Vector2(minimumWidth, 26);
-		button.FocusMode = FocusModeEnum.None;
-		button.TooltipText = tooltip;
-		button.AddThemeFontSizeOverride("font_size", 11);
-		button.Pressed += onPressed;
-		return button;
 	}
 
 	public void OpenForWorkspace(Action? onImportCompleted = null)
@@ -351,7 +179,7 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[ImportFromMapDialog] Failed to add '{sourcePath}': {exception.Message}");
+			GameLog.LogError($"[ImportFromMapDialog] Failed to add '{sourcePath}': {exception.Message}");
 			_lblSummary.Text = string.Format(TranslationServer.Translate("The map could not be added: {0}"), exception.Message);
 		}
 		finally
@@ -437,247 +265,6 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 		}
 
 		return MapWorkspaceService.GetActiveWorkspacePath();
-	}
-
-	private void ClearCandidates()
-	{
-		_assetCandidates.Clear();
-		_templateCandidates.Clear();
-		_codeTypeCandidates.Clear();
-		_codeNamespaceCandidates.Clear();
-	}
-
-	private void ResolveDefaultCodeScope(MapAssetImportSource source, string workspacePath)
-	{
-		if (_codeScopeChosenExplicitly) return;
-
-		_codeScope = GameContext.MapCodeImportService.EnumerateExports(source, workspacePath).Count > 0
-			? CodeScope.Exported
-			: CodeScope.Classes;
-
-		if (_optCodeScope != null)
-		{
-			_optCodeScope.Selected = (int)_codeScope;
-		}
-	}
-
-	private void ReloadCandidates()
-	{
-		ClearCandidates();
-
-		var source = GetSelectedSource();
-		if (source.HasValue)
-		{
-			var selectedSource = source.Value;
-			string workspacePath = GetWorkspacePath();
-
-			switch (_selectedImportKind)
-			{
-				case ImportKind.Assets:
-					_assetCandidates.AddRange(GameContext.MapAssetImportService.EnumerateAssets(selectedSource.ManifestFilePath, workspacePath));
-					break;
-				case ImportKind.Templates:
-					_templateCandidates.AddRange(GameContext.MapTemplateImportService.EnumerateTemplates(selectedSource, workspacePath));
-					break;
-				case ImportKind.Code:
-					ResolveDefaultCodeScope(selectedSource, workspacePath);
-					switch (_codeScope)
-					{
-						case CodeScope.Namespaces:
-							_codeNamespaceCandidates.AddRange(GameContext.MapCodeImportService.EnumerateNamespaces(selectedSource, workspacePath));
-							break;
-						case CodeScope.Exported:
-							_codeTypeCandidates.AddRange(GameContext.MapCodeImportService.EnumerateExports(selectedSource, workspacePath));
-							break;
-						default:
-							_codeTypeCandidates.AddRange(GameContext.MapCodeImportService.EnumerateTypes(selectedSource, workspacePath));
-							break;
-					}
-					break;
-			}
-		}
-
-		RebuildItemRows();
-	}
-
-	private void RebuildItemRows()
-	{
-		foreach (var child in _assetList.GetChildren())
-		{
-			_assetList.RemoveChild(child);
-			child.QueueFree();
-		}
-
-		_rowCheckBoxes.Clear();
-
-		string filter = _txtSearch.Text?.Trim() ?? string.Empty;
-
-		switch (_selectedImportKind)
-		{
-			case ImportKind.Assets:
-				RebuildAssetRows(filter);
-				break;
-			case ImportKind.Templates:
-				RebuildTemplateRows(filter);
-				break;
-			case ImportKind.Code:
-				RebuildCodeRows(filter);
-				break;
-		}
-
-		UpdateSelectionState();
-	}
-
-	private void RebuildAssetRows(string filter)
-	{
-		bool onlyMissing = _chkOnlyMissing.ButtonPressed;
-		int listedCount = 0;
-
-		foreach (var candidate in _assetCandidates)
-		{
-			if (onlyMissing && candidate.AlreadyPresent) continue;
-			if (!MatchesAssetFilter(candidate, filter)) continue;
-
-			string label = candidate.AlreadyPresent
-				? $"{candidate.FileName} ({TranslationServer.Translate("already present")})"
-				: candidate.FileName;
-			string tooltip = $"{candidate.RelativePath}\n{TranslationServer.Translate("Asset Type:")} {candidate.Category}";
-
-			AddRow(candidate.RelativePath, label, tooltip, candidate.AlreadyPresent);
-			listedCount++;
-		}
-
-		UpdateItemCount(listedCount);
-	}
-
-	private void RebuildTemplateRows(string filter)
-	{
-		bool onlyMissing = _chkOnlyMissing.ButtonPressed;
-		int listedCount = 0;
-
-		foreach (var candidate in _templateCandidates)
-		{
-			if (onlyMissing && candidate.AlreadyPresent) continue;
-			if (!MatchesTemplateFilter(candidate, filter)) continue;
-
-			string label = $"{candidate.ObjectType}: {candidate.DisplayName}";
-			if (candidate.AlreadyPresent)
-			{
-				label += $" ({TranslationServer.Translate("already present")})";
-			}
-
-			string tooltip = $"{candidate.Identity}\n{TranslationServer.Translate("Template Type:")} {candidate.ObjectType}\n{TranslationServer.Translate("Imports referenced templates and assets automatically")}";
-
-			AddRow(candidate.SelectionKey, label, tooltip, candidate.AlreadyPresent);
-			listedCount++;
-		}
-
-		UpdateItemCount(listedCount);
-	}
-
-	private void RebuildCodeRows(string filter)
-	{
-		if (_codeScope == CodeScope.Namespaces)
-		{
-			RebuildCodeNamespaceRows(filter);
-			return;
-		}
-
-		bool useExportLabels = _codeScope == CodeScope.Exported;
-		bool onlyMissing = _chkOnlyMissing.ButtonPressed;
-		int listedCount = 0;
-
-		foreach (var candidate in _codeTypeCandidates)
-		{
-			if (onlyMissing && candidate.WillReplace) continue;
-
-			string primaryText = useExportLabels ? candidate.ExportLabel : candidate.DisplayName;
-			string secondaryText = useExportLabels ? $"{candidate.DisplayName} {candidate.NamespaceName}" : candidate.NamespaceName;
-			if (!MatchesFilterText(primaryText, secondaryText, filter)) continue;
-
-			string label = candidate.WillReplace
-				? $"{primaryText} ({TranslationServer.Translate("will replace")})"
-				: primaryText;
-			string tooltip = useExportLabels
-				? $"{candidate.ExportLabel}\n{candidate.FullName}\n{TranslationServer.Translate("Class type:")} {candidate.Kind}\n{TranslationServer.Translate("Target file:")} {candidate.RelativePath}"
-				: $"{candidate.FullName}\n{TranslationServer.Translate("Class type:")} {candidate.Kind}\n{TranslationServer.Translate("Target file:")} {candidate.RelativePath}";
-
-			AddRow(candidate.SelectionKey, label, tooltip, alreadyPresent: false);
-			listedCount++;
-		}
-
-		UpdateItemCount(listedCount);
-	}
-
-	private void RebuildCodeNamespaceRows(string filter)
-	{
-		bool onlyMissing = _chkOnlyMissing.ButtonPressed;
-		int listedCount = 0;
-
-		foreach (var candidate in _codeNamespaceCandidates)
-		{
-			if (onlyMissing && candidate.WillReplace) continue;
-			if (!MatchesFilterText(candidate.DisplayName, candidate.NamespaceName, filter)) continue;
-
-			string label = $"{candidate.DisplayName} ({string.Format(TranslationServer.Translate("{0} classes"), candidate.TypeCount)})";
-			if (candidate.WillReplace)
-			{
-				label += $" ({TranslationServer.Translate("will replace")})";
-			}
-
-			string tooltip = $"{candidate.NamespaceName}\n{TranslationServer.Translate("Imports every class in this namespace and its dependencies automatically")}";
-
-			AddRow(candidate.SelectionKey, label, tooltip, alreadyPresent: false);
-			listedCount++;
-		}
-
-		UpdateItemCount(listedCount);
-	}
-
-	private void UpdateItemCount(int count)
-	{
-		_lblItemCount.Text = $"{count} " + TranslationServer.Translate("items");
-	}
-
-	private void AddRow(string key, string label, string tooltip, bool alreadyPresent)
-	{
-		var checkBox = new CheckBox();
-		checkBox.Name = $"ImportRow_{SanitizeNodeName(key)}";
-		checkBox.Set("icon_max_width", 0);
-		checkBox.Text = label;
-		checkBox.TooltipText = tooltip;
-		checkBox.AddThemeFontSizeOverride("font_size", 11);
-		checkBox.FocusMode = FocusModeEnum.None;
-		checkBox.Disabled = alreadyPresent;
-		checkBox.ButtonPressed = !alreadyPresent;
-		checkBox.Toggled += _ => UpdateSelectionState();
-
-		_rowCheckBoxes[key] = checkBox;
-		_assetList.AddChild(checkBox);
-	}
-
-	private static bool MatchesAssetFilter(MapAssetImportCandidate candidate, string filter)
-	{
-		return MatchesFilterText(candidate.FileName, candidate.Category, filter);
-	}
-
-	private static bool MatchesTemplateFilter(MapTemplateImportCandidate candidate, string filter)
-	{
-		return MatchesFilterText(candidate.DisplayName, candidate.ObjectType, filter)
-		       || MatchesFilterText(candidate.Identity, candidate.ObjectType, filter);
-	}
-
-	private static bool MatchesFilterText(string primary, string secondary, string filter)
-	{
-		if (string.IsNullOrEmpty(filter)) return true;
-
-		return primary.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0
-		       || secondary.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0;
-	}
-
-	private static string SanitizeNodeName(string fileName)
-	{
-		return fileName.Replace('.', '_').Replace('/', '_').Replace('\\', '_').Replace(' ', '_').Replace('|', '_');
 	}
 
 	private void OnSelectAllPressed()
@@ -786,12 +373,12 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 
 		if (summary.Missing.Count > 0)
 		{
-			GD.Print($"[ImportFromMapDialog] Assets not found in storage: {string.Join(", ", summary.Missing)}");
+			GameLog.LogToConsole($"[ImportFromMapDialog] Assets not found in storage: {string.Join(", ", summary.Missing)}");
 		}
 
 		if (summary.Conflicts.Count > 0)
 		{
-			GD.Print($"[ImportFromMapDialog] Assets skipped due to name conflicts: {string.Join(", ", summary.Conflicts)}");
+			GameLog.LogToConsole($"[ImportFromMapDialog] Assets skipped due to name conflicts: {string.Join(", ", summary.Conflicts)}");
 		}
 
 		return BuildAssetSummaryText(summary);
@@ -825,12 +412,12 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 
 		if (summary.MissingAssets.Count > 0)
 		{
-			GD.Print($"[ImportFromMapDialog] Template assets not found in storage: {string.Join(", ", summary.MissingAssets)}");
+			GameLog.LogToConsole($"[ImportFromMapDialog] Template assets not found in storage: {string.Join(", ", summary.MissingAssets)}");
 		}
 
 		if (summary.ConflictAssets.Count > 0)
 		{
-			GD.Print($"[ImportFromMapDialog] Template assets skipped due to name conflicts: {string.Join(", ", summary.ConflictAssets)}");
+			GameLog.LogToConsole($"[ImportFromMapDialog] Template assets skipped due to name conflicts: {string.Join(", ", summary.ConflictAssets)}");
 		}
 
 		return BuildTemplateSummaryText(summary);
@@ -895,11 +482,11 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 				return;
 			}
 
-			Hud.ShowConfirmationDialog(
+			RequireHud.ShowConfirmationDialog(
 				message,
 				() => ExecuteCodeImport(source.Value, selectedTypeNames, selectedNamespaces, workspacePath),
-				confirmText: "REPLACE",
-				cancelText: "CANCEL");
+				confirmText: TranslationServer.Translate("REPLACE"),
+				cancelText: TranslationServer.Translate("CANCEL"));
 			return;
 		}
 
@@ -916,7 +503,7 @@ public partial class ImportFromMapDialog : FloatingDialogBase
 
 		if (summary.FailedTypes.Count > 0)
 		{
-			GD.Print($"[ImportFromMapDialog] Code classes not imported: {string.Join(", ", summary.FailedTypes)}");
+			GameLog.LogToConsole($"[ImportFromMapDialog] Code classes not imported: {string.Join(", ", summary.FailedTypes)}");
 		}
 
 		FinishImport(BuildCodeSummaryText(summary));

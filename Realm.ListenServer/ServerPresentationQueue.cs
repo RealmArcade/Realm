@@ -193,12 +193,21 @@ public class ServerPresentationQueue
 		_durableOrder.RemoveAt(0);
 	}
 
-	public ServerPresentationEvent[] Drain()
+	/// <summary>
+	///     Hands out what the tick raised. The view is read by the tick that publishes it and is gone when that tick
+	///     ends, so it is filled into one buffer kept here rather than into an array built again on every tick that
+	///     raised anything.
+	/// </summary>
+	public ReadOnlySpan<ServerPresentationEvent> Drain()
 	{
-		if (_events.Count == 0) return Array.Empty<ServerPresentationEvent>();
+		int count = _events.Count;
+		if (count == 0) return ReadOnlySpan<ServerPresentationEvent>.Empty;
 
-		ServerPresentationEvent[] drained = _events.ToArray();
+		if (_drainBuffer.Length < count) _drainBuffer = new ServerPresentationEvent[Math.Max(count, _drainBuffer.Length * 2)];
+		_events.CopyTo(_drainBuffer, 0);
 		_events.Clear();
-		return drained;
+		return _drainBuffer.AsSpan(0, count);
 	}
+
+	private ServerPresentationEvent[] _drainBuffer = Array.Empty<ServerPresentationEvent>();
 }

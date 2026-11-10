@@ -25,12 +25,6 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
-	private readonly UnitId[] _cachedUnitsBuffer = new UnitId[4096];
-	private readonly PlayerId[] _cachedPlayersBuffer = new PlayerId[25];
-	private readonly UnitId[] _cachedSelectedUnitsBuffer = new UnitId[512];
-	private readonly string[] _cachedModifiersBuffer = new string[128];
-	private readonly string[] _cachedItemsBuffer = new string[32];
-
 	private const string DefaultLeaderboardBoardId = "default";
 
 	private enum LeaderboardOperationKind : byte
@@ -69,7 +63,7 @@ public partial class GameHost
 		GameContext.RegistryService.RegisterCustomAbilities(customAbilities);
 	}
 
-	public AbilityDefinition GetAbilityDefinition(string abilityId)
+	public AbilityDefinition? GetAbilityDefinition(string abilityId)
 	{
 		return GameContext.RegistryService.GetAbilityDefinition(abilityId);
 	}
@@ -88,18 +82,25 @@ public partial class GameHost
 	{
 		var pos = new Godot.Vector3(position.X, GetTerrainHeightAt(new Godot.Vector3(position.X, position.Y, position.Z)), position.Z);
 
-		bool isBuilding = false;
-		if (!UnitRegistry.TryGetValue(unitTypeId, out var meta) && !(isBuilding = BuildingRegistry.TryGetValue(unitTypeId, out meta)))
-			throw new ArgumentException($"Unit ID '{unitTypeId}' not found in registry.");
+		if (GameContext.World is not { } world)
+			throw new InvalidOperationException("[GameHost] Cannot spawn a unit without an active world.");
 
-		var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(GameContext.World);
+		bool isBuilding = false;
+		if (!UnitRegistry.TryGetValue(unitTypeId, out var meta))
+		{
+			if (!BuildingRegistry.TryGetValue(unitTypeId, out meta))
+				throw new ArgumentException($"Unit ID '{unitTypeId}' not found in registry.");
+			isBuilding = true;
+		}
 
 		if (string.IsNullOrEmpty(meta.ModelPath)) throw new ArgumentException($"Unit ID '{unitTypeId}' has no assigned 3D model asset in registry.");
+
+		var playerOwner = GetPlayerEntityForPlayerIndex(playerIndex).AsPlayerEntity(world);
 		string modelPath = GameContext.UnitSpawnService.GetFallbackModelPath(meta.ModelPath, isBuilding);
 		string name = meta.Name;
 
-		bool hasShields = GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(playerOwner.Value, u => u.ShieldsUpgrade) ?? false;
-		bool hasWeapons = GameContext.World?.GetFieldOrDefault<PlayerUpgrades, bool>(playerOwner.Value, u => u.WeaponsUpgrade) ?? false;
+		bool hasShields = world.GetFieldOrDefault<PlayerUpgrades, bool>(playerOwner.Value, u => u.ShieldsUpgrade);
+		bool hasWeapons = world.GetFieldOrDefault<PlayerUpgrades, bool>(playerOwner.Value, u => u.WeaponsUpgrade);
 
 		var entity = GameContext.UnitSpawnService.SpawnUnitDomain(unitTypeId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z), playerOwner, bypassPopulation, playerOwner.Value, hasShields, hasWeapons);
 
@@ -269,9 +270,11 @@ public partial class GameHost
 	private void CollectAbilityStateHandles()
 	{
 		_abilityStateHandles.Clear();
-		foreach (var entity in GameContext.World.Query<AbilityState>())
+		if (GameContext.World is not { } world) return;
+
+		foreach (var entity in world.Query<AbilityState>())
 		{
-			ref var abilityState = ref GameContext.World.Get<AbilityState>(entity);
+			ref var abilityState = ref world.Get<AbilityState>(entity);
 			_abilityStateHandles[entity.Id] = abilityState.Handle;
 		}
 	}
@@ -323,10 +326,12 @@ public partial class GameHost
 	private bool TryResolveAbilityIndex(int unitUniqueId, string abilityId, out short abilityIndex)
 	{
 		abilityIndex = -1;
-		Entity entity = unitUniqueId;
-		if (!GameContext.World.IsAlive(entity) || !GameContext.World.Has<AbilityState>(entity)) return false;
+		if (GameContext.World is not { } world) return false;
 
-		var abilityState = GameContext.World.Get<AbilityState>(entity);
+		Entity entity = unitUniqueId;
+		if (!world.IsAlive(entity) || !world.Has<AbilityState>(entity)) return false;
+
+		var abilityState = world.Get<AbilityState>(entity);
 		for (int index = 0; index < abilityState.Count; index++)
 		{
 			string? listedAbilityId = abilityState.Get(index);
@@ -447,37 +452,6 @@ public partial class GameHost
 		}
 	}
 
-	private void HandleUnitDespawn(Unit3D unit3D, bool executeDespawnShader, bool playDeathAnimation)
-	{
-		string deathShader = executeDespawnShader ? GetModelDeathShader(unit3D.UnitId) : "";
-		if (executeDespawnShader && string.IsNullOrEmpty(deathShader))
-		{
-			deathShader = GetModelDeathShader(unit3D);
-		}
-
-		if (!string.IsNullOrEmpty(deathShader))
-		{
-			SpawnDeathShaderManager.AnimateTransition(unit3D, deathShader, false, null, () =>
-			{
-				if (GodotObject.IsInstanceValid(unit3D)) unit3D.QueueFree();
-			});
-		}
-		else if (playDeathAnimation)
-		{
-			var tween = CreateTween();
-			tween.SetParallel(true);
-			tween.TweenProperty(unit3D, "position:y", -3.0f, 1.0f);
-			tween.TweenProperty(unit3D, "scale", Godot.Vector3.Zero, 1.0f);
-			tween.Chain().TweenCallback(Callable.From(unit3D.QueueFree));
-		}
-		else
-		{
-			unit3D.QueueFree();
-		}
-	}
-
-	private event Action<int>? _onTimerExpired;
-
 	public bool IsPlayerComputer(int playerIndex)
 	{
 		if (playerIndex == 0) return true;
@@ -556,6 +530,7 @@ public partial class GameHost
 		}
 
 		var lootNode = new LootItem3D();
+		lootNode.Name = "Loot_LootItem3D";
 		lootNode.Entity = localEntity;
 		lootNode.Position = new Godot.Vector3(x, y, z);
 		lootNode.Initialize(lootItemId, loot.ItemTypeId, loot.Charges, loot.Lifetime, loot.PickupRadius, loot.AutoPickup, loot.OwnerPlayerIndex);

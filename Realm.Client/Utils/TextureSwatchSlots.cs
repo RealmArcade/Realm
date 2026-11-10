@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Godot;
 using Realm.Shared.Services;
+using Realm.Client.Services;
 
 namespace Realm.Client.Utils;
 
@@ -216,11 +217,11 @@ public static class TextureSwatchSlots
 			{
 				occupied[freeSlot] = true;
 				result[freeSlot] = new SwatchSlotInfo(freeSlot, pending.BaseName, pending.FileName, false, pending.Node);
-				GD.Print($"[TextureSwatchSlots] Assigned texture '{pending.FileName}' to free slot {freeSlot}.");
+				GameLog.LogToConsole($"[TextureSwatchSlots] Assigned texture '{pending.FileName}' to free slot {freeSlot}.");
 			}
 			else
 			{
-				GD.PrintErr($"[TextureSwatchSlots] Cannot assign texture '{pending.FileName}', maximum {MaxSlots} slots reached.");
+				GameLog.LogError($"[TextureSwatchSlots] Cannot assign texture '{pending.FileName}', maximum {MaxSlots} slots reached.");
 			}
 		}
 	}

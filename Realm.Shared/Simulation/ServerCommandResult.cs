@@ -6,13 +6,13 @@ namespace Realm.Shared.Simulation;
 public readonly struct ServerCommandResult
 {
 	public readonly bool NeedsBuildUnit;
-	public readonly string BuildUnitType;
+	public readonly string? BuildUnitType;
 	public readonly Vector3 BuildPosition;
 	public readonly int BuildPeerOwner;
 	public readonly int BuildWorkerServerEntityId;
 
 	public readonly bool NeedsSpellEffect;
-	public readonly string SpellId;
+	public readonly string? SpellId;
 	public readonly Vector3 SpellPosition;
 
 	public readonly List<int> StopVelocityEntityIds;
@@ -26,8 +26,8 @@ public readonly struct ServerCommandResult
 	public bool HasRejection => RejectedServerEntityIds.Count > 0 || !string.IsNullOrEmpty(RejectionReason);
 
 	public ServerCommandResult(
-		bool needsBuildUnit, string buildUnitType, Vector3 buildPosition, int buildPeerOwner, int buildWorkerServerEntityId,
-		bool needsSpellEffect, string spellId, Vector3 spellPosition,
+		bool needsBuildUnit, string? buildUnitType, Vector3 buildPosition, int buildPeerOwner, int buildWorkerServerEntityId,
+		bool needsSpellEffect, string? spellId, Vector3 spellPosition,
 		List<int> stopVelocityEntityIds, List<int> holdVelocityEntityIds,
 		List<int> rejectedServerEntityIds, string rejectionReason, bool wasAlreadyAnswered = false)
 	{

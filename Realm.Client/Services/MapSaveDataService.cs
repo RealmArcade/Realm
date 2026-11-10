@@ -10,14 +10,14 @@ public class MapSaveDataService
 	{
 		if (IsInvalidPathString(fileName))
 		{
-			GD.PrintErr($"[Sandbox block] Blocked invalid or traversal save file path: '{fileName}'");
+			GameLog.LogError($"[Sandbox block] Blocked invalid or traversal save file path: '{fileName}'");
 			return;
 		}
 
 		string mapNameOnly = GetMapNameOnly(mapName);
 		if (IsInvalidPathString(mapNameOnly))
 		{
-			GD.PrintErr($"[Sandbox block] Blocked invalid or traversal map name: '{mapName}'");
+			GameLog.LogError($"[Sandbox block] Blocked invalid or traversal map name: '{mapName}'");
 			return;
 		}
 
@@ -34,14 +34,14 @@ public class MapSaveDataService
 	{
 		if (IsInvalidPathString(fileName))
 		{
-			GD.PrintErr($"[Sandbox block] Blocked invalid or traversal save file path: '{fileName}'");
+			GameLog.LogError($"[Sandbox block] Blocked invalid or traversal save file path: '{fileName}'");
 			return string.Empty;
 		}
 
 		string mapNameOnly = GetMapNameOnly(mapName);
 		if (IsInvalidPathString(mapNameOnly))
 		{
-			GD.PrintErr($"[Sandbox block] Blocked invalid or traversal map name: '{mapName}'");
+			GameLog.LogError($"[Sandbox block] Blocked invalid or traversal map name: '{mapName}'");
 			return string.Empty;
 		}
 
@@ -109,7 +109,7 @@ public class MapSaveDataService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapSaveDataService] Failed to create backup before overwrite: {ex.Message}");
+			GameLog.LogError($"[MapSaveDataService] Failed to create backup before overwrite: {ex.Message}");
 		}
 	}
 }

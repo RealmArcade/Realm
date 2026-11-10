@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 
@@ -21,9 +21,9 @@ namespace Realm.Client.UI
 
 		public void UpdateFreeCameraExternal(bool isFreeCam)
 		{
-			if (_chkFreeCamera != null)
+			if (_cameraPanel.FreeCameraCheck != null)
 			{
-				_chkFreeCamera.SetPressedNoSignal(isFreeCam);
+				_cameraPanel.FreeCameraCheck.SetPressedNoSignal(isFreeCam);
 			}
 		}
 
@@ -31,11 +31,11 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.Host != null)
 			{
-				bool val = !GameContext.EditorService.EditorDisableShadows;
-				GameContext.EditorService.EditorDisableShadows = val;
+				bool val = !GameContext.EditorService.Tools.DisableShadows;
+				GameContext.EditorService.Tools.DisableShadows = val;
 				GameContext.Host.UpdateEditorShadows();
-				UpdateShadowsExternal(GameContext.EditorService.EditorDisableShadows);
-				ShowFeedback(GameContext.EditorService.EditorDisableShadows
+				UpdateShadowsExternal(GameContext.EditorService.Tools.DisableShadows);
+				ShowFeedback(GameContext.EditorService.Tools.DisableShadows
 					? TranslationServer.Translate("Shadows: OFF")
 					: TranslationServer.Translate("Shadows: ON"));
 			}
@@ -53,9 +53,9 @@ namespace Realm.Client.UI
 
 		public void UpdateCameraAngleButtonText(bool isTopDown)
 		{
-			if (_btnCameraAngle != null)
+			if (_cameraPanel.AngleButton != null)
 			{
-				_btnCameraAngle.Text = isTopDown
+				_cameraPanel.AngleButton.Text = isTopDown
 					? TranslationServer.Translate($"{UnicodeIcons.CUBE} Tilt (C)")
 					: TranslationServer.Translate($"{UnicodeIcons.CUBE} Top-Down (C)");
 			}
@@ -69,7 +69,7 @@ namespace Realm.Client.UI
 			UpdatePolarSubControlsVisibility(gridMode);
 			if (isRotational)
 			{
-				ExpandAccordion(_btnHeaderViewport, _contentViewport, "Viewport & Navigation");
+				ExpandAccordion(_viewportPanel.Header, _viewportPanel.Content, "Viewport & Navigation");
 			}
 		}
 	}

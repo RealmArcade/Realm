@@ -14,53 +14,53 @@ public partial class EnvironmentConfigDialog : FloatingDialogBase
 
 	private List<EnvironmentPresetConfig> _presets = new();
 	private int _selectedPresetIdx = 0;
-	private EnvironmentPresetConfig _activePreset;
+	private EnvironmentPresetConfig _activePreset = null!;
 	private List<EnvironmentPresetConfig> _initialSnapshots = new();
 	private string _defaultPresetId = "day";
 
-	private OptionButton _optPresetSelect;
-	private Button _btnAddPreset;
-	private Button _btnDuplicatePreset;
-	private Button _btnDeletePreset;
-	private Button _btnSetDefault;
-	private Button _btnResetDefaults;
-	private CheckBox _chkLivePreview;
+	private OptionButton _optPresetSelect = null!;
+	private Button _btnAddPreset = null!;
+	private Button _btnDuplicatePreset = null!;
+	private Button _btnDeletePreset = null!;
+	private Button _btnSetDefault = null!;
+	private Button _btnResetDefaults = null!;
+	private CheckBox _chkLivePreview = null!;
 
-	private LineEdit _txtName;
-	private LineEdit _txtId;
-	private Label _lblDefaultBadge;
+	private LineEdit _txtName = null!;
+	private LineEdit _txtId = null!;
+	private Label _lblDefaultBadge = null!;
 
-	private HSlider _sldSunPitch;
-	private HSlider _sldSunYaw;
-	private HSlider _sldSunEnergy;
-	private ColorPickerButton _cpSunColor;
-	private HSlider _sldShadowBias;
-	private HSlider _sldShadowNormalBias;
+	private HSlider _sldSunPitch = null!;
+	private HSlider _sldSunYaw = null!;
+	private HSlider _sldSunEnergy = null!;
+	private ColorPickerButton _cpSunColor = null!;
+	private HSlider _sldShadowBias = null!;
+	private HSlider _sldShadowNormalBias = null!;
 
-	private HSlider _sldAmbientEnergy;
-	private ColorPickerButton _cpAmbientColor;
-	private HSlider _sldCharacterFill;
+	private HSlider _sldAmbientEnergy = null!;
+	private ColorPickerButton _cpAmbientColor = null!;
+	private HSlider _sldCharacterFill = null!;
 
-	private CheckBox _chkFogEnabled;
-	private HSlider _sldFogDensity;
-	private ColorPickerButton _cpFogColor;
-	private HSlider _sldBaseFogDensity;
+	private CheckBox _chkFogEnabled = null!;
+	private HSlider _sldFogDensity = null!;
+	private ColorPickerButton _cpFogColor = null!;
+	private HSlider _sldBaseFogDensity = null!;
 
-	private CheckBox _chkSsaoEnabled;
-	private HSlider _sldSsaoRadius;
-	private HSlider _sldSsaoIntensity;
-	private HSlider _sldSsaoDetail;
+	private CheckBox _chkSsaoEnabled = null!;
+	private HSlider _sldSsaoRadius = null!;
+	private HSlider _sldSsaoIntensity = null!;
+	private HSlider _sldSsaoDetail = null!;
 
-	private HSlider _sldExposure;
-	private HSlider _sldContrast;
-	private HSlider _sldSaturation;
-	private HSlider _sldGlowIntensity;
-	private HSlider _sldGlowBloom;
-	private HSlider _sldGlowStrength;
+	private HSlider _sldExposure = null!;
+	private HSlider _sldContrast = null!;
+	private HSlider _sldSaturation = null!;
+	private HSlider _sldGlowIntensity = null!;
+	private HSlider _sldGlowBloom = null!;
+	private HSlider _sldGlowStrength = null!;
 
-	private OptionButton _optWeatherType;
-	private HSlider _sldRainDensity;
-	private LineEdit _txtAnnouncement;
+	private OptionButton _optWeatherType = null!;
+	private HSlider _sldRainDensity = null!;
+	private LineEdit _txtAnnouncement = null!;
 
 	public EnvironmentConfigDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("WEATHER & LIGHTING ENVIRONMENT PRESETS"), new Vector2(640, 700))
 	{

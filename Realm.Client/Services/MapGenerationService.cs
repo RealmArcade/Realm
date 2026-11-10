@@ -57,7 +57,7 @@ public class MapGenerationService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapGenerationService] Failed to start procedural generation: {exception}");
+			GameLog.LogError($"[MapGenerationService] Failed to start procedural generation: {exception}");
 			return FailRegistration(exception.Message);
 		}
 	}
@@ -98,7 +98,7 @@ public class MapGenerationService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapGenerationService] Procedural generation failed: {exception}");
+			GameLog.LogError($"[MapGenerationService] Procedural generation failed: {exception}");
 			_generator = null;
 			string failureMessage = string.Format(TranslationServer.Translate("Map generation failed: {0}"), exception.Message);
 			GameContext.IEditorAPI.ResetMapToBlank();
@@ -147,7 +147,7 @@ public class MapGenerationService
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapGenerationService] Terrain image import failed: {exception}");
+			GameLog.LogError($"[MapGenerationService] Terrain image import failed: {exception}");
 			GameContext.IEditorAPI.ResetMapToBlank();
 			string message = string.Format(TranslationServer.Translate("Terrain import failed: {0}"), exception.Message);
 			GameContext.MapEditorHud?.ShowFeedback(message);

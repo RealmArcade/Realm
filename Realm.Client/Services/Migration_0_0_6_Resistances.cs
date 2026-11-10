@@ -61,7 +61,7 @@ public class Migration_0_0_6_Resistances : IMapMigration
 			metadataRoot["GameBuildNumber"] = ToVersion;
 			MapJsonFormatter.SaveFormattedJson(metadataPath, metadataRoot);
 
-			Console.WriteLine($"[Migration_0_0_6] Converted {converted} of {total} units to the two-resistance model.");
+			GameLog.LogToConsole($"[Migration_0_0_6] Converted {converted} of {total} units to the two-resistance model.");
 			return new MigrationResult { Success = true, FromVersion = FromVersion, ToVersion = ToVersion };
 		}
 		catch (Exception exception)

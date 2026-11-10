@@ -34,12 +34,12 @@ public partial class AnnouncementsDialog : Control
 	private static readonly Color FailureColor = new(0.95f, 0.6f, 0.4f);
 	private static readonly Color BodyTextColor = new(0.88f, 0.85f, 0.78f);
 
-	private VBoxContainer _formBox;
-	private VBoxContainer _confirmationBox;
-	private LineEdit _nameEdit;
-	private LineEdit _emailEdit;
-	private Button _subscribeButton;
-	private Label _statusLabel;
+	private VBoxContainer _formBox = null!;
+	private VBoxContainer _confirmationBox = null!;
+	private LineEdit _nameEdit = null!;
+	private LineEdit _emailEdit = null!;
+	private Button _subscribeButton = null!;
+	private Label _statusLabel = null!;
 	private bool _busy;
 
 	[GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")]
@@ -68,14 +68,12 @@ public partial class AnnouncementsDialog : Control
 	private void BuildLayout()
 	{
 		var backdrop = new ColorRect { Name = "AnnouncementsDialogBackdrop", Color = new Color(0.02f, 0.02f, 0.04f, 0.82f) };
-		backdrop.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		backdrop.MouseFilter = MouseFilterEnum.Stop;
+		UIStyle.ConfigureModalBackdrop(backdrop);
 		backdrop.GuiInput += OnBackdropInput;
 		AddChild(backdrop);
 
 		var center = new CenterContainer { Name = "AnnouncementsDialogCenter" };
-		center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		center.MouseFilter = MouseFilterEnum.Ignore;
+		UIStyle.ConfigureModalContentLayer(center);
 		AddChild(center);
 
 		var card = new PanelContainer { Name = "AnnouncementsDialogCard" };
@@ -95,7 +93,7 @@ public partial class AnnouncementsDialog : Control
 		margin.AddChild(column);
 
 		var titleLabel = new Label { Name = "AnnouncementsDialogTitle" };
-		UIStyle.ApplyTitle(titleLabel, "FOLLOW REALM'S DEVELOPMENT", 28);
+		UIStyle.ApplyTitle(titleLabel, TranslationServer.Translate("FOLLOW REALM'S DEVELOPMENT"), 28);
 		titleLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		titleLabel.CustomMinimumSize = new Vector2(ContentWidth, 0);
 		titleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -128,8 +126,8 @@ public partial class AnnouncementsDialog : Control
 		_subscribeButton = new Button { Name = "AnnouncementsDialogSubscribeButton" };
 		_subscribeButton.CustomMinimumSize = new Vector2(0, 46);
 		_subscribeButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxes(_subscribeButton);
-		UIStyle.ApplyButtonText(_subscribeButton, "SUBSCRIBE", 17);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_subscribeButton);
+		UIStyle.ApplyButtonText(_subscribeButton, TranslationServer.Translate("SUBSCRIBE"), 17);
 		_subscribeButton.Pressed += StartSubscribe;
 		_subscribeButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_formBox.AddChild(_subscribeButton);
@@ -157,8 +155,8 @@ public partial class AnnouncementsDialog : Control
 		closeButton.CustomMinimumSize = new Vector2(CloseButtonWidth, 34);
 		closeButton.AddThemeConstantOverride("icon_max_width", 0);
 		closeButton.FocusMode = FocusModeEnum.None;
-		UIStyle.ApplyButtonStyleBoxes(closeButton);
-		UIStyle.ApplyButtonText(closeButton, "CLOSE", 14);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(closeButton);
+		UIStyle.ApplyButtonText(closeButton, TranslationServer.Translate("CLOSE"), 14);
 		closeButton.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		closeButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		closeButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);

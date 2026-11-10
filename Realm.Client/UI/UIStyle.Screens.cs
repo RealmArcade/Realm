@@ -1,0 +1,408 @@
+// Extracted from UIStyle.cs (task 7 role split: per-screen plates).
+using System;
+using System.Collections.Generic;
+using Godot;
+using SkiaSharp;
+using Realm.Client.Utils;
+using Realm.Client.Services;
+
+namespace Realm.Client.UI;
+
+public static partial class UIStyle
+{
+	/// <summary>The round plate behind a creator avatar that has no picture yet.</summary>
+	public static StyleBoxFlat CreateDiscoveryAvatarPlate(int size)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.08f, 0.09f, 0.12f, 0.9f);
+		style.BorderColor = ColorCyanGlowDim;
+		style.SetBorderWidthAll(2);
+		style.CornerRadiusTopLeft = size / 2;
+		style.CornerRadiusTopRight = size / 2;
+		style.CornerRadiusBottomLeft = size / 2;
+		style.CornerRadiusBottomRight = size / 2;
+		return style;
+	}
+
+	/// <summary>The plate behind a map thumbnail that has no picture yet.</summary>
+	public static StyleBoxFlat CreateDiscoveryThumbnailPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.06f, 0.07f, 0.09f, 0.95f);
+		style.BorderColor = new Color(0.25f, 0.27f, 0.32f);
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(6);
+		return style;
+	}
+
+	/// <summary>A discovery card. The two screens that draw one want the same shape in different colours.</summary>
+	public static StyleBoxFlat CreateDiscoveryCard(Color bgColor, Color borderColor)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = bgColor;
+		style.BorderColor = borderColor;
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(8);
+		style.ContentMarginLeft = 18;
+		style.ContentMarginRight = 18;
+		style.ContentMarginTop = 14;
+		style.ContentMarginBottom = 14;
+		return style;
+	}
+
+	/// <summary>The discovery screen's top bar: bronze rule along the bottom only.</summary>
+	public static StyleBoxFlat CreateDiscoveryHeaderPanel()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.08f, 0.09f, 0.11f, 0.95f);
+		style.BorderColor = ColorBronze;
+		style.BorderWidthBottom = 2;
+		style.ContentMarginLeft = 20;
+		style.ContentMarginRight = 20;
+		style.ContentMarginTop = 12;
+		style.ContentMarginBottom = 12;
+		return style;
+	}
+
+	/// <summary>The gold-edged label that marks a greenlit creator or asset.</summary>
+	public static StyleBoxFlat CreateDiscoveryBadge()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.18f, 0.15f, 0.10f, 0.9f);
+		style.BorderColor = ColorGoldDull;
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(4);
+		style.ContentMarginLeft = 8;
+		style.ContentMarginRight = 8;
+		style.ContentMarginTop = 4;
+		style.ContentMarginBottom = 4;
+		return style;
+	}
+
+	/// <summary>The cyan pill that carries a creator's play time.</summary>
+	public static StyleBoxFlat CreateDiscoveryChip()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.10f, 0.18f, 0.24f, 0.7f);
+		style.BorderColor = ColorCyanGlowDim;
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(10);
+		style.ContentMarginLeft = 10;
+		style.ContentMarginRight = 10;
+		style.ContentMarginTop = 4;
+		style.ContentMarginBottom = 4;
+		return style;
+	}
+
+	/// <summary>
+	/// One of the nine-slice artwork plates a screen draws its panels and cards with: the texture is stretched whole and
+	/// the content is inset by the given amounts, which is what every map discovery plate does.
+	/// </summary>
+	public static StyleBoxTexture CreateArtworkPlate(string texturePath, int left, int right, int top, int bottom, int textureMargin = 0)
+	{
+		var style = new StyleBoxTexture();
+		style.Texture = TrimmedTextureLoader.LoadTrimmedTexture(texturePath);
+		style.TextureMarginLeft = textureMargin;
+		style.TextureMarginRight = textureMargin;
+		style.TextureMarginTop = textureMargin;
+		style.TextureMarginBottom = textureMargin;
+		style.ContentMarginLeft = left;
+		style.ContentMarginRight = right;
+		style.ContentMarginTop = top;
+		style.ContentMarginBottom = bottom;
+		return style;
+	}
+
+	/// <summary>
+	/// The full-screen backdrop: the first artwork that loads, and the plain gradient when none of them do. The caller
+	/// passes its own preference order.
+	/// </summary>
+	public static void ApplyScreenBackground(Panel panel, params string[] texturePaths)
+	{
+		foreach (var path in texturePaths)
+		{
+			if (!ResourceLoader.Exists(path)) continue;
+
+			var texture = TrimmedTextureLoader.LoadTrimmedTexture(path);
+			if (texture == null) continue;
+
+			panel.AddThemeStyleboxOverride("panel", new StyleBoxTexture { Texture = texture });
+			panel.TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps;
+			return;
+		}
+
+		panel.AddThemeStyleboxOverride("panel", CreateBgGradient());
+	}
+
+	/// <summary>
+	/// An artwork button whose three states are the same plate tinted brighter, then brighter still, then dimmer, plus
+	/// the content inset those plates carry.
+	/// </summary>
+	public static void ApplyTintedArtworkButton(Button button, string texturePath, Color normalTint, Color hoverTint, Color pressedTint,
+		int left = 16, int right = 16, int top = 18, int bottom = 14)
+	{
+		var normal = CreateArtworkPlate(texturePath, left, right, top, bottom);
+		normal.ModulateColor = normalTint;
+
+		var hover = (StyleBoxTexture)normal.Duplicate();
+		hover.ModulateColor = hoverTint;
+
+		var pressed = (StyleBoxTexture)normal.Duplicate();
+		pressed.ModulateColor = pressedTint;
+
+		button.AddThemeStyleboxOverride("normal", normal);
+		button.AddThemeStyleboxOverride("hover", hover);
+		button.AddThemeStyleboxOverride("pressed", pressed);
+	}
+
+	/// <summary>The plate the lobby setup screen's briefing text sits in, roomier than the plain backdrop.</summary>
+	public static StyleBox CreateBriefingTextPlate()
+	{
+		var style = (StyleBoxFlat)CreateBackdropPanel();
+		style.ContentMarginLeft = 24;
+		style.ContentMarginRight = 24;
+		style.ContentMarginTop = 20;
+		style.ContentMarginBottom = 20;
+		return style;
+	}
+
+	/// <summary>The strip above the player list that names the map being hosted.</summary>
+	public static StyleBoxFlat CreateLobbyMapNamePlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.5f);
+		style.BorderColor = new Color(0.25f, 0.25f, 0.3f, 0.4f);
+		style.SetBorderWidthAll(1);
+		return style;
+	}
+
+	/// <summary>The recessed log the lobby chat writes into, inset so the text clears the artwork's edges.</summary>
+	public static StyleBoxFlat CreateLobbyChatLogPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.08f, 0.08f, 0.1f, 0.7f);
+		style.BorderColor = new Color(0.2f, 0.2f, 0.25f, 0.3f);
+		style.SetBorderWidthAll(1);
+		style.ContentMarginLeft = 50;
+		style.ContentMarginRight = 50;
+		style.ContentMarginTop = 8;
+		style.ContentMarginBottom = 8;
+		return style;
+	}
+
+	/// <summary>
+	/// The chat entry field, which is the shared text input with wider side padding so it lines up under the log above
+	/// it, and the same padding again while it holds focus.
+	/// </summary>
+	public static StyleBoxFlat CreateLobbyChatInput(bool isFocused)
+	{
+		var style = CreateTextInput(isFocused);
+		style.ContentMarginLeft = 14;
+		style.ContentMarginRight = 14;
+		return style;
+	}
+
+	/// <summary>One seat in the lobby room's player list: a barely-there plate with a hairline rule.</summary>
+	public static StyleBoxFlat CreateLobbyPlayerRowPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.3f);
+		style.BorderColor = new Color(0.2f, 0.2f, 0.25f, 0.2f);
+		style.SetBorderWidthAll(1);
+		style.ContentMarginLeft = 8;
+		style.ContentMarginRight = 8;
+		style.ContentMarginTop = 0;
+		style.ContentMarginBottom = 0;
+		return style;
+	}
+
+	/// <summary>
+	/// The seat colour swatch. All three states share one plate, because the swatch is a single flat colour and the
+	/// button never redraws itself differently while hovered or held.
+	/// </summary>
+	public static void ApplySeatColorSwatch(Button button, Color color)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = color;
+		style.BorderColor = new Color(0.4f, 0.4f, 0.45f);
+		style.SetBorderWidthAll(2);
+		style.SetCornerRadiusAll(4);
+
+		button.AddThemeStyleboxOverride("normal", style);
+		button.AddThemeStyleboxOverride("hover", style);
+		button.AddThemeStyleboxOverride("pressed", style);
+	}
+
+	/// <summary>The lit plate under the replay viewer's current playback speed.</summary>
+	public static StyleBoxFlat CreateReplaySpeedActivePlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = ColorCyanGlow;
+		style.BorderColor = ColorGold;
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(4);
+		return style;
+	}
+
+	/// <summary>The raised, gold-rimmed plate under the game-over screen's selected tab.</summary>
+	public static StyleBoxFlat CreateGameOverTabActive()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.18f, 0.19f, 0.23f, 0.95f);
+		style.BorderColor = ColorGold;
+		style.SetBorderWidthAll(2);
+		style.CornerRadiusTopLeft = 4;
+		style.CornerRadiusTopRight = 4;
+		return style;
+	}
+
+	/// <summary>
+	/// The game-over tabs sit on the table frame, so their lower corners are squared off and only the top ones stay
+	/// rounded; this is the unselected plate and the hovered one, built from the standard button plates.
+	/// </summary>
+	public static StyleBox CreateGameOverTabNormal(bool isHover = false)
+	{
+		var style = isHover ? CreateButtonHover() : CreateButtonNormal();
+		if (style is StyleBoxFlat flat)
+		{
+			flat.CornerRadiusBottomLeft = 0;
+			flat.CornerRadiusBottomRight = 0;
+		}
+
+		return style;
+	}
+
+	/// <summary>
+	/// The plate behind a unit button's health bar. It carries no colour of its own: the portrait panel rewrites the fill
+	/// as the unit's health changes, so one instance per button lasts the whole match.
+	/// </summary>
+	public static StyleBoxFlat CreateUnitHealthFill()
+	{
+		return new StyleBoxFlat();
+	}
+
+	/// <summary>The bronze-ruled bar a shortcut group is named under in the hotkey reference.</summary>
+	public static StyleBoxFlat CreateHotkeyGroupHeaderPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.18f, 0.16f, 0.14f, 0.85f);
+		style.BorderColor = new Color(0.6f, 0.5f, 0.35f, 0.5f);
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(3);
+		style.ContentMarginLeft = 6;
+		style.ContentMarginRight = 6;
+		style.ContentMarginTop = 3;
+		style.ContentMarginBottom = 3;
+		return style;
+	}
+
+	/// <summary>
+	/// The plate behind one shortcut row. Rows alternate between two tints so a long group stays readable, so the tint is
+	/// chosen here from the row index rather than picked at the call site.
+	/// </summary>
+	public static StyleBoxFlat CreateHotkeyRowPlate(int rowIndex)
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = (rowIndex % 2 == 0)
+			? new Color(0.12f, 0.13f, 0.15f, 0.35f)
+			: new Color(0.06f, 0.07f, 0.08f, 0.15f);
+		style.SetCornerRadiusAll(2);
+		style.ContentMarginLeft = 4;
+		style.ContentMarginRight = 4;
+		style.ContentMarginTop = 2;
+		style.ContentMarginBottom = 2;
+		return style;
+	}
+
+	/// <summary>The steel-ruled plate behind a key name in the hotkey reference.</summary>
+	public static StyleBoxFlat CreateHotkeyKeyPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.08f, 0.10f, 0.14f, 0.85f);
+		style.BorderColor = new Color(0.35f, 0.45f, 0.55f, 0.5f);
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(3);
+		style.ContentMarginLeft = 4;
+		style.ContentMarginRight = 4;
+		style.ContentMarginTop = 1;
+		style.ContentMarginBottom = 1;
+		return style;
+	}
+
+	/// <summary>The drop shadow behind the settings menu's light stone frame.</summary>
+	public static StyleBoxFlat CreateSettingsWindowShadow()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0, 0, 0, 0);
+		style.ShadowColor = new Color(0, 0, 0, 0.7f);
+		style.ShadowSize = 24;
+		style.ShadowOffset = new Vector2(0, 14);
+		style.SetCornerRadiusAll(25);
+		return style;
+	}
+
+	/// <summary>The dark plate behind the settings menu's window title.</summary>
+	public static StyleBoxFlat CreateSettingsTitlePlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.24f, 0.21f, 0.18f, 1.0f);
+		style.BorderColor = new Color(0.45f, 0.40f, 0.32f, 1.0f);
+		style.SetBorderWidthAll(3);
+		style.SetCornerRadiusAll(8);
+		style.ShadowColor = new Color(0, 0, 0, 0.75f);
+		style.ShadowSize = 12;
+		style.ShadowOffset = new Vector2(0, 6);
+		return style;
+	}
+
+	/// <summary>The recessed plate inside the settings menu's window title.</summary>
+	public static StyleBoxFlat CreateSettingsTitleInnerPlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.18f, 0.16f, 0.14f, 1.0f);
+		style.BorderColor = new Color(0.82f, 0.72f, 0.50f, 0.5f);
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(5);
+		return style;
+	}
+
+	/// <summary>The plate behind a settings section title ("VIDEO", "AUDIO", ...).</summary>
+	public static StyleBoxFlat CreateSettingsSectionHeader()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
+		style.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(4);
+		style.ContentMarginLeft = 14;
+		style.ContentMarginRight = 14;
+		style.ContentMarginTop = 8;
+		style.ContentMarginBottom = 8;
+		return style;
+	}
+
+	/// <summary>The plate behind a settings row's current value.</summary>
+	public static StyleBoxFlat CreateSettingsValuePlate()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
+		style.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(4);
+		style.ContentMarginLeft = 6;
+		style.ContentMarginRight = 6;
+		style.ContentMarginTop = 2;
+		style.ContentMarginBottom = 2;
+		return style;
+	}
+
+	/// <summary>The rule between settings sections. Thicker and greyer than <see cref="CreateHairlineSeparator"/>.</summary>
+	public static StyleBoxFlat CreateSettingsSeparator()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = new Color(0.42f, 0.38f, 0.33f, 0.6f);
+		style.ContentMarginTop = 1;
+		style.ContentMarginBottom = 1;
+		return style;
+	}
+}

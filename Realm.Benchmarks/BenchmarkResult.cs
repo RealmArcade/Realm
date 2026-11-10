@@ -1,6 +1,6 @@
 namespace Realm.Benchmarks;
 
-public sealed record BenchmarkResult(
+public record BenchmarkResult(
 	int Units,
 	int Players,
 	int Workers,

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -26,7 +26,7 @@ public class MetadataService
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
-	public static string ResolveMetadataPath(string pathOrDirectory)
+	public static string ResolveMetadataPath(string? pathOrDirectory)
 	{
 		if (string.IsNullOrWhiteSpace(pathOrDirectory))
 		{
@@ -93,11 +93,11 @@ public class MetadataService
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MetadataService] Failed saving metadata to {targetPath}: {ex.Message}");
+			GameLog.LogError($"[MetadataService] Failed saving metadata to {targetPath}: {ex.Message}");
 		}
 	}
 
-	public void UpdateMetadata(string pathOrDirectory, Action<MapMetadata> updateAction)
+	public void UpdateMetadata(string? pathOrDirectory, Action<MapMetadata> updateAction)
 	{
 		if (updateAction == null) return;
 
@@ -130,7 +130,7 @@ public class MetadataService
 		return result;
 	}
 
-	private static void ValidateEntityList<T>(IEnumerable<T> items, Func<T, string> getId, Func<T, float> getScale, string domainName, MapValidationResult result, HashSet<string> entityIds)
+	private static void ValidateEntityList<T>(IEnumerable<T>? items, Func<T, string> getId, Func<T, float> getScale, string domainName, MapValidationResult result, HashSet<string> entityIds)
 	{
 		if (items == null) return;
 		foreach (var item in items)
@@ -190,7 +190,7 @@ public class MetadataService
 		}
 	}
 
-	private static void ValidatePlayerSlots(List<MapPlayerSlotConfig> playerSlots, MapValidationResult result)
+	private static void ValidatePlayerSlots(List<MapPlayerSlotConfig>? playerSlots, MapValidationResult result)
 	{
 		if (playerSlots == null) return;
 

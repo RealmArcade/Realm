@@ -10,7 +10,7 @@ public class MapEditorTopBar
 	private Button _btnLoad;
 	private Button _btnUndo;
 	private Button _btnRedo;
-	private Button _btnVSCode;
+	private Button _btnVSCode = null!;
 	private Label _statusLabel;
 	private Label _feedbackLabel;
 
@@ -40,7 +40,7 @@ public class MapEditorTopBar
 		}
 	}
 
-	private string _lastStatusText = null;
+	private string? _lastStatusText;
 	private readonly ThrottledLabelWidth _statusLabelWidth = new();
 
 	public void Update(MapEditorHUDViewModel viewModel)

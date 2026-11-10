@@ -156,6 +156,10 @@ public static class AttributeStatCalculator
 		return new UnitAttributes(str, agi, vit, intel, wis, fort);
 	}
 
+	/// <summary>
+	///     Collects the four modifier kinds that apply to one stat, so a single pass can fold flat, additive-percent,
+	///     multiplicative-percent and formula bonuses into the value the rest of the calculation reads.
+	/// </summary>
 	private struct StatAccumulator
 	{
 		public float Flat;

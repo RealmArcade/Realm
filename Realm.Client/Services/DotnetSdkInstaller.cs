@@ -66,29 +66,29 @@ public static class DotnetSdkInstaller
 
 		try
 		{
-			GD.Print($"[DotnetSdkInstaller] .NET SDK not found. Downloading the map compiler into {managedDirectory}.");
+			GameLog.LogToConsole($"[DotnetSdkInstaller] .NET SDK not found. Downloading the map compiler into {managedDirectory}.");
 			Directory.CreateDirectory(downloadDirectory);
 			await DownloadInstallScriptAsync(installScriptPath);
 
 			if (!RunInstallScript(installScriptPath, managedDirectory))
 			{
-				GD.PrintErr("[DotnetSdkInstaller] The .NET SDK installer did not finish successfully. Map scripts stay uncompilable until it is installed.");
+				GameLog.LogError("[DotnetSdkInstaller] The .NET SDK installer did not finish successfully. Map scripts stay uncompilable until it is installed.");
 				return false;
 			}
 
 			if (!DotnetSdkResolver.IsSdkAvailable())
 			{
-				GD.PrintErr($"[DotnetSdkInstaller] The .NET SDK install completed but {DotnetSdkResolver.GetManagedExecutablePath()} is missing.");
+				GameLog.LogError($"[DotnetSdkInstaller] The .NET SDK install completed but {DotnetSdkResolver.GetManagedExecutablePath()} is missing.");
 				return false;
 			}
 
 			DotnetSdkResolver.PrependManagedDirectoryToProcessPath();
-			GD.Print($"[DotnetSdkInstaller] .NET SDK installed at {DotnetSdkResolver.GetManagedExecutablePath()}");
+			GameLog.LogToConsole($"[DotnetSdkInstaller] .NET SDK installed at {DotnetSdkResolver.GetManagedExecutablePath()}");
 			return true;
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[DotnetSdkInstaller] Failed to install the .NET SDK: {ex.Message}");
+			GameLog.LogError($"[DotnetSdkInstaller] Failed to install the .NET SDK: {ex.Message}");
 			return false;
 		}
 		finally
@@ -120,11 +120,11 @@ public static class DotnetSdkInstaller
 
 		installProcess.OutputDataReceived += (sender, eventArguments) =>
 		{
-			if (!string.IsNullOrEmpty(eventArguments.Data)) GD.Print("[dotnet-install] " + eventArguments.Data);
+			if (!string.IsNullOrEmpty(eventArguments.Data)) GameLog.LogToConsole("[dotnet-install] " + eventArguments.Data);
 		};
 		installProcess.ErrorDataReceived += (sender, eventArguments) =>
 		{
-			if (!string.IsNullOrEmpty(eventArguments.Data)) GD.PrintErr("[dotnet-install error] " + eventArguments.Data);
+			if (!string.IsNullOrEmpty(eventArguments.Data)) GameLog.LogError("[dotnet-install error] " + eventArguments.Data);
 		};
 
 		installProcess.Start();
@@ -133,7 +133,7 @@ public static class DotnetSdkInstaller
 
 		if (!installProcess.WaitForExit(InstallTimeoutMs))
 		{
-			GD.PrintErr($"[DotnetSdkInstaller] The .NET SDK installer did not finish within {InstallTimeoutMs / 60000} minutes and was stopped.");
+			GameLog.LogError($"[DotnetSdkInstaller] The .NET SDK installer did not finish within {InstallTimeoutMs / 60000} minutes and was stopped.");
 			try
 			{
 				installProcess.Kill(entireProcessTree: true);
@@ -159,7 +159,7 @@ public static class DotnetSdkInstaller
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[DotnetSdkInstaller] Failed to clean up '{directoryPath}': {ex.Message}");
+			GameLog.LogError($"[DotnetSdkInstaller] Failed to clean up '{directoryPath}': {ex.Message}");
 		}
 	}
 

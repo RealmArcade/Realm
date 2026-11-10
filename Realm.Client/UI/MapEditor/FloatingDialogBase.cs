@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using Fastenshtein;
@@ -21,6 +22,7 @@ public partial class FloatingDialogBase : PanelContainer
 	}
 
 	private static readonly List<FloatingDialogBase> _openDialogs = new();
+	private readonly List<LineEdit> _focusableInputs = new();
 	public static bool HasAnyDialogOpen => _openDialogs.Count > 0;
 
 	public static bool IsMouseOverAnyDialogOpen(Vector2 mousePos)
@@ -66,16 +68,24 @@ public partial class FloatingDialogBase : PanelContainer
 		_openDialogs.Add(this);
 	}
 
-	protected readonly MapEditorHUD Hud;
-	protected VBoxContainer MainVBox;
-	protected HBoxContainer HeaderHBox;
-	protected Label TitleLabel;
-	protected Button CloseButton;
-	protected VBoxContainer BodyContainer;
-	protected HBoxContainer FooterHBox;
-	protected Button CancelButton;
-	protected Button ApplyButton;
-	protected Button RandomizeAssetsButton;
+	/// <summary>
+	/// The map editor this dialog was opened from. It is optional: a dialog can be built and
+	/// inspected without a live editor, which is how the UI tests exercise them. Actions that
+	/// genuinely need the editor go through <see cref="RequireHud"/> so a missing editor is
+	/// reported by name instead of as a null dereference somewhere further down.
+	/// </summary>
+	protected readonly MapEditorHUD? Hud;
+
+	protected MapEditorHUD RequireHud => Hud ?? throw new InvalidOperationException($"{GetType().Name} needs a live map editor for this action.");
+	protected VBoxContainer MainVBox = null!;
+	protected HBoxContainer HeaderHBox = null!;
+	protected Label TitleLabel = null!;
+	protected Button CloseButton = null!;
+	protected VBoxContainer BodyContainer = null!;
+	protected HBoxContainer FooterHBox = null!;
+	protected Button CancelButton = null!;
+	protected Button ApplyButton = null!;
+	protected Button RandomizeAssetsButton = null!;
 
 	private bool _isDragging;
 	private Vector2 _dragStartMousePosition;
@@ -83,7 +93,7 @@ public partial class FloatingDialogBase : PanelContainer
 
 	public bool IsOpen => Visible && GetParent() != null;
 
-	public FloatingDialogBase(MapEditorHUD hud, string titleText, Vector2 minSize)
+	public FloatingDialogBase(MapEditorHUD? hud, string titleText, Vector2 minSize)
 	{
 		Name = GetType().Name;
 		Hud = hud;
@@ -263,9 +273,7 @@ public partial class FloatingDialogBase : PanelContainer
 			}
 
 			RandomizeAssetsButton.AddThemeFontSizeOverride("font_size", 11);
-			RandomizeAssetsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			RandomizeAssetsButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			RandomizeAssetsButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+			UIStyle.ApplyButtonStyleBoxes(RandomizeAssetsButton);
 			RandomizeAssetsButton.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 
 			BodyContainer.AddChild(RandomizeAssetsButton);
@@ -296,12 +304,12 @@ public partial class FloatingDialogBase : PanelContainer
 		FooterHBox.Alignment = BoxContainer.AlignmentMode.Center;
 	}
 
-	protected TextureRect BackgroundTextureRect;
-	protected MarginContainer DialogMarginContainer;
+	protected TextureRect BackgroundTextureRect = null!;
+	protected MarginContainer DialogMarginContainer = null!;
 
 	public void SetUncompressedPanelTexture(string texturePath, int marginTop = 30, int marginBottom = 40, int marginLeft = 50, int marginRight = 50)
 	{
-		AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		UIStyle.ClearPanelBackground(this);
 
 		if (BackgroundTextureRect == null)
 		{
@@ -364,7 +372,8 @@ public partial class FloatingDialogBase : PanelContainer
 
 	private void CycleFocusToNextInput(bool reverse)
 	{
-		var inputs = new List<LineEdit>();
+		List<LineEdit> inputs = _focusableInputs;
+		inputs.Clear();
 		CollectFocusableInputs(this, inputs);
 		if (inputs.Count == 0) return;
 
@@ -543,1243 +552,8 @@ public partial class FloatingDialogBase : PanelContainer
 		}
 	}
 
-	public Label AddSectionHeader(Control parent, string titleText, Color? color = null)
-	{
-		var header = new Label();
-		header.Name = "Header_Label";
-		header.Text = titleText;
-		header.AddThemeColorOverride("font_color", color ?? UIStyle.ColorGold);
-		header.AddThemeFontSizeOverride("font_size", 12);
-		parent.AddChild(header);
-		return header;
-	}
 
-	public Label AddLabel(Control parent, string text, int fontSize = 11, Color? color = null)
-	{
-		var label = new Label();
-		label.Name = "Label_Label";
-		label.Text = text;
-		label.AddThemeFontSizeOverride("font_size", fontSize);
-		if (color.HasValue)
-		{
-			label.AddThemeColorOverride("font_color", color.Value);
-		}
 
-		parent.AddChild(label);
-		return label;
-	}
-
-	public Label AddDescription(Control parent, string text)
-	{
-		var desc = new Label();
-		desc.Name = "Desc_Label";
-		desc.Text = text;
-		desc.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		desc.AddThemeFontSizeOverride("font_size", 11);
-		desc.AutowrapMode = TextServer.AutowrapMode.Word;
-		desc.CustomMinimumSize = new Vector2(360, 0);
-		desc.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		parent.AddChild(desc);
-		return desc;
-	}
-
-	public (HSlider Slider, Label ValueLabel) AddSlider(
-		VBoxContainer parent,
-		string labelText,
-		float min,
-		float max,
-		float step,
-		float initialValue,
-		Action<float> onChanged,
-		string format = "0.00",
-		float labelWidth = 110.0f)
-	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
-
-		var lbl = new Label();
-		lbl.Name = "Lbl_Label";
-		lbl.Text = labelText;
-		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
-		lbl.AddThemeFontSizeOverride("font_size", 11);
-		row.AddChild(lbl);
-
-		var slider = new HSlider();
-		slider.Name = "Slider_HSlider";
-		slider.MinValue = min;
-		slider.MaxValue = max;
-		slider.Step = step;
-		slider.Value = initialValue;
-		slider.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		row.AddChild(slider);
-
-		var valLbl = new Label();
-		valLbl.Name = "ValLbl_Label";
-		valLbl.Text = initialValue.ToString(format);
-		valLbl.CustomMinimumSize = new Vector2(45, 0);
-		valLbl.AddThemeFontSizeOverride("font_size", 11);
-		row.AddChild(valLbl);
-
-		slider.ValueChanged += (double val) =>
-		{
-			valLbl.Text = ((float)val).ToString(format);
-			onChanged((float)val);
-		};
-
-		parent.AddChild(row);
-		return (slider, valLbl);
-	}
-
-	public HBoxContainer BuildIdentityRow(Control parent, string prefixText, out Label prefixLabel)
-	{
-		var rowId = new HBoxContainer();
-		rowId.Name = "RowId_HBoxContainer";
-		rowId.AddThemeConstantOverride("separation", 6);
-		var lblId = new Label();
-		lblId.Name = "LblId_Label";
-		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(140, 0);
-		lblId.AddThemeFontSizeOverride("font_size", 11);
-		rowId.AddChild(lblId);
-
-		prefixLabel = new Label();
-		prefixLabel.Name = "LblObjectTypePrefix_Label";
-		prefixLabel.Text = prefixText;
-		prefixLabel.AddThemeFontSizeOverride("font_size", 11);
-		prefixLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		rowId.AddChild(prefixLabel);
-
-		parent.AddChild(rowId);
-		return rowId;
-	}
-
-	public (ColorPickerButton Picker, HSlider HueSlider) AddColorPicker(
-		VBoxContainer parent,
-		string labelText,
-		Color initialColor,
-		Action<Color> onChanged,
-		float labelWidth = 110.0f)
-	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
-
-		var lbl = new Label();
-		lbl.Name = "Lbl_Label";
-		lbl.Text = labelText;
-		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
-		lbl.AddThemeFontSizeOverride("font_size", 11);
-		row.AddChild(lbl);
-
-		var hueSlider = new HSlider();
-		hueSlider.Name = "HueSlider_HSlider";
-		hueSlider.MinValue = 0.0f;
-		hueSlider.MaxValue = 1.0f;
-		hueSlider.Step = 0.01f;
-		hueSlider.SetValueNoSignal(initialColor.H);
-		hueSlider.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		row.AddChild(hueSlider);
-
-		var picker = new ColorPickerButton();
-		picker.CustomMinimumSize = new Vector2(36, 22);
-		picker.EditAlpha = true;
-		picker.Color = initialColor;
-		row.AddChild(picker);
-
-		bool isInternalSync = false;
-
-		hueSlider.ValueChanged += (double val) =>
-		{
-			if (isInternalSync) return;
-			isInternalSync = true;
-			try
-			{
-				float s = picker.Color.S > 0.01f ? picker.Color.S : 0.85f;
-				float v = picker.Color.V > 0.01f ? picker.Color.V : 1.0f;
-				Color tintColor = Color.FromHsv((float)val, s, v, picker.Color.A);
-				picker.Color = tintColor;
-				onChanged(tintColor);
-			}
-			finally
-			{
-				isInternalSync = false;
-			}
-		};
-
-		picker.ColorChanged += (Color color) =>
-		{
-			if (isInternalSync) return;
-			isInternalSync = true;
-			try
-			{
-				hueSlider.SetValueNoSignal(color.H);
-				onChanged(color);
-			}
-			finally
-			{
-				isInternalSync = false;
-			}
-		};
-
-		parent.AddChild(row);
-		return (picker, hueSlider);
-	}
-
-	public CheckBox AddCheckBox(
-		VBoxContainer parent,
-		string labelText,
-		bool initialValue,
-		Action<bool> onChanged,
-		string tooltip = "")
-	{
-		var chk = new CheckBox();
-		chk.Name = "Chk_CheckBox";
-		chk.Text = labelText;
-		chk.ButtonPressed = initialValue;
-		chk.AddThemeFontSizeOverride("font_size", 11);
-		if (!string.IsNullOrEmpty(tooltip)) chk.TooltipText = tooltip;
-		chk.Toggled += (pressed) => onChanged(pressed);
-		parent.AddChild(chk);
-		return chk;
-	}
-
-	public OptionButton AddOptionDropdown(
-		VBoxContainer parent,
-		string labelText,
-		string[] options,
-		int initialIndex,
-		Action<int> onChanged,
-		float labelWidth = 110.0f)
-	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
-
-		var lbl = new Label();
-		lbl.Name = "Lbl_Label";
-		lbl.Text = labelText;
-		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
-		lbl.AddThemeFontSizeOverride("font_size", 11);
-		row.AddChild(lbl);
-
-		var opt = new OptionButton();
-		opt.Name = "Opt_OptionButton";
-		opt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		opt.AddThemeFontSizeOverride("font_size", 11);
-		for (int i = 0; i < options.Length; i++)
-		{
-			opt.AddItem(options[i], i);
-		}
-
-		if (initialIndex >= 0 && initialIndex < options.Length)
-		{
-			opt.Selected = initialIndex;
-		}
-
-		opt.ItemSelected += (long idx) => onChanged((int)idx);
-		row.AddChild(opt);
-
-		parent.AddChild(row);
-		return opt;
-	}
-
-	public (ItemList, LineEdit, Action<string>) AddAssetRuleList(
-		VBoxContainer contentVBox,
-		string itemName,
-		string assetFilterType,
-		string translationKeyId,
-		ItemList.ItemSelectedEventHandler onItemSelected,
-		Action onAddAction,
-		Action onRemoveAction)
-	{
-		var listRow = new HBoxContainer();
-		listRow.Name = $"{itemName}ListRow_HBoxContainer";
-		var list = new ItemList { CustomMinimumSize = new Vector2(240, 75), SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		list.ItemSelected += onItemSelected;
-		listRow.AddChild(list);
-
-		var btnBox = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		var filterResult = AddAssetFilterDropdown(
-			btnBox, string.Empty, string.Empty, (all) => ScanAvailableAssets(assetFilterType, all), (val) => { }, TranslationServer.Translate(translationKeyId), 0f);
-		
-		var txtId = filterResult.Input;
-		var setIdValue = filterResult.SetValue;
-
-		var btnAdd = new Button { Text = "+ " + TranslationServer.Translate($"Add {itemName}") };
-		btnAdd.Set("icon_max_width", 0);
-		btnAdd.Pressed += onAddAction;
-		btnBox.AddChild(btnAdd);
-
-		var btnRemove = new Button { Text = "✕ " + TranslationServer.Translate("Remove") };
-		btnRemove.Set("icon_max_width", 0);
-		btnRemove.Pressed += onRemoveAction;
-		btnBox.AddChild(btnRemove);
-
-		listRow.AddChild(btnBox);
-		contentVBox.AddChild(listRow);
-
-		return (list, txtId, setIdValue);
-	}
-
-	public LineEdit AddTextInput(
-		VBoxContainer parent,
-		string labelText,
-		string initialText,
-		Action<string> onChanged,
-		string placeholder = "",
-		float labelWidth = 110.0f)
-	{
-		var row = BuildNameRow(labelText, initialText, onChanged, placeholder, labelWidth);
-		parent.AddChild(row);
-		return (LineEdit)row.GetChild(1);
-	}
-
-	public static HBoxContainer BuildNameRow(
-		string labelText,
-		string? initialText,
-		Action<string> onChanged,
-		string placeholder = "",
-		float labelWidth = 110.0f)
-	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
-
-		var lbl = new Label();
-		lbl.Name = "Lbl_Label";
-		lbl.Text = labelText;
-		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
-		lbl.AddThemeFontSizeOverride("font_size", 11);
-		row.AddChild(lbl);
-
-		var txt = new LineEdit();
-		txt.Name = "Txt_LineEdit";
-		txt.Text = initialText ?? string.Empty;
-		if (!string.IsNullOrEmpty(placeholder)) txt.PlaceholderText = placeholder;
-		txt.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		UIStyle.ApplyTextInput(txt, 11);
-		txt.TextChanged += (newText) => onChanged?.Invoke(newText);
-		row.AddChild(txt);
-
-		return row;
-	}
-
-	public (LineEdit Edit, Action<float> SetValue) AddNumberInput(
-		VBoxContainer parent,
-		string labelText,
-		float initialValue,
-		Action<float> onChanged,
-		float step = 0.5f,
-		string placeholder = "",
-		float labelWidth = 110.0f)
-	{
-		var row = BuildNameRow(labelText, initialValue.ToString("0.##"), (val) =>
-		{
-			if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed))
-			{
-				onChanged(parsed);
-			}
-		}, placeholder, labelWidth);
-
-		parent.AddChild(row);
-		var txt = (LineEdit)row.GetChild(1);
-		return (txt, (val) => txt.Text = val.ToString("0.##"));
-	}
-
-	public (LineEdit X, LineEdit Y, LineEdit Z) AddVector3Input(
-		VBoxContainer parent,
-		string labelText,
-		Vector3Data initialValue,
-		Action<Vector3Data> onChanged,
-		float labelWidth = 110.0f)
-	{
-		return AddVector3Input(parent, labelText, initialValue.ToGodotVector3(), (v) => onChanged(v.ToVector3Data()), labelWidth);
-	}
-
-	public (LineEdit X, LineEdit Y) AddVector2Input(
-		VBoxContainer parent,
-		string labelText,
-		Vector2Data initialValue,
-		Action<Vector2Data> onChanged,
-		float labelWidth = 110.0f)
-	{
-		return AddVector2Input(parent, labelText, initialValue.ToGodotVector2(), (v) => onChanged(v.ToVector2Data()), labelWidth);
-	}
-
-	public (LineEdit X, LineEdit Y, LineEdit Z) AddVector3Input(
-		VBoxContainer parent,
-		string labelText,
-		Vector3 initialValue,
-		Action<Vector3> onChanged,
-		float labelWidth = 110.0f)
-	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
-
-		var lbl = new Label();
-		lbl.Name = "Lbl_Label";
-		lbl.Text = labelText;
-		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
-		lbl.AddThemeFontSizeOverride("font_size", 11);
-		row.AddChild(lbl);
-
-		Vector3 current = initialValue;
-
-		var txtX = new LineEdit { Text = initialValue.X.ToString("0.##"), PlaceholderText = "X", SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		var txtY = new LineEdit { Text = initialValue.Y.ToString("0.##"), PlaceholderText = "Y", SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		var txtZ = new LineEdit { Text = initialValue.Z.ToString("0.##"), PlaceholderText = "Z", SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		UIStyle.ApplyTextInput(txtX, 11);
-		UIStyle.ApplyTextInput(txtY, 11);
-		UIStyle.ApplyTextInput(txtZ, 11);
-
-		void UpdateVal()
-		{
-			float.TryParse(txtX.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out float x);
-			float.TryParse(txtY.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out float y);
-			float.TryParse(txtZ.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out float z);
-			current = new Vector3(x, y, z);
-			onChanged(current);
-		}
-
-		txtX.TextChanged += (_) => UpdateVal();
-		txtY.TextChanged += (_) => UpdateVal();
-		txtZ.TextChanged += (_) => UpdateVal();
-
-		row.AddChild(txtX);
-		row.AddChild(txtY);
-		row.AddChild(txtZ);
-
-		parent.AddChild(row);
-		return (txtX, txtY, txtZ);
-	}
-
-	public (LineEdit X, LineEdit Y) AddVector2Input(
-		VBoxContainer parent,
-		string labelText,
-		Vector2 initialValue,
-		Action<Vector2> onChanged,
-		float labelWidth = 110.0f)
-	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 6);
-
-		var lbl = new Label();
-		lbl.Name = "Lbl_Label";
-		lbl.Text = labelText;
-		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
-		lbl.AddThemeFontSizeOverride("font_size", 11);
-		row.AddChild(lbl);
-
-		Vector2 current = initialValue;
-
-		var txtX = new LineEdit { Text = initialValue.X.ToString("0.##"), PlaceholderText = "X", SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		var txtY = new LineEdit { Text = initialValue.Y.ToString("0.##"), PlaceholderText = "Y", SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		UIStyle.ApplyTextInput(txtX, 11);
-		UIStyle.ApplyTextInput(txtY, 11);
-
-		void UpdateVal()
-		{
-			float.TryParse(txtX.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out float x);
-			float.TryParse(txtY.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out float y);
-			current = new Vector2(x, y);
-			onChanged(current);
-		}
-
-		txtX.TextChanged += (_) => UpdateVal();
-		txtY.TextChanged += (_) => UpdateVal();
-
-		row.AddChild(txtX);
-		row.AddChild(txtY);
-
-		parent.AddChild(row);
-		return (txtX, txtY);
-	}
-
-
-	public (LineEdit Input, Action<string> SetValue) AddAssetFilterDropdown(
-		Control parent,
-		string labelText,
-		string initialText,
-		Func<bool, List<string>> itemsProvider,
-		Action<string> onChanged,
-		string placeholder = "",
-		float labelWidth = 140.0f,
-		bool hasAllFoldersCheckbox = false,
-		Action<string> onPlaySound = null)
-	{
-		var row = new HBoxContainer();
-		row.Name = "Row_HBoxContainer";
-		row.AddThemeConstantOverride("separation", 4);
-
-		var lbl = new Label();
-		lbl.Name = "Lbl_Label";
-		lbl.Text = labelText;
-		lbl.CustomMinimumSize = new Vector2(labelWidth, 0);
-		lbl.AddThemeFontSizeOverride("font_size", 11);
-		row.AddChild(lbl);
-
-		var state = new AssetFilterDropdownState
-		{
-			CommittedValue = initialText ?? string.Empty,
-			ItemsProvider = itemsProvider,
-			OnChanged = onChanged,
-			Txt = new LineEdit()
-		};
-
-		state.Txt.Text = state.CommittedValue;
-		state.Txt.PlaceholderText = placeholder;
-		state.Txt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		UIStyle.ApplyTextInput(state.Txt, 11);
-		row.AddChild(state.Txt);
-
-		var btnDropdown = new Button();
-		btnDropdown.Name = "BtnDropdown_Button";
-		btnDropdown.Set("icon_max_width", 0);
-		btnDropdown.Text = "▼";
-		btnDropdown.CustomMinimumSize = new Vector2(24, 22);
-		btnDropdown.AddThemeFontSizeOverride("font_size", 10);
-		btnDropdown.FocusMode = FocusModeEnum.None;
-		btnDropdown.TooltipText = TranslationServer.Translate("Select from imported assets");
-		row.AddChild(btnDropdown);
-
-		AddAssetFilterAllFoldersCheckbox(row, state, hasAllFoldersCheckbox);
-		AddAssetFilterPlaySoundButton(row, state, onPlaySound);
-
-		Node dropdownOwner = Hud != null ? Hud : parent.GetViewport();
-		if (dropdownOwner != null)
-		{
-			state.InitializeDropdown(dropdownOwner, state.CommittedValue);
-		}
-
-		VisibilityChanged += () => { if (!Visible) state.HideDropdown(); };
-		TreeExiting += state.FreeDropdown;
-
-		btnDropdown.Pressed += () => HandleAssetDropdownPressed(state);
-
-		state.Txt.FocusEntered += () => Callable.From(state.Txt.SelectAll).CallDeferred();
-		state.Txt.TextChanged += (val) =>
-		{
-			if (!state.IsUpdatingTextProgrammatically)
-				state.ShowAssetPopup(showAll: false);
-		};
-		state.Txt.FocusExited += () => HandleAssetTxtFocusExited(state);
-		state.Txt.TextSubmitted += (newText) =>
-		{
-			state.ResolveClosestMatch();
-			state.Txt.ReleaseFocus();
-		};
-
-		parent.AddChild(row);
-		return (state.Txt, (val) => SetAssetDropdownValue(state, val));
-	}
-
-	private void AddAssetFilterAllFoldersCheckbox(HBoxContainer row, AssetFilterDropdownState state, bool hasAllFoldersCheckbox)
-	{
-		if (!hasAllFoldersCheckbox) return;
-
-		var chkAll = new CheckBox();
-		chkAll.Name = "ChkAll_CheckBox";
-		chkAll.Text = TranslationServer.Translate("All folders");
-		chkAll.AddThemeFontSizeOverride("font_size", 10);
-		chkAll.TooltipText = TranslationServer.Translate("Include models outside of projectiles folder");
-		chkAll.Toggled += (pressed) => state.IncludeAllFolders = pressed;
-		row.AddChild(chkAll);
-	}
-
-	private void AddAssetFilterPlaySoundButton(HBoxContainer row, AssetFilterDropdownState state, Action<string> onPlaySound)
-	{
-		if (onPlaySound == null) return;
-
-		var btnPlay = new Button();
-		btnPlay.Name = "BtnPlay_Button";
-		btnPlay.Set("icon_max_width", 0);
-		btnPlay.Text = "▶";
-		btnPlay.CustomMinimumSize = new Vector2(26, 22);
-		btnPlay.AddThemeFontSizeOverride("font_size", 11);
-		btnPlay.FocusMode = FocusModeEnum.None;
-		btnPlay.TooltipText = TranslationServer.Translate("Preview Sound");
-		btnPlay.Pressed += () => onPlaySound(state.Txt.Text);
-		row.AddChild(btnPlay);
-	}
-
-	private void HandleAssetDropdownPressed(AssetFilterDropdownState state)
-	{
-		if (state.IsDropdownVisible && state.IsShowingAll)
-		{
-			state.HideDropdown();
-		}
-		else
-		{
-			state.ShowAssetPopup(showAll: true);
-		}
-	}
-
-	private void HandleAssetTxtFocusExited(AssetFilterDropdownState state)
-	{
-		Callable.From(() =>
-		{
-			if (state.IsPopupOpening) return;
-			if (state.IsPopupSelectionInProgress) return;
-			if (string.Equals(state.Txt.Text, state.CommittedValue, StringComparison.Ordinal))
-			{
-				state.HideDropdown();
-				return;
-			}
-
-			state.ResolveClosestMatch();
-		}).CallDeferred();
-	}
-
-	private void SetAssetDropdownValue(AssetFilterDropdownState state, string val)
-	{
-		string safeVal = val ?? string.Empty;
-		state.CommittedValue = safeVal;
-		state.IsUpdatingTextProgrammatically = true;
-		try
-		{
-			state.Txt.Text = safeVal;
-		}
-		finally
-		{
-			state.IsUpdatingTextProgrammatically = false;
-		}
-
-		state.SyncProgrammaticText(safeVal);
-	}
-
-	public static string FindClosestMatch(string query, List<string> allItems, string fallbackValue = "")
-	{
-		if (allItems == null || allItems.Count == 0)
-		{
-			return fallbackValue ?? string.Empty;
-		}
-
-		if (string.IsNullOrWhiteSpace(query))
-		{
-			if (!string.IsNullOrEmpty(fallbackValue) && allItems.Exists(s => s.Equals(fallbackValue, StringComparison.OrdinalIgnoreCase)))
-			{
-				return fallbackValue;
-			}
-
-			return allItems[0];
-		}
-
-		string cleanQuery = query.Trim();
-		string bestItem = allItems[0];
-		int bestScore = int.MaxValue;
-		var lev = new Levenshtein(cleanQuery.ToLowerInvariant());
-
-		for (int i = 0; i < allItems.Count; i++)
-		{
-			string item = allItems[i];
-			int score = ComputeMatchScore(item, cleanQuery, lev);
-			if (score < bestScore)
-			{
-				bestScore = score;
-				bestItem = item;
-				if (score == 0) break;
-			}
-		}
-
-		return bestItem;
-	}
-
-	public static int ComputeMatchScore(string item, string query, Levenshtein? lev = null)
-	{
-		if (string.IsNullOrEmpty(item)) return int.MaxValue;
-		if (string.IsNullOrEmpty(query)) return 0;
-
-		string itemFull = item.Trim();
-		string itemLower = itemFull.ToLowerInvariant();
-		string q = query.Trim().ToLowerInvariant();
-
-		if (itemLower == q) return 0;
-
-		string fileName = Path.GetFileName(itemFull).ToLowerInvariant();
-		if (fileName == q) return 1;
-
-		string nameNoExt = Path.GetFileNameWithoutExtension(itemFull).ToLowerInvariant();
-		if (nameNoExt == q) return 2;
-
-		int score = CheckPrefixMatches(q, itemLower, fileName, nameNoExt);
-		if (score != -1) return score;
-
-		score = CheckWordMatches(q, itemLower, nameNoExt);
-		if (score != -1) return score;
-
-		string[] tokens = nameNoExt.Split(new[] { '_', '-', ' ', '.', '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-		score = CheckTokenMatches(q, nameNoExt, tokens);
-		if (score != -1) return score;
-
-		score = CheckContainsMatches(q, itemLower, fileName, nameNoExt);
-		if (score != -1) return score;
-
-		return ComputeDistanceMatches(q, nameNoExt, tokens, lev);
-	}
-
-	private static int CheckPrefixMatches(string q, string itemLower, string fileName, string nameNoExt)
-	{
-		if (nameNoExt.StartsWith(q)) return 10 + (nameNoExt.Length - q.Length);
-		if (fileName.StartsWith(q)) return 20 + (fileName.Length - q.Length);
-		if (itemLower.StartsWith(q)) return 30 + (itemLower.Length - q.Length);
-		return -1;
-	}
-
-	private static int CheckWordMatches(string q, string itemLower, string nameNoExt)
-	{
-		string[] queryWords = q.Split(new[] { ' ', '_', '-', '.' }, StringSplitOptions.RemoveEmptyEntries);
-		if (queryWords.Length <= 1) return -1;
-
-		for (int i = 0; i < queryWords.Length; i++)
-		{
-			if (!itemLower.Contains(queryWords[i]))
-			{
-				return -1;
-			}
-		}
-
-		return 25 + Math.Abs(nameNoExt.Length - q.Length);
-	}
-
-	private static int CheckTokenMatches(string q, string nameNoExt, string[] tokens)
-	{
-		for (int i = 0; i < tokens.Length; i++)
-		{
-			string token = tokens[i];
-			if (token == q) return 40 + (nameNoExt.Length - q.Length);
-			if (token.StartsWith(q)) return 50 + (nameNoExt.Length - q.Length);
-		}
-
-		return -1;
-	}
-
-	private static int CheckContainsMatches(string q, string itemLower, string fileName, string nameNoExt)
-	{
-		if (nameNoExt.Contains(q)) return 100 + nameNoExt.IndexOf(q) * 5 + (nameNoExt.Length - q.Length);
-		if (fileName.Contains(q)) return 200 + fileName.IndexOf(q) * 5 + (fileName.Length - q.Length);
-		if (itemLower.Contains(q)) return 300 + itemLower.IndexOf(q) * 2 + (itemLower.Length - q.Length);
-		return -1;
-	}
-
-	private static int ComputeDistanceMatches(string q, string nameNoExt, string[] tokens, Levenshtein? lev)
-	{
-		int bestTokenDist = int.MaxValue;
-		for (int i = 0; i < tokens.Length; i++)
-		{
-			int dist = lev != null ? lev.DistanceFrom(tokens[i]) : Levenshtein.Distance(q, tokens[i]);
-			if (dist < bestTokenDist) bestTokenDist = dist;
-		}
-
-		if (bestTokenDist <= 2)
-		{
-			return 500 + bestTokenDist * 50 + Math.Abs(nameNoExt.Length - q.Length);
-		}
-
-		int distName = lev != null ? lev.DistanceFrom(nameNoExt) : Levenshtein.Distance(q, nameNoExt);
-		return 1000 + distName * 20 + Math.Abs(nameNoExt.Length - q.Length);
-	}
-
-	public static List<string> ScanAvailableAssets(string category, bool includeAllFolders = false, string subFolder = null)
-	{
-		var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = !string.IsNullOrEmpty(MapWorkspaceService.GetActiveWorkspacePath())
-			? MapWorkspaceService.GetActiveWorkspacePath()
-			: GameContext.EditorService._editingDirectory;
-
-		try
-		{
-			var assetsObj = MapAssetHelper.LoadAssets(wsPath);
-			string manifestPath = Path.Combine(wsPath, "manifest.json");
-			MapManifest manifest = LoadManifest(manifestPath);
-
-			if (assetsObj == null && manifest == null) return new List<string>();
-
-			ScanCategoryAssets(category, result, assetsObj, manifest, wsPath, includeAllFolders, subFolder);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[FloatingDialogBase] ScanAvailableAssets metadata error: {ex.Message}");
-		}
-
-		var list = new List<string>(result);
-		list.Sort(StringComparer.OrdinalIgnoreCase);
-		return list;
-	}
-
-	private static MapManifest LoadManifest(string manifestPath)
-	{
-		if (!File.Exists(manifestPath)) return null;
-		try
-		{
-			return MapManifest.LoadFromFile(manifestPath);
-		}
-		catch
-		{
-			return null;
-		}
-	}
-
-	private static void ScanCategoryAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
-	{
-		if (TryScanMediaAssets(category, result, assetsObj, manifest, wsPath)) return;
-		if (TryScanVisualAssets(category, result, assetsObj, manifest, wsPath, includeAllFolders, subFolder)) return;
-		if (TryScanEnvironmentAssets(category, result, assetsObj, manifest, wsPath)) return;
-	}
-
-	private static bool TryScanMediaAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
-	{
-		if (category is "audio" or "sound" or "sfx" or "music")
-		{
-			ScanAudioAssets(result, assetsObj, manifest, wsPath);
-			return true;
-		}
-
-		if (category is "spritesheets" or "spritesheet" or "spritesheet_rtex")
-		{
-			ScanSpritesheetAssets(result, assetsObj, manifest, wsPath);
-			return true;
-		}
-
-		if (category is "vfx" or "vfx_spritesheets" or "vfx_radial" or "vfx_vertical")
-		{
-			ScanVfxAssets(category, result, assetsObj, wsPath);
-			return true;
-		}
-
-		if (category is "decals" or "decal")
-		{
-			ScanDecalAssets(result, assetsObj, manifest, wsPath);
-			return true;
-		}
-
-		return false;
-	}
-
-	private static bool TryScanVisualAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
-	{
-		if (category is "models" or "glb" or "attachments" or "items" or "weapons" or "projectiles")
-		{
-			ScanModelAssets(category, result, assetsObj, manifest, wsPath, includeAllFolders, subFolder);
-			return true;
-		}
-
-		if (category is "ribbons" or "ribbon_textures")
-		{
-			ScanRibbonAssets(result, assetsObj, manifest, wsPath);
-			return true;
-		}
-
-		if (category is "animations" or "ranim" or "animation")
-		{
-			ScanAnimationAssets(result, assetsObj, wsPath);
-			return true;
-		}
-
-		return false;
-	}
-
-	private static bool TryScanEnvironmentAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
-	{
-		if (category is "icons" or "icon")
-		{
-			ScanIconAssets(result, assetsObj, manifest, wsPath);
-			return true;
-		}
-
-		if (category is "noise" or "noise_textures")
-		{
-			ScanNoiseAssets(result, assetsObj, manifest, wsPath);
-			return true;
-		}
-
-		if (category is "textures" or "terrain")
-		{
-			ScanTerrainAssets(result, assetsObj, manifest, wsPath);
-			return true;
-		}
-
-		return false;
-	}
-
-	private static void ScanAudioAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
-	{
-		ScanAudioAssetsFromCategories(result, assetsObj);
-		ScanAudioAssetsFromManifestFiles(result, manifest);
-		ScanAudioAssetsFromDirectory(result, wsPath);
-	}
-
-	private static void ScanAudioAssetsFromCategories(HashSet<string> result, MapManifestAssets assetsObj)
-	{
-		foreach (var key in new[] { "SoundEffect", "Music" })
-		{
-			var catDict = assetsObj?.GetCategory(key);
-			if (catDict == null) continue;
-
-			foreach (var kvp in catDict)
-			{
-				if (IsAudioAsset(kvp.Key))
-				{
-					result.Add(Path.GetFileName(kvp.Key));
-				}
-			}
-		}
-	}
-
-	private static void ScanAudioAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
-	{
-		if (manifest?.Files == null) return;
-
-		foreach (var kvp in manifest.Files)
-		{
-			if (IsAudioAsset(kvp.Key))
-			{
-				result.Add(Path.GetFileName(kvp.Key));
-			}
-		}
-	}
-
-	private static void ScanAudioAssetsFromDirectory(HashSet<string> result, string wsPath)
-	{
-		string audioDir = Path.Combine(wsPath, "Assets", "audio");
-		if (!Directory.Exists(audioDir)) return;
-
-		foreach (var file in Directory.EnumerateFiles(audioDir, "*.*", SearchOption.AllDirectories))
-		{
-			if (IsAudioAsset(file))
-			{
-				result.Add(Path.GetFileName(file));
-			}
-		}
-	}
-
-	private static bool IsAudioAsset(string path)
-	{
-		if (string.IsNullOrWhiteSpace(path)) return false;
-		return path.EndsWith(".raud", StringComparison.OrdinalIgnoreCase) ||
-		       path.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase) ||
-		       path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase);
-	}
-
-	private static void ScanSpritesheetAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
-	{
-		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Spritesheet") ?? assetsObj?.GetCategory("spritesheets"));
-		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Spritesheet);
-		ScanSpritesheetAssetsFromManifestFiles(result, manifest);
-		ScanSpritesheetAssetsFromMetadata(result, wsPath);
-		ScanRtexAssetsFromDirectory(result, Path.Combine(wsPath, "Assets", "vfx"));
-		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "vfx"));
-	}
-
-	private static void ScanRtexAssetsFromCategory(HashSet<string> result, IDictionary<string, string> dict)
-	{
-		if (dict == null) return;
-		foreach (var kvp in dict)
-		{
-			if (IsRtexAsset(kvp.Key))
-				result.Add(Path.GetFileName(kvp.Key));
-		}
-	}
-
-	private static void ScanRtexAssetsFromDirectory(HashSet<string> result, string dirPath)
-	{
-		if (!Directory.Exists(dirPath)) return;
-		foreach (var file in Directory.EnumerateFiles(dirPath, "*.rtex", SearchOption.AllDirectories))
-		{
-			result.Add(Path.GetFileName(file));
-		}
-	}
-
-	private static bool IsRtexAsset(string path)
-	{
-		return !string.IsNullOrWhiteSpace(path) && path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase);
-	}
-
-	private static void ScanSpritesheetAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
-	{
-		if (manifest?.Files == null) return;
-
-		foreach (var kvp in manifest.Files)
-		{
-			if (IsRtexAsset(kvp.Key) &&
-			    (kvp.Key.StartsWith("Assets/vfx/spritesheets/", StringComparison.OrdinalIgnoreCase) ||
-			     kvp.Key.StartsWith("Assets/spritesheets/", StringComparison.OrdinalIgnoreCase) ||
-			     kvp.Key.StartsWith("Assets/vfx/", StringComparison.OrdinalIgnoreCase)))
-			{
-				result.Add(Path.GetFileName(kvp.Key));
-			}
-		}
-	}
-
-	private static void ScanSpritesheetAssetsFromMetadata(HashSet<string> result, string wsPath)
-	{
-		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var ssMetaRoot) && ssMetaRoot?.VfxSpritesheets != null)
-		{
-			foreach (var kvp in ssMetaRoot.VfxSpritesheets)
-			{
-				if (IsRtexAsset(kvp.Value?.TexturePath))
-				{
-					result.Add(Path.GetFileName(kvp.Value.TexturePath));
-				}
-			}
-		}
-	}
-
-	private static void ScanVfxAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, string wsPath)
-	{
-		ScanVfxAssetsFromRegistry(category, result);
-		ScanVfxAssetsFromCategories(category, result, assetsObj);
-		ScanVfxAssetsFromMetadata(result, wsPath);
-	}
-
-	private static void ScanVfxAssetsFromRegistry(string category, HashSet<string> result)
-	{
-		if (category is not ("vfx" or "vfx_spritesheets")) return;
-		if (GameContext.RegistryService.VfxRegistry == null) return;
-
-		foreach (var kvp in GameContext.RegistryService.VfxRegistry)
-		{
-			result.Add(kvp.Key.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? kvp.Key : $"vfx:{kvp.Key}");
-		}
-	}
-
-	private static void ScanVfxAssetsFromCategories(string category, HashSet<string> result, MapManifestAssets assetsObj)
-	{
-		string[] searchKeys = category switch
-		{
-			"vfx_radial" => new[] { "vfx_radial", "Spritesheet" },
-			"vfx_vertical" => new[] { "vfx_vertical", "Spritesheet" },
-			_ => new[] { "Spritesheet", "vfx_radial", "vfx_vertical" }
-		};
-
-		foreach (var key in searchKeys)
-		{
-			ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory(key));
-		}
-	}
-
-	private static void ScanVfxAssetsFromMetadata(HashSet<string> result, string wsPath)
-	{
-		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var vfxMetaRoot)) return;
-		if (vfxMetaRoot?.Templates?.Vfx == null) return;
-
-		foreach (var cv in vfxMetaRoot.Templates.Vfx)
-		{
-			if (string.IsNullOrWhiteSpace(cv.VfxId)) continue;
-
-			result.Add(cv.VfxId.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? cv.VfxId : $"vfx:{cv.VfxId}");
-			result.Add(cv.VfxId);
-		}
-	}
-
-	private static void ScanDecalAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
-	{
-		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Decal"));
-		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Decal);
-		ScanDecalAssetsFromManifestFiles(result, manifest);
-		ScanRtexAssetsFromDirectory(result, Path.Combine(wsPath, "Assets", "decals"));
-		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "decals"));
-	}
-
-	private static void ScanDecalAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
-	{
-		if (manifest?.Files == null) return;
-
-		foreach (var kvp in manifest.Files)
-		{
-			if (IsRtexAsset(kvp.Key) &&
-			    (kvp.Key.StartsWith("Assets/decals/", StringComparison.OrdinalIgnoreCase) ||
-			     kvp.Key.StartsWith("assets/decals/", StringComparison.OrdinalIgnoreCase) ||
-			     kvp.Key.StartsWith("decals/", StringComparison.OrdinalIgnoreCase)))
-			{
-				result.Add(Path.GetFileName(kvp.Key));
-			}
-		}
-	}
-
-	private static void ScanModelAssets(string category, HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath, bool includeAllFolders, string subFolder)
-	{
-		ScanModelAssetsFromRegistry(category, result, includeAllFolders);
-		ScanModelAssetsFromCategories(category, result, assetsObj, includeAllFolders, subFolder);
-		ScanModelAssetsFromManifestFiles(result, manifest);
-		ScanModelAssetsFromDirectory(result, Path.Combine(wsPath, "Assets", "models"));
-	}
-
-	private static void ScanModelAssetsFromRegistry(string category, HashSet<string> result, bool includeAllFolders)
-	{
-		if (!(category is "attachments" or "items" || includeAllFolders)) return;
-		if (GameContext.RegistryService.VfxRegistry == null) return;
-
-		foreach (var kvp in GameContext.RegistryService.VfxRegistry)
-		{
-			result.Add(kvp.Key.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase) ? kvp.Key : $"vfx:{kvp.Key}");
-		}
-	}
-
-	private static void ScanModelAssetsFromCategories(string category, HashSet<string> result, MapManifestAssets assetsObj, bool includeAllFolders, string subFolder)
-	{
-		string defaultFolder = !string.IsNullOrEmpty(subFolder) ? subFolder : (category is "attachments" or "items" ? "items" : "projectiles");
-
-		foreach (var catName in new[] { "Character", "Building", "Prop", "Item" })
-		{
-			if (IsModelCategoryMatch(catName, defaultFolder, includeAllFolders))
-			{
-				ScanRmeshAssetsFromCategory(result, assetsObj?.GetCategory(catName));
-			}
-		}
-	}
-
-	private static bool IsModelCategoryMatch(string catName, string defaultFolder, bool includeAllFolders)
-	{
-		return includeAllFolders || catName.Equals(defaultFolder, StringComparison.OrdinalIgnoreCase) ||
-		       (defaultFolder == "items" && catName == "Item") ||
-		       (defaultFolder == "units" && catName == "Character") ||
-		       (defaultFolder == "buildings" && catName == "Building") ||
-		       (defaultFolder == "props" && catName == "Prop");
-	}
-
-	private static void ScanRmeshAssetsFromCategory(HashSet<string> result, IDictionary<string, string> dict)
-	{
-		if (dict == null) return;
-		foreach (var kvp in dict)
-		{
-			if (IsRmeshAsset(kvp.Key))
-				result.Add(Path.GetFileName(kvp.Key));
-		}
-	}
-
-	private static bool IsRmeshAsset(string path)
-	{
-		return !string.IsNullOrWhiteSpace(path) && path.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase);
-	}
-
-	private static void ScanModelAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
-	{
-		if (manifest?.Files == null) return;
-
-		foreach (var kvp in manifest.Files)
-		{
-			if (IsRmeshAsset(kvp.Key))
-			{
-				result.Add(Path.GetFileName(kvp.Key));
-			}
-		}
-	}
-
-	private static void ScanModelAssetsFromDirectory(HashSet<string> result, string dirPath)
-	{
-		if (!Directory.Exists(dirPath)) return;
-
-		foreach (var file in Directory.EnumerateFiles(dirPath, "*.rmesh", SearchOption.AllDirectories))
-		{
-			result.Add(Path.GetFileName(file));
-		}
-	}
-
-	private static void ScanRibbonAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
-	{
-		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Ribbon"));
-		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Ribbon);
-		ScanRtexAssetsFromDirectory(result, Path.Combine(wsPath, "Assets", "ribbons"));
-	}
-
-	private static void ScanAnimationAssets(HashSet<string> result, MapManifestAssets assetsObj, string wsPath)
-	{
-		var aDict = assetsObj?.GetCategory("Animation");
-		if (aDict != null)
-		{
-			foreach (var kvp in aDict)
-			{
-				if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Key.EndsWith(".ranim", StringComparison.OrdinalIgnoreCase))
-				{
-					result.Add(Path.GetFileName(kvp.Key));
-				}
-			}
-		}
-
-		string animsDir = Path.Combine(wsPath, "Assets", "animations");
-		if (Directory.Exists(animsDir))
-		{
-			foreach (var file in Directory.EnumerateFiles(animsDir, "*.ranim", SearchOption.AllDirectories))
-			{
-				result.Add(Path.GetFileName(file));
-			}
-		}
-	}
-
-	private static void ScanIconAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
-	{
-		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Icon") ?? assetsObj?.GetCategory("icons"));
-		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Icon);
-		ScanIconAssetsFromManifestFiles(result, manifest);
-		ScanIconAssetsFromMetadata(result, wsPath);
-		ScanRtexAssetsFromDirectory(result, Path.Combine(wsPath, "Assets", "icons"));
-		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "icons"));
-	}
-
-	private static void ScanIconAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
-	{
-		if (manifest?.Files == null) return;
-
-		foreach (var kvp in manifest.Files)
-		{
-			if (IsRtexAsset(kvp.Key) &&
-			    (kvp.Key.StartsWith("Assets/icons/", StringComparison.OrdinalIgnoreCase) ||
-			     kvp.Key.StartsWith("assets/icons/", StringComparison.OrdinalIgnoreCase) ||
-			     kvp.Key.StartsWith("icons/", StringComparison.OrdinalIgnoreCase)))
-			{
-				result.Add(Path.GetFileName(kvp.Key));
-			}
-		}
-	}
-
-	private static void ScanIconAssetsFromMetadata(HashSet<string> result, string wsPath)
-	{
-		if (GameContext.MetadataService.TryLoadMetadata(wsPath, out var iconMetaRoot) && iconMetaRoot?.Icons != null)
-		{
-			foreach (var kvp in iconMetaRoot.Icons)
-			{
-				if (kvp.Key.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-				{
-					result.Add(Path.GetFileName(kvp.Key));
-				}
-			}
-		}
-	}
-
-	private static void ScanNoiseAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
-	{
-		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Noise"));
-		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Noise);
-		ScanRtexAssetsFromDirectory(result, Path.Combine(wsPath, "Assets", "noise"));
-	}
-
-	private static void ScanTerrainAssets(HashSet<string> result, MapManifestAssets assetsObj, MapManifest manifest, string wsPath)
-	{
-		ScanRtexAssetsFromCategory(result, assetsObj?.GetCategory("Terrain") ?? assetsObj?.GetCategory("textures"));
-		ScanRtexAssetsFromCategory(result, manifest?.Assets?.Terrain);
-		ScanTerrainAssetsFromManifestFiles(result, manifest);
-		ScanRtexAssetsFromDirectory(result, Path.Combine(wsPath, "Assets", "textures"));
-		ScanRtexAssetsFromDirectory(result, Path.Combine(ProjectSettings.GlobalizePath("res://"), "Assets", "textures"));
-	}
-
-	private static void ScanTerrainAssetsFromManifestFiles(HashSet<string> result, MapManifest manifest)
-	{
-		if (manifest?.Files == null) return;
-
-		foreach (var kvp in manifest.Files)
-		{
-			if (IsRtexAsset(kvp.Key) &&
-			    (kvp.Key.StartsWith("Assets/textures/", StringComparison.OrdinalIgnoreCase) ||
-			     kvp.Key.StartsWith("assets/textures/", StringComparison.OrdinalIgnoreCase) ||
-			     kvp.Key.StartsWith("textures/", StringComparison.OrdinalIgnoreCase)))
-			{
-				result.Add(Path.GetFileName(kvp.Key));
-			}
-		}
-	}
 
 
 	public Button AddButton(
@@ -1790,9 +564,7 @@ public partial class FloatingDialogBase : PanelContainer
 		int fontSize = 11,
 		Vector2? minSize = null)
 	{
-		var btn = new Button();
-		btn.Name = "Btn_Button";
-		btn.Set("icon_max_width", 0);
+		var btn = CreateDialogButton();
 		btn.Text = text;
 		var font = Hud?.GetFontAwesomeFont();
 		if (font != null)
@@ -1825,6 +597,7 @@ public partial class FloatingDialogBase : PanelContainer
 		out DirectionalLight3D light)
 	{
 		var container = new SubViewportContainer();
+		container.Name = "ViewportContainer_SubViewportContainer";
 		container.CustomMinimumSize = minSize;
 		container.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		container.Stretch = true;
@@ -1878,5 +651,44 @@ public partial class FloatingDialogBase : PanelContainer
 		scroll.AddChild(innerVBox);
 		BodyContainer.AddChild(scroll);
 		return innerVBox;
+	}
+
+	public VBoxContainer CreateContentColumn()
+	{
+		var contentVBox = new VBoxContainer();
+		contentVBox.Name = "ContentVBox_VBoxContainer";
+		contentVBox.AddThemeConstantOverride("separation", 10);
+		return contentVBox;
+	}
+
+	public VBoxContainer CreateExpandingContentColumn()
+	{
+		VBoxContainer contentVBox = CreateContentColumn();
+		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		return contentVBox;
+	}
+
+	public VBoxContainer CreateTopControlsColumn()
+	{
+		var topControlsVBox = new VBoxContainer();
+		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
+		topControlsVBox.AddThemeConstantOverride("separation", 6);
+		BodyContainer.AddChild(topControlsVBox);
+		return topControlsVBox;
+	}
+
+	public Button CreateDialogButton()
+	{
+		return UIStyle.CreateBareButton("Btn_Button");
+	}
+
+	public LineEdit CreateSlugField(string placeholderKey)
+	{
+		var txtSlug = new LineEdit();
+		txtSlug.Name = "TxtSlug_LineEdit";
+		txtSlug.PlaceholderText = TranslationServer.Translate(placeholderKey);
+		txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		return txtSlug;
 	}
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,9 +15,9 @@ public class MapStateSnapshot
 {
 	public int Width;
 	public int Depth;
-	public TerrainCell[,] Cells;
+	public TerrainCell[,]? Cells;
 
-	public float[,] Heights
+	public float[,]? Heights
 	{
 		get
 		{
@@ -42,9 +42,9 @@ public class MapStateSnapshot
 		}
 	}
 
-	public int[,] PathingCodes;
-	public TerrainSplatWeights[,] SplatMap;
-	public TerrainSplatWeights[,] CliffSplatMap;
+	public int[,] PathingCodes = null!;
+	public TerrainSplatWeights[,] SplatMap = null!;
+	public TerrainSplatWeights[,]? CliffSplatMap;
 
 	public float CameraBoundsLeft;
 	public float CameraBoundsRight;
@@ -104,10 +104,11 @@ public class MapStateSnapshot
 
 	private static void RestoreTerrain(GameHost host, MapStateSnapshot snapshot)
 	{
-		host.GroundTerrain.RestoreTerrainFromSnapshot(
+		var ground = host.RequireGroundTerrain();
+		ground.RestoreTerrainFromSnapshot(
 			snapshot.Width,
 			snapshot.Depth,
-			host.GroundTerrain.QuadSize,
+			ground.QuadSize,
 			snapshot.Cells,
 			snapshot.PathingCodes,
 			snapshot.SplatMap,
@@ -177,22 +178,23 @@ public class MapStateSnapshot
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"Failed to update metadata.json during snapshot restore: {exception.Message}");
+			GameLog.LogError($"Failed to update metadata.json during snapshot restore: {exception.Message}");
 		}
 	}
 
 	private static void RebuildRestoredWorldViews(GameHost host)
 	{
-		host.GroundTerrain.UpdateMeshAndPhysics(true, true);
-		host.GroundTerrain.ReloadTerrainTextures();
-		GameContext.EditorService.SetTerrainSplatMap(host.GroundTerrain.SplatMap, host.GroundTerrain.CliffSplatMap);
+		var ground = host.RequireGroundTerrain();
+		ground.UpdateMeshAndPhysics(true, true);
+		ground.ReloadTerrainTextures();
+		GameContext.EditorService.Surface.AttachSplatMaps(ground.SplatMap, ground.CliffSplatMap);
 		host.RebuildCameraBoundsOverlay();
 		GameContext.PropMultiMesh?.RebuildAll();
 		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
 		GameContext.MapEditorHud?.RegenerateMinimap();
 	}
 
-	public static MapStateSnapshot CreateSnapshot()
+	public static MapStateSnapshot? CreateSnapshot()
 	{
 		var host = GameContext.Host;
 		if (host == null || host.GroundTerrain == null) return null;

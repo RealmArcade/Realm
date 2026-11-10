@@ -13,6 +13,7 @@ public struct AbsorbShieldSlot
 	public float Duration;
 }
 
+/// <summary>Fixed inline room for an entity's absorb pools, so every shield it carries lives inside the component instead of behind a heap allocation.</summary>
 [InlineArray(Capacity)]
 public struct AbsorbShieldSlotArray
 {

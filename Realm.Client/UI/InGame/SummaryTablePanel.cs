@@ -129,6 +129,7 @@ public class SummaryTablePanel
 		if (_separator == null || !GodotObject.IsInstanceValid(_separator))
 		{
 			_separator = new HSeparator();
+			_separator.Name = "Separator_HSeparator";
 			_separator.AddThemeColorOverride("separator_color", UIStyle.ColorBronze);
 			_rowsContainer.AddChild(_separator);
 		}

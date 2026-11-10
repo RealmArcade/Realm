@@ -15,37 +15,37 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 {
 	public ShaderEditorDialog() { }
 
-	private Node3D _simRoot;
-	private Node3D _currentModelRoot;
+	private Node3D _simRoot = null!;
+	private Node3D _currentModelRoot = null!;
 
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
+	private Label _lblObjectTypePrefix = null!;
+	private LineEdit _txtSlug = null!;
 	private string _slug = "";
-	private OptionButton _optModelPicker;
-	private OptionButton _optTransitionMode;
-	private OptionButton _optDirection;
+	private OptionButton _optModelPicker = null!;
+	private OptionButton _optTransitionMode = null!;
+	private OptionButton _optDirection = null!;
 
-	private ColorPickerButton _cpkEdgeColor;
-	private HSlider _sldEdgeWidth;
-	private Label _lblEdgeWidth;
-	private HSlider _sldEdgeEmission;
-	private Label _lblEdgeEmission;
-	private HSlider _sldNoiseScale;
-	private Label _lblNoiseScale;
-	private HSlider _sldNoiseRoughness;
-	private Label _lblNoiseRoughness;
-	private HSlider _sldFresnelPower;
-	private Label _lblFresnelPower;
-	private HSlider _sldVertexDisplacement;
-	private Label _lblVertexDisplacement;
-	private HSlider _sldAlphaFade;
-	private Label _lblAlphaFade;
-	private HSlider _sldDuration;
-	private Label _lblDuration;
+	private ColorPickerButton _cpkEdgeColor = null!;
+	private HSlider _sldEdgeWidth = null!;
+	private Label _lblEdgeWidth = null!;
+	private HSlider _sldEdgeEmission = null!;
+	private Label _lblEdgeEmission = null!;
+	private HSlider _sldNoiseScale = null!;
+	private Label _lblNoiseScale = null!;
+	private HSlider _sldNoiseRoughness = null!;
+	private Label _lblNoiseRoughness = null!;
+	private HSlider _sldFresnelPower = null!;
+	private Label _lblFresnelPower = null!;
+	private HSlider _sldVertexDisplacement = null!;
+	private Label _lblVertexDisplacement = null!;
+	private HSlider _sldAlphaFade = null!;
+	private Label _lblAlphaFade = null!;
+	private HSlider _sldDuration = null!;
+	private Label _lblDuration = null!;
 
-	private HSlider _sldProgress;
-	private Label _lblProgress;
-	private CheckBox _chkLoop;
+	private HSlider _sldProgress = null!;
+	private Label _lblProgress = null!;
+	private CheckBox _chkLoop = null!;
 
 	private CustomShaderConfig _config = new CustomShaderConfig();
 	private CustomShaderConfig _snapshot = new CustomShaderConfig();
@@ -55,7 +55,8 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 	private bool _isPlaying = false;
 	private bool _isPlayingForward = true;
 	private float _currentAnimTime = 0.0f;
-	private Action<CustomShaderConfig> _onSaved;
+	private int _lastProgressHundredths = -1;
+	private Action<CustomShaderConfig>? _onSaved;
 
 	public ShaderEditorDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Custom Shader & Dissolve Studio"), new Vector2(560, 780))
@@ -67,7 +68,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	public override void SetRandomizeAssetsAction(Action onRandomize)
+	public override void SetRandomizeAssetsAction(Action? onRandomize)
 	{
 		if (RandomizeAssetsButton != null)
 		{
@@ -186,35 +187,15 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		scroll.AddChild(configVBox);
 		BodyContainer.AddChild(scroll);
 
-		var rowId = new HBoxContainer();
-		rowId.Name = "RowId_HBoxContainer";
-		rowId.AddThemeConstantOverride("separation", 6);
-		var lblId = new Label();
-		lblId.Name = "LblId_Label";
-		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(140, 0);
-		lblId.AddThemeFontSizeOverride("font_size", 11);
-		rowId.AddChild(lblId);
+		var rowId = BuildIdentityRow(configVBox, "SpawnShader/", out _lblObjectTypePrefix);
 
-		_lblObjectTypePrefix = new Label();
-		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
-		_lblObjectTypePrefix.Text = "SpawnShader/";
-		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
-		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		rowId.AddChild(_lblObjectTypePrefix);
-
-		_txtSlug = new LineEdit();
-		_txtSlug.Name = "TxtSlug_LineEdit";
-		_txtSlug.PlaceholderText = TranslationServer.Translate("shader_slug");
-		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug = CreateSlugField("shader_slug");
 		_txtSlug.TextChanged += (val) =>
 		{
 			_slug = TemplateIDHelper.ToSnakeCase(val);
 			_config.Key = TemplateIDHelper.NormalizeTemplateID("SpawnShader", _slug);
 		};
 		rowId.AddChild(_txtSlug);
-		configVBox.AddChild(rowId);
 
 		var btnRandomizeAll = new Button();
 		btnRandomizeAll.Name = "BtnRandomizeAll_Button";
@@ -326,8 +307,10 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 				_sldProgress.SetValueNoSignal(prog);
 			}
 
-			if (_lblProgress != null)
+			int hundredths = Mathf.RoundToInt(prog * 100.0f);
+			if (_lblProgress != null && hundredths != _lastProgressHundredths)
 			{
+				_lastProgressHundredths = hundredths;
 				_lblProgress.Text = $"{prog:F2}";
 			}
 
@@ -344,7 +327,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		UpdateShaderParameters();
 	}
 
-	public void OpenForShader(string shaderKey, Action<CustomShaderConfig> onSaved = null)
+	public void OpenForShader(string shaderKey, Action<CustomShaderConfig>? onSaved = null)
 	{
 		_onSaved = onSaved;
 
@@ -513,7 +496,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		}
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		string modelPath = FindModelPath(wsPath, key);
+		string? modelPath = FindModelPath(wsPath, key);
 
 		Node3D? loadedNode3D = LoadModelFromFile(modelPath, key);
 
@@ -527,21 +510,9 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		UpdateShaderParameters();
 	}
 
-	private void CenterAndFrameNode(Node3D targetNode)
-	{
-		var aabb = SpawnDeathShaderManager.CalculateNodeAabb(targetNode);
-		TargetPosition = aabb.Position + aabb.Size * 0.5f;
-		float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
-		CameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
-		DefaultDistance = CameraDistance;
-		UpdateCameraTransform();
-	}
-
 	protected override void OnApply()
 	{
-		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
-		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = "custom_shader";
-		_slug = finalSlug;
+		_slug = TemplateIDHelper.ResolveSlug(_txtSlug?.Text, _slug, "custom_shader");
 		_config.Key = TemplateIDHelper.NormalizeTemplateID("SpawnShader", _slug);
 		if (string.IsNullOrWhiteSpace(_config.Name))
 		{
@@ -669,7 +640,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		UpdateShaderParameters();
 	}
 
-	private string FindModelPath(string wsPath, string key)
+	private string? FindModelPath(string wsPath, string key)
 	{
 		foreach (var sub in new[] { "units", "buildings", "resources", "props", "projectiles", "characters", "items", "attachments", "weapons" })
 		{
@@ -690,7 +661,7 @@ public partial class ShaderEditorDialog : FloatingPreview3DDialogBase
 		return null;
 	}
 
-	private Node3D? LoadModelFromFile(string modelPath, string key)
+	private Node3D? LoadModelFromFile(string? modelPath, string key)
 	{
 		if (modelPath == null || !modelPath.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) || !File.Exists(modelPath)) return null;
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -15,22 +15,22 @@ public partial class MapSettingsDialog : FloatingDialogBase
 {
 	public MapSettingsDialog() { }
 
-	private LineEdit _txtMapName;
-	private LineEdit _txtMapVersion;
-	private OptionButton _optMapType;
-	private GridContainer _tagsGrid;
+	private LineEdit _txtMapName = null!;
+	private LineEdit _txtMapVersion = null!;
+	private OptionButton _optMapType = null!;
+	private GridContainer _tagsGrid = null!;
 	private readonly List<CheckBox> _activeTagCheckboxes = new();
-	private OptionButton _optSkybox;
+	private OptionButton _optSkybox = null!;
 	private readonly List<string> _skyboxFiles = new();
 
-	private Label _lblCamLeftVal;
-	private Label _lblCamRightVal;
-	private Label _lblCamTopVal;
-	private Label _lblCamBottomVal;
+	private Label? _lblCamLeftVal;
+	private Label? _lblCamRightVal;
+	private Label? _lblCamTopVal;
+	private Label? _lblCamBottomVal;
 
-	private Label _lblMapWidthVal;
-	private Label _lblMapHeightVal;
-	private Button _btnScaleMap;
+	private Label _lblMapWidthVal = null!;
+	private Label _lblMapHeightVal = null!;
+	private Button _btnScaleMap = null!;
 
 	private const float CameraBoundsShiftStep = 5.0f;
 
@@ -71,12 +71,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 	private VBoxContainer SetupMainContainers()
 	{
-		var scroll = new ScrollContainer();
-		scroll.Name = "Scroll_ScrollContainer";
-		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+		var scroll = UIStyle.CreateScrollingBody();
 		BodyContainer.AddChild(scroll);
 
 		var contentVBox = new VBoxContainer();
@@ -193,10 +188,10 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		_lblCamLeftVal = BuildCameraBoundsControls(
 			camGrid,
-			() => GameContext.Host.EditorCameraBoundsLeft,
-			value => GameContext.Host.EditorCameraBoundsLeft = value,
-			() => -GameContext.Host.GroundTerrain.Width,
-			() => GameContext.Host.EditorCameraBoundsRight,
+			() => GameContext.Host?.EditorCameraBoundsLeft ?? 0.0f,
+			value => { if (GameContext.Host is { } host) host.EditorCameraBoundsLeft = value; },
+			() => -(GameContext.Host?.GroundTerrain?.Width ?? 0),
+			() => GameContext.Host?.EditorCameraBoundsRight ?? 0.0f,
 			"Move Left boundary further left (West)",
 			"Move Left boundary further right (East)");
 	}
@@ -205,10 +200,10 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		_lblCamRightVal = BuildCameraBoundsControls(
 			camGrid,
-			() => GameContext.Host.EditorCameraBoundsRight,
-			value => GameContext.Host.EditorCameraBoundsRight = value,
-			() => GameContext.Host.EditorCameraBoundsLeft,
-			() => GameContext.Host.GroundTerrain.Width,
+			() => GameContext.Host?.EditorCameraBoundsRight ?? 0.0f,
+			value => { if (GameContext.Host is { } host) host.EditorCameraBoundsRight = value; },
+			() => GameContext.Host?.EditorCameraBoundsLeft ?? 0.0f,
+			() => (GameContext.Host?.GroundTerrain?.Width ?? 0),
 			"Move Right boundary further left (West)",
 			"Move Right boundary further right (East)");
 	}
@@ -217,10 +212,10 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		_lblCamTopVal = BuildCameraBoundsControls(
 			camGrid,
-			() => GameContext.Host.EditorCameraBoundsTop,
-			value => GameContext.Host.EditorCameraBoundsTop = value,
-			() => -GameContext.Host.GroundTerrain.Depth,
-			() => GameContext.Host.EditorCameraBoundsBottom,
+			() => GameContext.Host?.EditorCameraBoundsTop ?? 0.0f,
+			value => { if (GameContext.Host is { } host) host.EditorCameraBoundsTop = value; },
+			() => -(GameContext.Host?.GroundTerrain?.Depth ?? 0),
+			() => GameContext.Host?.EditorCameraBoundsBottom ?? 0.0f,
 			"Move Top boundary further North (Up)",
 			"Move Top boundary further South (Down)");
 	}
@@ -229,10 +224,10 @@ public partial class MapSettingsDialog : FloatingDialogBase
 	{
 		_lblCamBottomVal = BuildCameraBoundsControls(
 			camGrid,
-			() => GameContext.Host.EditorCameraBoundsBottom,
-			value => GameContext.Host.EditorCameraBoundsBottom = value,
-			() => GameContext.Host.EditorCameraBoundsTop,
-			() => GameContext.Host.GroundTerrain.Depth,
+			() => GameContext.Host?.EditorCameraBoundsBottom ?? 0.0f,
+			value => { if (GameContext.Host is { } host) host.EditorCameraBoundsBottom = value; },
+			() => GameContext.Host?.EditorCameraBoundsTop ?? 0.0f,
+			() => (GameContext.Host?.GroundTerrain?.Depth ?? 0),
 			"Move Bottom boundary further North (Up)",
 			"Move Bottom boundary further South (Down)");
 	}
@@ -349,7 +344,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		_btnScaleMap = new Button();
 		_btnScaleMap.Name = "BtnScaleMap_Button";
 		_btnScaleMap.Set("icon_max_width", 0);
-		_btnScaleMap.Text = "\uf24e " + TranslationServer.Translate("SCALE MAP");
+		_btnScaleMap.Text = UnicodeIcons.SCALE + " " + TranslationServer.Translate("SCALE MAP");
 		_btnScaleMap.TooltipText = TranslationServer.Translate("Scale the entire map: stretches/shrinks terrain data and repositions all entities proportionally");
 		_btnScaleMap.FocusMode = FocusModeEnum.None;
 		_btnScaleMap.CustomMinimumSize = new Vector2(0, 26);
@@ -362,8 +357,8 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		{
 			if (GameContext.Host?.GroundTerrain == null || Hud == null) return;
 
-			Hud.SetScaleDialogTargets(GameContext.Host.GroundTerrain.Width, GameContext.Host.GroundTerrain.Depth);
-			Hud.OpenScaleMapDialog();
+			RequireHud.SetScaleDialogTargets(GameContext.Host.GroundTerrain.Width, GameContext.Host.GroundTerrain.Depth);
+			RequireHud.OpenScaleMapDialog();
 		};
 		mapSizePanel.AddChild(_btnScaleMap);
 	}
@@ -408,9 +403,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 	private Button CreateControlButton(string text, string tooltip, Action onClick)
 	{
-		var btn = new Button();
-		btn.Name = "Btn_Button";
-		btn.Set("icon_max_width", 0);
+		var btn = CreateDialogButton();
 		btn.Text = text;
 		btn.TooltipText = TranslationServer.Translate(tooltip);
 		btn.FocusMode = FocusModeEnum.None;
@@ -619,7 +612,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"RefreshSkyboxList error: {ex.Message}");
+			GameLog.LogError($"RefreshSkyboxList error: {ex.Message}");
 		}
 
 		if (_skyboxFiles.Count == 0)

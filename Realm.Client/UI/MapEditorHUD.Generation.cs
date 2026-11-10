@@ -8,9 +8,9 @@ namespace Realm.Client.UI;
 
 public partial class MapEditorHUD
 {
-	private Button _btnRandomGen { get; set; }
-	private PopupMenu _popupRandomGen { get; set; }
-	private MapGenerationDialog _mapGenerationDialog { get; set; }
+	private Button _btnRandomGen { get; set; } = null!;
+	private PopupMenu _popupRandomGen { get; set; } = null!;
+	private MapGenerationDialog _mapGenerationDialog { get; set; } = null!;
 
 	private void SetupRandomGenerationMenu()
 	{
@@ -108,7 +108,7 @@ public partial class MapEditorHUD
 		}
 
 		string imagePath = selectedPaths[0];
-		string directory = Path.GetDirectoryName(imagePath);
+		string? directory = Path.GetDirectoryName(imagePath);
 		GameContext.MapGenerationService.LastTerrainImageFolder = !string.IsNullOrWhiteSpace(directory) ? directory : fallbackFolder;
 		GameContext.MapGenerationService.ImportTerrainFromImage(imagePath);
 	}

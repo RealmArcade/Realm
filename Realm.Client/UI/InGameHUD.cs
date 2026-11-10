@@ -34,7 +34,7 @@ public partial class InGameHUD : Control
 	}
 
 	private InGameHUDViewModel _viewModel = new();
-	private string _lastSelectionSignature = string.Empty;
+	private readonly List<int> _lastSelectionIds = new();
 
 	public float Gold
 	{
@@ -60,23 +60,31 @@ public partial class InGameHUD : Control
 		set => _viewModel.ResourceGatherMultiplier = value;
 	}
 
-	private PanelContainer _resourceContainer;
-	private TextureRect _resourceBackground;
-	private PanelContainer _bottomConsole;
-	private TextureRect _consoleBackground;
-	private PanelContainer _minimapFrame;
-	private PanelContainer _portraitFrame;
-	private PanelContainer _selectionFrame;
-	private PanelContainer _commandFrame;
-	private PanelContainer _inventoryFrame;
-	private readonly Dictionary<HudElement, bool> _hudElementVisibility = new();
+	private PanelContainer _resourceContainer = null!;
+	private TextureRect _resourceBackground = null!;
+	private PanelContainer _bottomConsole = null!;
+	private TextureRect _consoleBackground = null!;
+	private PanelContainer _minimapFrame = null!;
+	private PanelContainer _portraitFrame = null!;
+	private PanelContainer _selectionFrame = null!;
+	private PanelContainer _commandFrame = null!;
+	private PanelContainer _inventoryFrame = null!;
+	private HudVisibility? _visibility;
 
-	private Shader _hudPanelTopShader;
-	private Shader _hudPanelBottomShader;
-	private Shader _hudPortraitMaskShader;
+	/// <summary>
+	///     The player's HUD element switches and the panels each one fences.
+	/// </summary>
+	private HudVisibility Visibility => _visibility ??= new HudVisibility(
+		() => _bottomConsole, () => _minimapFrame, () => _minimapControls, () => _resourceContainer, () => _commandFrame,
+		() => _portraitFrame, () => _chatPanel, () => _inventoryFrame, () => _inventoryGrid,
+		() => { if (GameContext.Host != null) RefreshUI(GameContext.Host.SelectedUnits); },
+		() => _countdownOverlayPanelController?.Update(_viewModel),
+		UpdateScoreboardVisibility);
 
-	private GridContainer _commandGrid;
-	private GridContainer _inventoryGrid;
+
+
+	private GridContainer _commandGrid = null!;
+	private GridContainer _inventoryGrid = null!;
 	public bool IsBuildSubMenuOpen => _viewModel.IsBuildSubMenuOpen;
 
 	public void EnterBuildSubMenu()
@@ -97,143 +105,81 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	private VBoxContainer _productionBox;
-	private Label _productionTitle;
-	private ProgressBar _productionProgress;
-	private Label _productionQueueLabel;
-	private HBoxContainer _queueSlotsContainer;
+	private VBoxContainer _productionBox = null!;
+	private Label _productionTitle = null!;
+	private ProgressBar _productionProgress = null!;
+	private Label _productionQueueLabel = null!;
+	private HBoxContainer _queueSlotsContainer = null!;
 
-	private VBoxContainer _minimapControls;
-	private Button _btnZoom;
-	private Button _btnToggleTerrain;
-	private Button _btnToggleColorScheme;
-	private Button _btnPing;
-	private Button _btnCenter;
-	private Button _btnSettings;
-	private Button _btnQuitMatch;
-	private Button _btnInstructions;
-	private InstructionsDialog _instructionsDialog;
+	private VBoxContainer _minimapControls = null!;
+	private Button _btnSettings = null!;
 	public bool ShowMinimapTerrain => _viewModel.ShowMinimapTerrain;
 	public MinimapColorScheme MinimapColorScheme => _viewModel.MinimapColorScheme;
 
 
 	private float _shroudMinimapRefreshTimer = 0f;
 
-	private string _currentWeather
-	{
-		get
-		{
-			GameHost tempQualifier = GameContext.Host;
-			return (tempQualifier != null ? GameContext.EnvironmentService : null)?.GetCurrentWeather() ?? "clear";
-		}
-		set
-		{
-			GameHost tempQualifier = GameContext.Host;
-			(tempQualifier != null ? GameContext.EnvironmentService : null)?.SetCurrentWeather(value);
-		}
-	}
-
-	private float _baseFogDensity
-	{
-		get
-		{
-			GameHost tempQualifier = GameContext.Host;
-			return (tempQualifier != null ? GameContext.EnvironmentService : null)?.GetBaseFogDensity() ?? 0f;
-		}
-		set
-		{
-			GameHost tempQualifier = GameContext.Host;
-			(tempQualifier != null ? GameContext.EnvironmentService : null)?.SetBaseFogDensity(value);
-		}
-	}
-
-	private Label _goldLabel;
-	private Label _woodLabel;
-	private Label _stoneLabel;
+	private Label _goldLabel = null!;
+	private Label _woodLabel = null!;
+	private Label _stoneLabel = null!;
 
 	private List<Button> _unitButtons = new List<Button>();
-	private HBoxContainer _unitsContainer;
+	private HBoxContainer _unitsContainer = null!;
 
-	private HBoxContainer _statsContainer;
-	private UnitStatsPanel _unitStatsPanel;
-	private UnitVitalsBars _unitVitalsBars;
-	private VBoxContainer _spellsBox;
-
+	private HBoxContainer _statsContainer = null!;
+	private UnitStatsPanel _unitStatsPanel = null!;
+	private UnitVitalsBars _unitVitalsBars = null!;
 	private Vector2 _dragStart;
 	private Vector2 _dragEnd;
 	private bool _isDrawingDragBox = false;
 
-	private Button _btnMove;
-	private Button _btnStop;
-	private Button _btnHold;
-	private Button _btnBuild;
+	private Button _btnMove = null!;
+	private Button _btnStop = null!;
+	private Button _btnHold = null!;
+	private Button _btnBuild = null!;
 
-	private Label _feedbackLabel;
-	private Label _connectionWarningLabel;
-	private Control _minimapArea;
-	private MinimapCameraIndicator _cameraIndicator;
+	private Label _feedbackLabel = null!;
+	private Label _connectionWarningLabel = null!;
+	private Control _minimapArea = null!;
+	private MinimapCameraIndicator _cameraIndicator = null!;
 
-	private Label _populationLabel;
-	private Label _clockLabel;
+	private Label _populationLabel = null!;
+	private Label _clockLabel = null!;
 
-	private VBoxContainer _customUIPanel;
-	private PanelContainer _scoreboardPanel;
-	private VBoxContainer _scoreboardContent;
-	private VBoxContainer _scoreboardSelectors;
-	private VBoxContainer _scoreboardLeaderboardContent;
-	private VBoxContainer _scoreboardSummaryContent;
-	private Label _scoreboardTitleLabel;
-	private Button _scoreboardCollapseButton;
-	private CountdownOverlayPanel _countdownOverlayPanelController;
+	private VBoxContainer _customUIPanel = null!;
+	private CountdownOverlayPanel _countdownOverlayPanelController = null!;
 
-	private Label _unitDescLabel;
+	private HBoxContainer _controlGroupsContainer = null!;
 
-	private HBoxContainer _controlGroupsContainer;
-	private Button _btnSelectIdle;
-	private Button _btnSelectArmy;
 
-	private float _idlePulseTimer = 0f;
-	private int _lastIdleCount = 0;
+	private PanelContainer? _hotkeyPanel => (_hotkeyReference?.Root) ?? null;
 
-	private PanelContainer _hotkeyPanel;
-	private bool _hotkeyPanelVisible = false;
+	private Label _armyCompositionLabel = null!;
 
-	private Label _armyCompositionLabel;
+	private Camera3D? _camera3D;
 
-	private float _incomeUpdateTimer = 0f;
-
-	private Camera3D _camera3D;
-
-	private PanelContainer _chatPanel;
-	private LineEdit _chatInput;
-	private RichTextLabel _chatLog;
+	private PanelContainer _chatPanel = null!;
 	public bool IsChatActive => _chatPanelController.IsChatActive;
 
 	public int LiveSpectatorPerspective
 	{
-		get
-		{
-			GameHost tempQualifier = GameContext.Host;
-			return (tempQualifier != null ? GameContext.SpectatorService : null)?.GetSpectatorPerspective() ?? -1;
-		}
+		get => GameContext.Host != null ? GameContext.SpectatorService.GetSpectatorPerspective() : -1;
 		set
 		{
-			GameHost tempQualifier = GameContext.Host;
-			(tempQualifier != null ? GameContext.SpectatorService : null)?.SetSpectatorPerspective(value);
+			if (GameContext.Host != null) GameContext.SpectatorService.SetSpectatorPerspective(value);
 		}
 	}
 
-	private ResourcePanel _resourcePanelController;
-	private MinimapPanel _minimapPanelController;
-	private ChatPanel _chatPanelController;
-	private ScoreboardPanel _scoreboardPanelController;
-	private PortraitPanel _portraitPanelController;
-	private CommandPanel _commandPanelController;
-	private InventoryPanel _inventoryPanelController;
-	private ControlGroupsUIController _controlGroupsUIController;
+	private ResourcePanel _resourcePanelController = null!;
+	private MinimapPanel _minimapPanelController = null!;
+	private ChatPanel _chatPanelController = null!;
+	private ScoreboardPanel _scoreboardPanelController = null!;
+	private PortraitPanel _portraitPanelController = null!;
+	private CommandPanel _commandPanelController = null!;
+	private InventoryPanel _inventoryPanelController = null!;
+	private ControlGroupsUIController _controlGroupsUIController = null!;
 
-	private MinimapOverlay _minimapOverlay;
-	private UnitHealthBarOverlay _unitHealthBarOverlay;
+	private UnitHealthBarOverlay _unitHealthBarOverlay = null!;
 
 	private const float TacticalInterval = 0.04f;
 	private const float MacroInterval = 0.1f;
@@ -261,12 +207,12 @@ public partial class InGameHUD : Control
 
 		InitializeReferences();
 		SetupUnitHealthBarOverlay();
-		SetupResourcePanel();
+		ResourceBar.Build();
 		SetupSelectionFrame();
 		SetupCommandAndInventoryGrids();
 		SetupWarningLabel();
 		SetupMinimapControls();
-		string currentWeather = GetCurrentWeather();
+		string currentWeather = WeatherPresenter.ResolveCurrent();
 		SetupChatPanel();
 		SetupCustomUIPanel();
 
@@ -329,16 +275,7 @@ public partial class InGameHUD : Control
 
 	private void OnLobbyCountdownTick(int seconds) => _viewModel.CountdownDuration = seconds;
 
-	private void SetupUnitHealthBarOverlay()
-	{
-		var overlay = new UnitHealthBarOverlay();
-		overlay.Name = "UnitHealthBarOverlay";
-		overlay.MouseFilter = MouseFilterEnum.Ignore;
-		AddChild(overlay);
-		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		MoveChild(overlay, 0);
-		_unitHealthBarOverlay = overlay;
-	}
+	private void SetupUnitHealthBarOverlay() => _unitHealthBarOverlay = UnitHealthBarOverlay.Create(this);
 
 	private void InitializeReferences()
 	{
@@ -368,90 +305,6 @@ public partial class InGameHUD : Control
 		_cameraIndicator = GetNode<MinimapCameraIndicator>("BottomConsole/HBox/MinimapFrame/MinimapArea/Indicator");
 	}
 
-	private void SetupResourcePanel()
-	{
-		if (_btnSettings != null)
-		{
-			_btnSettings.ExpandIcon = true;
-			_btnSettings.Icon = UIStyle.LoadCrispIcon("res://Assets/UI/gear_icon.webp", 128);
-			_btnSettings.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-			_btnSettings.AddThemeConstantOverride("icon_max_width", 22);
-			_btnSettings.TooltipText = TranslationServer.Translate("Settings (F12)");
-			_btnSettings.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-			_btnSettings.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-			_btnSettings.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
-			_btnSettings.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-			_btnSettings.AddThemeColorOverride("icon_normal_color", UIStyle.ColorGoldDull);
-			_btnSettings.AddThemeColorOverride("icon_hover_color", UIStyle.ColorGold);
-			_btnSettings.AddThemeColorOverride("icon_pressed_color", UIStyle.ColorCyanGlow);
-			_btnSettings.AddThemeColorOverride("icon_focus_color", UIStyle.ColorGoldDull);
-			_btnSettings.Pressed += () =>
-			{
-				GameContext.UserInterface?.PlayClickSound();
-				GameContext.UserInterface?.OpenSettingsOverlay();
-			};
-		}
-
-		SetupInstructionsButton();
-		SetupPauseMatchButton();
-		SetupQuitMatchButton();
-	}
-
-	/// <summary>
-	///     The entry point to the map's own rules reference. The toolbar only offers it once the map has published a page,
-	///     because a menu with nothing in it is not a menu: the authority decides what there is to read, and this button
-	///     reports whether it has anything to show rather than deciding itself.
-	/// </summary>
-	private void SetupInstructionsButton()
-	{
-		if (_btnSettings == null) return;
-
-		_btnInstructions = new Button();
-		_btnInstructions.Name = "BtnInstructions";
-		_btnInstructions.Set("icon_max_width", 0);
-		_btnInstructions.Text = UnicodeIcons.HELP;
-		_btnInstructions.CustomMinimumSize = new Vector2(32, 32);
-		_btnInstructions.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		_btnInstructions.FocusMode = FocusModeEnum.None;
-		_btnInstructions.Visible = _viewModel.InstructionSections.Count > 0;
-		Font instructionsIconFont = UIStyle.FontAwesome;
-		if (instructionsIconFont != null)
-		{
-			_btnInstructions.AddThemeFontOverride("font", instructionsIconFont);
-		}
-
-		_btnInstructions.AddThemeFontSizeOverride("font_size", 16);
-		_btnInstructions.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_btnInstructions.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_btnInstructions.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		_btnInstructions.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		_btnInstructions.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		_btnInstructions.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		_btnInstructions.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
-		_btnInstructions.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_btnInstructions.TooltipText = TranslationServer.Translate("Instructions");
-		_btnInstructions.Pressed += OnInstructionsPressed;
-		_btnInstructions.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-		var resourceRow = _btnSettings.GetParent();
-		resourceRow.AddChild(_btnInstructions);
-		resourceRow.MoveChild(_btnInstructions, _btnSettings.GetIndex());
-	}
-
-	private void OnInstructionsPressed()
-	{
-		GameContext.UserInterface?.PlayClickSound();
-
-		if (_instructionsDialog != null && GodotObject.IsInstanceValid(_instructionsDialog))
-		{
-			_instructionsDialog.QueueFree();
-		}
-
-		_instructionsDialog = new InstructionsDialog { Name = "InstructionsDialog" };
-		AddChild(_instructionsDialog);
-		_instructionsDialog.Open(_viewModel.InstructionSections);
-	}
-
 	/// <summary>
 	///     Takes one page the map published for the Instructions menu. Pages keep the order they arrive in, and a page
 	///     whose title is already listed is restated in place, so a rule that changes during a match does not become a
@@ -465,203 +318,20 @@ public partial class InGameHUD : Control
 		sections.RemoveAll(section => string.Equals(section.Title, title, StringComparison.Ordinal));
 		sections.Add(new InstructionsSection(title, body ?? string.Empty));
 
-		if (_btnInstructions != null && GodotObject.IsInstanceValid(_btnInstructions))
-		{
-			_btnInstructions.Visible = sections.Count > 0;
-		}
-
-		if (_instructionsDialog != null && GodotObject.IsInstanceValid(_instructionsDialog) && _instructionsDialog.Visible)
-		{
-			_instructionsDialog.Refresh(sections);
-		}
+		ResourceBar.SetInstructionsAvailable(sections.Count > 0);
+		ResourceBar.RefreshOpenInstructions();
 	}
-
-	private Button _btnPauseMatch;
 
 	/// <summary>
 	///     The pause control every player has: it asks the match to hold where it is, and while the match is held it asks
 	///     for the resume countdown that belongs to everyone. What a player is still allowed to ask for is the match's
 	///     answer, so the button reports the match's state rather than deciding anything itself.
 	/// </summary>
-	private void SetupPauseMatchButton()
-	{
-		if (_btnSettings == null) return;
-
-		_btnPauseMatch = new Button();
-		_btnPauseMatch.Name = "BtnPauseMatch";
-		_btnPauseMatch.Set("icon_max_width", 0);
-		_btnPauseMatch.Text = UnicodeIcons.PAUSE;
-		_btnPauseMatch.CustomMinimumSize = new Vector2(32, 32);
-		_btnPauseMatch.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		_btnPauseMatch.FocusMode = FocusModeEnum.None;
-		Font pauseIconFont = UIStyle.FontAwesome;
-		if (pauseIconFont != null)
-		{
-			_btnPauseMatch.AddThemeFontOverride("font", pauseIconFont);
-		}
-
-		_btnPauseMatch.AddThemeFontSizeOverride("font_size", 16);
-		_btnPauseMatch.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_btnPauseMatch.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_btnPauseMatch.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		_btnPauseMatch.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		_btnPauseMatch.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		_btnPauseMatch.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		_btnPauseMatch.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
-		_btnPauseMatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_btnPauseMatch.TooltipText = TranslationServer.Translate("Pause Match");
-		_btnPauseMatch.Pressed += OnPauseMatchButtonPressed;
-		_btnPauseMatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-		var resourceRow = _btnSettings.GetParent();
-		resourceRow.AddChild(_btnPauseMatch);
-		resourceRow.MoveChild(_btnPauseMatch, _btnSettings.GetIndex());
-	}
-
-	/// <summary>
-	///     Holds the match for everyone, which is a request the whole lobby cannot undo by accident, so it is asked for
-	///     once before it is sent. Resuming is not: a held match has nothing left to lose by being released. A match with
-	///     nobody else in it holds only the screen pressing the button, so that one is not asked at all.
-	/// </summary>
-	private void OnPauseMatchButtonPressed()
-	{
-		GameContext.UserInterface?.PlayClickSound();
-
-		if (GameContext.NetworkService?.IsPaused == true || GameContext.Host?.IsSinglePlayerMatch == true)
-		{
-			GameContext.Host?.TogglePauseRequest();
-			return;
-		}
-
-		GameContext.UserInterface?.ShowConfirmationDialog(
-			TranslationServer.Translate("Pause game for everyone?"),
-			() => GameContext.Host?.TogglePauseRequest(),
-			confirmText: "PAUSE",
-			cancelText: "CANCEL");
-	}
-
-	private void RefreshPauseMatchButton()
-	{
-		if (_btnPauseMatch == null || !GodotObject.IsInstanceValid(_btnPauseMatch)) return;
-
-		var network = GameContext.NetworkService;
-		bool paused = network != null && network.IsPaused;
-
-		_btnPauseMatch.Text = paused ? UnicodeIcons.PLAY : UnicodeIcons.PAUSE;
-
-		bool singlePlayer = GameContext.Host?.IsSinglePlayerMatch == true;
-		_btnPauseMatch.TooltipText = paused
-			? TranslationServer.Translate("Resume Match")
-			: singlePlayer
-				? TranslationServer.Translate("Pause Match")
-				: string.Format(TranslationServer.Translate("Pause Match - {0} pause(s) left this match"), network?.RemainingPauses ?? 0);
-
-		// The cooldown is deliberately left to the authority: the button that could tell a player it is still recharging is
-		// the one it has to press to be told, so only a player with nothing left to spend is stopped here. A match of one
-		// spends nothing, so its button is never taken away.
-		_btnPauseMatch.Disabled = !paused && !singlePlayer && network != null && network.RemainingPauses <= 0;
-	}
-
-	private void SetupQuitMatchButton()
-	{
-		if (_btnSettings == null) return;
-
-		_btnQuitMatch = new Button();
-		_btnQuitMatch.Name = "BtnQuitMatch";
-		_btnQuitMatch.Set("icon_max_width", 0);
-		_btnQuitMatch.Text = UnicodeIcons.SIGN_OUT;
-		_btnQuitMatch.TooltipText = TranslationServer.Translate("Quit Match");
-		_btnQuitMatch.CustomMinimumSize = new Vector2(32, 32);
-		_btnQuitMatch.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		_btnQuitMatch.FocusMode = FocusModeEnum.None;
-		Font quitIconFont = UIStyle.FontAwesome;
-		if (quitIconFont != null)
-		{
-			_btnQuitMatch.AddThemeFontOverride("font", quitIconFont);
-		}
-
-		_btnQuitMatch.AddThemeFontSizeOverride("font_size", 16);
-		_btnQuitMatch.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_btnQuitMatch.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_btnQuitMatch.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		_btnQuitMatch.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		_btnQuitMatch.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		_btnQuitMatch.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		_btnQuitMatch.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
-		_btnQuitMatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_btnQuitMatch.Pressed += OnQuitMatchPressed;
-		_btnQuitMatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-		var resourceRow = _btnSettings.GetParent();
-		resourceRow.AddChild(_btnQuitMatch);
-		resourceRow.MoveChild(_btnQuitMatch, _btnSettings.GetIndex() + 1);
-	}
-
-	private void OnQuitMatchPressed()
-	{
-		GameContext.UserInterface?.PlayClickSound();
-		GameContext.UserInterface?.ShowConfirmationDialog(
-			TranslationServer.Translate("Are you sure you want to quit the current match and return to the main menu?"),
-			QuitMatchToMainMenu,
-			confirmText: "QUIT",
-			cancelText: "CANCEL");
-	}
-
-	private void QuitMatchToMainMenu()
-	{
-		GameContext.SessionState.IsTestMode = false;
-		GameContext.Lobby?.Disconnect();
-		GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
-	}
-
 	private void SetupSelectionFrame()
 	{
-		_unitsContainer = GetNode<HBoxContainer>("BottomConsole/HBox/SelectionFrame/UnitsContainer");
-
-		foreach (Node child in _unitsContainer.GetChildren())
-		{
-			_unitsContainer.RemoveChild(child);
-			child.QueueFree();
-		}
-		_unitButtons.Clear();
-
-		for (int i = 0; i < 12; i++)
-		{
-			var btn = new Button();
-			btn.Name = $"Unit{i + 1}";
-			btn.CustomMinimumSize = new Vector2(36, 36);
-			btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			btn.ExpandIcon = true;
-			btn.FocusMode = FocusModeEnum.None;
-			btn.AddThemeConstantOverride("icon_max_width", 30);
-			btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-			var hpBar = new ProgressBar();
-			hpBar.Name = "HealthBar";
-			hpBar.CustomMinimumSize = new Vector2(36, 4);
-			hpBar.ShowPercentage = false;
-			hpBar.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide);
-			hpBar.OffsetTop = -6;
-			hpBar.AddThemeStyleboxOverride("background", UIStyle.CreateSliderTrack());
-			hpBar.AddThemeStyleboxOverride("fill", UIStyle.CreateSliderFill());
-			hpBar.Visible = false;
-			btn.AddChild(hpBar);
-
-			var statusLbl = new Label();
-			statusLbl.Name = "StatusIcon";
-			statusLbl.Text = "";
-			statusLbl.AddThemeFontSizeOverride("font_size", 10);
-			statusLbl.AddThemeColorOverride("font_color", new Color(1f, 0.9f, 0.2f));
-			statusLbl.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-			statusLbl.Visible = false;
-			btn.AddChild(statusLbl);
-
-			_unitsContainer.AddChild(btn);
-			_unitButtons.Add(btn);
-		}
+		SelectionUnitStrip.Parts strip = SelectionUnitStrip.Rebuild(this);
+		_unitsContainer = strip.Container;
+		_unitButtons = strip.Buttons;
 	}
 
 	private void SetupCommandAndInventoryGrids()
@@ -680,141 +350,44 @@ public partial class InGameHUD : Control
 
 	private void SetupWarningLabel()
 	{
-		_connectionWarningLabel = new Label();
-		_connectionWarningLabel.Name = "ConnectionWarningLabel";
-		_connectionWarningLabel.Text = TranslationServer.Translate("Connection to host lost ... Reconnecting");
-		_connectionWarningLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		_connectionWarningLabel.VerticalAlignment = VerticalAlignment.Center;
-		_connectionWarningLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.2f, 0.2f));
-		_connectionWarningLabel.AddThemeFontSizeOverride("font_size", 22);
-
-		var warningStyle = new StyleBoxFlat();
-		warningStyle.BgColor = new Color(0.12f, 0.05f, 0.05f, 0.7f);
-		warningStyle.BorderColor = new Color(0.8f, 0.2f, 0.2f, 0.5f);
-		warningStyle.SetBorderWidthAll(2);
-		warningStyle.ContentMarginLeft = 20;
-		warningStyle.ContentMarginRight = 20;
-		warningStyle.ContentMarginTop = 8;
-		warningStyle.ContentMarginBottom = 8;
-		_connectionWarningLabel.AddThemeStyleboxOverride("normal", warningStyle);
-
+		_connectionWarningLabel = ConnectionWarningBanner.Create();
 		AddChild(_connectionWarningLabel);
-		_connectionWarningLabel.SetAnchorsPreset(LayoutPreset.CenterTop);
-		_connectionWarningLabel.GrowHorizontal = GrowDirection.Both;
-		_connectionWarningLabel.OffsetTop = 20;
-		_connectionWarningLabel.OffsetLeft = -250;
-		_connectionWarningLabel.OffsetRight = 250;
-		_connectionWarningLabel.Visible = false;
 	}
+
+	private MinimapCapture? _minimapCapture;
+
+	/// <summary>The minimap's terrain background capture and the redraw request the shroud service asks for.</summary>
+	private MinimapCapture MinimapCapture => _minimapCapture ??= new MinimapCapture(this, () => _minimapArea);
+
+	private CheatCommands? _cheats;
+
+	/// <summary>Chat cheat lines: the service decides what they do, this decides what the player sees.</summary>
+	private CheatCommands Cheats => _cheats ??= new CheatCommands(new CheatCommands.Hooks(
+		RefreshUI, ShowFeedbackText, RegenerateMinimapBackground, QueueMinimapRedraw));
+
+	private ResourceBarButtons? _resourceBar;
+
+	/// <summary>
+	///     The resource bar's buttons: the gear it configures, plus the rules, pause and quit buttons it creates beside
+	///     it. Built after <see cref="InitializeReferences" /> resolves the gear, which is what the rest anchor to.
+	/// </summary>
+	private ResourceBarButtons ResourceBar => _resourceBar ??= new ResourceBarButtons(_btnSettings, this, () => _viewModel.InstructionSections);
+
+	private MinimapControlsPanel? _minimapControlsPanel;
+
+	private MinimapControlsPanel MinimapControls => _minimapControlsPanel ??= new MinimapControlsPanel();
 
 	private void SetupMinimapControls()
 	{
-		_minimapControls = new VBoxContainer();
-		_minimapControls.Name = "MinimapControls_VBoxContainer";
-		_minimapControls.Alignment = BoxContainer.AlignmentMode.Center;
-		_minimapControls.AddThemeConstantOverride("separation", 3);
-		_minimapControls.AnchorLeft = 0.1773f;
-		_minimapControls.AnchorRight = 0.2660f;
-		_minimapControls.AnchorTop = 0.18f;
-		_minimapControls.AnchorBottom = 0.94f;
-		_minimapControls.OffsetLeft = 0;
-		_minimapControls.OffsetRight = 0;
-		_minimapControls.OffsetTop = 0;
-		_minimapControls.OffsetBottom = 0;
-		_minimapControls.GrowHorizontal = GrowDirection.Both;
-		_minimapControls.GrowVertical = GrowDirection.Both;
-		var slotsContainer = GetNode<Control>("BottomConsole/HBox");
-		slotsContainer.AddChild(_minimapControls);
-
-		_btnZoom = new Button();
-		_btnZoom.Name = "BtnZoom_Button";
-		SetupMinimapButton(_btnZoom, UnicodeIcons.ZOOM_IN, "Toggle Camera Zoom (Near / Mid / Far) [Z]", () => GameContext.Host?.CycleCameraZoom());
-		_minimapControls.AddChild(_btnZoom);
-
-		_btnToggleTerrain = new Button();
-		_btnToggleTerrain.Name = "BtnToggleTerrain_Button";
-		SetupMinimapButton(_btnToggleTerrain, UnicodeIcons.MAP_IMAGE, "Toggle Terrain Overlay (Radar Mode) [F4]", () => ToggleMinimapTerrain());
-		_minimapControls.AddChild(_btnToggleTerrain);
-
-		_btnToggleColorScheme = new Button();
-		_btnToggleColorScheme.Name = "BtnToggleColorScheme_Button";
-		SetupMinimapButton(_btnToggleColorScheme, UnicodeIcons.PALETTE, "Toggle Minimap Color Scheme (Team / Player Colors)", () => ToggleMinimapColorScheme());
-		_minimapControls.AddChild(_btnToggleColorScheme);
-
-		_btnPing = new Button();
-		_btnPing.Name = "BtnPing_Button";
-		SetupMinimapButton(_btnPing, UnicodeIcons.CROSSHAIRS_TARGET, "Send Alert Ping on Map [Alt+G]", () =>
-		{
-			if (GameContext.Host != null)
-			{
-				GameContext.Host.ActivePingMode = true;
-				ShowFeedbackText("Ping Mode: Click Minimap or Ground to ping", new Color(1.0f, 0.1f, 0.2f));
-			}
-		});
-		_minimapControls.AddChild(_btnPing);
-
-		_btnCenter = new Button();
-		_btnCenter.Name = "BtnCenter_Button";
-		SetupMinimapButton(_btnCenter, UnicodeIcons.CASTLE, "Center Camera on Base [Space]", () => GameContext.Host?.CenterCameraOnPrimaryBuilding());
-		_minimapControls.AddChild(_btnCenter);
-
-		_btnSelectIdle = new Button();
-		_btnSelectIdle.Name = "BtnSelectIdle_Button";
-		SetupMinimapButton(_btnSelectIdle, UnicodeIcons.USER_CLOCK, "Select All Idle Units [F1]", () => GameContext.Host?.SelectAllIdleUnits());
-		_minimapControls.AddChild(_btnSelectIdle);
-
-		_btnSelectArmy = new Button();
-		_btnSelectArmy.Name = "BtnSelectArmy_Button";
-		SetupMinimapButton(_btnSelectArmy, UnicodeIcons.SHIELD, "Select All Army Units [F2]", () => GameContext.Host?.SelectAllMilitaryUnits());
-		_minimapControls.AddChild(_btnSelectArmy);
-
-		var btnHotkeys = new Button();
-		btnHotkeys.Name = "BtnHotkeys_Button";
-		SetupMinimapButton(btnHotkeys, UnicodeIcons.KEYBOARD, "Hotkey Reference", () => ToggleHotkeyPanel());
-		_minimapControls.AddChild(btnHotkeys);
-	}
-
-	private string GetCurrentWeather()
-	{
-		if (GameContext.Host == null) return "clear";
-
-		string mapDir = !string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory)
-			? GameContext.MapStorageService.CurrentMapDirectory
-			: MapWorkspaceService.GetActiveWorkspacePath();
-		string metaPath = Path.Combine(mapDir, "metadata.json").Replace("\\", "/");
-		GameContext.Host.LoadMapProperties(metaPath);
-		GameHost tempQualifier = GameContext.Host;
-		return (tempQualifier != null ? GameContext.EnvironmentService : null)?.GetCurrentWeather() ?? "clear";
+		MinimapControls.Build(new MinimapControlsHooks(this, ToggleMinimapTerrain, ToggleMinimapColorScheme,
+			ShowFeedbackText, ToggleHotkeyPanel));
+		_minimapControls = MinimapControls.Root!;
 	}
 
 	private void SetupChatPanel()
 	{
-		_chatPanel = GetNode<PanelContainer>("ChatPanel");
-		_chatInput = GetNode<LineEdit>("ChatPanel/ChatContainer/ChatInput");
-		_chatLog = GetNode<RichTextLabel>("ChatPanel/ChatContainer/ChatLog");
-
-		var chatPanelStyle = new StyleBoxFlat();
-		chatPanelStyle.BgColor = new Color(0.15f, 0.15f, 0.15f, 0.9f);
-		chatPanelStyle.SetBorderWidthAll(1);
-		chatPanelStyle.BorderColor = new Color(0.25f, 0.25f, 0.25f, 0.9f);
-		chatPanelStyle.CornerRadiusTopLeft = 4;
-		chatPanelStyle.CornerRadiusTopRight = 4;
-		chatPanelStyle.CornerRadiusBottomLeft = 4;
-		chatPanelStyle.CornerRadiusBottomRight = 4;
-		chatPanelStyle.ContentMarginLeft = 8;
-		chatPanelStyle.ContentMarginRight = 8;
-		chatPanelStyle.ContentMarginTop = 8;
-		chatPanelStyle.ContentMarginBottom = 8;
-		_chatPanel.AddThemeStyleboxOverride("panel", chatPanelStyle);
-		_chatInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
-		_chatInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
-		_chatInput.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.7f));
-		_chatLog.Text = $"[color=#ffd700]{TranslationServer.Translate("Chat log initialized. Press Enter to type a message.")}[/color]\n";
-
-		if (!string.IsNullOrEmpty(GameContext.Lobby?.LastLobbyWarning))
-		{
-			_chatLog.AppendText($"[color=#ffb347]{GameContext.Lobby.LastLobbyWarning}[/color]\n");
-		}
+		_chatPanelController = ChatPanel.Create(this);
+		_chatPanel = _chatPanelController.Panel;
 
 		if (GameContext.Lobby != null)
 		{
@@ -824,149 +397,21 @@ public partial class InGameHUD : Control
 
 	private void SetupCustomUIPanel()
 	{
-		_controlGroupsContainer = new HBoxContainer();
-		_controlGroupsContainer.Name = "ControlGroupsContainer";
-		_controlGroupsContainer.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-		_controlGroupsContainer.OffsetLeft = 20;
-		_controlGroupsContainer.OffsetTop = 80;
-		_controlGroupsContainer.AddThemeConstantOverride("separation", 8);
-		AddChild(_controlGroupsContainer);
-
-		_customUIPanel = new VBoxContainer();
-		_customUIPanel.Name = "CustomUIPanel";
-		_customUIPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.TopRight);
-		_customUIPanel.GrowHorizontal = GrowDirection.Begin;
-		_customUIPanel.OffsetLeft = -440;
-		_customUIPanel.OffsetRight = -20;
-		_customUIPanel.OffsetTop = 20;
-		_customUIPanel.CustomMinimumSize = new Vector2(420, 0);
-		_customUIPanel.AddThemeConstantOverride("separation", 10);
-		AddChild(_customUIPanel);
-
-		SetupCountdownOverlay();
+		CustomUiDock.Parts dock = CustomUiDock.Create(this, OnCountdownCancelPressed);
+		_customUIPanel = dock.Panel;
+		_controlGroupsContainer = dock.ControlGroups;
+		_countdownOverlayPanelController = dock.Countdown;
 		SetupScoreboardPanel();
 	}
 
-	private void SetupCountdownOverlay()
-	{
-		_countdownOverlayPanelController = new CountdownOverlayPanel(this, _customUIPanel, OnCountdownCancelPressed);
-	}
-
-	private void SetupScoreboardPanel()
-	{
-		_scoreboardPanel = new PanelContainer();
-		_scoreboardPanel.Name = "ScoreboardPanel";
-		_scoreboardPanel.Visible = false;
-		_scoreboardPanel.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-		var scoreboardStyle = new StyleBoxFlat();
-		scoreboardStyle.BgColor = new Color(0.12f, 0.12f, 0.14f, 0.9f);
-		scoreboardStyle.SetBorderWidthAll(1);
-		scoreboardStyle.BorderColor = UIStyle.ColorBronze;
-		scoreboardStyle.CornerRadiusTopLeft = 4;
-		scoreboardStyle.CornerRadiusTopRight = 4;
-		scoreboardStyle.CornerRadiusBottomLeft = 4;
-		scoreboardStyle.CornerRadiusBottomRight = 4;
-		scoreboardStyle.ContentMarginLeft = 10;
-		scoreboardStyle.ContentMarginRight = 10;
-		scoreboardStyle.ContentMarginTop = 8;
-		scoreboardStyle.ContentMarginBottom = 8;
-		_scoreboardPanel.AddThemeStyleboxOverride("panel", scoreboardStyle);
-
-		var scoreboardVBox = new VBoxContainer();
-		scoreboardVBox.Name = "ScoreboardVBox_VBoxContainer";
-		_scoreboardPanel.AddChild(scoreboardVBox);
-
-		var scoreboardHeader = new HBoxContainer();
-		scoreboardHeader.Name = "ScoreboardHeader_HBoxContainer";
-		scoreboardHeader.AddThemeConstantOverride("separation", 6);
-		scoreboardVBox.AddChild(scoreboardHeader);
-
-		var headerInset = new Control();
-		headerInset.Name = "ScoreboardHeaderInset";
-		headerInset.CustomMinimumSize = new Vector2(26, 0);
-		scoreboardHeader.AddChild(headerInset);
-
-		_scoreboardTitleLabel = new Label();
-		_scoreboardTitleLabel.Name = "ScoreboardTitle";
-		_scoreboardTitleLabel.Text = TranslationServer.Translate("SCOREBOARD");
-		UIStyle.ApplyTitle(_scoreboardTitleLabel, TranslationServer.Translate("SCOREBOARD"), 12);
-		_scoreboardTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		_scoreboardTitleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		scoreboardHeader.AddChild(_scoreboardTitleLabel);
-
-		_scoreboardCollapseButton = new Button();
-		_scoreboardCollapseButton.Name = "ScoreboardCollapse_Button";
-		_scoreboardCollapseButton.Flat = false;
-		_scoreboardCollapseButton.FocusMode = FocusModeEnum.None;
-		_scoreboardCollapseButton.CustomMinimumSize = new Vector2(26, 22);
-		_scoreboardCollapseButton.AddThemeConstantOverride("icon_max_width", 0);
-		Font collapseIconFont = UIStyle.FontAwesome;
-		if (collapseIconFont != null)
-		{
-			_scoreboardCollapseButton.AddThemeFontOverride("font", collapseIconFont);
-		}
-
-		_scoreboardCollapseButton.AddThemeFontSizeOverride("font_size", 12);
-		_scoreboardCollapseButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_scoreboardCollapseButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_scoreboardCollapseButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_scoreboardCollapseButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_scoreboardCollapseButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_scoreboardCollapseButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		scoreboardHeader.AddChild(_scoreboardCollapseButton);
-
-		_scoreboardContent = new VBoxContainer();
-		_scoreboardContent.Name = "ScoreboardContent";
-		_scoreboardContent.AddThemeConstantOverride("separation", 6);
-		scoreboardVBox.AddChild(_scoreboardContent);
-
-		_scoreboardSelectors = new VBoxContainer();
-		_scoreboardSelectors.Name = "ScoreboardSelectors";
-		_scoreboardSelectors.AddThemeConstantOverride("separation", 4);
-		_scoreboardContent.AddChild(_scoreboardSelectors);
-
-		_scoreboardLeaderboardContent = new VBoxContainer();
-		_scoreboardLeaderboardContent.Name = "ScoreboardLeaderboardContent";
-		_scoreboardContent.AddChild(_scoreboardLeaderboardContent);
-
-		_scoreboardSummaryContent = new VBoxContainer();
-		_scoreboardSummaryContent.Name = "ScoreboardSummaryContent";
-		_scoreboardSummaryContent.Visible = false;
-		_scoreboardContent.AddChild(_scoreboardSummaryContent);
-
-		_customUIPanel.AddChild(_scoreboardPanel);
-	}
+	private void SetupScoreboardPanel() => _scoreboardPanelController = ScoreboardPanel.Create(_customUIPanel);
 
 	private void ApplyModeSpecificUI()
 	{
+		// A test run of a map carries the way back to the editor; every other match does not.
 		if (GameContext.SessionState.IsTestMode)
 		{
-			var btnBackToEditor = new Button();
-			btnBackToEditor.Name = "BtnBackToEditor";
-			btnBackToEditor.Text = TranslationServer.Translate("Back to Editor");
-			btnBackToEditor.Set("icon_max_width", 0);
-			btnBackToEditor.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btnBackToEditor.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			btnBackToEditor.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-			btnBackToEditor.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-			btnBackToEditor.AddThemeFontSizeOverride("font_size", 13);
-			btnBackToEditor.CustomMinimumSize = new Vector2(160, 40);
-			btnBackToEditor.SetAnchorsPreset(LayoutPreset.TopLeft);
-			btnBackToEditor.OffsetLeft = 20;
-			btnBackToEditor.OffsetTop = 20;
-			btnBackToEditor.Pressed += () =>
-			{
-				GameContext.UserInterface?.PlayClickSound();
-				GameContext.SessionState.IsTestMode = false;
-				GameContext.SessionState.ReturningFromTest = true;
-				if (GameContext.Lobby != null)
-				{
-					GameContext.Lobby.Disconnect();
-				}
-
-				GameContext.UserInterface?.TransitionTo(GameScreen.MapEditorHUD);
-			};
-			AddChild(btnBackToEditor);
+			AddChild(BackToEditorButton.Create());
 		}
 	}
 
@@ -977,9 +422,7 @@ public partial class InGameHUD : Control
 
 		_camera3D = GameContext.Host?.MainCamera;
 		_minimapPanelController = new MinimapPanel(_minimapFrame, _minimapArea, _cameraIndicator, _camera3D);
-		_chatPanelController = new ChatPanel(_chatPanel, _chatInput, _chatLog);
-		_scoreboardPanelController = new ScoreboardPanel(_scoreboardPanel, _scoreboardTitleLabel, _scoreboardCollapseButton, _scoreboardContent, _scoreboardSelectors, _scoreboardLeaderboardContent, _scoreboardSummaryContent);
-
+	
 		_portraitPanelController = new PortraitPanel(
 			_portraitFrame, _selectionFrame, _unitsContainer, _unitButtons, _statsContainer,
 			_unitStatsPanel,
@@ -1002,17 +445,11 @@ public partial class InGameHUD : Control
 
 	private void ApplySpectatorAndReplayOverrides()
 	{
-		if (GameContext.ReplayPlayback.IsPlayingReplay)
-		{
-			_bottomConsole.Visible = false;
-			_resourceContainer.Visible = false;
-			if (_chatPanel != null) _chatPanel.Visible = false;
-		}
-
 		bool isSpectator = GameContext.PerspectiveFilter.IsSpectating;
+		Visibility.ApplyModePresentation(GameContext.ReplayPlayback.IsPlayingReplay, isSpectator);
+
 		if (isSpectator)
 		{
-			_resourceContainer.Visible = false;
 			CreateSpectatorPerspectiveUI();
 		}
 	}
@@ -1022,204 +459,35 @@ public partial class InGameHUD : Control
 		UpdateBottomConsoleHeight();
 		ApplyHUDScale();
 
-		if (_resourceBackground != null && _resourceBackground.Material is ShaderMaterial topMat && _resourceContainer != null)
-		{
-			float resW = _resourceContainer.Size.X > 0 ? _resourceContainer.Size.X : 840f;
-			float resH = _resourceContainer.Size.Y > 0 ? _resourceContainer.Size.Y : 76f;
-			topMat.SetShaderParameter("u_panel_size", new Vector2(resW, resH));
-		}
+		InGameHudTheme.ResizeResourcePlate(_resourceBackground, _resourceContainer);
 
-		var specPanel = GetNodeOrNull<PanelContainer>("SpectatorPanel");
-		if (specPanel != null)
-		{
-			specPanel.Position = new Vector2((GetViewportRect().Size.X - 300) / 2.0f, 10);
-		}
-
-		if (_hotkeyPanel != null)
-		{
-			float vpW = GetViewportRect().Size.X;
-			float vpH = GetViewportRect().Size.Y;
-			if (vpW <= 0f) vpW = 1920f;
-			if (vpH <= 0f) vpH = 1080f;
-			float consoleH = vpW * (BaseConsoleHeight / 1920f);
-			float playfieldCenterY = (80f + (vpH - consoleH)) / 2f;
-			_hotkeyPanel.OffsetLeft = -240f;
-			_hotkeyPanel.OffsetRight = 240f;
-			_hotkeyPanel.OffsetTop = playfieldCenterY - (vpH / 2f) - 336f;
-			_hotkeyPanel.OffsetBottom = _hotkeyPanel.OffsetTop + 672f;
-		}
+		Vector2 viewportSize = GetViewportRect().Size;
+		SpectatorPerspective.PlaceCentered(viewportSize.X);
+		HotkeyReference.CenterInPlayfield(viewportSize.X, viewportSize.Y);
 	}
 
-	private const float BaseConsoleHeight = 240f;
-	private const float ConsoleArtworkHeight = 240f;
-	private const float PortraitSlotLeft = 370f;
-	private const float PortraitSlotTop = 75f;
-	private const float PortraitSlotRight = 515f;
-	private const float PortraitSlotBottom = 195f;
-	private const float PortraitNameHeight = 20f;
+	private BottomConsoleLayout? _consoleLayout;
 
-	private void UpdateBottomConsoleHeight()
-	{
-		if (_bottomConsole != null)
-		{
-			float viewportWidth = GetViewportRect().Size.X;
-			if (viewportWidth <= 0f) viewportWidth = 1920f;
-			float proportionalHeight = viewportWidth * (BaseConsoleHeight / 1920f);
+	private BottomConsoleLayout ConsoleLayout => _consoleLayout ??= new BottomConsoleLayout();
 
-			_bottomConsole.OffsetBottom = 0;
-			_bottomConsole.OffsetTop = -Mathf.Round(proportionalHeight);
+	private ConsoleLayoutNodes ConsoleNodes => new(this,
+		() => _bottomConsole,
+		() => _consoleBackground,
+		() => _unitVitalsBars,
+		() => _minimapFrame,
+		() => _minimapControls,
+		() => _portraitFrame,
+		() => _selectionFrame,
+		() => _unitStatsPanel,
+		() => _commandFrame,
+		() => _chatPanel,
+		() => _resourceContainer,
+		() => _controlGroupsContainer,
+		() => _customUIPanel);
 
-			if (_consoleBackground != null && _consoleBackground.Material is ShaderMaterial mat)
-			{
-				mat.SetShaderParameter("u_console_size", new Vector2(viewportWidth, proportionalHeight));
-			}
+	private void UpdateBottomConsoleHeight() => ConsoleLayout.Apply(ConsoleNodes);
 
-			_unitVitalsBars?.ApplyLayout(proportionalHeight);
-
-			float s = proportionalHeight / 433f;
-			float wLeft = 935f * s;
-			float wRight = 912f * s;
-
-			if (_minimapFrame != null)
-			{
-				_minimapFrame.AnchorLeft = 0;
-				_minimapFrame.AnchorRight = 0;
-				_minimapFrame.AnchorTop = 0;
-				_minimapFrame.AnchorBottom = 0;
-				_minimapFrame.OffsetLeft = Mathf.Round(38f * s);
-				_minimapFrame.OffsetRight = Mathf.Round(426f * s);
-				_minimapFrame.OffsetTop = Mathf.Round(61f * s);
-				_minimapFrame.OffsetBottom = Mathf.Round(426f * s);
-			}
-
-			if (_minimapControls != null)
-			{
-				_minimapControls.AnchorLeft = 0;
-				_minimapControls.AnchorRight = 0;
-				_minimapControls.AnchorTop = 0;
-				_minimapControls.AnchorBottom = 0;
-				_minimapControls.OffsetLeft = Mathf.Round(438f * s);
-				_minimapControls.OffsetRight = Mathf.Round(534f * s);
-				_minimapControls.OffsetTop = Mathf.Round(64f * s);
-				_minimapControls.OffsetBottom = Mathf.Round(424f * s);
-			}
-
-			if (_portraitFrame != null)
-			{
-				float artworkScale = proportionalHeight / ConsoleArtworkHeight;
-				_portraitFrame.AnchorLeft = 0;
-				_portraitFrame.AnchorRight = 0;
-				_portraitFrame.AnchorTop = 0;
-				_portraitFrame.AnchorBottom = 0;
-				_portraitFrame.OffsetLeft = Mathf.Round(PortraitSlotLeft * artworkScale);
-				_portraitFrame.OffsetRight = Mathf.Round(PortraitSlotRight * artworkScale);
-				_portraitFrame.OffsetTop = Mathf.Round(PortraitSlotTop * artworkScale);
-				_portraitFrame.OffsetBottom = Mathf.Round(PortraitSlotBottom * artworkScale);
-
-				var pTexture = _portraitFrame.GetNodeOrNull<TextureRect>("VBox/PortraitTexture");
-				if (pTexture != null)
-				{
-					float slotHeight = (PortraitSlotBottom - PortraitSlotTop - PortraitNameHeight) * artworkScale;
-					float slotWidth = (PortraitSlotRight - PortraitSlotLeft) * artworkScale;
-					float portraitSize = Mathf.Round(Mathf.Min(slotWidth, slotHeight));
-					pTexture.CustomMinimumSize = new Vector2(portraitSize, portraitSize);
-				}
-			}
-
-			if (_selectionFrame != null)
-			{
-				_selectionFrame.AnchorLeft = 0;
-				_selectionFrame.AnchorRight = 0;
-				_selectionFrame.AnchorTop = 0;
-				_selectionFrame.AnchorBottom = 0;
-				_selectionFrame.OffsetLeft = Mathf.Round(wLeft + 140f * s);
-				_selectionFrame.OffsetRight = Mathf.Round(viewportWidth - wRight - 40f * s);
-				_selectionFrame.OffsetTop = Mathf.Round(165f * s);
-				_selectionFrame.OffsetBottom = Mathf.Round(415f * s);
-
-				if (_unitStatsPanel != null)
-				{
-					float labelW = Mathf.Max(200f, _selectionFrame.OffsetRight - _selectionFrame.OffsetLeft - 20f);
-					_unitStatsPanel.Root.CustomMinimumSize = new Vector2(labelW, 0);
-				}
-			}
-
-			var inventoryFrame = GetNodeOrNull<PanelContainer>("BottomConsole/HBox/InventoryFrame");
-			if (inventoryFrame != null)
-			{
-				inventoryFrame.AnchorLeft = 0;
-				inventoryFrame.AnchorRight = 0;
-				inventoryFrame.AnchorTop = 0;
-				inventoryFrame.AnchorBottom = 0;
-				inventoryFrame.OffsetLeft = Mathf.Round(viewportWidth - (2752f - 1850f) * s);
-				inventoryFrame.OffsetRight = Mathf.Round(viewportWidth - (2752f - 2150f) * s);
-				inventoryFrame.OffsetTop = Mathf.Round(170f * s);
-				inventoryFrame.OffsetBottom = Mathf.Round(425f * s);
-			}
-
-			if (_commandFrame != null)
-			{
-				_commandFrame.AnchorLeft = 0;
-				_commandFrame.AnchorRight = 0;
-				_commandFrame.AnchorTop = 0;
-				_commandFrame.AnchorBottom = 0;
-				_commandFrame.OffsetLeft = Mathf.Round(viewportWidth - (2752f - 2250f) * s);
-				_commandFrame.OffsetRight = Mathf.Round(viewportWidth - (2752f - 2725f) * s);
-				_commandFrame.OffsetTop = Mathf.Round(60f * s);
-				_commandFrame.OffsetBottom = Mathf.Round(415f * s);
-			}
-
-			if (_chatPanel != null)
-			{
-				float chatHeight = 240f;
-				_chatPanel.OffsetBottom = _bottomConsole.OffsetTop - 15f;
-				_chatPanel.OffsetTop = _chatPanel.OffsetBottom - chatHeight;
-			}
-		}
-	}
-
-	public void ApplyHUDScale()
-	{
-		float s = GameSettings.HudScale / 100f;
-
-		if (_resourceContainer != null)
-		{
-			_resourceContainer.PivotOffset = new Vector2(_resourceContainer.Size.X / 2f, 0f);
-			_resourceContainer.Scale = new Vector2(s, s);
-		}
-
-		if (_bottomConsole != null)
-		{
-			float width = _bottomConsole.Size.X > 0 ? _bottomConsole.Size.X : GetViewportRect().Size.X;
-			float height = _bottomConsole.Size.Y > 0 ? _bottomConsole.Size.Y : BaseConsoleHeight;
-			_bottomConsole.PivotOffset = new Vector2(width / 2f, height);
-			_bottomConsole.Scale = new Vector2(s, s);
-		}
-
-		if (_chatPanel != null)
-		{
-			_chatPanel.PivotOffset = new Vector2(0f, _chatPanel.Size.Y);
-			_chatPanel.Scale = new Vector2(s, s);
-		}
-
-		if (_controlGroupsContainer != null)
-		{
-			_controlGroupsContainer.PivotOffset = Vector2.Zero;
-			_controlGroupsContainer.Scale = new Vector2(s, s);
-		}
-
-		if (_customUIPanel != null)
-		{
-			_customUIPanel.PivotOffset = new Vector2(_customUIPanel.Size.X, 0f);
-			_customUIPanel.Scale = new Vector2(s, s);
-		}
-
-		if (_hotkeyPanel != null)
-		{
-			_hotkeyPanel.PivotOffset = new Vector2(240f, 336f);
-			_hotkeyPanel.Scale = new Vector2(s, s);
-		}
-	}
+	public void ApplyHUDScale() => ConsoleLayout.ApplyHudScale(ConsoleNodes, GameSettings.HudScale / 100f);
 
 	public void UpdateFPSVisibility()
 	{
@@ -1241,177 +509,21 @@ public partial class InGameHUD : Control
 		}
 	}
 
-	private bool _isGeneratingMinimap = false;
-	private bool _minimapNeedsRegen = false;
+	public Task RegenerateMinimapBackground() => MinimapCapture.RegenerateAsync();
 
-	public async Task RegenerateMinimapBackground()
-	{
-		if (_isGeneratingMinimap)
-		{
-			_minimapNeedsRegen = true;
-			return;
-		}
-
-		_isGeneratingMinimap = true;
-
-		try
-		{
-			do
-			{
-				_minimapNeedsRegen = false;
-				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
-				var minimapBg = _minimapArea.GetChildCount() > 0 ? _minimapArea.GetChild<TextureRect>(0) : null;
-				if (minimapBg == null) return;
-
-				var imgTexture = await MinimapHelper.CaptureTerrainMinimapTextureAsync(this, 256);
-				if (imgTexture != null)
-				{
-					minimapBg.Texture = imgTexture;
-				}
-			} while (_minimapNeedsRegen);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"Failed to dynamically capture terrain minimap: {ex.Message}");
-		}
-		finally
-		{
-			_isGeneratingMinimap = false;
-		}
-	}
-
-	private void GenerateDynamicMinimap()
-	{
-		_ = RegenerateMinimapBackground();
-	}
+	private void GenerateDynamicMinimap() => _ = MinimapCapture.RegenerateAsync();
 
 	private void CreateStatsContainer()
 	{
-		_statsContainer = new HBoxContainer();
-		_statsContainer.Name = "StatsContainer_HBoxContainer";
-		_statsContainer.LayoutMode = 2;
-		_statsContainer.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_statsContainer.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_statsContainer.CustomMinimumSize = new Vector2(0, 0);
-		_statsContainer.ClipContents = true;
-		_statsContainer.AddThemeConstantOverride("separation", 20);
-		_selectionFrame.AddChild(_statsContainer);
-		_statsContainer.Visible = false;
+		var nodes = SelectionStatsBuilder.Create(_selectionFrame);
 
-		var statsScroll = new ScrollContainer();
-		statsScroll.Name = "StatsScroll";
-		statsScroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		statsScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		statsScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		statsScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-		_statsContainer.AddChild(statsScroll);
-
-		var statsVBox = new VBoxContainer();
-		statsVBox.Name = "StatsVBox_VBoxContainer";
-		statsVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		statsVBox.SizeFlagsVertical = SizeFlags.ShrinkBegin;
-		statsScroll.AddChild(statsVBox);
-
-		_unitStatsPanel = new UnitStatsPanel();
-		statsVBox.AddChild(_unitStatsPanel.Root);
-
-		var vScroll = statsScroll.GetVScrollBar();
-		if (vScroll != null)
-		{
-			vScroll.CustomMinimumSize = new Vector2(6, 0);
-			var grabberNormal = new StyleBoxFlat();
-			grabberNormal.BgColor = UIStyle.ColorBronze;
-			grabberNormal.CornerRadiusTopLeft = 3;
-			grabberNormal.CornerRadiusTopRight = 3;
-			grabberNormal.CornerRadiusBottomLeft = 3;
-			grabberNormal.CornerRadiusBottomRight = 3;
-			vScroll.AddThemeStyleboxOverride("grabber", grabberNormal);
-
-			var grabberHighlight = new StyleBoxFlat();
-			grabberHighlight.BgColor = UIStyle.ColorGold;
-			grabberHighlight.CornerRadiusTopLeft = 3;
-			grabberHighlight.CornerRadiusTopRight = 3;
-			grabberHighlight.CornerRadiusBottomLeft = 3;
-			grabberHighlight.CornerRadiusBottomRight = 3;
-			vScroll.AddThemeStyleboxOverride("grabber_highlight", grabberHighlight);
-
-			var grabberPressed = new StyleBoxFlat();
-			grabberPressed.BgColor = UIStyle.ColorCyanGlow;
-			grabberPressed.CornerRadiusTopLeft = 3;
-			grabberPressed.CornerRadiusTopRight = 3;
-			grabberPressed.CornerRadiusBottomLeft = 3;
-			grabberPressed.CornerRadiusBottomRight = 3;
-			vScroll.AddThemeStyleboxOverride("grabber_pressed", grabberPressed);
-
-			var scrollTrack = new StyleBoxFlat();
-			scrollTrack.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.5f);
-			scrollTrack.CornerRadiusTopLeft = 3;
-			scrollTrack.CornerRadiusTopRight = 3;
-			scrollTrack.CornerRadiusBottomLeft = 3;
-			scrollTrack.CornerRadiusBottomRight = 3;
-			vScroll.AddThemeStyleboxOverride("scroll", scrollTrack);
-		}
-
-		_productionBox = new VBoxContainer();
-		_productionBox.Name = "ProductionBox_VBoxContainer";
-		_productionBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_productionBox.Alignment = BoxContainer.AlignmentMode.Center;
-		_statsContainer.AddChild(_productionBox);
-		_productionBox.Visible = false;
-
-		_productionTitle = new Label();
-		_productionTitle.Name = "ProductionTitle_Label";
-		_productionTitle.Text = TranslationServer.Translate("PRODUCTION");
-		UIStyle.ApplyTitle(_productionTitle, TranslationServer.Translate("PRODUCTION"), 12);
-		_productionTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
-		_productionBox.AddChild(_productionTitle);
-
-		_productionProgress = new ProgressBar();
-		_productionProgress.Name = "ProductionProgress_ProgressBar";
-		_productionProgress.CustomMinimumSize = new Vector2(120, 16);
-		_productionProgress.ShowPercentage = true;
-		_productionProgress.AddThemeStyleboxOverride("background", UIStyle.CreateSliderTrack());
-		_productionProgress.AddThemeStyleboxOverride("fill", UIStyle.CreateSliderFill());
-		_productionBox.AddChild(_productionProgress);
-
-		_productionQueueLabel = new Label();
-		_productionQueueLabel.Name = "ProductionQueueLabel_Label";
-		_productionQueueLabel.Text = string.Format(TranslationServer.Translate("Queue: {0}"), 0);
-		_productionQueueLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		_productionQueueLabel.AddThemeFontSizeOverride("font_size", 11);
-		_productionQueueLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_productionBox.AddChild(_productionQueueLabel);
-
-		_queueSlotsContainer = new HBoxContainer();
-		_queueSlotsContainer.Name = "QueueSlotsContainer_HBoxContainer";
-		_queueSlotsContainer.Alignment = BoxContainer.AlignmentMode.Center;
-		_queueSlotsContainer.AddThemeConstantOverride("separation", 6);
-		_productionBox.AddChild(_queueSlotsContainer);
-	}
-
-	private void SetupSpellButton(Button btn, string iconPath, string spellId, string tooltip)
-	{
-		btn.Flat = false;
-		btn.Text = "";
-		btn.ExpandIcon = true;
-		btn.Icon = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
-		btn.TooltipText = tooltip;
-		UIStyle.SetupHUDButton(btn, tooltip);
-
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		btn.Pressed += () =>
-		{
-			if (GameContext.Host != null)
-			{
-				GameContext.Host.EnterSpellTargeting(spellId);
-			}
-		};
+		_statsContainer = nodes.Container;
+		_unitStatsPanel = nodes.StatsPanel;
+		_productionBox = nodes.ProductionBox;
+		_productionTitle = nodes.ProductionTitle;
+		_productionProgress = nodes.ProductionProgress;
+		_productionQueueLabel = nodes.ProductionQueueLabel;
+		_queueSlotsContainer = nodes.QueueSlots;
 	}
 
 	private void UpdateUnitVitalsBars()
@@ -1429,7 +541,7 @@ public partial class InGameHUD : Control
 		_unitVitalsBars.UpdateSingleSelection(selectedUnits[index]);
 	}
 
-	public void RefreshUI(List<Unit3D> selectedUnits)
+	public void RefreshUI(List<Unit3D>? selectedUnits)
 	{
 		InvalidateCadence(tactical: true, macro: false);
 
@@ -1450,152 +562,20 @@ public partial class InGameHUD : Control
 		_commandPanelController?.Update(_viewModel);
 		_inventoryPanelController?.Update(_viewModel);
 
-		if (!IsHudElementVisible(HudElement.UnitPortrait, true) && _portraitFrame != null)
-		{
-			_portraitFrame.Visible = false;
-		}
-		if (!IsHudElementVisible(HudElement.CommandCard, true) && _commandFrame != null)
-		{
-			_commandFrame.Visible = false;
-		}
-		if (!IsHudElementVisible(HudElement.Minimap, true) && _minimapFrame != null)
-		{
-			_minimapFrame.Visible = false;
-		}
-		if (!IsHudElementVisible(HudElement.ResourceBar, true) && _resourceContainer != null)
-		{
-			_resourceContainer.Visible = false;
-		}
-		if (!IsHudElementVisible(HudElement.Inventory, true))
-		{
-			if (_inventoryFrame != null) _inventoryFrame.Visible = false;
-			if (_inventoryGrid != null) _inventoryGrid.Visible = false;
-		}
+		Visibility.HideDisallowed();
 	}
+
+	private InGameHudTheme? _theme;
+
+	private InGameHudTheme HudStyles => _theme ??= new InGameHudTheme();
 
 	private void ApplyThemeStyles()
 	{
-		_resourceContainer.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+		HudStyles.Apply(new HudThemeNodes(this, _resourceContainer, _resourceBackground, _consoleBackground, _bottomConsole,
+			_minimapFrame, _portraitFrame, _selectionFrame, _commandFrame, _feedbackLabel,
+			_goldLabel, _woodLabel, _stoneLabel, _populationLabel, _clockLabel, _minimapArea, _cameraIndicator));
 
-		if (_resourceBackground != null)
-		{
-			var topTexture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelTop.webp");
-			_resourceBackground.Texture = topTexture;
-
-			_hudPanelTopShader ??= GD.Load<Shader>("res://Assets/shaders/hud_panel_top.gdshader");
-			var topMaterial = new ShaderMaterial();
-			topMaterial.Shader = _hudPanelTopShader;
-			topMaterial.SetShaderParameter("u_panel_size", new Vector2(840.0f, 76.0f));
-			_resourceBackground.Material = topMaterial;
-		}
-
-		if (_consoleBackground != null)
-		{
-			var texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
-			if (texture == null)
-			{
-				texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_PanelBottom.webp");
-			}
-			_consoleBackground.Texture = texture;
-
-			_hudPanelBottomShader ??= GD.Load<Shader>("res://Assets/shaders/hud_panel_bottom.gdshader");
-			var consoleMaterial = new ShaderMaterial();
-			consoleMaterial.Shader = _hudPanelBottomShader;
-			_consoleBackground.Material = consoleMaterial;
-		}
-
-		_bottomConsole.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		_minimapFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		_portraitFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		_portraitFrame.ZIndex = -1;
-
-		if (_portraitFrame.GetNodeOrNull<ColorRect>("PortraitBacking") == null)
-		{
-			var portraitBacking = new ColorRect();
-			portraitBacking.Name = "PortraitBacking";
-			portraitBacking.Color = new Color(0.03f, 0.03f, 0.04f, 1.0f);
-			portraitBacking.MouseFilter = MouseFilterEnum.Ignore;
-			_portraitFrame.AddChild(portraitBacking);
-			_portraitFrame.MoveChild(portraitBacking, 0);
-		}
-		_selectionFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		_selectionFrame.ClipContents = true;
-		
-		var inventoryFrame = GetNodeOrNull<PanelContainer>("BottomConsole/HBox/InventoryFrame");
-		if (inventoryFrame != null)
-		{
-			inventoryFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-		}
-
-		_commandFrame.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-
-		UIStyle.ApplyTitle(_feedbackLabel, "", 32);
-		_feedbackLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-
-		var resourceIcons = new (string nodePath, string assetPath)[]
-		{
-			("ResourceContainer/HBox/GoldBox/GoldIcon", "res://Assets/UI/gold_coin.webp"),
-			("ResourceContainer/HBox/WoodBox/WoodIcon", "res://Assets/UI/wood_logs.webp"),
-			("ResourceContainer/HBox/StoneBox/StoneIcon", "res://Assets/UI/stone.webp"),
-			("ResourceContainer/HBox/SupplyBox/SupplyIcon", "res://Assets/UI/Supplies.webp"),
-			("ResourceContainer/HBox/ClockBox/ClockIcon", "res://Assets/UI/clock.webp"),
-		};
-
-		foreach (var (nodePath, assetPath) in resourceIcons)
-		{
-			var iconRect = GetNodeOrNull<TextureRect>(nodePath);
-			if (iconRect != null)
-			{
-				iconRect.Texture = UIStyle.LoadCrispIcon(assetPath, 256);
-				iconRect.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-				iconRect.CustomMinimumSize = new Vector2(36, 36);
-				iconRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-				iconRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			}
-		}
-
-		var resourceHBox = GetNodeOrNull<HBoxContainer>("ResourceContainer/HBox");
-		if (resourceHBox != null)
-		{
-			resourceHBox.AddThemeConstantOverride("separation", 32);
-		}
-
-		GetNode<Control>("ResourceContainer/HBox/GoldBox").TooltipText = TranslationServer.Translate("Gold");
-		GetNode<Control>("ResourceContainer/HBox/WoodBox").TooltipText = TranslationServer.Translate("Wood");
-		GetNode<Control>("ResourceContainer/HBox/StoneBox").TooltipText = TranslationServer.Translate("Stone");
-		GetNode<Control>("ResourceContainer/HBox/SupplyBox").TooltipText = TranslationServer.Translate("Population / Supply");
-		GetNode<Control>("ResourceContainer/HBox/ClockBox").TooltipText = TranslationServer.Translate("Game Time & Day/Night Cycle");
-
-		var topLabels = new[] { _goldLabel, _woodLabel, _stoneLabel, _populationLabel, _clockLabel };
-		foreach (var lbl in topLabels)
-		{
-			if (lbl == null) continue;
-			lbl.AddThemeFontSizeOverride("font_size", 18);
-			lbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-			lbl.AddThemeConstantOverride("outline_size", 2);
-			lbl.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.85f));
-			lbl.VerticalAlignment = VerticalAlignment.Center;
-		}
-
-		_goldLabel?.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-
-		GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName").AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-
-		var minimapBg = MinimapHelper.SetupMinimapBackground(_minimapArea);
-		if (minimapBg != null)
-		{
-			minimapBg.Material = null;
-		}
-
-		var overlay = new MinimapOverlay();
-		overlay.Name = "MinimapOverlay";
-		overlay.MouseFilter = MouseFilterEnum.Ignore;
-		_minimapArea.AddChild(overlay);
-		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		_minimapOverlay = overlay;
-
-		_cameraIndicator.MouseFilter = MouseFilterEnum.Ignore;
-		_minimapArea.MoveChild(_cameraIndicator, _minimapArea.GetChildCount() - 1);
+		MinimapCapture.Overlay = HudStyles.MinimapOverlay;
 	}
 
 	public override void _Process(double delta)
@@ -1632,7 +612,7 @@ public partial class InGameHUD : Control
 			_viewModel.UpdateMacro(accumulated);
 			_resourcePanelController?.Update(_viewModel);
 			UpdateShroudMinimapTimer(accumulated);
-			UpdateIdleUnitButton(accumulated);
+			UpdateIdlePulse(accumulated);
 		}
 
 		_ambientTimer += dt;
@@ -1656,187 +636,32 @@ public partial class InGameHUD : Control
 	///     The Build submenu belongs to the unit that opened it, so a new selection closes it instead of leaving a
 	///     builder's build options on another unit's command card.
 	/// </summary>
-	private void ResetBuildSubMenuOnSelectionChange(List<Unit3D> selectedUnits)
+	private void ResetBuildSubMenuOnSelectionChange(List<Unit3D>? selectedUnits)
 	{
 		if (selectedUnits == null) return;
 
-		string signature = string.Join(";", selectedUnits.Select(unit => unit.Entity.Id));
-		if (string.Equals(signature, _lastSelectionSignature, StringComparison.Ordinal)) return;
+		bool unchanged = selectedUnits.Count == _lastSelectionIds.Count;
+		if (unchanged)
+		{
+			for (int index = 0; index < selectedUnits.Count; index++)
+			{
+				if (selectedUnits[index].Entity.Id == _lastSelectionIds[index]) continue;
+				unchanged = false;
+				break;
+			}
+		}
 
-		_lastSelectionSignature = signature;
+		if (unchanged) return;
+
+		_lastSelectionIds.Clear();
+		for (int index = 0; index < selectedUnits.Count; index++)
+		{
+			_lastSelectionIds.Add(selectedUnits[index].Entity.Id);
+		}
+
 		if (_viewModel.IsBuildSubMenuOpen) _viewModel.IsBuildSubMenuOpen = false;
 	}
 
-	private void UpdateShroudMinimapTimer(double delta)
-	{
-		_shroudMinimapRefreshTimer += (float)delta;
-		if (_shroudMinimapRefreshTimer >= 0.1f)
-		{
-			_shroudMinimapRefreshTimer = 0f;
-			QueueMinimapRedraw();
-		}
-	}
-
-	private void UpdateIdleUnitButton(double delta)
-	{
-		if (_btnSelectIdle == null) return;
-
-		if (_lastIdleCount != _viewModel.IdleCount)
-		{
-			_btnSelectIdle.TooltipText = $"{TranslationServer.Translate("Select All Idle Units [F1]")} ({_viewModel.IdleCount} {TranslationServer.Translate("Idle")})";
-		}
-
-		if (_viewModel.IdleCount > 0)
-		{
-			_idlePulseTimer += (float)delta;
-			if (_lastIdleCount == 0)
-			{
-				ShowFeedbackText(string.Format(TranslationServer.Translate("{0} unit(s) are idle! [F1] to select"), _viewModel.IdleCount), new Color(0.9f, 0.7f, 0.2f));
-			}
-
-			float pulse = Mathf.Sin(_idlePulseTimer * 4f) * 0.5f + 0.5f;
-			_btnSelectIdle.Modulate = new Color(1f, 0.8f + pulse * 0.2f, 0.2f + pulse * 0.8f, 1f);
-		}
-		else
-		{
-			_idlePulseTimer = 0f;
-			_btnSelectIdle.Modulate = Colors.White;
-		}
-
-		_lastIdleCount = _viewModel.IdleCount;
-	}
-
-	public void QueueMinimapRedraw()
-	{
-		_minimapOverlay?.QueueRedraw();
-	}
-
-	public void ShowFeedbackText(string text, Color color)
-	{
-		_feedbackLabel.Text = UIHelper.StripBbCode(TranslationServer.Translate(text));
-		_feedbackLabel.AddThemeColorOverride("font_color", color);
-		_feedbackLabel.Modulate = new Color(color.R, color.G, color.B, 1.0f);
-
-		var tween = CreateTween();
-		tween.TweenProperty(_feedbackLabel, "modulate:a", 0.0f, 1.5f).SetDelay(0.5f);
-	}
-
-	public void ToggleMinimapTerrain()
-	{
-		_viewModel.ShowMinimapTerrain = !_viewModel.ShowMinimapTerrain;
-	}
-
-	public void ToggleMinimapColorScheme()
-	{
-		_viewModel.MinimapColorScheme = _viewModel.MinimapColorScheme == MinimapColorScheme.TeamColors
-			? MinimapColorScheme.PlayerColors
-			: MinimapColorScheme.TeamColors;
-
-		string schemeName = _viewModel.MinimapColorScheme == MinimapColorScheme.TeamColors
-			? TranslationServer.Translate("Team Colors")
-			: TranslationServer.Translate("Player Colors");
-
-		ShowFeedbackText(string.Format(TranslationServer.Translate("Minimap Colors: {0}"), schemeName), UIStyle.ColorGold);
-		QueueMinimapRedraw();
-	}
-
-	private void SetupMinimapButton(Button btn, string iconGlyph, string tooltip, Action onClick)
-	{
-		btn.Flat = false;
-		btn.Text = iconGlyph;
-		btn.Icon = null;
-		string trans = TranslationServer.Translate(tooltip);
-		btn.TooltipText = string.IsNullOrEmpty(trans) ? tooltip : trans;
-		btn.FocusMode = FocusModeEnum.None;
-		btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		btn.SizeFlagsVertical = SizeFlags.ExpandFill;
-		btn.Alignment = HorizontalAlignment.Center;
-		btn.AddThemeConstantOverride("icon_max_width", 0);
-
-		var font = UIStyle.FontAwesome;
-		if (font != null)
-		{
-			btn.AddThemeFontOverride("font", font);
-		}
-
-		btn.AddThemeFontSizeOverride("font_size", 14);
-		btn.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		btn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		btn.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		btn.AddThemeColorOverride("font_focus_color", UIStyle.ColorGoldDull);
-		btn.AddThemeConstantOverride("outline_size", 2);
-		btn.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateMinimapButtonStyle(false, false));
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateMinimapButtonStyle(true, false));
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateMinimapButtonStyle(false, true));
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		btn.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			onClick?.Invoke();
-		};
-		btn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-	}
-
-	private void SetupHUDButton(Button btn, string iconPath, string tooltip, Action onClick)
-	{
-		btn.Flat = false;
-		btn.Text = "";
-		btn.ExpandIcon = true;
-		btn.Icon = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
-		string trans = TranslationServer.Translate(tooltip);
-		btn.TooltipText = string.IsNullOrEmpty(trans) ? tooltip : trans;
-		btn.CustomMinimumSize = new Vector2(48, 48);
-		btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		btn.SizeFlagsVertical = SizeFlags.ExpandFill;
-		btn.FocusMode = FocusModeEnum.None;
-		UIStyle.SetupHUDButton(btn, tooltip);
-
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-
-		btn.Pressed += () => onClick?.Invoke();
-	}
-
-	private void SetupPortrait()
-	{
-		var pTexture = GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture");
-		if (pTexture != null)
-		{
-			pTexture.Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/alliance_flag.webp");
-			_hudPortraitMaskShader ??= GD.Load<Shader>("res://Assets/shaders/hud_portrait_mask.gdshader");
-			var portraitMaskMaterial = new ShaderMaterial();
-			portraitMaskMaterial.Shader = _hudPortraitMaskShader;
-			pTexture.Material = portraitMaskMaterial;
-		}
-
-		GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName").Text = TranslationServer.Translate("No Selection");
-	}
-
-	private void CenterCameraOnSelectedUnit()
-	{
-		var selected = GameContext.Host?.SelectedUnits;
-		if (selected != null && selected.Count > 0)
-		{
-			int idx = GameContext.Host != null ? GameContext.Host.CycleSelectionIndex : 0;
-			if (idx >= 0 && idx < selected.Count)
-				CenterCameraOnUnit(selected[idx]);
-		}
-	}
-
-	private void CenterCameraOnUnit(Unit3D unit)
-	{
-		if (unit == null || !GodotObject.IsInstanceValid(unit)) return;
-		if (_camera3D != null && GodotObject.IsInstanceValid(_camera3D))
-		{
-			_camera3D.GlobalPosition = new Vector3(unit.GlobalPosition.X, _camera3D.GlobalPosition.Y, unit.GlobalPosition.Z + 25f);
-			ShowFeedbackText($"Camera → {unit.UnitId.ToUpper()}", new Color(0.9f, 0.8f, 0.5f));
-		}
-	}
 
 	public bool IsMouseOverUI(Vector2 mousePos)
 	{
@@ -1846,7 +671,7 @@ public partial class InGameHUD : Control
 			return true;
 		}
 
-		Control[] controls = { _bottomConsole, _resourceContainer, _hotkeyPanel };
+		Control?[] controls = { _bottomConsole, _resourceContainer, _hotkeyPanel };
 		return Enumerable.Any(controls, c => c != null && c.Visible && c.GetGlobalRect().HasPoint(mousePos));
 	}
 
@@ -1868,441 +693,11 @@ public partial class InGameHUD : Control
 	}
 
 
-	private void OnUnitSelectionButtonClicked(int index)
-	{
-		if (GameContext.Host == null) return;
-		var selectedUnits = GameContext.Host.SelectedUnits;
-		if (selectedUnits == null || index < 0 || index >= selectedUnits.Count) return;
+	private HotkeyReferencePanel HotkeyReference => _hotkeyReference ??= new HotkeyReferencePanel();
 
-		var clickedUnit = selectedUnits[index];
-		bool shiftPressed = Input.IsKeyPressed(Key.Shift);
-		bool ctrlPressed = Input.IsKeyPressed(Key.Ctrl);
+	private void BuildHotkeyReferencePanel() => HotkeyReference.Build(this);
 
-		if (ctrlPressed)
-		{
-			string targetId = clickedUnit.UnitId;
-			var toDeselect = new List<Unit3D>();
-			foreach (var u in selectedUnits)
-			{
-				if (u.UnitId != targetId)
-				{
-					toDeselect.Add(u);
-				}
-			}
-
-			foreach (var u in toDeselect)
-			{
-				GameContext.Host.DeselectUnit(u);
-			}
-		}
-		else if (shiftPressed)
-		{
-			GameContext.Host.DeselectUnit(clickedUnit);
-		}
-		else
-		{
-			GameContext.Host.SelectOnlyUnit(clickedUnit);
-			CenterCameraOnUnit(clickedUnit);
-		}
-
-		RefreshUI(GameContext.Host.SelectedUnits);
-	}
-
-	public override void _UnhandledInput(InputEvent @event)
-	{
-		if (HandleFocusNext(@event)) return;
-
-		if (@event is InputEventKey keyEvent && keyEvent.Pressed)
-		{
-			if (keyEvent.Keycode == Key.Escape && _hotkeyPanelVisible)
-			{
-				ToggleHotkeyPanel();
-				GetViewport().SetInputAsHandled();
-				return;
-			}
-
-			if (HandleSpaceKey(keyEvent)) return;
-			if (HandleEnterKey(keyEvent)) return;
-			if (HandleTildeKey(keyEvent)) return;
-		}
-	}
-
-	private bool HandleFocusNext(InputEvent @event)
-	{
-		if (!@event.IsActionPressed("ui_focus_next")) return false;
-		if (GameContext.Host == null || GameContext.Host.SelectedUnits.Count <= 1) return false;
-
-		bool reverse = Input.IsKeyPressed(Key.Shift);
-		GameContext.Host.CycleSelectionFocus(reverse);
-		RefreshUI(GameContext.Host.SelectedUnits);
-		GetViewport().SetInputAsHandled();
-		return true;
-	}
-
-	private bool HandleSpaceKey(InputEventKey keyEvent)
-	{
-		if (keyEvent.Keycode != Key.Space || IsChatActive) return false;
-
-		CenterCameraOnSelectedUnit();
-		GetViewport().SetInputAsHandled();
-		return true;
-	}
-
-	private bool HandleEnterKey(InputEventKey keyEvent)
-	{
-		if (keyEvent.Keycode != Key.Enter || IsChatActive) return false;
-		if (!IsHudElementVisible(HudElement.Chat, true)) return false;
-
-		_chatPanelController?.ShowChatInput(keyEvent.ShiftPressed);
-		GetViewport().SetInputAsHandled();
-		return true;
-	}
-
-	private bool HandleTildeKey(InputEventKey keyEvent)
-	{
-		if (keyEvent.Keycode != Key.Quoteleft || keyEvent.Echo) return false;
-		if (IsChatActive || !WasmConsoleWindow.IsSinglePlayerOrTestMode()) return false;
-
-		GameContext.WasmConsole.ToggleVisibility();
-		GetViewport().SetInputAsHandled();
-		return true;
-	}
-
-	private void OnChatInputSubmitted(string text)
-	{
-		if (string.IsNullOrWhiteSpace(text)) return;
-		if (TryTriggerCheat(text))
-		{
-			return;
-		}
-	}
-
-	private void OnLobbyChatReceived(string senderName, string message, bool alliesOnly, long timestampUtcTicks)
-	{
-		_chatPanelController?.OnLobbyChatReceived(senderName, message, alliesOnly, timestampUtcTicks);
-	}
-
-	private void BuildHotkeyReferencePanel()
-	{
-		_hotkeyPanel = new PanelContainer();
-		_hotkeyPanel.Name = "HotkeyPanel";
-		_hotkeyPanel.Visible = false;
-		_hotkeyPanel.MouseFilter = MouseFilterEnum.Stop;
-		_hotkeyPanel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
-
-		_hotkeyPanel.SetAnchorsPreset(LayoutPreset.Center);
-		_hotkeyPanel.GrowHorizontal = GrowDirection.Both;
-		_hotkeyPanel.GrowVertical = GrowDirection.Both;
-		_hotkeyPanel.OffsetLeft = -240;
-		_hotkeyPanel.OffsetRight = 240;
-		_hotkeyPanel.OffsetTop = -372;
-		_hotkeyPanel.OffsetBottom = 300;
-		_hotkeyPanel.PivotOffset = new Vector2(240f, 336f);
-
-		var bgTexture = new TextureRect();
-		bgTexture.Name = "Background";
-		bgTexture.Texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_HotkeyReference.webp");
-		bgTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		bgTexture.StretchMode = TextureRect.StretchModeEnum.Scale;
-		bgTexture.SetAnchorsPreset(LayoutPreset.FullRect);
-		bgTexture.MouseFilter = MouseFilterEnum.Ignore;
-		_hotkeyPanel.AddChild(bgTexture);
-
-		var contentRoot = new Control();
-		contentRoot.Name = "ContentRoot";
-		contentRoot.SetAnchorsPreset(LayoutPreset.FullRect);
-		contentRoot.MouseFilter = MouseFilterEnum.Pass;
-		_hotkeyPanel.AddChild(contentRoot);
-
-		var titleLbl = new Label();
-		titleLbl.Name = "TitleLabel";
-		titleLbl.Text = TranslationServer.Translate("HOTKEY REFERENCE");
-		titleLbl.SetAnchorsPreset(LayoutPreset.TopWide);
-		titleLbl.OffsetLeft = 65;
-		titleLbl.OffsetRight = -105;
-		titleLbl.OffsetTop = 22;
-		titleLbl.OffsetBottom = 58;
-		titleLbl.HorizontalAlignment = HorizontalAlignment.Center;
-		titleLbl.VerticalAlignment = VerticalAlignment.Center;
-		titleLbl.AddThemeFontOverride("font", UIStyle.FontNorseBold);
-		titleLbl.AddThemeFontSizeOverride("font_size", 16);
-		titleLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		titleLbl.AddThemeConstantOverride("outline_size", 3);
-		titleLbl.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.95f));
-		contentRoot.AddChild(titleLbl);
-
-		var btnClose = new Button();
-		btnClose.Name = "BtnClose";
-		btnClose.Text = "✕";
-		btnClose.SetAnchorsPreset(LayoutPreset.TopRight);
-		btnClose.OffsetLeft = -98;
-		btnClose.OffsetRight = -72;
-		btnClose.OffsetTop = 27;
-		btnClose.OffsetBottom = 53;
-		btnClose.FocusMode = FocusModeEnum.None;
-		btnClose.TooltipText = TranslationServer.Translate("Close [Esc]");
-		btnClose.AddThemeFontSizeOverride("font_size", 14);
-		btnClose.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-		var closeHoverStyle = new StyleBoxFlat();
-		closeHoverStyle.BgColor = new Color(0.15f, 0.65f, 1.0f, 0.25f);
-		closeHoverStyle.CornerRadiusTopLeft = 4;
-		closeHoverStyle.CornerRadiusTopRight = 4;
-		closeHoverStyle.CornerRadiusBottomLeft = 4;
-		closeHoverStyle.CornerRadiusBottomRight = 4;
-		btnClose.AddThemeStyleboxOverride("hover", closeHoverStyle);
-		var closePressedStyle = new StyleBoxFlat();
-		closePressedStyle.BgColor = new Color(0.15f, 0.65f, 1.0f, 0.45f);
-		closePressedStyle.CornerRadiusTopLeft = 4;
-		closePressedStyle.CornerRadiusTopRight = 4;
-		closePressedStyle.CornerRadiusBottomLeft = 4;
-		closePressedStyle.CornerRadiusBottomRight = 4;
-		btnClose.AddThemeStyleboxOverride("pressed", closePressedStyle);
-		btnClose.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		btnClose.AddThemeColorOverride("font_color", Colors.White);
-		btnClose.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		btnClose.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		btnClose.AddThemeConstantOverride("outline_size", 2);
-		btnClose.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-		btnClose.Pressed += () => ToggleHotkeyPanel();
-		contentRoot.AddChild(btnClose);
-
-		var scroll = new ScrollContainer();
-		scroll.Name = "HotkeyScroll";
-		scroll.SetAnchorsPreset(LayoutPreset.FullRect);
-		scroll.OffsetLeft = 90;
-		scroll.OffsetRight = -90;
-		scroll.OffsetTop = 88;
-		scroll.OffsetBottom = -82;
-		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-		contentRoot.AddChild(scroll);
-
-		var vScroll = scroll.GetVScrollBar();
-		if (vScroll != null)
-		{
-			vScroll.CustomMinimumSize = new Vector2(4, 0);
-			var grabberNormal = new StyleBoxFlat();
-			grabberNormal.BgColor = new Color(0.6f, 0.5f, 0.35f, 0.7f);
-			grabberNormal.CornerRadiusTopLeft = 2;
-			grabberNormal.CornerRadiusTopRight = 2;
-			grabberNormal.CornerRadiusBottomLeft = 2;
-			grabberNormal.CornerRadiusBottomRight = 2;
-			vScroll.AddThemeStyleboxOverride("grabber", grabberNormal);
-
-			var grabberHighlight = new StyleBoxFlat();
-			grabberHighlight.BgColor = UIStyle.ColorGold;
-			grabberHighlight.CornerRadiusTopLeft = 2;
-			grabberHighlight.CornerRadiusTopRight = 2;
-			grabberHighlight.CornerRadiusBottomLeft = 2;
-			grabberHighlight.CornerRadiusBottomRight = 2;
-			vScroll.AddThemeStyleboxOverride("grabber_highlight", grabberHighlight);
-
-			var grabberPressed = new StyleBoxFlat();
-			grabberPressed.BgColor = UIStyle.ColorCyanGlow;
-			grabberPressed.CornerRadiusTopLeft = 2;
-			grabberPressed.CornerRadiusTopRight = 2;
-			grabberPressed.CornerRadiusBottomLeft = 2;
-			grabberPressed.CornerRadiusBottomRight = 2;
-			vScroll.AddThemeStyleboxOverride("grabber_pressed", grabberPressed);
-
-			var scrollTrack = new StyleBoxFlat();
-			scrollTrack.BgColor = new Color(0.04f, 0.04f, 0.06f, 0.3f);
-			scrollTrack.CornerRadiusTopLeft = 2;
-			scrollTrack.CornerRadiusTopRight = 2;
-			scrollTrack.CornerRadiusBottomLeft = 2;
-			scrollTrack.CornerRadiusBottomRight = 2;
-			vScroll.AddThemeStyleboxOverride("scroll", scrollTrack);
-		}
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		vbox.AddThemeConstantOverride("separation", 3);
-		scroll.AddChild(vbox);
-
-		var hotkeyGroups = new (string groupTitle, (string key, string desc)[] items)[]
-		{
-			(
-				"COMMANDS",
-				new (string key, string desc)[]
-				{
-					("Right-Click", "Smart Command (Move/Attack/Rally)"),
-					("Shift+R-Click", "Queue Action / Waypoint"),
-					("A", "Attack / Attack-Move"),
-					("M", "Move to Target"),
-					("P", "Patrol Route"),
-					("S", "Stop Current Action"),
-					("H", "Hold Position"),
-					("B", "Open Build Menu"),
-				}
-			),
-			(
-				"SELECTION & GROUPS",
-				new (string key, string desc)[]
-				{
-					("Left-Click", "Select Unit (Drag to Box-Select)"),
-					("Shift+Click", "Add / Remove from Selection"),
-					("Double-Click", "Select All Same Type on Screen"),
-					("Tab", "Cycle Selection Focus"),
-					("F1", "Select All Idle Units"),
-					("F2", "Select All Military Units"),
-					("F3", "Select All Buildings"),
-					("`", "Cycle Through Buildings"),
-					("Ctrl+0..9", "Assign Control Group"),
-					("0..9", "Recall Group (Double: Jump)"),
-				}
-			),
-			(
-				"CAMERA & MINIMAP",
-				new (string key, string desc)[]
-				{
-					("WASD / Edge", "Pan Camera"),
-					("Shift+WASD", "Fast Camera Pan"),
-					("Space", "Center Camera on Base"),
-					("Z", "Cycle Zoom (Near / Mid / Far)"),
-					("F4", "Toggle Terrain Radar Mode"),
-					("Alt+G", "Ping Map Alert"),
-					("Ctrl+F5..F8", "Save Camera Location 1..4"),
-					("F5..F8", "Jump to Saved Camera 1..4"),
-				}
-			),
-			(
-				"BUILDINGS & SYSTEM",
-				new (string key, string desc)[]
-				{
-					("Y", "Set Building Rally Point"),
-					("Enter", "Open Chat (Shift: All Chat)"),
-					("Esc", "Clear Selection / Cancel Targeting"),
-					("F12", "Settings"),
-					("~ (Tilde)", "Developer Console"),
-				}
-			),
-		};
-
-		int groupIndex = 0;
-		foreach (var (groupTitle, items) in hotkeyGroups)
-		{
-			if (groupIndex > 0)
-			{
-				var groupSpacer = new Control();
-				groupSpacer.Name = "GroupSpacer_Control";
-				groupSpacer.CustomMinimumSize = new Vector2(0, 6);
-				vbox.AddChild(groupSpacer);
-			}
-
-			var catHeader = new PanelContainer();
-			catHeader.Name = "CatHeader_PanelContainer";
-			var catHeaderStyle = new StyleBoxFlat();
-			catHeaderStyle.BgColor = new Color(0.18f, 0.16f, 0.14f, 0.85f);
-			catHeaderStyle.BorderColor = new Color(0.6f, 0.5f, 0.35f, 0.5f);
-			catHeaderStyle.SetBorderWidthAll(1);
-			catHeaderStyle.CornerRadiusTopLeft = 3;
-			catHeaderStyle.CornerRadiusTopRight = 3;
-			catHeaderStyle.CornerRadiusBottomLeft = 3;
-			catHeaderStyle.CornerRadiusBottomRight = 3;
-			catHeaderStyle.ContentMarginLeft = 6;
-			catHeaderStyle.ContentMarginRight = 6;
-			catHeaderStyle.ContentMarginTop = 3;
-			catHeaderStyle.ContentMarginBottom = 3;
-			catHeader.AddThemeStyleboxOverride("panel", catHeaderStyle);
-
-			var catTitleLbl = new Label();
-			catTitleLbl.Name = "CatTitleLbl_Label";
-			catTitleLbl.Text = TranslationServer.Translate(groupTitle);
-			catTitleLbl.AddThemeFontOverride("font", UIStyle.FontNorseBold);
-			catTitleLbl.AddThemeFontSizeOverride("font_size", 13);
-			catTitleLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			catTitleLbl.AddThemeConstantOverride("outline_size", 2);
-			catTitleLbl.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.95f));
-			catTitleLbl.HorizontalAlignment = HorizontalAlignment.Center;
-			catTitleLbl.VerticalAlignment = VerticalAlignment.Center;
-			catHeader.AddChild(catTitleLbl);
-			vbox.AddChild(catHeader);
-
-			for (int i = 0; i < items.Length; i++)
-			{
-				var (key, desc) = items[i];
-
-				var rowPanel = new PanelContainer();
-				rowPanel.Name = "RowPanel_PanelContainer";
-				var rowStyle = new StyleBoxFlat();
-				rowStyle.BgColor = (i % 2 == 0)
-					? new Color(0.12f, 0.13f, 0.15f, 0.35f)
-					: new Color(0.06f, 0.07f, 0.08f, 0.15f);
-				rowStyle.CornerRadiusTopLeft = 2;
-				rowStyle.CornerRadiusTopRight = 2;
-				rowStyle.CornerRadiusBottomLeft = 2;
-				rowStyle.CornerRadiusBottomRight = 2;
-				rowStyle.ContentMarginLeft = 4;
-				rowStyle.ContentMarginRight = 4;
-				rowStyle.ContentMarginTop = 2;
-				rowStyle.ContentMarginBottom = 2;
-				rowPanel.AddThemeStyleboxOverride("panel", rowStyle);
-
-				var row = new HBoxContainer();
-				row.Name = "Row_HBoxContainer";
-				row.AddThemeConstantOverride("separation", 6);
-				row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-				var keyBadge = new PanelContainer();
-				keyBadge.Name = "KeyBadge_PanelContainer";
-				var badgeStyle = new StyleBoxFlat();
-				badgeStyle.BgColor = new Color(0.08f, 0.10f, 0.14f, 0.85f);
-				badgeStyle.BorderColor = new Color(0.35f, 0.45f, 0.55f, 0.5f);
-				badgeStyle.SetBorderWidthAll(1);
-				badgeStyle.CornerRadiusTopLeft = 3;
-				badgeStyle.CornerRadiusTopRight = 3;
-				badgeStyle.CornerRadiusBottomLeft = 3;
-				badgeStyle.CornerRadiusBottomRight = 3;
-				badgeStyle.ContentMarginLeft = 4;
-				badgeStyle.ContentMarginRight = 4;
-				badgeStyle.ContentMarginTop = 1;
-				badgeStyle.ContentMarginBottom = 1;
-				keyBadge.AddThemeStyleboxOverride("panel", badgeStyle);
-				keyBadge.CustomMinimumSize = new Vector2(86, 0);
-
-				var keyLbl = new Label();
-				keyLbl.Name = "KeyLbl_Label";
-				keyLbl.Text = TranslationServer.Translate(key);
-				keyLbl.AddThemeFontSizeOverride("font_size", 10);
-				keyLbl.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-				keyLbl.AddThemeConstantOverride("outline_size", 1);
-				keyLbl.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.9f));
-				keyLbl.HorizontalAlignment = HorizontalAlignment.Center;
-				keyLbl.VerticalAlignment = VerticalAlignment.Center;
-				keyBadge.AddChild(keyLbl);
-				row.AddChild(keyBadge);
-
-				var descLbl = new Label();
-				descLbl.Name = "DescLbl_Label";
-				descLbl.Text = TranslationServer.Translate(desc);
-				descLbl.AddThemeFontSizeOverride("font_size", 11);
-				descLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-				descLbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-				descLbl.CustomMinimumSize = new Vector2(170, 0);
-				descLbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				descLbl.VerticalAlignment = VerticalAlignment.Center;
-				row.AddChild(descLbl);
-
-				rowPanel.AddChild(row);
-				vbox.AddChild(rowPanel);
-			}
-
-			groupIndex++;
-		}
-
-		AddChild(_hotkeyPanel);
-	}
-
-	public void ToggleHotkeyPanel()
-	{
-		_hotkeyPanelVisible = !_hotkeyPanelVisible;
-		_hotkeyPanel.Visible = _hotkeyPanelVisible;
-		if (_hotkeyPanelVisible && _hotkeyPanel != null)
-		{
-			_hotkeyPanel.MoveToFront();
-		}
-	}
+	public void ToggleHotkeyPanel() => HotkeyReference.Toggle();
 
 	public void StartCountdownTimer(float duration, string labelText)
 	{
@@ -2329,14 +724,11 @@ public partial class InGameHUD : Control
 		_viewModel.CountdownText = labelText;
 	}
 
-	public bool IsHudElementVisible(HudElement element, bool defaultValue = true)
-	{
-		return _hudElementVisibility.TryGetValue(element, out bool v) ? v : defaultValue;
-	}
+	public bool IsHudElementVisible(HudElement element, bool defaultValue = true) => Visibility.IsVisible(element, defaultValue);
 
 	public void SetHudElementVisible(HudElement element, bool visible)
 	{
-		_hudElementVisibility[element] = visible;
+		Visibility.Set(element, visible);
 		if (GameContext.Host != null)
 		{
 			GameContext.Host.LocalHudVisibilityOverrides[element] = visible;
@@ -2344,54 +736,7 @@ public partial class InGameHUD : Control
 		ApplyHudElementVisibility(element);
 	}
 
-	public void ApplyHudElementVisibility(HudElement element)
-	{
-		bool visible = IsHudElementVisible(element, true);
-		switch (element)
-		{
-			case HudElement.Minimap:
-				if (_minimapFrame != null) _minimapFrame.Visible = visible;
-				if (_minimapControls != null) _minimapControls.Visible = visible;
-				break;
-			case HudElement.ResourceBar:
-				if (_resourceContainer != null) _resourceContainer.Visible = visible;
-				break;
-			case HudElement.CommandCard:
-				if (!visible && _commandFrame != null)
-				{
-					_commandFrame.Visible = false;
-				}
-				else if (visible && GameContext.Host != null)
-				{
-					RefreshUI(GameContext.Host.SelectedUnits);
-				}
-				break;
-			case HudElement.UnitPortrait:
-				if (!visible && _portraitFrame != null)
-				{
-					_portraitFrame.Visible = false;
-				}
-				else if (visible && _portraitFrame != null)
-				{
-					_portraitFrame.Visible = true;
-				}
-				break;
-			case HudElement.Chat:
-				if (_chatPanel != null) _chatPanel.Visible = visible;
-				break;
-			case HudElement.Leaderboard:
-			case HudElement.SummaryTable:
-				UpdateScoreboardVisibility();
-				break;
-			case HudElement.Inventory:
-				if (_inventoryFrame != null) _inventoryFrame.Visible = visible;
-				if (_inventoryGrid != null) _inventoryGrid.Visible = visible;
-				break;
-			case HudElement.CountdownTimer:
-				_countdownOverlayPanelController?.Update(_viewModel);
-				break;
-		}
-	}
+	public void ApplyHudElementVisibility(HudElement element) => Visibility.Apply(element);
 
 	public void ApplySavedHudVisibilityOverrides()
 	{
@@ -2399,160 +744,20 @@ public partial class InGameHUD : Control
 		{
 			foreach (var kvp in GameContext.Host.LocalHudVisibilityOverrides)
 			{
-				_hudElementVisibility[kvp.Key] = kvp.Value;
+				Visibility.Set(kvp.Key, kvp.Value);
 				ApplyHudElementVisibility(kvp.Key);
 			}
 		}
 	}
 
-	public void SetLeaderboardBoard(string boardId, string title, bool visible)
-	{
-		_viewModel.Leaderboards.SetBoard(boardId, title, visible);
-	}
-
-	public void ClearLeaderboardBoards()
-	{
-		_viewModel.Leaderboards.ClearAll();
-	}
-
-	public void ClearLeaderboardBoard(string boardId)
-	{
-		_viewModel.Leaderboards.ClearBoard(boardId);
-	}
-
-	public void SetLeaderboardBoardGroup(string boardId, int groupPlayerIndex, string groupTitle)
-	{
-		_viewModel.Leaderboards.SetGroup(boardId, groupPlayerIndex, groupTitle);
-	}
-
-	public void AddLeaderboardBoardRow(string boardId, int groupPlayerIndex, string groupTitle, string label, string value)
-	{
-		_viewModel.Leaderboards.AddRow(boardId, groupPlayerIndex, groupTitle, label, value);
-	}
-
-	private void UpdateScoreboardVisibility()
-	{
-		_scoreboardPanelController?.Update(_viewModel);
-	}
-
-	public void ShowSummaryTable(string title, bool visible)
-	{
-		_viewModel.SummaryTableTitle = title;
-		_viewModel.SummaryTableVisible = visible;
-	}
-
-	public void ClearSummaryTable()
-	{
-		_viewModel.SummaryTableRows.Clear();
-	}
-
-	public void SetSummaryTableHeaders(string[] headers)
-	{
-		_viewModel.SummaryTableHeaders = headers;
-	}
-
-	public void SetSummaryTableRow(string rowKey, string[] cellValues)
-	{
-		_viewModel.SummaryTableRows[rowKey] = cellValues;
-	}
 
 
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true)]
-	public void SyncWeather(string weather)
-	{
-		GameHost tempQualifier = GameContext.Host;
-		if ((tempQualifier != null ? GameContext.EnvironmentService : null) != null)
-		{
-			GameContext.EnvironmentService.SetCurrentWeather(weather);
-			float density = weather switch
-			{
-				"clear" => 0f,
-				"rain" => 0.0075f,
-				"snow" => 0.005f,
-				"fog" => 0.045f,
-				_ => 0f
-			};
-			GameContext.EnvironmentService.SetBaseFogDensity(density);
-			GameContext.EnvironmentService.ApplyWeatherVisuals(weather);
-		}
+	public void SyncWeather(string weather) => WeatherPresenter.Sync(weather, ShowFeedbackText);
 
-		ApplyWeatherEffects(weather);
-	}
+	public void ApplyWeatherEffects(string weather) => WeatherPresenter.ApplyEffects(weather, ShowFeedbackText);
 
-	public void ApplyWeatherEffects(string weather)
-	{
-		GameHost tempQualifier = GameContext.Host;
-		if ((tempQualifier != null ? GameContext.EnvironmentService : null) != null)
-		{
-			GameContext.EnvironmentService.ApplyWeatherVisuals(weather);
-		}
-
-		if (weather == "clear")
-		{
-			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Clear Skies"), new Color(0.3f, 0.9f, 1.0f));
-		}
-		else if (weather == "rain")
-		{
-			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Light Rain Shower"), new Color(0.2f, 0.5f, 0.9f));
-		}
-		else if (weather == "snow")
-		{
-			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Snowfall"), new Color(0.8f, 0.9f, 1.0f));
-		}
-		else if (weather == "fog")
-		{
-			ShowFeedbackText(TranslationServer.Translate("Weather Forecast: Dense Fog Warning"), new Color(0.7f, 0.7f, 0.8f));
-		}
-	}
-
-
-	public bool TryTriggerCheat(string text)
-	{
-		if (GameContext.CheatService == null) return false;
-
-		var selectedEntities = GameContext.Host.SelectedUnits != null
-			? Enumerable.ToList(Enumerable.Select(GameContext.Host.SelectedUnits, u => u.Entity))
-			: new List<Entity>();
-
-		bool isMultiplayer = GameContext.Lobby != null && !GameContext.Lobby.IsSinglePlayer
-		                                                   && Multiplayer.MultiplayerPeer != null && !(Multiplayer.MultiplayerPeer is OfflineMultiplayerPeer);
-
-		if (GameContext.PerspectiveFilter.IsSpectating) return false;
-		var (result, _) = GameContext.CheatService.TryTriggerCheat(text, isMultiplayer, selectedEntities);
-
-		if (result == CheatResult.None) return false;
-
-		ShowFeedbackText("Cheat Activated!", new Color(0.1f, 0.9f, 0.2f));
-		HandleCheatResult(result);
-
-		return true;
-	}
-
-	private void HandleCheatResult(CheatResult result)
-	{
-		switch (result)
-		{
-			case CheatResult.Gigachad:
-				RefreshUI(GameContext.Host.SelectedUnits);
-				break;
-			case CheatResult.AbsoluteUnit:
-				foreach (var unit in GameContext.Host.SelectedUnits)
-				{
-					if (GodotObject.IsInstanceValid(unit)) unit.Scale = new Vector3(3f, 3f, 3f);
-				}
-
-				RefreshUI(GameContext.Host.SelectedUnits);
-				break;
-			case CheatResult.EzClap:
-				GameContext.UserInterface?.PlayClickSound();
-				GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, true);
-				break;
-			case CheatResult.NoCap:
-				_ = RegenerateMinimapBackground();
-				QueueMinimapRedraw();
-				break;
-		}
-	}
+	public bool TryTriggerCheat(string text) => Cheats.TryTrigger(text);
 
 	public bool HandleCommandCardHotkey(Key keycode, KeyModifierMask modifiers)
 	{
@@ -2565,238 +770,26 @@ public partial class InGameHUD : Control
 		return handled;
 	}
 
-	private void SetupCommandCard()
-	{
-		SetupHUDButton(_btnMove, "res://Assets/UI/move_speed.webp", TranslationServer.Translate("[M] Move / Right-Click Ground"), () => GameContext.Host?.EnterCommandTargeting("move"));
-		SetupHUDButton(_btnStop, "res://Assets/UI/cancel_button_2.webp", TranslationServer.Translate("[S] Stop Selected Units"), () =>
-		{
-			ShowFeedbackText(TranslationServer.Translate("Command: Stop Current Action"), new Color(0.9f, 0.2f, 0.2f));
-			GameContext.Host?.StopSelectedUnits();
-		});
-		SetupHUDButton(_btnHold, "res://Assets/UI/magic_upgrade_arrow.webp", TranslationServer.Translate("[H] Hold Position — Unit stays put and attacks in place"), () =>
-		{
-			ShowFeedbackText(TranslationServer.Translate("Command: Hold Position"), new Color(0.9f, 0.8f, 0.1f));
-			GameContext.Host?.HoldSelectedUnits();
-		});
-		SetupHUDButton(_btnBuild, "res://Assets/UI/golden_hammers.webp", TranslationServer.Translate("[B] Build Structure"), () => EnterBuildSubMenu());
-	}
+	private void SetupCommandCard() =>
+		CommandCardButtons.Wire(_btnMove, _btnStop, _btnHold, _btnBuild, ShowFeedbackText, EnterBuildSubMenu);
 
-	private void CreateSpectatorPerspectiveUI()
-	{
-		var specPanel = new PanelContainer();
-		specPanel.Name = "SpectatorPanel";
-		specPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel());
+	private SpectatorPerspectiveOverlay? _spectatorPerspective;
 
-		var specVBox = new VBoxContainer();
-		specVBox.Name = "SpecVBox_VBoxContainer";
-		specPanel.AddChild(specVBox);
+	private SpectatorPerspectiveOverlay SpectatorPerspective => _spectatorPerspective ??= new SpectatorPerspectiveOverlay();
 
-		var title = new Label();
-		title.Name = "Title_Label";
-		title.Text = TranslationServer.Translate("SPECTATOR MODE");
-		UIStyle.ApplyTitle(title, TranslationServer.Translate("SPECTATOR MODE"), 12);
-		title.HorizontalAlignment = HorizontalAlignment.Center;
-		specVBox.AddChild(title);
+	private void CreateSpectatorPerspectiveUI() =>
+		SpectatorPerspective.Build(this, perspective => LiveSpectatorPerspective = perspective);
 
-		var specHBox = new HBoxContainer();
-		specHBox.Name = "SpecHBox_HBoxContainer";
-		specHBox.Alignment = BoxContainer.AlignmentMode.Center;
-		specHBox.AddThemeConstantOverride("separation", 10);
-		specVBox.AddChild(specHBox);
+	private PauseOverlayPanel? _pauseOverlay;
 
-		var btnAll = new Button();
-		btnAll.Name = "BtnAll_Button";
-		btnAll.Text = TranslationServer.Translate("ALL");
-		btnAll.Pressed += () => { LiveSpectatorPerspective = -1; };
-		specHBox.AddChild(btnAll);
-
-		var btnBlue = new Button();
-		btnBlue.Name = "BtnBlue_Button";
-		btnBlue.Text = TranslationServer.Translate("BLUE");
-		btnBlue.Pressed += () => { LiveSpectatorPerspective = 1; };
-		specHBox.AddChild(btnBlue);
-
-		var btnRed = new Button();
-		btnRed.Name = "BtnRed_Button";
-		btnRed.Text = TranslationServer.Translate("RED");
-		btnRed.Pressed += () => { LiveSpectatorPerspective = 2; };
-		specHBox.AddChild(btnRed);
-
-		var btnGreen = new Button();
-		btnGreen.Name = "BtnGreen_Button";
-		btnGreen.Text = TranslationServer.Translate("GREEN");
-		btnGreen.Pressed += () => { LiveSpectatorPerspective = 3; };
-		specHBox.AddChild(btnGreen);
-
-		var btnYellow = new Button();
-		btnYellow.Name = "BtnYellow_Button";
-		btnYellow.Text = TranslationServer.Translate("YELLOW");
-		btnYellow.Pressed += () => { LiveSpectatorPerspective = 4; };
-		specHBox.AddChild(btnYellow);
-
-		AddChild(specPanel);
-	}
-
-	private PanelContainer _pausePanel;
-	private VBoxContainer _pausePlayerListContainer;
-	private Label _pauseTitleLabel;
-	private Button _pauseResumeButton;
+	private PauseOverlayPanel PauseOverlay => _pauseOverlay ??= new PauseOverlayPanel();
 
 	public void UpdatePauseUI()
 	{
 		if (GameContext.Host == null) return;
-		if (_pausePanel == null) BuildPausePanel();
 
-		RefreshPauseMatchButton();
-
-		_pausePanel.Visible = GameContext.NetworkService.IsPaused;
-		if (!GameContext.NetworkService.IsPaused) return;
-
-		UpdatePauseTitle();
-		UpdatePauseResumeButton();
-
-		ClearPausePlayerList();
-		UpdatePausePlayerList();
+		ResourceBar.RefreshPauseMatch();
+		PauseOverlay.Update(this);
 	}
 
-	private void UpdatePauseResumeButton()
-	{
-		if (_pauseResumeButton == null) return;
-
-		int countdown = GameContext.NetworkService.PauseResumeCountdownSeconds;
-		_pauseResumeButton.Disabled = countdown > 0;
-		_pauseResumeButton.Text = countdown > 0
-			? string.Format(TranslationServer.Translate("RESUMING IN {0}"), countdown)
-			: TranslationServer.Translate("RESUME FOR EVERYONE");
-	}
-
-	private void ClearPausePlayerList()
-	{
-		foreach (var child in _pausePlayerListContainer.GetChildren()) child.QueueFree();
-	}
-
-	private void UpdatePauseTitle()
-	{
-		int countdown = GameContext.NetworkService.PauseResumeCountdownSeconds;
-		if (countdown > 0)
-		{
-			_pauseTitleLabel.Text = string.Format(TranslationServer.Translate("Resuming in {0}"), countdown);
-			return;
-		}
-
-		int pausedByPlayer = GameContext.NetworkService.PausedByPlayerIndex;
-		string pausedByName = ResolvePlayerName(pausedByPlayer);
-
-		_pauseTitleLabel.Text = string.IsNullOrEmpty(pausedByName)
-			? TranslationServer.Translate("Game Paused")
-			: string.Format(TranslationServer.Translate("Paused by {0}"), pausedByName);
-	}
-
-	private static string ResolvePlayerName(int playerSlot)
-	{
-		if (playerSlot < 0 || GameContext.Lobby == null) return string.Empty;
-
-		foreach (PlayerInfo player in GameContext.Lobby.PlayerList)
-		{
-			if (player.Slot == playerSlot) return player.Name;
-		}
-
-		return string.Empty;
-	}
-
-	private void UpdatePausePlayerList()
-	{
-		if (GameContext.Lobby == null) return;
-
-		foreach (var player in GameContext.Lobby.PlayerList)
-		{
-			if (player.Team == "Spectator") continue;
-
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			row.AddThemeConstantOverride("separation", 15);
-
-			var nameLabel = new Label { Text = player.Name, CustomMinimumSize = new Vector2(150, 0) };
-			row.AddChild(nameLabel);
-
-			_pausePlayerListContainer.AddChild(row);
-		}
-	}
-
-	private void BuildPausePanel()
-	{
-		_pausePanel = new PanelContainer();
-		_pausePanel.Name = "PausePanel";
-
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.1f, 0.1f, 0.12f, 0.95f);
-		style.SetBorderWidthAll(2);
-		style.BorderColor = UIStyle.ColorBronze;
-		style.CornerRadiusTopLeft = 8;
-		style.CornerRadiusTopRight = 8;
-		style.CornerRadiusBottomLeft = 8;
-		style.CornerRadiusBottomRight = 8;
-		style.ContentMarginLeft = 20;
-		style.ContentMarginRight = 20;
-		style.ContentMarginTop = 20;
-		style.ContentMarginBottom = 20;
-		_pausePanel.AddThemeStyleboxOverride("panel", style);
-
-		_pausePanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
-		_pausePanel.GrowHorizontal = GrowDirection.Both;
-		_pausePanel.GrowVertical = GrowDirection.Both;
-
-		var mainVBox = new VBoxContainer();
-		mainVBox.Name = "MainVBox_VBoxContainer";
-		mainVBox.AddThemeConstantOverride("separation", 15);
-		_pausePanel.AddChild(mainVBox);
-
-		_pauseTitleLabel = new Label();
-		_pauseTitleLabel.Name = "PauseTitleLabel_Label";
-		_pauseTitleLabel.Text = "Game Paused";
-		_pauseTitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		_pauseTitleLabel.AddThemeFontSizeOverride("font_size", 24);
-		mainVBox.AddChild(_pauseTitleLabel);
-
-		var scroll = new ScrollContainer();
-		scroll.Name = "Scroll_ScrollContainer";
-		scroll.CustomMinimumSize = new Vector2(450, 150);
-		mainVBox.AddChild(scroll);
-
-		_pausePlayerListContainer = new VBoxContainer();
-		_pausePlayerListContainer.Name = "PausePlayerListContainer_VBoxContainer";
-		_pausePlayerListContainer.AddThemeConstantOverride("separation", 10);
-		scroll.AddChild(_pausePlayerListContainer);
-
-		_pauseResumeButton = new Button();
-		_pauseResumeButton.Name = "PauseResumeButton";
-		_pauseResumeButton.Text = TranslationServer.Translate("RESUME FOR EVERYONE");
-		_pauseResumeButton.CustomMinimumSize = new Vector2(0, 34);
-		_pauseResumeButton.AddThemeStyleboxOverride("normal", UIStyle.CreateHUDButtonStyle(false, false));
-		_pauseResumeButton.AddThemeStyleboxOverride("hover", UIStyle.CreateHUDButtonStyle(true, false));
-		_pauseResumeButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateHUDButtonStyle(false, true));
-		_pauseResumeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		_pauseResumeButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_pauseResumeButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_pauseResumeButton.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			GameContext.Host?.RequestPause(false);
-		};
-		mainVBox.AddChild(_pauseResumeButton);
-
-		AddChild(_pausePanel);
-	}
-
-	private string GetBuildOptionTooltip(string unitId, string hotkeyStr)
-		{
-			HotkeySpec hotkey = HotkeySpec.ParseOrDefault(hotkeyStr);
-			return UIHelper.GetUnitCostTooltip(unitId, hotkey, "Build");
-		}
-
-		private string GetTrainOptionTooltip(string unitId, string hotkeyStr)
-		{
-			HotkeySpec hotkey = HotkeySpec.ParseOrDefault(hotkeyStr);
-			return UIHelper.GetUnitCostTooltip(unitId, hotkey, "Train");
-		}
 }

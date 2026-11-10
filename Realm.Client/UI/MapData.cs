@@ -8,38 +8,38 @@ namespace Realm.Client.UI;
 
 public class MapData
 {
-	public string MapId { get; set; }
-	public string Title { get; set; }
+	public string MapId { get; set; } = null!;
+	public string Title { get; set; } = null!;
 	public string Version { get; set; } = "1.0.0";
 	public bool IsTestVersion { get; set; }
 	public string ManifestHash { get; set; } = string.Empty;
 	public List<MapData> AvailableVersions { get; set; } = new();
-	public string Creator { get; set; }
-	public string ThumbnailPath { get; set; }
-	public string Description { get; set; }
-	public string[] Screenshots { get; set; }
-	public string[] Features { get; set; }
+	public string Creator { get; set; } = null!;
+	public string ThumbnailPath { get; set; } = null!;
+	public string Description { get; set; } = null!;
+	public string[] Screenshots { get; set; } = null!;
+	public string[] Features { get; set; } = null!;
 
 
 	public float RatingStars { get; set; }
-	public string Votes5Star { get; set; }
-	public string Votes3Star { get; set; }
-	public string Votes1Star { get; set; }
-	public string AvgRating { get; set; }
+	public string Votes5Star { get; set; } = null!;
+	public string Votes3Star { get; set; } = null!;
+	public string Votes1Star { get; set; } = null!;
+	public string AvgRating { get; set; } = null!;
 
 
-	public string AvgPlaytime { get; set; }
-	public string PlayerCount { get; set; }
-	public string CompletionRate { get; set; }
+	public string AvgPlaytime { get; set; } = null!;
+	public string PlayerCount { get; set; } = null!;
+	public string CompletionRate { get; set; } = null!;
 
 
-	public string FileSize { get; set; }
-	public string EngineVersion { get; set; }
-	public string MaxPlayers { get; set; }
-	public string Genre { get; set; }
+	public string FileSize { get; set; } = null!;
+	public string EngineVersion { get; set; } = null!;
+	public string MaxPlayers { get; set; } = null!;
+	public string Genre { get; set; } = null!;
 
 
-	public string[] Awards { get; set; }
+	public string[] Awards { get; set; } = null!;
 	public List<string> Attribution_SourceMap { get; set; } = new();
 
 

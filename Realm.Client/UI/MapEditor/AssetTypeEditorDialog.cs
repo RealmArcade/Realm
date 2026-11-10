@@ -13,10 +13,10 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 {
 	public AssetTypeEditorDialog() { }
 
-	private readonly IndexedAsset _asset;
-	private readonly Action<string> _onSaveCallback;
-	private Label _lblPrompt;
-	private OptionButton _optAssetType;
+	private readonly IndexedAsset? _asset;
+	private readonly Action<string> _onSaveCallback = null!;
+	private Label _lblPrompt = null!;
+	private OptionButton _optAssetType = null!;
 	private ReadOnlySet<string> _validTypes = new HashSet<string>().AsReadOnly();
 
 	public AssetTypeEditorDialog(MapEditorHUD hud, IndexedAsset asset, Action<string> onSaveCallback)
@@ -30,9 +30,7 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 
 	private void BuildControls()
 	{
-		var contentVBox = new VBoxContainer();
-		contentVBox.Name = "ContentVBox_VBoxContainer";
-		contentVBox.AddThemeConstantOverride("separation", 10);
+		var contentVBox = CreateContentColumn();
 		BodyContainer.AddChild(contentVBox);
 
 		AddSectionHeader(contentVBox, "🏷 " + TranslationServer.Translate("SELECT ASSET TYPE"), new Color(0.35f, 0.75f, 0.9f));
@@ -41,6 +39,8 @@ public partial class AssetTypeEditorDialog : FloatingDialogBase
 		_lblPrompt.Name = "LblPrompt_Label";
 		_lblPrompt.AddThemeFontSizeOverride("font_size", 11);
 		_lblPrompt.AutowrapMode = TextServer.AutowrapMode.Word;
+		_lblPrompt.CustomMinimumSize = new Vector2(360, 0);
+		_lblPrompt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_lblPrompt.Text = string.Format(
 			TranslationServer.Translate("Select embedded Asset Type for '{0}':"),
 			_asset?.FileName ?? string.Empty

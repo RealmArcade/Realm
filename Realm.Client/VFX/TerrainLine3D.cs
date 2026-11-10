@@ -7,9 +7,9 @@ namespace Realm.Client.VFX;
 [GlobalClass]
 public partial class TerrainLine3D : Node3D
 {
-	private ImmediateMesh _immediateMesh;
-	private MeshInstance3D _meshInstance;
-	private StandardMaterial3D _material;
+	private ImmediateMesh _immediateMesh = null!;
+	private MeshInstance3D _meshInstance = null!;
+	private StandardMaterial3D _material = null!;
 
 	public System.Numerics.Vector2 StartPos { get; set; }
 	public System.Numerics.Vector2 EndPos { get; set; }

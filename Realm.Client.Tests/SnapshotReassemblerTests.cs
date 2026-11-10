@@ -31,7 +31,7 @@ public partial class SnapshotReassemblerTests
 		return pieces;
 	}
 
-	private static bool SameBytes(byte[] actual, byte[] expected) => actual != null && expected != null && actual.AsSpan().SequenceEqual(expected);
+	private static bool SameBytes(byte[]? actual, byte[]? expected) => actual != null && expected != null && actual.AsSpan().SequenceEqual(expected);
 
 	[TestCase]
 	public void ADescriptionWholeEnoughForOneDatagramTravelsAsItself()
@@ -39,7 +39,7 @@ public partial class SnapshotReassemblerTests
 		var reassembler = new SnapshotReassembler();
 		byte[] frame = Frame(1, SnapshotFragment.MaximumDatagramBytes);
 
-		Assertions.AssertThat(reassembler.TryTake(frame, out byte[] handed)).IsTrue();
+		Assertions.AssertThat(reassembler.TryTake(frame, out byte[]? handed)).IsTrue();
 		Assertions.AssertThat(SameBytes(handed, frame)).OverrideFailureMessage("the whole description was not handed back unchanged").IsTrue();
 	}
 
@@ -52,7 +52,7 @@ public partial class SnapshotReassemblerTests
 
 		Assertions.AssertThat(pieces.Count > 1).OverrideFailureMessage("the frame was not split, so nothing was reassembled").IsTrue();
 
-		byte[] assembled = null;
+		byte[]? assembled = null;
 		bool completed = false;
 		for (int index = 0; index < pieces.Count; index++) completed = reassembler.TryTake(pieces[index], out assembled);
 
@@ -72,7 +72,7 @@ public partial class SnapshotReassemblerTests
 
 		for (int index = 1; index < pieces.Count; index++)
 		{
-			bool completed = reassembler.TryTake(pieces[index], out byte[] assembled);
+			bool completed = reassembler.TryTake(pieces[index], out byte[]? assembled);
 			if (!completed) continue;
 
 			Assertions.AssertThat(index == pieces.Count - 1).OverrideFailureMessage("the group completed before its last piece arrived").IsTrue();
@@ -92,7 +92,7 @@ public partial class SnapshotReassemblerTests
 
 		foreach (byte[] piece in Pieces(newer, 200)) reassembler.TryTake(piece, out _);
 
-		byte[] repaired = null;
+		byte[]? repaired = null;
 		bool completed = false;
 		foreach (byte[] piece in Pieces(older, 197)) completed = reassembler.TryTake(piece, out repaired);
 

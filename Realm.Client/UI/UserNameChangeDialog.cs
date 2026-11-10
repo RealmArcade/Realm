@@ -27,14 +27,14 @@ public partial class UserNameChangeDialog : Control
 	private static readonly Color FailureColor = new(0.95f, 0.6f, 0.4f);
 	private static readonly Color BodyTextColor = new(0.88f, 0.85f, 0.78f);
 
-	private Label _titleLabel;
-	private Label _hintLabel;
-	private Label _currentNameValueLabel;
-	private LineEdit _newNameEdit;
-	private Button _changeButton;
-	private Button _cancelButton;
-	private Label _statusLabel;
-	private Func<string, Task<UserNameChangeResult>> _submit;
+	private Label _titleLabel = null!;
+	private Label _hintLabel = null!;
+	private Label _currentNameValueLabel = null!;
+	private LineEdit _newNameEdit = null!;
+	private Button _changeButton = null!;
+	private Button _cancelButton = null!;
+	private Label _statusLabel = null!;
+	private Func<string, Task<UserNameChangeResult>> _submit = null!;
 	private bool _busy;
 
 	public override void _Ready()
@@ -72,14 +72,12 @@ public partial class UserNameChangeDialog : Control
 	private void BuildLayout()
 	{
 		var backdrop = new ColorRect { Name = "UserNameChangeBackdrop", Color = new Color(0.02f, 0.02f, 0.04f, 0.82f) };
-		backdrop.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		backdrop.MouseFilter = MouseFilterEnum.Stop;
+		UIStyle.ConfigureModalBackdrop(backdrop);
 		backdrop.GuiInput += OnBackdropInput;
 		AddChild(backdrop);
 
 		var center = new CenterContainer { Name = "UserNameChangeCenter" };
-		center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		center.MouseFilter = MouseFilterEnum.Ignore;
+		UIStyle.ConfigureModalContentLayer(center);
 		AddChild(center);
 
 		var card = new PanelContainer { Name = "UserNameChangeCard" };
@@ -128,7 +126,7 @@ public partial class UserNameChangeDialog : Control
 		_changeButton = new Button { Name = "UserNameChangeConfirmButton" };
 		_changeButton.CustomMinimumSize = new Vector2(ActionButtonWidth, 40);
 		_changeButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxes(_changeButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_changeButton);
 		UIStyle.ApplyButtonText(_changeButton, TranslationServer.Translate("CHANGE"), 16);
 		_changeButton.Pressed += OnChangePressed;
 		_changeButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
@@ -137,7 +135,7 @@ public partial class UserNameChangeDialog : Control
 		_cancelButton = new Button { Name = "UserNameChangeCancelButton" };
 		_cancelButton.CustomMinimumSize = new Vector2(ActionButtonWidth, 40);
 		_cancelButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxes(_cancelButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_cancelButton);
 		UIStyle.ApplyButtonText(_cancelButton, TranslationServer.Translate("CANCEL"), 16);
 		_cancelButton.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		_cancelButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);

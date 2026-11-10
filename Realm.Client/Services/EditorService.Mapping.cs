@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
@@ -9,20 +9,23 @@ namespace Realm.Client.Services;
 
 public partial class EditorService
 {
-	public TerrainGridInfo GetTerrainGridInfo()
-	{
-		if (GameContext.Host?.GroundTerrain == null)
-		{
-			return new TerrainGridInfo(0, 0, EditableTerrain.DefaultQuadSize, EditableTerrain.DefaultCellSize, TerrainCell.TIER_HEIGHT);
-		}
+	public TerrainGridInfo GetTerrainGridInfo() => EditorMappingOperations.GetTerrainGridInfo();
 
-		RuntimeTerrain terrain = GameContext.Host.GroundTerrain;
-		return new TerrainGridInfo(terrain.Width, terrain.Depth, terrain.QuadSize, terrain.CellSize, TerrainCell.TIER_HEIGHT);
-	}
+	public void RebuildTerrain() => EditorMappingOperations.RebuildTerrain();
+
+	public void RefreshEditorAfterTerrainChange(bool regenerateMinimap) => EditorMappingOperations.RefreshEditorAfterTerrainChange(regenerateMinimap);
+
+	public void MarkDocumentModified() => EditorMappingOperations.MarkDocumentModified();
+
+	public bool PlaceProp(string propId, float x, float y, float z, float rotationY, float scale) =>
+		EditorMappingOperations.PlaceProp(propId, x, y, z, rotationY, scale);
+
+	public List<string> ResolvePropAssetIds(string[] keywords, bool includeResources) =>
+		EditorMappingOperations.ResolvePropAssetIds(keywords, includeResources);
 
 	public TerrainMaterialPalette GetTerrainMaterialPalette()
 	{
-		int swatchCount = SwatchDisplayNames.Count;
+		int swatchCount = Swatches.DisplayNames.Count;
 		if (swatchCount <= 0)
 		{
 			return new TerrainMaterialPalette(0, 0, 0, 0);
@@ -30,18 +33,18 @@ public partial class EditorService
 
 		var usedMaterials = new HashSet<int>();
 		int water = ResolveMaterialIndex(new[] { "water", "ocean", "sea", "river", "lake", "swamp", "marsh", "trench", "mud" }, 0, usedMaterials);
-		int ground = ResolveMaterialIndex(new[] { "grass", "moss", "jungle", "plain", "soil", "dirt", "forest", "meadow", "sand" }, EditorPaintTextureIndex, usedMaterials);
+		int ground = ResolveMaterialIndex(new[] { "grass", "moss", "jungle", "plain", "soil", "dirt", "forest", "meadow", "sand" }, Tools.PaintTextureIndex, usedMaterials);
 		int rock = ResolveMaterialIndex(new[] { "rock", "granite", "stone", "basin", "mountain", "cobble", "boulder" }, FindNextUnusedMaterial(2, usedMaterials), usedMaterials);
-		int cliff = ResolveMaterialIndex(new[] { "cliff", "crag", "basalt", "scarp", "plateau" }, EditorCliffPaintTextureIndex, usedMaterials);
+		int cliff = ResolveMaterialIndex(new[] { "cliff", "crag", "basalt", "scarp", "plateau" }, Tools.CliffPaintTextureIndex, usedMaterials);
 
 		return new TerrainMaterialPalette(ClampMaterialIndex(water), ClampMaterialIndex(ground), ClampMaterialIndex(rock), ClampMaterialIndex(cliff));
 	}
 
 	private int ResolveMaterialIndex(string[] keywords, int fallbackIndex, HashSet<int> usedMaterials)
 	{
-		for (int materialIndex = 0; materialIndex < SwatchDisplayNames.Count; materialIndex++)
+		for (int materialIndex = 0; materialIndex < Swatches.DisplayNames.Count; materialIndex++)
 		{
-			string displayName = SwatchDisplayNames[materialIndex] ?? string.Empty;
+			string displayName = Swatches.DisplayNames[materialIndex] ?? string.Empty;
 			for (int keywordIndex = 0; keywordIndex < keywords.Length; keywordIndex++)
 			{
 				if (displayName.Contains(keywords[keywordIndex], StringComparison.OrdinalIgnoreCase) && !usedMaterials.Contains(materialIndex))
@@ -64,7 +67,7 @@ public partial class EditorService
 
 	private int FindNextUnusedMaterial(int startIndex, HashSet<int> usedMaterials)
 	{
-		int swatchCount = SwatchDisplayNames.Count;
+		int swatchCount = Swatches.DisplayNames.Count;
 		for (int offset = 0; offset < swatchCount; offset++)
 		{
 			int candidate = (startIndex + offset) % swatchCount;
@@ -79,17 +82,17 @@ public partial class EditorService
 
 	private int ClampMaterialIndex(int materialIndex)
 	{
-		if (SwatchDisplayNames.Count <= 0)
+		if (Swatches.DisplayNames.Count <= 0)
 		{
 			return 0;
 		}
 
-		return Math.Clamp(materialIndex, 0, SwatchDisplayNames.Count - 1);
+		return Math.Clamp(materialIndex, 0, Swatches.DisplayNames.Count - 1);
 	}
 
 	public int GetSelectedCliffTextureIndex()
 	{
-		return ClampMaterialIndex(EditorCliffPaintTextureIndex);
+		return ClampMaterialIndex(Tools.CliffPaintTextureIndex);
 	}
 
 	public void ResetMapToBlank()
@@ -107,14 +110,14 @@ public partial class EditorService
 
 		if (terrain.Width != width || terrain.Depth != depth)
 		{
-			GD.PrintErr($"[EditorService] Generated terrain grid {width}x{depth} does not match the live grid {terrain.Width}x{terrain.Depth}.");
+			GameLog.LogError($"[EditorService] Generated terrain grid {width}x{depth} does not match the live grid {terrain.Width}x{terrain.Depth}.");
 			return false;
 		}
 
 		int cellCount = width * depth;
 		if (tiers.Length != cellCount || groundMaterials.Length != cellCount)
 		{
-			GD.PrintErr($"[EditorService] Generated terrain arrays do not match {cellCount} cells.");
+			GameLog.LogError($"[EditorService] Generated terrain arrays do not match {cellCount} cells.");
 			return false;
 		}
 
@@ -143,12 +146,12 @@ public partial class EditorService
 		terrain.PathingCodes = pathingCodes;
 		terrain.SplatMap = splatMap;
 		terrain.CliffSplatMap = cliffSplatMap;
-		SetTerrainSplatMap(splatMap, cliffSplatMap);
+		Surface.AttachSplatMaps(splatMap, cliffSplatMap);
 
 		terrain.UpdateMeshAndPhysics(true, true);
 		terrain.UpdatePathingTexture();
 		GameContext.Host?.UpdatePathingOverlay();
-		UpdateWatchedFileTimestamps();
+		EditorWorkspaceWatcher.UpdateWatchedFileTimestamps();
 		return true;
 	}
 
@@ -207,121 +210,8 @@ public partial class EditorService
 		}
 	}
 
-	public void RebuildTerrain()
-	{
-		RuntimeTerrain? terrain = GameContext.Host?.GroundTerrain;
-		if (terrain == null)
-		{
-			return;
-		}
-
-		terrain.UpdateMeshAndPhysics(true, true);
-		terrain.UpdatePathingTexture();
-		GameContext.Host?.UpdatePathingOverlay();
-	}
-
-	public void RefreshEditorAfterTerrainChange(bool regenerateMinimap)
-	{
-		GameHost? host = GameContext.Host;
-		if (host == null)
-		{
-			return;
-		}
-
-		host.AlignAllEntitiesToTerrainExternal();
-		host.RebuildCameraBoundsOverlay();
-		GameContext.MapEditorHud?.UpdateCameraBoundsUI();
-		host.UpdateGridOverlayVisibility();
-		host.UpdatePathingOverlay();
-
-		if (regenerateMinimap)
-		{
-			GameContext.MapEditorHud?.RegenerateMinimap();
-		}
-	}
-
-	public void MarkDocumentModified()
-	{
-		GameHost? host = GameContext.Host;
-		if (host == null)
-		{
-			return;
-		}
-
-		host.EditorHasUnsavedChanges = true;
-	}
-
 	public void ResetWorkspaceFileWatchTimestamps()
 	{
-		UpdateWatchedFileTimestamps();
-	}
-
-	public bool PlaceProp(string propId, float x, float y, float z, float rotationY, float scale)
-	{
-		if (string.IsNullOrWhiteSpace(propId) || GameContext.Host == null)
-		{
-			return false;
-		}
-
-		return GameContext.Host.SpawnPropExternalWithParams(propId, new Godot.Vector3(x, y, z), rotationY, scale) != null;
-	}
-
-	public List<string> ResolvePropAssetIds(string[] keywords, bool includeResources)
-	{
-		var matches = new List<string>();
-		if (keywords == null || keywords.Length == 0)
-		{
-			return matches;
-		}
-
-		CollectMatchingRegistryIds(GameHost.PropRegistry, keywords, matches);
-		if (includeResources)
-		{
-			CollectMatchingRegistryIds(GameHost.ResourceRegistry, keywords, matches);
-		}
-
-		matches.Sort(StringComparer.OrdinalIgnoreCase);
-		return matches;
-	}
-
-	private static void CollectMatchingRegistryIds<TMetadata>(Dictionary<StringName, TMetadata> registry, string[] keywords, List<string> matches) where TMetadata : Realm.Shared.Metadata.PlaceableMetadata
-	{
-		foreach (KeyValuePair<StringName, TMetadata> entry in registry)
-		{
-			string templateId = entry.Key.ToString();
-			TMetadata metadata = entry.Value;
-			if (metadata == null)
-			{
-				continue;
-			}
-
-			if (MatchesAnyKeyword(templateId, keywords) ||
-			    MatchesAnyKeyword(metadata.Name, keywords) ||
-			    MatchesAnyKeyword(metadata.ModelPath, keywords))
-			{
-				if (!matches.Exists(existingId => string.Equals(existingId, templateId, StringComparison.OrdinalIgnoreCase)))
-				{
-					matches.Add(templateId);
-				}
-			}
-		}
-	}
-
-	private static bool MatchesAnyKeyword(string? value, string[] keywords)
-	{
-		if (string.IsNullOrWhiteSpace(value))
-		{
-			return false;
-		}
-
-		for (int keywordIndex = 0; keywordIndex < keywords.Length; keywordIndex++)
-		{
-			if (value.Contains(keywords[keywordIndex], StringComparison.OrdinalIgnoreCase))
-			{
-				return true;
-			}
-		}
-
-		return false;
+		EditorWorkspaceWatcher.UpdateWatchedFileTimestamps();
 	}
 }

@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Realm.Benchmarks;
 
-public sealed record BenchmarkOptions(
+public record BenchmarkOptions(
 	int Units,
 	int Players,
 	int Ticks,

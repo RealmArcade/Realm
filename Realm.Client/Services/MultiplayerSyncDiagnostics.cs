@@ -18,8 +18,6 @@ namespace Realm.Client.Services;
 
 public static class MultiplayerSyncDiagnostics
 {
-	private const int BaselineIntervalTicks = 30;
-
 	private static BinaryWriter? _writer;
 	private static byte[] _fileHeader = Array.Empty<byte>();
 	private static BinaryWriter? _presentationWriter;

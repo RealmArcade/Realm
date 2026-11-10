@@ -1,4 +1,4 @@
-using System.Runtime.Versioning;
+﻿using System.Runtime.Versioning;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
@@ -230,7 +230,7 @@ namespace Realm.Client.Services
 			scope.RegisterCleanup<EnvironmentService>(static service => service.Cleanup());
 			scope.RegisterCleanup<EditorService>(static service =>
 			{
-				service.StopWorkspaceWatcher();
+				EditorWorkspaceWatcher.Stop();
 				service.ResetAllState();
 			});
 			scope.RegisterCleanup<MapGenerationService>(static service => service.DiscardRun());

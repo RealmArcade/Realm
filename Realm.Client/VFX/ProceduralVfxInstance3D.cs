@@ -9,10 +9,10 @@ namespace Realm.Client.VFX;
 [GlobalClass]
 public partial class ProceduralVfxInstance3D : Node3D
 {
-	private Node3D _contentRoot;
-	private MeshInstance3D _meshInstance;
-	private ShaderMaterial _material;
-	private SpellParticleInstance3D _particleInstance;
+	private Node3D _contentRoot = null!;
+	private MeshInstance3D _meshInstance = null!;
+	private ShaderMaterial _material = null!;
+	private SpellParticleInstance3D _particleInstance = null!;
 
 	private VfxAttachmentConfig _config = new();
 	public VfxAttachmentConfig Config => _config;
@@ -29,15 +29,13 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 	public bool IsGroundAura => _isGroundAura;
 
-	private MeshInstance3D _selectionRing;
+	private MeshInstance3D _selectionRing = null!;
 	private bool _isSelected = false;
-	private MeshInstance3D _hoverRing;
+	private MeshInstance3D _hoverRing = null!;
 	private bool _isHovered = false;
-	private MeshInstance3D _editorBaseRing;
+	private MeshInstance3D _editorBaseRing = null!;
 
-	private static StandardMaterial3D _sharedSelectionMaterial;
-	private static StandardMaterial3D _sharedHoverMaterial;
-	private static StandardMaterial3D _sharedEditorBaseMaterial;
+	private static StandardMaterial3D? _sharedEditorBaseMaterial;
 
 	public bool IsPreview { get; set; } = false;
 
@@ -498,8 +496,6 @@ public partial class ProceduralVfxInstance3D : Node3D
 
 	public static void ClearCache()
 	{
-		_sharedSelectionMaterial = null;
-		_sharedHoverMaterial = null;
 		_sharedEditorBaseMaterial = null;
 	}
 

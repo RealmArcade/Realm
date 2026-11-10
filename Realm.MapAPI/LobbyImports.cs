@@ -7,7 +7,7 @@ namespace Realm.MapAPI;
 ///     The roster orders a map script places with the authority, declared by hand because the roster itself is published
 ///     in shared memory the script reads directly: only the orders a script makes cross the boundary.
 /// </summary>
-internal static class LobbyImports
+public static class LobbyImports
 {
 	private const string Module = "custom:game/game-api";
 
@@ -47,48 +47,76 @@ internal static class LobbyImports
 	[WasmImportLinkage]
 	private static extern void ImportSetLobbyColorLocked(int playerIndex, int locked);
 
+	/// <summary>Places the order that adds a named faction to the lobby roster.</summary>
+	/// <param name="factionName">The faction's name, passed to the authority as UTF-8 with its byte length.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
 	public static unsafe bool AddFaction(string factionName)
 	{
 		byte[] bytes = Encoding.UTF8.GetBytes(factionName);
 		fixed (byte* pointer = bytes) return ImportAddLobbyFaction((nint)pointer, bytes.Length) != 0;
 	}
 
+	/// <summary>Places the order that states how many players the lobby seats.</summary>
+	/// <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
 	public static void SetMaximumPlayerCount(int maximumPlayerCount)
 	{
 		ImportSetLobbyMaximumPlayerCount(maximumPlayerCount);
 	}
 
+	/// <summary>Places the order that states how many teams the lobby offers.</summary>
+	/// <param name="teamCount">The number of teams the lobby should offer.</param>
 	public static void SetTeamCount(int teamCount)
 	{
 		ImportSetLobbyTeamCount(teamCount);
 	}
 
+	/// <summary>Places the order that gives a player slot a faction from the roster.</summary>
+	/// <param name="playerIndex">The player slot.</param>
+	/// <param name="factionName">The faction's name, passed to the authority as UTF-8 with its byte length.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
 	public static unsafe bool SetPlayerFaction(int playerIndex, string factionName)
 	{
 		byte[] bytes = Encoding.UTF8.GetBytes(factionName);
 		fixed (byte* pointer = bytes) return ImportSetLobbyPlayerFaction(playerIndex, (nint)pointer, bytes.Length) != 0;
 	}
 
+	/// <summary>Places the order that puts a player slot on a team.</summary>
+	/// <param name="playerIndex">The player slot.</param>
+	/// <param name="teamIndex">The team number, or 0 for no team.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
 	public static bool SetPlayerTeam(int playerIndex, int teamIndex)
 	{
 		return ImportSetLobbyPlayerTeam(playerIndex, teamIndex) != 0;
 	}
 
+	/// <summary>Places the order that gives a player slot a colour.</summary>
+	/// <param name="playerIndex">The player slot.</param>
+	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
 	public static bool SetPlayerColor(int playerIndex, uint colorRgba)
 	{
 		return ImportSetLobbyPlayerColor(playerIndex, (int)colorRgba) != 0;
 	}
 
+	/// <summary>Places the order that locks or unlocks a slot's faction.</summary>
+	/// <param name="playerIndex">The player slot.</param>
+	/// <param name="locked">Whether the field is locked.</param>
 	public static void SetFactionLocked(int playerIndex, bool locked)
 	{
 		ImportSetLobbyFactionLocked(playerIndex, locked ? 1 : 0);
 	}
 
+	/// <summary>Places the order that locks or unlocks a slot's team.</summary>
+	/// <param name="playerIndex">The player slot.</param>
+	/// <param name="locked">Whether the field is locked.</param>
 	public static void SetTeamLocked(int playerIndex, bool locked)
 	{
 		ImportSetLobbyTeamLocked(playerIndex, locked ? 1 : 0);
 	}
 
+	/// <summary>Places the order that locks or unlocks a slot's colour.</summary>
+	/// <param name="playerIndex">The player slot.</param>
+	/// <param name="locked">Whether the field is locked.</param>
 	public static void SetColorLocked(int playerIndex, bool locked)
 	{
 		ImportSetLobbyColorLocked(playerIndex, locked ? 1 : 0);

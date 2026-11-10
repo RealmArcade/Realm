@@ -18,7 +18,7 @@ public class ScoreboardPanel
 
 	private readonly PanelContainer _panel;
 	private readonly Label _titleLabel;
-	private readonly Button _collapseButton;
+	private readonly Button _collapseButton = null!;
 	private readonly VBoxContainer _content;
 	private readonly VBoxContainer _selectors;
 	private readonly VBoxContainer _leaderboardContent;
@@ -45,7 +45,19 @@ public class ScoreboardPanel
 	private int _lastBoardSignature = int.MinValue;
 	private int _lastGroupSignature = int.MinValue;
 
-	public ScoreboardPanel(
+	/// <summary>
+	/// Builds the scoreboard into <paramref name="dock" /> and returns the controller that owns it. The nodes never
+	/// leave this class: the HUD only ever talks to the controller.
+	/// </summary>
+	public static ScoreboardPanel Create(Control dock) => new(ScoreboardBuilder.Create(dock));
+
+	public ScoreboardPanel(ScoreboardNodes nodes)
+		: this(nodes.Panel, nodes.TitleLabel, nodes.CollapseButton, nodes.Content, nodes.Selectors,
+			nodes.LeaderboardContent, nodes.SummaryContent)
+	{
+	}
+
+	private ScoreboardPanel(
 		PanelContainer panel,
 		Label titleLabel,
 		Button collapseButton,
@@ -100,18 +112,13 @@ public class ScoreboardPanel
 		button.CustomMinimumSize = new Vector2(170, 26);
 		button.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		button.FocusMode = Control.FocusModeEnum.All;
-		button.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		button.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		button.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonStyleBoxes(button);
 		button.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		button.AddThemeColorOverride("font_focus_color", UIStyle.ColorCyanGlow);
 		button.AddThemeFontSizeOverride("font_size", 12);
 
-		var focusStyle = new StyleBoxFlat();
-		focusStyle.BgColor = new Color(0.16f, 0.16f, 0.18f, 0.9f);
-		focusStyle.SetBorderWidthAll(1);
-		focusStyle.BorderColor = UIStyle.ColorCyanGlow;
+		var focusStyle = UIStyle.CreateCardPlate(new Color(0.16f, 0.16f, 0.18f, 0.9f), UIStyle.ColorCyanGlow, 1, 0, 0, 0, 0, 0);
 		button.AddThemeStyleboxOverride("focus", focusStyle);
 		return button;
 	}
