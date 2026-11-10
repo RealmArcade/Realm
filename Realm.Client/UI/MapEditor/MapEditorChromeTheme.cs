@@ -12,11 +12,15 @@ namespace Realm.Client.UI.MapEditor;
 public static class MapEditorChromeTheme
 {
 	/// <summary>
-	/// Makes the sidebar columns click-through. The columns are decoration behind the cards, so a click that lands on the
-	/// column rather than a card must reach the 3D viewport underneath.
+	/// Makes the sidebar columns click-through and blank. The columns are decoration behind the cards, so a click that
+	/// lands on the column rather than a card must reach the 3D viewport underneath, and the column itself draws no plate
+	/// of its own: leaving the theme's plate on it is what washes a grey background behind both card stacks.
 	/// </summary>
 	public static void SidebarColumns(Node owner, Panel? leftPanel, Panel? rightPanel)
 	{
+		ClearPlate(leftPanel);
+		ClearPlate(rightPanel);
+
 		IgnoreMouse(leftPanel);
 		IgnoreMouse(rightPanel);
 
@@ -41,6 +45,11 @@ public static class MapEditorChromeTheme
 	private static void IgnoreMouse(Control? control)
 	{
 		if (control != null) control.MouseFilter = MouseFilterEnum.Ignore;
+	}
+
+	private static void ClearPlate(Panel? panel)
+	{
+		if (panel != null) panel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 	}
 
 	/// <summary>
