@@ -366,6 +366,10 @@ public class NetworkService
 		if (!World.IsAlive(localEntity)) return;
 		if (World.Has<GroundLoot>(localEntity)) return;
 
+		// The identifier now names a different unit, so what this screen was told about the one that freed it is not
+		// something the next one may be given. What a unit that merely left sight keeps is untouched here: it is still
+		// the same unit, and it is owed everything it held when it comes back.
+		_mirror.RemoveAbilitiesForEntity(serverEntityId);
 		RetireClientEntityForUntrackedServerId(mapping, localEntity, serverEntityId);
 	}
 
@@ -377,6 +381,12 @@ public class NetworkService
 		}
 
 		ForgetReferencesHeldBy(localEntity.Id);
+
+		// The exceptions a map declared against a unit are held beside the replica, keyed by the local entity that carried
+		// them, and a match recycles a local entity the moment one is freed: left here they would be read as the next
+		// unit's own, withholding abilities it offers and offering the ones the map withheld from this one.
+		GameContext.RegistryService?.ClearAbilityStateForUnit(new UnitId(localEntity.Id));
+
 		GameContext.SnapshotTimeline.Reset(localEntity.Id);
 		mapping.ServerToClientEntityMap.Remove(serverEntityId);
 		mapping.ClientToServerEntityMap.Remove(localEntity.Id);

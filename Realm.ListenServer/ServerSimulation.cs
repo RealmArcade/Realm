@@ -209,6 +209,11 @@ public class ServerSimulation : IDisposable
 		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
 
 		if (_map.World.IsAlive(entity)) _map.World.Destroy(entity);
+
+		// A match recycles a destroyed identifier the moment a unit is spared it, and what the map declared about the unit
+		// that held it would be read as the new unit's own: neither the state it withheld nor who was told about it
+		// belongs to whoever takes the identifier next.
+		_script.Api.Abilities.ForgetUnit(entity.Id);
 	}
 
 	private const int ObstacleScanIntervalTicks = 20;
@@ -440,6 +445,8 @@ public class ServerSimulation : IDisposable
 			List<AbilityStateDelta> buffer = _abilityDeltasByPeerSlot[index] ??= new List<AbilityStateDelta>();
 			_abilityDeltasByPeerSlot[index] = abilities != null ? abilities.CollectDeltas(peerIds[index], _map.World, describeInFull[index], buffer) : NoAbilityDeltas;
 		}
+
+		abilities?.CompleteTick();
 	}
 
 	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline, int laneIndex, int peerSlot)
