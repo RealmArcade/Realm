@@ -59,7 +59,8 @@ public partial class ConvertGlbDialog
 		_btnSelectFile = new Button();
 		_btnSelectFile.Name = "BtnSelectFile_Button";
 		_btnSelectFile.Set("icon_max_width", 0);
-		_btnSelectFile.Text = "📂 " + TranslationServer.Translate("Browse...");
+		_btnSelectFile.Text = UnicodeIcons.FOLDER_OPEN + " " + TranslationServer.Translate("Browse...");
+		ApplyFontAwesomeFont(_btnSelectFile);
 		_btnSelectFile.AddThemeFontSizeOverride("font_size", 11);
 		_btnSelectFile.CustomMinimumSize = new Vector2(90, 24);
 		_btnSelectFile.FocusMode = FocusModeEnum.None;
@@ -93,6 +94,7 @@ public partial class ConvertGlbDialog
 		_btnSelectReferenceImage.Name = "BtnSelectReferenceImage_Button";
 		_btnSelectReferenceImage.Set("icon_max_width", 0);
 		_btnSelectReferenceImage.Text = UnicodeIcons.FOLDER_OPEN + " " + TranslationServer.Translate("Browse...");
+		ApplyFontAwesomeFont(_btnSelectReferenceImage);
 		_btnSelectReferenceImage.AddThemeFontSizeOverride("font_size", 11);
 		_btnSelectReferenceImage.CustomMinimumSize = new Vector2(90, 24);
 		_btnSelectReferenceImage.FocusMode = FocusModeEnum.None;
@@ -104,6 +106,7 @@ public partial class ConvertGlbDialog
 		_btnClearReferenceImage.Set("icon_max_width", 0);
 		_btnClearReferenceImage.Text = UnicodeIcons.TRASH_ALT;
 		_btnClearReferenceImage.TooltipText = TranslationServer.Translate("Clear the reference image so nothing is embedded");
+		ApplyFontAwesomeFont(_btnClearReferenceImage);
 		_btnClearReferenceImage.AddThemeFontSizeOverride("font_size", 11);
 		_btnClearReferenceImage.CustomMinimumSize = new Vector2(34, 24);
 		_btnClearReferenceImage.FocusMode = FocusModeEnum.None;
@@ -218,6 +221,18 @@ public partial class ConvertGlbDialog
 		BodyContainer.AddChild(_lblStatus);
 
 		ApplyButton.Text = "🔄 " + TranslationServer.Translate("Convert & Import");
+	}
+
+	/// <summary>
+	/// The dialog's own buttons carry FontAwesome glyphs in their text, so they need the face that draws them; without
+	/// it the glyph resolves through the default font and reads as a broken image instead of an icon.
+	/// </summary>
+	private void ApplyFontAwesomeFont(Button button)
+	{
+		var font = Hud?.GetFontAwesomeFont();
+		if (font == null) return;
+
+		button.AddThemeFontOverride("font", font);
 	}
 
 }
