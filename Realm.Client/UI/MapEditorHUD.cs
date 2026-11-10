@@ -480,7 +480,7 @@ public partial class MapEditorHUD : Control
 
 	private void RefreshCardScrollStates()
 	{
-		foreach (var card in Cards()) MapEditorCardTheme.RefreshScroll(card.Content, card.ScrollMaxHeight, card.AllowExpand);
+		foreach (var card in Cards()) MapEditorCardTheme.RefreshScroll(card.Content, card.ScrollMaxHeight, card.AllowExpand, card.Scrollable);
 	}
 
 	private FontVariation? _faFontVariation { get; set; }

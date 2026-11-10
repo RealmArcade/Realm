@@ -6,9 +6,10 @@ namespace Realm.Client.UI.MapEditor;
 
 /// <summary>
 /// One editor card: the accordion header that names it, the content box beneath it, and how tall the content may grow
-/// before it scrolls rather than overflow.
+/// before it scrolls rather than overflow. A card that is not scrollable keeps its content at its natural height, so a
+/// tall card grows and the sidebar column scrolls instead of the card clipping it.
 /// </summary>
-public readonly record struct MapEditorCard(Control? Accordion, Control? Content, float ScrollMaxHeight = 300f, bool AllowExpand = true);
+public readonly record struct MapEditorCard(Control? Accordion, Control? Content, float ScrollMaxHeight = 300f, bool AllowExpand = true, bool Scrollable = true);
 
 /// <summary>
 /// The card chrome shared by every panel in the editor sidebar: a header panel with a darker content box under it and
@@ -82,11 +83,13 @@ public static class MapEditorCardTheme
 	/// Wraps the content in a scroll container the first time it runs, then sizes that container to the content's
 	/// minimum height up to <paramref name="maxHeight"/>, showing the expand button only when the content overflows.
 	/// </summary>
-	public static void SetupScroll(Control? content, float maxHeight, bool allowExpand)
+	public static void SetupScroll(Control? content, float maxHeight, bool allowExpand, bool scrollable)
 	{
 		if (content == null) return;
 
 		content.CustomMinimumSize = new Vector2(ContentWidth, 0);
+
+		if (!scrollable) return;
 
 		ScrollContainer scroll = content.GetNodeOrNull<ScrollContainer>("CardScroll");
 		if (scroll == null)
@@ -104,8 +107,10 @@ public static class MapEditorCardTheme
 	/// <see cref="SetupScroll"/> already set it; it only catches up with the content's new minimum height and with whether
 	/// the expand button should be offered yet.
 	/// </summary>
-	public static void RefreshScroll(Control? content, float maxHeight, bool allowExpand)
+	public static void RefreshScroll(Control? content, float maxHeight, bool allowExpand, bool scrollable)
 	{
+		if (!scrollable) return;
+
 		if (content == null) return;
 
 		ScrollContainer scroll = content.GetNodeOrNull<ScrollContainer>("CardScroll");
