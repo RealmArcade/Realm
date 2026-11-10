@@ -747,6 +747,12 @@ namespace Realm.Client.UI
 
 		public override void _Input(InputEvent @event)
 		{
+			if (@event is InputEventMouseButton wheelEvent && wheelEvent.Pressed && TryScrollSidebarUnderMouse(wheelEvent))
+			{
+				GetViewport().SetInputAsHandled();
+				return;
+			}
+
 			if (@event is not InputEventKey keyEvent || !keyEvent.Pressed) return;
 
 			KeyboardShortcuts.Handle(keyEvent);

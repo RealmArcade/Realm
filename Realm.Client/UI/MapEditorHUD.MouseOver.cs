@@ -131,6 +131,43 @@ public partial class MapEditorHUD
 		return false;
 	}
 
+	/// <summary>
+	/// Scrolls the sidebar column under the mouse with the wheel. The columns hold cards that grow to their content
+	/// rather than clip it, so a stack taller than the screen is reachable by scrolling it; the wheel is taken here
+	/// because the cards themselves cover the column and swallow the event before the scroller can see it.
+	/// </summary>
+	public bool TryScrollSidebarUnderMouse(InputEventMouseButton wheelEvent)
+	{
+		if (wheelEvent.ButtonIndex != MouseButton.WheelUp && wheelEvent.ButtonIndex != MouseButton.WheelDown) return false;
+		if (GameContext.IsSettingsMenuOpen) return false;
+		if (FloatingDialogBase.IsMouseOverAnyDialogOpen(wheelEvent.Position)) return false;
+
+		ScrollContainer? scroller = SidebarScrollerUnderMouse(wheelEvent.Position);
+		if (scroller == null || scroller.GetChildCount() == 0) return false;
+		if (scroller.GetChild(0) is not Control content) return false;
+
+		if (content.Size.Y <= scroller.Size.Y) return false;
+
+		int step = Mathf.Max(48, Mathf.RoundToInt(scroller.Size.Y * 0.15f));
+		scroller.ScrollVertical += wheelEvent.ButtonIndex == MouseButton.WheelDown ? step : -step;
+		return true;
+	}
+
+	private ScrollContainer? SidebarScrollerUnderMouse(Vector2 mousePosition)
+	{
+		if (_panelRight != null && _panelRight.IsVisibleInTree() && _panelRight.GetGlobalRect().HasPoint(mousePosition))
+		{
+			return GetNodeOrNull<ScrollContainer>("RightSlidePanel/RightScroll");
+		}
+
+		if (_panelLeft != null && _panelLeft.IsVisibleInTree() && _panelLeft.GetGlobalRect().HasPoint(mousePosition))
+		{
+			return GetNodeOrNull<ScrollContainer>("LeftSlidePanel/LeftScroll");
+		}
+
+		return null;
+	}
+
 	private bool IsMouseOverOptionCards(Vector2 mousePos)
 	{
 		foreach (var card in CardInteraction.Cards)
