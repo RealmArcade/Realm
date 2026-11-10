@@ -596,7 +596,16 @@ public class SaveLoadService
 		return foundEntity;
 	}
 
-	public bool LoadMapFromFile(string absolutePath, bool terrainOnly = false)
+	/// <summary>
+	///     Loads the world a map folder describes.
+	/// </summary>
+	/// <param name="absolutePath">The terrain file to read.</param>
+	/// <param name="terrainOnly">Whether to load only the terrain, leaving the map's own entities alone.</param>
+	/// <param name="unitsFromAuthority">
+	///     Whether the authority is already telling this screen about the units the map places. The props and decals a
+	///     map places are never replicated, so they are loaded either way.
+	/// </param>
+	public bool LoadMapFromFile(string absolutePath, bool terrainOnly = false, bool unitsFromAuthority = false)
 	{
 		if (!File.Exists(absolutePath)) return false;
 
@@ -630,7 +639,7 @@ public class SaveLoadService
 
 			if (!terrainOnly)
 			{
-				SpawnEntitiesFromSaveData(saveData, mapDir);
+				SpawnEntitiesFromSaveData(saveData, mapDir, unitsFromAuthority);
 			}
 
 			return true;
@@ -716,9 +725,9 @@ public class SaveLoadService
 		}
 	}
 
-	private void SpawnEntitiesFromSaveData(MapSaveData saveData, string mapDir)
+	private void SpawnEntitiesFromSaveData(MapSaveData saveData, string mapDir, bool unitsFromAuthority)
 	{
-		SpawnUnits(saveData.Units, mapDir);
+		if (!unitsFromAuthority) SpawnUnits(saveData.Units, mapDir);
 		SpawnProps(saveData.Props, mapDir);
 		SpawnDecals(saveData.Decals);
 		SpawnVfx(saveData.Vfx);
