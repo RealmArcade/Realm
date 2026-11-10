@@ -100,7 +100,7 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		DefaultTargetPosition = Vector3.Zero;
 		TargetPosition = DefaultTargetPosition;
 
-		_audioPlayer = new AudioStreamPlayer { Name = "TemplatePreviewAudio", Bus = AudioService.SfxBusName };
+		_audioPlayer = new AudioStreamPlayer { Name = "TemplatePreviewAudio", Bus = AudioService.PreviewBusName };
 		_audioPlayer.Finished += OnAudioFinished;
 		AddChild(_audioPlayer);
 

@@ -910,20 +910,6 @@
                 An intent component that signals an entity should move to a target position.
             </summary>
         </member>
-        <member name="T:Realm.Ecs.Components.Movement.PathingFlags">
-            <summary>
-                Bitmask of terrain types this unit can traverse during pathfinding.
-                Uses the same bit layout as <see cref="T:Realm.Ecs.Components.Terrain.TerrainPathingFlags"/>
-                (bit 1 = shallow water, bit 2 = deep water, bit 4 = flying/air, bit 8 = ground).
-            </summary>
-        </member>
-        <member name="M:Realm.Ecs.Components.Movement.PathingFlags.#ctor(System.Int32)">
-            <summary>
-                Bitmask of terrain types this unit can traverse during pathfinding.
-                Uses the same bit layout as <see cref="T:Realm.Ecs.Components.Terrain.TerrainPathingFlags"/>
-                (bit 1 = shallow water, bit 2 = deep water, bit 4 = flying/air, bit 8 = ground).
-            </summary>
-        </member>
         <member name="T:Realm.Ecs.Components.Movement.Patrol">
             <summary>Patrol component: unit walks back and forth between PointA and PointB, attacking enemies on sight.</summary>
         </member>
@@ -948,6 +934,20 @@
         <member name="T:Realm.Ecs.Components.Movement.RenderPosition">
             <summary>
                 Stores the visual render position each frame draws from, so a unit interpolates between the two positions the presentation step wrote rather than being read mid-write.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Movement.TraversableTerrain">
+            <summary>
+                Bitmask of terrain types this unit can traverse during pathfinding.
+                Uses the same bit layout as <see cref="T:Realm.Ecs.Components.Terrain.TerrainPathingFlags"/>
+                (bit 1 = shallow water, bit 2 = deep water, bit 4 = flying/air, bit 8 = ground).
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Components.Movement.TraversableTerrain.#ctor(System.Int32)">
+            <summary>
+                Bitmask of terrain types this unit can traverse during pathfinding.
+                Uses the same bit layout as <see cref="T:Realm.Ecs.Components.Terrain.TerrainPathingFlags"/>
+                (bit 1 = shallow water, bit 2 = deep water, bit 4 = flying/air, bit 8 = ground).
             </summary>
         </member>
         <member name="T:Realm.Ecs.Components.Movement.Velocity">

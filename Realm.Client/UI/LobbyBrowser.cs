@@ -42,6 +42,7 @@ public partial class LobbyBrowser : Control
 	private LineEdit _searchBar = null!;
 	private readonly List<(string Tag, CheckBox CheckBox)> _tagFilters = new();
 	private CheckBox _betaTestingMapsCheck = null!;
+	private CheckBox _versionMismatchCheck = null!;
 	private VBoxContainer _lobbyListContainer = null!;
 
 	private Label _browserTitle = null!;
@@ -74,6 +75,7 @@ public partial class LobbyBrowser : Control
 
 		_searchBar = GetNode<LineEdit>("SearchBar");
 		_betaTestingMapsCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/BetaTestingMapsCheck");
+		_versionMismatchCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/VersionMismatchCheck");
 		_lobbyListContainer = GetNode<VBoxContainer>("LobbyPanel/VBoxContainer/ScrollContainer/LobbyListContainer");
 
 
@@ -258,6 +260,11 @@ public partial class LobbyBrowser : Control
 		_betaTestingMapsCheck.TooltipText = Tr("Also list lobbies for maps that are still in Beta-Testing and have not been greenlit yet");
 		_betaTestingMapsCheck.ButtonPressed = true;
 		SetupFilterCheckbox(_betaTestingMapsCheck);
+
+		_versionMismatchCheck.Text = TranslationServer.Translate("Show mismatched game version");
+		_versionMismatchCheck.TooltipText = TranslationServer.Translate("Also list lobbies that run a different game version and cannot be joined from this build");
+		_versionMismatchCheck.ButtonPressed = false;
+		SetupFilterCheckbox(_versionMismatchCheck);
 	}
 
 	private void SetupFilterCheckbox(CheckBox checkBox)

@@ -452,6 +452,11 @@ public partial class TemplateManagerDialog
 		{
 			_audioPlayer.Play();
 			_btnAudioPlay.Text = $"{UnicodeIcons.PAUSE} " + TranslationServer.Translate("Pause");
+
+			if (!AudioService.IsMasterVolumeAudible())
+			{
+				Hud?.ShowFeedback(AudioService.PreviewInaudibleWarning);
+			}
 		}
 	}
 

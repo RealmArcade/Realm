@@ -148,6 +148,11 @@ public partial class AssetManagerDialog
 		{
 			_audioPlayer.Play();
 			_btnAudioPlay.Text = "⏹ " + TranslationServer.Translate("Stop");
+
+			if (!AudioService.IsMasterVolumeAudible())
+			{
+				Hud?.ShowFeedback(AudioService.PreviewInaudibleWarning);
+			}
 		}
 	}
 

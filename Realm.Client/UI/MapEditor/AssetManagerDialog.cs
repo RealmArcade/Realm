@@ -68,27 +68,9 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	private IndexedAsset? _selectedAsset;
 	private string? _selectedRaudEntryName;
 
-	private static readonly string[] ValidAssetTypes = new[]
-	{
-		"All",
-		"Character",
-		"Building",
-		"Prop",
-		"Item",
-		"Terrain",
-		"Spritesheet",
-		"vfx_radial",
-		"vfx_vertical",
-		"Animation",
-		"SoundEffect",
-		"Music",
-		"Icon",
-		"Decal",
-		"Ribbon",
-		"Noise",
-		"Skybox",
-		"Shader"
-	};
+	private static readonly string[] ValidAssetTypes = new[] { "All" }
+		.Concat(RealmMetadataHelper.GetAssetTypeDisplayOrder())
+		.ToArray();
 
 	public AssetManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Asset Manager"), new Vector2(860, 720))
@@ -100,7 +82,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		_decalEditDialog = new DecalSettingsDialog(hud);
 		_shaderEditDialog = new ShaderEditorDialog(hud);
 
-		_audioPlayer = new AudioStreamPlayer { Name = "AssetManagerPreviewAudio", Bus = AudioService.SfxBusName };
+		_audioPlayer = new AudioStreamPlayer { Name = "AssetManagerPreviewAudio", Bus = AudioService.PreviewBusName };
 		_audioPlayer.Finished += OnAudioFinished;
 		AddChild(_audioPlayer);
 

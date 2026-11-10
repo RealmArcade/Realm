@@ -14,6 +14,7 @@ public static class UIHelper
 	public const string GoldIconPath = "res://Assets/UI/gold_coin.webp";
 	public const string WoodIconPath = "res://Assets/UI/wood_logs.webp";
 	public const string StoneIconPath = "res://Assets/UI/stone.webp";
+	public const string SupplyIconPath = "res://Assets/UI/Supplies.webp";
 
 	private const int CostIconSizePixels = 16;
 
@@ -66,8 +67,7 @@ public static class UIHelper
 
 		if (pop > 0)
 		{
-			builder.Append("  ");
-			builder.Append(pop);
+			AppendCost(builder, pop, SupplyIconPath);
 			builder.Append(" Pop");
 		}
 
@@ -140,19 +140,10 @@ public static class UIHelper
 			desc = MapText.Translate(meta.Description);
 		}
 
-		string costStr = $"Cost: {gold} Gold";
-		if (wood > 0) costStr += $", {wood} Wood";
-		if (stone > 0) costStr += $", {stone} Stone";
-		if (pop > 0) costStr += $", {pop} Pop";
-
 		string translatedActionPrefix = TranslationServer.Translate(actionPrefix);
+		string hotkeyPrefix = hotkey.IsNone ? string.Empty : $"[{hotkey}] ";
+		string header = $"{hotkeyPrefix}{translatedActionPrefix} {BuildHeader(name, gold, wood, stone, 0f, pop)}";
 
-		string tooltipFormat = !hotkey.IsNone
-			? (string.IsNullOrEmpty(desc) ? "[{0}] {4} {1} ({2})" : "[{0}] {4} {1} ({2}) — {3}")
-			: (string.IsNullOrEmpty(desc) ? "{4} {1} ({2})" : "{4} {1} ({2}) — {3}");
-
-		return string.IsNullOrEmpty(desc)
-			? string.Format(tooltipFormat, hotkey, name, costStr, "", translatedActionPrefix)
-			: string.Format(tooltipFormat, hotkey, name, costStr, desc, translatedActionPrefix);
+		return string.IsNullOrEmpty(desc) ? header : $"{header}\n{desc}";
 	}
 }

@@ -223,7 +223,19 @@ public partial class LobbyBrowser
 			_filteredLobbies = _filteredLobbies.Where(x => x.IsGreenlit).ToList();
 		}
 
+		if (!_versionMismatchCheck.ButtonPressed)
+		{
+			_filteredLobbies = _filteredLobbies.Where(x => IsJoinableGameVersion(x.GameVersion)).ToList();
+		}
+
 		RefreshLobbyDisplay();
+	}
+
+	private static bool IsJoinableGameVersion(string lobbyGameVersion)
+	{
+		if (string.IsNullOrEmpty(lobbyGameVersion)) return true;
+
+		return string.Equals(lobbyGameVersion, RealmVersion.GameBinaryVersion, StringComparison.Ordinal);
 	}
 
 	private HashSet<string> GetActiveModes()

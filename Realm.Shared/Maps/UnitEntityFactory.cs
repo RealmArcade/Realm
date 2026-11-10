@@ -238,7 +238,7 @@ public static class UnitEntityFactory
 		if (speed > 0)
 		{
 			world.Add(entity, new MovementStats(speed, 0f, 10f, pushPriority, movementType));
-			world.Add(entity, new PathingFlags(pathingFlags));
+			world.Add(entity, new TraversableTerrain(pathingFlags));
 			world.Add(entity, new Movable());
 			world.Add(entity, new Inventory());
 		}

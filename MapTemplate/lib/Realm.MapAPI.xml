@@ -1729,9 +1729,8 @@
         </member>
         <member name="E:Realm.MapAPI.IGameAPI.OnPlayerChatMessage">
             <summary>
-            Triggered when a player types a chat message. Passes the message, the first selected unit if any, and the slot of
-            the player who typed it, which is the slot to judge a console command by even when that player had nothing
-            selected.
+            Triggered when a player types a chat message. Passes the message and the slot of the player who typed it, which is
+            what a console command is judged by.
             </summary>
         </member>
         <member name="E:Realm.MapAPI.IGameAPI.OnUnitSelected">

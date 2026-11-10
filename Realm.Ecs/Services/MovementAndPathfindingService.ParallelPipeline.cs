@@ -13,7 +13,6 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
 namespace Realm.Ecs.Services
 {
@@ -26,7 +25,7 @@ namespace Realm.Ecs.Services
 			Vector3 posValue = item.PosValue;
 			Vector3 moveTarget = item.MoveTarget;
 			MovementStats stats = item.Stats;
-			ushort pathingFlags = item.PathingFlags;
+			ushort pathingFlags = item.TraversableTerrain;
 			bool isFlying = item.IsFlying;
 			bool hasPf = item.HasPf;
 			ref PathFollow pf = ref item.Pf;
