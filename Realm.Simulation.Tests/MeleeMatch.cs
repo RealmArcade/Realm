@@ -399,6 +399,35 @@ internal sealed class MeleeMatch : IDisposable
 	}
 
 	/// <summary>
+	///     Sends one of the movement orders the command card offers, so a test plays the same routing a button press does.
+	/// </summary>
+	/// <param name="slot">The seat issuing the order.</param>
+	/// <param name="commandType">The command the card sends, such as stop, hold, attack_move or patrol.</param>
+	/// <param name="position">The ground point the order names, or zero for an order that names none.</param>
+	/// <param name="units">The units the order applies to.</param>
+	/// <returns>What the authority answered the order with.</returns>
+	public ServerCommandResult Order(int slot, string commandType, Vector3 position, params UnitId[] units)
+	{
+		var unitIds = new System.Collections.Generic.List<int>();
+		for (int index = 0; index < units.Length; index++)
+		{
+			if (units[index].IsValid) unitIds.Add(units[index].Value);
+		}
+
+		var command = new NetworkCommand
+		{
+			CommandId = _nextCommandId++,
+			CommandType = commandType,
+			UnitEntityIds = unitIds,
+			TargetPosition = new NetworkVector3(position.X, position.Y, position.Z),
+			TargetEntityId = 0,
+			ArgString = string.Empty
+		};
+
+		return Send(slot, command);
+	}
+
+	/// <summary>
 	///     Sends the order a player's right-click on an enemy unit sends, so a test exercises the authority's own attack
 	///     routing rather than writing a target component directly.
 	/// </summary>
