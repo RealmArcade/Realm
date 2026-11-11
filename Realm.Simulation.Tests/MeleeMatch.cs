@@ -399,6 +399,29 @@ internal sealed class MeleeMatch : IDisposable
 	}
 
 	/// <summary>
+	///     Sends the order a player's right-click on an enemy unit sends, so a test exercises the authority's own attack
+	///     routing rather than writing a target component directly.
+	/// </summary>
+	/// <param name="slot">The seat issuing the order.</param>
+	/// <param name="unit">The unit being ordered to attack.</param>
+	/// <param name="target">The unit that was clicked.</param>
+	/// <returns>What the authority answered the order with.</returns>
+	public ServerCommandResult Attack(int slot, UnitId unit, UnitId target)
+	{
+		var command = new NetworkCommand
+		{
+			CommandId = _nextCommandId++,
+			CommandType = "attack",
+			UnitEntityIds = new System.Collections.Generic.List<int> { unit.Value },
+			TargetPosition = new NetworkVector3(0f, 0f, 0f),
+			TargetEntityId = target.Value,
+			ArgString = string.Empty
+		};
+
+		return Send(slot, command);
+	}
+
+	/// <summary>
 	///     Sends the order a player's right-click on a resource node sends, so a test exercises the authority's own gather
 	///     routing rather than writing a gatherer component directly.
 	/// </summary>

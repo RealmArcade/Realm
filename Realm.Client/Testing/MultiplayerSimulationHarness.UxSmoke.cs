@@ -11,6 +11,7 @@ using Realm.Client.UI;
 using Realm.Client.VFX;
 using Realm.Ecs;
 using Realm.Ecs.Common;
+using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Shared;
 using Realm.Shared.Abilities;
@@ -477,6 +478,84 @@ public partial class MultiplayerSimulationHarness : Node
 			SaveUxScreenshot("ux_smoke_revived.png", "revived", Note);
 		}
 
+		// A match only ends when the enemy Nexus falls, so the hero is sent at it through the same attack order a right
+		// click issues and given the damage a developer needs to reach the end in one blow. What the screen has to show is
+		// the fight and then the victory it causes.
+		// The enemy base is out of this screen's sight when the match starts, so it has never been described. The shroud
+		// cheat reveals the whole board, which is how a developer reaches the far side without marching there to look.
+		Check("the shroud cheat is accepted", hud.TryTriggerCheat("aura"));
+		Unit3D? enemyNexus = await WaitForUnitAsync(currentHost, "building/nexus", 2, 10f);
+		Check("the enemy Nexus replicates once the board is revealed", enemyNexus != null);
+		Unit3D? attacker = FindUnit(currentHost, "hero/", 1);
+		Check("the hero is standing to fight", attacker != null);
+		if (enemyNexus != null && attacker != null)
+		{
+			currentHost.SelectUnitInternal(new UnitId(attacker.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+			Check("the hero is the screen's selection", currentHost.SelectedUnits.Count == 1 && currentHost.SelectedUnits[0].Entity == attacker.Entity, $"selected={currentHost.SelectedUnits.Count}");
+			Note($"attack ids: hero player={attacker.Player} controllable={GameContext.PerspectiveFilter.CanControl(attacker.Player)} server={currentHost.GetServerEntityIdForHarness(attacker.Entity.Id)} nexus server={currentHost.GetServerEntityIdForHarness(enemyNexus.Entity.Id)}");
+
+			// A player reaches the enemy base by walking there, so the hero does the same and the crossing is checked
+			// before the fight: an attack across ground the hero cannot path over would otherwise be read as a refusal.
+			Vector3 farAttackStart = attacker.GlobalPosition;
+			currentHost.IssueAttackCommand(enemyNexus);
+			bool chaseStarted = await WaitUntilAsync(() => GodotObject.IsInstanceValid(attacker) && attacker.GlobalPosition.DistanceTo(farAttackStart) > 3f, 8f);
+			float chaseDistance = GodotObject.IsInstanceValid(attacker) ? farAttackStart.DistanceTo(attacker.GlobalPosition) : 0f;
+			Note($"far attack: hero moved {chaseDistance:0.##} to {attacker.GlobalPosition}");
+			Check("the hero chases the enemy it was ordered onto", chaseStarted, $"moved {chaseDistance:0.##} towards {enemyNexus.GlobalPosition}");
+
+			float distanceBefore = attacker.GlobalPosition.DistanceTo(enemyNexus.GlobalPosition);
+			currentHost.IssueMoveCommand(enemyNexus.GlobalPosition);
+			bool approached = await WaitUntilAsync(() => GodotObject.IsInstanceValid(attacker) && attacker.GlobalPosition.DistanceTo(enemyNexus.GlobalPosition) < 12f, 45f);
+			float distanceAfter = GodotObject.IsInstanceValid(attacker) ? attacker.GlobalPosition.DistanceTo(enemyNexus.GlobalPosition) : distanceBefore;
+			Check("the hero crosses the board to the enemy base", approached, $"{distanceBefore:0} -> {distanceAfter:0} at {attacker.GlobalPosition}");
+
+			if (approached)
+			{
+				float nexusHealthBefore = ReadHealth(enemyNexus);
+				currentHost.IssueAttackCommand(enemyNexus);
+				Check("the attack order names its target", ReadFeedback(hud).Contains("Attack", StringComparison.OrdinalIgnoreCase), ReadFeedback(hud));
+				bool accepted = await WaitUntilAsync(() =>
+				{
+					EcsWorld? world = GameContext.World;
+					return world != null && world.IsAlive(attacker.Entity) && world.Has<AttackTarget>(attacker.Entity);
+				}, 3f);
+				Note($"the authority states the attack target: {accepted}");
+				Check("the dev damage cheat is accepted", hud.TryTriggerCheat("gigachad"));
+
+				FocusCamera(enemyNexus.GlobalPosition);
+				await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
+				Check("the enemy Nexus stands on screen while it is attacked", IsOnScreen(enemyNexus.GlobalPosition), $"nexus {enemyNexus.GlobalPosition} camera {ActiveCamera()?.Position}");
+
+				bool struck = false;
+				for (int second = 1; second <= 45; second++)
+				{
+					await ToSignal(GetTree().CreateTimer(1f), SceneTreeTimer.SignalName.Timeout);
+					struck = !GodotObject.IsInstanceValid(enemyNexus) || ReadHealth(enemyNexus) < nexusHealthBefore - 0.5f;
+					if (struck) break;
+					if (second % 5 == 0) Note($"attack watch {second}s hero={attacker.GlobalPosition} nexus health={ReadHealth(enemyNexus):0.#}");
+				}
+
+				float nexusHealthAfter = GodotObject.IsInstanceValid(enemyNexus) ? ReadHealth(enemyNexus) : 0f;
+				Check("the hero's attack takes the enemy Nexus's health", struck, $"nexus {nexusHealthBefore:0.#} -> {nexusHealthAfter:0.#} hero={attacker.GlobalPosition}");
+				SaveUxScreenshot("ux_smoke_combat.png", "combat", Note);
+
+				// Breaking a 6000 point Nexus with one hero takes minutes of real fighting, so the ending is reached the way
+				// a developer reaches it: the end-match cheat, after which the screen has to be the victory card and not the
+				// match still running behind it.
+				Check("the end-match cheat is accepted", hud.TryTriggerCheat("ezclap"));
+				bool victoryShown = await WaitUntilAsync(() =>
+				{
+					GameOver? over = GameContext.UserInterface?.GetNodeOrNull<GameOver>("GameOver");
+					return over != null && string.Equals(over.GetNodeOrNull<Label>("TitleLabel")?.Text, "VICTORY", StringComparison.Ordinal);
+				}, 40f);
+				GameOver? over = GameContext.UserInterface?.GetNodeOrNull<GameOver>("GameOver");
+				string title = over?.GetNodeOrNull<Label>("TitleLabel")?.Text ?? "no game over screen";
+				Check("the ended match shows the victory card", victoryShown, $"title '{title}'");
+				SaveUxScreenshot("ux_smoke_victory.png", "victory", Note);
+			}
+		}
+
 		if (DisplayServer.GetName() == "headless")
 		{
 			Note("screenshot skipped: headless display has no viewport texture");
@@ -527,6 +606,15 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		return null;
+	}
+
+	private async Task<Unit3D?> WaitForUnitAsync(GameHost host, string templatePrefix, int player, float seconds)
+	{
+		Unit3D? found = FindUnit(host, templatePrefix, player);
+		if (found != null) return found;
+
+		await WaitUntilAsync(() => FindUnit(host, templatePrefix, player) != null, seconds);
+		return FindUnit(host, templatePrefix, player);
 	}
 
 	private static Unit3D? FindUnit(GameHost host, string templatePrefix, int player)
@@ -642,6 +730,14 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		return count;
+	}
+
+	private static float ReadHealth(Unit3D unit)
+	{
+		EcsWorld? world = GameContext.World;
+		if (world == null || !world.IsAlive(unit.Entity) || !world.Has<Health>(unit.Entity)) return 0f;
+
+		return world.Get<Health>(unit.Entity).Current;
 	}
 
 	private static float ReadMana(Unit3D unit)
