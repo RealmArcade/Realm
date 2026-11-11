@@ -214,7 +214,10 @@ public partial class ServerGameAPI
 			BuffRegistry.BuffModifiers[buffId] = modifiers;
 		}
 
-		modifiers.Add(new StatModifier(new StatId(statName), isPercentage ? ModifierType.Percentage : ModifierType.Flat, value));
+		var statId = new StatId(statName);
+		ModifierType modifierType = isPercentage ? ModifierType.Percentage : ModifierType.Flat;
+		modifiers.RemoveAll(existing => existing.StatTypeId == statId && existing.Type == modifierType);
+		modifiers.Add(new StatModifier(statId, modifierType, value));
 	}
 
 	public void StunUnit(UnitId unit, float duration)

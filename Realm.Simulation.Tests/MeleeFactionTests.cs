@@ -33,10 +33,13 @@ public class MeleeFactionTests
 		UnitId hero = match.Hero(1);
 
 		Assert.That(match.ModifierTotalFrom(hero, "innate/unbroken", "Armor"), Is.EqualTo(6f).Within(0.01f), "Vale's innate has to be worth six points of armour.");
-		Assert.That(match.ModifierTotalFrom(hero, "innate/unbroken", "Tenacity"), Is.EqualTo(10f).Within(0.01f), "Vale's innate has to raise its hero's tenacity.");
+		Assert.That(match.ModifierTotalFrom(hero, "innate/unbroken", "Tenacity"), Is.EqualTo(0.1f).Within(0.001f), "Vale's innate has to raise its hero's tenacity by a tenth.");
+		float tenacityWithInnate = match.TenacityOf(hero);
 
 		match.Api.RemoveStatModifiers(hero, "innate/unbroken");
+		float tenacityWithoutInnate = match.TenacityOf(hero);
 		Assert.That(match.ModifierTotalFrom(hero, "innate/unbroken", "Armor"), Is.EqualTo(0f).Within(0.01f), "The innate has to leave with its source when the map withdraws it.");
+		Assert.That(tenacityWithInnate, Is.EqualTo(tenacityWithoutInnate * 1.1f).Within(0.001f), "The derived tenacity has to carry the innate's ten percent.");
 	}
 
 	[Test]

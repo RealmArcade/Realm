@@ -186,6 +186,6 @@ public class MeleeRelicVendorTests
 		UnitId revived = _match.Hero(1);
 		Assert.That(_match.IsAlive(revived), Is.True, "The hero has to return.");
 		Assert.That(_match.UnitHasItem(revived, "item/wardens_writ"), Is.True, "A relic is not lost to death.");
-		Assert.That(_match.ModifierTotalFrom(revived, "relic/wardens_writ", "Tenacity"), Is.EqualTo(10f).Within(0.01f), "The relic's effect is reapplied to the revived hero.");
+		Assert.That(_match.ModifierTotalFrom(revived, "relic/wardens_writ", "Tenacity"), Is.EqualTo(0.1f).Within(0.001f), "The relic's effect is reapplied to the revived hero.");
 	}
 }

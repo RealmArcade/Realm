@@ -52,6 +52,25 @@ public class MeleeHeroAbilityTests
 	}
 
 	[Test]
+	public void StartingAnotherMatchDoesNotStackTheMapsBuffs()
+	{
+		using (MeleeMatch previous = MeleeMatch.StartDuel())
+		{
+			Assert.That(previous.Hero(1).IsValid, Is.True, "The first match has to initialize its map before the second one starts.");
+		}
+
+		Start("Vale");
+		UnitId ally = _match.SpawnSoldier(1, "unit/shieldbearer", _heroPosition + new Vector3(2f, 0f, 0f));
+		float armorBefore = _match.ArmorOf(ally);
+
+		_match.Cast(1, "ability/hold_fast", _heroPosition);
+		_match.Step(0.3f);
+
+		Assert.That(_match.ModifierTotalFrom(ally, "buff:buff/hold_fast", "Armor"), Is.EqualTo(4f).Within(0.01f), "A second match must not inherit the buff definitions the first one registered.");
+		Assert.That(_match.ArmorOf(ally), Is.EqualTo(armorBefore + 4f).Within(0.1f), "The soldier's armour has to rise by four, not by a multiple of it.");
+	}
+
+	[Test]
 	public void GroundingShoutDamagesAndSlowsTheEnemiesAroundTheHero()
 	{
 		Start("Vale");
@@ -59,12 +78,14 @@ public class MeleeHeroAbilityTests
 		UnitId outside = SpawnEnemy(_heroPosition + new Vector3(20f, 0f, 0f));
 		float insideBefore = _match.HealthOf(inside);
 		float outsideBefore = _match.HealthOf(outside);
+		float insideSpeedBefore = _match.SpeedOf(inside);
 
 		_match.Cast(1, "ability/grounding_shout", _heroPosition);
 		_match.Step(0.3f);
 
 		Assert.That(_match.HealthOf(inside), Is.LessThan(insideBefore - 20f), "The shout has to damage an enemy inside its radius.");
 		Assert.That(_match.Api.UnitHasBuff(inside, "buff/grounding_shout"), Is.True, "The shout has to leave its slow on the enemies it caught.");
+		Assert.That(_match.SpeedOf(inside), Is.EqualTo(insideSpeedBefore * 0.75f).Within(insideSpeedBefore * 0.05f), "The shout's slow has to take a quarter of the caught enemy's speed.");
 		Assert.That(_match.HealthOf(outside), Is.GreaterThanOrEqualTo(outsideBefore - 1f), "An enemy beyond the shout's radius must not be caught.");
 	}
 
@@ -73,11 +94,14 @@ public class MeleeHeroAbilityTests
 	{
 		Start("Vale");
 		UnitId ally = _match.SpawnSoldier(1, "unit/shieldbearer", _heroPosition + new Vector3(2f, 0f, 0f));
+		float armorBefore = _match.ArmorOf(ally);
 
 		_match.Cast(1, "ability/hold_fast", _heroPosition);
 		_match.Step(0.3f);
 
 		Assert.That(_match.Api.UnitHasBuff(ally, "buff/hold_fast"), Is.True, "Hold Fast has to reach the soldier standing beside the hero.");
+		Assert.That(_match.ModifierTotalFrom(ally, "buff:buff/hold_fast", "Armor"), Is.EqualTo(4f).Within(0.01f), "Hold Fast has to add its four points of armour to the soldier.");
+		Assert.That(_match.ArmorOf(ally), Is.EqualTo(armorBefore + 4f).Within(0.1f), "The soldier's derived armour has to rise by the buff's value.");
 	}
 
 	[Test]
@@ -163,10 +187,12 @@ public class MeleeHeroAbilityTests
 	{
 		Start("Corvus");
 		UnitId ally = _match.SpawnSoldier(1, "unit/shieldbearer", _heroPosition + new Vector3(2f, 0f, 0f));
+		float speedBefore = _match.SpeedOf(ally);
 
 		_match.Cast(1, "ability/forced_march", _heroPosition);
 		_match.Step(0.3f);
 
 		Assert.That(_match.Api.UnitHasBuff(ally, "buff/forced_march"), Is.True, "Forced March has to reach the soldier standing beside the hero.");
+		Assert.That(_match.SpeedOf(ally), Is.EqualTo(speedBefore * 1.2f).Within(speedBefore * 0.05f), "Forced March's twenty percent has to be a fifth of the soldier's own speed.");
 	}
 }

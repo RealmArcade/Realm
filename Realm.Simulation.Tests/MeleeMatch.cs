@@ -194,6 +194,15 @@ internal sealed class MeleeMatch : IDisposable
 
 	public float SpeedOf(UnitId unit) => TryGet(unit, out MovementStats movement) ? movement.Speed : 0f;
 
+	public float StatOf(UnitId unit, string statName)
+	{
+		return TryGet(unit, out Stats stats) ? stats.Get(new Realm.Ecs.Common.StatId(statName)) : 0f;
+	}
+
+	public float ArmorOf(UnitId unit) => StatOf(unit, "Armor");
+
+	public float TenacityOf(UnitId unit) => StatOf(unit, "Tenacity");
+
 	public float AttackDamageOf(UnitId unit) => TryGet(unit, out Attack attack) ? attack.Damage : 0f;
 
 	public UnitId Hero(int slot)
