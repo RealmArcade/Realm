@@ -109,6 +109,7 @@ public class UnitStatsPanel
 	private readonly StatRow _tenacityRow;
 	private readonly StatRow _damageTypeRow;
 	private readonly VBoxContainer _readingsSection;
+	private readonly GridContainer _readingsGrid;
 	private readonly List<ReadingRowControl> _readingRows = new();
 	private readonly HBoxContainer _statusEffectsStrip;
 	private readonly VBoxContainer _statusEffectsSection;
@@ -196,6 +197,16 @@ public class UnitStatsPanel
 		_readingsSection.AddThemeConstantOverride("separation", SectionSeparation);
 		_readingsSection.Visible = false;
 		AddSectionHeader(_readingsSection, UnicodeIcons.LIST, "Readings");
+
+		// Two columns keep a map's full set of rows above the fold at the 1080-wide authoring size; the stat grid
+		// below can scroll without taking a unit's own readings off screen.
+		_readingsGrid = new GridContainer();
+		_readingsGrid.Name = "UnitStatsReadingsGrid_GridContainer";
+		_readingsGrid.Columns = 2;
+		_readingsGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_readingsGrid.AddThemeConstantOverride("h_separation", 24);
+		_readingsGrid.AddThemeConstantOverride("v_separation", SectionSeparation);
+		_readingsSection.AddChild(_readingsGrid);
 
 		// A map publishes what makes its unit special, so those rows lead the panel: they are what a player checks
 		// before acting, and the generic stat grid below them can scroll without taking that information off screen.
@@ -625,7 +636,7 @@ public class UnitStatsPanel
 		while (_readingRows.Count < count)
 		{
 			var row = new ReadingRowControl();
-			_readingsSection.AddChild(row.Root);
+			_readingsGrid.AddChild(row.Root);
 			_readingRows.Add(row);
 		}
 	}

@@ -137,6 +137,18 @@ public partial class MultiplayerSimulationHarness : Node
 			List<Button> draftOptions = FindCommandButtonsContaining(hud, "for 100 wood");
 			Check("all three drawn packages are on the first page", draftOptions.Count == 3, $"cards={draftOptions.Count}");
 
+			Node? draftReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
+			int offeredReadings = CountReadingRowsNamed(draftReadings, "Offered");
+			Check("the draw publishes an offered reading per package", offeredReadings == 3, $"rows={offeredReadings}");
+			if (draftReadings is Control draftReadingsControl && hud.FindChild("StatsScroll", true, false) is ScrollContainer draftStatsScroll)
+			{
+				float draftFoldBottom = draftStatsScroll.GlobalPosition.Y + draftStatsScroll.Size.Y;
+				float draftReadingsBottom = draftReadingsControl.GlobalPosition.Y + draftReadingsControl.Size.Y;
+				Note($"draft readings {draftReadingsControl.GlobalPosition.Y:0.#}..{draftReadingsBottom:0.#} fold {draftFoldBottom:0.#}");
+				Check("every reading stays above the fold while the draw is open", draftReadingsBottom <= draftFoldBottom + 1f,
+					$"{draftReadingsBottom:0.#} > {draftFoldBottom:0.#}");
+			}
+
 			List<Button> draftCard = FindCommandButtons(hud);
 			List<string> draftKeys = ReadCommandHotkeys(draftCard);
 			Note($"draft card buttons={draftCard.Count} keys=[{string.Join(", ", draftKeys)}]");
@@ -346,21 +358,50 @@ public partial class MultiplayerSimulationHarness : Node
 
 		foreach (Node child in readings.GetChildren())
 		{
-			if (child is not HBoxContainer row) continue;
-
-			string rowName = string.Empty;
-			string rowValue = string.Empty;
-			foreach (Node labelNode in row.GetChildren())
+			if (child is HBoxContainer row)
 			{
-				if (labelNode is not Label label) continue;
-				if (label.Name == "UnitStatsReadingRowName_Label") rowName = label.Text;
-				if (label.Name == "UnitStatsReadingRowValue_Label") rowValue = label.Text;
+				string rowName = string.Empty;
+				string rowValue = string.Empty;
+				foreach (Node labelNode in row.GetChildren())
+				{
+					if (labelNode is not Label label) continue;
+					if (label.Name == "UnitStatsReadingRowName_Label") rowName = label.Text;
+					if (label.Name == "UnitStatsReadingRowValue_Label") rowValue = label.Text;
+				}
+
+				if (string.Equals(rowName, name, StringComparison.Ordinal)) return rowValue;
 			}
 
-			if (string.Equals(rowName, name, StringComparison.Ordinal)) return rowValue;
+			string? nested = ReadReadingValue(child, name);
+			if (nested != null) return nested;
 		}
 
 		return null;
+	}
+
+	private static int CountReadingRowsNamed(Node? readings, string name)
+	{
+		if (readings == null) return 0;
+
+		int count = 0;
+		foreach (Node child in readings.GetChildren())
+		{
+			if (child is HBoxContainer row)
+			{
+				foreach (Node labelNode in row.GetChildren())
+				{
+					if (labelNode is Label label && label.Name == "UnitStatsReadingRowName_Label" && string.Equals(label.Text, name, StringComparison.Ordinal))
+					{
+						count++;
+						break;
+					}
+				}
+			}
+
+			count += CountReadingRowsNamed(child, name);
+		}
+
+		return count;
 	}
 
 	private void CheckReading(Node? readings, string name, string expected, Action<string, bool, string> check)
