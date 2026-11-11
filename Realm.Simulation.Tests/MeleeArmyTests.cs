@@ -162,6 +162,18 @@ public class MeleeArmyTests
 	}
 
 	[Test]
+	public void TheDeathTellsThePlayerWhenTheHeroReturns()
+	{
+		_match.Kill(_match.Hero(1), _match.Hero(2));
+		_match.Step(0.2f);
+
+		Assert.That(_match.LastFeedbackText(1), Does.Contain("12"), "The death has to state how long the revival takes.");
+
+		_match.Step(12.5f);
+		Assert.That(_match.LastFeedbackText(1), Does.Contain("returns"), "The revival has to tell the player the hero is back.");
+	}
+
+	[Test]
 	public void EachRevivalTakesThreeSecondsLongerThanTheLast()
 	{
 		_match.Kill(_match.Hero(1), _match.Hero(2));
