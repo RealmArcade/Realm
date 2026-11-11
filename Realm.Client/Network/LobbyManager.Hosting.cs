@@ -96,7 +96,7 @@ public partial class LobbyManager
 			AccountId = AccountId,
 			Name = PlayerDisplayName,
 			Faction = "HUMAN",
-			Team = "Team 1",
+			Team = $"Team {humanSlot}",
 			Color = PlayerColorConfig.GetColor(humanSlot),
 			IsHost = true,
 			Latency = "0 ms",

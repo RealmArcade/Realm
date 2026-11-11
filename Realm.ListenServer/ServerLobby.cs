@@ -11,7 +11,7 @@ using Realm.Ecs;
 
 namespace Realm.ListenServer;
 
-public partial class ServerLobby
+public partial class ServerLobby : ILobbySeatTable
 	{
 	private readonly Action<int, NetworkFrameKind, byte[], FrameDelivery> _send;
 

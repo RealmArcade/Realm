@@ -191,6 +191,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 					{
 						_sharedMemoryPointer = sharedMemPtr;
 						_world?.BindSharedMemory(sharedMemPtr, _sharedMemoryOffset);
+						PublishSharedPlayerSlots();
 
 						var setTableDirFn = _instance.GetFunction("set_realm_shared_memory_table_directory");
 						if (setTableDirFn != null)
