@@ -9,6 +9,7 @@ using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Ecs;
+using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Shared;
 using Realm.Shared.Abilities;
@@ -310,6 +311,26 @@ public partial class MultiplayerSimulationHarness : Node
 		Check("player Nexus replicated", nexus != null);
 		if (nexus == null) return FinishUxSmoke(report, passed);
 
+		Note("ordering the hero to gather gold from the nearest mine");
+		Unit3D? gatheringHero = FindUnit(currentHost, "hero/", 1);
+		Vector3? minePosition = gatheringHero == null ? null : FindNearestResourceNode(gatheringHero.GlobalPosition);
+		Check("a gold mine stands on the board", minePosition.HasValue);
+		if (gatheringHero != null && minePosition.HasValue)
+		{
+			currentHost.SelectUnitInternal(new UnitId(gatheringHero.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+			float goldBeforeGather = hud.Gold;
+			Check("the gather order is issued", currentHost.TryIssueGatherCommandAt(minePosition.Value));
+			string gatherFeedback = ReadFeedback(hud);
+			Check("the gather order names its resource", gatherFeedback.Contains("Gathering", StringComparison.OrdinalIgnoreCase), gatherFeedback);
+
+			bool gathered = await WaitUntilAsync(() => hud.Gold >= goldBeforeGather + 5f, 30f);
+			Check("the hero gathers gold and the player receives it", gathered, $"{goldBeforeGather:0.##} -> {hud.Gold:0.##}");
+
+			currentHost.IssueMoveCommand(nexus.GlobalPosition);
+			await ToSignal(GetTree().CreateTimer(3.0f), SceneTreeTimer.SignalName.Timeout);
+		}
+
 		currentHost.SelectUnitInternal(new UnitId(nexus.Entity.Id));
 		await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
 
@@ -402,6 +423,28 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		return FinishUxSmoke(report, passed);
+	}
+
+	private static Vector3? FindNearestResourceNode(Vector3 near)
+	{
+		if (GameContext.World == null) return null;
+
+		Vector3? closest = null;
+		float closestDistance = float.MaxValue;
+		var query = QueryCache.AllPropIdentityAndPositionQuery;
+		GameContext.World.Query(in query, (Entity entity, ref Position position, ref PropIdentity identity) =>
+		{
+			if (!identity.PropId.StartsWith("resource/melee_gold_mine", StringComparison.OrdinalIgnoreCase)) return;
+
+			var nodePosition = new Vector3(position.Value.X, position.Value.Y, position.Value.Z);
+			float distance = near.DistanceTo(nodePosition);
+			if (distance >= closestDistance) return;
+
+			closestDistance = distance;
+			closest = nodePosition;
+		});
+
+		return closest;
 	}
 
 	private static Unit3D? FindPlayerProductionBuilding(GameHost host)

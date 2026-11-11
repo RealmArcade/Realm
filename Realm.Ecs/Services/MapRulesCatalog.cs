@@ -105,6 +105,25 @@ public class MapRulesCatalog
 		_resourceWorkerUnitKeys.Add(unitKey);
 	}
 
+	/// <summary>
+	///     Answers whether a unit may gather, which is a rule the map states rather than a unit template the engine knows.
+	///     A ruleset that gives the job to a hero or a builder registers that template and every gather order is checked
+	///     against it.
+	/// </summary>
+	/// <param name="definitionId">The template id of the unit asking to gather.</param>
+	/// <returns>True when the definition is one the map registered as a resource worker.</returns>
+	public bool IsResourceWorkerUnit(string definitionId)
+	{
+		if (string.IsNullOrEmpty(definitionId)) return false;
+
+		for (int index = 0; index < _resourceWorkerUnitKeys.Count; index++)
+		{
+			if (definitionId.Contains(_resourceWorkerUnitKeys[index], StringComparison.OrdinalIgnoreCase)) return true;
+		}
+
+		return false;
+	}
+
 	public bool IsResourceDropoffBuilding(string definitionId)
 	{
 		if (string.IsNullOrEmpty(definitionId)) return false;

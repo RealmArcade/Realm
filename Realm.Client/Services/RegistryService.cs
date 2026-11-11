@@ -31,6 +31,8 @@ public class RegistryService
 
 	public void RegisterResourceWorkerUnit(string unitKey) => Rules.RegisterResourceWorkerUnit(unitKey);
 
+	public bool IsResourceWorkerUnit(string definitionId) => Rules.IsResourceWorkerUnit(definitionId);
+
 	public bool IsResourceDropoffBuilding(string definitionId) => Rules.IsResourceDropoffBuilding(definitionId);
 
 	public void RegisterPrimaryBuilding(string definitionId) => Rules.RegisterPrimaryBuilding(definitionId);

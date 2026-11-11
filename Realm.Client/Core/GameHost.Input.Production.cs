@@ -380,6 +380,8 @@ public partial class GameHost
 			return true;
 		}
 
+		if (TryIssueGatherCommandAt(rayResult.HitPos, shiftHeld)) return true;
+
 		return false;
 	}
 

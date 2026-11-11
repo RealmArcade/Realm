@@ -175,6 +175,12 @@
                 and Godot orchestrators without cross-layer coupling.
             </summary>
         </member>
+        <member name="F:Realm.Ecs.Common.ResourceConstants.GatherReach">
+            <summary>
+                How close a gatherer has to stand to a node to mine it. A unit walks until the node's own collision stops it, so
+                the reach has to clear the largest node the engine places rather than the smallest.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Common.ResourceDefinition">
             <summary>
                 Represents a Resource Definition.
@@ -2032,6 +2038,15 @@
                 stack when both bars are on, the badge leads them when the level is on, and a map that shows the level alone
                 gets the badge on its own.
             </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.MapRulesCatalog.IsResourceWorkerUnit(System.String)">
+            <summary>
+                Answers whether a unit may gather, which is a rule the map states rather than a unit template the engine knows.
+                A ruleset that gives the job to a hero or a builder registers that template and every gather order is checked
+                against it.
+            </summary>
+            <param name="definitionId">The template id of the unit asking to gather.</param>
+            <returns>True when the definition is one the map registered as a resource worker.</returns>
         </member>
         <member name="M:Realm.Ecs.Services.MapRulesCatalog.ApplyCatalogEntry(System.String,System.String,System.String,System.Single)">
             <summary>

@@ -57,7 +57,8 @@ public partial class CommandAuthorityService
 				continue;
 			}
 
-			if (_context.World.Has<DefinitionId>(entity) && _context.World.Get<DefinitionId>(entity).Value != "worker")
+			string definitionId = _context.World.TryGet<DefinitionId>(entity, out DefinitionId definition) ? definition.Value : string.Empty;
+			if (!_context.MapRules.IsResourceWorkerUnit(definitionId))
 			{
 				RecordCommandRejection(rejectedServerEntityIds, serverId, $"entity {serverId} cannot gather");
 				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"entity {serverId} cannot gather";

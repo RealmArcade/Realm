@@ -361,7 +361,7 @@ public partial class GameHost
 					{
 						IssueGatherCommand(clickedProp, shiftHeld);
 					}
-					else
+					else if (!TryIssueGatherCommandAt(hitPos, shiftHeld))
 					{
 						IssueMoveCommand(hitPos, shiftHeld);
 					}

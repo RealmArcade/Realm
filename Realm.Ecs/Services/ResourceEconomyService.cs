@@ -270,7 +270,8 @@ public class ResourceEconomyService
 
 		var targetPos = _context.World.Get<Position>(targetNode).Value;
 		float dist = Vector3.Distance(currentPos, targetPos);
-		float gatherRange = 3.5f;
+		float gatherRange = GatherReach;
+		if (_context.World.TryGet(targetNode, out CollisionRadius nodeCollision)) gatherRange = Math.Max(gatherRange, nodeCollision.Value + 2.5f);
 
 		if (dist <= gatherRange)
 		{

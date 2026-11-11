@@ -332,6 +332,65 @@ public partial class GameHost
 		return closest;
 	}
 
+	private const float ResourceNodeClickReach = 3.5f;
+
+	/// <summary>
+	///     Finds the resource node a right-click landed on. A static prop is drawn by a multimesh and has no node of its
+	///     own to hit, so the click is resolved against the replicated props around the point it landed on.
+	/// </summary>
+	/// <param name="worldPosition">The point on the ground the click landed at.</param>
+	/// <param name="nodeEntity">The resource node nearest that point, or <see cref="Entity.Null" />.</param>
+	/// <returns>True when a resource node stands within reach of the click.</returns>
+	public bool TryFindResourceNodeAt(Vector3 worldPosition, out Entity nodeEntity)
+	{
+		Entity found = Entity.Null;
+		var clickPosition = new System.Numerics.Vector3(worldPosition.X, worldPosition.Y, worldPosition.Z);
+		float closestDistance = ResourceNodeClickReach;
+
+		var query = QueryCache.AllPropIdentityAndPositionQuery;
+		World.Query(in query, (Entity entity, ref Position position, ref PropIdentity identity) =>
+		{
+			if (GetPropResourceType(identity.PropId) == null) return;
+
+			float distance = System.Numerics.Vector3.Distance(position.Value, clickPosition);
+			if (distance >= closestDistance) return;
+
+			closestDistance = distance;
+			found = entity;
+		});
+
+		nodeEntity = found;
+		return nodeEntity != Entity.Null;
+	}
+
+	/// <summary>
+	///     Sends a gather order for a click that landed on a resource node, which is how a right-click on a mine or a tree
+	///     line reaches the selected workers without a node to hit.
+	/// </summary>
+	/// <param name="worldPosition">The point on the ground the click landed at.</param>
+	/// <param name="isQueued">Whether the order is appended behind the units' current ones.</param>
+	/// <returns>True when the click named a resource node and a selected unit can gather from it.</returns>
+	public bool TryIssueGatherCommandAt(Vector3 worldPosition, bool isQueued = false)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return false;
+		if (!TryFindResourceNodeAt(worldPosition, out Entity nodeEntity)) return false;
+		if (!HasSelectedResourceWorker()) return false;
+
+		IssueGatherCommand(nodeEntity, isQueued);
+		return true;
+	}
+
+	private bool HasSelectedResourceWorker()
+	{
+		foreach (Unit3D unit in SelectedUnits)
+		{
+			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player)) continue;
+			if (GameContext.RegistryService.IsResourceWorkerUnit(unit.UnitId)) return true;
+		}
+
+		return false;
+	}
+
 	public void IssueGatherCommand(Entity propEntity, bool isQueued = false)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
@@ -366,7 +425,8 @@ public partial class GameHost
 		var targetIds = new List<int>();
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex) continue;
+			if (!GameContext.RegistryService.IsResourceWorkerUnit(unit.UnitId)) continue;
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
 

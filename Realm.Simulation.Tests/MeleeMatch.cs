@@ -1,5 +1,6 @@
 using System.Numerics;
 using Realm.Ecs;
+using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
@@ -33,6 +34,7 @@ internal sealed class MeleeMatch : IDisposable
 	private readonly ServerLog _log;
 	private readonly string _workDirectory;
 	private readonly List<ServerPresentationEvent> _events = new();
+	private int _nextCommandId = 1;
 
 	private MeleeMatch(string[] factions, int seed, string mapFolder, string scriptPath, MatchOptionSet? matchOptions = null, int[]? teams = null)
 	{
@@ -309,6 +311,62 @@ internal sealed class MeleeMatch : IDisposable
 	{
 		Entity entity = new(unit.Value);
 		return World.TryGet(entity, out Position position) ? position.Value : Vector3.Zero;
+	}
+
+	/// <summary>
+	///     Finds a resource node of a template, choosing the one nearest a position when several are placed. A board decides
+	///     where its nodes stand, so a test reads the placed node rather than a position chosen for it.
+	/// </summary>
+	/// <param name="templateId">The node template to look for.</param>
+	/// <param name="near">The position to choose the closest node to, or null to take the first one placed.</param>
+	/// <returns>The node's entity, or an invalid id when the board places none of that template.</returns>
+	public UnitId ResourceNode(string templateId, Vector3? near = null)
+	{
+		UnitId found = UnitId.Invalid;
+		float closestDistance = 0f;
+		var query = QueryCache.AllPropIdentityAndPositionQuery;
+		World.Query(in query, (Entity entity, ref Position position, ref PropIdentity identity) =>
+		{
+			if (!string.Equals(identity.PropId, templateId, StringComparison.OrdinalIgnoreCase)) return;
+
+			if (found.IsValid && near.HasValue)
+			{
+				float distance = Vector3.Distance(position.Value, near.Value);
+				if (distance >= closestDistance) return;
+				closestDistance = distance;
+			}
+
+			found = new UnitId(entity.Id);
+		});
+
+		return found;
+	}
+
+	public float ResourceAmount(UnitId node) => TryGet(node, out ResourceNode resourceNode) ? resourceNode.Amount : 0f;
+
+	public bool IsGathering(UnitId unit) => Has<Gatherer>(unit);
+
+	/// <summary>
+	///     Sends the order a player's right-click on a resource node sends, so a test exercises the authority's own gather
+	///     routing rather than writing a gatherer component directly.
+	/// </summary>
+	/// <param name="slot">The seat issuing the order.</param>
+	/// <param name="unit">The unit being ordered to gather.</param>
+	/// <param name="nodePosition">The position of the node that was clicked.</param>
+	/// <returns>What the authority answered the order with.</returns>
+	public ServerCommandResult Gather(int slot, UnitId unit, Vector3 nodePosition)
+	{
+		var command = new NetworkCommand
+		{
+			CommandId = _nextCommandId++,
+			CommandType = "gather",
+			UnitEntityIds = new System.Collections.Generic.List<int> { unit.Value },
+			TargetPosition = new NetworkVector3(nodePosition.X, nodePosition.Y, nodePosition.Z),
+			TargetEntityId = 0,
+			ArgString = string.Empty
+		};
+
+		return Send(slot, command);
 	}
 
 	/// <summary>
