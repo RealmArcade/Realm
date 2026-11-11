@@ -35,6 +35,7 @@ public partial class MultiplayerSimulationHarness : Node
 	}
 
 	private string _role = "host";
+	private string _faction = "Vale";
 	private bool _roleLocked;
 	private string _hostAddress = "127.0.0.1";
 	private int _port = 8999;
@@ -193,10 +194,21 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--probes":
 					_probesEnabled = value == "1";
 					break;
+				case "--faction":
+					_faction = NormaliseFaction(value);
+					break;
 			}
 		}
 
 		if (string.IsNullOrEmpty(_outputDirectory)) throw new InvalidOperationException("Missing --output argument.");
+	}
+
+	private static string NormaliseFaction(string faction)
+	{
+		if (string.Equals(faction, "Sable", StringComparison.OrdinalIgnoreCase)) return "Sable";
+		if (string.Equals(faction, "Vale", StringComparison.OrdinalIgnoreCase)) return "Vale";
+
+		throw new InvalidOperationException($"'{faction}' is not a hero faction this smoke run can play; name Vale or Sable.");
 	}
 
 	private float _abilityDumpAccumulator;

@@ -8,6 +8,7 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.VFX;
 using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
@@ -52,7 +53,13 @@ public partial class MultiplayerSimulationHarness : Node
 		ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
 		GameContext.ServerSession?.Dispose();
 		var session = new ClientServerSession(channel);
-		var start = new ServerMatchStart(mapDirectory, "UX Smoke", HarnessMatchSeed, Path.Combine(_outputDirectory, "listen_server"), _outputDirectory, LocalizationManager.GetCurrentLanguageCode(), Cheats: true, AuthorityRecordDirectory: _outputDirectory);
+		string opponentFaction = IsSable ? "Vale" : "Sable";
+		MatchRosterSeat[] roster =
+		{
+			new(1, 0, HostPlayerName, 1, "Team 1", false, Faction: _faction),
+			new(2, 0, "UX Opponent", 2, "Team 2", true, Faction: opponentFaction)
+		};
+		var start = new ServerMatchStart(mapDirectory, "UX Smoke", HarnessMatchSeed, Path.Combine(_outputDirectory, "listen_server"), _outputDirectory, LocalizationManager.GetCurrentLanguageCode(), Cheats: true, Roster: roster, AuthorityRecordDirectory: _outputDirectory);
 		MatchStartResult started = await session.TryStartAsync(start, _port);
 		Check("authority started", started.Started, started.Started ? $"port {session.Port}" : started.Failure);
 		if (!started.Started) return FinishUxSmoke(report, passed);
@@ -61,8 +68,8 @@ public partial class MultiplayerSimulationHarness : Node
 
 		PackedScene scene = GD.Load<PackedScene>("res://GameHost.tscn");
 		Node gameHost = scene.Instantiate();
-		gameHost.Name = "GameHost";
-		AddChild(gameHost);
+		gameHost.Name = "Main";
+		GetTree().Root.AddChild(gameHost);
 
 		bool ready = await WaitUntilAsync(() =>
 		{
@@ -79,6 +86,22 @@ public partial class MultiplayerSimulationHarness : Node
 		Check("HUD built", hud != null);
 		Check("game host present", currentHost != null);
 		if (hud == null || currentHost == null) return FinishUxSmoke(report, passed);
+
+		void FocusCamera(Vector3 position)
+		{
+			ActiveCamera()?.FocusOnPosition(position);
+		}
+
+		CameraControl? ActiveCamera()
+		{
+			return currentHost.MainCamera ?? currentHost.GetViewport().GetCamera3D() as CameraControl;
+		}
+
+		bool IsOnScreen(Vector3 position)
+		{
+			CameraControl? camera = ActiveCamera();
+			return camera != null && camera.IsPositionInFrustum(position);
+		}
 
 		void CheckReadingsFold(string label, Node? readingsNode)
 		{
@@ -139,19 +162,24 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		Unit3D? hero = FindUnit(currentHost, "hero/", 1);
-		Check("Vale hero replicated", hero != null);
+		Check($"{_faction} hero replicated", hero != null);
 		if (hero == null) return FinishUxSmoke(report, passed);
 
 		currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
+		FocusCamera(hero.GlobalPosition);
 		await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
+		Check("the hero stands on screen", IsOnScreen(hero.GlobalPosition), $"hero {hero.GlobalPosition} camera {ActiveCamera()?.Position}");
 
 		Node? readings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
 		Check("readings section visible", readings is Control { Visible: true });
-		CheckReading(readings, "Innate", "Unbroken", Check);
+		CheckReading(readings, "Innate", FactionInnate, Check);
 		CheckReading(readings, "Relics", "0 / 6", Check);
-		string? bulwark = ReadReadingValue(readings, "Bulwark");
-		Check("bulwark row present", bulwark != null, bulwark ?? "missing");
-		Check("bulwark uses one building", bulwark != null && bulwark.Contains("1 building", StringComparison.Ordinal), bulwark ?? "missing");
+		if (!IsSable)
+		{
+			string? bulwark = ReadReadingValue(readings, "Bulwark");
+			Check("bulwark row present", bulwark != null, bulwark ?? "missing");
+			Check("bulwark uses one building", bulwark != null && bulwark.Contains("1 building", StringComparison.Ordinal), bulwark ?? "missing");
+		}
 
 		CheckReadingsFold("hero", readings);
 
@@ -162,7 +190,12 @@ public partial class MultiplayerSimulationHarness : Node
 			Note($"hero command[{index}] tooltip='{commandButtons[index].TooltipText}' disabled={commandButtons[index].Disabled}");
 		}
 
-		Check("hero card offers an active", FindCommandButton(hud, "Grounding Shout") != null);
+		Check("hero card offers an active", FindCommandButton(hud, FactionActiveName) != null);
+		if (IsSable)
+		{
+			Check("Sable's card offers Ember Lance", FindCommandButton(hud, "Ember Lance") != null);
+			Check("Sable's card offers Backdraft", FindCommandButton(hud, "Backdraft") != null);
+		}
 
 		Button? beginButton = FindCommandButton(hud, "Begin Construction");
 		Check("begin construction card present", beginButton != null);
@@ -291,20 +324,45 @@ public partial class MultiplayerSimulationHarness : Node
 			}
 		}
 
-		Button? shoutButton = FindCommandButton(hud, "Grounding Shout");
-		Check("hero active card present after the draw", shoutButton != null);
-		if (shoutButton != null)
+		string activeAbility = IsSable ? "ability/cinderfield" : "ability/grounding_shout";
+		float activeManaCost = IsSable ? 100f : 60f;
+		Button? activeButton = FindCommandButton(hud, FactionActiveName);
+		Check("the hero active card is present after the draw", activeButton != null);
+		if (activeButton != null)
 		{
-			Check("hero active card enabled", !shoutButton.Disabled);
-			float manaBefore = ReadMana(hero);
-			shoutButton.EmitSignal(Button.SignalName.Pressed);
-			await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
-			Check("the active asks for a target", currentHost.ActiveSpellTargeting == "ability/grounding_shout", currentHost.ActiveSpellTargeting ?? "none");
+			Check("the hero active card is enabled", !activeButton.Disabled);
+			if (IsSable)
+			{
+				Check("Cinderfield's tooltip states its level scaling", activeButton.TooltipText.Contains("rising to 5 seconds with level", StringComparison.OrdinalIgnoreCase), activeButton.TooltipText);
+			}
 
-			currentHost.CastSpellAt("ability/grounding_shout", hero.GlobalPosition + new Vector3(2f, 0f, 2f));
-			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+			float manaBefore = ReadMana(hero);
+			activeButton.EmitSignal(Button.SignalName.Pressed);
+			await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
+			Check("the active asks for a target", currentHost.ActiveSpellTargeting == activeAbility, currentHost.ActiveSpellTargeting ?? "none");
+
+			Vector3 activeTarget = IsSable
+				? hero.GlobalPosition + new Vector3(6f, 0f, 0f)
+				: hero.GlobalPosition + new Vector3(2f, 0f, 2f);
+			FocusCamera(activeTarget);
+			await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
+			currentHost.CastSpellAt(activeAbility, activeTarget);
+			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+
+			if (IsSable)
+			{
+				string fieldFeedback = ReadFeedback(hud);
+				Check("Cinderfield announces the burning ground", fieldFeedback.Contains("burns the ground", StringComparison.OrdinalIgnoreCase), fieldFeedback);
+				GroundShockwave3D? groundRing = currentHost.FindChild("GroundShockwave3D", true, false) as GroundShockwave3D;
+				Check("Cinderfield draws its ground ring in the world", groundRing != null);
+				Check("Cinderfield's ground ring covers its stated radius", groundRing != null && Mathf.Abs(groundRing.MaxRadius - 5f) < 0.01f, $"radius {groundRing?.MaxRadius}");
+				Check("Cinderfield's ground ring stands on screen", IsOnScreen(activeTarget), $"cast at {activeTarget} camera {ActiveCamera()?.Position}");
+				SaveUxScreenshot("ux_smoke_cinderfield.png", "cinderfield", Note);
+			}
+
+			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 			float manaAfter = ReadMana(hero);
-			Check("the active spends its mana", manaAfter <= manaBefore - 50f, $"{manaBefore:0.#} -> {manaAfter:0.#}");
+			Check("the active spends its mana", manaAfter <= manaBefore - (activeManaCost - 10f), $"{manaBefore:0.#} -> {manaAfter:0.#}");
 		}
 
 		Unit3D? nexus = FindUnit(currentHost, "building/nexus", 1);
@@ -372,6 +430,9 @@ public partial class MultiplayerSimulationHarness : Node
 			Check("soldier reports its source building", ReadReadingValue(soldierReadings, "Produced by") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Produced by") ?? "missing");
 			Check("soldier reports the charges of its source building", ReadReadingValue(soldierReadings, "Charges") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Charges") ?? "missing");
 			CheckReadingsFold("soldier", soldierReadings);
+			FocusCamera(soldier.GlobalPosition);
+			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+			Check("the soldier stands on screen", IsOnScreen(soldier.GlobalPosition), $"soldier {soldier.GlobalPosition} camera {ActiveCamera()?.Position}");
 			SaveUxScreenshot("ux_smoke_soldier.png", "soldier", Note);
 		}
 
@@ -389,6 +450,9 @@ public partial class MultiplayerSimulationHarness : Node
 			Check("building reports its income", ReadReadingValue(buildingReadings, "Income") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Income") ?? "missing");
 			Check("building reports its production", ReadReadingValue(buildingReadings, "Production") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Production") ?? "missing");
 			CheckReadingsFold("building", buildingReadings);
+			FocusCamera(productionBuilding.GlobalPosition);
+			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+			Check("the drafted building stands on screen", IsOnScreen(productionBuilding.GlobalPosition), $"building {productionBuilding.GlobalPosition} camera {ActiveCamera()?.Position}");
 			SaveUxScreenshot("ux_smoke_building.png", "building", Note);
 		}
 
@@ -407,6 +471,9 @@ public partial class MultiplayerSimulationHarness : Node
 			Node? revivedReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
 			CheckReading(revivedReadings, "Relics", "2 / 6", Check);
 			CheckReadingsFold("revived hero", revivedReadings);
+			FocusCamera(revivedHero.GlobalPosition);
+			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+			Check("the revived hero stands on screen", IsOnScreen(revivedHero.GlobalPosition), $"hero {revivedHero.GlobalPosition} camera {ActiveCamera()?.Position}");
 			SaveUxScreenshot("ux_smoke_revived.png", "revived", Note);
 		}
 
@@ -642,6 +709,12 @@ public partial class MultiplayerSimulationHarness : Node
 		string? actual = ReadReadingValue(readings, name);
 		check($"{name} reading", string.Equals(actual, expected, StringComparison.Ordinal), $"'{actual}' expected '{expected}'");
 	}
+
+	private bool IsSable => string.Equals(_faction, "Sable", StringComparison.OrdinalIgnoreCase);
+
+	private string FactionInnate => IsSable ? "Cinder Mark" : "Unbroken";
+
+	private string FactionActiveName => IsSable ? "Cinderfield" : "Grounding Shout";
 
 	private int FinishUxSmoke(StringBuilder report, bool passed)
 	{

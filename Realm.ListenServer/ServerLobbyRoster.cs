@@ -41,6 +41,7 @@ public class ServerLobbyRoster
 
 		_teamCount = clamped;
 		_log.Write($"the lobby now offers {_teamCount} team(s)");
+		Publish();
 		_lobby.BroadcastState();
 	}
 
@@ -57,6 +58,7 @@ public class ServerLobbyRoster
 
 		_factions.Add(name);
 		_log.Write($"lobby faction '{name}' added to the roster");
+		Publish();
 		return true;
 	}
 
