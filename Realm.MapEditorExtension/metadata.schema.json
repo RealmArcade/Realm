@@ -1549,6 +1549,9 @@
                         "Cap": {
                           "type": "number"
                         },
+                        "Offset": {
+                          "type": "number"
+                        },
                         "ScalesDuration": {
                           "type": "boolean"
                         }

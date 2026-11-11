@@ -67,6 +67,7 @@ public static class AbilityEffectFactory
 				ScalingCoefficient = scaling?.Coefficient ?? 0f,
 				ScalingDivisor = scaling?.Divisor ?? 0f,
 				ScalingCap = scaling?.Cap ?? 0f,
+				ScalingOffset = scaling?.Offset ?? 0f,
 				ScalesDuration = scaling?.ScalesDuration ?? true
 			};
 

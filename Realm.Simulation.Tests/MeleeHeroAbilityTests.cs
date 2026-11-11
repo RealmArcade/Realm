@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using NUnit.Framework;
 using Realm.Ecs;
@@ -31,6 +32,8 @@ public class MeleeHeroAbilityTests
 	private void Start(string faction)
 	{
 		_match = MeleeMatch.StartDuel(faction, "Vale");
+		_match.Api.EnableUnitAutoCombat(_match.Nexus(1), false);
+		_match.Api.EnableUnitAutoCombat(_match.Hero(1), false);
 		_heroPosition = _match.PositionOf(_match.Hero(1));
 	}
 
@@ -39,6 +42,26 @@ public class MeleeHeroAbilityTests
 		UnitId enemy = _match.SpawnSoldier(2, "unit/shieldbearer", position);
 		_match.Api.EnableUnitAutoCombat(enemy, false);
 		return enemy;
+	}
+
+	private UnitId SpawnDurableEnemy(Vector3 position) => SpawnEnemy(position);
+
+	private float AmplifiedBySpellPower(float authoredDamage) => authoredDamage * (1f + _match.StatOf(_match.Hero(1), "SpellPower"));
+
+	private void LevelHero(int level)
+	{
+		if (level <= 1) return;
+
+		_match.Api.SetUnitExperience(_match.Hero(1), level == 3 ? 430f : 100000f);
+		_match.Step(0.2f);
+		Assert.That(_match.HeroLevel(1), Is.EqualTo(level), "The test needs the hero at the level it is measuring.");
+		float baseIntelligence = _match.Factions[0] switch
+		{
+			"Sable" => 26f,
+			"Corvus" => 20f,
+			_ => 12f
+		};
+		Assert.That(_match.StatOf(_match.Hero(1), "Intelligence"), Is.EqualTo(baseIntelligence + (3f * (level - 1))).Within(0.01f), "The hero's Intelligence has to grow with its level before an ability can scale from it.");
 	}
 
 	[Test]
@@ -170,13 +193,136 @@ public class MeleeHeroAbilityTests
 	public void CinderfieldBurnsTheEnemiesAroundItsCentre()
 	{
 		Start("Sable");
-		UnitId inside = SpawnEnemy(_heroPosition + new Vector3(3f, 0f, 0f));
-		float before = _match.HealthOf(inside);
+		UnitId inside = SpawnDurableEnemy(_heroPosition + new Vector3(3f, 0f, 0f));
+		UnitId outside = SpawnDurableEnemy(_heroPosition + new Vector3(10f, 0f, 0f));
+		float insideBefore = _match.HealthOf(inside);
+		float outsideBefore = _match.HealthOf(outside);
 
 		_match.Cast(1, "ability/cinderfield", _heroPosition);
-		_match.Step(0.3f);
+		_match.Step(0.6f);
 
-		Assert.That(_match.HealthOf(inside), Is.LessThan(before - 30f), "Cinderfield has to burn the enemy inside its radius.");
+		Assert.That(_match.HealthOf(inside), Is.LessThan(insideBefore - 10f), "Cinderfield has to burn the enemy inside its radius.");
+		Assert.That(_match.HealthOf(outside), Is.EqualTo(outsideBefore).Within(0.1f), "An enemy beyond the field must not be burned.");
+	}
+
+	[TestCase(1, 60f)]
+	[TestCase(3, 90f)]
+	[TestCase(6, 120f)]
+	public void GroundingShoutDamageGrowsWithTheHerosIntelligence(int level, float expectedDamage)
+	{
+		Start("Vale");
+		LevelHero(level);
+		UnitId enemy = SpawnDurableEnemy(_heroPosition + new Vector3(3f, 0f, 0f));
+		float before = _match.HealthOf(enemy);
+
+		_match.Cast(1, "ability/grounding_shout", _match.PositionOf(enemy));
+
+		Assert.That(before - _match.HealthOf(enemy), Is.EqualTo(AmplifiedBySpellPower(expectedDamage)).Within(2f), $"Grounding Shout has to deal {expectedDamage} base damage at hero level {level}, amplified by the hero's SpellPower.");
+	}
+
+	[TestCase(1, 3f)]
+	[TestCase(3, 3.5f)]
+	[TestCase(6, 4f)]
+	public void HoldFastDurationGrowsWithTheHerosIntelligence(int level, float expectedDuration)
+	{
+		Start("Vale");
+		LevelHero(level);
+		UnitId ally = _match.SpawnSoldier(1, "unit/shieldbearer", _heroPosition + new Vector3(2f, 0f, 0f));
+
+		_match.Cast(1, "ability/hold_fast", _heroPosition);
+		_match.Step(expectedDuration - 0.2f);
+		Assert.That(_match.Api.UnitHasBuff(ally, "buff/hold_fast"), Is.True, $"Hold Fast has to still be on the soldier at hero level {level} before its {expectedDuration} seconds run out.");
+
+		_match.Step(0.4f);
+		Assert.That(_match.Api.UnitHasBuff(ally, "buff/hold_fast"), Is.False, $"Hold Fast has to end at the {expectedDuration} seconds its level states.");
+	}
+
+	[TestCase(1, 1.25f)]
+	[TestCase(3, 1.4f)]
+	[TestCase(6, 1.55f)]
+	public void ShieldBashStunGrowsWithTheHerosIntelligence(int level, float expectedDuration)
+	{
+		Start("Vale");
+		LevelHero(level);
+		UnitId enemy = SpawnDurableEnemy(_heroPosition + new Vector3(3f, 0f, 0f));
+
+		_match.Cast(1, "ability/shield_bash", _match.PositionOf(enemy));
+		_match.Step(expectedDuration - 0.2f);
+		Assert.That(_match.Api.UnitHasBuff(enemy, "stun"), Is.True, $"Shield Bash has to still be stunning at hero level {level} before its {expectedDuration} seconds run out.");
+
+		_match.Step(0.4f);
+		Assert.That(_match.Api.UnitHasBuff(enemy, "stun"), Is.False, $"Shield Bash stun has to end at the {expectedDuration} seconds its level states.");
+	}
+
+	[TestCase(1, 90f)]
+	[TestCase(3, 130f)]
+	[TestCase(6, 170f)]
+	public void EmberLanceDamageGrowsWithTheHerosIntelligence(int level, float expectedDamage)
+	{
+		Start("Sable");
+		LevelHero(level);
+		UnitId enemy = SpawnDurableEnemy(_heroPosition + new Vector3(0f, 0f, 6f));
+		float before = _match.HealthOf(enemy);
+
+		_match.Cast(1, "ability/ember_lance", _heroPosition + new Vector3(0f, 0f, 8f));
+
+		Assert.That(before - _match.HealthOf(enemy), Is.EqualTo(AmplifiedBySpellPower(expectedDamage)).Within(2f), $"Ember Lance has to deal {expectedDamage} base damage at hero level {level}, amplified by the hero's SpellPower.");
+	}
+
+	[TestCase(1, 70f)]
+	[TestCase(3, 95f)]
+	[TestCase(6, 120f)]
+	public void BackdraftDamageGrowsWithTheHerosIntelligence(int level, float expectedDamage)
+	{
+		Start("Sable");
+		LevelHero(level);
+		UnitId enemy = SpawnDurableEnemy(_heroPosition + new Vector3(3f, 0f, 0f));
+		float before = _match.HealthOf(enemy);
+
+		_match.Cast(1, "ability/backdraft", _match.PositionOf(enemy));
+
+		Assert.That(before - _match.HealthOf(enemy), Is.EqualTo(AmplifiedBySpellPower(expectedDamage)).Within(2f), $"Backdraft has to deal {expectedDamage} base damage at hero level {level}, amplified by the hero's SpellPower.");
+	}
+
+	[TestCase(1, 8)]
+	[TestCase(3, 9)]
+	[TestCase(6, 10)]
+	public void CinderfieldBurnsItsAuthoredDamageForTheDurationItsLevelStates(int level, int expectedTicks)
+	{
+		Start("Sable");
+		LevelHero(level);
+		UnitId enemy = SpawnDurableEnemy(_heroPosition + new Vector3(3f, 0f, 0f));
+
+		_match.Cast(1, "ability/cinderfield", _heroPosition);
+		_match.Api.SetUnitCommandsFrozen(_match.Hero(1), true);
+		_match.Api.SetUnitCommandsFrozen(enemy, true);
+
+		List<float> ticks = CinderfieldTicks(enemy, 5.4f);
+		float expectedTickDamage = AmplifiedBySpellPower(25f * 0.5f);
+
+		Assert.That(ticks.Count, Is.EqualTo(expectedTicks), $"Cinderfield's level {level} duration has to burn for {expectedTicks} half-second ticks, each worth the authored 25 damage per second.");
+		foreach (float tick in ticks)
+		{
+			Assert.That(tick, Is.EqualTo(expectedTickDamage).Within(0.6f), "Each Cinderfield tick has to deal the authored 25 damage per second over half a second, amplified by the caster's SpellPower.");
+		}
+	}
+
+	private List<float> CinderfieldTicks(UnitId enemy, float seconds)
+	{
+		var ticks = new List<float>();
+		float previous = _match.HealthOf(enemy);
+		int frames = (int)MathF.Round(seconds * 30f);
+
+		for (int frame = 0; frame < frames; frame++)
+		{
+			_match.Step(1f / 30f);
+			float current = _match.HealthOf(enemy);
+			float lost = previous - current;
+			if (lost >= 5f) ticks.Add(lost);
+			previous = current;
+		}
+
+		return ticks;
 	}
 
 	[Test]

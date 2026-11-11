@@ -50,5 +50,7 @@ public class AbilityScalingMetadata
 
 	[JsonPropertyName("Cap")] public float Cap { get; set; }
 
+	[JsonPropertyName("Offset")] public float Offset { get; set; }
+
 	[JsonPropertyName("ScalesDuration")] public bool ScalesDuration { get; set; } = true;
 }

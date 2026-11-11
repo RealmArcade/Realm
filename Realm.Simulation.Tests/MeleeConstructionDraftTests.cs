@@ -302,6 +302,31 @@ public class MeleeConstructionDraftTests
 		Assert.That(progressAfter - progressBefore, Is.EqualTo(expectedAdvance).Within(0.02f), "Requisition has to advance the active site by 30% of its remaining work.");
 	}
 
+	[TestCase(1, 0.3f)]
+	[TestCase(3, 0.4f)]
+	[TestCase(6, 0.5f)]
+	public void RequisitionCompletionGrowsWithCorvussFortune(int level, float expectedFraction)
+	{
+		_match.Dispose();
+		_match = MeleeMatch.StartDuel("Corvus", "Vale");
+		if (level > 1)
+		{
+			_match.Api.SetUnitExperience(_match.Hero(1), level == 3 ? 430f : 100000f);
+			_match.Step(0.2f);
+		}
+
+		Assert.That(_match.HeroLevel(1), Is.EqualTo(level), "The test needs Corvus at the level it is measuring.");
+		UnitId site = _match.PlaceDraftBuilding(SitePosition);
+		_match.StepTicks(2);
+
+		float progressBefore = _match.ConstructionProgress(site);
+		_match.CastRequisition(1);
+		float progressAfter = _match.ConstructionProgress(site);
+
+		float expectedAdvance = (1f - progressBefore) * expectedFraction;
+		Assert.That(progressAfter - progressBefore, Is.EqualTo(expectedAdvance).Within(0.02f), $"Requisition has to complete {expectedFraction:P0} of the remaining work at hero level {level}.");
+	}
+
 	[Test]
 	public void EmergencyLevyHandsEveryOperationalBuildingACharge()
 	{

@@ -73,6 +73,7 @@ public class AbilityEffectDefinition
 	public float ScalingCoefficient { get; init; }
 	public float ScalingDivisor { get; init; }
 	public float ScalingCap { get; init; }
+	public float ScalingOffset { get; init; }
 
 	public bool ScalesDuration { get; init; } = true;
 
@@ -83,7 +84,7 @@ public class AbilityEffectDefinition
 
 	public float Scale(float baseValue, float attributeValue)
 	{
-		float stat = MathF.Max(0f, attributeValue);
+		float stat = MathF.Max(0f, attributeValue - ScalingOffset);
 		float divisor = ScalingDivisor > 0.0001f ? ScalingDivisor : 1f;
 
 		float scaled = ScalingShape switch
