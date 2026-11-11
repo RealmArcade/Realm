@@ -126,7 +126,7 @@ public class MeleeInspectorReadoutTests
 		_match.Step(1.2f);
 
 		Assert.That(_match.UnitReadout(1, hero, 2), Is.EqualTo("Bulwark"), "The hero has to report the bulwark it is carrying.");
-		Assert.That(_match.UnitReadout(1, hero, 2, valueColumn: true), Does.Contain("buildings"), "A lone Nexus is still the building the bulwark counts.");
+		Assert.That(_match.UnitReadout(1, hero, 2, valueColumn: true), Is.EqualTo("0 soldiers, 1 building"), "A lone Nexus is still the one building the bulwark counts.");
 	}
 
 	[Test]
