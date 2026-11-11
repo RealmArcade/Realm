@@ -51,7 +51,7 @@ public partial class MultiplayerSimulationHarness : Node
 		ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
 		GameContext.ServerSession?.Dispose();
 		var session = new ClientServerSession(channel);
-		var start = new ServerMatchStart(mapDirectory, "UX Smoke", HarnessMatchSeed, Path.Combine(_outputDirectory, "listen_server"), _outputDirectory, LocalizationManager.GetCurrentLanguageCode(), AuthorityRecordDirectory: _outputDirectory);
+		var start = new ServerMatchStart(mapDirectory, "UX Smoke", HarnessMatchSeed, Path.Combine(_outputDirectory, "listen_server"), _outputDirectory, LocalizationManager.GetCurrentLanguageCode(), Cheats: true, AuthorityRecordDirectory: _outputDirectory);
 		MatchStartResult started = await session.TryStartAsync(start, _port);
 		Check("authority started", started.Started, started.Started ? $"port {session.Port}" : started.Failure);
 		if (!started.Started) return FinishUxSmoke(report, passed);
@@ -291,10 +291,58 @@ public partial class MultiplayerSimulationHarness : Node
 			SaveUxScreenshot("ux_smoke_building.png", "building", Note);
 		}
 
+		Note("sacrificing the hero to play the death and revival flow");
 		currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
-		await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
-		Node? heroReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
-		CheckReading(heroReadings, "Relics", "2 / 6", Check);
+		await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+		Check("the dev kill cheat is accepted", hud.TryTriggerCheat("sacrifice"));
+
+		bool heroFell = await WaitUntilAsync(() => FindUnit(currentHost, "hero/", 1) == null, 10f);
+		Check("the hero leaves the field when it dies", heroFell);
+		string deathFeedback = ReadFeedback(hud);
+		Check("the death states when the hero returns", deathFeedback.Contains("returns in", StringComparison.OrdinalIgnoreCase), deathFeedback);
+		bool armyDispersed = await WaitUntilAsync(() => FindUnit(currentHost, "unit/", 1) == null, 5f);
+		Check("the hero's army disperses with it", armyDispersed);
+
+		string revivalFeedback = string.Empty;
+		bool heroReturned = false;
+		ulong reviveDeadline = Time.GetTicksMsec() + 25000;
+		while (Time.GetTicksMsec() < reviveDeadline)
+		{
+			string line = ReadFeedback(hud);
+			if (line.Contains("returns to the field", StringComparison.OrdinalIgnoreCase)) revivalFeedback = line;
+			if (FindUnit(currentHost, "hero/", 1) != null)
+			{
+				heroReturned = true;
+				break;
+			}
+
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		}
+
+		Check("the hero returns when its revival timer expires", heroReturned);
+
+		// The feedback label is one line, and the idle hint can claim it in the same moment, so the announcement is
+		// watched frame by frame instead of read as whichever notice happened to land last.
+		for (int frame = 0; frame < 20 && revivalFeedback.Length == 0; frame++)
+		{
+			string line = ReadFeedback(hud);
+			if (line.Contains("returns to the field", StringComparison.OrdinalIgnoreCase)) revivalFeedback = line;
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		}
+
+		Check("the revival announces the hero is back", revivalFeedback.Length > 0, revivalFeedback.Length > 0 ? revivalFeedback : ReadFeedback(hud));
+
+		Unit3D? revivedHero = FindUnit(currentHost, "hero/", 1);
+		Check("the revived hero is replicated", revivedHero != null);
+		if (revivedHero != null)
+		{
+			currentHost.SelectUnitInternal(new UnitId(revivedHero.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
+			Node? revivedReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
+			CheckReading(revivedReadings, "Relics", "2 / 6", Check);
+			CheckReadingsFold("revived hero", revivedReadings);
+			SaveUxScreenshot("ux_smoke_revived.png", "revived", Note);
+		}
 
 		if (DisplayServer.GetName() == "headless")
 		{

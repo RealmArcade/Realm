@@ -67,6 +67,9 @@ public partial class CommandAuthorityService
 			case CheatKind.Skibidi:
 				ApplySkibidi(playerEntity);
 				break;
+			case CheatKind.Sacrifice:
+				ApplySacrifice(peerId, cmd);
+				break;
 			default:
 				rejectionReason = $"'{key}' is not a cheat this build knows";
 				break;
@@ -84,7 +87,8 @@ public partial class CommandAuthorityService
 		EzClap,
 		Aura,
 		SpeedRun,
-		Skibidi
+		Skibidi,
+		Sacrifice
 	}
 
 	private static CheatKind ParseCheat(string key) => key switch
@@ -97,6 +101,7 @@ public partial class CommandAuthorityService
 		"aura" => CheatKind.Aura,
 		"speedrun" => CheatKind.SpeedRun,
 		"skibidi" => CheatKind.Skibidi,
+		"sacrifice" => CheatKind.Sacrifice,
 		_ => CheatKind.None
 	};
 
@@ -173,6 +178,27 @@ public partial class CommandAuthorityService
 		if (worldEntity == Entity.Null || !_context.World.IsAlive(worldEntity)) return;
 
 		_context.World.Mutate<ShroudState>(worldEntity, (ref ShroudState shroud) => shroud.VisibilityMode = ShroudVisibilityMode.Revealed);
+	}
+
+	/// <summary>
+	///     Kills the units the order names, so a developer can reach a death the match would otherwise have to be played
+	///     into. The blow is dealt through the damage pipeline rather than by marking the unit dead, because a death the
+	///     resolver never saw is one the match, the map and every bounty rule would never be told about. Only the caller's
+	///     own units answer, because a cheat still goes through the same authority check an order does.
+	/// </summary>
+	private void ApplySacrifice(int peerId, NetworkCommand cmd)
+	{
+		if (cmd.UnitEntityIds == null) return;
+		if (_context.CombatDamageService == null) return;
+
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			Entity entity = _targets.Resolve(serverId);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (!_context.World.IsAlive(entity) || _context.World.Has<Dead>(entity)) continue;
+
+			_context.CombatDamageService.DealResolvedDamage(entity, entity, 1000000f, "physical");
+		}
 	}
 
 	private void ApplySkibidi(Entity playerEntity)

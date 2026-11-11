@@ -10,5 +10,6 @@ public enum CheatResult
 	EzClap,
 	NoCap,
 	WarpSpeed,
-	UnlimitedPower
+	UnlimitedPower,
+	Sacrifice
 }

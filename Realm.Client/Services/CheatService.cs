@@ -20,7 +20,8 @@ public class CheatService
 		{ "ezclap", CheatResult.EzClap },
 		{ "aura", CheatResult.NoCap },
 		{ "speedrun", CheatResult.WarpSpeed },
-		{ "skibidi", CheatResult.UnlimitedPower }
+		{ "skibidi", CheatResult.UnlimitedPower },
+		{ "sacrifice", CheatResult.Sacrifice }
 	};
 
 	public (CheatResult Result, int AffectedCount) TryTriggerCheat(string text, bool isMultiplayer, IEnumerable<Entity> selectedEntities)
