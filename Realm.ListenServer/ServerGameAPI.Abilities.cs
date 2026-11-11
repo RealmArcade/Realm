@@ -60,12 +60,20 @@ public partial class ServerGameAPI
 		return template?.Abilities ?? Array.Empty<string>();
 	}
 
+	private static readonly HashSet<string> TemplateStatFieldNames = new(StringComparer.OrdinalIgnoreCase)
+	{
+		"Range", "AttackCooldown", "ScanRadius", "SightRange", "AcquisitionRange", "CostGold", "PopCost"
+	};
 	public float GetUnitTypeStat(string unitTypeId, string statName)
 	{
 		if (string.IsNullOrWhiteSpace(unitTypeId) || string.IsNullOrWhiteSpace(statName)) return 0f;
 
 		UnitMetadata? template = _map.Catalog.FindUnitOrBuilding(unitTypeId);
 		if (template == null) return 0f;
+		if (!TemplateStatFieldNames.Contains(statName))
+		{
+			StatKeys.WarnIfUnknown("a map script reading a unit type stat", statName);
+		}
 
 		return statName switch
 		{
@@ -85,11 +93,9 @@ public partial class ServerGameAPI
 			StatKeys.Intelligence => template.Intelligence,
 			StatKeys.Wisdom => template.Wisdom,
 			StatKeys.Fortune => template.Fortune,
-			"Damage" => template.Damage,
 			"Range" => template.Range,
-			"Speed" => template.Speed,
 			"AttackCooldown" => template.AttackCooldown,
-			"AttackSpeed" => template.AttackCooldown > 0f ? 1f / template.AttackCooldown : 0f,
+			StatKeys.AttackSpeed => template.AttackCooldown > 0f ? 1f / template.AttackCooldown : 0f,
 			"ScanRadius" => template.ScanRadius,
 			"SightRange" => template.SightRange,
 			"AcquisitionRange" => template.AcquisitionRange,

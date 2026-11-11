@@ -45,7 +45,7 @@ public partial interface IGameAPI
 	/// spawning one, for example to let a bot compare two heroes it is choosing between.
 	/// </summary>
 	/// <param name="unitTypeId">The unit or building type identifier.</param>
-	/// <param name="statName">The declared statistic name: for example <c>MaxHp</c>, <c>Armor</c>, <c>Damage</c>, <c>AttackCooldown</c>, <c>Speed</c>, <c>Range</c>, <c>MaxMana</c>, <c>ManaRegen</c> or one of the attribute names such as <c>Strength</c>.</param>
+	/// <param name="statName">The declared statistic name: for example <c>MaxHp</c>, <c>Armor</c>, <c>Attack</c>, <c>AttackCooldown</c>, <c>Speed</c>, <c>Range</c>, <c>MaxMana</c>, <c>ManaRegen</c> or one of the attribute names such as <c>Strength</c>.</param>
 	/// <returns>The declared value, or zero when the type or the statistic name is unknown.</returns>
 	float GetUnitTypeStat(string unitTypeId, string statName);
 
