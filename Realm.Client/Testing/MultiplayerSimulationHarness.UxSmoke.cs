@@ -395,6 +395,23 @@ public partial class MultiplayerSimulationHarness : Node
 				List<Button> draftOptions = FindDraftOffers();
 				Check("all three drawn packages are on the blueprint's grid", draftOptions.Count == 3, $"cards={draftOptions.Count}");
 
+				// A package states the worker crew it raises and the buffs it gives them instead of an invented income
+				// rate, so what the draw tooltip says has to reach the card the player hovers.
+				for (int offerIndex = 0; offerIndex < draftOptions.Count; offerIndex++)
+				{
+					Note($"draft offer[{offerIndex}] tooltip='{draftOptions[offerIndex].TooltipText.Split('\n')[0]}'");
+				}
+
+				Check("every drawn package states the worker crew it raises",
+					draftOptions.TrueForAll(card => card.TooltipText.Contains("Workers gather", StringComparison.Ordinal)),
+					string.Join(" | ", draftOptions.Select(card => card.TooltipText)));
+				Check("every drawn package states the buffs its workers gain",
+					draftOptions.TrueForAll(card => card.TooltipText.Contains("gaining", StringComparison.Ordinal)),
+					string.Join(" | ", draftOptions.Select(card => card.TooltipText)));
+				Check("no drawn package advertises an income rate",
+					draftOptions.TrueForAll(card => !card.TooltipText.Contains("Income", StringComparison.Ordinal)),
+					string.Join(" | ", draftOptions.Select(card => card.TooltipText)));
+
 				List<Button> draftCard = FindCommandButtons(hud);
 				List<string> draftKeys = ReadCommandHotkeys(draftCard);
 				Note($"draft card buttons={draftCard.Count} keys=[{string.Join(", ", draftKeys)}]");
@@ -746,6 +763,44 @@ public partial class MultiplayerSimulationHarness : Node
 			SaveUxScreenshot("ux_smoke_soldier.png", "soldier", Note);
 		}
 
+		// A worker is a unit the player watches and inspects, not an abstract income rate: it has to be selectable and
+		// show the standard stat sheet, so a player can reason about its gathering rate from its own damage, speed and
+		// buffs. Its cards stay empty because the map owns its orders.
+		Unit3D? worker = await WaitForUnitAsync(currentHost, "unit/worker", 1, 25f);
+		Check("the drafted building raises a worker crew", worker != null);
+		if (worker != null)
+		{
+			currentHost.SelectUnitInternal(new UnitId(worker.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+
+			Label? workerName = hud.FindChild("UnitName", true, false) as Label;
+			Check("the worker is named in the portrait panel", workerName != null && workerName.Text == "Worker", workerName?.Text ?? "missing");
+			List<Button> workerCards = FindCommandButtons(hud);
+			Check("the worker offers no player command card", workerCards.Count == 0, $"cards={workerCards.Count}");
+			Node? workerCategoryStrip = hud.FindChild("UnitStatsCategories_HBoxContainer", true, false);
+			Check("the worker shows the standard stat sheet", workerCategoryStrip is HBoxContainer);
+
+			// The building's permanent buff is part of what a player reads to judge the worker, so it has to appear on
+			// the stat sheet next to the stats it raises.
+			Node? workerEffects = hud.FindChild("UnitStatsStatusEffects_HBoxContainer", true, false);
+			int workerBuffIcons = workerEffects?.GetChildCount() ?? 0;
+			Check("the worker lists the buff its building gave it", workerBuffIcons >= 1, $"effects={workerBuffIcons}");
+
+			FocusCamera(worker.GlobalPosition);
+			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+			Check("the worker stands on screen", IsOnScreen(worker.GlobalPosition), $"worker {worker.GlobalPosition} camera {ActiveCamera()?.Position}");
+			if (hud.FindChild("UnitStatsCategoryOffense_Label", true, false) is Label workerOffense)
+			{
+				workerOffense.EmitSignal(Control.SignalName.MouseEntered);
+				await ToSignal(GetTree().CreateTimer(0.35f), SceneTreeTimer.SignalName.Timeout);
+				Node? workerPopup = hud.FindChild("UnitStatsCategoryPopup_PopupPanel", true, false);
+				Check("the worker's offense category opens its rows", workerPopup is PopupPanel { Visible: true });
+				SaveUxScreenshot("ux_smoke_worker.png", "worker", Note);
+				workerOffense.EmitSignal(Control.SignalName.MouseExited);
+				await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+			}
+		}
+
 		Unit3D? productionBuilding = FindPlayerProductionBuilding(currentHost);
 		Check("the drafted building is replicated", productionBuilding != null);
 		if (productionBuilding != null)
@@ -757,7 +812,10 @@ public partial class MultiplayerSimulationHarness : Node
 			Check("building readings visible", buildingReadings is Control { Visible: true });
 			Check("building reports what it unlocks", ReadReadingValue(buildingReadings, "Unlocks") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Unlocks") ?? "missing");
 			Check("building reports its capacity", ReadReadingValue(buildingReadings, "Capacity") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Capacity") ?? "missing");
-			Check("building reports its income", ReadReadingValue(buildingReadings, "Income") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Income") ?? "missing");
+			string? workerCrew = ReadReadingValue(buildingReadings, "Workers");
+			Check("building reports its worker crew and their buffs",
+				workerCrew is { Length: > 0 } && (workerCrew.Contains("gold", StringComparison.Ordinal) || workerCrew.Contains("wood", StringComparison.Ordinal)),
+				workerCrew ?? "missing");
 			Check("building reports its production", ReadReadingValue(buildingReadings, "Production") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Production") ?? "missing");
 			CheckReadingsFold("building", buildingReadings);
 			FocusCamera(productionBuilding.GlobalPosition);
