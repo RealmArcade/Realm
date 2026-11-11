@@ -94,6 +94,19 @@ public partial class MultiplayerSimulationHarness : Node
 		Check("bulwark row present", bulwark != null, bulwark ?? "missing");
 		Check("bulwark uses one building", bulwark != null && bulwark.Contains("1 building", StringComparison.Ordinal), bulwark ?? "missing");
 
+		if (readings is Control readingsControl && hud.FindChild("StatsScroll", true, false) is ScrollContainer statsScroll)
+		{
+			float viewportTop = statsScroll.GlobalPosition.Y;
+			float viewportBottom = viewportTop + statsScroll.Size.Y;
+			float readingsTop = readingsControl.GlobalPosition.Y;
+			float readingsBottom = readingsTop + readingsControl.Size.Y;
+			Note($"stats viewport {viewportTop:0.#}..{viewportBottom:0.#}, readings {readingsTop:0.#}..{readingsBottom:0.#}");
+			Check("the hero's readings lead the inspector", MathF.Abs(readingsTop - viewportTop) <= 1f,
+				$"readings start {readingsTop:0.#} viewport start {viewportTop:0.#}");
+			Check("the hero's first reading is drawn above the fold", readingsTop + 40f <= viewportBottom,
+				$"readings {readingsTop:0.#}..{readingsBottom:0.#} viewport {viewportTop:0.#}..{viewportBottom:0.#}");
+		}
+
 		List<Button> commandButtons = FindCommandButtons(hud);
 		Note($"hero command buttons={commandButtons.Count}");
 		for (int index = 0; index < commandButtons.Count; index++)

@@ -195,8 +195,12 @@ public class UnitStatsPanel
 		_readingsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		_readingsSection.AddThemeConstantOverride("separation", SectionSeparation);
 		_readingsSection.Visible = false;
-		_footer.AddChild(_readingsSection);
 		AddSectionHeader(_readingsSection, UnicodeIcons.LIST, "Readings");
+
+		// A map publishes what makes its unit special, so those rows lead the panel: they are what a player checks
+		// before acting, and the generic stat grid below them can scroll without taking that information off screen.
+		_content.AddChild(_readingsSection);
+		_content.MoveChild(_readingsSection, 0);
 
 		_statusEffectsSection = new VBoxContainer();
 		_statusEffectsSection.Name = "UnitStatsStatusEffects_VBoxContainer";
