@@ -74,6 +74,7 @@ public partial class Unit3D : Node3D
 		_cachedGeometryInstances.Clear();
 		Node root = (_modelNode != null && GodotObject.IsInstanceValid(_modelNode)) ? _modelNode : this;
 		CollectGeometryInstancesRecursive(root, _cachedGeometryInstances);
+		if (_isRuinSilhouette) ModelShaderManager.SetRuinSilhouette(root, true);
 	}
 
 	private static void CollectGeometryInstancesRecursive(Node node, List<GeometryInstance3D> list)
@@ -121,6 +122,17 @@ public partial class Unit3D : Node3D
 			float baseModelScale = _cachedBaseModelScale;
 			_modelNode.Scale = new Vector3(baseModelScale, baseModelScale, baseModelScale);
 		}
+	}
+
+	private bool _isRuinSilhouette = false;
+
+	public void SetRuinSilhouette(bool dormant)
+	{
+		if (_isRuinSilhouette == dormant) return;
+		_isRuinSilhouette = dormant;
+
+		Node root = (_modelNode != null && GodotObject.IsInstanceValid(_modelNode)) ? _modelNode : this;
+		ModelShaderManager.SetRuinSilhouette(root, dormant);
 	}
 
 	private Vector3 _velocity = Vector3.Zero;

@@ -36,6 +36,7 @@ public static partial class ModelShaderManager
 	private static readonly StringName _paramUnitAmbientBoost = new("unit_ambient_boost");
 	private static readonly StringName _paramUnitRimIntensity = new("unit_rim_intensity");
 	private static readonly StringName _paramHideInShroud = new("hide_in_shroud");
+	private static readonly StringName _paramSilhouette = new("silhouette");
 	private static readonly StringName _paramProcAnimParams1 = new("proc_anim_params1");
 	private static readonly StringName _paramProcAnimParams2 = new("proc_anim_params2");
 	private static readonly StringName _paramProcAnimParams3 = new("proc_anim_params3");

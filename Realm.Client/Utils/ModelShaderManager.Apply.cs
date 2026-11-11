@@ -135,6 +135,31 @@ public static partial class ModelShaderManager
 		SetUnitReadabilityRecursive(rootNode, isUnitOrBuilding ? 0.10f : 0.0f, isUnitOrBuilding ? 0.25f : 0.0f);
 	}
 
+	public static void SetRuinSilhouette(Node rootNode, bool enabled)
+	{
+		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
+		SetRuinSilhouetteRecursive(rootNode, enabled);
+	}
+
+	private static void SetRuinSilhouetteRecursive(Node node, bool enabled)
+	{
+		if (node is GeometryInstance3D geomInst)
+		{
+			if (!IsExcludedMesh(geomInst))
+			{
+				geomInst.SetInstanceShaderParameter(_paramSilhouette, enabled ? 1.0f : 0.0f);
+			}
+		}
+
+		foreach (var child in node.GetChildren())
+		{
+			if (child is Node childNode && !IsAttachmentNode(childNode))
+			{
+				SetRuinSilhouetteRecursive(childNode, enabled);
+			}
+		}
+	}
+
 	private static void SetUnitReadabilityRecursive(Node node, float ambientBoost, float rimIntensity)
 	{
 		if (node is GeometryInstance3D geomInst)

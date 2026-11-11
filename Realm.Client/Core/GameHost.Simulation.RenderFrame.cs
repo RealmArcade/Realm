@@ -195,6 +195,8 @@ public partial class GameHost
 				unit3D.ResetLaborPulseScale();
 			}
 
+			unit3D.SetRuinSilhouette(world.Has<Dormant>(item.Entity));
+
 			if (item.ShouldSetTransform)
 			{
 				unit3D.SetTransform3D(in item.FinalTransform, in item.NextPos, item.TargetRotY, in item.TargetBasis, in item.FinalScaleVec, item.ClampedScale);

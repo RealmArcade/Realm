@@ -756,6 +756,9 @@ public partial class MultiplayerSimulationHarness : Node
 				plateOverlay != null && plateOverlay.TryReadDormant(productionBuilding.Entity, out bool dormant) && dormant, 10f);
 			Check("the dormant building's overhead plate is crossed out", plateCrossed);
 
+			bool drawnAsSilhouette = await WaitUntilAsync(() => HasSilhouetteGeometryState(productionBuilding, true), 10f);
+			Check("the ruin is drawn as a silhouette instead of its own materials", drawnAsSilhouette);
+
 			currentHost.SelectUnitInternal(new UnitId(productionBuilding.Entity.Id));
 			await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
 			string? ruinProduction = ReadReadingValue(buildingReadings, "Production");
@@ -770,6 +773,8 @@ public partial class MultiplayerSimulationHarness : Node
 			bool mended = await WaitUntilAsync(() =>
 				GodotObject.IsInstanceValid(productionBuilding) && GameContext.World != null && !GameContext.World.Has<Dormant>(productionBuilding.Entity) && ReadHealth(productionBuilding) >= ruinMaximumHealth - 1f, 120f);
 			Check("the hero mends the ruin back to whole", mended, $"health {ReadHealth(productionBuilding):0.#} / {ruinMaximumHealth:0.#}");
+			bool silhouetteCleared = await WaitUntilAsync(() => HasSilhouetteGeometryState(productionBuilding, false), 10f);
+			Check("the standing building leaves the silhouette", silhouetteCleared);
 			SaveUxScreenshot("ux_smoke_repaired.png", "repaired", Note);
 		}
 
@@ -1140,6 +1145,41 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		return false;
+	}
+
+	private static bool HasSilhouetteGeometryState(Unit3D unit, bool expected)
+	{
+		if (!GodotObject.IsInstanceValid(unit)) return false;
+
+		bool sawGeometry = false;
+		foreach (GeometryInstance3D geometry in unit.GetCachedGeometryInstances())
+		{
+			if (!GodotObject.IsInstanceValid(geometry)) continue;
+			sawGeometry = true;
+
+			Variant value = geometry.GetInstanceShaderParameter("silhouette");
+			float silhouette = value.VariantType == Variant.Type.Float ? value.AsSingle() : 0f;
+			bool applied = silhouette >= 0.5f;
+			if (applied != expected) return false;
+			if (expected && !HonorsSilhouette(geometry)) return false;
+		}
+
+		return sawGeometry;
+	}
+
+	private static bool HonorsSilhouette(GeometryInstance3D geometry)
+	{
+		ShaderMaterial? material = geometry.MaterialOverride as ShaderMaterial;
+		if (material == null && geometry is MeshInstance3D mesh)
+		{
+			int surfaceCount = mesh.Mesh != null ? mesh.Mesh.GetSurfaceCount() : 1;
+			for (int surface = 0; surface < surfaceCount && material == null; surface++)
+			{
+				material = mesh.GetSurfaceOverrideMaterial(surface) as ShaderMaterial;
+			}
+		}
+
+		return material?.Shader != null && material.Shader.Code.Contains("silhouette", StringComparison.Ordinal);
 	}
 
 	private void SaveUxScreenshot(string fileName, string label, Action<string> note)
