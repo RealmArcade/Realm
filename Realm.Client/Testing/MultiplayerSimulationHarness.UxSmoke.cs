@@ -164,6 +164,13 @@ public partial class MultiplayerSimulationHarness : Node
 				$"readings {readingsTop:0.#}..{readingsBottom:0.#} viewport {viewportTop:0.#}..{viewportBottom:0.#}");
 		}
 
+		static string MinimapRingDetail(MinimapOverlay? overlay, Unit3D? target)
+		{
+			if (overlay == null) return "no minimap overlay";
+			if (target == null || !GodotObject.IsInstanceValid(target)) return $"camp gone, rings={overlay.AttackTargetRingsDrawn}";
+			return $"rings={overlay.AttackTargetRingsDrawn} campRinged={overlay.IsAttackTargetRinged(target)} campHealth={ReadHealth(target):0.#}";
+		}
+
 		async Task<string> SacrificeHeroAsync(Unit3D targetHero)
 		{
 			currentHost.SelectUnitInternal(new UnitId(targetHero.Entity.Id));
@@ -744,13 +751,15 @@ public partial class MultiplayerSimulationHarness : Node
 				targetMarker == null ? "no marker" : $"marker {targetMarker.GlobalPosition}, camp {campPosition}");
 
 			MinimapOverlay? minimapOverlay = hud.FindChild("MinimapOverlay", true, false) as MinimapOverlay;
-			bool minimapRinged = await WaitUntilAsync(() => minimapOverlay != null && minimapOverlay.AttackTargetRingsDrawn > 0, 5f);
-			Check("the minimap rings the camp being attacked", minimapRinged,
-				minimapOverlay == null ? "no minimap overlay" : $"rings={minimapOverlay.AttackTargetRingsDrawn}");
+			bool minimapRinged = await WaitUntilAsync(() => minimapOverlay != null && minimapOverlay.IsAttackTargetRinged(boar), 10f);
+			Check("the minimap rings the camp being attacked", minimapRinged, MinimapRingDetail(minimapOverlay, boar));
 			SaveUxScreenshot("ux_smoke_battle.png", "battle", Note);
 
 			bool felled = await WaitUntilAsync(() => !GodotObject.IsInstanceValid(boar) || ReadHealth(boar) <= 0f, 30f);
 			Check("the army fells the camp", felled);
+
+			bool ringCleared = await WaitUntilAsync(() => minimapOverlay == null || !minimapOverlay.IsAttackTargetRinged(boar), 10f);
+			Check("the minimap ring clears from the felled camp", ringCleared, MinimapRingDetail(minimapOverlay, boar));
 			Check("the kill pays the bounty the camp states", hud.Gold >= goldBeforeCamp + 40f, $"gold {goldBeforeCamp:0.#} -> {hud.Gold:0.#}");
 			int campsAfterKill = CountUnits(currentHost, "unit/crest_boar", 0);
 			bool campGone = await WaitUntilAsync(() => !GodotObject.IsInstanceValid(boar), 10f);

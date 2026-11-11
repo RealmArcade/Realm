@@ -181,6 +181,19 @@ public partial class MinimapOverlay : Control
 		}
 	}
 
+	public bool IsAttackTargetRinged(Unit3D unit)
+	{
+		if (unit == null || !GodotObject.IsInstanceValid(unit)) return false;
+
+		IReadOnlyList<Entity> targets = _attackTargetResolver.Collect();
+		for (int index = 0; index < targets.Count; index++)
+		{
+			if (targets[index].Id == unit.Entity.Id) return true;
+		}
+
+		return false;
+	}
+
 	private static Unit3D? FindUnitById(IReadOnlyList<Unit3D> units, Entity target)
 	{
 		for (int index = 0; index < units.Count; index++)

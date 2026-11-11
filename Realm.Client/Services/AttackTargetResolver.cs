@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Realm.Ecs;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Tags;
 
 namespace Realm.Client.Services;
 
@@ -34,9 +35,10 @@ public class AttackTargetResolver
 	private void CollectTarget(Entity entity, ref UnitOwnerPlayer owner, ref AttackTarget attackTarget)
 	{
 		if (owner.Value != _localSlot) return;
+		if (_world == null || _world.Has<Dead>(entity)) return;
 
 		Entity target = attackTarget.Target;
-		if (target == Entity.Null || _world == null || !_world.IsAlive(target)) return;
+		if (target == Entity.Null || !_world.IsAlive(target) || _world.Has<Dead>(target)) return;
 		if (Contains(target)) return;
 
 		_targets.Add(target);
