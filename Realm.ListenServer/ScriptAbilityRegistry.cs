@@ -135,6 +135,7 @@ public class ScriptAbilityRegistry
 		definition.TooltipTemplate = string.IsNullOrWhiteSpace(metadata.Role) ? description : $"[{metadata.Role.Trim()}] {description}";
 		definition.IconPath = metadata.IconPath ?? string.Empty;
 		definition.IsInstant = string.Equals(metadata.AbilityType, "instant_spell", StringComparison.OrdinalIgnoreCase);
+		definition.IsPassive = string.Equals(metadata.AbilityType, "passive", StringComparison.OrdinalIgnoreCase);
 		definition.AutoCastEnabled = metadata.AutoCast?.Enabled ?? true;
 		definition.AutoCastRequiresEnemy = metadata.AutoCast?.RequiresEnemyTarget ?? true;
 		definition.AutoCastAllyHealthPercentBelow = metadata.AutoCast?.AllyHealthPercentBelow ?? 1f;

@@ -636,6 +636,7 @@ public class RegistryService
 				TooltipTemplate = BuildAbilityTooltip(meta),
 				IconPath = meta.IconPath ?? "",
 				IsInstant = string.Equals(meta.AbilityType, "instant_spell", StringComparison.OrdinalIgnoreCase),
+				IsPassive = string.Equals(meta.AbilityType, "passive", StringComparison.OrdinalIgnoreCase),
 				AutoCastEnabled = meta.AutoCast?.Enabled ?? true,
 				AutoCastRequiresEnemy = meta.AutoCast?.RequiresEnemyTarget ?? true,
 				AutoCastAllyHealthPercentBelow = meta.AutoCast?.AllyHealthPercentBelow ?? 1f,

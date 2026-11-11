@@ -12,6 +12,12 @@ public class AbilityDefinition
 	public string TooltipTemplate { get; set; } = "";
 	public string IconPath { get; set; } = "";
 	public bool IsInstant { get; set; }
+
+	/// <summary>
+	///     A passive ability is part of a unit's kit without being castable: its card shows the icon and tooltip a
+	///     player reads, and pressing it does nothing because there is no cast to begin.
+	/// </summary>
+	public bool IsPassive { get; set; }
 	public string Hotkey { get; set; } = "";
 	public int GridX { get; set; } = -1;
 	public int GridY { get; set; } = -1;

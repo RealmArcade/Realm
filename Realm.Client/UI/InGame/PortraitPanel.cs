@@ -47,6 +47,7 @@ public class PortraitPanel
 	private Entity _lastPropEntity = Entity.Null;
 	private string _lastPropId = null!;
 	private float _lastPropRemaining = -1f;
+	private string _lastPortraitDescription = string.Empty;
 
 	private enum SelectionType { None, Prop, Empty, Single, Multi }
 	private SelectionType _lastSelectionType = SelectionType.None;
@@ -195,6 +196,7 @@ public class PortraitPanel
 
 			_unitStatsPanel.ShowMessage($"{TranslationServer.Translate("REMAINING")}: {remainingAmount:F0}");
 			_productionBox.Visible = false;
+			ApplyPortraitDescription(null, Entity.Null);
 		}
 	}
 
@@ -242,6 +244,8 @@ public class PortraitPanel
 				_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
 			}
 		}
+
+		ApplyPortraitDescription(null, Entity.Null);
 	}
 
 	private void UpdateSingleSelection(InGameHUDViewModel viewModel)
@@ -267,6 +271,7 @@ public class PortraitPanel
 			}
 		}
 
+		ApplyPortraitDescription(info.Description, info.Entity);
 		_unitStatsPanel.UpdateSingleSelection(info, unitHeaderChanged);
 
 		if (info.IsBuilding && !info.IsEnemy && info.HasProduction)
@@ -359,6 +364,8 @@ public class PortraitPanel
 				_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
 			}
 		}
+
+		ApplyPortraitDescription(null, Entity.Null);
 
 		_unitNameLabel.Text = string.Format(TranslationServer.Translate("{0} Units Selected"), viewModel.SelectedUnits.Count);
 
@@ -512,6 +519,24 @@ public class PortraitPanel
 		if (world.Has<Follow>(entity)) return "F";
 		if (world.Has<MoveTo>(entity)) return "M";
 		return "";
+	}
+
+	/// <summary>
+	///     Puts the unit's description on the portrait, which is where a player reads what the unit is without taking
+	///     room in the stat sheet. Values the description names are resolved against the selected unit, so map text keeps
+	///     working the same way it does on an ability card.
+	/// </summary>
+	private void ApplyPortraitDescription(string? description, Entity entity)
+	{
+		string resolved = string.IsNullOrEmpty(description)
+			? string.Empty
+			: TooltipTemplate.Resolve(TranslationServer.Translate(description), TooltipContext.ForUnit(entity));
+
+		if (resolved == _lastPortraitDescription) return;
+
+		_lastPortraitDescription = resolved;
+		if (_portraitTexture != null) _portraitTexture.TooltipText = resolved;
+		_portraitFrame.TooltipText = resolved;
 	}
 
 	private string GetUnitIcon(string unitId)

@@ -146,7 +146,7 @@ public partial class CommandPanel
 			Hotkey = ParseHotkey(abilityDef?.Hotkey),
 			GridX = abilityDef?.GridX ?? -1,
 			GridY = abilityDef?.GridY ?? -1,
-			Callback = GetAbilityCallback(abilityId, abilityDef?.IsInstant ?? false),
+			Callback = GetAbilityCallback(abilityId, abilityDef?.IsInstant ?? false, abilityDef?.IsPassive ?? false),
 			IsDisabled = () => IsAbilityDisabled(host, unitWrapper, casterEntity, abilityId, manaCost)
 		};
 	}

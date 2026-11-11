@@ -117,6 +117,11 @@ public partial class InGameHUDViewModel
 		if (world.Has<Name>(u.Entity))
 			info.Name = world.Get<Name>(u.Entity).Value;
 
+		// The description belongs to the portrait's tooltip now, not the stat sheet, and it is available as soon as
+		// the unit is known rather than only after the authority has described its ability list.
+		if (info.Description == null && GameHost.TryGetUnitOrBuildingMetadata(u.UnitId, out var registryMetadata))
+			info.Description = registryMetadata.Description;
+
 		if (u.IsBuilding && world.Has<UnderConstruction>(u.Entity))
 			info.IsUnderConstruction = true;
 
@@ -145,6 +150,14 @@ public partial class InGameHUDViewModel
 
 	private void UpdateUnitStateText(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
+		// A ruin is still a unit a player can select, so it says in its state line how it comes back. The stat sheet has no
+		// readings block to carry that sentence any more, and the line is where a player already looks for what a unit is doing.
+		if (world.Has<Dormant>(u.Entity))
+		{
+			info.StateText = TranslationServer.Translate("Destroyed (repair to restore)");
+			return;
+		}
+
 		info.StateText = GetBaseStateText(world, u);
 
 		if (u.UnitId == "tower" && world.Has<TowerUpgradeLevel>(u.Entity))
@@ -278,11 +291,6 @@ public partial class InGameHUDViewModel
 	{
 		info.Abilities.Clear();
 		info.AbilityListHandle = world.Has<AbilityState>(u.Entity) ? world.Get<AbilityState>(u.Entity).Handle : 0;
-
-		if (info.Description == null && GameHost.TryGetUnitOrBuildingMetadata(u.UnitId, out var regMeta))
-		{
-			info.Description = regMeta.Description;
-		}
 
 		if (!world.Has<AbilityState>(u.Entity)) return;
 

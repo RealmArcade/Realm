@@ -82,8 +82,11 @@ public partial class CommandPanel
 		return HotkeySpec.None;
 	}
 
-	private Action GetAbilityCallback(string abilityId, bool isInstant)
+	private Action GetAbilityCallback(string abilityId, bool isInstant, bool isPassive)
 	{
+		// A passive card is a description with an icon: there is no cast to start, so pressing it is deliberately inert
+		// rather than entering targeting or being greyed out like an unaffordable active.
+		if (isPassive) return static () => { };
 		if (isInstant) return () => GameContext.Host?.CastInstantAbility(abilityId);
 		return () => GameContext.Host?.EnterSpellTargeting(abilityId);
 	}

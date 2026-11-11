@@ -40,10 +40,6 @@ public class UnitStatsPanel
 	private const float StripIconSize = 22f;
 	private const ulong SignatureSeed = 1469598103934665603UL;
 	private const ulong SignaturePrime = 1099511628211UL;
-	private const int MaximumReadoutRows = 8;
-
-	private static readonly string[] ReadoutNameKeys = BuildReadoutKeys("name");
-	private static readonly string[] ReadoutValueKeys = BuildReadoutKeys("value");
 
 	private static readonly StatId StrengthStat = new(AttributeType.Strength);
 	private static readonly StatId AgilityStat = new(AttributeType.Agility);
@@ -69,17 +65,6 @@ public class UnitStatsPanel
 	private static readonly StatId PercentMagicPenetrationStat = new(CombatStatType.PercentMagicPenetration);
 	private static readonly StatId AttackDelayStat = new(StatKeys.AttackDelay);
 
-	private static string[] BuildReadoutKeys(string field)
-	{
-		var keys = new string[MaximumReadoutRows];
-		for (int index = 0; index < keys.Length; index++)
-		{
-			keys[index] = $"readout.{index}.{field}";
-		}
-
-		return keys;
-	}
-
 	private readonly VBoxContainer _root;
 	private readonly Label _messageLabel;
 	private readonly VBoxContainer _content;
@@ -92,7 +77,6 @@ public class UnitStatsPanel
 	private readonly Label _popupTitle;
 	private readonly VBoxContainer _footer;
 	private readonly Label _stateLabel;
-	private readonly Label _descriptionLabel;
 	private readonly StatRow _strengthRow;
 	private readonly StatRow _agilityRow;
 	private readonly StatRow _vitalityRow;
@@ -117,20 +101,16 @@ public class UnitStatsPanel
 	private readonly StatRow _cooldownReductionRow;
 	private readonly StatRow _tenacityRow;
 	private readonly StatRow _damageTypeRow;
-	private readonly VBoxContainer _readingsSection;
-	private readonly GridContainer _readingsGrid;
-	private readonly List<ReadingRowControl> _readingRows = new();
-	private readonly HBoxContainer _statusEffectsStrip;
-	private readonly VBoxContainer _statusEffectsSection;
+	private readonly HBoxContainer _buffsStrip;
+	private readonly VBoxContainer _buffsSection;
 	private readonly HBoxContainer _upgradesStrip;
 	private readonly VBoxContainer _upgradesSection;
 
-	private readonly List<string> _statusEffectIds = new();
+	private readonly List<string> _buffIds = new();
 	private StatCategory? _popupCategory;
 	private ulong _lastSignature;
-	private ulong _lastStatusEffectsSignature;
+	private ulong _lastBuffsSignature;
 	private ulong _lastUpgradesSignature;
-	private ulong _lastReadingsSignature;
 
 	public UnitStatsPanel()
 	{
@@ -159,8 +139,8 @@ public class UnitStatsPanel
 
 		// The panel lists what a player checks at a glance as one icon per category rather than every stat at once: the
 		// rows themselves live in the popup a category opens on hover, so the frame stays a short strip instead of a wall
-		// of labels. Readings, status effects and upgrades below keep their own sections because they are the map's own
-		// statements about the unit rather than the engine's generic stat sheet.
+		// of labels. Buffs and upgrades below keep their own sections because they are the map's own statements about the
+		// unit rather than the engine's generic stat sheet.
 		var statsSection = new VBoxContainer();
 		statsSection.Name = "UnitStatsCategories_VBoxContainer";
 		statsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -258,43 +238,21 @@ public class UnitStatsPanel
 		_footer.AddThemeConstantOverride("separation", SectionSpacing);
 		_content.AddChild(_footer);
 
-		_readingsSection = new VBoxContainer();
-		_readingsSection.Name = "UnitStatsReadings_VBoxContainer";
-		_readingsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_readingsSection.AddThemeConstantOverride("separation", SectionSeparation);
-		_readingsSection.Visible = false;
-		AddSectionHeader(_readingsSection, UnicodeIcons.LIST, "Readings");
-
-		// Two columns keep a map's full set of rows above the fold at the 1080-wide authoring size; the stat grid
-		// below can scroll without taking a unit's own readings off screen.
-		_readingsGrid = new GridContainer();
-		_readingsGrid.Name = "UnitStatsReadingsGrid_GridContainer";
-		_readingsGrid.Columns = 2;
-		_readingsGrid.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_readingsGrid.AddThemeConstantOverride("h_separation", 24);
-		_readingsGrid.AddThemeConstantOverride("v_separation", SectionSeparation);
-		_readingsSection.AddChild(_readingsGrid);
-
-		// A map publishes what makes its unit special, so those rows lead the panel: they are what a player checks
-		// before acting, and the generic stat grid below them can scroll without taking that information off screen.
-		_content.AddChild(_readingsSection);
-		_content.MoveChild(_readingsSection, 0);
-
-		_statusEffectsSection = new VBoxContainer();
-		_statusEffectsSection.Name = "UnitStatsStatusEffects_VBoxContainer";
-		_statusEffectsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_statusEffectsSection.AddThemeConstantOverride("separation", SectionSeparation);
-		_footer.AddChild(_statusEffectsSection);
-		AddSectionHeader(_statusEffectsSection, UnicodeIcons.CIRCLE_EXCLAMATION, "Status Effects");
-		_statusEffectsStrip = CreateIconStrip("UnitStatsStatusEffects_HBoxContainer");
-		_statusEffectsSection.AddChild(_statusEffectsStrip);
+		_buffsSection = new VBoxContainer();
+		_buffsSection.Name = "UnitStatsBuffs_VBoxContainer";
+		_buffsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_buffsSection.AddThemeConstantOverride("separation", SectionSeparation);
+		_footer.AddChild(_buffsSection);
+		AddSectionHeader(_buffsSection, UnicodeIcons.HEART_PULSE, TranslationServer.Translate("Buffs"));
+		_buffsStrip = CreateIconStrip("UnitStatsBuffs_HBoxContainer");
+		_buffsSection.AddChild(_buffsStrip);
 
 		_upgradesSection = new VBoxContainer();
 		_upgradesSection.Name = "UnitStatsUpgrades_VBoxContainer";
 		_upgradesSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		_upgradesSection.AddThemeConstantOverride("separation", SectionSeparation);
 		_footer.AddChild(_upgradesSection);
-		AddSectionHeader(_upgradesSection, UnicodeIcons.CIRCLE_ARROW_UP, "Upgrades");
+		AddSectionHeader(_upgradesSection, UnicodeIcons.CIRCLE_ARROW_UP, TranslationServer.Translate("Upgrades"));
 		_upgradesStrip = CreateIconStrip("UnitStatsUpgrades_HBoxContainer");
 		_upgradesSection.AddChild(_upgradesStrip);
 
@@ -306,15 +264,6 @@ public class UnitStatsPanel
 		_stateLabel.AddThemeFontSizeOverride("font_size", ValueFontSize);
 		_stateLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		_footer.AddChild(_stateLabel);
-
-		_descriptionLabel = new Label();
-		_descriptionLabel.Name = "UnitStatsDescription_Label";
-		_descriptionLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		_descriptionLabel.CustomMinimumSize = new Vector2(280f, 0f);
-		_descriptionLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_descriptionLabel.AddThemeFontSizeOverride("font_size", ValueFontSize);
-		_descriptionLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_footer.AddChild(_descriptionLabel);
 
 		ShowMessage(string.Empty);
 	}
@@ -359,16 +308,15 @@ public class UnitStatsPanel
 		string damageType = metadata != null && !string.IsNullOrEmpty(metadata.DamageType) ? metadata.DamageType : string.Empty;
 		float experiencePerLevel = metadata != null ? metadata.ExperiencePerLevel : 0f;
 
-		_statusEffectIds.Clear();
-		buffs.CopyKeys(_statusEffectIds);
+		_buffIds.Clear();
+		buffs.CopyKeys(_buffIds);
 
-		// A map's inspector rows live in the presentation store rather than the ECS, so they are refreshed before the
-		// stat signature short-circuits: a change to a published row is not a change to the unit's stats, and a panel
-		// that only redrew when the stats moved would leave its readouts frozen at whatever they were when it opened.
-		UpdateReadings(entity, forceRefresh);
+		// Buff text is published beside the ECS state rather than inside it, so a description that moves (a bulwark
+		// counting a new soldier, for one) has to be refreshed before the stat signature short-circuits.
+		UpdateBuffStrip(entity, buffs);
 
 		ulong signature = ComputeSignature(entity, stats, attributes, experience, level, attack, hasExperience, hasLevel, hasAttack,
-			damageType, experiencePerLevel, info.StateText, info.Description, info.Player, metadata);
+			damageType, experiencePerLevel, info.StateText, info.Player, metadata);
 		if (!forceRefresh && signature == _lastSignature)
 		{
 			return;
@@ -415,18 +363,13 @@ public class UnitStatsPanel
 
 		ApplyText(_stateLabel, info.StateText);
 		_stateLabel.Visible = !string.IsNullOrEmpty(_stateLabel.Text);
-		string description = string.IsNullOrEmpty(info.Description)
-			? string.Empty
-			: TooltipTemplate.Resolve(TranslationServer.Translate(info.Description), TooltipContext.ForUnit(entity));
-		ApplyText(_descriptionLabel, description);
 
-		UpdateStatusEffectStrip();
 		UpdateUpgradeStrip(info, metadata);
 	}
 
 	private ulong ComputeSignature(Entity entity, in Stats stats, in UnitAttributes attributes,
 		in Experience experience, in Level level, in Attack attack, bool hasExperience, bool hasLevel, bool hasAttack,
-		string damageType, float experiencePerLevel, string? stateText, string? description, int playerIndex, UnitMetadata? metadata)
+		string damageType, float experiencePerLevel, string? stateText, int playerIndex, UnitMetadata? metadata)
 	{
 		ulong signature = SignatureSeed;
 		signature = Mix(signature, entity.Id);
@@ -461,14 +404,13 @@ public class UnitStatsPanel
 		signature = Mix(signature, ReadStat(stats, TenacityStat));
 		signature = Mix(signature, damageType);
 		signature = Mix(signature, stateText);
-		signature = Mix(signature, description);
 		signature = Mix(signature, playerIndex);
 		signature = Mix(signature, metadata?.TemplateID);
 		signature = Mix(signature, metadata?.Upgrades == null ? 0 : metadata.Upgrades.Length);
 
-		for (int index = 0; index < _statusEffectIds.Count; index++)
+		for (int index = 0; index < _buffIds.Count; index++)
 		{
-			signature = Mix(signature, _statusEffectIds[index]);
+			signature = Mix(signature, _buffIds[index]);
 		}
 
 		if (metadata?.Upgrades != null)
@@ -483,30 +425,88 @@ public class UnitStatsPanel
 		return signature;
 	}
 
-	private void UpdateStatusEffectStrip()
+	/// <summary>
+	///     Draws one icon per buff the unit carries. A map can publish what its buffs mean under the unit's own tooltip
+	///     keys, so the strip shows the map's words when it has them and a readable fallback when it does not; a timed
+	///     buff also states what is left of it.
+	/// </summary>
+	private void UpdateBuffStrip(Entity entity, in Buffs buffs)
 	{
+		TooltipValueStore? published = GameContext.RegistryService?.TooltipValues;
+		string owner = TooltipValueStore.UnitOwnerKey(entity);
+
 		ulong signature = SignatureSeed;
-		for (int index = 0; index < _statusEffectIds.Count; index++)
+		for (int index = 0; index < _buffIds.Count; index++)
 		{
-			signature = Mix(signature, _statusEffectIds[index]);
+			signature = Mix(signature, _buffIds[index]);
+			signature = Mix(signature, ReadBuffName(published, owner, _buffIds[index]));
+			signature = Mix(signature, ReadBuffDescription(published, owner, _buffIds[index]));
+			signature = Mix(signature, ReadBuffIcon(published, owner, _buffIds[index]));
+			signature = Mix(signature, buffs.GetDuration(index));
 		}
 
-		if (signature == _lastStatusEffectsSignature && _statusEffectsStrip.GetChildCount() > 0)
+		if (signature == _lastBuffsSignature && _buffsStrip.GetChildCount() > 0)
 		{
+			_buffsSection.Visible = true;
 			return;
 		}
 
-		_lastStatusEffectsSignature = signature;
-		ClearStrip(_statusEffectsStrip);
+		_lastBuffsSignature = signature;
+		ClearStrip(_buffsStrip);
 
-		for (int index = 0; index < _statusEffectIds.Count; index++)
+		for (int index = 0; index < _buffIds.Count; index++)
 		{
-			string statusEffectId = _statusEffectIds[index];
-			if (string.IsNullOrEmpty(statusEffectId)) continue;
-			_statusEffectsStrip.AddChild(CreateGlyphIcon(StatusEffectGlyph(statusEffectId), TranslationServer.Translate(ToDisplayName(statusEffectId))));
+			string buffId = _buffIds[index];
+			if (string.IsNullOrEmpty(buffId)) continue;
+
+			string name = ReadBuffName(published, owner, buffId);
+			string description = ReadBuffDescription(published, owner, buffId);
+			string tooltip = TranslationServer.Translate(name);
+			if (!string.IsNullOrEmpty(description)) tooltip += "\n" + TranslationServer.Translate(description);
+
+			float duration = buffs.GetDuration(index);
+			if (duration > 0f && duration < 3600f)
+			{
+				tooltip += "\n" + string.Format(TranslationServer.Translate("{0} s remaining"), MathF.Ceiling(buffs.GetRemaining(index)).ToString(CultureInfo.InvariantCulture));
+			}
+
+			_buffsStrip.AddChild(CreateBuffIcon(ReadBuffIcon(published, owner, buffId), StatusEffectGlyph(buffId), tooltip));
 		}
 
-		_statusEffectsSection.Visible = _statusEffectsStrip.GetChildCount() > 0;
+		_buffsSection.Visible = _buffsStrip.GetChildCount() > 0;
+	}
+
+	private static string ReadBuffName(TooltipValueStore? published, string owner, string buffId)
+	{
+		if (published != null && published.TryGetText(owner, BuffTooltipKey(buffId, "name"), out string name) && !string.IsNullOrWhiteSpace(name)) return name;
+
+		return ToDisplayName(buffId);
+	}
+
+	private static string ReadBuffDescription(TooltipValueStore? published, string owner, string buffId)
+	{
+		return published != null && published.TryGetText(owner, BuffTooltipKey(buffId, "description"), out string description)
+			? description
+			: string.Empty;
+	}
+
+	/// <summary>
+	///     The icon a map drew for one of its buffs. A status effect the map says nothing about falls back to the glyph the
+	///     engine picks from the buff's name, so an undescribed buff is still a readable mark rather than a blank slot.
+	/// </summary>
+	private static string ReadBuffIcon(TooltipValueStore? published, string owner, string buffId)
+	{
+		return published != null && published.TryGetText(owner, BuffTooltipKey(buffId, "icon"), out string iconPath)
+			? iconPath
+			: string.Empty;
+	}
+
+	private static string BuffTooltipKey(string buffId, string field)
+	{
+		string core = buffId.StartsWith("buff/", StringComparison.OrdinalIgnoreCase)
+			? buffId.Substring("buff/".Length)
+			: buffId;
+		return $"buff.{core}.{field}";
 	}
 
 	private void UpdateUpgradeStrip(SelectedUnitInfo info, UnitMetadata? metadata)
@@ -606,9 +606,16 @@ public class UnitStatsPanel
 
 	private static string ToDisplayName(string identifier)
 	{
-		string trimmed = identifier.Contains("upgrade/", StringComparison.Ordinal)
-			? identifier.Replace("upgrade/", string.Empty, StringComparison.Ordinal)
-			: identifier;
+		string trimmed = identifier;
+		string[] prefixes = { "upgrade/", "buff/", "ability/", "item/", "unit/", "building/" };
+		for (int index = 0; index < prefixes.Length; index++)
+		{
+			if (!trimmed.StartsWith(prefixes[index], StringComparison.OrdinalIgnoreCase)) continue;
+
+			trimmed = trimmed.Substring(prefixes[index].Length);
+			break;
+		}
+
 		trimmed = trimmed.Replace('_', ' ');
 		if (trimmed.Length == 0) return identifier;
 		return char.ToUpperInvariant(trimmed[0]) + trimmed.Substring(1);
@@ -616,6 +623,8 @@ public class UnitStatsPanel
 
 	private static string StatusEffectGlyph(string statusEffectId)
 	{
+		if (statusEffectId.Contains("bulwark", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.SHIELD_HEART;
+		if (statusEffectId.Contains("worker", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.WRENCH;
 		if (statusEffectId.Contains("stun", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.CIRCLE_DOT;
 		if (statusEffectId.Contains("silence", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.BAN;
 		if (statusEffectId.Contains("slow", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.SNOWFLAKE;
@@ -624,94 +633,6 @@ public class UnitStatsPanel
 		if (statusEffectId.Contains("haste", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.WIND;
 		if (statusEffectId.Contains("run", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.PERSON_RUNNING;
 		return UnicodeIcons.CIRCLE_EXCLAMATION;
-	}
-
-	private void UpdateReadings(Entity entity, bool forceRefresh)
-	{
-		var world = GameContext.World;
-		UnitCharges charges = default;
-		bool hasCharges = world != null && world.TryGet(entity, out charges) && charges.MaximumCharges > 0;
-
-		float remainingSeconds = hasCharges ? charges.RemainingSecondsToNextCharge() : 0f;
-		int wholeRemainingSeconds = (int)MathF.Ceiling(remainingSeconds);
-
-		TooltipValueStore? published = GameContext.RegistryService?.TooltipValues;
-		string owner = TooltipValueStore.UnitOwnerKey(entity);
-		int publishedRows = 0;
-
-		ulong signature = SignatureSeed;
-		signature = Mix(signature, hasCharges ? 1 : 0);
-		if (hasCharges)
-		{
-			signature = Mix(signature, charges.Charges);
-			signature = Mix(signature, charges.MaximumCharges);
-			signature = Mix(signature, wholeRemainingSeconds);
-		}
-
-		for (int index = 0; index < MaximumReadoutRows; index++)
-		{
-			if (published == null || !published.TryGetText(owner, ReadoutNameKeys[index], out string name) || string.IsNullOrWhiteSpace(name))
-			{
-				signature = Mix(signature, 0);
-				continue;
-			}
-
-			published.TryGetText(owner, ReadoutValueKeys[index], out string value);
-			signature = Mix(signature, name);
-			signature = Mix(signature, value);
-			publishedRows++;
-		}
-
-		signature = Mix(signature, publishedRows);
-
-		if (!forceRefresh && signature == _lastReadingsSignature) return;
-		_lastReadingsSignature = signature;
-
-		int visibleRows = publishedRows + (hasCharges ? 2 : 0);
-		EnsureReadingRows(visibleRows);
-
-		int rowIndex = 0;
-		for (int index = 0; index < MaximumReadoutRows; index++)
-		{
-			if (published == null || !published.TryGetText(owner, ReadoutNameKeys[index], out string name) || string.IsNullOrWhiteSpace(name)) continue;
-
-			published.TryGetText(owner, ReadoutValueKeys[index], out string value);
-			_readingRows[rowIndex].Root.Visible = true;
-			_readingRows[rowIndex].Set(TranslationServer.Translate(name), TranslationServer.Translate(value));
-			rowIndex++;
-		}
-
-		if (hasCharges)
-		{
-			_readingRows[rowIndex].Root.Visible = true;
-			_readingRows[rowIndex].Set(TranslationServer.Translate("Charges"), $"{charges.Charges} / {charges.MaximumCharges}");
-			rowIndex++;
-
-			_readingRows[rowIndex].Root.Visible = true;
-			_readingRows[rowIndex].Set(
-				TranslationServer.Translate("Next charge"),
-				wholeRemainingSeconds <= 0
-					? TranslationServer.Translate("Ready")
-					: string.Format(TranslationServer.Translate("{0} s"), wholeRemainingSeconds.ToString(CultureInfo.InvariantCulture)));
-			rowIndex++;
-		}
-
-		for (int index = rowIndex; index < _readingRows.Count; index++)
-		{
-			_readingRows[index].Root.Visible = false;
-		}
-
-		_readingsSection.Visible = visibleRows > 0;
-	}
-
-	private void EnsureReadingRows(int count)
-	{
-		while (_readingRows.Count < count)
-		{
-			var row = new ReadingRowControl();
-			_readingsGrid.AddChild(row.Root);
-			_readingRows.Add(row);
-		}
 	}
 
 	private static ulong Mix(ulong signature, float value)
@@ -958,10 +879,26 @@ public class UnitStatsPanel
 		return strip;
 	}
 
+	private static Control CreateBuffIcon(string iconPath, string glyph, string tooltip)
+	{
+		Texture2D? texture = string.IsNullOrEmpty(iconPath) ? null : RtexIconLoader.Load(iconPath);
+		if (texture == null) return CreateGlyphIcon(glyph, tooltip);
+
+		var icon = new TextureRect();
+		icon.Name = "UnitStatsBuff_TextureRect";
+		icon.Texture = texture;
+		icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+		icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+		icon.TooltipText = tooltip;
+		icon.MouseFilter = Control.MouseFilterEnum.Pass;
+		icon.CustomMinimumSize = new Vector2(StripIconSize, StripIconSize);
+		return icon;
+	}
+
 	private static Control CreateGlyphIcon(string glyph, string tooltip)
 	{
 		var label = new Label();
-		label.Name = "UnitStatsStatusEffect_Label";
+		label.Name = "UnitStatsBuffIcon_Label";
 		label.Text = glyph;
 		label.TooltipText = tooltip;
 		label.MouseFilter = Control.MouseFilterEnum.Pass;
@@ -1008,58 +945,6 @@ public class UnitStatsPanel
 		public StatRow[] Rows { get; }
 
 		public Label Icon { get; set; } = null!;
-	}
-
-	private class ReadingRowControl
-	{
-		private readonly Label _valueLabel;
-		private readonly Label _nameLabel;
-
-		public ReadingRowControl()
-		{
-			Root = new HBoxContainer();
-			Root.Name = "UnitStatsReadingRow_HBoxContainer";
-			Root.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
-			Root.AddThemeConstantOverride("separation", RowSeparation);
-			Root.MouseFilter = Control.MouseFilterEnum.Pass;
-
-			var iconLabel = new Label();
-			iconLabel.Name = "UnitStatsReadingRowIcon_Label";
-			iconLabel.Text = UnicodeIcons.CIRCLE;
-			iconLabel.CustomMinimumSize = new Vector2(IconColumnWidth, 0f);
-			iconLabel.VerticalAlignment = VerticalAlignment.Center;
-			iconLabel.MouseFilter = Control.MouseFilterEnum.Pass;
-			ApplyIconFont(iconLabel);
-			iconLabel.AddThemeFontSizeOverride("font_size", IconFontSize);
-			iconLabel.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
-			Root.AddChild(iconLabel);
-
-			_nameLabel = new Label();
-			_nameLabel.Name = "UnitStatsReadingRowName_Label";
-			_nameLabel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
-			_nameLabel.VerticalAlignment = VerticalAlignment.Center;
-			_nameLabel.MouseFilter = Control.MouseFilterEnum.Pass;
-			_nameLabel.AddThemeFontSizeOverride("font_size", ValueFontSize);
-			_nameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-			Root.AddChild(_nameLabel);
-
-			_valueLabel = new Label();
-			_valueLabel.Name = "UnitStatsReadingRowValue_Label";
-			_valueLabel.VerticalAlignment = VerticalAlignment.Center;
-			_valueLabel.MouseFilter = Control.MouseFilterEnum.Pass;
-			_valueLabel.AddThemeFontSizeOverride("font_size", ValueFontSize);
-			_valueLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			Root.AddChild(_valueLabel);
-		}
-
-		public HBoxContainer Root { get; }
-
-		public void Set(string label, string value)
-		{
-			ApplyText(_nameLabel, label);
-			ApplyText(_valueLabel, value);
-			_valueLabel.Visible = !string.IsNullOrEmpty(value);
-		}
 	}
 
 	private class StatRow

@@ -147,22 +147,12 @@ public partial class MultiplayerSimulationHarness : Node
 			return null;
 		}
 
-		void CheckReadingsFold(string label, Node? readingsNode)
-		{
-			if (readingsNode is not Control readingsControl || hud.FindChild("StatsScroll", true, false) is not ScrollContainer scroll)
-			{
-				Check($"{label} readings are measurable", false);
-				return;
-			}
+		Node? BuffStrip() => hud.FindChild("UnitStatsBuffs_HBoxContainer", true, false);
 
-			float viewportTop = scroll.GlobalPosition.Y;
-			float viewportBottom = viewportTop + scroll.Size.Y;
-			float readingsTop = readingsControl.GlobalPosition.Y;
-			float readingsBottom = readingsTop + readingsControl.Size.Y;
-			Check($"{label} readings lead the inspector", MathF.Abs(readingsTop - viewportTop) <= 1f,
-				$"readings start {readingsTop:0.#} viewport start {viewportTop:0.#}");
-			Check($"{label} readings stay above the fold", readingsBottom <= viewportBottom + 1f,
-				$"readings {readingsTop:0.#}..{readingsBottom:0.#} viewport {viewportTop:0.#}..{viewportBottom:0.#}");
+		string BuffTooltipAt(Node? strip, int index)
+		{
+			if (strip == null || index < 0 || index >= strip.GetChildCount()) return string.Empty;
+			return strip.GetChild(index) is Control icon ? icon.TooltipText : string.Empty;
 		}
 
 		static bool ReadOverheadCharge(Unit3D? building, UnitHealthBarOverlay? overlay, out int badgeValue, out int chargeValue)
@@ -283,18 +273,24 @@ public partial class MultiplayerSimulationHarness : Node
 			Check("double-tapping a control group centers it on screen", unitOnScreen.DistanceTo(screenCenter) < 60f, $"unit at {unitOnScreen}, center {screenCenter}");
 		}
 
+		// The readings block is gone: what a unit carries is its buff strip and what it is belongs on the portrait, so the
+		// hero's sheet has to show Bulwark as a hoverable buff icon instead of a row of labels.
 		Node? readings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
-		Check("readings section visible", readings is Control { Visible: true });
-		CheckReading(readings, "Innate", FactionInnate, Check);
-		CheckReading(readings, "Relics", "0 / 6", Check);
-		if (!IsSable)
-		{
-			string? bulwark = ReadReadingValue(readings, "Bulwark");
-			Check("bulwark row present", bulwark != null, bulwark ?? "missing");
-			Check("bulwark uses one building", bulwark != null && bulwark.Contains("1 building", StringComparison.Ordinal), bulwark ?? "missing");
-		}
+		Check("the stat sheet no longer draws a readings block", readings == null, readings?.Name ?? "absent");
 
-		CheckReadingsFold("hero", readings);
+		Node? heroBuffs = BuffStrip();
+		Check("the stat sheet has a buffs section", heroBuffs is HBoxContainer { Visible: true }, heroBuffs?.Name ?? "missing");
+		int heroBuffIcons = heroBuffs?.GetChildCount() ?? 0;
+		Check("the hero lists its bulwark as a buff", heroBuffIcons >= 1, $"icons={heroBuffIcons}");
+		string bulwarkText = BuffTooltipAt(heroBuffs, 0);
+		Check("the bulwark buff names itself on hover", bulwarkText.Contains("Bulwark", StringComparison.Ordinal), bulwarkText);
+		Check("the bulwark buff states what it counts on hover", bulwarkText.Contains("Nearby soldiers", StringComparison.Ordinal), bulwarkText);
+		Check("the bulwark buff draws a map icon rather than only a glyph", heroBuffs?.GetChild(0) is TextureRect, heroBuffs?.GetChild(0).GetType().Name ?? "missing");
+
+		Node? portraitTooltip = hud.FindChild("PortraitTexture", true, false);
+		Check("the portrait carries the unit description as its hover text",
+			portraitTooltip is TextureRect portrait && portrait.TooltipText.Contains(FactionDescriptionFragment, StringComparison.OrdinalIgnoreCase),
+			(portraitTooltip as Control)?.TooltipText ?? "missing");
 
 		// The stat sheet is read through category icons: the frame stays a short strip, and hovering a category shows the
 		// rows that belong to it. The pointer is driven by emitting the same signals Godot sends, so the popup path is
@@ -354,6 +350,21 @@ public partial class MultiplayerSimulationHarness : Node
 		{
 			Check("Sable's card offers Ember Lance", FindCommandButton(hud, "Ember Lance") != null);
 			Check("Sable's card offers Backdraft", FindCommandButton(hud, "Backdraft") != null);
+		}
+
+		// The innate is a standard card in the grid, with the same icon and tooltip an active has. It is not cast and not
+		// greyed out, so the only thing pressing it may do is nothing.
+		Button? innateCard = FindCommandButton(hud, FactionInnate);
+		Check("the innate is drawn as a standard ability card", innateCard != null, FactionInnate);
+		if (innateCard != null)
+		{
+			Check("the innate card carries the passive ability tooltip", innateCard.TooltipText.Contains("[Innate]", StringComparison.Ordinal), innateCard.TooltipText);
+			Check("the innate card keeps its icon", innateCard.Icon != null, "no icon");
+			Check("the innate card is not greyed out like an active that cannot be paid for", !innateCard.Disabled, "disabled");
+			string? targetingBeforeInnate = currentHost.ActiveSpellTargeting;
+			innateCard.EmitSignal(Button.SignalName.Pressed);
+			await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
+			Check("pressing the innate card starts no cast and no targeting", currentHost.ActiveSpellTargeting == targetingBeforeInnate, currentHost.ActiveSpellTargeting ?? "none");
 		}
 
 		Button? beginButton = FindCommandButton(hud, "Begin Construction");
@@ -424,10 +435,7 @@ public partial class MultiplayerSimulationHarness : Node
 				currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
 				await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 				Check("begin construction is withdrawn while its draw is open", FindCommandButton(hud, "Begin Construction") == null);
-				Node? draftReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
-				int offeredReadings = CountReadingRowsNamed(draftReadings, "Offered");
-				Check("the draw publishes an offered reading per package", offeredReadings == 3, $"rows={offeredReadings}");
-				CheckReadingsFold("hero with the draw open", draftReadings);
+				Check("the draw leaves no offer rows on the hero's stat sheet", hud.FindChild("UnitStatsReadings_VBoxContainer", true, false) == null);
 
 				// Abandoning is the only way back out of a draw, so it is played before anything is locked: the reserved
 				// wood has to return, the begin card has to come back and the offers have to leave both grids.
@@ -456,8 +464,6 @@ public partial class MultiplayerSimulationHarness : Node
 				await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 				Check("abandoning the draw restores the begin card", FindCommandButton(hud, "Begin Construction") != null);
 				Check("abandoning the draw withdraws the offers", FindDraftOffers().Count == 0);
-				Node? abandonedReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
-				Check("abandoning the draw clears the offered readings", CountReadingRowsNamed(abandonedReadings, "Offered") == 0);
 				SaveUxScreenshot("ux_smoke_abandoned.png", "abandoned", Note);
 			}
 			else
@@ -500,8 +506,6 @@ public partial class MultiplayerSimulationHarness : Node
 				Check("dying with a draw open returns its wood", hud.Wood >= woodBefore - 1f, $"wood {hud.Wood:0.##} expected {woodBefore:0.##}");
 				Check("dying with a draw open withdraws the offers", FindUnit(currentHost, "unit/blueprint", 1) == null);
 				Check("a fallen hero offers no construction draw", FindCommandButton(hud, "Begin Construction") == null);
-				Node? midDrawReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
-				Check("dying with a draw open clears the offered readings", CountReadingRowsNamed(midDrawReadings, "Offered") == 0);
 
 				hero = await WaitForRevivalAsync();
 				Check("the hero revives after dying inside a draw", hero != null);
@@ -725,13 +729,8 @@ public partial class MultiplayerSimulationHarness : Node
 			currentHost.SelectUnitInternal(new UnitId(soldier.Entity.Id));
 			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
 
-			Node? soldierReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
-			Check("soldier readings visible", soldierReadings is Control { Visible: true });
-			Check("soldier reports its formation", ReadReadingValue(soldierReadings, "Formation") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Formation") ?? "missing");
-			Check("soldier reports its targeting rule", ReadReadingValue(soldierReadings, "Targeting") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Targeting") ?? "missing");
-			Check("soldier reports its source building", ReadReadingValue(soldierReadings, "Produced by") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Produced by") ?? "missing");
-			Check("soldier reports the charges of its source building", ReadReadingValue(soldierReadings, "Charges") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Charges") ?? "missing");
-			CheckReadingsFold("soldier", soldierReadings);
+			Node? soldierStats = hud.FindChild("UnitStatsCategories_HBoxContainer", true, false);
+			Check("the soldier shows the standard stat sheet", soldierStats is HBoxContainer { Visible: true }, soldierStats?.Name ?? "missing");
 
 			// A soldier is the map's to command: its cards stay on the grid so a player can read what the army does, but
 			// nothing on that grid may be pressed. The order cards are left off entirely rather than offered and refused.
@@ -782,9 +781,11 @@ public partial class MultiplayerSimulationHarness : Node
 
 			// The building's permanent buff is part of what a player reads to judge the worker, so it has to appear on
 			// the stat sheet next to the stats it raises.
-			Node? workerEffects = hud.FindChild("UnitStatsStatusEffects_HBoxContainer", true, false);
+			Node? workerEffects = BuffStrip();
 			int workerBuffIcons = workerEffects?.GetChildCount() ?? 0;
 			Check("the worker lists the buff its building gave it", workerBuffIcons >= 1, $"effects={workerBuffIcons}");
+			Check("the worker's buff explains itself on hover", BuffTooltipAt(workerEffects, 0).Contains("Crew", StringComparison.Ordinal), BuffTooltipAt(workerEffects, 0));
+			Check("the worker's buff draws a map icon", workerEffects?.GetChild(0) is TextureRect, workerEffects?.GetChild(0).GetType().Name ?? "missing");
 
 			FocusCamera(worker.GlobalPosition);
 			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
@@ -808,16 +809,12 @@ public partial class MultiplayerSimulationHarness : Node
 			currentHost.SelectUnitInternal(new UnitId(productionBuilding.Entity.Id));
 			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
 
-			Node? buildingReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
-			Check("building readings visible", buildingReadings is Control { Visible: true });
-			Check("building reports what it unlocks", ReadReadingValue(buildingReadings, "Unlocks") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Unlocks") ?? "missing");
-			Check("building reports its capacity", ReadReadingValue(buildingReadings, "Capacity") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Capacity") ?? "missing");
-			string? workerCrew = ReadReadingValue(buildingReadings, "Workers");
-			Check("building reports its worker crew and their buffs",
-				workerCrew is { Length: > 0 } && (workerCrew.Contains("gold", StringComparison.Ordinal) || workerCrew.Contains("wood", StringComparison.Ordinal)),
-				workerCrew ?? "missing");
-			Check("building reports its production", ReadReadingValue(buildingReadings, "Production") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Production") ?? "missing");
-			CheckReadingsFold("building", buildingReadings);
+			Node? buildingStats = hud.FindChild("UnitStatsCategories_HBoxContainer", true, false);
+			Check("the building shows the standard stat sheet", buildingStats is HBoxContainer { Visible: true }, buildingStats?.Name ?? "missing");
+			Node? buildingProductionBox = hud.FindChild("ProductionBox_VBoxContainer", true, false);
+			Check("the building shows its production box", buildingProductionBox is Control { Visible: true }, buildingProductionBox?.Name ?? "missing");
+			Node? buildingProductionTitle = hud.FindChild("ProductionTitle_Label", true, false);
+			Check("the production box names what the building is doing", buildingProductionTitle is Label productionLabel && productionLabel.Text.Length > 0, (buildingProductionTitle as Label)?.Text ?? "missing");
 			FocusCamera(productionBuilding.GlobalPosition);
 			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 			Check("the drafted building stands on screen", IsOnScreen(productionBuilding.GlobalPosition), $"building {productionBuilding.GlobalPosition} camera {ActiveCamera()?.Position}");
@@ -845,8 +842,8 @@ public partial class MultiplayerSimulationHarness : Node
 
 			currentHost.SelectUnitInternal(new UnitId(productionBuilding.Entity.Id));
 			await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
-			string? ruinProduction = ReadReadingValue(buildingReadings, "Production");
-			Check("the ruin says how it comes back", string.Equals(ruinProduction, "Destroyed (repair to restore)", StringComparison.Ordinal), ruinProduction ?? "missing");
+			Node? ruinState = hud.FindChild("UnitStatsState_Label", true, false);
+			Check("the ruin says how it comes back", ruinState is Label { Visible: true } stateLabel && stateLabel.Text.Contains("repair to restore", StringComparison.OrdinalIgnoreCase), (ruinState as Label)?.Text ?? "missing");
 			Check("the ruin reads at zero health", ReadHealth(productionBuilding) <= 0.01f, $"health {ReadHealth(productionBuilding):0.#}");
 			SaveUxScreenshot("ux_smoke_dormant.png", "dormant", Note);
 
@@ -955,9 +952,9 @@ public partial class MultiplayerSimulationHarness : Node
 		{
 			currentHost.SelectUnitInternal(new UnitId(revivedHero.Entity.Id));
 			await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
-			Node? revivedReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
-			CheckReading(revivedReadings, "Relics", "2 / 6", Check);
-			CheckReadingsFold("revived hero", revivedReadings);
+			Node? revivedBuffs = BuffStrip();
+			Check("the revived hero still lists its buffs", revivedBuffs is HBoxContainer { Visible: true } && revivedBuffs.GetChildCount() >= 1,
+				$"icons={revivedBuffs?.GetChildCount() ?? 0}");
 			FocusCamera(revivedHero.GlobalPosition);
 			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 			Check("the revived hero stands on screen", IsOnScreen(revivedHero.GlobalPosition), $"hero {revivedHero.GlobalPosition} camera {ActiveCamera()?.Position}");
@@ -1320,67 +1317,11 @@ public partial class MultiplayerSimulationHarness : Node
 		return world.Get<Mana>(unit.Entity).Current;
 	}
 
-	private static string? ReadReadingValue(Node? readings, string name)
-	{
-		if (readings == null) return null;
-
-		foreach (Node child in readings.GetChildren())
-		{
-			if (child is HBoxContainer { Visible: true } row)
-			{
-				string rowName = string.Empty;
-				string rowValue = string.Empty;
-				foreach (Node labelNode in row.GetChildren())
-				{
-					if (labelNode is not Label label) continue;
-					if (label.Name == "UnitStatsReadingRowName_Label") rowName = label.Text;
-					if (label.Name == "UnitStatsReadingRowValue_Label") rowValue = label.Text;
-				}
-
-				if (string.Equals(rowName, name, StringComparison.Ordinal)) return rowValue;
-			}
-
-			string? nested = ReadReadingValue(child, name);
-			if (nested != null) return nested;
-		}
-
-		return null;
-	}
-
-	private static int CountReadingRowsNamed(Node? readings, string name)
-	{
-		if (readings == null) return 0;
-
-		int count = 0;
-		foreach (Node child in readings.GetChildren())
-		{
-			if (child is HBoxContainer { Visible: true } row)
-			{
-				foreach (Node labelNode in row.GetChildren())
-				{
-					if (labelNode is Label label && label.Name == "UnitStatsReadingRowName_Label" && string.Equals(label.Text, name, StringComparison.Ordinal))
-					{
-						count++;
-						break;
-					}
-				}
-			}
-
-			count += CountReadingRowsNamed(child, name);
-		}
-
-		return count;
-	}
-
-	private void CheckReading(Node? readings, string name, string expected, Action<string, bool, string> check)
-	{
-		string? actual = ReadReadingValue(readings, name);
-		check($"{name} reading", string.Equals(actual, expected, StringComparison.Ordinal), $"'{actual}' expected '{expected}'");
-	}
-
 	private bool IsSable => string.Equals(_faction, "Sable", StringComparison.OrdinalIgnoreCase);
 
 	private string FactionInnate => IsSable ? "Cinder Mark" : "Unbroken";
+
+	private string FactionDescriptionFragment => IsSable ? "Ranged area-damage spellcaster" : "Durable frontline commander";
 
 	private string FactionActiveName => IsSable ? "Cinderfield" : "Grounding Shout";
 

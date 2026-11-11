@@ -87,7 +87,6 @@ public class MeleeRelicVendorTests
 		Assert.That(_match.Gold(1), Is.EqualTo(goldBefore - RelicCost).Within(0.01f), "A relic costs one hundred gold.");
 		Assert.That(_match.UnitHasItem(hero, relicId), Is.True, "The relic has to land in the hero's inventory.");
 		Assert.That(_match.IsAbilityDisabled(nexus, relicId), Is.True, "A relic the hero already holds has to be disabled in the vendor.");
-		Assert.That(_match.UnitReadout(1, hero, 1, valueColumn: true), Is.EqualTo("1 / 6"), "The inspector has to report the slot the relic took.");
 	}
 
 	[Test]
@@ -143,7 +142,7 @@ public class MeleeRelicVendorTests
 		}
 
 		Assert.That(_match.Gold(1), Is.EqualTo(1000f - RelicCost * RelicSlotCount).Within(0.01f), "Six relics cost six hundred gold.");
-		Assert.That(_match.UnitReadout(1, hero, 1, valueColumn: true), Is.EqualTo($"{RelicSlotCount} / {RelicSlotCount}"), "The inspector has to report a full relic row.");
+		Assert.That(_match.TotalItemCount(1, RelicIds[RelicIds.Length - 1]), Is.EqualTo(1), "The sixth relic has to sit in the hero's inventory like every other one.");
 	}
 
 	[Test]
