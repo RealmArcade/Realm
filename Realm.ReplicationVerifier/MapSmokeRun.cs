@@ -98,6 +98,8 @@ public static class MapSmokeRun
 		Console.WriteLine($"ability state: {baseline.AbilityStates.Count} change(s), {namedAbilityChanges} about an ability their unit does not list");
 		Check(namedAbilityChanges > 0, "the map can withhold an option its unit does not list among its own abilities");
 
+		DescribeAbilityHiding(map, simulation, seconds);
+
 		int registeredCards = 0;
 		int describedLabels = 0;
 		int placedCameras = 0;
@@ -147,6 +149,42 @@ public static class MapSmokeRun
 
 		Console.WriteLine($"map smoke: {checks - failures}/{checks} checks passed");
 		return failures > 0 ? 1 : 0;
+	}
+
+	/// <summary>
+	///     Runs the draft far enough for the map to withhold what it withholds, then states what one peer would be told
+	///     about each unit: whether an exception is addressed by slot or by name, and how many of each the unit carries.
+	/// </summary>
+	private static void DescribeAbilityHiding(LoadedMap map, ServerSimulation simulation, int seconds)
+	{
+		simulation.ApplyConsoleCommand(1, new ScriptConsoleCommand { Command = "-unlockTiles", SelectedUnitEntityId = 0 });
+
+		for (int tick = 0; tick < 20 * Math.Max(seconds, 4); tick++) simulation.Step();
+
+		WorldSnapshot described = simulation.BuildSnapshotForPeer(1, simulation.AdvanceSnapshotSequence(), forceBaseline: true);
+		var bySlot = new Dictionary<int, int>();
+		var byName = new Dictionary<int, int>();
+		var sampleNames = new Dictionary<int, string>();
+		foreach (AbilityStateDelta delta in described.AbilityStates)
+		{
+			if (string.IsNullOrEmpty(delta.AbilityId))
+			{
+				bySlot[delta.ServerEntityId] = bySlot.GetValueOrDefault(delta.ServerEntityId) + 1;
+				continue;
+			}
+
+			byName[delta.ServerEntityId] = byName.GetValueOrDefault(delta.ServerEntityId) + 1;
+			if (!sampleNames.ContainsKey(delta.ServerEntityId)) sampleNames[delta.ServerEntityId] = delta.AbilityId;
+		}
+
+		foreach (Entity entity in map.World.Query<AbilityState>())
+		{
+			ref AbilityState abilityState = ref map.World.Get<AbilityState>(entity);
+			if (abilityState.Count == 0) continue;
+
+			string name = map.World.Has<Realm.Ecs.Components.Meta.Name>(entity) ? map.World.Get<Realm.Ecs.Components.Meta.Name>(entity).Value : string.Empty;
+			Console.WriteLine($"hiding: unit {entity.Id} '{name}' list={abilityState.Count} bySlot={bySlot.GetValueOrDefault(entity.Id)} byName={byName.GetValueOrDefault(entity.Id)} firstNamed='{(sampleNames.TryGetValue(entity.Id, out string? sample) ? sample : string.Empty)}'");
+		}
 	}
 
 	private static int CountUnits(EcsWorld world)

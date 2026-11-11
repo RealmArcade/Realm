@@ -11,7 +11,8 @@ public record BenchmarkOptions(
 	double TickDeltaSeconds,
 	int Workers,
 	bool Probe,
-	bool ZstdSweep)
+	bool ZstdSweep,
+	bool ShroudOff)
 {
 	public const int DefaultZstdSweepFrames = 120;
 	public const int DefaultUnits = 300;
@@ -23,11 +24,11 @@ public record BenchmarkOptions(
 	public const int DefaultWorkers = 0;
 
 	public static string Usage =>
-		"Realm.Benchmarks [--units 300] [--players 24] [--ticks 600] [--warmup 120] [--derate 0.75] [--tick-delta 0.0333] [--workers 0] [--zstd-sweep]";
+		"Realm.Benchmarks [--units 300] [--players 24] [--ticks 600] [--warmup 120] [--derate 0.75] [--tick-delta 0.0333] [--workers 0] [--shroud-off] [--zstd-sweep]";
 
 	public static bool TryParse(string[] arguments, out BenchmarkOptions options, out string error)
 	{
-		options = new BenchmarkOptions(DefaultUnits, DefaultPlayers, DefaultTicks, DefaultWarmupTicks, DefaultReferenceDerate, DefaultTickDeltaSeconds, DefaultWorkers, false, false);
+		options = new BenchmarkOptions(DefaultUnits, DefaultPlayers, DefaultTicks, DefaultWarmupTicks, DefaultReferenceDerate, DefaultTickDeltaSeconds, DefaultWorkers, false, false, false);
 		error = string.Empty;
 
 		for (int index = 0; index < arguments.Length; index++)
@@ -50,6 +51,13 @@ public record BenchmarkOptions(
 				options = options with { ZstdSweep = true };
 				continue;
 			}
+
+			if (name is "--shroud-off")
+			{
+				options = options with { ShroudOff = true };
+				continue;
+			}
+
 
 			if (index + 1 >= arguments.Length)
 			{

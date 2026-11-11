@@ -11,7 +11,7 @@ namespace Realm.ListenServer;
 /// </summary>
 public class ServerLobbyRoster
 {
-	private readonly ServerLobby _lobby;
+	private readonly ILobbySeatTable _lobby;
 	private readonly ServerLog _log;
 	private readonly List<string> _factions = new(EcsSharedMemory.MAX_LOBBY_FACTIONS);
 	private readonly bool[] _factionLocked = new bool[EcsSharedMemory.MAX_PLAYERS];
@@ -21,10 +21,11 @@ public class ServerLobbyRoster
 	private uint _revision;
 	private int _teamCount = LobbyLimits.DefaultTeamCount;
 
-	public ServerLobbyRoster(ServerLobby lobby, ServerLog log)
+	public ServerLobbyRoster(ILobbySeatTable lobby, ServerLog log, int teamCount = LobbyLimits.DefaultTeamCount)
 	{
 		_lobby = lobby;
 		_log = log;
+		_teamCount = Math.Clamp(teamCount, 1, LobbyLimits.MaximumSeats);
 	}
 
 	public int FactionCount => _factions.Count;

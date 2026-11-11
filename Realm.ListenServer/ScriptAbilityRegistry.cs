@@ -3,6 +3,7 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Replication;
 using Realm.Shared.Abilities;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 
@@ -25,8 +26,23 @@ public class ScriptAbilityRegistry
 	private readonly Dictionary<(int UnitId, string AbilityId), byte> _currentIdFlags = new();
 	private readonly Dictionary<int, Dictionary<(int UnitId, short AbilityIndex), byte>> _toldByPeer = new();
 	private readonly Dictionary<int, Dictionary<(int UnitId, string AbilityId), byte>> _toldIdFlagsByPeer = new();
+	private readonly Dictionary<int, Dictionary<(int UnitId, short AbilityIndex), int>> _restatementsByPeer = new();
+	private readonly Dictionary<int, Dictionary<(int UnitId, string AbilityId), int>> _namedRestatementsByPeer = new();
+
+	/// <summary>
+	///     How many descriptions a peer is told the same exception for. A component that changes is restated while it keeps
+	///     differing, but an exception the map declared once has nothing left to say after the description that carried it —
+	///     and that one description is not a delivery. It can be lost, or arrive for a unit this screen is still building, and
+	///     the match had already recorded it as told, so the grid offered every ability the map withheld for the rest of the
+	///     match. Stating it a few times is what makes a lost one cost a description rather than the match, which is the same
+	///     allowance a component removal is given.
+	/// </summary>
+	private const int RestatedDescriptionCount = 4;
 	private readonly List<(int UnitId, short AbilityIndex)> _clearedKeys = new();
+	private readonly List<int> _changedAbilityListUnitIds = new();
+	private readonly HashSet<int> _unitsOwedAbilityRestatement = new();
 	private bool _abilityListsPublished;
+	private bool _statesChanged = true;
 
 	public ScriptAbilityRegistry(DefinitionCatalog catalog)
 	{
@@ -184,10 +200,25 @@ public class ScriptAbilityRegistry
 
 	public static string OwnerKey(string kind, int id) => $"{kind}:{id}";
 
+	/// <summary>
+	///     Records what a map declared about one unit's ability. A map restates the same declaration every time it
+	///     re-applies a tile or recomputes an offer, which is many times a tick, so a call that repeats the state already
+	///     recorded is dropped before it normalizes the identifier: normalizing allocates a string per spelling, and the
+	///     table it writes into is walked once a tick for as long as the match runs.
+	/// </summary>
 	public void SetUnitAbilityState(int unitId, string abilityId, bool disabled, bool hidden)
 	{
 		if (unitId <= 0 || string.IsNullOrWhiteSpace(abilityId)) return;
 
+		if (_unitAbilityStates.TryGetValue((unitId, abilityId), out ScriptAbilityState recorded)
+		    && recorded.Disabled == disabled
+		    && recorded.Hidden == hidden
+		    && string.Equals(recorded.DeclaredId, abilityId, StringComparison.Ordinal))
+		{
+			return;
+		}
+
+		_statesChanged = true;
 		foreach (string candidate in NormalizedAbilityIds(abilityId))
 		{
 			var key = (unitId, candidate);
@@ -245,23 +276,76 @@ public class ScriptAbilityRegistry
 		return null;
 	}
 
-	public List<AbilityStateDelta> CollectDeltas(int peerId, EcsWorld world, bool includeAll)
+	/// <summary>
+	///     Collects what every peer's deltas are computed from, once per tick rather than once per peer. The ability list a
+	///     unit publishes and the disabled/hidden flags it carries are the same for every screen, and rebuilding them for
+	///     each of twelve peers cost a full room five milliseconds of every thirty-three when they were collected that way.
+	/// </summary>
+	public void PrepareTick(EcsWorld world)
 	{
-		_deltas.Clear();
+		long handlesStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		CollectAbilityListHandles(world);
 
-		bool abilityListsChanged = _abilityListsPublished && HasAnyAbilityListChanged();
+		bool abilityListsChanged = CollectChangedAbilityListUnits();
 		_abilityListsPublished = true;
-		if (abilityListsChanged) _toldByPeer.Clear();
+
+		// A list that changed renumbers every slot the exceptions were addressed by, so what every peer was told about
+		// those slots stops meaning what it said: the units whose list moved forget what they were told by slot, and are
+		// stated again in full. What every peer was told about those units by name is kept, because a name is not a slot
+		// and a list moving cannot change what it means - and it is the only record of which exceptions a screen holds, so
+		// dropping it lost the change that makes an ability visible again, since a state the map stopped withholding is
+		// stated by the delta that clears it and by nothing else.
+		if (abilityListsChanged)
+		{
+			for (int index = 0; index < _changedAbilityListUnitIds.Count; index++)
+			{
+				int changedUnitId = _changedAbilityListUnitIds[index];
+				ForgetToldAbilityStateSlotsForUnit(changedUnitId);
+				_unitsOwedAbilityRestatement.Add(changedUnitId);
+			}
+		}
+
+		_publishedAbilityListHandles.Clear();
+		foreach (var entry in _abilityListHandles) _publishedAbilityListHandles[entry.Key] = entry.Value;
+		if (handlesStarted != 0L) LagProbe.Add(LagStage.AuthorityPrepareAbilityListHandlesMilliseconds, LagProbe.ElapsedMilliseconds(handlesStarted));
+
+		// What a peer is told about an ability is a function of what the map declared and of the ability list it resolves
+		// against, and neither of those moves on most ticks: the table is rebuilt only when one of them did. Rebuilding it
+		// every tick was the largest single cost a full room paid, five milliseconds of every thirty-three.
+		if (!_statesChanged && !abilityListsChanged) return;
+
+		long flagsStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+		CollectExceptionFlags(world);
+		_statesChanged = false;
+		if (flagsStarted != 0L) LagProbe.Add(LagStage.AuthorityPrepareAbilityFlagsMilliseconds, LagProbe.ElapsedMilliseconds(flagsStarted));
+	}
+
+	public List<AbilityStateDelta> CollectDeltas(int peerId, EcsWorld world, bool includeAll)
+	{
+		PrepareTick(world);
+		return CollectDeltas(peerId, world, includeAll, _deltas);
+	}
+
+	/// <summary>
+	///     Fills the caller's list with the ability deltas one peer is owed. The list is the caller's because every peer in
+	///     a room is collected in the same tick before any lane reads them: one shared list left every peer holding the last
+	///     peer's deltas, so a screen was told about another screen's units and never told about its own.
+	/// </summary>
+	public List<AbilityStateDelta> CollectDeltas(int peerId, EcsWorld world, bool includeAll, List<AbilityStateDelta> deltas)
+	{
+		deltas.Clear();
 
 		Dictionary<(int UnitId, short AbilityIndex), byte> told = GetTold(peerId);
-		CollectExceptionFlags(world);
+		Dictionary<(int UnitId, short AbilityIndex), int> restatements = GetRestatements(peerId);
+		bool restateEverything = includeAll;
 
 		foreach (var entry in _currentFlags)
 		{
-			if (!includeAll && told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value) continue;
+			bool restatedForUnit = !restateEverything && _unitsOwedAbilityRestatement.Contains(entry.Key.UnitId);
+			bool alreadyStatedOnce = told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value;
+			if (!restateEverything && !restatedForUnit && alreadyStatedOnce && !IsOwedAnotherStatement(restatements, entry.Key)) continue;
 
-			_deltas.Add(new AbilityStateDelta
+			deltas.Add(new AbilityStateDelta
 			{
 				ServerEntityId = entry.Key.UnitId,
 				AbilityIndex = entry.Key.AbilityIndex,
@@ -269,6 +353,7 @@ public class ScriptAbilityRegistry
 			});
 
 			told[entry.Key] = entry.Value;
+			restatements[entry.Key] = RestatedDescriptionCount;
 		}
 
 		_clearedKeys.Clear();
@@ -277,7 +362,7 @@ public class ScriptAbilityRegistry
 			if (_currentFlags.ContainsKey(entry.Key)) continue;
 
 			_clearedKeys.Add(entry.Key);
-			_deltas.Add(new AbilityStateDelta
+			deltas.Add(new AbilityStateDelta
 			{
 				ServerEntityId = entry.Key.UnitId,
 				AbilityIndex = entry.Key.AbilityIndex,
@@ -287,24 +372,21 @@ public class ScriptAbilityRegistry
 
 		for (int index = 0; index < _clearedKeys.Count; index++) told.Remove(_clearedKeys[index]);
 
-		CollectNamedDeltas(peerId, includeAll);
+		CollectNamedDeltas(peerId, includeAll, deltas);
 
-		_publishedAbilityListHandles.Clear();
-		foreach (var entry in _abilityListHandles)
-		{
-			_publishedAbilityListHandles[entry.Key] = entry.Value;
-		}
+		SpendRestatements(peerId);
+		SpendNamedRestatements(peerId);
 
-		_deltas.Sort(static (left, right) =>
+		deltas.Sort(static (left, right) =>
 		{
 			int byEntity = left.ServerEntityId.CompareTo(right.ServerEntityId);
 			return byEntity != 0 ? byEntity : left.AbilityIndex.CompareTo(right.AbilityIndex);
 		});
 
-		return _deltas;
+		return deltas;
 	}
 
-	private void CollectNamedDeltas(int peerId, bool includeAll)
+	private void CollectNamedDeltas(int peerId, bool restateEverything, List<AbilityStateDelta> deltas)
 	{
 		if (!_toldIdFlagsByPeer.TryGetValue(peerId, out Dictionary<(int UnitId, string AbilityId), byte>? told))
 		{
@@ -312,11 +394,14 @@ public class ScriptAbilityRegistry
 			_toldIdFlagsByPeer[peerId] = told;
 		}
 
+		Dictionary<(int UnitId, string AbilityId), int> restatements = GetNamedRestatements(peerId);
+
 		foreach (var entry in _currentIdFlags)
 		{
-			if (!includeAll && told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value) continue;
+			bool alreadyStatedOnce = told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value;
+			if (!restateEverything && alreadyStatedOnce && !IsOwedAnotherStatement(restatements, entry.Key)) continue;
 
-			_deltas.Add(new AbilityStateDelta
+			deltas.Add(new AbilityStateDelta
 			{
 				ServerEntityId = entry.Key.UnitId,
 				AbilityIndex = -1,
@@ -325,6 +410,7 @@ public class ScriptAbilityRegistry
 			});
 
 			told[entry.Key] = entry.Value;
+			restatements[entry.Key] = RestatedDescriptionCount;
 		}
 
 		_clearedNamedKeys.Clear();
@@ -333,7 +419,7 @@ public class ScriptAbilityRegistry
 			if (_currentIdFlags.ContainsKey(entry.Key)) continue;
 
 			_clearedNamedKeys.Add(entry.Key);
-			_deltas.Add(new AbilityStateDelta
+			deltas.Add(new AbilityStateDelta
 			{
 				ServerEntityId = entry.Key.UnitId,
 				AbilityIndex = -1,
@@ -347,10 +433,80 @@ public class ScriptAbilityRegistry
 
 	private readonly List<(int UnitId, string AbilityId)> _clearedNamedKeys = new();
 
+	private Dictionary<(int UnitId, short AbilityIndex), int> GetRestatements(int peerId)
+	{
+		if (_restatementsByPeer.TryGetValue(peerId, out Dictionary<(int UnitId, short AbilityIndex), int>? restatements)) return restatements;
+
+		restatements = new Dictionary<(int UnitId, short AbilityIndex), int>();
+		_restatementsByPeer[peerId] = restatements;
+		return restatements;
+	}
+
+	private Dictionary<(int UnitId, string AbilityId), int> GetNamedRestatements(int peerId)
+	{
+		if (_namedRestatementsByPeer.TryGetValue(peerId, out Dictionary<(int UnitId, string AbilityId), int>? restatements)) return restatements;
+
+		restatements = new Dictionary<(int UnitId, string AbilityId), int>();
+		_namedRestatementsByPeer[peerId] = restatements;
+		return restatements;
+	}
+
+	private static bool IsOwedAnotherStatement<TKey>(Dictionary<TKey, int> restatements, TKey key) where TKey : notnull
+	{
+		return restatements.TryGetValue(key, out int remainingStatements) && remainingStatements > 0;
+	}
+
+	private void SpendRestatements(int peerId)
+	{
+		Dictionary<(int UnitId, short AbilityIndex), int> restatements = GetRestatements(peerId);
+		if (restatements.Count == 0) return;
+
+		_spentRestatementKeys.Clear();
+		foreach (var entry in restatements)
+		{
+			if (entry.Value <= 1)
+			{
+				_spentRestatementKeys.Add(entry.Key);
+				continue;
+			}
+
+			restatements[entry.Key] = entry.Value - 1;
+		}
+
+		for (int index = 0; index < _spentRestatementKeys.Count; index++) restatements.Remove(_spentRestatementKeys[index]);
+		_spentRestatementKeys.Clear();
+	}
+
+	private void SpendNamedRestatements(int peerId)
+	{
+		Dictionary<(int UnitId, string AbilityId), int> restatements = GetNamedRestatements(peerId);
+		if (restatements.Count == 0) return;
+
+		_spentNamedRestatementKeys.Clear();
+		foreach (var entry in restatements)
+		{
+			if (entry.Value <= 1)
+			{
+				_spentNamedRestatementKeys.Add(entry.Key);
+				continue;
+			}
+
+			restatements[entry.Key] = entry.Value - 1;
+		}
+
+		for (int index = 0; index < _spentNamedRestatementKeys.Count; index++) restatements.Remove(_spentNamedRestatementKeys[index]);
+		_spentNamedRestatementKeys.Clear();
+	}
+
+	private readonly List<(int UnitId, short AbilityIndex)> _spentRestatementKeys = new();
+	private readonly List<(int UnitId, string AbilityId)> _spentNamedRestatementKeys = new();
+
 	public void ForgetPeer(int peerId)
 	{
 		_toldByPeer.Remove(peerId);
 		_toldIdFlagsByPeer.Remove(peerId);
+		_restatementsByPeer.Remove(peerId);
+		_namedRestatementsByPeer.Remove(peerId);
 	}
 
 	private Dictionary<(int UnitId, short AbilityIndex), byte> GetTold(int peerId)
@@ -388,6 +544,7 @@ public class ScriptAbilityRegistry
 	{
 		_abilityListHandles.Remove(unitId);
 		_publishedAbilityListHandles.Remove(unitId);
+		_statesChanged = true;
 
 		_forgottenKeys.Clear();
 		foreach (var key in _unitAbilityStates.Keys)
@@ -410,16 +567,17 @@ public class ScriptAbilityRegistry
 
 		_forgottenKeys.Clear();
 
-		foreach (var told in _toldByPeer.Values)
-		{
-			_toldKeys.Clear();
-			foreach (var entry in told)
-			{
-				if (entry.Key.UnitId == unitId) _toldKeys.Add(entry.Key);
-			}
+		ForgetToldAbilityStateForUnit(unitId);
+	}
 
-			for (int index = 0; index < _toldKeys.Count; index++) told.Remove(_toldKeys[index]);
-		}
+	/// <summary>
+	///     Drops what every peer is remembered as having been told about one unit's exceptions, by slot and by name, so the
+	///     next description states them again. Nobody is left to hold them: the unit that held them is gone, and the
+	///     identifier it held now belongs to another unit.
+	/// </summary>
+	private void ForgetToldAbilityStateForUnit(int unitId)
+	{
+		ForgetToldAbilityStateSlotsForUnit(unitId);
 
 		foreach (var told in _toldIdFlagsByPeer.Values)
 		{
@@ -430,6 +588,26 @@ public class ScriptAbilityRegistry
 			}
 
 			for (int index = 0; index < _clearedNamedKeys.Count; index++) told.Remove(_clearedNamedKeys[index]);
+		}
+	}
+
+	/// <summary>
+	///     Drops what every peer is remembered as having been told about one unit's slot-addressed exceptions. A slot only
+	///     names an ability while the unit's list is the list it was numbered against, so a list that moved makes those
+	///     records meaningless, while the records addressed by name - which no renumbering can touch - are the only
+	///     statement of what a screen holds for an ability the unit does not list.
+	/// </summary>
+	private void ForgetToldAbilityStateSlotsForUnit(int unitId)
+	{
+		foreach (var told in _toldByPeer.Values)
+		{
+			_toldKeys.Clear();
+			foreach (var entry in told)
+			{
+				if (entry.Key.UnitId == unitId) _toldKeys.Add(entry.Key);
+			}
+
+			for (int index = 0; index < _toldKeys.Count; index++) told.Remove(_toldKeys[index]);
 		}
 	}
 
@@ -446,18 +624,36 @@ public class ScriptAbilityRegistry
 		}
 	}
 
-	private bool HasAnyAbilityListChanged()
+	/// <summary>
+	///     Names the units whose ability list is no longer the one this process described, and answers whether there are
+	///     any. The list is the key its exceptions were addressed against, so a list that moved renumbers every slot they
+	///     named: these are the units whose recorded state stopped meaning what it said.
+	/// </summary>
+	private bool CollectChangedAbilityListUnits()
 	{
-		if (_abilityListHandles.Count != _publishedAbilityListHandles.Count) return true;
+		_changedAbilityListUnitIds.Clear();
+		if (!_abilityListsPublished) return false;
 
 		foreach (var entry in _abilityListHandles)
 		{
-			if (!_publishedAbilityListHandles.TryGetValue(entry.Key, out int publishedHandle)) return true;
-			if (publishedHandle != entry.Value) return true;
+			if (!_publishedAbilityListHandles.TryGetValue(entry.Key, out int publishedHandle)) _changedAbilityListUnitIds.Add(entry.Key);
+			else if (publishedHandle != entry.Value) _changedAbilityListUnitIds.Add(entry.Key);
 		}
 
-		return false;
+		foreach (var entry in _publishedAbilityListHandles)
+		{
+			if (!_abilityListHandles.ContainsKey(entry.Key)) _changedAbilityListUnitIds.Add(entry.Key);
+		}
+
+		return _changedAbilityListUnitIds.Count > 0;
 	}
+
+	/// <summary>
+	///     Ends a tick's collection. Every seated peer has been handed the state it was owed, so a restatement owed for a
+	///     list that moved is not asked for again. A peer the tick told nothing is not collected at all, but it is owed a
+	///     description built from scratch instead, and that states every exception its units hold.
+	/// </summary>
+	public void CompleteTick() => _unitsOwedAbilityRestatement.Clear();
 
 	private static bool TryResolveAbilityIndex(EcsWorld world, int unitId, string abilityId, out short abilityIndex)
 	{

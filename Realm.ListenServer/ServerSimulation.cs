@@ -238,6 +238,11 @@ public class ServerSimulation : IDisposable
 		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
 
 		if (_map.World.IsAlive(entity)) _map.World.Destroy(entity);
+
+		// A match recycles a destroyed identifier the moment a unit is spared it, and what the map declared about the unit
+		// that held it would be read as the new unit's own: neither the state it withheld nor who was told about it
+		// belongs to whoever takes the identifier next.
+		_script.Api.Abilities.ForgetUnit(entity.Id);
 	}
 
 	private const int ObstacleScanIntervalTicks = 20;
@@ -437,6 +442,14 @@ public class ServerSimulation : IDisposable
 	}
 
 	/// <summary>
+	///     Collects what every peer's ability deltas are computed from, once per tick. The ability list a unit publishes
+	///     and the disabled/hidden flags it carries are the same for every screen, so collecting them inside the per-peer
+	///     pass made a room of twelve pay twelve times for work it had already done: with twelve peers that was the whole
+	///     tick. It is a step of its own because it is once per tick and the per-peer pass beside it is not.
+	/// </summary>
+	public void PrepareAbilityBookkeeping() => _snapshots.Abilities?.PrepareTick(_map.World);
+
+	/// <summary>
 	///     The ability deltas each seated peer is owed this tick, collected once on the tick thread before the publish
 	///     lanes are forked. The registry keeps one scratch table per process, so collecting per peer inside a lane would
 	///     put every lane behind one lock for the whole pass.
@@ -445,6 +458,7 @@ public class ServerSimulation : IDisposable
 	{
 		ScriptAbilityRegistry? abilities = _snapshots.Abilities;
 		int count = Math.Min(peerIds.Length, _abilityDeltasByPeerSlot.Length);
+
 		for (int index = 0; index < count; index++)
 		{
 			// A peer that is told nothing this tick is not collected for: collecting marks its deltas as told, and a
@@ -455,8 +469,13 @@ public class ServerSimulation : IDisposable
 				continue;
 			}
 
-			_abilityDeltasByPeerSlot[index] = abilities != null ? abilities.CollectDeltas(peerIds[index], _map.World, describeInFull[index]) : NoAbilityDeltas;
+			// Each peer's deltas are its own list: one list handed to every peer left all of them holding the last peer's
+			// deltas, so a screen was told about another screen's units and never about its own.
+			List<AbilityStateDelta> buffer = _abilityDeltasByPeerSlot[index] ??= new List<AbilityStateDelta>();
+			_abilityDeltasByPeerSlot[index] = abilities != null ? abilities.CollectDeltas(peerIds[index], _map.World, describeInFull[index], buffer) : NoAbilityDeltas;
 		}
+
+		abilities?.CompleteTick();
 	}
 
 	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline, int laneIndex, int peerSlot)

@@ -27,6 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="LagPerceptionTests.cs" />
     <Compile Include="MapEditorUxTests.cs" />
     <Compile Include="MapImportVerificationTests.cs" />
     <Compile Include="MultiplayerEcsSyncTests.cs" />

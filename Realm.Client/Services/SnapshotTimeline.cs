@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Realm.Ecs;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
@@ -32,11 +33,60 @@ public class SnapshotTimeline
 
 	private const float MaximumRateCorrection = 0.15f;
 
+	/// <summary>
+	///     The longest a deficit may take to close, in seconds. A cursor behind its target is a world drawn older than the
+	///     link needs it to be, and every frame of that is input the player gives that the match answers late. Correcting
+	///     at a fixed small rate closed the deficit a link's worth of sequences in about two seconds, which a lossy link
+	///     never got back before the next burst arrived; closing it in half a second costs a brief, even speed-up that a
+	///     player reads as the match picking itself up rather than as the match running slow.
+	/// </summary>
+	private const float CatchUpSeconds = 0.5f;
+
+	/// <summary>
+	///     The most a catch-up may run the clock fast. It is what turns <see cref="CatchUpSeconds" /> into a rate for the
+	///     widest deficit worth chasing; anything past this is a burst, which is resynchronized rather than played through.
+	/// </summary>
+	private const float MaximumCatchUpRateCorrection = 0.6f;
+
+	/// <summary>
+	///     The widest deficit the catch-up above closes inside <see cref="CatchUpSeconds" />. A deficit past it cannot be
+	///     played through inside that window even at the fastest rate a player reads as a correction, so it is not a
+	///     correction at all: it is a stretch of the match this screen was not drawing.
+	/// </summary>
+	private const float WidestCatchUpDeficitSequences = MaximumCatchUpRateCorrection * MatchTiming.SnapshotRateHz * CatchUpSeconds;
+
+	/// <summary>
+	///     A frame that took this long is this screen not drawing rather than the link being late. It is stated in intervals
+	///     because what it measures is how much of the match went by while no frame was drawn.
+	/// </summary>
+	private const float StallFrameSeconds = 4f * MatchTiming.SnapshotIntervalSeconds;
+
+	/// <summary>
+	///     How long after a frame that long the descriptions it missed may still arrive. They are read from the transport in
+	///     the frame that resumes, so the deficit they leave is met a frame or two later; a flag that outlived that would only
+	///     be waiting to explain a deficit some later burst caused.
+	/// </summary>
+	private const float StallPendingSeconds = 2f;
+
 	private const float RateCorrectionGain = 0.25f;
 
-	private const int ShallowConfirmWindows = 2;
+	/// <summary>
+	///     How many clean windows in a row a buffer has to hold before it gives any depth back. One is enough because the
+	///     window that just passed is the evidence: it saw no starvation and it saw the buffer hold the depth the link was
+	///     measured to need, and asking for a second identical second first is what let a burst that arrives more often than
+	///     that leave the depth it added in place for the rest of the match.
+	/// </summary>
+	private const int ShallowConfirmWindows = 1;
 
 	private const float ShallowSurplusFraction = 0.5f;
+
+	/// <summary>
+	///     The most depth one clean window may give back. It is a ceiling on a window rather than a rate: a buffer holding
+	///     one sequence more than its target gives back that one, and only a buffer a burst deepened by several gives back
+	///     this many. Two is what a window can hand over and still have the cursor reach its new depth inside it, because
+	///     each sequence given back is closed at the gentle rate a depth change is drawn at rather than in one step.
+	/// </summary>
+	private const int MaximumShallowPerWindow = 2;
 
 	public const float MaximumExtrapolationSequences = 1f;
 
@@ -61,14 +111,23 @@ public class SnapshotTimeline
 	public const float MaximumExtrapolationMeters = 0.75f;
 
 	/// <summary>
-	///     How far past its target a starved cursor may be held still, in sequences, rather than drained at the corrected
-	///     rate. A starvation leaves the cursor at the end of the buffer, so the depth this link needs can only be rebuilt by
-	///     time passing without the world advancing: a pause a few sequences wide is that, while one the width of a whole
-	///     buffer is a freeze this rule would be inventing. It covers the depth a measured link settles at on anything up to
-	///     a bad link; a deficit wider than this keeps the gentle drain, because a pause longer than this is worse than the
-	///     slow motion it replaces.
+	///     How far past its target a starved cursor may be drained slowly rather than played at the corrected rate, in
+	///     sequences. A starvation leaves the cursor at the end of the buffer, so the depth this link needs can only be
+	///     rebuilt by the world advancing slower than the descriptions arrive; the deficit is what is left over once the
+	///     cursor is back on its target. A burst wider than this is resynchronized instead, because draining it would spend
+	///     seconds playing the world at a speed a player notices as slow rather than as settling.
 	/// </summary>
-	private const int MaximumCatchUpHoldSequences = 8;
+	private const int MaximumCatchUpDrainSequences = 8;
+
+	/// <summary>
+	///     How much of its own speed a starved cursor gives up while it rebuilds the depth this link needs. Stopping the
+	///     clock is the fastest way to rebuild it - the deficit closes at the full publish rate - and it is the only way to
+	///     freeze what is on screen; the cost is that the freeze is as long as the deficit is wide, and at a high round trip
+	///     the deficit is the whole depth the link needs. Giving up a third of the speed rebuilds that depth at a third of
+	///     the publish rate while the units on screen keep moving, so the same room is bought without a moment where the
+	///     match has visibly stopped.
+	/// </summary>
+	private const float CatchUpDrainRateCorrection = 0.34f;
 
 	/// <summary>
 	///     How fast a sample may give back distance the descriptions no longer support, in metres per second. A step past the
@@ -79,6 +138,8 @@ public class SnapshotTimeline
 	///     frames it has.
 	/// </summary>
 	private const float MaximumReleaseMetersPerSecond = 8f;
+
+	private const float MaximumVisibleStepMeters = 0.75f;
 
 	private readonly Vector3[] _positions = new Vector3[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
 	private readonly float[] _rotations = new float[EcsWorld.MAX_ENTITIES * SamplesPerUnit];
@@ -108,6 +169,8 @@ public class SnapshotTimeline
 	private int _starvationsSinceArrival;
 	private int _lateStarvationsInWindow;
 	private int _largestStallGapInWindow;
+	private double _starvationStartedSeconds;
+	private bool _starvationMeasured;
 	private int _delaySequences = MinimumDelaySequences;
 
 	/// <summary>
@@ -120,6 +183,16 @@ public class SnapshotTimeline
 	private int _delayFloorSequences = MinimumDelaySequences;
 	private int _delayCeilingSequences = InitialCeilingSequences;
 	private bool _isStarved;
+
+	/// <summary>
+	///     When this screen last stuttered on its own frames, or zero for none. It is kept for a moment because the
+	///     descriptions published while the screen was stopped are read in the frame that resumes, so the deficit they
+	///     leave is met after the frame that caused it.
+	/// </summary>
+	private double _stalledAtSeconds;
+
+	/// <summary>The share of a stall in which the clock could not move at all, which is the part a player sees as a freeze.</summary>
+	private double _starvationStillSeconds;
 
 	public SnapshotTimeline()
 	{
@@ -139,6 +212,12 @@ public class SnapshotTimeline
 	public int DelayFloorSequences => _delayFloorSequences;
 
 	public int DelayCeilingSequences => _delayCeilingSequences;
+
+	/// <summary>
+	///     How fast the last frame advanced the clock relative to real time, as a fraction. It is the speed a screen is
+	///     drawing the match at, and the only way to see a catch-up a player would read as the world speeding up.
+	/// </summary>
+	public float LastRateCorrection { get; private set; }
 
 	public int StarvationCount { get; private set; }
 
@@ -163,6 +242,7 @@ public class SnapshotTimeline
 		_delayFloorSequences = MinimumDelaySequences;
 		_delayCeilingSequences = InitialCeilingSequences;
 		_isStarved = false;
+		_stalledAtSeconds = 0d;
 		_evaluationSeconds = 0f;
 		_cleanWindowsInARow = 0;
 		_shallowestSurplusInWindow = float.MaxValue;
@@ -285,40 +365,72 @@ public class SnapshotTimeline
 
 		_timelineSeconds += delta;
 
+		// A frame this long is this screen's own stop. The descriptions published while it was stopped are waiting in the
+		// transport, and they describe a stretch of the match the player never saw: they cannot be given back by drawing
+		// them, only skipped.
+		if (delta >= StallFrameSeconds) _stalledAtSeconds = _timelineSeconds;
+
 		if (!(delta > 0f) || NewestSequence < 0) return;
 
 		if (_cursor < 0f) _cursor = NewestSequence - _delaySequences;
 
 		float target = NewestSequence - _delaySequences;
 		float error = target - _cursor;
+		LastRateCorrection = 0f;
 
-		// The descriptions arrived faster than this screen consumed them - a burst after a loss, or a process that
-		// stopped for a moment. Easing across that would play the world slowly until it caught up.
-		if (error > ResynchronizeSequences)
+		// The descriptions a stopped screen missed arrive together the moment it resumes, so its cursor meets a run it was
+		// never going to draw and the buffer it holds is older than the link was measured to need by a stretch nobody
+		// watched. Playing that back spends as long again drawing the stall at speed and leaves the screen a whole stall
+		// behind, where taking the cursor to its target resumes at the world the match is at and skips what was missed.
+		//
+		// Only a deficit the catch-up could not have closed inside its own window is skipped, so a stutter short enough to
+		// be absorbed is still absorbed, and only a stutter of this screen's own frames is answered this way: a deficit the
+		// link caused is one the buffer was sized for and is still eased across.
+		if (error > WidestCatchUpDeficitSequences && _stalledAtSeconds > 0d && _timelineSeconds - _stalledAtSeconds <= StallPendingSeconds)
 		{
 			_cursor = target;
-			_isStarved = false;
+			_stalledAtSeconds = 0d;
+			EndStarvation();
+			if (LagProbe.IsEnabled) LagProbe.RecordWorst(LagEvent.ClientStallResynchronizations, error);
 		}
-		else if (error < 0f && _isStarved && _cursor - target <= MaximumCatchUpHoldSequences)
+		else if (error > ResynchronizeSequences)
+		{
+			_cursor = target;
+			EndStarvation();
+		}
+		else if (error < 0f && _isStarved && _cursor - target <= MaximumCatchUpDrainSequences)
 		{
 			// A starvation leaves the cursor where the world it could draw stopped, which is the end of the buffer, so the
-			// next description that arrives puts it ahead of the depth this link needs. Easing that back at a fifteenth of
-			// the deficit per sequence kept the depth short - and so the screen starving - for over a second after every
-			// stall. Holding the clock still rebuilds the depth at the rate the target advances, which costs one pause the
-			// width of the deficit instead of a long stretch of slow motion.
+			// next description that arrives puts it ahead of the depth this link needs. Stopping the clock rebuilds that depth
+			// at the full publish rate and freezes the world for exactly as long as the deficit is wide - which at a high
+			// round trip is the whole depth the link needs, and reads as the match cutting out. Draining it instead plays the
+			// world a third slower for the same stretch and hands the buffer the same room, so the player sees units still
+			// moving rather than a match that has stopped.
 			//
 			// This only answers a cursor that ran out of world. A cursor with a description ahead of it that merely has less
 			// room behind it than the link was measured to need is a buffer being consumed as a buffer, and stopping it
 			// there would also be stopping the run-out that tells this screen how deep the link really has to be held.
-			// The starvation stays set for as long as the hold lasts, so the cursor does not creep forward between frames.
-
-			// A window the cursor spent ahead of its target is not a window with room to spare: the buffer was over-drawn,
-			// and the shallowing rule reads a deep buffer as depth this link does not need.
+			// The starvation stays set for as long as the drain lasts, so the cursor does not jump back to full speed the
+			// frame after it starts and then starve again.
 			_cleanWindowsInARow = 0;
+
+			float drainAdvance = delta / MatchTiming.SnapshotIntervalSeconds * (1f - CatchUpDrainRateCorrection);
+			float drained = Math.Min(NewestSequence, _cursor + drainAdvance) - _cursor;
+			_cursor += drained;
+			if (drained <= 0f) _starvationStillSeconds += delta;
 		}
 		else
 		{
-			float rateCorrection = Math.Clamp(error * RateCorrectionGain, -MaximumRateCorrection, MaximumRateCorrection);
+			// A deficit is closed in a bounded time rather than at a fixed rate: the wider it is, the faster the clock runs,
+			// up to the limit a player still reads as one movement. Running late is drawn slow and running early is drawn
+			// fast, and only the late side is widened - a cursor ahead of its target is one the depth rule has just taken
+			// room back from, and easing that at the same rate is what keeps a shallowing buffer from being visible.
+			float correction = error * RateCorrectionGain;
+			float limit = error > 0f
+				? Math.Clamp(error / (MatchTiming.SnapshotRateHz * CatchUpSeconds), MaximumRateCorrection, MaximumCatchUpRateCorrection)
+				: MaximumRateCorrection;
+			float rateCorrection = Math.Clamp(correction, -limit, limit);
+			LastRateCorrection = rateCorrection;
 			float advance = delta / MatchTiming.SnapshotIntervalSeconds * (1f + rateCorrection);
 
 			// Running out of descriptions is a stall to hold against, not a moment to move the clock backwards: the
@@ -331,14 +443,27 @@ public class SnapshotTimeline
 					StarvationCount++;
 					_starvationsSinceArrival++;
 					_isStarved = true;
+					_starvationStartedSeconds = _timelineSeconds;
+					_starvationMeasured = LagProbe.IsEnabled;
+					LagProbe.Count(LagEvent.ClientStarvations);
+
+					// What a stall costs is decided by two things and this is where they are told apart: how long the link had
+					// said nothing at all, which no buffer answers, and how deep the buffer was when it ran out, which is the
+					// part a rule can change.
+					if (LagProbe.IsEnabled)
+					{
+						LagProbe.RecordWorst(LagEvent.ClientStarvationDepthSequences, _delaySequences);
+						LagProbe.RecordWorst(LagEvent.ClientStarvationSilenceMilliseconds, (_timelineSeconds - _lastArrivalTimelineSeconds) * 1000d);
+					}
 				}
 
 				_cursor = NewestSequence;
+				_starvationStillSeconds += delta;
 			}
 			else
 			{
 				_cursor += advance;
-				_isStarved = false;
+				EndStarvation();
 			}
 		}
 
@@ -374,7 +499,12 @@ public class SnapshotTimeline
 
 			if (_cleanWindowsInARow >= ShallowConfirmWindows && _delaySequences > _delayTargetSequences)
 			{
-				_delaySequences--;
+				// A depth a burst added is headroom for that burst, not for the link. Giving back one sequence per two clean
+				// seconds held a screen one or two sequences - one or two frames of world age - above the depth it had been
+				// measured to need for as long as the match lasted, because bursts arrive more often than that and every one of
+				// them deepens the buffer again. What the link was measured to need is the target, and depth above the target
+				// is given back at the pace that keeps the draw steady instead of at the pace the bursts arrive.
+				_delaySequences -= Math.Min(MaximumShallowPerWindow, _delaySequences - _delayTargetSequences);
 				_cleanWindowsInARow = 0;
 			}
 		}
@@ -394,6 +524,14 @@ public class SnapshotTimeline
 	///     The floor is the trip in <em>one</em> direction: a description written now reaches this screen half a round trip
 	///     from now, and that is all the buffer has to be behind by to have it in hand when the cursor reaches it. Sizing
 	///     the floor from the whole round trip held every screen an extra half trip behind the match for nothing.
+	///     <para>
+	///         The trip is rounded up to whole sequences and one more is kept for the pair the cursor interpolates across,
+	///         which is the same one <see cref="MinimumDelaySequences" /> already implies. Every link is sized by this
+	///         arithmetic, a loopback match included: a screen whose authority is on this machine reads a trip of a few
+	///         milliseconds, rounds to one sequence, and lands on the minimum. A branch of its own that stated a loopback
+	///         link's depth outright hid an arithmetic error that was charging every link a sequence it did not need,
+	///         and a match played on loopback is the one place such a formula is cheap to catch.
+	///     </para>
 	/// </remarks>
 	public void ObserveLink(float roundTripMilliseconds, float jitterMilliseconds)
 	{
@@ -401,14 +539,26 @@ public class SnapshotTimeline
 
 		float intervalMilliseconds = MatchTiming.SnapshotIntervalSeconds * 1000f;
 		float oneWayMilliseconds = roundTripMilliseconds * 0.5f;
-		int floor = (int)MathF.Ceiling(oneWayMilliseconds / intervalMilliseconds) + MinimumDelaySequences;
+		int floor = (int)MathF.Ceiling(oneWayMilliseconds / intervalMilliseconds) + 1;
 		floor = Math.Clamp(floor, MinimumDelaySequences, MaximumDelaySequences);
 
 		// The ceiling is a limit on how deep this link may be held, not a depth it is held at: it never falls below the
 		// depth a match was fixed at before links were measured, so a link that turns out to need more than its trip
 		// still has the room to be given it.
-		int jitterSequences = jitterMilliseconds > 0f ? (int)MathF.Ceiling(jitterMilliseconds / intervalMilliseconds) : 0;
-		int deepestThisLinkNeeds = Math.Max(InitialCeilingSequences, floor) + jitterSequences + MinimumDelaySequences;
+		//
+		// Variation is counted in whole sequences nearest to what was measured, not rounded up to them. Rounding up
+		// charged every link a sequence of headroom for the least measurable wobble: a loopback match reads a few
+		// milliseconds, which is no share of the thirty-three a sequence covers, and it was held a whole sequence deeper
+		// than the trip it had just been measured to have. A link whose variation is real - half an interval or more -
+		// still buys the sequence it needs, and one that was under-counted discovers it by starving once and deepening.
+		int jitterSequences = jitterMilliseconds > 0f ? (int)MathF.Round(jitterMilliseconds / intervalMilliseconds, MidpointRounding.AwayFromZero) : 0;
+
+		// A hole costs a round trip to fill: the description after it reveals it, the request crosses, the match answers. A
+		// link that cannot hold that much is a link whose every hole runs its buffer dry however quickly the answer is
+		// sent, so the depth that link may be given has to cover the repair as well as the trip. It is a ceiling and not a
+		// depth: it is only reached by starving, so a link that fills its holes from a duplicate never grows into it.
+		int repairSequences = (int)MathF.Ceiling(roundTripMilliseconds / intervalMilliseconds);
+		int deepestThisLinkNeeds = Math.Max(InitialCeilingSequences, floor + repairSequences) + jitterSequences + MinimumDelaySequences;
 		int ceiling = Math.Clamp(deepestThisLinkNeeds, floor, MaximumDelaySequences);
 
 		// A floor that rises is met at once: drawing below what the link needs is the stall the floor exists to avoid. A
@@ -428,21 +578,6 @@ public class SnapshotTimeline
 		int neededSequences = Math.Min(ceiling, floor + jitterSequences);
 		_delayTargetSequences = neededSequences;
 		if (_delaySequences < neededSequences) _delaySequences = neededSequences;
-	}
-
-	/// <summary>
-	///     States that this link has no transit to absorb, so nothing is reserved for one. It still keeps the room a stall
-	///     needs: a screen that stopped drawing for a moment is the same problem on a loopback match as on a long link, and
-	///     the deepening rule answers both.
-	/// </summary>
-	public void ObserveLocalLink()
-	{
-		if (_delayFloorSequences == MinimumDelaySequences && _delayCeilingSequences == InitialCeilingSequences) return;
-
-		_delayFloorSequences = MinimumDelaySequences;
-		_delayCeilingSequences = InitialCeilingSequences;
-		_delayTargetSequences = MinimumDelaySequences;
-		if (_delaySequences < MinimumDelaySequences) _delaySequences = MinimumDelaySequences;
 	}
 
 	/// <summary>
@@ -502,7 +637,11 @@ public class SnapshotTimeline
 			if (orderStillHeld && count >= 2)
 			{
 				position = Extrapolate(described, velocity, cursor - newestSequence);
-				if (position != described) ExtrapolatedSampleCount++;
+				if (position != described)
+				{
+					ExtrapolatedSampleCount++;
+					LagProbe.Count(LagEvent.ClientExtrapolatedSamples);
+				}
 			}
 
 			position = ReleaseBackwards(entityId, position);
@@ -541,6 +680,23 @@ public class SnapshotTimeline
 	}
 
 	/// <summary>
+	///     Records how long a screen spent holding its clock still, which is how long the units it was drawing stood in place.
+	///     The count of stalls says how often the buffer ran out; this says whether any of them lasted long enough to be seen,
+	///     which is the only part of a stall a player can perceive. Only the frames the cursor could not move at all are
+	///     counted, so a stall this screen drains through at a slower speed is not reported as a freeze it never showed.
+	/// </summary>
+	private void EndStarvation()
+	{
+		if (!_isStarved) return;
+
+		_isStarved = false;
+		if (_starvationMeasured) LagProbe.RecordWorst(LagEvent.ClientStarvationHoldMilliseconds, _starvationStillSeconds * 1000d);
+		if (_starvationMeasured) LagProbe.RecordWorst(LagEvent.ClientCatchUpDrainMilliseconds, (_timelineSeconds - _starvationStartedSeconds) * 1000d);
+		_starvationMeasured = false;
+		_starvationStillSeconds = 0d;
+	}
+
+	/// <summary>
 	///     Keeps a sample from moving backwards faster than the frame allows. The frame the descriptions catch up with a
 	///     cursor that had run past them, the sample belongs behind where the step past the newest description had just
 	///     drawn it, and taking that in one frame is the unit jumping backwards on screen at exactly the moment the link
@@ -562,13 +718,21 @@ public class SnapshotTimeline
 		}
 
 		Vector3 drawn = _drawnPositions[entityId];
+		Vector3 step = sampled - drawn;
+		float stepMeters = step.Length();
+		if (stepMeters > MaximumVisibleStepMeters) LagProbe.RecordWorst(LagEvent.ClientPresentedJumps, stepMeters);
+
 		Vector3 backwards = drawn - sampled;
 		float backwardsMeters = backwards.Length();
 		float allowedMeters = MaximumReleaseMetersPerSecond * _frameDeltaSeconds;
 
 		// Nothing but the last drawn position is compared, so a unit that is reset - which forgets it - is drawn wherever
 		// its new descriptions put it rather than crawling there from wherever it used to be.
-		if (backwardsMeters > allowedMeters && backwardsMeters > 0.0001f) sampled = drawn - backwards * (allowedMeters / backwardsMeters);
+		if (backwardsMeters > allowedMeters && backwardsMeters > 0.0001f)
+		{
+			LagProbe.RecordWorst(LagEvent.ClientReleaseBackwardsSamples, backwardsMeters);
+			sampled = drawn - backwards * (allowedMeters / backwardsMeters);
+		}
 
 		_drawnPositions[entityId] = sampled;
 		return sampled;

@@ -11,6 +11,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Replication;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
@@ -241,9 +242,14 @@ public class ReplicatedUnitLifecycle
 			? world.Get<DescribedAtSequence>(localEntity).Sequence
 			: -1;
 
-		bool targetJumped = (describedPosition - previousTargetPosition).Length() > PlausibleStepMeters(localEntity, sequence, lastDescribedSequence);
+		float describedStepMeters = (describedPosition - previousTargetPosition).Length();
+		bool targetJumped = describedStepMeters > PlausibleStepMeters(localEntity, sequence, lastDescribedSequence);
 
-		if (targetJumped) GameContext.SnapshotTimeline.Reset(localEntity.Id);
+		if (targetJumped)
+		{
+			LagProbe.RecordWorst(LagEvent.ClientTimelineResets, describedStepMeters);
+			GameContext.SnapshotTimeline.Reset(localEntity.Id);
+		}
 		GameContext.SnapshotTimeline.Record(localEntity.Id, describedPosition, snap.RotationY, sequence);
 
 		world.SetOrAdd(localEntity, new LatestDescription
