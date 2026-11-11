@@ -97,6 +97,46 @@ public partial class MultiplayerSimulationHarness : Node
 				$"readings {readingsTop:0.#}..{readingsBottom:0.#} viewport {viewportTop:0.#}..{viewportBottom:0.#}");
 		}
 
+		async Task<string> SacrificeHeroAsync(Unit3D targetHero)
+		{
+			currentHost.SelectUnitInternal(new UnitId(targetHero.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+			Check("the dev kill cheat is accepted", hud.TryTriggerCheat("sacrifice"));
+			bool fell = await WaitUntilAsync(() => FindUnit(currentHost, "hero/", 1) == null, 10f);
+			Check("the hero leaves the field when it dies", fell);
+			return ReadFeedback(hud);
+		}
+
+		async Task<Unit3D?> WaitForRevivalAsync()
+		{
+			ulong deadline = Time.GetTicksMsec() + 25000;
+			while (Time.GetTicksMsec() < deadline && FindUnit(currentHost, "hero/", 1) == null)
+			{
+				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			}
+
+			Unit3D? revived = FindUnit(currentHost, "hero/", 1);
+			Check("the hero returns when its revival timer expires", revived != null);
+			if (revived == null) return null;
+
+			// The feedback label is one line, and the idle hint can claim it the same moment the hero stands up, so the
+			// announcement is watched frame by frame instead of read as whichever notice happened to land last.
+			for (int frame = 0; frame < 20; frame++)
+			{
+				string line = ReadFeedback(hud);
+				if (line.Contains("returns to the field", StringComparison.OrdinalIgnoreCase))
+				{
+					Check("the revival announces the hero is back", true, line);
+					return revived;
+				}
+
+				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			}
+
+			Check("the revival announces the hero is back", false, ReadFeedback(hud));
+			return revived;
+		}
+
 		Unit3D? hero = FindUnit(currentHost, "hero/", 1);
 		Check("Vale hero replicated", hero != null);
 		if (hero == null) return FinishUxSmoke(report, passed);
@@ -183,10 +223,50 @@ public partial class MultiplayerSimulationHarness : Node
 				currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(4f, 0f, 4f));
 				await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
 				Check("the second draw reserves 100 wood", hud.Wood <= woodBefore - 90f, $"{woodBefore:0.##} -> {hud.Wood:0.##}");
+				Check("the second draw offers three packages", FindCommandButtonsContaining(hud, "for 100 wood").Count == 3, $"cards={FindCommandButtonsContaining(hud, "for 100 wood").Count}");
+
+				// A hero can die while its draw is open, and the draw has to close with it: the reserved wood comes back and
+				// the card returns to the state a player who never began a construction sees.
+				Note("dying with the second draw open");
+				string midDrawDeath = await SacrificeHeroAsync(hero);
+				Check("the death states when the hero returns", midDrawDeath.Contains("returns in", StringComparison.OrdinalIgnoreCase), midDrawDeath);
+				await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+
+				Check("dying with a draw open returns its wood", hud.Wood >= woodBefore - 1f, $"wood {hud.Wood:0.##} expected {woodBefore:0.##}");
+				Check("dying with a draw open withdraws the offers", FindCommandButtonsContaining(hud, "for 100 wood").Count == 0);
+				Check("a fallen hero offers no construction draw", FindCommandButton(hud, "Begin Construction") == null);
+				Node? midDrawReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
+				Check("dying with a draw open clears the offered readings", CountReadingRowsNamed(midDrawReadings, "Offered") == 0);
+
+				hero = await WaitForRevivalAsync();
+				Check("the hero revives after dying inside a draw", hero != null);
+				if (hero != null)
+				{
+					currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
+					await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+					Check("dying with a draw open restores the begin card", FindCommandButton(hud, "Begin Construction") is { Disabled: false });
+				}
+			}
+
+			if (hero == null) return FinishUxSmoke(report, passed);
+			currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+
+			Button? finalDrawButton = FindCommandButton(hud, "Begin Construction");
+			Check("the begin card opens a draw after a revival", finalDrawButton != null && !finalDrawButton.Disabled);
+			if (finalDrawButton != null)
+			{
+				finalDrawButton.EmitSignal(Button.SignalName.Pressed);
+				await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
+				Check("the final draw asks for a site", currentHost.ActiveSpellTargeting == "ability/begin_construction", currentHost.ActiveSpellTargeting ?? "none");
+
+				currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(4f, 0f, 4f));
+				await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+				Check("the final draw reserves 100 wood", hud.Wood <= woodBefore - 90f, $"{woodBefore:0.##} -> {hud.Wood:0.##}");
 			}
 
 			draftOptions = FindCommandButtonsContaining(hud, "for 100 wood");
-			Check("the second draw offers three packages", draftOptions.Count == 3, $"cards={draftOptions.Count}");
+			Check("the final draw offers three packages", draftOptions.Count == 3, $"cards={draftOptions.Count}");
 			draftCard = FindCommandButtons(hud);
 			draftKeys = ReadCommandHotkeys(draftCard);
 
@@ -292,47 +372,12 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		Note("sacrificing the hero to play the death and revival flow");
-		currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
-		await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
-		Check("the dev kill cheat is accepted", hud.TryTriggerCheat("sacrifice"));
-
-		bool heroFell = await WaitUntilAsync(() => FindUnit(currentHost, "hero/", 1) == null, 10f);
-		Check("the hero leaves the field when it dies", heroFell);
-		string deathFeedback = ReadFeedback(hud);
+		string deathFeedback = await SacrificeHeroAsync(hero);
 		Check("the death states when the hero returns", deathFeedback.Contains("returns in", StringComparison.OrdinalIgnoreCase), deathFeedback);
 		bool armyDispersed = await WaitUntilAsync(() => FindUnit(currentHost, "unit/", 1) == null, 5f);
 		Check("the hero's army disperses with it", armyDispersed);
 
-		string revivalFeedback = string.Empty;
-		bool heroReturned = false;
-		ulong reviveDeadline = Time.GetTicksMsec() + 25000;
-		while (Time.GetTicksMsec() < reviveDeadline)
-		{
-			string line = ReadFeedback(hud);
-			if (line.Contains("returns to the field", StringComparison.OrdinalIgnoreCase)) revivalFeedback = line;
-			if (FindUnit(currentHost, "hero/", 1) != null)
-			{
-				heroReturned = true;
-				break;
-			}
-
-			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-		}
-
-		Check("the hero returns when its revival timer expires", heroReturned);
-
-		// The feedback label is one line, and the idle hint can claim it in the same moment, so the announcement is
-		// watched frame by frame instead of read as whichever notice happened to land last.
-		for (int frame = 0; frame < 20 && revivalFeedback.Length == 0; frame++)
-		{
-			string line = ReadFeedback(hud);
-			if (line.Contains("returns to the field", StringComparison.OrdinalIgnoreCase)) revivalFeedback = line;
-			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-		}
-
-		Check("the revival announces the hero is back", revivalFeedback.Length > 0, revivalFeedback.Length > 0 ? revivalFeedback : ReadFeedback(hud));
-
-		Unit3D? revivedHero = FindUnit(currentHost, "hero/", 1);
+		Unit3D? revivedHero = await WaitForRevivalAsync();
 		Check("the revived hero is replicated", revivedHero != null);
 		if (revivedHero != null)
 		{
