@@ -140,6 +140,19 @@ public class MeleeCheatTests
 	}
 
 	[Test]
+	public void CookedKillsOnlyTheCallersSelectedUnits()
+	{
+		using MeleeMatch match = StartCheats();
+		UnitId ownHero = match.Hero(1);
+		UnitId enemyHero = match.Hero(2);
+
+		match.SubmitCheat(1, "cooked", ownHero, enemyHero);
+
+		Assert.That(match.IsAlive(ownHero), Is.False, "The selected unit is cooked through the damage pipeline.");
+		Assert.That(match.IsAlive(enemyHero), Is.True, "A cheat cannot reach another seat's unit.");
+	}
+
+	[Test]
 	public void EzClapEndsTheMatch()
 	{
 		using MeleeMatch match = StartCheats();
