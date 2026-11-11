@@ -1,4 +1,4 @@
-namespace Realm.Client.Services;
+namespace Realm.Shared.Simulation;
 
 public enum CheatResult
 {

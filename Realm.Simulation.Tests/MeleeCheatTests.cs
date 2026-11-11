@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using Realm.Shared.Simulation;
 
@@ -24,6 +27,30 @@ public class MeleeCheatTests
 		ServerCommandResult result = match.SubmitCheat(1, chatWord);
 
 		Assert.That(result.HasRejection, Is.False, $"The authority answers '{chatWord}': {result.RejectionReason}");
+	}
+
+	[Test]
+	public void EveryCheatKindIsReachableFromAWord()
+	{
+		var reachableKinds = new HashSet<Type>();
+		foreach (string word in CheatCatalog.Words)
+		{
+			Assert.That(CheatCatalog.TryParse(word, out CheatKind? kind), Is.True, $"The catalog states '{word}'.");
+			reachableKinds.Add(kind!.GetType());
+		}
+
+		Type[] declaredKinds = typeof(CheatKind)
+			.GetNestedTypes(BindingFlags.Public)
+			.Where(type => type.IsSubclassOf(typeof(CheatKind)))
+			.ToArray();
+
+		foreach (Type declaredKind in declaredKinds)
+		{
+			var declaration = (CheatKind)Activator.CreateInstance(declaredKind)!;
+			Assert.That(declaration.Result, Is.Not.EqualTo(CheatResult.None), $"{declaredKind.Name} states the notice it shows.");
+		}
+
+		Assert.That(reachableKinds, Is.EquivalentTo(declaredKinds), "Every cheat the build knows is reachable from a typed word.");
 	}
 
 	[Test]

@@ -16,23 +16,9 @@ public class CheatService
 	{
 		if (isMultiplayer) return (CheatResult.None, 0);
 		if (!(GameContext.Host?.CheatsEnabled ?? false)) return (CheatResult.None, 0);
-		if (!CheatCatalog.TryParse(text, out CheatKind kind)) return (CheatResult.None, 0);
+		if (!CheatCatalog.TryParse(text, out CheatKind? cheat)) return (CheatResult.None, 0);
 
-		CheatResult result = kind switch
-		{
-			CheatKind.GrantResources => CheatResult.Stonks,
-			CheatKind.EmpowerOwnedUnits => CheatResult.Gigachad,
-			CheatKind.BoostSelectedMovementSpeed => CheatResult.AbsoluteUnit,
-			CheatKind.KillEnemyAiUnits => CheatResult.ThanosSnap,
-			CheatKind.EndMatch => CheatResult.EzClap,
-			CheatKind.DisableShroud => CheatResult.NoCap,
-			CheatKind.ToggleFastBuild => CheatResult.WarpSpeed,
-			CheatKind.ToggleUnlimitedPower => CheatResult.UnlimitedPower,
-			CheatKind.KillSelectedUnits => CheatResult.Sacrifice,
-			_ => CheatResult.None
-		};
-
-		if (result == CheatResult.None) return (CheatResult.None, 0);
+		CheatResult result = cheat.Result;
 
 		if (result == CheatResult.UnlimitedPower) UnlimitedPowerEnabled = !UnlimitedPowerEnabled;
 		else if (result == CheatResult.Gigachad) GigachadEnabled = true;

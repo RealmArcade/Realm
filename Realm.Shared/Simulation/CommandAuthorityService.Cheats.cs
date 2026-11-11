@@ -41,13 +41,14 @@ public partial class CommandAuthorityService
 			return;
 		}
 
-		if (!CheatCatalog.TryParse(key, out CheatKind kind))
+		if (!CheatCatalog.TryParse(key, out CheatKind? parsedCheat))
 		{
 			rejectionReason = $"'{key}' is not a cheat this build knows";
 			return;
 		}
 
-		switch (kind)
+		CheatKind cheat = parsedCheat;
+		switch (cheat)
 		{
 			case CheatKind.GrantResources:
 				GrantResources(playerEntity);

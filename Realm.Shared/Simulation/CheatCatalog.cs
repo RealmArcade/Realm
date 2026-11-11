@@ -1,20 +1,57 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Realm.Shared.Simulation;
 
-public enum CheatKind
+public abstract record CheatKind
 {
-	None,
-	GrantResources,
-	EmpowerOwnedUnits,
-	BoostSelectedMovementSpeed,
-	KillEnemyAiUnits,
-	EndMatch,
-	DisableShroud,
-	ToggleFastBuild,
-	ToggleUnlimitedPower,
-	KillSelectedUnits
+	public abstract CheatResult Result { get; }
+
+	public sealed record GrantResources : CheatKind
+	{
+		public override CheatResult Result => CheatResult.Stonks;
+	}
+
+	public sealed record EmpowerOwnedUnits : CheatKind
+	{
+		public override CheatResult Result => CheatResult.Gigachad;
+	}
+
+	public sealed record BoostSelectedMovementSpeed : CheatKind
+	{
+		public override CheatResult Result => CheatResult.AbsoluteUnit;
+	}
+
+	public sealed record KillEnemyAiUnits : CheatKind
+	{
+		public override CheatResult Result => CheatResult.ThanosSnap;
+	}
+
+	public sealed record EndMatch : CheatKind
+	{
+		public override CheatResult Result => CheatResult.EzClap;
+	}
+
+	public sealed record DisableShroud : CheatKind
+	{
+		public override CheatResult Result => CheatResult.NoCap;
+	}
+
+	public sealed record ToggleFastBuild : CheatKind
+	{
+		public override CheatResult Result => CheatResult.WarpSpeed;
+	}
+
+	public sealed record ToggleUnlimitedPower : CheatKind
+	{
+		public override CheatResult Result => CheatResult.UnlimitedPower;
+	}
+
+	public sealed record KillSelectedUnits : CheatKind
+	{
+		public override CheatResult Result => CheatResult.Sacrifice;
+	}
 }
 
 public static class CheatCatalog
@@ -34,40 +71,39 @@ public static class CheatCatalog
 
 	public static IReadOnlyList<string> Words => _words;
 
-	public static bool TryParse(string word, out CheatKind kind)
+	public static bool TryParse(string word, [NotNullWhen(true)] out CheatKind? kind)
 	{
-		kind = CheatKind.None;
+		kind = null;
 		if (string.IsNullOrWhiteSpace(word)) return false;
 
-		string key = word.Trim().ToLowerInvariant();
-		switch (key)
+		switch (word.Trim().ToLowerInvariant())
 		{
 			case "securethebag":
-				kind = CheatKind.GrantResources;
+				kind = new CheatKind.GrantResources();
 				return true;
 			case "gigachad":
-				kind = CheatKind.EmpowerOwnedUnits;
+				kind = new CheatKind.EmpowerOwnedUnits();
 				return true;
 			case "needforspeed":
-				kind = CheatKind.BoostSelectedMovementSpeed;
+				kind = new CheatKind.BoostSelectedMovementSpeed();
 				return true;
 			case "thanossnap":
-				kind = CheatKind.KillEnemyAiUnits;
+				kind = new CheatKind.KillEnemyAiUnits();
 				return true;
 			case "ezclap":
-				kind = CheatKind.EndMatch;
+				kind = new CheatKind.EndMatch();
 				return true;
 			case "aura":
-				kind = CheatKind.DisableShroud;
+				kind = new CheatKind.DisableShroud();
 				return true;
 			case "speedrun":
-				kind = CheatKind.ToggleFastBuild;
+				kind = new CheatKind.ToggleFastBuild();
 				return true;
 			case "skibidi":
-				kind = CheatKind.ToggleUnlimitedPower;
+				kind = new CheatKind.ToggleUnlimitedPower();
 				return true;
 			case "cooked":
-				kind = CheatKind.KillSelectedUnits;
+				kind = new CheatKind.KillSelectedUnits();
 				return true;
 			default:
 				return false;
