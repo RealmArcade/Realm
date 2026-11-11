@@ -481,6 +481,37 @@ layout_mode = 2
 focus_mode = 0
 text = "View Existing Coordinates"
 
+[node name="LblSpawnAnchorTitle" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "SPAWN ANCHORS"
+
+[node name="LblSpawnAnchorInstructions" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Seat a player slot on the area you drew. A slot has one anchor."
+autowrap_mode = 3
+
+[node name="SpawnAnchorRow" type="HBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LblSpawnAnchorSlot" type="Label" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/SpawnAnchorRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Slot:"
+
+[node name="OptSpawnAnchorPlayer" type="OptionButton" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox/SpawnAnchorRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
+
+[node name="BtnCommitSpawnAnchor" type="Button" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool/PanelCoordinatesVBox"]
+layout_mode = 2
+focus_mode = 0
+text = "Seat Area as Anchor"
+
 [node name="PanelObjectsVBox" type="VBoxContainer" parent="RightSlidePanel/RightScroll/AccordionContainer/ToolAccordion/ContentTool"]
 visible = false
 layout_mode = 2

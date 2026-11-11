@@ -61,9 +61,36 @@ namespace Realm.Client.UI
 			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
 		}
 
+		public bool ApplyMapReferencesOnSave(string editingDirectory)
+		{
+			if (string.IsNullOrEmpty(editingDirectory) || !Directory.Exists(editingDirectory)) return true;
+
+			MapReferenceResolutionResult result = GameContext.MapReferenceService.ApplyOnSave(editingDirectory);
+			if (!result.Success)
+			{
+				AppendWasmConsoleLog($"[REFERENCES] {result.Message}");
+				ShowFeedback(result.Message);
+				return false;
+			}
+
+			if (!result.HasReferences) return true;
+
+			AppendWasmConsoleLog($"[REFERENCES] {result.Message}");
+			foreach (string replacedFile in result.ReplacedFiles)
+			{
+				AppendWasmConsoleLog($"[REFERENCES] Replaced locally edited '{replacedFile}' with the referenced copy.");
+				ShowFeedback(string.Format(
+					TranslationServer.Translate("Local changes to {0} were replaced by the copy from the referenced map."),
+					replacedFile));
+			}
+
+			return true;
+		}
+
 		private void RecordMapVersion(MapVersionKind kind, string label, bool coalesce = false)
 		{
 			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(3));
+			ApplyMapReferencesOnSave(GetActiveEditingDirectory());
 
 			string editingDirectory = GetActiveEditingDirectory();
 			string? sourceFolder = string.IsNullOrEmpty(GameContext.EditorService.CurrentSourceFolder) ? null : GameContext.EditorService.CurrentSourceFolder;
@@ -670,8 +697,15 @@ namespace Realm.Client.UI
 			_importFromMapDialog.OpenForWorkspace(onImportCompleted);
 		}
 
+		public void OpenCompositeMapDialog()
+		{
+			if (_compositeMapDialog == null)
+			{
+				_compositeMapDialog = new CompositeMapDialog(this);
+			}
 
-
+			_compositeMapDialog.OpenForWorkspace();
+		}
 
 		public void OpenConvertGlbDialog(string? initialPath = null, string? initialSubCat = null, Action<string>? onConverted = null)
 		{

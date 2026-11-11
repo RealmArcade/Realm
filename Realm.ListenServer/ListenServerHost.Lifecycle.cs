@@ -9,6 +9,7 @@ using Realm.Ecs.Services;
 using Realm.Shared;
 using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
+using Realm.Shared.Metadata;
 using Realm.Shared.Network;
 using Realm.Shared.Simulation;
 
@@ -57,15 +58,24 @@ public partial class ListenServerHost
 
 		_scriptLogSink = _log.Write;
 		WasmScriptHost.OnWasmLog += _scriptLogSink;
+		LagProbe.TryEnableFromEnvironment("authority");
 
-		MatchRosterSeat[] roster = ReadRoster();
-		LoadedMap map = MapWorldLoader.Load(_arguments.MapPath, roster);
+		MatchRosterSeat[] roster = ReadRoster(out MatchOptionSet rosterOptions);
+		var paths = ServerMatchPaths.From(_arguments);
+		LoadedMap map = MapWorldLoader.LoadShell(_arguments.MapPath);
 		MarkStartStage("map loaded");
+		ServerLobbyScript? lobbyScript = null;
+		WasmScriptHost? preparedScript = null;
 		try
 		{
-			var paths = ServerMatchPaths.From(_arguments);
-			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, _arguments.Cheats ? 1 : 0);
+			roster = ApplyMapLobbyRules(map, paths, roster, out lobbyScript);
+			MapWorldLoader.Seat(map, roster);
+			preparedScript = lobbyScript?.DetachHost();
+			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, _arguments.Cheats ? 1 : 0, preparedScript, matchOptions: rosterOptions);
+			preparedScript = null;
+			lobbyScript = null;
 			MarkStartStage("simulation built");
+			WarmSnapshotFraming();
 			_simulation.PeerDropped += DisconnectPeer;
 			_log.Write($"map '{paths.MapName}' keeps its saved data under '{_simulation.MapSavedDataDirectory()}'");
 			_log.Write(_simulation.Describe());
@@ -107,10 +117,37 @@ public partial class ListenServerHost
 		}
 		catch
 		{
+			preparedScript?.Dispose();
+			lobbyScript?.Dispose();
 			_simulation?.Dispose();
 			_simulation = null;
 			throw;
 		}
+	}
+
+	/// <summary>
+	///     Runs the map's own lobby rules over a match that starts without a lobby. The seats the match was handed are the
+	///     seats those rules apply to, so a map states the roster it would state to an open lobby - its factions, its team
+	///     count and, for a match that was started for one screen, which players share a side - and the match starts on the
+	///     roster the map left behind. Nothing is shown and nobody is admitted, so the acceptance and the dismissal an open
+	///     lobby would have are this one pass.
+	/// </summary>
+	/// <param name="world">The map, loaded but not yet seated, which the map's lobby rules run on.</param>
+	/// <param name="paths">Where this match's map, data and logs live.</param>
+	/// <param name="roster">The seats the match was handed.</param>
+	/// <param name="lobbyScript">The warmed script the match takes over, when the map brought one.</param>
+	/// <returns>The seats the match plays, as the map's rules left them.</returns>
+	private MatchRosterSeat[] ApplyMapLobbyRules(LoadedMap world, ServerMatchPaths paths, MatchRosterSeat[] roster, out ServerLobbyScript? lobbyScript)
+	{
+		lobbyScript = null;
+		if (roster.Length == 0) return roster;
+
+		int maximumPlayers = world.Metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
+		var seats = new MatchRosterSeatTable(roster, _log, maximumPlayers);
+		var publishedRoster = new ServerLobbyRoster(seats, _log, roster.Length);
+		lobbyScript = ServerLobbyScript.Start(world, paths, _log, publishedRoster, _arguments.WasmDebug, _arguments.WorkspacePath);
+
+		return seats.ToMatchRosterSeats(roster).ToArray();
 	}
 
 	private void StartLobby()

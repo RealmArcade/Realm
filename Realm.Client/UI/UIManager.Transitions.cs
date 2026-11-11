@@ -93,11 +93,11 @@ public partial class UIManager
 	{
 		if (IsEnchantedRealmMusicScreen(screen))
 		{
-			PlayMusic("res://Assets/Audio/Music/enchanted_realm.ogg");
+			PlayMusicPlaylist(MenuMusicPlaylist);
 		}
 		else if (screen == GameScreen.InGameHUD)
 		{
-			PlayMusic("res://Assets/Audio/Music/battle_anthem.ogg");
+			PlayMusicPlaylist(BattleMusicPlaylist);
 		}
 		else if (screen == GameScreen.GameOver)
 		{
@@ -111,25 +111,51 @@ public partial class UIManager
 		}
 	}
 
-	public void PlayMusic(string path)
+	/// <summary>
+	///     Plays the tracks of a screen in order and wraps back to the first once the last one finishes, so a screen
+	///     keeps its music instead of falling silent when a track ends.
+	/// </summary>
+	public void PlayMusicPlaylist(string[] playlist)
 	{
-		if (_musicPlayer != null)
-		{
-			if (_musicPlayer.Stream?.ResourcePath == path && _musicPlayer.Playing)
-				return;
+		if (playlist == null || playlist.Length == 0) return;
 
-			var stream = GD.Load<AudioStream>(path);
-			if (stream != null)
-			{
-				_musicPlayer.Stream = stream;
-				_musicPlayer.Play();
-			}
-		}
+		if (IsCurrentPlaylist(playlist) && _musicPlayer != null && _musicPlayer.Playing) return;
+
+		_musicPlaylist = playlist;
+		_musicPlaylistIndex = 0;
+		PlayCurrentMusicTrack();
 	}
 
 	public void StopMusic()
 	{
+		_musicPlaylist = System.Array.Empty<string>();
+		_musicPlaylistIndex = 0;
 		_musicPlayer?.Stop();
+	}
+
+	private void PlayCurrentMusicTrack()
+	{
+		if (_musicPlayer == null || _musicPlaylist.Length == 0) return;
+
+		var stream = GD.Load<AudioStream>(_musicPlaylist[_musicPlaylistIndex]);
+		if (stream == null) return;
+
+		_musicPlayer.Stream = stream;
+		_musicPlayer.Play();
+	}
+
+	private bool IsCurrentPlaylist(string[] playlist)
+	{
+		if (!ReferenceEquals(_musicPlaylist, playlist)) return false;
+		return _musicPlayer?.Stream?.ResourcePath == playlist[_musicPlaylistIndex];
+	}
+
+	private void OnMusicTrackFinished()
+	{
+		if (_musicPlaylist.Length == 0) return;
+
+		_musicPlaylistIndex = (_musicPlaylistIndex + 1) % _musicPlaylist.Length;
+		PlayCurrentMusicTrack();
 	}
 
 	public void PlayClickSound()

@@ -19,7 +19,7 @@ public partial class WeaponVfxDialog
 	{
 		Add3DPreviewViewport(BodyContainer, new Vector2(460, 220));
 
-		_sfxPlayer = new AudioStreamPlayer { Name = "WeaponPreviewSfx", Bus = AudioService.SfxBusName };
+		_sfxPlayer = new AudioStreamPlayer { Name = "WeaponPreviewSfx", Bus = AudioService.PreviewBusName };
 		PreviewSubViewport.AddChild(_sfxPlayer);
 
 		BuildTopToolbars();

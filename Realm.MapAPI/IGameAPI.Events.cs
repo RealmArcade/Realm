@@ -26,6 +26,16 @@ public partial interface IGameAPI
 	event Action<UnitId, UnitId, float>? OnUnitDamaged;
 
 	/// <summary>
+	/// Triggered when a unit is hit, passing the damage the blow carried before the victim's resistances reduced it.
+	/// </summary>
+	/// <remarks>
+	/// A rule that weighs how much a side is contributing to a fight reads this rather than
+	/// <see cref="OnUnitDamaged" />, because damage that lands is what the victim's armour and magic resistance decide
+	/// and would let a heavily armoured target absorb participation. Both events describe the same blow, this one first.
+	/// </remarks>
+	event Action<UnitId, UnitId, float>? OnUnitDamagedBeforeMitigation;
+
+	/// <summary>
 	/// Triggered when a unit casts or channels a spell. Passes the caster unit, the spell ID, and the target position.
 	/// </summary>
 	event Action<UnitId, string, Vector3>? OnSpellCast;
@@ -42,11 +52,10 @@ public partial interface IGameAPI
 	event Action<UnitId, string, Vector3, int>? OnSpellImpact;
 
 	/// <summary>
-	/// Triggered when a player types a chat message. Passes the message, the first selected unit if any, and the slot of
-	/// the player who typed it, which is the slot to judge a console command by even when that player had nothing
-	/// selected.
+	/// Triggered when a player types a chat message. Passes the message and the slot of the player who typed it, which is
+	/// what a console command is judged by.
 	/// </summary>
-	event Action<string, UnitId, int>? OnPlayerChatMessage;
+	event Action<string, int>? OnPlayerChatMessage;
 
 	/// <summary>
 	/// Triggered when the player selects a unit.

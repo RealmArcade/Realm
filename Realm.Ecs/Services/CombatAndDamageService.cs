@@ -13,7 +13,6 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
 namespace Realm.Ecs.Services
 {
@@ -39,8 +38,8 @@ namespace Realm.Ecs.Services
 
 		private bool IsFlying(Entity entity)
 		{
-			return _context.World.Has<PathingFlags>(entity)
-			       && ((TerrainPathingFlags)_context.World.Get<PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
+			return _context.World.Has<TraversableTerrain>(entity)
+			       && ((TerrainPathingFlags)_context.World.Get<TraversableTerrain>(entity).Value & TerrainPathingFlags.Flying) != 0;
 		}
 
 		private bool CanAttackTarget(Entity attacker, Entity target)
@@ -302,7 +301,18 @@ namespace Realm.Ecs.Services
 
 		public Action<Entity>? OnHealFlashRequested;
 
-		public Action<Entity, Entity, float>? OnUnitDamagedCallback;
+		/// <summary>
+		///     Called with (victim, attacker, dealt damage, damage before the victim's mitigation), so a rule can weigh what
+		///     was swung rather than what landed.
+		/// </summary>
+		public Action<Entity, Entity, float, float>? OnUnitDamagedCallback;
+
+		/// <summary>
+		///     Answers the multiplier this hit's damage carries, which is how a rule scales one seat's damage against
+		///     another. A null provider, or one answering a value that is not a finite, non-negative number, leaves the damage
+		///     as resolved; zero is a stated multiplier like any other and means the hit lands for nothing.
+		/// </summary>
+		public Func<Entity, Entity, float>? DamageEffectivenessProvider;
 
 		public Action<Entity, Entity, float>? OnUnitHealedCallback;
 

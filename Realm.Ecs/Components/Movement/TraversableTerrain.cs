@@ -7,4 +7,4 @@ namespace Realm.Ecs.Components.Movement;
 ///     (bit 1 = shallow water, bit 2 = deep water, bit 4 = flying/air, bit 8 = ground).
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
-public record struct PathingFlags(int Value);
+public record struct TraversableTerrain(int Value);

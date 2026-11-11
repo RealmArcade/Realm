@@ -12,11 +12,13 @@ public partial class ServerGameAPI
 
 	public event Action<UnitId, UnitId, float>? OnUnitDamaged;
 
+	public event Action<UnitId, UnitId, float>? OnUnitDamagedBeforeMitigation;
+
 	public event Action<UnitId, string, Vector3>? OnSpellCast;
 
 	public event Action<UnitId, string, Vector3, int>? OnSpellImpact;
 
-	public event Action<string, UnitId, int>? OnPlayerChatMessage;
+	public event Action<string, int>? OnPlayerChatMessage;
 
 	public event Action<UnitId>? OnUnitSelected;
 

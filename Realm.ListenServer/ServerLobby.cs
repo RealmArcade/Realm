@@ -6,10 +6,12 @@ using Realm.Shared.Maps;
 using Realm.Shared.Network;
 using Realm.Shared.Players;
 using Realm.Shared.Services;
+using Realm.Shared.Simulation;
+using Realm.Ecs;
 
 namespace Realm.ListenServer;
 
-public partial class ServerLobby
+public partial class ServerLobby : ILobbySeatTable
 	{
 	private readonly Action<int, NetworkFrameKind, byte[], FrameDelivery> _send;
 
@@ -33,6 +35,8 @@ public partial class ServerLobby
 	private readonly string _mapFolder;
 	private readonly string _mapName;
 	private readonly string _mapVersion;
+	private readonly int _mapMaximumPlayers;
+	private readonly MatchOptionSet _matchOptions = new();
 	private int _maximumPlayers;
 
 	private readonly SortedDictionary<int, LobbySeat> _seats = new();
@@ -78,7 +82,8 @@ public partial class ServerLobby
 		_mapFolder = arguments.MapPath;
 		_mapName = ResolveMapName(arguments);
 		_mapVersion = ResolveMapVersion(arguments);
-		_maximumPlayers = ResolveMaximumPlayers(arguments);
+		_mapMaximumPlayers = ResolveMaximumPlayers(arguments);
+		_maximumPlayers = _mapMaximumPlayers;
 	}
 
 	public bool MatchStarted => _matchStarted;
@@ -90,6 +95,43 @@ public partial class ServerLobby
 	public string MapVersion => _mapVersion;
 
 	public int MaximumPlayers => _maximumPlayers;
+
+	/// <summary>
+	///     The parameters the host configured for the match this lobby starts. They are read once, when the match is put on
+	///     the authority, so a change the host makes after the countdown has begun does not reach the match already built.
+	/// </summary>
+	public MatchOptionSet MatchOptions => _matchOptions;
+
+	/// <summary>
+	///     Sets one parameter the host configures for the match. Every value the option range refuses is dropped rather than
+	///     clamped, so a host is never shown a setting the match would not play.
+	/// </summary>
+	/// <param name="option">The option being configured.</param>
+	/// <param name="value">The value to play, where zero returns the option to the map's own default.</param>
+	/// <returns>Whether the lobby now holds that setting.</returns>
+	public bool TrySetMatchOption(MatchOption option, int value)
+	{
+		if (option == MatchOption.MaximumPlayers)
+		{
+			if (!_matchOptions.Set(option, value)) return false;
+
+			int players = value == 0 ? _mapMaximumPlayers : value;
+			if (!TrySetMaximumPlayers(players))
+			{
+				_matchOptions.Set(option, 0);
+				return false;
+			}
+
+			BroadcastState();
+			return true;
+		}
+
+		if (!_matchOptions.Set(option, value)) return false;
+
+		_log.Write($"the lobby's host set {option} to {(value == 0 ? "the map's default" : value.ToString(System.Globalization.CultureInfo.InvariantCulture))}");
+		BroadcastState();
+		return true;
+	}
 
 	/// <summary>
 	///     How many seats are playing rather than watching. A spectator holds no player seat, so the players a lobby seats
@@ -118,13 +160,6 @@ public partial class ServerLobby
 	public IReadOnlyCollection<LobbySeat> Seats => _seats.Values;
 
 	public bool TryGetSeatBySlot(int slot, out LobbySeat seat) => _seats.TryGetValue(slot, out seat);
-
-	/// <summary>
-	///     Gives the seat a faction its map's roster chose. Nothing is published when the seat is gone.
-	/// </summary>
-	/// <param name="slot">The seat's slot.</param>
-	/// <param name="faction">The faction the seat plays as.</param>
-	/// <returns>Whether the seat holds the faction afterwards.</returns>
 
 	public string HostStability { get; private set; } = "Excellent";
 }

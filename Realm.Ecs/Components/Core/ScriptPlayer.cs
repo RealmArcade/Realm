@@ -19,6 +19,7 @@ public struct ScriptPlayer
 	public int NameStringId;
 	public int KillCount;
 	public int TeamNameStringId;
+	public int FactionStringId;
 
 	public int TeamIndex
 	{
@@ -48,5 +49,11 @@ public struct ScriptPlayer
 	{
 		get => StringRegistry.Get(NameStringId);
 		set => NameStringId = StringRegistry.GetOrAdd(value);
+	}
+
+	public string Faction
+	{
+		get => StringRegistry.Get(FactionStringId);
+		set => FactionStringId = StringRegistry.GetOrAdd(value);
 	}
 }

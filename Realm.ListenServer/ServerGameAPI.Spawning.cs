@@ -5,6 +5,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
 using Realm.Shared.Abilities;
 using Realm.Shared.Maps;
+using Realm.Shared.Terrain;
 using Realm.MapAPI;
 
 namespace Realm.ListenServer;
@@ -233,5 +234,24 @@ public partial class ServerGameAPI
 	public void CancelTimer(int timerHandle)
 	{
 		_timers.Remove(timerHandle);
+	}
+
+	public int GetSpawnAnchorCount() => _map.SaveData.SpawnAnchors?.Count ?? 0;
+
+	public Vector3 GetSpawnAnchor(int playerSlot)
+	{
+		List<SpawnAnchorSaveData>? anchors = _map.SaveData.SpawnAnchors;
+		if (anchors == null) return Vector3.Zero;
+
+		for (int index = 0; index < anchors.Count; index++)
+		{
+			SpawnAnchorSaveData anchor = anchors[index];
+			if (anchor.Player != playerSlot) continue;
+
+			var point = new Vector3(anchor.PosX, 0f, anchor.PosZ);
+			return new Vector3(point.X, ReadTerrainHeight(point), point.Z);
+		}
+
+		return Vector3.Zero;
 	}
 }

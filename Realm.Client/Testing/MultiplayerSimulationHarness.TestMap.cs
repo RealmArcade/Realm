@@ -13,6 +13,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 
 namespace Realm.Client.Testing;
@@ -191,12 +192,27 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		MultiplayerSyncDiagnostics.Start(isHost ? Path.Combine(_outputDirectory, "host") : _outputDirectory);
+		LagProbe.TryEnableFromEnvironment(ResolveProbeRole(isHost));
 		PrintReplicatedCodecTable(isHost);
 		TryWriteReadyFile();
 		GameHost currentHost = GameContext.Host!;
 		GameLog.LogToConsole($"[MP_HARNESS] {(isHost ? "Host" : "Client")} simulation ready at game time {currentHost.GameElapsedTime:F2}s with {currentHost.AllUnits.Count} units.");
 		GameLog.LogToConsole($"[MP_HARNESS] Active workspace '{MapWorkspaceService.GetActiveWorkspacePath()}' resolved from map directory '{GameContext.MapStorageService?.CurrentMapDirectory}'.");
 		return true;
+	}
+
+	/// <summary>
+	///     Names this process's probe report after its seat, because every screen of a room is handed the same metrics
+	///     directory: eleven reports written as 'client' would leave one, and the ten outcomes nobody read are the ten that
+	///     were worst.
+	/// </summary>
+	private string ResolveProbeRole(bool isHost)
+	{
+		// The host screen is not the authority: it renders the replicated world like every other screen, and the authority
+		// writes its own 'authority' report from the process that actually simulates. Naming the host screen 'authority'
+		// made whichever report was written last win, which is how a room filled with client numbers under a server title.
+		if (isHost) return "hostscreen";
+		return _peerIndex <= 1 ? "client" : $"client{_peerIndex}";
 	}
 
 	private static void PrintReplicatedCodecTable(bool isHost)

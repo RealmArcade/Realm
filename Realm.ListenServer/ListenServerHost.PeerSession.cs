@@ -92,7 +92,15 @@ public partial class ListenServerHost
 		_lastBaselineRequestTickPerPeer.Remove(peerId);
 		_lastAcknowledgedProgressTickPerPeer[peerId] = tick;
 		_lastRepairSentTickPerPeer.Remove(peerId);
+		_lastRepairFirstSequencePerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
+
+		// A seat is a fresh start for the repeat as well: the peer this seat replaces may have been the lossy one, and the
+		// tick the repeat expires on goes with the repair bookkeeping above.
+		_peersThatLoseDescriptions.Remove(peerId);
+		_descriptionsLostByPeer.Remove(peerId);
+		_lossWindowStartedTickPerPeer.Remove(peerId);
+		_lastLossNamedTickPerPeer.Remove(peerId);
 	}
 
 	private void ForgetPeerBookkeeping(int peerId)
@@ -107,6 +115,7 @@ public partial class ListenServerHost
 		_roundTripMillisecondsPerPeer.Remove(peerId);
 		_seatedAtTickPerPeer.Remove(peerId);
 		_lastRepairSentTickPerPeer.Remove(peerId);
+		_lastRepairFirstSequencePerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
 		_commandsThisTick.Remove(peerId);
 		_peerLanguages.Remove(peerId);
@@ -114,5 +123,9 @@ public partial class ListenServerHost
 		// Nothing this peer was sent may answer a repair once it is gone, and a peer id is not a session: one that leaves
 		// and comes back under the same id must not be answered from the descriptions it was sent before it went.
 		_frameRings.Remove(peerId);
+		_peersThatLoseDescriptions.Remove(peerId);
+		_descriptionsLostByPeer.Remove(peerId);
+		_lossWindowStartedTickPerPeer.Remove(peerId);
+		_lastLossNamedTickPerPeer.Remove(peerId);
 	}
 }

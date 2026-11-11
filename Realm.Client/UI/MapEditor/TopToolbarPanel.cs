@@ -39,6 +39,7 @@ public sealed record TopToolbarHooks(
 	Action OpenTemplateManager,
 	Action OpenInstanceManager,
 	Action OpenImportFromMap,
+	Action OpenCompositeMap,
 	Action OpenUtilities);
 
 /// <summary>
@@ -49,6 +50,8 @@ public sealed record TopToolbarHooks(
 /// </summary>
 public sealed class TopToolbarPanel
 {
+	private const int FeedbackOverlayZIndex = 2000;
+
 	private Control? _owner;
 
 	public Button BackToHubButton { get; private set; } = null!;
@@ -69,6 +72,7 @@ public sealed class TopToolbarPanel
 	public Button TemplateManagerButton { get; private set; } = null!;
 	public Button InstanceManagerButton { get; private set; } = null!;
 	public Button ImportFromMapButton { get; private set; } = null!;
+	public Button CompositeMapButton { get; private set; } = null!;
 	public Button UtilitiesButton { get; private set; } = null!;
 	public Label StatusLabel { get; private set; } = null!;
 	public Label FeedbackLabel { get; private set; } = null!;
@@ -91,6 +95,7 @@ public sealed class TopToolbarPanel
 		FeedbackLabel = _owner.GetNode<Label>("FeedbackLabel");
 		FeedbackLabel.Modulate = new Color(1, 1, 1, 0);
 		FeedbackLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+		FeedbackLabel.ZIndex = FeedbackOverlayZIndex;
 	}
 
 	private void BuildTopLeftToolbar(TopToolbarHooks hooks)
@@ -342,6 +347,12 @@ public sealed class TopToolbarPanel
 		hooks.SetupOptionButton(ImportFromMapButton, $"🗺 " + TranslationServer.Translate("IMPORT FROM MAP"), () => hooks.OpenImportFromMap(), 13, "Copy assets, templates, and code from another map into this map");
 		ImportFromMapButton.Pressed += () => EditorsPopup.Hide();
 		editorsVBox.AddChild(ImportFromMapButton);
+
+		CompositeMapButton = new Button();
+		CompositeMapButton.Name = "BtnCompositeMap";
+		hooks.SetupOptionButton(CompositeMapButton, $"{UnicodeIcons.CUBES} " + TranslationServer.Translate("COMPOSITE MAP"), () => hooks.OpenCompositeMap(), 13, "Build an export-only composite package that references other maps one layer deep");
+		CompositeMapButton.Pressed += () => EditorsPopup.Hide();
+		editorsVBox.AddChild(CompositeMapButton);
 
 		UtilitiesButton = new Button();
 		UtilitiesButton.Name = "BtnUtilities";

@@ -28,7 +28,11 @@ public partial class MapEditorHUD : Control
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
 
-		if (OperatingSystem.IsWindows()) DotnetSdkInstaller.EnsureInstalledInBackground();
+		if (OperatingSystem.IsWindows())
+		{
+			DotnetSdkInstaller.EnsureInstalledInBackground();
+			GameContext.VSCode.StartInstallIfNeeded();
+		}
 	}
 
 	public static string defaultLoadFolder
@@ -124,6 +128,7 @@ public partial class MapEditorHUD : Control
 	private AbilityVfxDialog _abilityVfxDialog { get; set; } = null!;
 	private AssetManagerDialog _assetManagerDialog { get; set; } = null!;
 	private ImportFromMapDialog _importFromMapDialog { get; set; } = null!;
+	private CompositeMapDialog _compositeMapDialog { get; set; } = null!;
 	private TemplateManagerDialog _templateManagerDialog { get; set; } = null!;
 	private InstanceManagerDialog _instanceManagerDialog { get; set; } = null!;
 	private AssetBrowserDialog _assetBrowserDialog { get; set; } = null!;

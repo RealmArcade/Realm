@@ -361,7 +361,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 			child.QueueFree();
 		}
 
-		Control tooltipWidget = RichTooltip.Create(_tooltip);
+		Control tooltipWidget = RichTooltip.Create(_tooltip, useStonePanel: false);
 		_previewContainer.AddChild(tooltipWidget);
 	}
 

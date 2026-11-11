@@ -1711,6 +1711,16 @@
             Triggered when a unit takes damage. Passes the victim unit, the attacker unit, and the damage amount.
             </summary>
         </member>
+        <member name="E:Realm.MapAPI.IGameAPI.OnUnitDamagedBeforeMitigation">
+            <summary>
+            Triggered when a unit is hit, passing the damage the blow carried before the victim's resistances reduced it.
+            </summary>
+            <remarks>
+            A rule that weighs how much a side is contributing to a fight reads this rather than
+            <see cref="E:Realm.MapAPI.IGameAPI.OnUnitDamaged" />, because damage that lands is what the victim's armour and magic resistance decide
+            and would let a heavily armoured target absorb participation. Both events describe the same blow, this one first.
+            </remarks>
+        </member>
         <member name="E:Realm.MapAPI.IGameAPI.OnSpellCast">
             <summary>
             Triggered when a unit casts or channels a spell. Passes the caster unit, the spell ID, and the target position.
@@ -1729,9 +1739,8 @@
         </member>
         <member name="E:Realm.MapAPI.IGameAPI.OnPlayerChatMessage">
             <summary>
-            Triggered when a player types a chat message. Passes the message, the first selected unit if any, and the slot of
-            the player who typed it, which is the slot to judge a console command by even when that player had nothing
-            selected.
+            Triggered when a player types a chat message. Passes the message and the slot of the player who typed it, which is
+            what a console command is judged by.
             </summary>
         </member>
         <member name="E:Realm.MapAPI.IGameAPI.OnUnitSelected">
@@ -2201,6 +2210,42 @@
             Returns an empty string if the slot is not occupied.
             </summary>
             <param name="playerIndex">Zero-based player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerFaction(System.Int32)">
+            <summary>
+            Returns the faction a player selected in the lobby. A map that offers hero choices through its lobby script reads
+            this to decide which hero that player enters the match with; a slot that holds no faction answers empty.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetPlayerBuildingCount(System.Int32)">
+            <summary>
+            Counts the buildings a player owns, including completed buildings, construction sites and its starting structure.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <returns>The number of buildings the slot owns.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerBuildingLimit(System.Int32,System.Int32)">
+            <summary>
+            Caps how many buildings a player may hold at once. A limit of zero leaves the slot unlimited, which is the default.
+            A placement that would exceed the limit is refused before its cost is charged.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="limit">The maximum number of buildings, or zero for no limit.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetMatchOption(Realm.Ecs.MatchOption)">
+            <summary>
+            Reads a parameter the lobby's host configured for this match, which is how a map lets a host change a limit or a
+            mode it would otherwise have stated as a constant.
+            </summary>
+            <remarks>
+            Every option modifies a value the game already evaluates rather than selecting a different set of rules, so a map
+            reads it once while it starts and falls back to its own default when the host left the option alone. A host that
+            left an option alone answers zero, which is the value no option treats as a real setting, and a map that reads an
+            option it does not act on simply ignores it.
+            </remarks>
+            <param name="matchOption">The option being read, named by <see cref="T:Realm.Ecs.MatchOption" />.</param>
+            <returns>The value the host set, or zero when the host left the option to the map.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerGold(System.Int32,System.Single)">
             <summary>
@@ -2902,11 +2947,63 @@
             <see cref="M:Realm.MapAPI.IGameAPI.SetUnitHideHealthAndManaBars(Realm.Ecs.UnitId,System.Boolean)"/> hides the bars of, which is what makes a badge for a board square
             possible, and it draws only when the map shows badges at all through <see cref="M:Realm.MapAPI.IGameAPI.SetUnitBarVisibility(System.Boolean,System.Boolean,System.Boolean)"/>.
             The badge lives on the unit entity, so it follows the unit through element swaps, level changes and swaps of two
-            units' places, and it is gone when the entity is destroyed. A value of zero or below hides it.
+            units' places, and it is gone when the entity is destroyed. A value of zero draws zero, because a count that has
+            run out is still something the board states, and a negative value hides the badge.
             </remarks>
             <param name="unit">The unit identifier.</param>
-            <param name="value">The number to draw above a zero-hiding threshold, from 1 to 999.</param>
+            <param name="value">The number to draw, from 0 to 999, or a negative value to draw no badge at all.</param>
             <param name="color">The tint of the badge, in the same 0-1 channel range as every other colour a map gives.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitCharges(Realm.Ecs.UnitId,System.Int32,System.Single)">
+            <summary>
+            States the charges a unit keeps and how long it takes to regain one, which is how a map makes a building hold a
+            limited number of what it fields.
+            </summary>
+            <remarks>
+            The engine owns the count: it regains a charge every <paramref name="rechargeSeconds" /> on its own, so a map
+            states the parameters once and never advances the timer itself. The count is a component of the unit, read the
+            same way by the inspector, the overhead plate and the map, and replicated with the unit, so every screen states
+            the same number without the map publishing it.
+            <para>
+            Stating the parameters again keeps the count the unit holds, clamped to the new maximum, and keeps the recharge it
+            has already served, so a rule that raises the cap mid-match does not hand out charges and a rule that lowers the
+            recharge time is felt on the charge being regained. Calling it on a unit that carries no charges gives it a count
+            of zero, because the maximum stated here is what the charge is worth.
+            </para>
+            <para>
+            A maximum of zero removes the charges from the unit, which is how a map says the rule no longer applies to it.
+            </para>
+            </remarks>
+            <param name="unit">The unit identifier.</param>
+            <param name="maximumCharges">The greatest number of charges the unit may hold, or zero to hold none at all.</param>
+            <param name="rechargeSeconds">Seconds the unit takes to regain one charge, or zero to regain them at once.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitChargeCount(Realm.Ecs.UnitId,System.Int32)">
+            <summary>
+            Sets how many charges a unit holds right now, which is how a map spends or grants one.
+            </summary>
+            <remarks>
+            The count is clamped to what the unit states through <see cref="M:Realm.MapAPI.IGameAPI.SetUnitCharges(Realm.Ecs.UnitId,System.Int32,System.Single)" />, and a unit that carries no
+            charges ignores the call because it has no count to set. Spending the last charge resets the recharge, because the
+            time served toward a charge the unit already held is not time served toward the next one.
+            </remarks>
+            <param name="unit">The unit identifier.</param>
+            <param name="charges">The number of charges the unit holds, which is clamped to the maximum it states.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerDamageEffectiveness(System.Int32,System.Int32,System.Single)">
+            <summary>
+            States the multiplier the damage one player deals carries against another, which is how a rule makes a side of a
+            contest temporarily less effective without changing the units themselves.
+            </summary>
+            <remarks>
+            The multiplier is applied to every blow the attacker's units land on the defender's units and its buildings, after
+            the victim's resistances have been resolved, so it scales what a fight costs rather than what armor it meets. A pair
+            a rule never states stays at full effectiveness, so a ruleset that ignores this answer fights exactly as the engine
+            does.
+            </remarks>
+            <param name="attackingPlayerIndex">Zero-based player slot index whose damage is scaled.</param>
+            <param name="defendingPlayerIndex">Zero-based player slot index the scaled damage is dealt to.</param>
+            <param name="multiplier">The damage multiplier, where one is full effectiveness and zero deals nothing.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitCustomData(Realm.Ecs.UnitId,System.String,System.String)">
             <summary>
@@ -3116,6 +3213,56 @@
             </summary>
             <param name="node">The resource node identifier.</param>
             <returns>True if depleted; otherwise, false.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetSpawnAnchorCount">
+            <summary>
+            Gets how many player starting points the map instance the match is playing declares.
+            A spawn anchor joins a player slot to a point on the board, and it is authored with the board's terrain instead
+            of in a script, so one ruleset can be played on any board that seats its players. A map that declares none
+            answers zero, which is how a script tells a board meant for it apart from one it was pointed at by mistake.
+            </summary>
+            <returns>The number of spawn anchors the loaded map declares.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetSpawnAnchor(System.Int32)">
+            <summary>
+            Gets where the map instance places the starting point of one player slot.
+            The point is snapped to the ground of the loaded terrain, so it is a position a starting building can be placed
+            at and a camera can be moved to without the script reading a height field itself. A slot the map declares no
+            anchor for answers <see cref="P:System.Numerics.Vector3.Zero"/>.
+            </summary>
+            <param name="playerSlot">The one-based player slot the lobby seats a player in, as the map's own slot numbering states it.</param>
+            <returns>The ground position of that slot's anchor, or <see cref="P:System.Numerics.Vector3.Zero"/> when the map declares none for it.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitConstructionProgress(Realm.Ecs.UnitId)">
+            <summary>
+            Reports how far a building site has been built, as a fraction from zero to one. A unit that is not a building
+            site answers one, so a caller may ask any unit without first knowing what state it is in.
+            </summary>
+            <param name="unit">The building site.</param>
+            <returns>The completed fraction of its construction time.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.AdvanceUnitConstruction(Realm.Ecs.UnitId,System.Single)">
+            <summary>
+            Advances a building site's construction by the given amount of work, which is how an ability that finishes part
+            of a construction reads without the map having to know how construction time is stored.
+            </summary>
+            <param name="unit">The building site.</param>
+            <param name="seconds">The amount of construction work to add, in seconds of build time.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnBuildingUnderConstruction(System.String,System.Numerics.Vector3,System.Int32,System.Single)">
+            <summary>
+            Starts a building site for a player: spawns the building and schedules its construction, charging no resource and
+            consuming no building supply. The engine advances a site nobody is working on only when the map says so, through
+            <see cref="M:Realm.MapAPI.IGameAPI.AdvanceUnitConstruction(Realm.Ecs.UnitId,System.Single)" />, and announces it through <see cref="E:Realm.MapAPI.IGameAPI.OnConstructionFinished" /> like any
+            other site, so a map that builds from an order it authored keeps the completion path it already handles.
+            Use this instead of <see cref="M:Realm.MapAPI.IGameAPI.SpawnUnitForPlayer(System.String,System.Numerics.Vector2,System.Int32,System.Boolean,System.Boolean)" /> when the building is meant to appear unfinished; that method
+            creates a completed building.
+            </summary>
+            <param name="buildingTypeId">The template identifier of the building to start.</param>
+            <param name="position">The world position of the site.</param>
+            <param name="playerIndex">The zero-based player slot index that owns the site.</param>
+            <param name="totalConstructionSeconds">How much build time the site needs before it completes.</param>
+            <returns>The site unit, or an invalid handle when the template is not a building this map defines.</returns>
         </member>
         <member name="T:Realm.MapAPI.ILobbyAPI">
             <summary>
@@ -5412,6 +5559,9 @@
         <member name="F:Realm.MapAPI.Components.ScriptPlayer.TeamNameStringId">
             <summary>The TeamNameStringId field.</summary>
         </member>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.FactionStringId">
+            <summary>The FactionStringId field.</summary>
+        </member>
         <member name="P:Realm.MapAPI.Components.ScriptPlayer.TeamIndex">
             <summary>Gets or sets the TeamIndex property.</summary>
         </member>
@@ -5426,6 +5576,9 @@
         </member>
         <member name="P:Realm.MapAPI.Components.ScriptPlayer.Name">
             <summary>Gets or sets the player display name.</summary>
+        </member>
+        <member name="P:Realm.MapAPI.Components.ScriptPlayer.Faction">
+            <summary>Gets or sets the Faction property.</summary>
         </member>
         <member name="T:Realm.MapAPI.Components.UnitOwnerPlayer">
             <summary>

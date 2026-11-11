@@ -36,11 +36,14 @@ public partial class ServerGameAPI
 		OnUnitDied?.Invoke(new UnitId(unitId), killer);
 	}
 
-	public void RaiseUnitDamaged(int unitId, int attackerUnitId, float damage)
+	public void RaiseUnitDamaged(int unitId, int attackerUnitId, float damage, float damageBeforeMitigation)
 	{
 		if (unitId <= 0) return;
 
-		OnUnitDamaged?.Invoke(new UnitId(unitId), attackerUnitId > 0 ? new UnitId(attackerUnitId) : UnitId.Invalid, damage);
+		UnitId victim = new(unitId);
+		UnitId attacker = attackerUnitId > 0 ? new UnitId(attackerUnitId) : UnitId.Invalid;
+		OnUnitDamaged?.Invoke(victim, attacker, damage);
+		OnUnitDamagedBeforeMitigation?.Invoke(victim, attacker, damageBeforeMitigation);
 	}
 
 	public void RaiseUnitAttacked(int attackerUnitId, int targetUnitId)
@@ -57,12 +60,11 @@ public partial class ServerGameAPI
 		OnConstructionFinished?.Invoke(new UnitId(unitId));
 	}
 
-	public void RaisePlayerChatMessage(int playerIndex, string message, int senderUnitId)
+	public void RaisePlayerChatMessage(int playerIndex, string message)
 	{
 		if (string.IsNullOrWhiteSpace(message)) return;
 
-		UnitId sender = senderUnitId > 0 && _context.World.IsAlive(new Entity(senderUnitId)) ? new UnitId(senderUnitId) : UnitId.Invalid;
-		OnPlayerChatMessage?.Invoke(message, sender, playerIndex);
+		OnPlayerChatMessage?.Invoke(message, playerIndex);
 		_log.Write($"player {playerIndex} sent the map a console command");
 	}
 

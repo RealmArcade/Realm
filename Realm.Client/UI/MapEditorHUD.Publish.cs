@@ -86,7 +86,7 @@ public partial class MapEditorHUD
 		return keyPath.Length > 0 && AuthorshipKeyHelper.TryLoadAuthorshipKey(keyPath, out key, out data);
 	}
 
-	private string GetPublishAuthorName()
+	public string GetPublishAuthorName()
 	{
 		if (AuthorshipKeyHelper.TryReadKeyFile(GetSelectedAuthorshipKeyPath(), out Realm.Shared.Metadata.AuthorshipKeyData? authorsKeyData) && authorsKeyData != null)
 		{

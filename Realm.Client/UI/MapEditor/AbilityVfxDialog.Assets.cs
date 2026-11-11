@@ -21,6 +21,11 @@ public partial class AbilityVfxDialog
 	{
 		if (string.IsNullOrWhiteSpace(soundPath) || _sfxPlayer == null) return;
 
+		if (!AudioService.IsMasterVolumeAudible())
+		{
+			Hud?.ShowFeedback(AudioService.PreviewInaudibleWarning);
+		}
+
 		try
 		{
 			if (TryPlayResPath(soundPath)) return;

@@ -13,7 +13,6 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
 namespace Realm.Ecs.Services
 {
@@ -30,7 +29,7 @@ namespace Realm.Ecs.Services
 				return false;
 			}
 
-			pathingFlags = (ushort)(_context.World.Has<PathingFlags>(entity) ? _context.World.Get<PathingFlags>(entity).Value : 8);
+			pathingFlags = (ushort)(_context.World.Has<TraversableTerrain>(entity) ? _context.World.Get<TraversableTerrain>(entity).Value : 8);
 			isFlying = ((TerrainPathingFlags)pathingFlags & TerrainPathingFlags.Flying) != 0;
 			hasPf = _context.World.Has<PathFollow>(entity);
 			pf = GetOrCreatePathFollow(hasPf, entity, pos, target);
@@ -59,7 +58,7 @@ namespace Realm.Ecs.Services
 				PosValue = pos.Value,
 				MoveTarget = moveTo.Target,
 				Stats = stats,
-				PathingFlags = pathingFlags,
+				TraversableTerrain = pathingFlags,
 				IsFlying = isFlying,
 				HasPf = hasPf,
 				Pf = pf,
@@ -94,7 +93,7 @@ namespace Realm.Ecs.Services
 				PosValue = pos.Value,
 				MoveTarget = previewMoveTo.Target,
 				Stats = stats,
-				PathingFlags = pathingFlags,
+				TraversableTerrain = pathingFlags,
 				IsFlying = isFlying,
 				HasPf = hasPf,
 				Pf = pf,

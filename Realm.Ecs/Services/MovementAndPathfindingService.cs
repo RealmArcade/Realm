@@ -12,7 +12,6 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
 namespace Realm.Ecs.Services
 {
@@ -148,7 +147,7 @@ namespace Realm.Ecs.Services
 			public Vector3 PosValue;
 			public Vector3 MoveTarget;
 			public MovementStats Stats;
-			public ushort PathingFlags;
+			public ushort TraversableTerrain;
 			public bool IsFlying;
 			public bool HasPf;
 			public PathFollow Pf;
@@ -326,6 +325,15 @@ namespace Realm.Ecs.Services
 						{
 							_context.World.Remove<WaypointQueue>(entity);
 						}
+					}
+
+					if (_context.World.Has<Patrol>(entity))
+					{
+						var patrol = _context.World.Get<Patrol>(entity);
+						patrol.GoingToB = !patrol.GoingToB;
+						_context.World.Set(entity, patrol);
+						_context.World.Set(entity, new MoveTo(patrol.GoingToB ? patrol.PointB : patrol.PointA));
+						continue;
 					}
 
 					_context.World.Remove<MoveTo>(entity);

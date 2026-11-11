@@ -126,7 +126,7 @@ namespace Realm.Ecs.Tests
 				new DefinitionId("adventurer"),
 				new CombatTargeting(canTargetAir, true),
 				new MovementStats(speed, 20f, 10f),
-				new PathingFlags((int)TerrainPathingFlags.Ground),
+				new TraversableTerrain((int)TerrainPathingFlags.Ground),
 				new Movable(),
 				new CollisionScale(scale)
 			);
@@ -143,7 +143,7 @@ namespace Realm.Ecs.Tests
 				new Attack(damage, range, 1.4f),
 				new ScanRadius(scanRadius),
 				new MovementStats(speed, 20f, 10f),
-				new PathingFlags((int)TerrainPathingFlags.Ground),
+				new TraversableTerrain((int)TerrainPathingFlags.Ground),
 				new Movable(),
 				new CollisionScale(1.0f),
 				new MoveTo(moveTarget)
@@ -177,7 +177,7 @@ namespace Realm.Ecs.Tests
 				new DefinitionId("zombie_warrior"),
 				new ScanRadius(0),
 				new MovementStats(0f, 20f, 10f),
-				new PathingFlags((int)TerrainPathingFlags.Ground)
+				new TraversableTerrain((int)TerrainPathingFlags.Ground)
 			);
 		}
 
@@ -204,7 +204,7 @@ namespace Realm.Ecs.Tests
 				new Owner(owner),
 				new DefinitionId("cyber_dragon"),
 				new ScanRadius(40),
-				new PathingFlags((int)TerrainPathingFlags.Flying)
+				new TraversableTerrain((int)TerrainPathingFlags.Flying)
 			);
 		}
 

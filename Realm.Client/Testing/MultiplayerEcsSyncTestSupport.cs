@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Realm.Client.Services;
 using Realm.Ecs.Replication;
+using Realm.Client.Network;
 using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 using Realm.Shared.Services;
@@ -38,6 +39,10 @@ public class MultiplayerEcsRunSettings
 	public NetworkProfile Profile { get; init; } = NetworkProfile.Latency;
 	public int PeerCount { get; init; } = 2;
 	public int BotCount { get; init; }
+	public bool CheatsEnabled { get; init; }
+	public bool UnlockTiles { get; init; }
+	public int RelaySeed { get; init; } = 20261023;
+	public string MetricsDirectory { get; init; } = string.Empty;
 	public float DropClientAtSeconds { get; init; }
 	public float DiscardSnapshotAtSeconds { get; init; }
 	public int ReconnectDeadlineSequences { get; init; } = 240;
@@ -46,7 +51,7 @@ public class MultiplayerEcsRunSettings
 	public IReadOnlyList<string> ResolveClientDirectories()
 	{
 		var directories = new List<string>(Math.Max(1, PeerCount - 1));
-		for (int peerIndex = 1; peerIndex < Math.Max(2, PeerCount); peerIndex++)
+		for (int peerIndex = 1; peerIndex < Math.Max(1, PeerCount); peerIndex++)
 		{
 			directories.Add(ResolveClientDirectory(peerIndex));
 		}
@@ -115,6 +120,7 @@ public static partial class MultiplayerEcsSyncTestSupport
 	private const int PlacementQuantityCount = 2;
 	private const int PlacementLagAllowanceSequences = 30;
 	private const int StartupWarmupSequenceCount = 60;
+	private const int SimulatedLinkSeedStridePerPeer = 7919;
 	private const int SyncRecordVersion = SyncRecordFormat.Version;
 
 	private const float BackwardMotionAuthorityMeters = 0.05f;
@@ -171,8 +177,18 @@ public static partial class MultiplayerEcsSyncTestSupport
 		string publishedPath = Path.Combine(scriptOutputDirectory, $"{assemblyName}.wasm");
 		string shippedPath = Path.Combine(mapFolder, $"{assemblyName}.wasm");
 
-		if (File.Exists(shippedPath) && (!File.Exists(mapScriptPath) || File.GetLastWriteTimeUtc(shippedPath) >= File.GetLastWriteTimeUtc(mapScriptPath))) return shippedPath;
-		if (File.Exists(publishedPath) && File.GetLastWriteTimeUtc(publishedPath) >= File.GetLastWriteTimeUtc(mapScriptPath)) return publishedPath;
+		MapWorkspaceService.EnsureApiLib(mapFolder);
+
+		DateTime newestInput = File.GetLastWriteTimeUtc(mapScriptPath);
+		foreach (string apiLibrary in new[] { "Realm.MapAPI.dll", "Realm.Ecs.dll" })
+		{
+			string libraryPath = Path.Combine(mapFolder, "lib", apiLibrary);
+			if (!File.Exists(libraryPath)) continue;
+			newestInput = newestInput > File.GetLastWriteTimeUtc(libraryPath) ? newestInput : File.GetLastWriteTimeUtc(libraryPath);
+		}
+
+		if (File.Exists(shippedPath) && File.GetLastWriteTimeUtc(shippedPath) >= newestInput) return shippedPath;
+		if (File.Exists(publishedPath) && File.GetLastWriteTimeUtc(publishedPath) >= newestInput) return publishedPath;
 
 		string wasmPath = publishedPath;
 		string wasiSdkPath = WasiSdkResolver.ResolveWasiSdkPathWithoutGodot();
@@ -292,13 +308,11 @@ public static partial class MultiplayerEcsSyncTestSupport
 			File.Delete(file);
 		}
 
-		int peerCount = Math.Max(2, settings.PeerCount);
+		int peerCount = Math.Max(1, settings.PeerCount);
 		string hostListeningFile = Path.Combine(settings.OutputDirectory, "host_listening.txt");
 		string hostReadyFile = Path.Combine(settings.OutputDirectory, "host_ready.txt");
 		string hostDoneFile = Path.Combine(settings.OutputDirectory, "host_done.txt");
 
-		bool useRelay = settings.OneWayDelayMilliseconds > 0 || settings.JitterMilliseconds > 0 || settings.PacketLossPercent > 0 || settings.PingMilliseconds > 0;
-		var relays = new List<UdpDelayRelay>();
 		var clientProcesses = new List<HarnessProcess>();
 		try
 		{
@@ -316,20 +330,10 @@ public static partial class MultiplayerEcsSyncTestSupport
 			for (int peerIndex = 1; peerIndex < peerCount; peerIndex++)
 			{
 				string clientDirectory = settings.ResolveClientDirectory(peerIndex);
-				UdpDelayRelay? clientRelay = useRelay
-					? new UdpDelayRelay(
-						settings.Port,
-						settings.OneWayDelayMilliseconds > 0 ? settings.OneWayDelayMilliseconds : Math.Max(1, settings.PingMilliseconds / 2),
-						settings.JitterMilliseconds,
-						settings.PacketLossPercent)
-					: null;
-				if (clientRelay != null) relays.Add(clientRelay);
-
-				int clientConnectionPort = clientRelay?.ListenPort ?? settings.Port;
 				string clientReadyFile = Path.Combine(clientDirectory, "client_ready.txt");
 				string clientSequenceFile = Path.Combine(clientDirectory, "client_final_sequence.txt");
 				string previousReadyFile = peerIndex <= 1 ? string.Empty : Path.Combine(settings.ResolveClientDirectory(peerIndex - 1), "client_ready.txt");
-				clientProcesses.Add(StartHarnessProcess(settings, "client", clientConnectionPort, clientSequenceFile, clientReadyFile, hostDoneFile, clientDirectory, peerIndex, previousReadyFile));
+				clientProcesses.Add(StartHarnessProcess(settings, "client", settings.Port, clientSequenceFile, clientReadyFile, hostDoneFile, clientDirectory, peerIndex, previousReadyFile));
 			}
 
 			for (int index = 0; index < clientProcesses.Count; index++)
@@ -376,35 +380,10 @@ public static partial class MultiplayerEcsSyncTestSupport
 				}
 			}
 
-			WriteRelayStats(settings, relays);
 		}
 		finally
 		{
 			foreach (HarnessProcess clientProcess in clientProcesses) clientProcess.Dispose();
-			foreach (UdpDelayRelay relay in relays) relay.Dispose();
-		}
-	}
-
-	private static void WriteRelayStats(MultiplayerEcsRunSettings settings, List<UdpDelayRelay> relays)
-	{
-		if (relays.Count == 0) return;
-
-		long forwarded = 0;
-		long dropped = 0;
-		foreach (UdpDelayRelay relay in relays)
-		{
-			forwarded += relay.ForwardedDatagramCount;
-			dropped += relay.DroppedDatagramCount;
-		}
-
-		File.WriteAllText(
-			Path.Combine(settings.OutputDirectory, "relay_stats_total.txt"),
-			$"forwarded={forwarded}\ndropped={dropped}\nrelays={relays.Count}");
-		for (int index = 0; index < relays.Count; index++)
-		{
-			File.WriteAllText(
-				Path.Combine(settings.ResolveClientDirectory(index + 1), "relay_stats.txt"),
-				$"forwarded={relays[index].ForwardedDatagramCount}\ndropped={relays[index].DroppedDatagramCount}\nrelays=1");
 		}
 	}
 
@@ -444,9 +423,23 @@ public static partial class MultiplayerEcsSyncTestSupport
 		startInfo.ArgumentList.Add($"--drain-ms={settings.DrainMilliseconds}");
 		startInfo.ArgumentList.Add($"--duration={settings.DurationSeconds.ToString(CultureInfo.InvariantCulture)}");
 		startInfo.ArgumentList.Add($"--profile={settings.Profile}");
-		startInfo.ArgumentList.Add($"--peers={Math.Max(2, settings.PeerCount)}");
+		startInfo.ArgumentList.Add($"--peers={Math.Max(1, settings.PeerCount)}");
+		startInfo.Environment[SimulatedLink.RoundTripMillisecondsVariable] = Math.Max(settings.PingMilliseconds, settings.OneWayDelayMilliseconds * 2).ToString(CultureInfo.InvariantCulture);
+		startInfo.Environment[SimulatedLink.JitterMillisecondsVariable] = settings.JitterMilliseconds.ToString(CultureInfo.InvariantCulture);
+		startInfo.Environment[SimulatedLink.PacketLossPercentVariable] = settings.PacketLossPercent.ToString(CultureInfo.InvariantCulture);
+		// Each screen loses its own datagrams. One seed for the whole room would lose the same descriptions on every
+		// screen in the same sequence positions, which is a correlated fault no real link produces and which a
+		// peer-to-peer comparison would read as a property of the code. The first peer keeps the bare seed so a
+		// single-client scenario measures the link it always measured.
+		startInfo.Environment[SimulatedLink.SeedVariable] = (settings.RelaySeed + (peerIndex - 1) * SimulatedLinkSeedStridePerPeer).ToString(CultureInfo.InvariantCulture);
 		startInfo.ArgumentList.Add($"--peer-index={peerIndex}");
 		startInfo.ArgumentList.Add($"--bots={(role == "host" ? settings.BotCount : 0)}");
+		startInfo.ArgumentList.Add($"--cheats={(role == "host" && settings.CheatsEnabled ? 1 : 0)}");
+		startInfo.ArgumentList.Add($"--unlock-tiles={(role == "host" && settings.UnlockTiles ? 1 : 0)}");
+		startInfo.Environment[Realm.Shared.Diagnostics.LagProbe.OutputDirectoryVariable] = string.IsNullOrEmpty(settings.MetricsDirectory) ? outputDirectory : settings.MetricsDirectory;
+		// Only the host brings an authority up. Every other screen joins the one it started, so a room of twelve screens
+		// is one authority and twelve screens rather than twelve authorities sharing one box.
+		startInfo.Environment["REALM_HARNESS_JOIN_ONLY"] = role == "host" ? "0" : "1";
 		startInfo.ArgumentList.Add($"--wait-for-peer-ready={waitForPeerReadyFile}");
 		startInfo.ArgumentList.Add($"--drop-at={(role == "client" && peerIndex == 1 ? settings.DropClientAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");
 		startInfo.ArgumentList.Add($"--discard-at={(role == "client" && peerIndex == 1 ? settings.DiscardSnapshotAtSeconds : 0f).ToString(CultureInfo.InvariantCulture)}");

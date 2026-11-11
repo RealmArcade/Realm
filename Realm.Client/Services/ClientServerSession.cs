@@ -8,12 +8,14 @@ using Realm.Client.Network;
 using Realm.Client.Testing;
 using Realm.Ecs.Replication;
 using Realm.Shared;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 using Realm.Shared.Network;
+using Realm.Shared.Simulation;
 
 namespace Realm.Client.Services;
 
-public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null);
+public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null, bool LoopbackOnly = false, MatchOptionSet? Options = null);
 
 public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false, bool Cheats = false, bool LoopbackOnly = false);
 
@@ -183,7 +185,7 @@ public class ClientServerSession : IDisposable
 		return MatchStartResult.Failed(detail.Length == 0 ? failure : $"{failure}\n\n{detail}", logPath);
 	}
 
-	public async Task<MatchStartResult> TryStartAsync(ServerMatchStart start, int authorityPort = 0)
+	public async Task<MatchStartResult> TryStartAsync(ServerMatchStart start, int authorityPort = 0, int connectPort = 0)
 	{
 		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out string failure) || target == null) return MatchStartResult.Failed(failure, string.Empty);
 
@@ -204,7 +206,7 @@ public class ClientServerSession : IDisposable
 		if (start.Roster is { Count: > 0 })
 		{
 			rosterPath = Path.Combine(start.LogDirectory, $"{logName}{MatchRosterFile.FileSuffix}");
-			MatchRosterFile.Write(rosterPath, start.Roster);
+			MatchRosterFile.Write(rosterPath, start.Roster, start.Options);
 		}
 
 		var command = new ServerControlCommand
@@ -218,10 +220,11 @@ public class ClientServerSession : IDisposable
 			WasmDebug = start.WasmDebug,
 			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : string.Empty,
 			RosterPath = rosterPath ?? string.Empty,
-			AuthorityRecordFolderPath = start.AuthorityRecordDirectory ?? string.Empty
+			AuthorityRecordFolderPath = start.AuthorityRecordDirectory ?? string.Empty,
+			LoopbackOnly = start.LoopbackOnly
 		};
 
-		return await StartOnLocalAuthorityAsync(target, command, start.LogDirectory, start.DataFolderPath, start.Language);
+		return await StartOnLocalAuthorityAsync(target, command, start.LogDirectory, start.DataFolderPath, start.Language, connectPort);
 	}
 
 	public bool TryJoin(string address, int port, string language, string? mapFolder, out string failure)
@@ -290,7 +293,7 @@ public class ClientServerSession : IDisposable
 	///     Puts a match on the authority this screen owns and joins it. The authority is already running - it came up while
 	///     the screen was in its menus - so this hands it the match rather than starting a process to hold it.
 	/// </summary>
-	private async Task<MatchStartResult> StartOnLocalAuthorityAsync(ServerLaunchTarget target, ServerControlCommand command, string logDirectory, string dataFolderPath, string language)
+	private async Task<MatchStartResult> StartOnLocalAuthorityAsync(ServerLaunchTarget target, ServerControlCommand command, string logDirectory, string dataFolderPath, string language, int connectPort = 0)
 	{
 		LocalAuthority authority = GameContext.LocalAuthority;
 		authority.Configure(target, logDirectory, dataFolderPath);
@@ -298,7 +301,8 @@ public class ClientServerSession : IDisposable
 		LocalAuthorityReply started = await authority.StartMatchAsync(command);
 		if (!started.Started) return FailedLaunch(started.Failure, started.LogPath);
 
-		if (!_channel.TryConnect("127.0.0.1", started.Port, out string failure))
+		int portToConnect = connectPort > 0 ? connectPort : started.Port;
+		if (!_channel.TryConnect("127.0.0.1", portToConnect, out string failure))
 		{
 			authority.Pause();
 			return MatchStartResult.Failed(failure, started.LogPath);
@@ -383,14 +387,15 @@ public class ClientServerSession : IDisposable
 	///     Names a run of descriptions this screen never received, so the match can send exactly those again instead of
 	///     describing the whole world to it.
 	/// </summary>
-	public bool RequestSnapshotRepair(int firstSequence, int count)
+	public bool RequestSnapshotRepair(int firstSequence, int count, SnapshotRepairReason reason)
 	{
 		if (!IsRunning || firstSequence <= 0 || count <= 0) return false;
 
 		var request = new SnapshotRepairRequest
 		{
 			FirstSequence = firstSequence,
-			Count = count
+			Count = count,
+			Reason = reason
 		};
 		_channel.Send(NetworkFrameKind.SnapshotRepairRequest, MemoryPackSerializer.Serialize(request));
 		return true;
@@ -464,6 +469,14 @@ public class ClientServerSession : IDisposable
 
 	public bool Pump()
 	{
+		long pumpStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+		bool pumped = PumpCore();
+		if (pumpStarted != 0L) LagProbe.Add(LagStage.ClientNetworkPumpMilliseconds, LagProbe.ElapsedMilliseconds(pumpStarted));
+		return pumped;
+	}
+
+	private bool PumpCore()
+	{
 		if (!IsRunning)
 		{
 			if (_started) ReportLost(DescribeStop());
@@ -520,6 +533,7 @@ public class ClientServerSession : IDisposable
 
 		if (_frames.TakeDroppedDescriptionMark() && !InLobby)
 		{
+			LagProbe.Count(LagEvent.ClientDescriptionsDiscardedByQueue);
 			GameContext.SnapshotApply.RequestBaseline();
 		}
 
@@ -774,8 +788,11 @@ public class ClientServerSession : IDisposable
 		// was not told: nothing is applied for it, the acknowledgement reports the hole, and the match sends it again.
 		if (!_snapshotReassembler.TryTake(payload, out byte[]? frame)) return;
 
+		long deserializeStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		ReadOnlySpan<byte> serialized = _snapshotDecompressor.Decode(frame, ref _snapshotBuffer);
 		WorldSnapshot snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(serialized);
+		if (deserializeStarted != 0L) LagProbe.Add(LagStage.ClientDeserializeMilliseconds, LagProbe.ElapsedMilliseconds(deserializeStarted));
+		LagProbe.NoteDescriptionArrival(snapshot.Sequence, LagProbe.NowSeconds());
 
 		if (MultiplayerBandwidthMeter.IsRecording) MultiplayerBandwidthMeter.RecordReceivedSnapshot(frame.Length, snapshot.IsBaseline);
 

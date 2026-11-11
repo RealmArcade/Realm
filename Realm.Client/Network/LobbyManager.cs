@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Simulation;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
@@ -149,6 +150,14 @@ public partial class LobbyManager : BaseMapTransferNode
 	public string ActiveMapName { get; set; } = null!;
 	public string ActiveMapVersion { get; set; } = "1.0.0";
 	public bool SpectatorDelay { get; set; } = false;
+
+	/// <summary>
+	///     The parameters the lobby's host configured for the match, as the lobby last published them. Every seat shows the
+	///     same list; only the host may change it.
+	/// </summary>
+	public MatchOptionSet MatchOptions { get; } = new();
+
+	public event Action? MatchOptionsChanged;
 	public string? LobbyJoinError { get; set; }
 	public string HostStability { get; set; } = "Excellent";
 	public event Action<string>? HostStabilityUpdated;
@@ -322,6 +331,11 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// </summary>
 	private void WarmUpLocalAuthority()
 	{
+		// A harness screen that joins somebody else's authority is a player on a machine that already has one: warming a
+		// second authority up here would give a room of twelve screens twelve authority processes to share one box, which
+		// is not a room of twelve players and measures the box rather than the match.
+		if (HarnessJoinsExistingAuthority) return;
+
 		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out string failure) || target == null)
 		{
 			GD.PushWarning($"[LobbyManager] This screen cannot host a match: {failure}");
@@ -331,6 +345,13 @@ public partial class LobbyManager : BaseMapTransferNode
 		GameContext.LocalAuthority.Configure(target, Path.Combine(OS.GetUserDataDir(), "logs"), OS.GetUserDataDir());
 		_ = GameContext.LocalAuthority.EnsureStartedAsync();
 	}
+
+	/// <summary>
+	///     Whether this screen was started as a member of a harness room rather than as a player's own session. No normal
+	///     launch sets it; a harness sets it on the screens that join an authority another process already runs.
+	/// </summary>
+	private static bool HarnessJoinsExistingAuthority =>
+		string.Equals(System.Environment.GetEnvironmentVariable("REALM_HARNESS_JOIN_ONLY"), "1", StringComparison.Ordinal);
 
 	private void StartPeerSeederLoop()
 	{

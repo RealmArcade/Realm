@@ -51,7 +51,9 @@ The primary map configuration file. Schema at `.vscode/metadata.schema.json`
 Tracks map asset registrations Schema at `.vscode/manifest.schema.json`.
 
 ### terrain.json
-Defines the terrain layout: prop/unit/decal placements, map dimensions (`Width`, `Depth`), camera bounds, `Coordinates` (named map regions), and skybox path. Schema at `.vscode/terrain.schema.json`.
+Defines the terrain layout: prop/unit/decal placements, map dimensions (`Width`, `Depth`), camera bounds, `Coordinates` (named map regions), `SpawnAnchors` (the point each player slot starts at), and skybox path. Schema at `.vscode/terrain.schema.json`.
+
+`SpawnAnchors` is how the map states where its seats begin, so a ruleset that has to place a starting building reads the point from the board with `IGameAPI.GetSpawnAnchor(slot)` instead of carrying coordinates of its own. The editor does not author anchors yet; a save keeps the ones the file already declares.
 
 ## Localization
 

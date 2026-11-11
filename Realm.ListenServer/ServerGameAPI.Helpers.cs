@@ -12,8 +12,11 @@ public partial class ServerGameAPI
 
 	private static readonly QueryDescription PlayerUnitsQuery = new QueryDescription().WithAll<Owner, UnitOwnerPlayer, DefinitionId>().WithNone<Dead, Player, Prop>();
 
+	private const int PlayerResourceKindCount = 3;
+
 	private readonly EntityCallback<ResourceNode> _countResourceNodes;
 	private readonly EntityCallback<Owner> _countOwnedUnits;
+	private readonly float[,] _resourceRemainders = new float[EcsSharedMemory.MAX_PLAYERS + 1, PlayerResourceKindCount];
 	private Entity _countedOwner;
 
 	private delegate void PlayersStateMutation(ref ScriptPlayersState playersState, int playerSlot);
@@ -78,6 +81,38 @@ public partial class ServerGameAPI
 			PlayerResourceKind.Wood => player.Wood,
 			_ => player.Stone
 		};
+	}
+
+	/// <summary>
+	///     Adds a fractional amount to a stockpile. A stockpile holds whole units, so the part of an adjustment that does not
+	///     fill one is kept for the next adjustment: an income paid per minute through a tick's fraction of a second never
+	///     reaches the player otherwise, because every payout on its own is smaller than a single unit.
+	/// </summary>
+	private void AdjustPlayerResource(int playerIndex, PlayerResourceKind kind, float delta)
+	{
+		if (playerIndex < 0 || playerIndex >= _resourceRemainders.GetLength(0)) return;
+		if (!float.IsFinite(delta) || delta == 0f) return;
+
+		int resourceIndex = (int)kind;
+		float exact = ReadPlayerResource(playerIndex, kind) + delta + _resourceRemainders[playerIndex, resourceIndex];
+		float whole = MathF.Floor(exact);
+		if (whole < 0f)
+		{
+			whole = 0f;
+			exact = 0f;
+		}
+
+		_resourceRemainders[playerIndex, resourceIndex] = exact - whole;
+		WritePlayerResource(playerIndex, kind, whole);
+	}
+
+	/// <summary>
+	///     Drops the fractional part an adjustment left behind, which an absolute write supersedes.
+	/// </summary>
+	private void ClearResourceRemainder(int playerIndex, PlayerResourceKind kind)
+	{
+		if (playerIndex < 0 || playerIndex >= _resourceRemainders.GetLength(0)) return;
+		_resourceRemainders[playerIndex, (int)kind] = 0f;
 	}
 
 	private void WritePlayerResource(int playerIndex, PlayerResourceKind kind, float amount)

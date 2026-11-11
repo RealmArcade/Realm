@@ -215,6 +215,25 @@ public partial class LobbyRoom
 		_attributionPopover.ShowFor(_attributionButton, sourceMapNames);
 	}
 
+	private void OnOtherAuthorsPressed()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+
+		if (_otherAuthorsPopover == null || !GodotObject.IsInstanceValid(_otherAuthorsPopover))
+		{
+			_otherAuthorsPopover = new AttributionPopover();
+			AddChild(_otherAuthorsPopover);
+			_otherAuthorsPopover.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		}
+
+		_otherAuthorsPopover.ShowFor(
+			_otherAuthorsButton,
+			LocalizationManager.Translate("Other Authors"),
+			LocalizationManager.Translate("This map lists these additional contributors:"),
+			LocalizationManager.Translate("No other contributors listed."),
+			_otherAuthorsList);
+	}
+
 	private int GetSelectedMapIndex()
 	{
 		string currentMap = Lobby.ActiveMapName ?? "melee";
@@ -240,6 +259,7 @@ public partial class LobbyRoom
 		}
 
 		_attributionPopover?.Close();
+		_otherAuthorsPopover?.Close();
 	}
 
 	/// <summary>

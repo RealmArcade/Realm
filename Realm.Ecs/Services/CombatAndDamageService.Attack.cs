@@ -13,7 +13,6 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
 namespace Realm.Ecs.Services
 {
@@ -25,6 +24,12 @@ namespace Realm.Ecs.Services
 			if (!ShouldSimulateEntity(entity)) return;
 
 			if (!_context.World.IsAlive(target.Target) || _context.World.Has<Dead>(target.Target) || _context.World.Has<Invulnerable>(target.Target))
+			{
+				_tickActionsToRemoveTarget.Add(entity);
+				return;
+			}
+
+			if (!ArePlayerIndicesEnemies(GetPlayerIndexForEntity(entity), GetPlayerIndexForEntity(target.Target)))
 			{
 				_tickActionsToRemoveTarget.Add(entity);
 				return;
@@ -138,8 +143,10 @@ namespace Realm.Ecs.Services
 
 			OnUnitAttackedCallback?.Invoke(entity, target);
 
-			float dealt = AbsorbDamage(target, damage);
-			if (dealt > 0f) OnUnitDamagedCallback?.Invoke(target, entity, dealt);
+			float effectiveness = ResolveDamageEffectiveness(entity, target);
+			float scaledDamage = damage * effectiveness;
+			float dealt = AbsorbDamage(target, scaledDamage);
+			if (dealt > 0f) OnUnitDamagedCallback?.Invoke(target, entity, dealt, baseDamage * effectiveness);
 
 			float newHp = 0f;
 			if (HasAuthority)

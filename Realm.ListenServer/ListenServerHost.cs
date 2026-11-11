@@ -83,6 +83,27 @@ public partial class ListenServerHost : IServerTransportSink
 	private readonly bool[] _pendingSkippedPeers = new bool[EcsWorld.MAX_PLAYERS];
 	private PublishLaneWorkers? _publishLaneWorkers;
 	private readonly Dictionary<int, SnapshotFrameRing> _frameRings = new();
+
+	/// <summary>Peers that have asked for a description they never received, and are therefore sent each one twice.</summary>
+	private readonly HashSet<int> _peersThatLoseDescriptions = new();
+
+	private readonly Dictionary<int, int> _descriptionsLostByPeer = new();
+
+	private readonly Dictionary<int, long> _lossWindowStartedTickPerPeer = new();
+
+	/// <summary>When each peer last named a loss, which is what the repeat above is kept alive for.</summary>
+	private readonly Dictionary<int, long> _lastLossNamedTickPerPeer = new();
+
+	private int _startupSettlesAtSequence;
+
+	/// <summary>
+	///     How long a peer that has lost a description keeps being sent every description twice after the last one it asked
+	///     for. A link that has stopped naming lost descriptions has stopped losing them; keeping the repeat on after that
+	///     doubles its bandwidth for a fault that has gone.
+	/// </summary>
+	private const long LossyPeerMemoryTicks = MatchTiming.SimulationTickRateHz * 5;
+
+	private const int LossyPeerMinimumLostDescriptions = 3;
 	private readonly SnapshotFragmentBuffer[] _fragmentBuffers = CreateFragmentBuffers();
 	private readonly SnapshotBaselineReason[] _pendingBaselineReasons = new SnapshotBaselineReason[EcsWorld.MAX_PLAYERS];
 	private readonly int[] _publishedSerializedBytes = new int[EcsWorld.MAX_PLAYERS];

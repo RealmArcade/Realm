@@ -17,6 +17,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
+using Realm.Shared.Diagnostics;
 
 
 namespace Realm.Client.UI.InGame;
@@ -71,7 +72,7 @@ public partial class InGameHUDViewModel
 			info.ProductionQueue.Clear();
 		}
 
-		if (entityChanged || info.Abilities.Count == 0)
+		if (entityChanged || DescribedAbilityListChanged(world, u, info))
 		{
 			UpdateUnitAbilities(world, u, info);
 		}
@@ -96,6 +97,7 @@ public partial class InGameHUDViewModel
 		{
 			info.ProductionQueue.Clear();
 			info.Abilities.Clear();
+			info.AbilityListHandle = 0;
 			info.Description = null;
 		}
 
@@ -261,27 +263,33 @@ public partial class InGameHUDViewModel
 		}
 	}
 
+	/// <summary>
+	///     Whether the authority has described a different ability list for this unit since the panel last read one. The
+	///     list a unit offers is the one its description carries, and a description arrives after the unit is first drawn,
+	///     so the panel has to read it again when it lands rather than keep whatever it saw on the frame it was selected.
+	/// </summary>
+	private static bool DescribedAbilityListChanged(EcsWorld world, Unit3D u, SelectedUnitInfo info)
+	{
+		int handle = world.Has<AbilityState>(u.Entity) ? world.Get<AbilityState>(u.Entity).Handle : 0;
+		return handle != info.AbilityListHandle;
+	}
+
 	private void UpdateUnitAbilities(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
 		info.Abilities.Clear();
+		info.AbilityListHandle = world.Has<AbilityState>(u.Entity) ? world.Get<AbilityState>(u.Entity).Handle : 0;
 
-		if (world.Has<AbilityState>(u.Entity))
-		{
-			var state = world.Get<AbilityState>(u.Entity);
-			if (state.Count > 0)
-			{
-				state.CopyTo(info.Abilities);
-				return;
-			}
-		}
-
-		if (GameHost.TryGetUnitOrBuildingMetadata(u.UnitId, out var regMeta))
+		if (info.Description == null && GameHost.TryGetUnitOrBuildingMetadata(u.UnitId, out var regMeta))
 		{
 			info.Description = regMeta.Description;
-			if (regMeta.Abilities != null && regMeta.Abilities.Length > 0)
-			{
-				info.Abilities.AddRange(regMeta.Abilities);
-			}
 		}
+
+		if (!world.Has<AbilityState>(u.Entity)) return;
+
+		// What a replicated unit offers is what the authority described, and nothing else. The template a map ships is not
+		// that list: a map narrows a unit's abilities per unit at runtime, and it also widens a unit type with the
+		// abilities of every type it can be replaced by, so painting the template while the description is still in
+		// flight offered every ability the type was widened with.
+		world.Get<AbilityState>(u.Entity).CopyTo(info.Abilities);
 	}
 }

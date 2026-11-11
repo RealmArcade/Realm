@@ -170,6 +170,27 @@ public partial class GameHost
 					GetViewport().SetInputAsHandled();
 					return;
 				}
+
+				if (altPressed && (ActiveEditorTool == EditorTool.Raise || ActiveEditorTool == EditorTool.Lower))
+				{
+					GameContext.MapEditorHud?.StepBlockLevelHeightExternal(isUp ? 1 : -1);
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
+				if (altPressed && ActiveEditorTool == EditorTool.Height)
+				{
+					GameContext.MapEditorHud?.StepExactHeightExternal(isUp ? 1 : -1);
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+			}
+
+			if (altPressed && ActiveEditorTool == EditorTool.Water)
+			{
+				GameContext.MapEditorHud?.StepWaterHeightExternal(isUp ? 1 : -1);
+				GetViewport().SetInputAsHandled();
+				return;
 			}
 
 			if (shiftPressed)

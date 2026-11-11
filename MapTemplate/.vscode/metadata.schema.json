@@ -525,6 +525,9 @@
               "GoldBounty": {
                 "type": "number"
               },
+              "RespawnSeconds": {
+                "type": "number"
+              },
               "ModelPath": {
                 "type": [
                   "string",

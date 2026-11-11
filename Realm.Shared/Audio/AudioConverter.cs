@@ -360,7 +360,7 @@ public static class AudioConverter
 			return result;
 		}
 
-		var run = NativeToolRunner.RunTool(ffmpeg, $"-y -i \"{fullInput}\" -c:a libvorbis -q:a 5 \"{targetOgg}\"");
+		var run = NativeToolRunner.RunTool(ffmpeg, $"-nostdin -hide_banner -loglevel error -y -i \"{fullInput}\" -c:a libvorbis -q:a 5 \"{targetOgg}\"", timeoutMs: 120000);
 		if (run.ExitCode == 0 && File.Exists(targetOgg) && new FileInfo(targetOgg).Length > 0)
 		{
 			result.Success = true;

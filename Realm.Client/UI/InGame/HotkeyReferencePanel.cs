@@ -53,7 +53,6 @@ public sealed class HotkeyReferencePanel
 				("WASD / Edge", "Pan Camera"),
 				("Shift+WASD", "Fast Camera Pan"),
 				("Space", "Center Camera on Base"),
-				("Z", "Cycle Zoom (Near / Mid / Far)"),
 				("F4", "Toggle Terrain Radar Mode"),
 				("Alt+G", "Ping Map Alert"),
 				("Ctrl+F5..F8", "Save Camera Location 1..4"),

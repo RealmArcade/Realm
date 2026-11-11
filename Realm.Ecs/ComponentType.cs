@@ -107,7 +107,7 @@ public static class ComponentTypeRegistry
 			typeof(HoldPosition),
 			typeof(LatestDescription),
 			typeof(RenderPosition),
-			typeof(Realm.Ecs.Components.Movement.PathingFlags),
+			typeof(TraversableTerrain),
 			typeof(Patrol),
 			typeof(WaypointBuffer),
 			typeof(WaypointQueue),
@@ -172,7 +172,9 @@ public static class ComponentTypeRegistry
 			typeof(LastAttacker),
 			typeof(AbsorbShield),
 			typeof(AttackSpeedStat),
-			typeof(OverheadBadge)
+			typeof(OverheadBadge),
+			typeof(UnitCharges),
+			typeof(PlayerDamageEffectiveness)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)
@@ -182,6 +184,59 @@ public static class ComponentTypeRegistry
 		}
 
 		_nextDynamicId = canonicalTypes.Length;
+		VerifySharedComponentIds();
+	}
+
+	/// <summary>
+	///     Fails the registry when a component a map script reaches through shared memory is not registered under the
+	///     identifier <see cref="ComponentIds" /> declares for it.
+	/// </summary>
+	/// <remarks>
+	///     The canonical identifiers come from this list's order, while a map script uses the constants, so inserting a type
+	///     above, removing one or reordering the list silently moves every later identifier and leaves the script reading the
+	///     wrong array or mask bit. Refusing to start states which type drifted instead of leaving a map to misbehave.
+	/// </remarks>
+	private static void VerifySharedComponentIds()
+	{
+		(Type Type, int DeclaredId)[] sharedComponents =
+		{
+			(typeof(Position), ComponentIds.Position),
+			(typeof(PreviousPosition), ComponentIds.PreviousPosition),
+			(typeof(Health), ComponentIds.Health),
+			(typeof(Mana), ComponentIds.Mana),
+			(typeof(PlayerPopulation), ComponentIds.PlayerPopulation),
+			(typeof(ScriptPlayer), ComponentIds.ScriptPlayer),
+			(typeof(UnitOwnerPlayer), ComponentIds.UnitOwnerPlayer),
+			(typeof(Attack), ComponentIds.Attack),
+			(typeof(Resistances), ComponentIds.Resistances),
+			(typeof(MovementStats), ComponentIds.MovementStats),
+			(typeof(PlayerResources), ComponentIds.PlayerResources),
+			(typeof(Building), ComponentIds.Building),
+			(typeof(Dead), ComponentIds.Dead),
+			(typeof(Hero), ComponentIds.Hero),
+			(typeof(Invulnerable), ComponentIds.Invulnerable),
+			(typeof(Unit), ComponentIds.Unit),
+			(typeof(Experience), ComponentIds.Experience),
+			(typeof(Level), ComponentIds.Level),
+			(typeof(ModelScale), ComponentIds.ModelScale),
+			(typeof(RotationY), ComponentIds.RotationY),
+			(typeof(PreviousRotationY), ComponentIds.PreviousRotationY),
+			(typeof(CommandsFrozen), ComponentIds.CommandsFrozen),
+			(typeof(AnimationsFrozen), ComponentIds.AnimationsFrozen),
+			(typeof(OverheadBarsHidden), ComponentIds.OverheadBarsHidden),
+			(typeof(UnitCharges), ComponentIds.UnitCharges),
+			(typeof(PlayerDamageEffectiveness), ComponentIds.PlayerDamageEffectiveness)
+		};
+
+		for (int index = 0; index < sharedComponents.Length; index++)
+		{
+			Type type = sharedComponents[index].Type;
+			int declaredId = sharedComponents[index].DeclaredId;
+			string key = type.FullName ?? type.Name;
+			if (_typeIds[key] == declaredId) continue;
+
+			throw new InvalidOperationException($"Component '{key}' is registered under identifier {_typeIds[key]}, but ComponentIds declares {declaredId}. A map script reaches that component through shared memory by the declared identifier, so the canonical list and ComponentIds have to name the same identifier.");
+		}
 	}
 
 	public static int GetId<T>() => ComponentType<T>.Id;

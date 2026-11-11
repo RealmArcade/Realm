@@ -70,6 +70,7 @@ public partial class GameHost
 	{
 		GameContext.EditorService.RestoreLoadedCoordinates();
 		RebuildAllCoordinatePersistentMeshes();
+		RebuildAllSpawnAnchorMeshes();
 		GameContext.MapEditorHud?.RefreshCoordinateListExternal();
 	}
 }

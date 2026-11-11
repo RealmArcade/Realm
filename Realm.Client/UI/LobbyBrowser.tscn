@@ -126,6 +126,11 @@ layout_mode = 2
 focus_mode = 0
 text = "Show beta-testing maps"
 
+[node name="VersionMismatchCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
+layout_mode = 2
+focus_mode = 0
+text = "Show mismatched game version"
+
 [node name="LobbyPanel" type="PanelContainer" parent="."]
 layout_mode = 0
 offset_left = 400.0

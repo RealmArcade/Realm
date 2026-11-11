@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Realm.MapAPI;
 using Realm.Ecs;
+using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
 using Wasmtime;
 using Engine = Wasmtime.Engine;
@@ -19,7 +20,7 @@ namespace Realm.ListenServer;
 /// <summary>the debug chat command, formula evaluation, shared memory, seeds and snapshot import.</summary>
 public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisposable
 	{
-	private void HandleDebugChatCommand(string message, UnitId senderUnitId, int senderPlayerIndex)
+	private void HandleDebugChatCommand(string message, int senderPlayerIndex)
 	{
 		if (string.Equals(message, "/wasmperf", StringComparison.OrdinalIgnoreCase) ||
 		    string.Equals(message, "/wasmprofile", StringComparison.OrdinalIgnoreCase))
@@ -37,6 +38,29 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 	public float Evaluate(in FormulaContext context, float baseValue, float modifierValue, int level)
 	{
 		return ExecuteCustomFormula(context.WASMFunctionName, baseValue, modifierValue, level);
+	}
+
+	/// <summary>
+	///     States the seated players into the player array the map reads directly. The world states its roster before the
+	///     guest's memory exists, and binding hands the world a region of the guest's own, so without this the map would
+	///     read an empty array: every slot would report team zero and no founder, and a map that allies the players sharing
+	///     a team would ally all of them.
+	/// </summary>
+	private void PublishSharedPlayerSlots()
+	{
+		EcsWorld? world = _world;
+		if (world == null) return;
+
+		Entity worldEntity = _simulation?.WorldEntity ?? Entity.Null;
+		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<ScriptPlayersState>(worldEntity)) return;
+
+		ref ScriptPlayersState players = ref world.Get<ScriptPlayersState>(worldEntity);
+		ComponentBuffer<ScriptPlayer> buffer = world.GetBuffer<ScriptPlayer>();
+		for (int slot = 0; slot < ScriptPlayersState.SlotCount; slot++)
+		{
+			ScriptPlayer player = players.Get(slot);
+			buffer.Set(slot, in player);
+		}
 	}
 
 	public IntPtr GetSharedMemoryPointer()
