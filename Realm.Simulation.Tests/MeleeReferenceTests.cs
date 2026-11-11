@@ -510,7 +510,12 @@ public class MeleeReferenceTests
 			match.LockDraftOption(1, offer.AbilityIds[0], sitePosition);
 			foreach (UnitId building in match.Buildings(1))
 			{
-				if (match.IsUnderConstruction(building)) return building;
+				if (!match.IsUnderConstruction(building)) continue;
+
+				// A site is raised by the hero working at it, so the right-click that puts the hero to work is part of
+				// drafting a building, not something the site does on its own.
+				match.Raise(1, match.Hero(1), building);
+				return building;
 			}
 
 			match.AbandonDraft(1);

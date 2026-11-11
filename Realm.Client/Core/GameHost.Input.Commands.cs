@@ -117,6 +117,18 @@ public partial class GameHost
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (SelectedUnits.Count == 0) return;
 
+		// The attack command reads what it was pointed at instead of always striking it: an allied building that still
+		// needs raising or mending is work for the units that carry a repair rate, and a resource node is gathered. One
+		// command therefore answers the same click the way the player means it, without a separate tool for each action.
+		if (!GameContext.PerspectiveFilter.IsHostileToObserved(target.Player))
+		{
+			if (target.IsBuilding && HasSelectedRepairerFor(target))
+			{
+				IssueRepairCommand(target, isQueued);
+				return;
+			}
+		}
+
 		ViewShowAttackCommandFeedback(target);
 
 		var targetIds = new List<int>();

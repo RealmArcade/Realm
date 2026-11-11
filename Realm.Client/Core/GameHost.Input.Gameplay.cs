@@ -438,6 +438,7 @@ public partial class GameHost
 							var hitPos = hit["position"].AsVector3();
 							var collider = hit["collider"].As<Node>();
 							var clickedUnit = FindUnit3DInParentChain(collider);
+							var clickedProp = FindProp3DInParentChain(collider);
 
 							bool shiftHeld = Input.IsKeyPressed(Key.Shift);
 							if (ActiveCommandTargeting == "attack")
@@ -445,6 +446,10 @@ public partial class GameHost
 								if (clickedUnit != null && clickedUnit.Entity != Entity.Null)
 								{
 									IssueAttackCommand(clickedUnit, shiftHeld);
+								}
+								else if (clickedProp != null && clickedProp.Visible && clickedProp.IsResource)
+								{
+									IssueGatherCommand(clickedProp, shiftHeld);
 								}
 								else
 								{

@@ -2529,8 +2529,9 @@
         </member>
         <member name="M:Realm.Ecs.Services.UnitOrderService.Repair(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,Realm.Ecs.Entity)">
             <summary>
-                Sends a unit that carries a repair rate to mend a repairable building. The unit walks there and works only while
-                it stands within reach, so a unit called away leaves the building as far along as it was.
+                Sends a unit that carries a repair rate to mend a repairable building, or to raise a construction site. The unit
+                walks there and works only while it stands within reach, so a unit called away leaves the building as far along
+                as it was. A site is work like any other: nothing about a building advances from a unit merely standing near it.
             </summary>
         </member>
         <member name="M:Realm.Ecs.Services.UnitOrderService.Stop(Realm.Ecs.EcsWorld,Realm.Ecs.Entity)">

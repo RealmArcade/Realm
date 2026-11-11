@@ -56,6 +56,15 @@ public partial class CommandAuthorityService
 	{
 		HandleTargetedCommand(peerId, cmd, isQueued, rejectedServerEntityIds, ref rejectionReason, (entity, targetEntity, targetPos, queued) =>
 		{
+			// The same action a player takes by clicking a target reads what was clicked: an allied building that is a site
+			// or has lost health is work to be done, not an enemy to shoot. That is what lets one attack command raise a
+			// site, mend a building or strike an enemy without the player changing tools.
+			if (IsAlliedWorkTargetFor(entity, targetEntity))
+			{
+				ApplyRepairOrder(entity, targetEntity, _context.World.Get<Position>(targetEntity).Value, queued);
+				return;
+			}
+
 			if (queued && UnitActivityHelper.IsUnitActive(_context.World, entity))
 			{
 				EnqueueCommand(entity, "attack", targetPos, targetEntity);
@@ -66,6 +75,19 @@ public partial class CommandAuthorityService
 				_context.World.SetOrAdd(entity, new AttackTarget(targetEntity));
 			}
 		});
+	}
+
+	/// <summary>
+	///     Answers whether an attack order aimed at this target is really a request to work on an allied building: the
+	///     target has to be a site or a damaged repairable building, the unit has to carry a repair rate, and the two have to
+	///     be on the same side. Anything else it clicked is attacked as clicked.
+	/// </summary>
+	private bool IsAlliedWorkTargetFor(Entity worker, Entity target)
+	{
+		if (!IsWorkTarget(target)) return false;
+		if (!CanRepair(worker)) return false;
+
+		return AreAlliedPlayers(ReadPlayerIndex(worker), ReadPlayerIndex(target));
 	}
 
 	private void HandleFollowCommand(int peerId, NetworkCommand cmd, bool isQueued, List<int> rejectedServerEntityIds, ref string rejectionReason)

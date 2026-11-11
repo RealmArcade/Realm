@@ -11,16 +11,13 @@ using Realm.Shared.Network;
 
 namespace Realm.Shared.Simulation;
 
-/// <summary>repair orders: a unit the map lets mend putting a standing building back together.</summary>
+/// <summary>repair orders: a unit the map lets work on buildings mending one or raising a site.</summary>
 public partial class CommandAuthorityService
 {
 	private void HandleRepairCommand(int peerId, NetworkCommand cmd, bool isQueued, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		Entity buildingEntity = _targets.Resolve(cmd.TargetEntityId);
-		if (buildingEntity == Entity.Null
-		    || !_context.World.Has<Building>(buildingEntity)
-		    || !_context.World.Has<RepairableBuilding>(buildingEntity)
-		    || !_context.World.Has<Position>(buildingEntity))
+		if (!IsWorkTarget(buildingEntity))
 		{
 			for (int index = 0; index < cmd.UnitEntityIds.Count; index++)
 			{
@@ -64,6 +61,27 @@ public partial class CommandAuthorityService
 		}
 	}
 
+	/// <summary>
+	///     Answers whether a building is something a worker can be sent to work on: a site still being raised, or a standing
+	///     building that has lost health. A building at full health is not a work target, so a click that reaches it is not a
+	///     repair order.
+	/// </summary>
+	private bool IsWorkTarget(Entity buildingEntity)
+	{
+		if (buildingEntity == Entity.Null
+		    || !_context.World.IsAlive(buildingEntity)
+		    || !_context.World.Has<Building>(buildingEntity)
+		    || !_context.World.Has<Position>(buildingEntity))
+		{
+			return false;
+		}
+
+		if (_context.World.Has<UnderConstruction>(buildingEntity)) return _context.World.Has<ConstructionState>(buildingEntity);
+		if (!_context.World.Has<RepairableBuilding>(buildingEntity)) return false;
+
+		return _context.World.TryGet<Health>(buildingEntity, out Health health) && health.Current < health.Max;
+	}
+
 	private void ApplyRepairOrder(Entity entity, Entity buildingEntity, Vector3 buildingPosition, bool isQueued)
 	{
 		if (isQueued && UnitActivityHelper.IsUnitActive(_context.World, entity))
@@ -73,13 +91,22 @@ public partial class CommandAuthorityService
 		}
 
 		if (!isQueued) ClearUnitOrders(entity);
-		_context.World.SetOrAdd(entity, new RepairTask(buildingEntity));
+
+		if (_context.World.Has<UnderConstruction>(buildingEntity) && _context.World.TryGet<ConstructionState>(buildingEntity, out ConstructionState construction))
+		{
+			_context.World.SetOrAdd(entity, new BuildTask(buildingEntity, construction.TotalBuildTime));
+		}
+		else
+		{
+			_context.World.SetOrAdd(entity, new RepairTask(buildingEntity));
+		}
+
 		_context.World.SetOrAdd(entity, new MoveTo(buildingPosition));
 	}
 
 	/// <summary>
 	///     Answers whether this unit may take a repair order at all: the map has to have given it a repair rate, which is
-	///     what makes mending a job rather than something any unit can do.
+	///     what makes working on buildings a job rather than something any unit can do.
 	/// </summary>
 	private bool CanRepair(Entity entity)
 	{

@@ -84,14 +84,27 @@ public static class UnitOrderService
 	}
 
 	/// <summary>
-	///     Sends a unit that carries a repair rate to mend a repairable building. The unit walks there and works only while
-	///     it stands within reach, so a unit called away leaves the building as far along as it was.
+	///     Sends a unit that carries a repair rate to mend a repairable building, or to raise a construction site. The unit
+	///     walks there and works only while it stands within reach, so a unit called away leaves the building as far along
+	///     as it was. A site is work like any other: nothing about a building advances from a unit merely standing near it.
 	/// </summary>
 	public static void Repair(EcsWorld world, Entity entity, Entity building)
 	{
 		if (!CanTakeOrders(world, entity)) return;
 		if (building == Entity.Null || !world.IsAlive(building)) return;
-		if (!world.Has<RepairWorker>(entity) || !world.Has<RepairableBuilding>(building)) return;
+		if (!world.Has<RepairWorker>(entity)) return;
+
+		if (world.Has<UnderConstruction>(building))
+		{
+			if (!world.TryGet<ConstructionState>(building, out ConstructionState construction)) return;
+
+			ClearOrders(world, entity);
+			world.SetOrAdd(entity, new BuildTask(building, construction.TotalBuildTime));
+			if (world.TryGet<Position>(building, out Position sitePosition)) world.SetOrAdd(entity, new MoveTo(sitePosition.Value));
+			return;
+		}
+
+		if (!world.Has<RepairableBuilding>(building)) return;
 
 		ClearOrders(world, entity);
 		world.SetOrAdd(entity, new RepairTask(building));

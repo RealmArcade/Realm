@@ -236,6 +236,23 @@ internal sealed class MeleeMatch : IDisposable
 		return buildings;
 	}
 
+	/// <summary>
+	///     Lists the worker crew a seat owns. Every building raises workers from the one shared worker template, so a test
+	///     reads a crew by that template rather than by the building that raised it.
+	/// </summary>
+	/// <param name="slot">The seat whose workers are listed.</param>
+	/// <returns>The live workers the seat owns.</returns>
+	public IReadOnlyList<UnitId> Workers(int slot)
+	{
+		var workers = new List<UnitId>();
+		foreach (UnitId unit in Owned(slot))
+		{
+			if (TemplateOf(unit) == "unit/worker") workers.Add(unit);
+		}
+
+		return workers;
+	}
+
 	public IReadOnlyList<UnitId> Soldiers(int slot)
 	{
 		var soldiers = new List<UnitId>();
@@ -601,6 +618,17 @@ internal sealed class MeleeMatch : IDisposable
 	}
 
 	/// <summary>
+	///     Sends the order a player's right-click on a construction site sends, so a test exercises the authority's own build
+	///     routing rather than advancing the site directly. A site is work like any other: nothing raises it until a unit is
+	///     told to work at it.
+	/// </summary>
+	/// <param name="slot">The seat issuing the order.</param>
+	/// <param name="unit">The unit being sent to raise the site.</param>
+	/// <param name="site">The construction site that was clicked.</param>
+	/// <returns>What the authority answered the order with.</returns>
+	public ServerCommandResult Raise(int slot, UnitId unit, UnitId site) => Repair(slot, unit, site);
+
+	/// <summary>
 	///     Reads whether a building is dormant, which is the state a repairable building is left in when its health runs out.
 	/// </summary>
 	public bool IsDormant(UnitId unit) => Has<Realm.Ecs.Components.Tags.Dormant>(unit);
@@ -770,16 +798,15 @@ internal sealed class MeleeMatch : IDisposable
 	}
 
 	/// <summary>
-	///     Reads one inspector row the authority published for a unit, as the client's stat panel receives it.
+	///     Reads one piece of text the authority published about a unit, which is how a map names a buff on the stat sheet
+	///     or writes the line a player hovers over it.
 	/// </summary>
 	/// <param name="slot">The seat whose presentation stream is read.</param>
-	/// <param name="unit">The unit whose readout is being read.</param>
-	/// <param name="row">The readout row, zero based.</param>
-	/// <param name="valueColumn">Whether to read the row's value instead of its name.</param>
-	/// <returns>The last text published for that row, or an empty string when it was never published.</returns>
-	public string UnitReadout(int slot, UnitId unit, int row, bool valueColumn = false)
+	/// <param name="unit">The unit whose published text is being read.</param>
+	/// <param name="key">The tooltip key the map wrote, such as <c>buff.bulwark.name</c>.</param>
+	/// <returns>The last text published for that key, or an empty string when it was never published.</returns>
+	public string UnitTooltipText(int slot, UnitId unit, string key)
 	{
-		string key = $"readout.{row}.{(valueColumn ? "value" : "name")}";
 		string owner = unit.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 		string text = string.Empty;
 
@@ -857,7 +884,12 @@ internal sealed class MeleeMatch : IDisposable
 
 		foreach (UnitId building in Buildings(1))
 		{
-			if (Has<UnderConstruction>(building)) return building;
+			if (!Has<UnderConstruction>(building)) continue;
+
+			// A placed site does not raise itself. The helper right-clicks it with the hero, which is the order a player
+			// gives next, so tests that only care about a finished building do not have to repeat the click.
+			Raise(1, Hero(1), building);
+			return building;
 		}
 
 		throw new InvalidOperationException("Picking a drawn package left no construction site.");
@@ -910,6 +942,23 @@ internal sealed class MeleeMatch : IDisposable
 		}
 
 		return Soldiers(slot).Count;
+	}
+
+	/// <summary>
+	///     Waits for the player's first worker and returns how many workers it then holds.
+	/// </summary>
+	/// <param name="slot">The seat whose crew is waited for.</param>
+	/// <returns>The number of workers the seat owns once the first one is raised.</returns>
+	public int StepUntilWorkers(int slot)
+	{
+		float waited = 0f;
+		while (Workers(slot).Count == 0 && waited < LongestAuthoredProductionSeconds)
+		{
+			Step(1f);
+			waited += 1f;
+		}
+
+		return Workers(slot).Count;
 	}
 
 	public int HeroLevel(int slot)

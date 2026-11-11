@@ -442,16 +442,15 @@ public partial class GameHost
 	}
 
 	/// <summary>
-	///     Answers whether a right-click on this building is the player asking a selected unit to mend it: the building has
-	///     to be one the map lets be repaired, it has to be short of health, and one of the selected units has to carry the
-	///     repair rate that makes mending its job.
+	///     Answers whether a right-click on this building is the player asking a selected unit to work on it: the building has
+	///     to be a site still being raised or a standing building that has lost health, and one of the selected units has to
+	///     carry the repair rate that makes building work its job.
 	/// </summary>
 	private bool HasSelectedRepairerFor(Unit3D building)
 	{
 		if (building == null || !GodotObject.IsInstanceValid(building) || !building.IsBuilding) return false;
 		if (building.Entity == Entity.Null || !World.IsAlive(building.Entity)) return false;
-		if (!World.Has<RepairableBuilding>(building.Entity)) return false;
-		if (!World.TryGet(building.Entity, out Health health) || health.Current >= health.Max) return false;
+		if (!IsBuildingWorkAvailable(building.Entity)) return false;
 
 		foreach (Unit3D unit in SelectedUnits)
 		{
@@ -465,7 +464,19 @@ public partial class GameHost
 		return false;
 	}
 
-	/// <summary>Asks the selected units that can mend to put a standing building back together.</summary>
+	/// <summary>
+	///     Answers whether a building still has work left in it: a site that has not been raised yet, or a repairable building
+	///     short of its maximum health. A whole building offers no work, so a right-click on it is not a build order.
+	/// </summary>
+	private bool IsBuildingWorkAvailable(Entity buildingEntity)
+	{
+		if (World.Has<UnderConstruction>(buildingEntity)) return World.Has<ConstructionState>(buildingEntity);
+		if (!World.Has<RepairableBuilding>(buildingEntity)) return false;
+
+		return World.TryGet(buildingEntity, out Health health) && health.Current < health.Max;
+	}
+
+	/// <summary>Asks the selected units that can work on buildings to raise a site or mend a standing one.</summary>
 	public void IssueRepairCommand(Unit3D building, bool isQueued = false)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
@@ -488,7 +499,10 @@ public partial class GameHost
 		var waypoint = World.TryGet(building.Entity, out Position position) ? position.Value : System.Numerics.Vector3.Zero;
 		Vector3 buildingPosition = new(waypoint.X, waypoint.Y, waypoint.Z);
 		SpawnTargetIndicator(buildingPosition, new Color(0.45f, 0.85f, 0.95f));
-		GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Repairing"), new Color(0.45f, 0.85f, 0.95f));
+
+		bool raising = World.Has<UnderConstruction>(building.Entity);
+		string feedback = raising ? TranslationServer.Translate("Raising the site") : TranslationServer.Translate("Repairing");
+		GameContext.InGameHud?.ShowFeedbackText(feedback, new Color(0.45f, 0.85f, 0.95f));
 
 		SubmitOrderCommand(isQueued ? "repair_queued" : "repair", targetIds, buildingPosition, GetServerEntityId(building.Entity), string.Empty);
 	}

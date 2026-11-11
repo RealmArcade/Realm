@@ -128,7 +128,7 @@ public class MeleeConstructionDraftTests
 	}
 
 	[Test]
-	public void PickingTheDrawPlacesASiteThatBuildsOnItsOwn()
+	public void PickingTheDrawLeavesASiteThatWaitsForTheHero()
 	{
 		_match.SetWood(1, 500f);
 		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
@@ -145,17 +145,41 @@ public class MeleeConstructionDraftTests
 
 		Assert.That(_match.Blueprint(1).IsValid, Is.False, "The blueprint gives way to the site it placed.");
 
-		_match.Step(ShortestAuthoredConstructionSeconds - 1f);
-		Assert.That(_match.IsUnderConstruction(site), Is.True, "The hero has not stood at the site long enough for it to finish early.");
+		_match.Step(2f);
+		Assert.That(_match.ConstructionProgress(site), Is.LessThan(0.01f), "A site may not raise itself just because the hero stands near it.");
+
+		OrderHeroToRaise(site);
+		_match.Step(2f);
+		Assert.That(_match.ConstructionProgress(site), Is.GreaterThan(0.01f), "A hero sent to the site has to raise it.");
+
+		Assert.That(_match.IsUnderConstruction(site), Is.True, "The hero has not worked the site long enough for it to finish early.");
 		Assert.That(_match.CountCharges(site), Is.EqualTo(0), "A site holds no charge while it is being built.");
 
-		_match.Step(ShortestAuthoredConstructionSeconds + 6f);
-		Assert.That(_match.IsUnderConstruction(site), Is.False, "The map's own clock finishes the site within the authored window.");
+		WaitForCompletion(site);
+		Assert.That(_match.IsUnderConstruction(site), Is.False, "The hero finishes the site within the authored window.");
 		Assert.That(_match.Has<Building>(site), Is.True, "The finished site is an ordinary building.");
 	}
 
 	[Test]
-	public void ASiteStallsWhileTheHeroIsAwayAndResumesWhenItReturns()
+	public void TheAttackOrderOnAnAlliedSiteRaisesIt()
+	{
+		_match.SetWood(1, 500f);
+		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
+		_match.LockDraftOption(1, offer.AbilityIds[0], SitePosition);
+
+		UnitId site = FindSite(1);
+		Assert.That(site.IsValid, Is.True, "The test needs the site the draw placed.");
+
+		ServerCommandResult result = _match.Attack(1, _match.Hero(1), site);
+		Assert.That(result.HasRejection, Is.False, $"The attack command has to read the allied site as work: {result.RejectionReason}");
+
+		_match.Step(2f);
+
+		Assert.That(_match.ConstructionProgress(site), Is.GreaterThan(0.01f), "The attack command has to put the hero to work raising an allied site.");
+	}
+
+	[Test]
+	public void ASiteRisesOnlyWhileTheHeroWorksAtIt()
 	{
 		_match.SetWood(1, 500f);
 		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
@@ -165,9 +189,10 @@ public class MeleeConstructionDraftTests
 		UnitId hero = _match.Hero(1);
 		Assert.That(site.IsValid, Is.True, "The test needs the site the draw placed.");
 
+		OrderHeroToRaise(site);
 		_match.Step(2f);
 		float worked = _match.ConstructionProgress(site);
-		Assert.That(worked, Is.GreaterThan(0.01f), "A hero standing at its site has to raise it.");
+		Assert.That(worked, Is.GreaterThan(0.01f), "A hero sent to its site has to raise it.");
 
 		ServerCommandResult march = _match.Order(1, "move", new Vector3(-50f, 0f, -20f), hero);
 		Assert.That(march.HasRejection, Is.False, $"The hero has to be able to walk away: {march.RejectionReason}");
@@ -177,13 +202,17 @@ public class MeleeConstructionDraftTests
 		Assert.That(_match.IsUnderConstruction(site), Is.True, "The site is nowhere near finished when the hero leaves it.");
 
 		_match.Step(8f);
-		Assert.That(_match.ConstructionProgress(site), Is.EqualTo(paused).Within(0.001f), "A site nobody stands at must freeze instead of raising itself.");
+		Assert.That(_match.ConstructionProgress(site), Is.EqualTo(paused).Within(0.001f), "A site nobody works at must freeze instead of raising itself.");
 
 		ServerCommandResult returnMarch = _match.Order(1, "move", new Vector3(-51f, 0f, -51f), hero);
 		Assert.That(returnMarch.HasRejection, Is.False, $"The hero has to be able to walk back: {returnMarch.RejectionReason}");
 		_match.Step(12f);
 
-		Assert.That(_match.ConstructionProgress(site), Is.GreaterThan(paused + 0.01f), "The hero returning has to resume the work where it stopped.");
+		Assert.That(_match.ConstructionProgress(site), Is.EqualTo(paused).Within(0.001f), "Walking back to a site is not a build order, so the work stays stopped.");
+
+		OrderHeroToRaise(site);
+		_match.Step(2f);
+		Assert.That(_match.ConstructionProgress(site), Is.GreaterThan(paused + 0.01f), "Right-clicking the site again has to resume the work where it stopped.");
 	}
 
 	[Test]
@@ -193,6 +222,7 @@ public class MeleeConstructionDraftTests
 		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
 		_match.LockDraftOption(1, offer.AbilityIds[0], SitePosition);
 		UnitId site = FindSite(1);
+		OrderHeroToRaise(site);
 
 		float secondsToFinish = WaitForCompletion(site);
 		Assert.That(secondsToFinish, Is.InRange(ShortestAuthoredConstructionSeconds - 1f, LongestAuthoredConstructionSeconds + 1f), "A drafted site has to finish within its authored construction time.");
@@ -211,6 +241,7 @@ public class MeleeConstructionDraftTests
 		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
 		_match.LockDraftOption(1, offer.AbilityIds[0], SitePosition);
 		UnitId site = FindSite(1);
+		OrderHeroToRaise(site);
 
 		WaitForCompletion(site);
 		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(0), "A building produces on its own timer, not the moment it finishes.");
@@ -376,6 +407,7 @@ public class MeleeConstructionDraftTests
 		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
 		_match.LockDraftOption(1, offer.AbilityIds[0], SitePosition);
 		UnitId building = FindSite(1);
+		OrderHeroToRaise(building);
 
 		WaitForCompletion(building);
 		_match.Step(12f);
@@ -386,6 +418,16 @@ public class MeleeConstructionDraftTests
 
 		Assert.That(_match.CountCharges(building), Is.EqualTo(1), "Emergency Levy has to add a charge to the finished building.");
 		Assert.That(_match.CountCharges(_match.Nexus(1)), Is.EqualTo(0), "The Nexus grants no soldier, so it holds no charge.");
+	}
+
+	/// <summary>
+	///     Right-clicks the site with the hero, which is the order that puts a hero to work on a building. Nothing about a
+	///     site advances from the hero merely being nearby.
+	/// </summary>
+	private void OrderHeroToRaise(UnitId site)
+	{
+		ServerCommandResult result = _match.Raise(1, _match.Hero(1), site);
+		Assert.That(result.HasRejection, Is.False, $"Right-clicking the site has to put the hero to work: {result.RejectionReason}");
 	}
 
 	/// <summary>

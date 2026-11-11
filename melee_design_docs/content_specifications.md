@@ -201,7 +201,7 @@ Because every constructed building costs the same 100 wood, the package is the b
 
 ## 6. Buildings
 
-Every constructed building costs 100 wood. Construction time varies by package.
+Every constructed building costs 100 wood. Construction time varies by package. A site and a damaged building are worked, not merely visited: the hero advances one only after the player right-clicks it, and the work stops where it stands when the hero is ordered elsewhere. The attack command reads what it was aimed at, so clicking an allied site or ruin with it is the same work order.
 
 | Building | MaxHp | Armor | Bulwark | Soldier | Cap | Charges | Recharge | Production | Worker cap | Worker charges | Worker recharge | Worker production | Worker buff | Construction |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |

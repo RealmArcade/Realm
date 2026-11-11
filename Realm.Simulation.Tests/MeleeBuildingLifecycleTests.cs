@@ -113,6 +113,34 @@ public class MeleeBuildingLifecycleTests
 	}
 
 	[Test]
+	public void TheAttackOrderOnAnAlliedRuinMendsItInsteadOfStrikingIt()
+	{
+		UnitId building = BuildNearTheHero();
+		_match.Kill(building, _match.Hero(2));
+
+		UnitId hero = _match.Hero(1);
+		ServerCommandResult result = _match.Attack(1, hero, building);
+		Assert.That(result.HasRejection, Is.False, $"The attack command has to read the allied ruin as work: {result.RejectionReason}");
+
+		_match.Step(10f);
+
+		Assert.That(_match.HealthOf(building), Is.GreaterThan(0f), "The attack command has to send the hero to mend an allied ruin instead of striking it.");
+		Assert.That(_match.IsDormant(building), Is.True, "A partly mended ruin is still dormant until it is whole.");
+	}
+
+	[Test]
+	public void AStandingHeroDoesNotMendARuinWithoutAnOrder()
+	{
+		UnitId building = BuildNearTheHero();
+		_match.Kill(building, _match.Hero(2));
+
+		_match.Step(10f);
+
+		Assert.That(_match.HealthOf(building), Is.EqualTo(0f).Within(0.01f), "Being near a ruin is not an order to mend it.");
+		Assert.That(_match.IsDormant(building), Is.True, "The ruin stays dormant until a hero is sent to it.");
+	}
+
+	[Test]
 	public void ADormantBuildingStopsPayingItsIncome()
 	{
 		UnitId building = BuildNearTheHero();
