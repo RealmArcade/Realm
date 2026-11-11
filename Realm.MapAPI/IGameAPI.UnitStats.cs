@@ -197,6 +197,23 @@ public partial interface IGameAPI
 	void SetUnitGatherSwing(UnitId unit, float swingAmount, float swingSeconds);
 
 	/// <summary>
+	/// States the share of each delivered swing the map keeps, so a ruleset can tax a worker's income.
+	/// </summary>
+	/// <remarks>
+	/// The tax is taken from the delivery, never from the swing: the node still loses exactly the amount the building
+/// advertises, and only what reaches the player's purse is reduced. The fraction of a resource a taxed delivery leaves
+/// behind is carried into that worker's next delivery rather than rounded away, so a run pays the total its advertised
+/// rate states. Zero pays every delivery in full, which is what a worker nobody taxed pays; values are clamped between
+/// zero and 0.99 so a delivery always pays something unless the map pays nothing. The call does nothing for a unit that
+/// is not gathering. Taxing each worker at its own building's rank among the player's buildings is what makes a
+/// progressive, marginal income tax: earlier buildings keep the share they were given, and a new building pays less
+/// than the one before it without changing what the earlier ones pay.
+	/// </remarks>
+	/// <param name="unit">The gathering unit whose deliveries are taxed.</param>
+	/// <param name="taxRate">The fraction kept from each delivered swing, from zero to 0.99.</param>
+	void SetUnitGatherTaxRate(UnitId unit, float taxRate);
+
+	/// <summary>
 	/// Shows or hides the overhead health and mana bars for a single unit.
 	/// </summary>
 	/// <remarks>

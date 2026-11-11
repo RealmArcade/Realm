@@ -91,6 +91,9 @@ public static class GameAPI
 		/// <summary>States what one gathering swing takes from a node and how long the swing lasts.</summary>
 		public void SetUnitGatherSwing(UnitId unit, float swingAmount, float swingSeconds) => gameApi.SetUnitGatherSwing(unit, swingAmount, swingSeconds);
 
+		/// <summary>States the share of each delivered swing the map keeps.</summary>
+		public void SetUnitGatherTaxRate(UnitId unit, float taxRate) => gameApi.SetUnitGatherTaxRate(unit, taxRate);
+
 		/// <summary>Turns all unit activity on or off, covering movement, orders and animation together.</summary>
 		public void SetUnitFrozen(UnitId unit, bool value) => gameApi.SetUnitFrozen(unit, value);
 

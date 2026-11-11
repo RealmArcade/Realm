@@ -635,6 +635,16 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		_context.World.Set(entity, gather);
 	}
 
+	public void SetUnitGatherTaxRate(UnitId unit, float taxRate)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+		if (!_context.World.TryGet<Gatherer>(entity, out Gatherer gather)) return;
+
+		gather.GatherTaxRate = Math.Clamp(taxRate, 0f, 0.99f);
+		_context.World.Set(entity, gather);
+	}
+
 	public void EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
 		Entity entity = ResolveUnit(unit);

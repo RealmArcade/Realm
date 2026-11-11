@@ -348,17 +348,21 @@ internal sealed class MeleeMatch : IDisposable
 	public UnitId ResourceNode(string templateId, Vector3? near = null)
 	{
 		UnitId found = UnitId.Invalid;
-		float closestDistance = 0f;
+		float closestDistance = float.MaxValue;
 		var query = QueryCache.AllPropIdentityAndPositionQuery;
 		World.Query(in query, (Entity entity, ref Position position, ref PropIdentity identity) =>
 		{
 			if (!string.Equals(identity.PropId, templateId, StringComparison.OrdinalIgnoreCase)) return;
 
-			if (found.IsValid && near.HasValue)
+			if (near.HasValue)
 			{
 				float distance = Vector3.Distance(position.Value, near.Value);
 				if (distance >= closestDistance) return;
 				closestDistance = distance;
+			}
+			else if (found.IsValid)
+			{
+				return;
 			}
 
 			found = new UnitId(entity.Id);

@@ -119,6 +119,17 @@ internal static class MeleeContent
 		};
 	}
 
+	/// <summary>
+	///     The share of its deliveries a player's income building keeps, by the order it was completed in: the first keeps
+	///     the whole swing, and every later building keeps less than the one before it.
+	/// </summary>
+	public static readonly float[] IncomeSharesByRank = { 1f, 0.65f, 0.5f, 0.4f, 0.35f };
+
+	public static float IncomeShareOfRank(int rank)
+	{
+		return IncomeSharesByRank[System.Math.Min(rank, IncomeSharesByRank.Length) - 1];
+	}
+
 	public static float WoodPerSwingOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch

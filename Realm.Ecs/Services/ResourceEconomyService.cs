@@ -221,20 +221,36 @@ public class ResourceEconomyService
 		float carry = gather.CarriedAmount;
 		var ownerEntity = _context.World.Get<Owner>(entity).PlayerEntity.Value;
 
+		// A map may tax what a worker delivers, and the tax is taken here rather than out of the swing: the node still
+		// loses exactly what the building advertises, and only the pay into the purse is reduced. The fraction of a
+		// resource the tax leaves behind rides on the worker into its next delivery instead of being rounded away, so a
+		// taxed economy pays the same total over a run that its advertised rate states.
+		float taxRate = Math.Clamp(gather.GatherTaxRate, 0f, 0.99f);
+		float earned = carry * (1f - taxRate) + gather.PendingIncomeRemainder;
+		int paid = (int)MathF.Floor(earned);
+		gather.PendingIncomeRemainder = earned - paid;
+
 		if (_context.World.Has<PlayerResources>(ownerEntity))
 		{
 			ref var playerRes = ref _context.World.Get<PlayerResources>(ownerEntity);
 			var resId = gather.ResourceType.AsResourceId(_definitionManagerRef);
 			if (playerRes.TryGetValue(resId, out var currentAmount))
 			{
-				playerRes[resId] = (int)Math.Min(ResourceCap, currentAmount + carry);
+				float room = ResourceCap - currentAmount;
+				if (paid > room)
+				{
+					paid = (int)MathF.Max(0f, MathF.Floor(room));
+					gather.PendingIncomeRemainder = 0f;
+				}
+
+				playerRes[resId] = currentAmount + paid;
 			}
 		}
 
 		int depositPlayer = _context.World.Has<UnitOwnerPlayer>(ownerEntity)
 			? _context.World.Get<UnitOwnerPlayer>(ownerEntity).PlayerIndex
 			: 0;
-		OnResourceDepositedForPlayer?.Invoke(depositPlayer, gather.ResourceType, carry);
+		OnResourceDepositedForPlayer?.Invoke(depositPlayer, gather.ResourceType, paid);
 	}
 
 	private void HandleNodeAfterDeposit(Entity entity, ref Gatherer gather)

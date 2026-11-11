@@ -99,6 +99,59 @@ public class MeleeEconomyTests
 	}
 
 	[Test]
+	public void TheSecondIncomeBuildingPaysItsRankShareWhileTheFirstKeepsItsWholeSwing()
+	{
+		// The buildings are raised straight through the engine rather than drawn from the deck, so the two ranks are
+		// known before a shuffle decides which package a player would have been offered.
+		UnitId firstBuilding = _match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", NearNodeSitePosition, 1, 0f);
+		_match.Step(1f);
+		UnitId secondBuilding = _match.Api.SpawnBuildingUnderConstruction("building/warband_yard", new Vector3(-26f, 0f, 9f), 1, 0f);
+		_match.Step(1f);
+
+		Assert.That(firstBuilding.IsValid && secondBuilding.IsValid, Is.True, "Both buildings have to be raised.");
+		Assert.That(firstBuilding.UniqueId, Is.LessThan(secondBuilding.UniqueId), "The first building has to be the older one, which is what its rank is read from.");
+		Assert.That(_match.IsUnderConstruction(firstBuilding) || _match.IsUnderConstruction(secondBuilding), Is.False, "Both buildings have to stand before their workers can be read.");
+
+		UnitId firstNode = _match.ResourceNode(GoldMineTemplateId, _match.PositionOf(firstBuilding));
+		UnitId secondNode = _match.ResourceNode(GoldMineTemplateId, _match.PositionOf(secondBuilding));
+		Assert.That(firstNode.IsValid && secondNode.IsValid && firstNode.Value != secondNode.Value, Is.True,
+			"The two buildings have to work different nodes, or neither worker's delivery can be told apart from the other's.");
+
+		float goldBefore = _match.Gold(1);
+		float firstNodeBefore = _match.ResourceAmount(firstNode);
+		float secondNodeBefore = _match.ResourceAmount(secondNode);
+
+		bool delivered = false;
+		for (int step = 0; step < 240 && !delivered; step++)
+		{
+			_match.Step(0.5f);
+			delivered = _match.Gold(1) > goldBefore
+			            && _match.ResourceAmount(firstNode) < firstNodeBefore
+			            && _match.ResourceAmount(secondNode) < secondNodeBefore;
+		}
+		Assert.That(delivered, Is.True, "Both income buildings have to deliver at least once.");
+
+		// Sampling while no worker holds anything makes what the nodes lost exactly what the workers have delivered, so
+		// the tax reads off the purse without having to know how much is still being carried home.
+		bool handsEmpty = false;
+		for (int step = 0; step < 400 && !handsEmpty; step++)
+		{
+			_match.Step(0.1f);
+			handsEmpty = _match.TotalCarriedAmount(1) <= 0.001f;
+		}
+		Assert.That(handsEmpty, Is.True, "Both workers have to be between trips for the accounting to close.");
+
+		float paid = _match.Gold(1) - goldBefore;
+		float firstDelivered = firstNodeBefore - _match.ResourceAmount(firstNode);
+		float secondDelivered = secondNodeBefore - _match.ResourceAmount(secondNode);
+		float expected = firstDelivered * MeleeContent.IncomeShareOfRank(1) + secondDelivered * MeleeContent.IncomeShareOfRank(2);
+
+		Assert.That(paid, Is.EqualTo(expected).Within(1f),
+			$"The first building keeps its whole swing and the second keeps its rank's share: paid {paid:0.##} for {firstDelivered:0.##} and {secondDelivered:0.##} delivered.");
+		Assert.That(paid, Is.LessThan(firstDelivered + secondDelivered), "The second building has to be taxed rather than paid in full.");
+	}
+
+	[Test]
 	public void ANodeAcrossTheBoardIsWorkedLessThanOneBesideTheBuilding()
 	{
 		UnitId nearBuilding = _match.PlaceCompletedBuilding(NearNodeSitePosition);

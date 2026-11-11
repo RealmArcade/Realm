@@ -1072,6 +1072,12 @@
         <member name="F:Realm.Ecs.Components.Resources.Gatherer.SwingProgress">
             <summary>Gets or sets the seconds accumulated toward the swing the worker is taking.</summary>
         </member>
+        <member name="F:Realm.Ecs.Components.Resources.Gatherer.GatherTaxRate">
+            <summary>Gets or sets the fraction of each delivered swing the map keeps, or zero to pay the whole swing.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Resources.Gatherer.PendingIncomeRemainder">
+            <summary>Gets or sets the fraction of a resource the worker has earned but not yet been paid, so a taxed delivery stays exact over a run.</summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Resources.Gold">
             <summary>
                 Represents the Gold resource.

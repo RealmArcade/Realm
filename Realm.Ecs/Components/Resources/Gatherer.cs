@@ -24,6 +24,12 @@ public struct Gatherer
 	/// <summary>Gets or sets the seconds accumulated toward the swing the worker is taking.</summary>
 	public float SwingProgress;
 
+	/// <summary>Gets or sets the fraction of each delivered swing the map keeps, or zero to pay the whole swing.</summary>
+	public float GatherTaxRate;
+
+	/// <summary>Gets or sets the fraction of a resource the worker has earned but not yet been paid, so a taxed delivery stays exact over a run.</summary>
+	public float PendingIncomeRemainder;
+
 	public bool ReturningToBase
 	{
 		get => ReturningToBaseByte != 0;
@@ -40,6 +46,8 @@ public struct Gatherer
 		SwingAmount = 0f;
 		SwingSeconds = 0f;
 		SwingProgress = 0f;
+		GatherTaxRate = 0f;
+		PendingIncomeRemainder = 0f;
 	}
 
 	public string ResourceType
