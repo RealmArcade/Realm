@@ -560,6 +560,37 @@ internal sealed class MeleeMatch : IDisposable
 	}
 
 	/// <summary>
+	///     Sends the order a player's right-click on a damaged building sends, so a test exercises the authority's own
+	///     repair routing rather than writing a repair task directly.
+	/// </summary>
+	/// <param name="slot">The seat issuing the order.</param>
+	/// <param name="unit">The unit being ordered to mend the building.</param>
+	/// <param name="building">The building that was clicked.</param>
+	/// <returns>What the authority answered the order with.</returns>
+	public ServerCommandResult Repair(int slot, UnitId unit, UnitId building)
+	{
+		var command = new NetworkCommand
+		{
+			CommandId = _nextCommandId++,
+			CommandType = "repair",
+			UnitEntityIds = new System.Collections.Generic.List<int> { unit.Value },
+			TargetPosition = new NetworkVector3(0f, 0f, 0f),
+			TargetEntityId = building.Value,
+			ArgString = string.Empty
+		};
+
+		return Send(slot, command);
+	}
+
+	/// <summary>
+	///     Reads whether a building is dormant, which is the state a repairable building is left in when its health runs out.
+	/// </summary>
+	public bool IsDormant(UnitId unit) => Has<Realm.Ecs.Components.Tags.Dormant>(unit);
+
+	/// <summary>Reads whether a building is one the map lets fall dormant instead of being destroyed.</summary>
+	public bool IsRepairable(UnitId unit) => Has<Realm.Ecs.Components.Tags.RepairableBuilding>(unit);
+
+	/// <summary>
 	///     Starts a construction the way a player's Begin Construction button does, and reads back the packages the
 	///     command grid is now offering: the units that carry the grid only show the abilities the map revealed.
 	/// </summary>

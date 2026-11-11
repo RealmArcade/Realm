@@ -329,6 +329,10 @@ public partial class GameHost
 					{
 						IssueAttackCommand(clickedUnit, shiftHeld);
 					}
+					else if (clickedUnit != null && !isClickedEnemy && HasSelectedRepairerFor(clickedUnit))
+					{
+						IssueRepairCommand(clickedUnit, shiftHeld);
+					}
 					else if (clickedUnit != null && !isClickedEnemy && clickedUnit != SelectedUnits.Find(u => GameContext.PerspectiveFilter.CanControl(u.Player)))
 					{
 						if (clickedUnit.IsBuilding && World.Has<UnderConstruction>(clickedUnit.Entity))

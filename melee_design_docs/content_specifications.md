@@ -51,7 +51,7 @@ Map packaging. A melee map uses the existing Asset Import system in a split form
 | Passive income drawn from finite resource nodes | Passive income is not tied to node capacity, exhaustion, or worker travel distance | Economy service |
 | Shared building deck, draw of three, lock-in during construction | Not present | Editor authoring plus new runtime state |
 | Building supply bounded by draft count | Not present | New runtime state |
-| Building lifecycle: destroyed dormant at 0 HP, invulnerable, repairable to 100% | Construction and invulnerability exist; the destroyed/repair loop does not, and no repair system exists | New system |
+| Building lifecycle: destroyed dormant at 0 HP, invulnerable, repairable to 100% | Present. A building the map marks repairable falls dormant at zero health, takes no further damage, keeps its charges and queue, and is restored by a repairing hero | Implemented |
 | Hero death removes the army and clears queues; revival refills charges | No revival system exists | New system |
 | Nexus elimination with team survival | Per-player victory/defeat triggers exist; the team rule does not | Mission/engine rule layer |
 | Bulwark resistance for buildings and heroes | Not present. No physical-and-magic mitigation layer, and no proximity scaling for heroes | Damage resolver hook plus an owned-soldier proximity count |

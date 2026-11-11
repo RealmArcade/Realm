@@ -38,6 +38,7 @@ public static class UnitOrderService
 		RemoveIfPresent<HealingTarget>(world, entity);
 		RemoveIfPresent<WaypointQueue>(world, entity);
 		RemoveIfPresent<Gatherer>(world, entity);
+		RemoveIfPresent<RepairTask>(world, entity);
 		RemoveIfPresent<BuildTask>(world, entity);
 		RemoveIfPresent<BuildQueue>(world, entity);
 	}
@@ -80,6 +81,21 @@ public static class UnitOrderService
 		if (resourceNode == Entity.Null || !world.IsAlive(resourceNode)) return;
 
 		world.SetOrAdd(entity, new Gatherer(resourceType, resourceNode));
+	}
+
+	/// <summary>
+	///     Sends a unit that carries a repair rate to mend a repairable building. The unit walks there and works only while
+	///     it stands within reach, so a unit called away leaves the building as far along as it was.
+	/// </summary>
+	public static void Repair(EcsWorld world, Entity entity, Entity building)
+	{
+		if (!CanTakeOrders(world, entity)) return;
+		if (building == Entity.Null || !world.IsAlive(building)) return;
+		if (!world.Has<RepairWorker>(entity) || !world.Has<RepairableBuilding>(building)) return;
+
+		ClearOrders(world, entity);
+		world.SetOrAdd(entity, new RepairTask(building));
+		if (world.TryGet<Position>(building, out Position buildingPosition)) world.SetOrAdd(entity, new MoveTo(buildingPosition.Value));
 	}
 
 	/// <summary>Stops a unit where it stands without holding it there.</summary>

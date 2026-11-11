@@ -1764,6 +1764,7 @@
   "Repair Asset Index": "Repair Asset Index",
   "Repaired {0} asset index record(s).": "Repaired {0} asset index record(s).",
   "Repaired {0} indexed file(s); {1} problem(s) remain.": "Repaired {0} indexed file(s); {1} problem(s) remain.",
+  "Repairing": "Repairing",
   "Repairing indexed file {0}/{1}...": "Repairing indexed file {0}/{1}...",
   "Replace all instances of a texture with another texture across the map": "Replace all instances of a texture with another texture across the map",
   "Replace the map with terrain classified from a reference image": "Replace the map with terrain classified from a reference image",

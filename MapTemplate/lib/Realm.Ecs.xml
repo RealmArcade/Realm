@@ -1088,6 +1088,25 @@
             A component holding all resource stockpile amounts for a player slot directly in unmanaged memory.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Components.Resources.RepairTask">
+            <summary>
+                Tracks the building a unit is mending. The work advances only while the unit stands within reach of the
+                building, so walking away from it leaves the building exactly as far along as the hero left it.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Resources.RepairTask.BuildingEntity">
+            <summary>Gets or sets the building this unit is mending.</summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.RepairWorker">
+            <summary>
+                Stores how fast a unit mends a building, as a fraction of the building's maximum health per second. A unit
+                carrying it accepts a repair order; the rate belongs to the repairer, so two heroes can mend the same building at
+                different speeds and a building of any size takes the same share of a given hero's time.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Resources.RepairWorker.HealthPercentPerSecond">
+            <summary>Gets or sets the fraction of the repaired building's maximum health restored each second.</summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Resources.ResourceCost">
             <summary>
                 Specifies a cost in terms of a specific resource.
@@ -1246,6 +1265,12 @@
                 Tag indicating the entity is dead and awaiting cleanup.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Components.Tags.Dormant">
+            <summary>
+                Tag marking a building that was reduced to zero health and is waiting to be repaired: it is invulnerable, its
+                charges stop recharging, it produces nothing and takes no deliveries until it stands whole again.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Tags.Hero">
             <summary>
                 Tag indicating the entity is a unique, powerful hero unit.
@@ -1279,6 +1304,12 @@
         <member name="T:Realm.Ecs.Components.Tags.Prop">
             <summary>
                 Tag indicating the entity is a static or destructible world object.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.RepairableBuilding">
+            <summary>
+                Tag marking a building the map lets fall dormant at zero health instead of being destroyed, so a repairing unit
+                can raise it back to working order. A building without it dies the moment its health runs out.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Components.Tags.SpellImmune">
@@ -1728,6 +1759,7 @@
             <summary>picking a target for each attacker.</summary>
             <summary>resolving an attack, from range check to damage and projectiles.</summary>
             <summary>the public damage and heal entry points and the aoe passes behind them.</summary>
+            <summary>The building lifecycle: which buildings fall dormant at zero health instead of dying, and what dormant means.</summary>
             <summary>healer ticks, targets and the heal itself.</summary>
             <summary>range, reach and the navmesh route check behind them.</summary>
             <summary>splash damage around an impact.</summary>
@@ -1814,6 +1846,25 @@
         </member>
         <member name="M:Realm.Ecs.Services.CombatAndDamageService.HealSingle(Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single)">
             <summary>Heals one unit, honouring the caster's healing multiplier.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Services.CombatAndDamageService.OnBuildingDormantRequested">
+            <summary>
+                Called when a repairable building has just lost its last point of health, so the authority can stop what the
+                building was doing and pay whoever destroyed it. The building stays in the world, dormant, until a repair
+                restores it.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.TryFallDormant(Realm.Ecs.Entity)">
+            <summary>
+                Moves a repairable building into the dormant state, which is the state a destroyed but standing building is
+                drawn and read in: nothing targets it, it takes no damage, it attacks nothing, it earns nothing, it recharges
+                nothing and it produces nothing, while its charges and queue are kept for the repair.
+            </summary>
+            <param name="entity">The entity that ran out of health.</param>
+            <returns>True when the entity is dormant and must not be removed from the world.</returns>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.StopOperating(Realm.Ecs.Entity)">
+            <summary>Ends the work a building was doing, keeping what it had banked for when it is repaired.</summary>
         </member>
         <member name="M:Realm.Ecs.Services.CombatAndDamageService.GetUnitContactRadius(Realm.Ecs.Entity)">
             <summary>
@@ -2381,6 +2432,12 @@
         <member name="M:Realm.Ecs.Services.UnitOrderService.Gather(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,Realm.Ecs.Entity,System.String)">
             <summary>Sends a worker to a resource node.</summary>
         </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.Repair(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,Realm.Ecs.Entity)">
+            <summary>
+                Sends a unit that carries a repair rate to mend a repairable building. The unit walks there and works only while
+                it stands within reach, so a unit called away leaves the building as far along as it was.
+            </summary>
+        </member>
         <member name="M:Realm.Ecs.Services.UnitOrderService.Stop(Realm.Ecs.EcsWorld,Realm.Ecs.Entity)">
             <summary>Stops a unit where it stands without holding it there.</summary>
         </member>
@@ -2534,6 +2591,12 @@
         </member>
         <member name="F:Realm.Ecs.ComponentIds.PlayerOrdersLocked">
             <summary>Player orders locked tag component identifier, marking player-owned units the map drives itself.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Dormant">
+            <summary>Dormant tag component identifier, marking a repairable building that was reduced to zero health.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.RepairableBuilding">
+            <summary>Repairable building tag component identifier, marking a building that falls dormant instead of dying.</summary>
         </member>
         <member name="T:Realm.Ecs.ComponentMask">
             <summary>

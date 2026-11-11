@@ -109,5 +109,6 @@ private void ClearActionOrders(Entity entity)
 		if (_context.World.Has<Patrol>(entity)) _context.World.Remove<Patrol>(entity);
 		if (_context.World.Has<HealingTarget>(entity)) _context.World.Remove<HealingTarget>(entity);
 		if (_context.World.Has<Gatherer>(entity)) _context.World.Remove<Gatherer>(entity);
+		if (_context.World.Has<RepairTask>(entity)) _context.World.Remove<RepairTask>(entity);
 	}
 }

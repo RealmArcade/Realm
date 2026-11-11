@@ -78,6 +78,10 @@ public partial class CommandAuthorityService
 			case "gather_queued":
 				HandleGatherCommand(peerId, cmd, isQueued, rejectedServerEntityIds, ref rejectionReason);
 				return true;
+			case "repair":
+			case "repair_queued":
+				HandleRepairCommand(peerId, cmd, isQueued, rejectedServerEntityIds, ref rejectionReason);
+				return true;
 		}
 
 		return false;

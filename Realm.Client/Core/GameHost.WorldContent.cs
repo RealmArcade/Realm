@@ -441,4 +441,55 @@ public partial class GameHost
 		}
 	}
 
+	/// <summary>
+	///     Answers whether a right-click on this building is the player asking a selected unit to mend it: the building has
+	///     to be one the map lets be repaired, it has to be short of health, and one of the selected units has to carry the
+	///     repair rate that makes mending its job.
+	/// </summary>
+	private bool HasSelectedRepairerFor(Unit3D building)
+	{
+		if (building == null || !GodotObject.IsInstanceValid(building) || !building.IsBuilding) return false;
+		if (building.Entity == Entity.Null || !World.IsAlive(building.Entity)) return false;
+		if (!World.Has<RepairableBuilding>(building.Entity)) return false;
+		if (!World.TryGet(building.Entity, out Health health) || health.Current >= health.Max) return false;
+
+		foreach (Unit3D unit in SelectedUnits)
+		{
+			if (unit == null || !GodotObject.IsInstanceValid(unit) || unit.IsBuilding || !CanCommandUnit(unit)) continue;
+			if (!World.TryGet(unit.Entity, out RepairWorker repairWorker) || repairWorker.HealthPercentPerSecond <= 0f) continue;
+			if (GameContext.PerspectiveFilter.IsHostileToObserved(building.Player)) continue;
+
+			return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>Asks the selected units that can mend to put a standing building back together.</summary>
+	public void IssueRepairCommand(Unit3D building, bool isQueued = false)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (SelectedUnits.Count == 0 || building == null || !GodotObject.IsInstanceValid(building)) return;
+		if (!World.IsAlive(building.Entity)) return;
+
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		if (localPlayerIndex <= 0) return;
+
+		var targetIds = new List<int>();
+		foreach (Unit3D unit in SelectedUnits)
+		{
+			if (unit.IsBuilding || unit.Player != localPlayerIndex || !CanCommandUnit(unit)) continue;
+			if (!World.TryGet(unit.Entity, out RepairWorker repairWorker) || repairWorker.HealthPercentPerSecond <= 0f) continue;
+			targetIds.Add(GetServerEntityId(unit.Entity));
+		}
+
+		if (targetIds.Count == 0) return;
+
+		var waypoint = World.TryGet(building.Entity, out Position position) ? position.Value : System.Numerics.Vector3.Zero;
+		Vector3 buildingPosition = new(waypoint.X, waypoint.Y, waypoint.Z);
+		SpawnTargetIndicator(buildingPosition, new Color(0.45f, 0.85f, 0.95f));
+		GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Repairing"), new Color(0.45f, 0.85f, 0.95f));
+
+		SubmitOrderCommand(isQueued ? "repair_queued" : "repair", targetIds, buildingPosition, GetServerEntityId(building.Entity), string.Empty);
+	}
 }

@@ -147,6 +147,17 @@ public partial class ServerGameAPI
 		UnitOrderService.Gather(_context.World, entity, node, ReadResourceNodeType(node));
 	}
 
+	public void IssueRepairOrder(UnitId unit, UnitId building)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+
+		Entity buildingEntity = ResolveUnit(building);
+		if (buildingEntity == Entity.Null) return;
+
+		UnitOrderService.Repair(_context.World, entity, buildingEntity);
+	}
+
 	public void IssueStopOrder(UnitId unit)
 	{
 		Entity entity = ResolveUnit(unit);

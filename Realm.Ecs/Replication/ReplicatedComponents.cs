@@ -793,6 +793,9 @@ public static class ReplicatedComponents
 		Register(new ReplicatedComponentCodec<UnitCharges>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<SpellImmune>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<UnderConstruction>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<Dormant>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<RepairableBuilding>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<RepairWorker>(ReplicatedScope.Unit));
 	}
 
 	public static void Register(IReplicatedComponentCodec codec)

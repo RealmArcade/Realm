@@ -175,7 +175,11 @@ public static class ComponentTypeRegistry
 			typeof(OverheadBadge),
 			typeof(UnitCharges),
 			typeof(PlayerDamageEffectiveness),
-			typeof(PlayerOrdersLocked)
+			typeof(PlayerOrdersLocked),
+			typeof(Dormant),
+			typeof(RepairableBuilding),
+			typeof(RepairWorker),
+			typeof(RepairTask)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

@@ -417,6 +417,7 @@ public class ResourceEconomyService
 		bool candidate = _dropoffRequireDropoffBuilding
 			? _context.MapRules.IsResourceDropoffBuilding(definitionId.Value)
 			: _context.World.Has<Building>(buildingEntity) && !_context.World.Has<ConstructionState>(buildingEntity);
+		if (candidate && _context.World.Has<Dormant>(buildingEntity)) candidate = false;
 		if (!candidate) return;
 
 		float distance = Vector3.Distance(_dropoffSearchOrigin, buildingPos.Value);

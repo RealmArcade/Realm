@@ -738,6 +738,39 @@ public partial class MultiplayerSimulationHarness : Node
 			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 			Check("the drafted building stands on screen", IsOnScreen(productionBuilding.GlobalPosition), $"building {productionBuilding.GlobalPosition} camera {ActiveCamera()?.Position}");
 			SaveUxScreenshot("ux_smoke_building.png", "building", Note);
+
+			// A drafted building that is reduced to zero health is a ruin on the board, not a gap: the plate it draws is
+			// crossed out, its readings say what would bring it back, and the hero mends it by being sent to it. The kill
+			// cheat goes through the same damage pipeline a player's army does, so the ruin this screen shows is the one
+			// an attacker leaves behind.
+			currentHost.SelectUnitInternal(new UnitId(productionBuilding.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+			Check("the destruction cheat is accepted on the drafted building", hud.TryTriggerCheat("cooked"));
+
+			bool fellDormant = await WaitUntilAsync(() =>
+				GodotObject.IsInstanceValid(productionBuilding) && GameContext.World != null && GameContext.World.Has<Dormant>(productionBuilding.Entity), 10f);
+			Check("a building destroyed to zero health stays on the board dormant", fellDormant);
+
+			UnitHealthBarOverlay? plateOverlay = hud.FindChild("UnitHealthBarOverlay", true, false) as UnitHealthBarOverlay;
+			bool plateCrossed = await WaitUntilAsync(() =>
+				plateOverlay != null && plateOverlay.TryReadDormant(productionBuilding.Entity, out bool dormant) && dormant, 10f);
+			Check("the dormant building's overhead plate is crossed out", plateCrossed);
+
+			currentHost.SelectUnitInternal(new UnitId(productionBuilding.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
+			string? ruinProduction = ReadReadingValue(buildingReadings, "Production");
+			Check("the ruin says how it comes back", string.Equals(ruinProduction, "Destroyed (repair to restore)", StringComparison.Ordinal), ruinProduction ?? "missing");
+			Check("the ruin reads at zero health", ReadHealth(productionBuilding) <= 0.01f, $"health {ReadHealth(productionBuilding):0.#}");
+			SaveUxScreenshot("ux_smoke_dormant.png", "dormant", Note);
+
+			float ruinMaximumHealth = ReadMaximumHealth(productionBuilding);
+			currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+			currentHost.IssueRepairCommand(productionBuilding);
+			bool mended = await WaitUntilAsync(() =>
+				GodotObject.IsInstanceValid(productionBuilding) && GameContext.World != null && !GameContext.World.Has<Dormant>(productionBuilding.Entity) && ReadHealth(productionBuilding) >= ruinMaximumHealth - 1f, 120f);
+			Check("the hero mends the ruin back to whole", mended, $"health {ReadHealth(productionBuilding):0.#} / {ruinMaximumHealth:0.#}");
+			SaveUxScreenshot("ux_smoke_repaired.png", "repaired", Note);
 		}
 
 		// The board guards its middle with a neutral camp, and the soldier that was just raised is the army sent to
@@ -1143,6 +1176,14 @@ public partial class MultiplayerSimulationHarness : Node
 		if (world == null || !world.IsAlive(unit.Entity) || !world.Has<Health>(unit.Entity)) return 0f;
 
 		return world.Get<Health>(unit.Entity).Current;
+	}
+
+	private static float ReadMaximumHealth(Unit3D unit)
+	{
+		EcsWorld? world = GameContext.World;
+		if (world == null || !world.IsAlive(unit.Entity) || !world.Has<Health>(unit.Entity)) return 0f;
+
+		return world.Get<Health>(unit.Entity).Max;
 	}
 
 	private static float ReadMana(Unit3D unit)

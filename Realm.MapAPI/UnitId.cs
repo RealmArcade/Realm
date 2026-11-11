@@ -75,6 +75,12 @@ public static unsafe class UnitIdScriptExtensions
 	public bool IsDead => unitId.Value <= 0 || unitId.Value >= EcsSharedMemory.MAX_ENTITIES || EcsSharedMemory.Alive[unitId.Value] == 0;
 
 	/// <summary>
+	/// Gets a value indicating whether this building is dormant, which is what a repairable building becomes when its
+	/// health runs out: it is invulnerable, it works at nothing, and it is waiting for a repairing unit to restore it.
+	/// </summary>
+	public bool IsDormant => unitId.Value > 0 && unitId.Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[unitId.Value] != 0 && EcsSharedMemory.HasComponent(unitId.Value, ComponentIds.Dormant);
+
+	/// <summary>
 	/// Orders the unit to move to the specified destination in world coordinates.
 	/// </summary>
 	/// <param name="destination">The destination position.</param>

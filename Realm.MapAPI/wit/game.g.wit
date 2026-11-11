@@ -105,6 +105,7 @@ interface game-api {
     get-unit-items-count: func(unit-id: s32) -> s32;
     get-unit-items-get: func(unit-id: s32, index: s32) -> string;
     get-unit-name: func(unit-type-id: string) -> string;
+    get-unit-repair-rate: func(unit-id: s32) -> f32;
     get-unit-route-state: func(unit-id: s32) -> s32;
     get-unit-template-id: func(unit-id: s32) -> string;
     get-unit-type-abilities-count: func(unit-type-id: string) -> s32;
@@ -129,6 +130,7 @@ interface game-api {
     issue-gather-order: func(unit-id: s32, resource-node-id: s32);
     issue-hold-position-order: func(unit-id: s32);
     issue-move-order: func(unit-id: s32, destination-x: f32, destination-y: f32, destination-z: f32);
+    issue-repair-order: func(unit-id: s32, building-id: s32);
     issue-stop-order: func(unit-id: s32);
     kick-player: func(player-index: s32, reason: string);
     kill-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
@@ -233,6 +235,8 @@ interface game-api {
     set-unit-owner: func(unit-id: s32, player-index: s32);
     set-unit-player-orders-locked: func(unit-id: s32, value: bool);
     set-unit-range: func(unit-id: s32, value: f32);
+    set-unit-repair-rate: func(unit-id: s32, health-percent-per-second: f32);
+    set-unit-repairable: func(unit-id: s32, repairable: bool);
     set-unit-route-state: func(unit-id: s32, state: s32);
     set-unit-scale: func(unit-id: s32, value: f32);
     set-unit-speed: func(unit-id: s32, value: f32);

@@ -214,6 +214,42 @@ public partial interface IGameAPI
 	void SetUnitGatherTaxRate(UnitId unit, float taxRate);
 
 	/// <summary>
+	/// States how fast a unit mends a building, as a fraction of the building's maximum health per second.
+	/// </summary>
+	/// <remarks>
+	/// A rate above zero is what lets a unit accept a repair order at all, so a ruleset decides which units mend and how
+	/// fast by stating a rate per unit rather than the engine assuming a builder. Because the rate is a share of the
+	/// building's maximum health, a hero spends the same time raising any building from zero to whole, and a rate that a
+	/// buff or a relic raises mends every building faster. A rate of zero, or a call with no rate, takes the ability
+	/// away and ends any mending the unit was doing. The rate belongs to the repairer, so two units can mend the same
+	/// building at different speeds.
+	/// </remarks>
+	/// <param name="unit">The unit that mends buildings.</param>
+	/// <param name="healthPercentPerSecond">The fraction of the building's maximum health restored each second.</param>
+	void SetUnitRepairRate(UnitId unit, float healthPercentPerSecond);
+
+	/// <summary>
+	/// Answers how fast a unit mends buildings, as a fraction of the building's maximum health per second.
+	/// </summary>
+	/// <param name="unit">The unit whose repair rate is read.</param>
+	/// <returns>The fraction restored each second, or zero when the unit cannot repair.</returns>
+	float GetUnitRepairRate(UnitId unit);
+
+	/// <summary>
+	/// States whether a building falls dormant when its health runs out instead of being destroyed.
+	/// </summary>
+	/// <remarks>
+	/// A repairable building at zero health stays in the world: it is invulnerable, it earns nothing, it recharges
+	/// nothing, it produces nothing and it attacks nothing, while the charges and the production queue it already holds
+	/// are kept. A repairing unit raises it back toward full health, and the building only starts working again once it
+	/// is whole. A building the map never marked repairable is destroyed at zero health, which is what every building did
+	/// before a map asked for this, so a ruleset that has no repair has nothing to configure.
+	/// </remarks>
+	/// <param name="unit">The building.</param>
+	/// <param name="repairable">True to let the building fall dormant instead of dying at zero health.</param>
+	void SetUnitRepairable(UnitId unit, bool repairable);
+
+	/// <summary>
 	/// Shows or hides the overhead health and mana bars for a single unit.
 	/// </summary>
 	/// <remarks>

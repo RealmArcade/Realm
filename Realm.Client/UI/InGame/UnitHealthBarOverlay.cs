@@ -46,6 +46,8 @@ public partial class UnitHealthBarOverlay : Control
 	private static readonly Color ManaFillColor = new(0.14f, 0.4f, 0.92f);
 	private static readonly Color ManaHighlightColor = new(0.52f, 0.72f, 1f, 0.7f);
 	private static readonly Color LevelTextColor = new(0.97f, 0.95f, 0.88f);
+	private static readonly Color DormantFrameColor = new(0.42f, 0.24f, 0.2f);
+	private static readonly Color DormantMarkColor = new(0.85f, 0.28f, 0.2f);
 
 	private static readonly string[] BadgeText = BuildBadgeText();
 
@@ -66,9 +68,31 @@ public partial class UnitHealthBarOverlay : Control
 		public bool HasHealth;
 		public bool HasMana;
 		public bool HasBadge;
+		public bool IsDormant;
 	}
 
 	public int BadgesDrawn { get; private set; }
+
+	/// <summary>
+	///     Answers whether the plate drawn for a unit is the crossed-out plate of a dormant building, so a test can read
+	///     what the screen drew rather than what it was asked to draw.
+	/// </summary>
+	/// <param name="entity">The unit whose plate is read.</param>
+	/// <param name="dormant">True when the unit's plate is crossed out.</param>
+	/// <returns>True when a plate was drawn for the unit this frame.</returns>
+	public bool TryReadDormant(Realm.Ecs.Entity entity, out bool dormant)
+	{
+		for (int index = 0; index < _bars.Count; index++)
+		{
+			if (_bars[index].Entity.Id != entity.Id) continue;
+
+			dormant = _bars[index].IsDormant;
+			return true;
+		}
+
+		dormant = false;
+		return false;
+	}
 
 	public bool TryReadBadge(Realm.Ecs.Entity entity, out int value)
 	{
@@ -173,7 +197,8 @@ public partial class UnitHealthBarOverlay : Control
 				BadgeColor = hasBadge ? UnpackBadgeColor(badge.ColorRgb) : LevelTextColor,
 				HasHealth = showHealth,
 				HasMana = showMana,
-				HasBadge = hasBadge
+				HasBadge = hasBadge,
+				IsDormant = world.Has<Dormant>(unit.Entity)
 			});
 		}
 
@@ -213,8 +238,9 @@ public partial class UnitHealthBarOverlay : Control
 			float bodyLeft = left + frameThickness;
 			float bodyTop = top + frameThickness;
 
+			Color frameColor = bar.IsDormant ? DormantFrameColor : FrameColor;
 			DrawRect(new Rect2(left + scale, top + scale, totalWidth, totalHeight), FrameShadowColor);
-			DrawRect(new Rect2(left, top, totalWidth, totalHeight), FrameColor);
+			DrawRect(new Rect2(left, top, totalWidth, totalHeight), frameColor);
 			DrawRect(new Rect2(bodyLeft, bodyTop, bodyWidth, bodyHeight), BackplateColor);
 
 			float cursor = bodyLeft;
@@ -231,6 +257,8 @@ public partial class UnitHealthBarOverlay : Control
 				float manaTop = bar.HasHealth ? bodyTop + barHeight + barGap : bodyTop;
 				DrawBar(new Rect2(cursor, manaTop, barWidth, barHeight), barInset, bar.ManaFraction, ManaFillColor, ManaHighlightColor);
 			}
+
+			if (bar.IsDormant) DrawDormantMark(new Rect2(bodyLeft, bodyTop, bodyWidth, bodyHeight), scale);
 		}
 	}
 
@@ -240,6 +268,19 @@ public partial class UnitHealthBarOverlay : Control
 		_showHealthBar = rules == null || rules.UnitHealthBarEnabled;
 		_showManaBar = rules != null && rules.UnitManaBarEnabled;
 		_showBadge = rules != null && rules.UnitLevelBadgeEnabled;
+	}
+
+	/// <summary>
+	///     Crosses a dormant building's plate out, so a building reduced to zero health reads as ruined at a glance instead
+	///     of as a unit that happens to be at no health.
+	/// </summary>
+	private void DrawDormantMark(Rect2 body, float scale)
+	{
+		if (body.Size.X <= 0f || body.Size.Y <= 0f) return;
+
+		float thickness = Mathf.Max(1f, scale);
+		DrawLine(new Vector2(body.Position.X, body.Position.Y), new Vector2(body.Position.X + body.Size.X, body.Position.Y + body.Size.Y), DormantMarkColor, thickness);
+		DrawLine(new Vector2(body.Position.X + body.Size.X, body.Position.Y), new Vector2(body.Position.X, body.Position.Y + body.Size.Y), DormantMarkColor, thickness);
 	}
 
 	private void DrawBar(Rect2 bar, float inset, float fraction, Color fillColor, Color highlightColor)

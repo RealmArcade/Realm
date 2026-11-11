@@ -21,7 +21,7 @@ public class MatchTick
 	private static readonly QueryDescription AttackQuery = QueryCache.AllAttackQuery;
 	private static readonly QueryDescription HealthQuery = QueryCache.AllHealthNoneDeadQuery;
 	private static readonly QueryDescription ManaQuery = QueryCache.AllManaAndManaRegenNoneDeadQuery;
-	private static readonly QueryDescription ChargesQuery = new QueryDescription().WithAll<UnitCharges>().WithNone<Dead>();
+	private static readonly QueryDescription ChargesQuery = new QueryDescription().WithAll<UnitCharges>().WithNone<Dead, Dormant>();
 
 	private readonly SimulationContext _simulation;
 	private readonly EntityCallback<Buffs> _buffsDelegate;

@@ -645,6 +645,43 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		_context.World.Set(entity, gather);
 	}
 
+	public void SetUnitRepairRate(UnitId unit, float healthPercentPerSecond)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+
+		if (healthPercentPerSecond <= 0f)
+		{
+			if (_context.World.Has<RepairWorker>(entity)) _context.World.Remove<RepairWorker>(entity);
+			if (_context.World.Has<RepairTask>(entity)) _context.World.Remove<RepairTask>(entity);
+			return;
+		}
+
+		_context.World.SetOrAdd(entity, new RepairWorker { HealthPercentPerSecond = healthPercentPerSecond });
+	}
+
+	public float GetUnitRepairRate(UnitId unit)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return 0f;
+
+		return _context.World.TryGet<RepairWorker>(entity, out RepairWorker repairWorker) ? repairWorker.HealthPercentPerSecond : 0f;
+	}
+
+	public void SetUnitRepairable(UnitId unit, bool repairable)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+
+		if (repairable)
+		{
+			_context.World.SetOrAdd(entity, new RepairableBuilding());
+			return;
+		}
+
+		if (_context.World.Has<RepairableBuilding>(entity)) _context.World.Remove<RepairableBuilding>(entity);
+	}
+
 	public void EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
 		Entity entity = ResolveUnit(unit);

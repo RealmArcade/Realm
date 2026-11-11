@@ -25,6 +25,7 @@ public class ServerSimulation : IDisposable
 	private readonly SnapshotFanOut _snapshots;
 	private readonly ServerProductionStep _production;
 	private readonly ConstructionTick _construction;
+	private readonly BuildingRepairTick _repair;
 	private readonly ServerSimulationEvents _events;
 	private readonly ServerPresentationQueue _presentation = new();
 	private readonly ServerMapScript _script;
@@ -76,6 +77,7 @@ public class ServerSimulation : IDisposable
 		EnsureMatchClock(map);
 		_production = new ServerProductionStep(map.World, map, log);
 		_construction = new ConstructionTick(map.Simulation, map.Catalog);
+		_repair = new BuildingRepairTick(map.Simulation, map.Catalog);
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
 		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, MatchOptions);
@@ -165,6 +167,7 @@ public class ServerSimulation : IDisposable
 		_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
 		_production.Step(deltaSeconds);
 		_construction.Step(deltaSeconds);
+		_repair.Step(deltaSeconds);
 		_loot.Step(deltaSeconds);
 		_neutralRespawns.Step(deltaSeconds);
 		_script.Step(deltaSeconds);
@@ -197,6 +200,7 @@ public class ServerSimulation : IDisposable
 		simulation.CombatDamageService.ItemGrantedWeaponsProvider = itemId => _map.Catalog.FindItem(itemId)?.GrantedWeapons;
 		simulation.CombatDamageService.UnlimitedPowerProvider = () => simulation.UnlimitedPowerEnabled;
 		simulation.CombatDamageService.OnKillUnitRequested = KillUnit;
+		simulation.CombatDamageService.OnBuildingDormantRequested = HandleBuildingDormant;
 		simulation.CombatDamageService.DamageEffectivenessProvider = (attacker, target) =>
 		{
 			if (!_map.World.TryGet<UnitOwnerPlayer>(attacker, out UnitOwnerPlayer attackingOwner)) return 1f;
@@ -231,6 +235,21 @@ public class ServerSimulation : IDisposable
 		if (playerIndex == otherPlayerIndex) return false;
 
 		return !_script.Api.ArePlayersAllied(playerIndex, otherPlayerIndex);
+	}
+
+	/// <summary>
+	///     Answers a building that just ran out of health while the map lets it be repaired. The building stays standing
+	///     and dormant, so this pays whoever broke it the same bounty their kill would have paid and leaves the rest to the
+	///     repair: no death event is raised, because the unit is still there for its owner to raise again.
+	/// </summary>
+	private void HandleBuildingDormant(Entity entity)
+	{
+		if (!_map.World.IsAlive(entity)) return;
+
+		Entity killer = _map.World.TryGet<LastAttacker>(entity, out LastAttacker lastAttacker) ? lastAttacker.Value : Entity.Null;
+		if (killer == Entity.Null) return;
+
+		_bounties.PayKill(new UnitId(entity.Id), new UnitId(killer.Id));
 	}
 
 	private void KillUnit(Entity entity)

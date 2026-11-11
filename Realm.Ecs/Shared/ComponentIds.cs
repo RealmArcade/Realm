@@ -67,4 +67,8 @@ public static class ComponentIds
 	public const int PlayerDamageEffectiveness = 134;
 	/// <summary>Player orders locked tag component identifier, marking player-owned units the map drives itself.</summary>
 	public const int PlayerOrdersLocked = 135;
+	/// <summary>Dormant tag component identifier, marking a repairable building that was reduced to zero health.</summary>
+	public const int Dormant = 136;
+	/// <summary>Repairable building tag component identifier, marking a building that falls dormant instead of dying.</summary>
+	public const int RepairableBuilding = 137;
 }
