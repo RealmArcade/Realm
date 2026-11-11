@@ -568,6 +568,22 @@ public partial class MultiplayerSimulationHarness : Node
 			bool gathered = await WaitUntilAsync(() => hud.Gold >= goldBeforeGather + 5f, 30f);
 			Check("the hero gathers gold and the player receives it", gathered, $"{goldBeforeGather:0.##} -> {hud.Gold:0.##}");
 
+			Note("ordering the hero to gather wood from the nearest tree");
+			Vector3? treePosition = FindNearestResourceNode(gatheringHero.GlobalPosition, "resource/melee_woodland");
+			Check("a woodland tree stands on the board", treePosition.HasValue);
+			if (treePosition.HasValue)
+			{
+				currentHost.SelectUnitInternal(new UnitId(gatheringHero.Entity.Id));
+				await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+				float woodBeforeGather = hud.Wood;
+				Check("the wood gather order is issued", currentHost.TryIssueGatherCommandAt(treePosition.Value));
+				string woodFeedback = ReadFeedback(hud);
+				Check("the wood gather order names its resource", woodFeedback.Contains("WOOD", StringComparison.OrdinalIgnoreCase), woodFeedback);
+
+				bool woodGathered = await WaitUntilAsync(() => hud.Wood >= woodBeforeGather + 3f, 30f);
+				Check("the hero gathers wood and the player receives it", woodGathered, $"{woodBeforeGather:0.##} -> {hud.Wood:0.##}");
+			}
+
 			currentHost.IssueMoveCommand(nexus.GlobalPosition);
 			await ToSignal(GetTree().CreateTimer(3.0f), SceneTreeTimer.SignalName.Timeout);
 		}
@@ -712,7 +728,8 @@ public partial class MultiplayerSimulationHarness : Node
 			Check("the army fells the camp", felled);
 			Check("the kill pays the bounty the camp states", hud.Gold >= goldBeforeCamp + 40f, $"gold {goldBeforeCamp:0.#} -> {hud.Gold:0.#}");
 			int campsAfterKill = CountUnits(currentHost, "unit/crest_boar", 0);
-			Check("the felled camp leaves the board", campsAfterKill < campsBefore, $"camps {campsBefore} -> {campsAfterKill}");
+			bool campGone = await WaitUntilAsync(() => !GodotObject.IsInstanceValid(boar), 10f);
+			Check("the felled camp leaves the board", campGone, $"camps {campsBefore} -> {campsAfterKill}");
 
 			Vector3 campWatchPost = campPosition + new Vector3(24f, 0f, 24f);
 			currentHost.IssueMoveCommand(campWatchPost);
@@ -836,7 +853,7 @@ public partial class MultiplayerSimulationHarness : Node
 		return FinishUxSmoke(report, passed);
 	}
 
-	private static Vector3? FindNearestResourceNode(Vector3 near)
+	private static Vector3? FindNearestResourceNode(Vector3 near, string propPrefix = "resource/melee_gold_mine")
 	{
 		if (GameContext.World == null) return null;
 
@@ -845,7 +862,7 @@ public partial class MultiplayerSimulationHarness : Node
 		var query = QueryCache.AllPropIdentityAndPositionQuery;
 		GameContext.World.Query(in query, (Entity entity, ref Position position, ref PropIdentity identity) =>
 		{
-			if (!identity.PropId.StartsWith("resource/melee_gold_mine", StringComparison.OrdinalIgnoreCase)) return;
+			if (!identity.PropId.StartsWith(propPrefix, StringComparison.OrdinalIgnoreCase)) return;
 
 			var nodePosition = new Vector3(position.Value.X, position.Value.Y, position.Value.Z);
 			float distance = near.DistanceTo(nodePosition);
