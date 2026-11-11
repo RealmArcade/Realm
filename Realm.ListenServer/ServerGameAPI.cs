@@ -624,6 +624,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		if (entity == Entity.Null) return;
 
 		_context.World.Destroy(entity);
+		Abilities.ForgetUnit(entity.Id);
 	}
 
 	public void KillUnit(UnitId unit, bool executeDespawnShader = true, bool playDeathAnimation = true)
@@ -638,6 +639,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		}
 
 		_context.World.Destroy(entity);
+		Abilities.ForgetUnit(entity.Id);
 	}
 
 	public void SendMessageToPlayer(int playerIndex, string message)

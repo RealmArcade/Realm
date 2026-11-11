@@ -61,7 +61,11 @@ public partial class ListenServerHost
 		ServerSimulation? simulation = _simulation;
 		if (simulation == null) return;
 
-		if (_arguments.Cheats && _seatedPeers.Count > 0)
+		// A cheats match belongs to the player it was started for, so nobody else may join it. What "nobody else" means is
+		// set by the socket rather than by the flag: a match bound to the loopback address cannot be reached from another
+		// machine at all, so the only peers that can arrive on it are processes on this one, which are already the player's
+		// own. A match listening on a real interface is not loopback-bound and keeps the single-player rule.
+		if (_arguments.Cheats && _seatedPeers.Count > 0 && !_arguments.LoopbackOnly)
 		{
 			_log.Write($"peer {peerId} refused: this match was started with cheats, so it belongs to the single player it was started for");
 			SendHello(peerId, CheatsMatchRejection);

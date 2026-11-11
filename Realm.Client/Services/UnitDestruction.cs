@@ -119,6 +119,11 @@ public sealed class UnitDestruction
 		if (!SimulationService.World.IsAlive(unitEntity)) return;
 		_wrapperCache.Remove(unitEntity.Id);
 		GameContext.NetworkService.ForgetReferencesHeldBy(unitEntity.Id);
+
+		// The exceptions a map withheld on this unit are held beside the replica, keyed by a local entity identifier the
+		// world hands out again: the next unit to take it would inherit every ability this one had withheld or offered.
+		GameContext.RegistryService?.ClearAbilityStateForUnit(new UnitId(unitEntity.Id));
+
 		SimulationService.World.Destroy(unitEntity);
 		RemoveReferencesToDestroyedEntity(unitEntity);
 	}

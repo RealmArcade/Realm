@@ -12,6 +12,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Replication;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
@@ -113,6 +114,17 @@ public class SnapshotComponentApplier
 		}
 
 		if (targetEntity == Entity.Null || !world.IsAlive(targetEntity)) return;
+
+		// Whether a description changes which abilities this unit lists, rather than merely saying them again. The
+		// exceptions a map declares against a unit are addressed by slot in its own ability list, so they only mean
+		// anything against the list that declared them - but it is the list changing that invalidates them, not the
+		// component being stated. A description restates a unit's components when the peer stopped hearing about it and
+		// when its first description could not be placed yet, and treating those as a new list left the unit holding no
+		// exceptions at all while the match believed every one of them had been told, which is how an ability the map
+		// withheld came back on the screen.
+		bool describesUnitAbilityList = (ReplicatedScope)delta.Scope == ReplicatedScope.Unit && delta.ComponentTypeId == ComponentType<AbilityState>.Id;
+		int abilityListHandleBefore = describesUnitAbilityList && world.Has<AbilityState>(targetEntity) ? world.Get<AbilityState>(targetEntity).Handle : 0;
+
 		if (delta.Bytes.Length == 0)
 		{
 			codec.Remove(GameContext.World, targetEntity);
@@ -156,10 +168,14 @@ public class SnapshotComponentApplier
 
 		_mirror.RecordComponent(delta);
 		AppliedComponentDeltaCount++;
-		if (delta.ComponentTypeId == ComponentType<AbilityState>.Id && (ReplicatedScope)delta.Scope == ReplicatedScope.Unit)
+		if (describesUnitAbilityList)
 		{
-			GameContext.RegistryService?.ClearAbilityStateForUnit(new UnitId(targetEntity.Id));
-			_mirror.RemoveAbilitiesForEntity(delta.Key);
+			int abilityListHandleAfter = world.Has<AbilityState>(targetEntity) ? world.Get<AbilityState>(targetEntity).Handle : 0;
+			if (abilityListHandleAfter != abilityListHandleBefore)
+			{
+				GameContext.RegistryService?.ClearAbilityStateForUnit(new UnitId(targetEntity.Id));
+				_mirror.RemoveAbilitiesForEntity(delta.Key);
+			}
 		}
 	}
 
@@ -195,7 +211,11 @@ public class SnapshotComponentApplier
 			anUnplaceableChangeWasDropped = true;
 		}
 
-		if (anUnplaceableChangeWasDropped) GameContext.SnapshotApply.RequestBaseline();
+		if (anUnplaceableChangeWasDropped)
+		{
+			LagProbe.Count(LagEvent.ClientBaselinesBecauseUnplaceableChange);
+			GameContext.SnapshotApply.RequestBaseline();
+		}
 	}
 
 	private static void NoteLocalOrderState(Entity localEntity, bool holdsMoveOrder, int sequence)

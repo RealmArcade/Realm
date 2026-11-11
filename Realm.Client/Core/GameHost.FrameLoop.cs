@@ -33,6 +33,7 @@ using Realm.Shared.Textures;
 using Environment = Godot.Environment;
 using FileAccess = System.IO.FileAccess;
 using Realm.Shared.Abilities;
+using Realm.Shared.Diagnostics;
 
 namespace Realm.Client.Core;
 public partial class GameHost
@@ -54,7 +55,57 @@ public partial class GameHost
 		return GameContext.SimulationService?.GetInterpolatedTransform(entity, fraction) ?? (System.Numerics.Vector3.Zero, 0f);
 	}
 
+	private double _lastProbedRenderSeconds;
+	private double _lastProbedPhysicsSeconds;
+
+	private TimeSpan _lastProbedGcPause;
+	private int _lastProbedGcPauseTicks;
+	private long _lastProbedAllocatedBytes = -1;
+
 	public override void _Process(double delta)
+	{
+		long renderStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+		if (renderStarted != 0L)
+		{
+			double nowSeconds = LagProbe.NowSeconds();
+			if (_lastProbedRenderSeconds > 0d)
+			{
+				double intervalMilliseconds = (nowSeconds - _lastProbedRenderSeconds) * 1000d;
+				LagProbe.Add(LagStage.ClientRenderIntervalMilliseconds, intervalMilliseconds);
+				LagProbe.ObserveGauge(LagGauge.ClientFramesPerSecond, intervalMilliseconds > 0d ? 1000d / intervalMilliseconds : 0d, nowSeconds);
+			}
+
+			// A frame that stalls because of a collection is a hitch a screen feels without any of the stages above being
+			// slow, so what the collector has cost in total is sampled alongside them rather than inferred from them.
+			LagProbe.ObserveGauge(LagGauge.ClientManagedHeapMegabytes, GC.GetTotalMemory(false) / 1048576d, nowSeconds);
+			LagProbe.ObserveGauge(LagGauge.ClientGcPauseMilliseconds, GC.GetTotalPauseDuration().TotalMilliseconds, nowSeconds);
+			LagProbe.ObserveGauge(LagGauge.ClientGen0Collections, GC.CollectionCount(0), nowSeconds);
+			LagProbe.ObserveGauge(LagGauge.ClientGen2Collections, GC.CollectionCount(2), nowSeconds);
+
+			// What this frame paid to the collector and what it allocated, both as the frame's own share rather than as a
+			// running total: a total says a match collected for two hundred milliseconds, and only the share says whether the
+			// frame that arrived late was the one that paid for it.
+			TimeSpan gcPaused = GC.GetTotalPauseDuration();
+			if (_lastProbedGcPauseTicks > 0) LagProbe.Add(LagStage.ClientGcPausePerFrameMilliseconds, (gcPaused - _lastProbedGcPause).TotalMilliseconds);
+			_lastProbedGcPause = gcPaused;
+			_lastProbedGcPauseTicks++;
+
+			long allocatedBytes = GC.GetAllocatedBytesForCurrentThread();
+			if (_lastProbedAllocatedBytes >= 0) LagProbe.Add(LagStage.ClientAllocatedKilobytesPerFrame, (allocatedBytes - _lastProbedAllocatedBytes) / 1024d);
+			_lastProbedAllocatedBytes = allocatedBytes;
+
+			_lastProbedRenderSeconds = nowSeconds;
+		}
+
+		ProcessRenderFrame(delta);
+
+		if (renderStarted == 0L) return;
+
+		double renderMilliseconds = LagProbe.ElapsedMilliseconds(renderStarted);
+		if (renderMilliseconds > 33.4d) LagProbe.Count(LagEvent.ClientRenderFramesOverBudget);
+	}
+
+	private void ProcessRenderFrame(double delta)
 	{
 		if (!_firstFrameTraced && (_matchWorldVisible || GameContext.SessionState.IsMapEditorMode || GameContext.Lobby?.IsGameStarted == true))
 		{
@@ -125,7 +176,39 @@ public partial class GameHost
 
 	public override void _PhysicsProcess(double delta)
 	{
-		using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.GodotPhysicsProcess))
+		long physicsStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+		if (physicsStarted != 0L)
+		{
+			double nowSeconds = LagProbe.NowSeconds();
+			if (_lastProbedPhysicsSeconds > 0d) LagProbe.Add(LagStage.ClientPhysicsIntervalMilliseconds, (nowSeconds - _lastProbedPhysicsSeconds) * 1000d);
+			_lastProbedPhysicsSeconds = nowSeconds;
+		}
+
+		ProcessPhysicsFrame(delta, physicsStarted);
+	}
+
+	private void ProcessPhysicsFrame(double delta, long physicsStarted)
+	{
+		try
+		{
+			using (GameContext.PerformanceTrackingService.SampleFunction(ProfileFunctionId.GodotPhysicsProcess))
+			{
+				ProcessPhysicsFrameCore(delta, physicsStarted);
+			}
+		}
+		finally
+		{
+			if (physicsStarted != 0L)
+			{
+				double physicsMilliseconds = LagProbe.ElapsedMilliseconds(physicsStarted);
+				LagProbe.Add(LagStage.ClientPhysicsTickMilliseconds, physicsMilliseconds);
+				if (physicsMilliseconds > 33.4d) LagProbe.Count(LagEvent.ClientPhysicsTicksOverBudget);
+			}
+		}
+	}
+
+	private void ProcessPhysicsFrameCore(double delta, long physicsStarted)
+	{
 		{
 			if (!ShouldProcessPhysicsTick()) return;
 

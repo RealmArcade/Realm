@@ -13,6 +13,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 
 namespace Realm.Client.Testing;
@@ -88,6 +89,7 @@ public partial class MultiplayerSimulationHarness : Node
 		GameLog.LogToConsole($"[MP_HARNESS] Client stopped at applied snapshot sequence {_finalSequence} with game time {GameContext.Host?.GameElapsedTime ?? 0f:F2}s.");
 		MultiplayerBandwidthMeter.WriteReport(_outputDirectory, GameContext.Host?.GameElapsedTime ?? 0f);
 		MultiplayerSyncDiagnostics.Stop();
+		LagProbe.WriteReport();
 		TryWriteSequenceFile(_finalSequence);
 		WriteFinalWorldSnapshot("ECS_client_final_full.bin");
 		WriteWorldSummary($"world_summary_peer{_peerIndex}.json", "client");

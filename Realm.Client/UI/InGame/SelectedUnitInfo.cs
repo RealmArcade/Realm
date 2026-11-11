@@ -25,6 +25,7 @@ public class SelectedUnitInfo
 	public string? StateText { get; set; }
 	public string? Description { get; set; }
 	public List<string> Abilities { get; set; } = new();
+	public int AbilityListHandle { get; set; }
 	public int Potions { get; set; }
 	public Dictionary<string, int> InventoryItems { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 	public List<CarriedConsumableInfo> CarriedConsumables { get; set; } = new();
