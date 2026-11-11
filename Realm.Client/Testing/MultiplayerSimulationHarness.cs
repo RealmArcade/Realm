@@ -85,6 +85,7 @@ public partial class MultiplayerSimulationHarness : Node
 			{
 				"host" => await RunHostAsync(),
 				"testmap" => await RunTestMapAsync(),
+				"uxsmoke" => await RunUxSmokeAsync(),
 				"probe" => await RunProbeAsync(),
 				"editorreturn" => await RunEditorReturnLauncherAsync(),
 				"editorreturnwork" => await RunEditorReturnWorkAsync(),

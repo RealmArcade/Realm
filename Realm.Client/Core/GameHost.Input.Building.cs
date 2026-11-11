@@ -163,7 +163,7 @@ public partial class GameHost
 			return;
 		}
 
-		if (_multiplayerActive && !Multiplayer.IsServer())
+		if ((_multiplayerActive && !Multiplayer.IsServer()) || GameContext.ServerSession != null)
 		{
 			// The worker is resolved before the order is announced or paid for: an order the screen cannot name a worker for
 			// is one the match will refuse, and telling the player it is constructing something it never asked for is worse

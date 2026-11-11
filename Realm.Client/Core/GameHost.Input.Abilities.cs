@@ -56,7 +56,10 @@ public partial class GameHost
 
 		var def = GetAbilityDefinition(spellId);
 
-		if (_multiplayerActive && !Multiplayer.IsServer())
+		// A screen that renders a match running in another process has no Godot peer of its own, so the peer check
+		// alone left every cast to resolve locally and the authority never heard it. The session is what names a
+		// match this screen does not simulate, and it is the stream the command has to travel on.
+		if ((_multiplayerActive && !Multiplayer.IsServer()) || GameContext.ServerSession != null)
 		{
 			ExecuteClientMultiplayerSpellCast(spellId, def, position);
 			return;

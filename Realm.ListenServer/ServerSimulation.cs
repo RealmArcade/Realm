@@ -79,6 +79,8 @@ public class ServerSimulation : IDisposable
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
 		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, MatchOptions);
+		_commands.ScriptAbilityRulesProvider = spellId =>
+			_script.Api.Abilities.TryGetRules(spellId, out AbilityRules scriptRules) ? scriptRules : null;
 		if (roster != null) ApplyRosterBotDifficulties(roster);
 		_script.Api.Metrics = Metrics;
 		if (!MatchOptions.IsEmpty) log.Write($"the lobby configured this match: {MatchOptions.Describe()}");

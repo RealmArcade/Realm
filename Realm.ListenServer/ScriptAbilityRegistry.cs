@@ -2,6 +2,7 @@ using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Replication;
+using Realm.Ecs.Services;
 using Realm.Shared.Abilities;
 using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
@@ -60,6 +61,27 @@ public class ScriptAbilityRegistry
 	}
 
 	public bool Knows(string abilityId) => !string.IsNullOrWhiteSpace(abilityId);
+
+	/// <summary>
+	///     Answers what the authority needs to accept a cast of this ability. A definition the map registered while it ran
+	///     is as real as one a template declared, and returning false only for the latter is what made every
+	///     script-created card a command the gate called undefined.
+	/// </summary>
+	public bool TryGetRules(string abilityId, out AbilityRules rules)
+	{
+		rules = default;
+		if (string.IsNullOrWhiteSpace(abilityId)) return false;
+
+		string key = NormalizeKey(abilityId);
+		if (!_definitions.TryGetValue(key, out AbilityDefinition? definition))
+		{
+			if (_catalog.FindAbility(abilityId) == null) return false;
+			definition = GetDefinition(abilityId);
+		}
+
+		rules = new AbilityRules(definition.ManaCost, definition.Cooldown, definition.TargetRange);
+		return true;
+	}
 
 	public bool Register(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
