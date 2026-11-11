@@ -188,10 +188,36 @@ public partial class MultiplayerSimulationHarness : Node
 		{
 			currentHost.SelectUnitInternal(new UnitId(targetHero.Entity.Id));
 			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+			Note($"sacrifice target: {DescribeUnitState(targetHero)}");
 			Check("the dev kill cheat is accepted", hud.TryTriggerCheat("cooked"));
 			bool fell = await WaitUntilAsync(() => FindUnit(currentHost, "hero/", 1) == null, 10f);
-			Check("the hero leaves the field when it dies", fell);
+			Check("the hero leaves the field when it dies", fell, DescribeUnitState(targetHero));
 			return ReadFeedback(hud);
+		}
+
+		string DescribeUnitState(Unit3D unit)
+		{
+			if (!GodotObject.IsInstanceValid(unit)) return "the node is gone";
+
+			EcsWorld? world = GameContext.World;
+			if (world == null || !world.IsAlive(unit.Entity)) return $"entity {unit.Entity.Id} is not live on this screen";
+
+			Health health = world.TryGet<Health>(unit.Entity, out Health liveHealth) ? liveHealth : default;
+			return $"entity={unit.Entity.Id} server={currentHost.GetServerEntityIdForHarness(unit.Entity.Id)} dead={world.Has<Dead>(unit.Entity)} locked={world.Has<PlayerOrdersLocked>(unit.Entity)} health={health.Current:0.#}/{health.Max:0.#} selected={currentHost.SelectedUnits.Count}";
+		}
+
+		async Task<Unit3D?> WaitForLiveHeroAsync(float seconds = 45f)
+		{
+			ulong deadline = Time.GetTicksMsec() + (ulong)(seconds * 1000f);
+			while (Time.GetTicksMsec() < deadline)
+			{
+				Unit3D? standing = FindUnit(currentHost, "hero/", 1);
+				if (standing != null && GameContext.World != null && GameContext.World.IsAlive(standing.Entity)) return standing;
+
+				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			}
+
+			return FindUnit(currentHost, "hero/", 1);
 		}
 
 		async Task<Unit3D?> WaitForRevivalAsync()
@@ -852,6 +878,13 @@ public partial class MultiplayerSimulationHarness : Node
 				$"camps {campsAfterKill} -> {CountUnits(currentHost, "unit/crest_boar", 0)}");
 		}
 
+		// The camp fight can kill the hero, and a revival replaces its view: the hero this run keeps handing around
+		// would then be a freed node, and every order aimed at it would name nothing. The flow starts from whoever is
+		// standing now, waiting out a revival if the camp won.
+		hero = await WaitForLiveHeroAsync();
+		Check("the hero is standing for the death and revival flow", hero != null);
+		if (hero == null) return FinishUxSmoke(report, passed);
+
 		Note("cooking the hero to play the death and revival flow");
 		string deathFeedback = await SacrificeHeroAsync(hero);
 		Check("the death states when the hero returns", deathFeedback.Contains("returns in", StringComparison.OrdinalIgnoreCase), deathFeedback);
@@ -889,14 +922,9 @@ public partial class MultiplayerSimulationHarness : Node
 			Note($"attack ids: hero player={attacker.Player} controllable={GameContext.PerspectiveFilter.CanControl(attacker.Player)} server={currentHost.GetServerEntityIdForHarness(attacker.Entity.Id)} nexus server={currentHost.GetServerEntityIdForHarness(enemyNexus.Entity.Id)}");
 
 			// A player reaches the enemy base by walking there, so the hero does the same and the crossing is checked
-			// before the fight: an attack across ground the hero cannot path over would otherwise be read as a refusal.
-			Vector3 farAttackStart = attacker.GlobalPosition;
-			currentHost.IssueAttackCommand(enemyNexus);
-			bool chaseStarted = await WaitUntilAsync(() => GodotObject.IsInstanceValid(attacker) && attacker.GlobalPosition.DistanceTo(farAttackStart) > 3f, 8f);
-			float chaseDistance = GodotObject.IsInstanceValid(attacker) ? farAttackStart.DistanceTo(attacker.GlobalPosition) : 0f;
-			Note($"far attack: hero moved {chaseDistance:0.##} to {attacker.GlobalPosition}");
-			Check("the hero chases the enemy it was ordered onto", chaseStarted, $"moved {chaseDistance:0.##} towards {enemyNexus.GlobalPosition}");
-
+			// before the fight. The attack is ordered once the hero arrives: a revealed building across the board can
+			// have no walkable approach within melee reach, and the match refuses such a target rather than walking the
+			// hero to a spot from which it could never land a blow, which is the case its own chase tests pin down.
 			float distanceBefore = attacker.GlobalPosition.DistanceTo(enemyNexus.GlobalPosition);
 			currentHost.IssueMoveCommand(enemyNexus.GlobalPosition);
 			bool approached = await WaitUntilAsync(() => GodotObject.IsInstanceValid(attacker) && attacker.GlobalPosition.DistanceTo(enemyNexus.GlobalPosition) < 12f, 45f);

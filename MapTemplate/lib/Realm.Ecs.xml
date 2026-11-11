@@ -2202,8 +2202,8 @@
             <remarks>
                 A hero is not body-blocked by soldiers, so a hero's retreat is never walled in by its own army. The rule is
                 one-directional in effect: a soldier still resolves against a hero, so the soldier steps aside while the hero
-                keeps its line. Two heroes do block each other, and two workers of the same player block each other, so a
-                gathering crew keeps its shape while a rival crew walks through it.
+                keeps its line. Two heroes, and two workers of the same player, resolve against each other, so a gathering
+                crew keeps its shape while a rival crew walks through it.
             </remarks>
         </member>
         <member name="M:Realm.Ecs.Services.MovementAndPathfindingService.GhostsObstacleCollision(Realm.Ecs.Entity,Realm.Ecs.Entity)">
