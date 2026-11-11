@@ -129,6 +129,7 @@ public partial class MultiplayerSimulationHarness : Node
 			Note($"draft card buttons={draftCard.Count} keys=[{string.Join(", ", draftKeys)}]");
 			Check("the drawn card names a key for every command", draftKeys.Count == draftCard.Count, $"keys={draftKeys.Count} buttons={draftCard.Count}");
 			Check("the drawn card has no duplicate keys", HasDuplicateHotkeys(draftKeys) == false, string.Join(", ", draftKeys));
+			SaveUxScreenshot("ux_smoke_draft.png", "draft", Note);
 			if (draftOptions.Count > 0)
 			{
 				int buildingsBefore = CountPlayerBuildings(currentHost, 1);
@@ -288,6 +289,20 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		return false;
+	}
+
+	private void SaveUxScreenshot(string fileName, string label, Action<string> note)
+	{
+		if (DisplayServer.GetName() == "headless")
+		{
+			note($"{label} screenshot skipped: headless display has no viewport texture");
+			return;
+		}
+
+		Image image = GetViewport().GetTexture().GetImage();
+		string screenshotPath = Path.Combine(_outputDirectory, fileName);
+		image.SavePng(screenshotPath);
+		note($"{label} screenshot={screenshotPath} size={image.GetWidth()}x{image.GetHeight()}");
 	}
 
 	private static int CountPlayerBuildings(GameHost host, int player)
