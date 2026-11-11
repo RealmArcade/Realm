@@ -37,6 +37,8 @@ public class MapPropertiesLoader
 				ProcessMapProperties(world, worldEntity, mapProps);
 			}
 
+			ApplyLobbyShroudOverride(worldEntity);
+
 			if (jsonDoc.RootElement.TryGetProperty("CustomEnvironmentPresets", out var presetsProp) && presetsProp.ValueKind == JsonValueKind.Array)
 			{
 				ProcessCustomEnvironmentPresets(presetsProp);
@@ -100,6 +102,28 @@ public class MapPropertiesLoader
 		}
 
 		world.Mutate<ShroudState>(worldEntity, (ref ShroudState s) => s.VisibilityMode = mode);
+	}
+
+	/// <summary>
+	///     Applies the shroud mode the lobby's host configured, which a host sets to play a map it holds with vision
+	///     limited, or with the whole board revealed, rather than with the mode the map itself states.
+	/// </summary>
+	/// <param name="worldEntity">The world whose visibility is being set.</param>
+	private static void ApplyLobbyShroudOverride(Entity worldEntity)
+	{
+		if (worldEntity == Entity.Null) return;
+
+		MatchShroudMode mode = GameContext.Lobby?.MatchOptions.GetShroudMode() ?? MatchShroudMode.FromMap;
+		if (mode == MatchShroudMode.FromMap) return;
+
+		ShroudVisibilityMode visibilityMode = mode switch
+		{
+			MatchShroudMode.Revealed => ShroudVisibilityMode.Revealed,
+			MatchShroudMode.VisionShroud => ShroudVisibilityMode.VisionShroud,
+			_ => ShroudVisibilityMode.ExplorationShroud
+		};
+
+		GameContext.World.Mutate<ShroudState>(worldEntity, (ref ShroudState s) => s.VisibilityMode = visibilityMode);
 	}
 
 	private static bool TryParseShroudVisibilityMode(string shroudType, out ShroudVisibilityMode mode)

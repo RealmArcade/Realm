@@ -137,8 +137,10 @@ public partial class LobbyManager
 			string targetDirectory = MapAssetManager.GetMapDirectory(targetMap, targetVersion);
 			await Task.Run(() =>
 			{
+				MapReferenceResolver.ClearReadOnlyRecursive(targetDirectory);
 				MapAssetManager.ExtractManifestFiles(manifest, targetDirectory);
 				GameContext.AssetIndexService.RegisterManifest(manifest, Path.Combine(targetDirectory, "manifest.json"));
+				MapReferenceResolver.SetReadOnlyRecursive(targetDirectory);
 			});
 
 		_downloadingMapName = null;

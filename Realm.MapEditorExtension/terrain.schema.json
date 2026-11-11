@@ -751,6 +751,29 @@
           }
         }
       }
+    },
+    "SpawnAnchors": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "Player": {
+            "type": "integer"
+          },
+          "PosX": {
+            "type": "number"
+          },
+          "PosZ": {
+            "type": "number"
+          }
+        }
+      }
     }
   }
 }

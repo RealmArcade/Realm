@@ -189,12 +189,64 @@ public partial interface IGameAPI
 	/// <see cref="SetUnitHideHealthAndManaBars"/> hides the bars of, which is what makes a badge for a board square
 	/// possible, and it draws only when the map shows badges at all through <see cref="SetUnitBarVisibility"/>.
 	/// The badge lives on the unit entity, so it follows the unit through element swaps, level changes and swaps of two
-	/// units' places, and it is gone when the entity is destroyed. A value of zero or below hides it.
+	/// units' places, and it is gone when the entity is destroyed. A value of zero draws zero, because a count that has
+	/// run out is still something the board states, and a negative value hides the badge.
 	/// </remarks>
 	/// <param name="unit">The unit identifier.</param>
-	/// <param name="value">The number to draw above a zero-hiding threshold, from 1 to 999.</param>
+	/// <param name="value">The number to draw, from 0 to 999, or a negative value to draw no badge at all.</param>
 	/// <param name="color">The tint of the badge, in the same 0-1 channel range as every other colour a map gives.</param>
 	void SetUnitOverheadBadge(UnitId unit, int value, System.Numerics.Vector3 color);
+
+	/// <summary>
+	/// States the charges a unit keeps and how long it takes to regain one, which is how a map makes a building hold a
+	/// limited number of what it fields.
+	/// </summary>
+	/// <remarks>
+	/// The engine owns the count: it regains a charge every <paramref name="rechargeSeconds" /> on its own, so a map
+	/// states the parameters once and never advances the timer itself. The count is a component of the unit, read the
+	/// same way by the inspector, the overhead plate and the map, and replicated with the unit, so every screen states
+	/// the same number without the map publishing it.
+	/// <para>
+	/// Stating the parameters again keeps the count the unit holds, clamped to the new maximum, and keeps the recharge it
+	/// has already served, so a rule that raises the cap mid-match does not hand out charges and a rule that lowers the
+	/// recharge time is felt on the charge being regained. Calling it on a unit that carries no charges gives it a count
+	/// of zero, because the maximum stated here is what the charge is worth.
+	/// </para>
+	/// <para>
+	/// A maximum of zero removes the charges from the unit, which is how a map says the rule no longer applies to it.
+	/// </para>
+	/// </remarks>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="maximumCharges">The greatest number of charges the unit may hold, or zero to hold none at all.</param>
+	/// <param name="rechargeSeconds">Seconds the unit takes to regain one charge, or zero to regain them at once.</param>
+	void SetUnitCharges(UnitId unit, int maximumCharges, float rechargeSeconds);
+
+	/// <summary>
+	/// Sets how many charges a unit holds right now, which is how a map spends or grants one.
+	/// </summary>
+	/// <remarks>
+	/// The count is clamped to what the unit states through <see cref="SetUnitCharges" />, and a unit that carries no
+	/// charges ignores the call because it has no count to set. Spending the last charge resets the recharge, because the
+	/// time served toward a charge the unit already held is not time served toward the next one.
+	/// </remarks>
+	/// <param name="unit">The unit identifier.</param>
+	/// <param name="charges">The number of charges the unit holds, which is clamped to the maximum it states.</param>
+	void SetUnitChargeCount(UnitId unit, int charges);
+
+	/// <summary>
+	/// States the multiplier the damage one player deals carries against another, which is how a rule makes a side of a
+	/// contest temporarily less effective without changing the units themselves.
+	/// </summary>
+	/// <remarks>
+	/// The multiplier is applied to every blow the attacker's units land on the defender's units and its buildings, after
+	/// the victim's resistances have been resolved, so it scales what a fight costs rather than what armor it meets. A pair
+	/// a rule never states stays at full effectiveness, so a ruleset that ignores this answer fights exactly as the engine
+	/// does.
+	/// </remarks>
+	/// <param name="attackingPlayerIndex">Zero-based player slot index whose damage is scaled.</param>
+	/// <param name="defendingPlayerIndex">Zero-based player slot index the scaled damage is dealt to.</param>
+	/// <param name="multiplier">The damage multiplier, where one is full effectiveness and zero deals nothing.</param>
+	void SetPlayerDamageEffectiveness(int attackingPlayerIndex, int defendingPlayerIndex, float multiplier);
 
 	/// <summary>
 	/// Stores custom string metadata associated with the specified unit.

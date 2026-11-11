@@ -371,7 +371,7 @@ public partial class ServerGameAPI
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return;
 
-		if (value <= 0)
+		if (value < 0)
 		{
 			if (_context.World.Has<OverheadBadge>(entity)) _context.World.Remove<OverheadBadge>(entity);
 			return;
@@ -379,7 +379,7 @@ public partial class ServerGameAPI
 
 		_context.World.SetOrAdd(entity, new OverheadBadge
 		{
-			Value = Math.Clamp(value, 1, 999),
+			Value = Math.Clamp(value, 0, 999),
 			ColorRgb = PackColorRgb(color)
 		});
 	}

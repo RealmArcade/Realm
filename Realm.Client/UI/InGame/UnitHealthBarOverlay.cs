@@ -110,7 +110,7 @@ public partial class UnitHealthBarOverlay : Control
 			Mana mana = default;
 			OverheadBadge badge = default;
 
-			bool hasBadge = _showBadge && world.TryGet(unit.Entity, out badge) && badge.Value > 0;
+			bool hasBadge = _showBadge && world.TryGet(unit.Entity, out badge);
 			bool barsHidden = world.Has<OverheadBarsHidden>(unit.Entity);
 
 			bool hasHealth = !barsHidden && world.TryGet(unit.Entity, out health) && health.Max > 0f;

@@ -96,6 +96,11 @@ namespace Realm.Client.UI
 				InvalidateMetadataCache();
 			}
 
+			if (!ApplyMapReferencesOnSave(GameContext.EditorService._editingDirectory))
+			{
+				return;
+			}
+
 			ShowFeedback(TranslationServer.Translate("Saving map folder..."));
 
 			try

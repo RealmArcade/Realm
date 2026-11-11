@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Godot;
 using Realm.Client.Services;
+using Realm.EditorAPI;
 using Realm.Client.UI;
 using Realm.Client.VFX;
 using Realm.Ecs.Components.Core;
@@ -557,6 +558,140 @@ namespace Realm.Client.Core
 			}
 
 			return indices;
+		}
+
+		/// <summary>
+		///     Seats a player slot on the area the coordinate tool drew. An anchor is a point, which is what the centre of
+		///     that drawn box becomes, and it is stored beside the coordinates in the same terrain file.
+		/// </summary>
+		/// <param name="player">The player slot the anchor seats.</param>
+		/// <param name="minX">The x of the corner the coordinate box was started from.</param>
+		/// <param name="minZ">The z of the corner the coordinate box was started from.</param>
+		/// <param name="maxX">The x of the corner the coordinate box was dragged to.</param>
+		/// <param name="maxZ">The z of the corner the coordinate box was dragged to.</param>
+		public EditorOperationResult CommitSpawnAnchorExternal(int player, int minX, int minZ, int maxX, int maxZ)
+		{
+			if (GroundTerrain == null) return EditorOperationResult.Failed("No map is open in the editor.");
+			if (player < 1 || player > EcsWorld.MAX_PLAYERS) return EditorOperationResult.Failed($"Slot {player} is outside the slots a match can hold.");
+
+			float quadSize = GroundTerrain.QuadSize;
+			float worldCentreX = ((minX + maxX) / 2.0f - GroundTerrain.Width / 2.0f) * quadSize;
+			float worldCentreZ = ((minZ + maxZ) / 2.0f - GroundTerrain.Depth / 2.0f) * quadSize;
+
+			float worldLimitX = GroundTerrain.Width / 2.0f * quadSize;
+			float worldLimitZ = GroundTerrain.Depth / 2.0f * quadSize;
+			if (worldCentreX < -worldLimitX || worldCentreX > worldLimitX || worldCentreZ < -worldLimitZ || worldCentreZ > worldLimitZ)
+				return EditorOperationResult.Failed("The drawn area lies outside the terrain.");
+
+			var oldAnchors = new List<EditorSpawnAnchor>(GameContext.EditorService.EditorSpawnAnchors);
+			var anchor = new EditorSpawnAnchor { Player = player, PositionX = worldCentreX, PositionZ = worldCentreZ };
+
+			bool moved = false;
+			for (int index = 0; index < GameContext.EditorService.EditorSpawnAnchors.Count; index++)
+			{
+				if (GameContext.EditorService.EditorSpawnAnchors[index].Player != player) continue;
+
+				GameContext.EditorService.EditorSpawnAnchors[index] = anchor;
+				moved = true;
+				break;
+			}
+
+			if (!moved) GameContext.EditorService.EditorSpawnAnchors.Add(anchor);
+
+			GameContext.EditorService.EditorSpawnAnchors.Sort((left, right) => left.Player.CompareTo(right.Player));
+			RebuildAllSpawnAnchorMeshes();
+
+			var newAnchors = new List<EditorSpawnAnchor>(GameContext.EditorService.EditorSpawnAnchors);
+			EditorHistoryManager.RecordAction(new SpawnAnchorAction(oldAnchors, newAnchors));
+			EditorHasUnsavedChanges = true;
+
+			return EditorOperationResult.Succeeded();
+		}
+
+		/// <summary>
+		///     Removes the spawn anchor of a player slot, so that slot is not seated on this board.
+		/// </summary>
+		/// <param name="player">The player slot whose anchor is removed.</param>
+		public EditorOperationResult DeleteSpawnAnchorExternal(int player)
+		{
+			if (GroundTerrain == null) return EditorOperationResult.Failed("No map is open in the editor.");
+
+			var oldAnchors = new List<EditorSpawnAnchor>(GameContext.EditorService.EditorSpawnAnchors);
+			int removed = GameContext.EditorService.EditorSpawnAnchors.RemoveAll(anchor => anchor.Player == player);
+			if (removed == 0) return EditorOperationResult.Failed($"No spawn anchor is placed for slot {player}.");
+
+			RebuildAllSpawnAnchorMeshes();
+
+			var newAnchors = new List<EditorSpawnAnchor>(GameContext.EditorService.EditorSpawnAnchors);
+			EditorHistoryManager.RecordAction(new SpawnAnchorAction(oldAnchors, newAnchors));
+			EditorHasUnsavedChanges = true;
+
+			return EditorOperationResult.Succeeded();
+		}
+
+		/// <summary>
+		///     Focuses the camera on the spawn anchor of a player slot.
+		/// </summary>
+		/// <param name="player">The player slot whose anchor is focused.</param>
+		public EditorOperationResult SelectSpawnAnchorExternal(int player)
+		{
+			EditorSpawnAnchor? anchor = GameContext.EditorService.FindSpawnAnchor(player);
+			if (!anchor.HasValue) return EditorOperationResult.Failed($"No spawn anchor is placed for slot {player}.");
+
+			MainCamera?.FocusOnPosition(new Vector3(anchor.Value.PositionX, 0f, anchor.Value.PositionZ));
+			GameContext.MapEditorHud?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Focused on the spawn anchor for slot {0}"), player));
+
+			return EditorOperationResult.Succeeded();
+		}
+
+		/// <summary>
+		///     Draws a marker at every authored seat anchor, tinted with the colour that slot plays as, so the board's seats
+		///     are visible on the terrain the same way its coordinates are.
+		/// </summary>
+		public void RebuildAllSpawnAnchorMeshes()
+		{
+			foreach (var mesh in _spawnAnchorMeshes)
+			{
+				if (!GodotObject.IsInstanceValid(mesh)) continue;
+
+				RemoveChild(mesh);
+				mesh.QueueFree();
+			}
+
+			_spawnAnchorMeshes.Clear();
+
+			if (!GameContext.SessionState.IsMapEditorMode || GroundTerrain == null) return;
+
+			foreach (var anchor in GameContext.EditorService.EditorSpawnAnchors)
+			{
+				Color tint = PlayerColorConfig.GetColor(anchor.Player);
+
+				var disc = new MeshInstance3D();
+				disc.Name = $"SpawnAnchor_{anchor.Player}";
+				disc.Mesh = new CylinderMesh { TopRadius = 1.6f, BottomRadius = 1.6f, Height = 0.15f, RadialSegments = 24 };
+				disc.Position = new Vector3(anchor.PositionX, GetTerrainHeightAt(new Vector3(anchor.PositionX, 0f, anchor.PositionZ)) + 0.1f, anchor.PositionZ);
+				disc.MaterialOverride = CreateUnshadedAnchorMaterial(new Color(tint.R, tint.G, tint.B, 0.55f));
+				AddChild(disc);
+				_spawnAnchorMeshes.Add(disc);
+
+				var pole = new MeshInstance3D();
+				pole.Name = $"SpawnAnchorPole_{anchor.Player}";
+				pole.Mesh = new CylinderMesh { TopRadius = 0.12f, BottomRadius = 0.12f, Height = 3.5f, RadialSegments = 8 };
+				pole.Position = new Vector3(anchor.PositionX, disc.Position.Y + 1.75f, anchor.PositionZ);
+				pole.MaterialOverride = CreateUnshadedAnchorMaterial(tint);
+				AddChild(pole);
+				_spawnAnchorMeshes.Add(pole);
+			}
+		}
+
+		private static StandardMaterial3D CreateUnshadedAnchorMaterial(Color color)
+		{
+			var material = new StandardMaterial3D();
+			material.AlbedoColor = color;
+			material.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+			if (color.A < 1f) material.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;
+
+			return material;
 		}
 
 		public bool CommitCoordinateExternal(string coordinateName, int minX, int minZ, int maxX, int maxZ)

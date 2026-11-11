@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -160,6 +160,7 @@ public class MapDistributionClient
 			string localMapDir = GetManifestLocalDirectory(mapId, manifest);
 			string localManifestPath = Path.Combine(localMapDir, "manifest.json");
 
+			MapReferenceResolver.ClearReadOnlyRecursive(localMapDir);
 			await File.WriteAllTextAsync(localManifestPath, manifest.ToJson(), effectiveToken);
 
 			var seeders = await distClient.GetActiveSeedersAsync(effectiveToken);
@@ -184,6 +185,8 @@ public class MapDistributionClient
 
 			MapAssetManager.ExtractManifestFiles(manifest, localMapDir, isP2P: false);
 			GameContext.AssetIndexService.RegisterManifest(manifest, localManifestPath, isP2P: false);
+			MapReferenceResolver.SetReadOnlyRecursive(localMapDir);
+
 			HandleProgress(1.0f);
 			return true;
 		}

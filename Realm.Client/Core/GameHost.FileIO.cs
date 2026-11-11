@@ -61,9 +61,9 @@ public partial class GameHost
 		}
 	}
 
-	public bool LoadMapFromFile(string customPath = "", bool terrainOnly = false, bool clearUnits = true, bool ensureGlbOptimized = true)
+	public bool LoadMapFromFile(string customPath = "", bool terrainOnly = false, bool clearUnits = true, bool ensureGlbOptimized = true, bool unitsFromAuthority = false)
 	{
-		if (!BeginMapWorldLoad(customPath, terrainOnly, clearUnits, ensureGlbOptimized)) return false;
+		if (!BeginMapWorldLoad(customPath, terrainOnly, clearUnits, ensureGlbOptimized, unitsFromAuthority)) return false;
 		InstantiateMapSpawnRequests();
 		CompleteMapWorldLoad();
 		return true;
@@ -71,7 +71,7 @@ public partial class GameHost
 
 	private bool _mapWorldLoadTerrainOnly;
 
-	private bool BeginMapWorldLoad(string customPath, bool terrainOnly, bool clearUnits, bool ensureGlbOptimized)
+	private bool BeginMapWorldLoad(string customPath, bool terrainOnly, bool clearUnits, bool ensureGlbOptimized, bool unitsFromAuthority = false)
 	{
 		GameContext.SaveLoadService.IsLoadingMap = true;
 		try
@@ -84,7 +84,7 @@ public partial class GameHost
 
 			_mapWorldLoadTerrainOnly = terrainOnly;
 
-			bool success = GameContext.SaveLoadService.LoadMapFromFile(absolutePath, terrainOnly);
+			bool success = GameContext.SaveLoadService.LoadMapFromFile(absolutePath, terrainOnly, unitsFromAuthority);
 			MatchLoadTrace.Mark("map_definition");
 			if (!success)
 			{
@@ -166,8 +166,13 @@ public partial class GameHost
 		// The assets are taken as they were published and downloaded: re-optimizing them here walks every file the map
 		// holds while the lobby screen waits, and changes nothing, because this machine's copy is the copy the authority
 		// published.
-		bool terrainOnly = _multiplayerActive && !Multiplayer.IsServer();
-		return BeginMapWorldLoad(targetPath, terrainOnly, true, false);
+		//
+		// A client is told every unit by the authority, so the units the map file places are not loaded here or each of
+		// them would arrive twice. The props and decals a map places are never replicated, so they are the scenery this
+		// screen is the only thing drawing: skipping them for a client leaves the world with its pathing but none of the
+		// trees, rocks and crystals that pathing describes.
+		bool unitsFromAuthority = _multiplayerActive && !Multiplayer.IsServer();
+		return BeginMapWorldLoad(targetPath, false, true, false, unitsFromAuthority);
 	}
 
 	private void NormalizeCameraBoundsToMap()

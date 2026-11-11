@@ -107,7 +107,8 @@ namespace Realm.Ecs.Services
 				damageType: atk.DamageType, config: Config
 			);
 
-			float splashDamage = AbsorbDamage(splashEnt, sResult.FinalDamage);
+			float splashEffectiveness = ResolveDamageEffectiveness(attacker, splashEnt);
+			float splashDamage = AbsorbDamage(splashEnt, sResult.FinalDamage * splashEffectiveness);
 			if (splashDamage <= 0f) return;
 
 			if (HasAuthority)
@@ -117,7 +118,7 @@ namespace Realm.Ecs.Services
 				_context.World.Set(splashEnt, sHp);
 			}
 
-			OnUnitDamagedCallback?.Invoke(splashEnt, attacker, splashDamage);
+			OnUnitDamagedCallback?.Invoke(splashEnt, attacker, splashDamage, baseDamage * splashRatio * splashEffectiveness);
 
 			RecordLastAttacker(splashEnt, attacker);
 

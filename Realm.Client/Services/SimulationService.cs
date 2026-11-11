@@ -410,7 +410,7 @@ public class SimulationService
 			if (World.IsAlive(ent) && World.Has<Position>(ent))
 				EnqueueVFXRequest("heal_flash", World.Get<Position>(ent).Value, World.Get<Position>(ent).Value, 1.0f, 0f, ent.Id);
 		};
-		_combatService.OnUnitDamagedCallback = (e1, e2, d) => OnUnitDamagedCallback?.Invoke(e1, e2, d);
+		_combatService.OnUnitDamagedCallback = (e1, e2, d, _) => OnUnitDamagedCallback?.Invoke(e1, e2, d);
 		_combatService.OnUnitHealedCallback = (e1, e2, h) => OnUnitHealedCallback?.Invoke(e1, e2, h);
 		_combatService.OnUnitAttackedCallback = (e1, e2) => OnUnitAttackedCallback?.Invoke(e1, e2);
 		_combatService.OnUnderAttackAlertRequested = (player, id) => OnUnderAttackAlertRequested?.Invoke(player, id);
