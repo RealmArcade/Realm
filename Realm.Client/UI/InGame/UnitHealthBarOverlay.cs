@@ -56,6 +56,7 @@ public partial class UnitHealthBarOverlay : Control
 
 	private struct HealthBarEntry
 	{
+		public Realm.Ecs.Entity Entity;
 		public Vector2 Position;
 		public float Scale;
 		public float HealthFraction;
@@ -67,9 +68,26 @@ public partial class UnitHealthBarOverlay : Control
 		public bool HasBadge;
 	}
 
+	public int BadgesDrawn { get; private set; }
+
+	public bool TryReadBadge(Realm.Ecs.Entity entity, out int value)
+	{
+		for (int index = 0; index < _bars.Count; index++)
+		{
+			if (_bars[index].Entity.Id != entity.Id) continue;
+
+			value = _bars[index].BadgeValue;
+			return _bars[index].HasBadge;
+		}
+
+		value = 0;
+		return false;
+	}
+
 	public void Refresh(Camera3D? camera)
 	{
 		_bars.Clear();
+		BadgesDrawn = 0;
 
 		ResolvePlateVisibility();
 
@@ -143,8 +161,10 @@ public partial class UnitHealthBarOverlay : Control
 			float distance = camera.GlobalPosition.DistanceTo(anchor);
 			float scale = Mathf.Clamp(14f / Mathf.Max(distance, 0.001f), 0.4f, 1.4f);
 
+			if (hasBadge) BadgesDrawn++;
 			_bars.Add(new HealthBarEntry
 			{
+				Entity = unit.Entity,
 				Position = screen,
 				Scale = scale,
 				HealthFraction = healthFraction,

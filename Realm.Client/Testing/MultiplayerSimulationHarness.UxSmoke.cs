@@ -9,6 +9,7 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.UI.InGame;
 using Realm.Client.VFX;
 using Realm.Ecs;
 using Realm.Ecs.Common;
@@ -162,6 +163,18 @@ public partial class MultiplayerSimulationHarness : Node
 				$"readings start {readingsTop:0.#} viewport start {viewportTop:0.#}");
 			Check($"{label} readings stay above the fold", readingsBottom <= viewportBottom + 1f,
 				$"readings {readingsTop:0.#}..{readingsBottom:0.#} viewport {viewportTop:0.#}..{viewportBottom:0.#}");
+		}
+
+		static bool ReadOverheadCharge(Unit3D? building, UnitHealthBarOverlay? overlay, out int badgeValue, out int chargeValue)
+		{
+			badgeValue = 0;
+			chargeValue = 0;
+			if (building == null || !GodotObject.IsInstanceValid(building)) return false;
+			if (overlay == null || !overlay.TryReadBadge(building.Entity, out badgeValue)) return false;
+			if (GameContext.World == null || !GameContext.World.TryGet(building.Entity, out UnitCharges unitCharges)) return false;
+
+			chargeValue = unitCharges.Charges;
+			return badgeValue == chargeValue;
 		}
 
 		static string MinimapRingDetail(MinimapOverlay? overlay, Unit3D? target)
@@ -633,9 +646,35 @@ public partial class MultiplayerSimulationHarness : Node
 		await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
 		Check("the hotkeyed relic spends its gold", hud.Gold <= goldBeforeHotkeyRelic - 90f, $"{goldBeforeHotkeyRelic:0.##} -> {hud.Gold:0.##}");
 
+		// The design floats a soldier-granting building's charge count over it for every player, without a selection. The
+		// badge is read from the plate the screen actually draws, so a badge that stopped following the charges fails here
+		// even while the inspector still reports them.
+		Unit3D? chargeBuilding = FindPlayerProductionBuilding(currentHost);
+		UnitHealthBarOverlay? healthBars = hud.FindChild("UnitHealthBarOverlay", true, false) as UnitHealthBarOverlay;
+		bool badgeAppeared = false;
+		if (chargeBuilding != null)
+		{
+			FocusCamera(chargeBuilding.GlobalPosition);
+			badgeAppeared = await WaitUntilAsync(
+				() => healthBars != null && healthBars.TryReadBadge(chargeBuilding.Entity, out int value) && value > 0, 60f);
+		}
+		Check("a soldier-granting building floats its charge count without a selection", badgeAppeared,
+			$"building={chargeBuilding?.UnitId ?? "missing"}");
+		Check("the floating charge count is the charge count the building holds",
+			ReadOverheadCharge(chargeBuilding, healthBars, out int badgeNow, out int chargesNow), $"badge={badgeNow} charges={chargesNow}");
+
 		Note("waiting for the drafted building to finish construction and raise its first soldier");
 		bool soldierArrived = await WaitUntilAsync(() => FindRaisedSoldier() != null, 55f);
 		Check("the drafted building raises its first soldier", soldierArrived);
+
+		if (chargeBuilding != null && GodotObject.IsInstanceValid(chargeBuilding))
+		{
+			FocusCamera(chargeBuilding.GlobalPosition);
+			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+			Check("the floating charge count follows the charge the soldier spent",
+				ReadOverheadCharge(chargeBuilding, healthBars, out int badgeAfterSpend, out int chargesAfterSpend),
+				$"badge={badgeAfterSpend} charges={chargesAfterSpend}");
+		}
 
 		Unit3D? soldier = FindRaisedSoldier();
 		if (soldier != null)
