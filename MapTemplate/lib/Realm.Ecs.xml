@@ -592,6 +592,23 @@
             Holds the items a unit carries together with the number of charges left for each, in the order they were picked up.
             </summary>
         </member>
+        <member name="M:Realm.Ecs.Components.Core.Inventory.AvailableRoom(System.String,System.Int32)">
+            <summary>
+                Answers how many more of an item the inventory could take when each slot holds at most the stated number.
+            </summary>
+            <param name="itemId">The item definition identifier.</param>
+            <param name="maxStacks">The greatest number one slot may hold.</param>
+            <returns>The number of pieces that would fit, never negative.</returns>
+        </member>
+        <member name="M:Realm.Ecs.Components.Core.Inventory.AddItem(System.String,System.Int32,System.Int32)">
+            <summary>
+                Adds an item, filling each slot only up to the stated stack limit and opening further slots for the overflow.
+            </summary>
+            <param name="itemId">The item definition identifier.</param>
+            <param name="count">The number of pieces to add; values below one are treated as one.</param>
+            <param name="maxStacks">The greatest number one slot may hold.</param>
+            <returns>True when every requested piece was added; otherwise false.</returns>
+        </member>
         <member name="T:Realm.Ecs.Components.Core.InventorySlot">
             <summary>
             Describes one carried item: which item it is and how many charges of it remain.
@@ -1078,9 +1095,21 @@
         <member name="F:Realm.Ecs.Components.Resources.Gatherer.PendingIncomeRemainder">
             <summary>Gets or sets the fraction of a resource the worker has earned but not yet been paid, so a taxed delivery stays exact over a run.</summary>
         </member>
+        <member name="F:Realm.Ecs.Components.Resources.Gatherer.ItemStringId">
+            <summary>Gets or sets the item the node yields, which is what the worker carries home and pays back.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Resources.Gatherer.HarvestRemainder">
+            <summary>Gets or sets the fraction of a point of the node's health the last hit earned but had not yet filled.</summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Resources.Gold">
             <summary>
                 Represents the Gold resource.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.Harvestable">
+            <summary>
+                Marks a node whose health is its remaining resource, and states which item each point of damage taken from it puts
+                into the attacker's inventory.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Components.Resources.PlayerResources">
@@ -1135,6 +1164,12 @@
         <member name="T:Realm.Ecs.Components.Resources.Wood">
             <summary>
                 Represents the Wood resource.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Resources.WorkerAssignment">
+            <summary>
+                Names the resource a worker was assigned to by the building that raised it, which is what the map's worker AI
+                sends it to gather.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Components.Stats.ArmorStat">
@@ -1766,6 +1801,7 @@
             <summary>resolving an attack, from range check to damage and projectiles.</summary>
             <summary>the public damage and heal entry points and the aoe passes behind them.</summary>
             <summary>The building lifecycle: which buildings fall dormant at zero health instead of dying, and what dormant means.</summary>
+            <summary>taking resource out of a gatherable node with the same hit the unit would land in combat.</summary>
             <summary>healer ticks, targets and the heal itself.</summary>
             <summary>range, reach and the navmesh route check behind them.</summary>
             <summary>splash damage around an impact.</summary>
@@ -1871,6 +1907,30 @@
         </member>
         <member name="M:Realm.Ecs.Services.CombatAndDamageService.StopOperating(Realm.Ecs.Entity)">
             <summary>Ends the work a building was doing, keeping what it had banked for when it is repaired.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.HarvestFromNode(Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single@,System.Int32)">
+            <summary>
+                Lands one gathering hit on a node: the worker's own attack, critical strike and penetration meet the node's
+                resistances, and what survives that mitigation is taken off the node's health, which is its remaining resource.
+            </summary>
+            <remarks>
+                A point of the node's health is one resource piece, so only whole points are ever taken. The fraction a hit
+                leaves over waits in <paramref name="damageBank" /> and is joined by the next hit, which keeps what the node
+                lost exactly equal to what the worker carries however small each hit's damage is.
+            </remarks>
+            <param name="worker">The unit taking the resource.</param>
+            <param name="node">The gatherable node being worked.</param>
+            <param name="damageBank">The fraction of a point of damage the worker's previous hit left over.</param>
+            <param name="maximumPoints">The greatest number of whole points the hit may take, which is the room left in the worker's inventory.</param>
+            <returns>The whole points of health the node lost, or zero when the hit yields no whole point yet.</returns>
+        </member>
+        <member name="M:Realm.Ecs.Services.CombatAndDamageService.GetGatherInterval(Realm.Ecs.Entity)">
+            <summary>
+                States how long the unit waits between gathering hits, which is the attack interval it would swing at in
+                combat after its own attack speed has been applied.
+            </summary>
+            <param name="unit">The unit about to take a hit at a node.</param>
+            <returns>The seconds between hits, never below a small floor.</returns>
         </member>
         <member name="M:Realm.Ecs.Services.CombatAndDamageService.GetUnitContactRadius(Realm.Ecs.Entity)">
             <summary>
@@ -2280,11 +2340,18 @@
                 Demonstrates how player-specific resource data is used with archetype definition data.
             </summary>
         </member>
+        <member name="F:Realm.Ecs.Services.ResourceEconomyService.ItemMaxStacksProvider">
+            <summary>
+                States the number of pieces one inventory slot holds for an item. The map's catalog answers it, so the engine
+                needs no knowledge of which items exist, and a worker with a full slot opens another before it stops gathering.
+            </summary>
+        </member>
         <member name="M:Realm.Ecs.Services.ResourceEconomyService.MineResource(Realm.Ecs.Entity,Realm.Ecs.Components.Resources.Gatherer@,Realm.Ecs.Entity,System.Numerics.Vector3)">
             <summary>
-                Works the node the worker is standing at, one swing at a time. A swing takes its whole amount from the node and
-                puts it in the worker's hands, so what a player is paid is exactly what a node lost, and the time a trip takes
-                is what makes a distant node pay less than a near one.
+                Works the node the worker is standing at, one hit at a time. The hit is the unit's own attack, resolved against
+                the node's resistances, so the resource a node loses is the damage the worker would have dealt in combat and the
+                pieces it yields are that damage in items. A worker that cannot hold another piece carries what it has home,
+                which is what makes the walk, the hit rate and the damage all show up in income.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Services.RouteReachabilityEntry">

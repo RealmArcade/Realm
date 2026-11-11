@@ -37,7 +37,7 @@ Formulas throughout the game preserve intuitive monotonicity. More investment ne
 | Doctrine | The player's accumulated identity for the match, formed from drafted building packages and the relics purchased along the way. Working term; the concept is a dynamically assembled faction. |
 | Building Deck | The shared pool of building options. A chosen building leaves the deck; the unchosen options return; the deck is replenished when it runs out. |
 | Building Supply | How many building locations a player may hold, derived from the player's building draft count. |
-| Unlock | The package a constructed building grants: one soldier type, that building's charge count, capacity contribution, recharge rate, and production time, plus its income. There is no separate research tree or post-construction upgrade path. |
+| Unlock | The package a constructed building grants: one soldier type with that building's charge count, capacity contribution, recharge rate, and production time, plus its worker profile: capacity, charges, recharge, production time, assigned resource, and the permanent buffs it gives the workers it raises. There is no separate research tree or post-construction upgrade path. |
 | Combat Veterancy | The progression earned by fighting and killing, which raises hero level and sets the level of every army unit. Relics are not part of veterancy. |
 | Bounty | The experience and gold awarded when an enemy unit, enemy hero, enemy building, or neutral monster dies. A bounty never pays wood. |
 | Relic | A player-wide upgrade purchased at the Nexus for 100 gold and equipped in one of the hero's six inventory slots. |
@@ -187,6 +187,15 @@ Rules:
 - Soldier types are not tiered. Every soldier is set to the hero's level, so a package drafted early remains valid late; balance is applied to the building package as a whole.
 - Army progression combines veterancy, which raises every soldier's stats, with capacity, charge cadence, and production time, which decide how many soldiers are fielded and how quickly.
 
+### 5.3 Worker Production
+
+- A building raises workers with the same charge algorithm it uses for soldiers, but from its own separate worker numbers: worker capacity, worker charges, worker recharge, and worker production time.
+- A worker charge is spent when the building has worker capacity open; the spent charge becomes a worker after the building's worker production time. Charges refill on the building's worker recharge.
+- A newly completed building begins with one worker charge, exactly as it begins with one soldier charge.
+- A worker profile is part of the building package, so a package may be strong in soldiers and weak in workers, or the reverse.
+- Worker capacity and charges are authored per building and are affected by the same lobby multipliers as soldier capacity and charges.
+- Worker production values do not state an income rate. Income emerges from what the workers do (section 9.3).
+
 ## 6. Drafting
 
 ### 6.1 No Predefined Factions
@@ -261,7 +270,7 @@ Consequences of this structure:
 
 ### 7.2 Buff Sources
 
-- Only the hero kit and relics modify an entity's static metadata during a match. The hero kit is its three active abilities plus its innate; there is no third modifier layer.
+- The hero kit, relics, and a building's authored worker buffs modify an entity's static metadata during a match. The hero kit is its three active abilities plus its innate; the worker buffs are applied when a building raises a worker; there is no further modifier layer.
 - Buffs typically apply to the entire army and hero simultaneously rather than to a selected unit.
 - The same buff can resolve differently on each unit, because each unit has its own stats. Tenacity, spell immunity, armor, and health are read per unit.
 - A buff is normally accompanied by a visual effect on every affected unit. During development some buffs may lack their visual; the unit stat panel is authoritative and always lists active buffs, so a missing effect never hides information.
@@ -338,8 +347,8 @@ Rules:
 | Resource | Acquired from | Role |
 | :--- | :--- | :--- |
 | Veterancy | Experience from bounties paid by enemy units, enemy heroes, enemy buildings, and neutral monsters | Advances hero level, which grants raw stats to the hero and sets every army unit's level. It is progression, never a currency. |
-| Gold | Finite gold mines, gathered by the hero or passively by buildings, plus the gold portion of bounties | Spent at the Nexus on relics, at 100 gold per relic. |
-| Wood | Finite tree lines, gathered by the hero or passively by buildings | Spent on building construction, at 100 wood per building. Bounties never pay wood. |
+| Gold | Finite gold mines, attacked by the hero or by building workers, plus the gold portion of bounties | Spent at the Nexus on relics, at 100 gold per relic. |
+| Wood | Finite tree lines, attacked by the hero or by building workers | Spent on building construction, at 100 wood per building. Bounties never pay wood. |
 
 Rules:
 
@@ -348,6 +357,8 @@ Rules:
 - Gold has two sources: finite nodes and bounties. Bounty gold is created by combat rather than drawn from a node. Wood has no bounty source.
 - Neutral bounties scale with the monster's level. Hero and building bounties are larger than soldier bounties.
 - Creeps are not a gatherable resource. They are concentrated neutral monsters in key locations whose bounty pays experience and gold to whoever kills them (section 10.2).
+- A gathered piece is an inventory item. Wood and gold are item templates with a per-slot stack limit, so what a worker carries is visible in its inventory and is spent at the drop-off as items rather than as an abstract number.
+- Item templates state their stack limit: wood holds one piece per slot and gold holds five. Additional pieces of a stack-limited item open the next inventory slot instead of overflowing the first.
 
 ### 9.2 Active Economy
 
@@ -356,26 +367,32 @@ Rules:
 - The economic advantage of active gathering comes from choosing when to invest hero time in it, not from requiring uninterrupted repetitive clicking.
 - Hero gathering's opportunity cost is the hero's time away from fighting, contesting, and constructing.
 
-### 9.3 Passive Economy
+### 9.3 Building Workers
 
-- Buildings gather resources passively through invulnerable workers that travel between the building and the nearest matching resource node.
-- Passive gathering is slower than active hero gathering but requires no attention. Workers are not individually controlled or attackable.
-- A building's passive income is determined by worker travel time: closer nodes produce a higher rate, and greater distance reduces it.
-- When the nearest matching node is exhausted, pathfinding selects the next nearest reachable matching node. If that node is distant, the walk can reduce income to practical uselessness.
-- If no matching node is reachable, the building produces no income of that type.
+- Buildings raise workers through their worker production profile (section 5.3) instead of gathering through an abstract income rate. A worker is a unit on the board with health, position, an attack, and an inventory.
+- Every building raises the same worker template. The template has per-level attribute scaling, so a worker's level is what separates a stronger worker from a weaker one.
+- A worker's level is the construction order of the building that raised it: the first building raises level 1 workers, the second raises level 2 workers, and so on. A later building therefore raises stronger workers without any separate upgrade.
+- A building applies its authored permanent buffs to every worker it raises. The buffs use the ordinary stat pipeline, are listed on the worker's stat panel, and are the only per-building difference between workers raised from the same template. Buffs typically raise the worker's damage (gathering rate), durability, or movement speed.
+- Workers are attackable units, not invulnerable ones. They cannot be given player orders. When a worker is killed, its building replaces it from its worker charges and capacity.
+- A building assigns each worker the resource it gathers when it raises it, as a tag on the worker (`worker_assignment_gold` or `worker_assignment_wood`). The worker AI reads that tag, so one worker template serves every building and a package decides only which node type its crew works.
+- A worker attacks the nearest node of the resource its building assigns to it, using its own attack. Each point of post-mitigation damage removes one point of the node's health and adds one piece of the node's item to the worker's inventory.
+- When the worker cannot hold another piece, it walks to the nearest building that accepts a drop-off, consumes its carried items there, adds their number to the player's stockpile, and is sent back out to its node. An idle worker with room in its inventory is sent to the nearest node of its assigned resource.
+- When its node is exhausted, the worker moves to the next nearest reachable node of the same resource. If none is reachable, it stands idle rather than producing from nothing.
 - A node has no worker cap. Any number of buildings may gather from it, and all of them draw from the same capacity.
 - Owned workers body-block one another, but ghost through allied and enemy workers.
-- As long as nearby nodes remain, passive income increasingly supports the player, allowing attention to shift from gathering toward combat.
-- No repetitive gathering is required after the economic transition.
+- A building's income is therefore what its workers physically take, carry, and deliver over time. It is decided by their damage, attack speed, level, buffs and travel distance, not by a stated rate. Income falls with travel distance because the walk is part of the trip.
+- Workers are a third way to deny an expansion, alongside destroying its building and exhausting its node: killing workers stops the deliveries until their building replaces them.
 
 ### 9.4 Resource Nodes
 
-- Gatherable gold and wood are finite. Each gold mine and tree line is a resource node with a finite capacity.
+- Gatherable gold and wood are finite. Each gold mine and tree line is a resource node with a finite capacity, and that capacity is its health.
+- Every gatherable node of one kind is an instance of one template slug: all trees share a tree template and all gold mines share a gold template. Levels are expressed through that template's per-level scaling of capacity and resistances instead of through separate templates per level.
+- A node's template states its armor and magic resistance as well as its capacity, so a higher-level node can be both larger and harder to take from.
+- Gathering is combat: the worker's damage type, its armor and magic penetration, its critical strikes, and its attack speed all apply, and the node's resistances reduce what lands. Each point of post-mitigation damage removes one point of health and yields one piece of the node's item.
+- A node at zero health is destroyed and yields nothing further. It only returns to service if its map data gives it a growth rate that restores capacity.
 - Gold also enters the economy through kill bounties. Bounty gold is created by combat rather than drawn from a node, so node depletion limits gathering but not bounty income. Wood has no bounty source.
-- Gathering consumes that capacity. Hero gathering and passive building gathering both draw from the same stock.
-- A node at zero capacity is exhausted. It yields no further gold or wood. A building using it pathfinds to the next nearest matching node (section 9.3), and the node only returns to service if its map data gives it a growth rate that restores capacity.
-- Gathering is not blocked by other players. Any number of players may gather from the same node, and workers from different players neither block nor fight one another, but they deplete the same finite stock.
-- Exhaustion is a second form of denial. Destroying a gathering building stops its income; exhausting the node it relies on forces its workers onto a farther node, which can reduce or effectively stop its income, and can deny an opponent's expansion or active gathering.
+- Gathering is not blocked by other players. Any number of players may attack the same node, and their hits draw from the same finite health.
+- Exhaustion is a second form of denial. Destroying a gathering building stops its deliveries; exhausting the node it relies on forces its workers onto a farther node, which can reduce or effectively stop its income, and can deny an opponent's expansion or active gathering.
 
 ### 9.5 Economic Expansion
 
@@ -389,14 +406,13 @@ Rules:
 - Denial by depletion is permanent for that node unless it regrows, though the player who depletes it spends time and exposure gathering it. In both destruction and depletion, the denying player does not capture the location or the building.
 - Expansion competes with military investment for the same resources, so economic development delays some military development.
 
-### 9.6 Income Tax
+### 9.6 Worker Levels and Buffs
 
-- Income tax scales with the number of functional buildings a player owns.
-- Destroyed, unrepaired buildings are excluded from the functional building count.
-- The tax is progressive and marginal: each additional building contributes less net income than the previous one, without retroactively penalizing income already generated.
-- Total net income never decreases because another functional building was added.
-- Building costs and relic prices remain fixed rather than scaling with building count.
-- The purpose is to keep the cadence of major purchases relatively consistent as the economy grows, preventing a stronger economy from accelerating building and relic cadence without bound.
+- A worker's level is fixed by the order of the building that raised it and never changes for that worker. A building's workers all share its construction order, so replacing a killed worker raises another at the same level.
+- A building's worker buffs are permanent for the worker's lifetime, applied when it is raised, and use the same stat pipeline as every other modifier. They are listed on the worker's stat panel like any other active buff.
+- Because the buffs and the level are visible on the worker, a player reasons about a building's gathering rate from the worker's own stats and buffs rather than from an advertised number. The building's draft tooltip states the buffs its workers receive, not an estimated rate.
+- Worker buffs are authored content, not a separate upgrade layer. A building cannot change its worker buffs after construction, and no buff is applied by a research step.
+- Since income is physical, there is no income tax. The cadence of major purchases is bounded by worker capacity, worker charges, worker recharge, the walk, and the node's finite health rather than by a tax curve.
 
 ### 9.7 Resources and Allies
 
@@ -431,9 +447,9 @@ Rules:
 - Building draft reservation is visible. Before a choice is locked, an opponent who inspects the hero holding the open draft can see the three building options reserved for that player, stated as inspector readings on that hero. Once the choice is locked, the readings clear, the unchosen options return to the deck and the site reveals only the locked option, even while construction continues.
 - A player may act on that information, for example by delaying their own construction when a desired option is reserved by an opponent and may return to the deck.
 - Counter information is exhaustive: clicking any unit, allied or enemy, shows its stats, targeting rule, formation, active buffs, and the current charge count of the building that produced it. Selecting a unit the player does not own hides or disables the command card.
-- The readings the ruleset keeps itself are published as inspector readings on the unit rather than left in the map script, so every player reads the same values: a soldier-granting building states the soldier it unlocks, its charge count against its maximum, the seconds until its next charge, the income it produces and the soldiers it maintains against its capacity.
+- The readings the ruleset keeps itself are published as inspector readings on the unit rather than left in the map script, so every player reads the same values: a soldier-granting building states the soldier it unlocks, its charge count against its maximum, the seconds until its next charge, its worker profile and buffs, and the soldiers it maintains against its capacity.
 - Every soldier-granting building displays its current charge count as a floating number above it. The indicator is visible to every player, includes zero, and requires no selection. The Nexus has no charge indicator because it grants no soldier type.
-- Clicking a completed building, allied or enemy, shows its current health. A non-Nexus building also shows the soldier type it unlocks, its capacity contribution, current charge count and recharge, active production queue, and current income. Completed buildings have no command card: your own Nexus opens the relic vendor, and every other completed building is inspection-only.
+- Clicking a completed building, allied or enemy, shows its current health. A non-Nexus building also shows the soldier type it unlocks, its capacity contribution, current charge count and recharge, active production queue, the worker capacity and buffs it provides, and the workers it currently maintains. Completed buildings have no command card: your own Nexus opens the relic vendor, and every other completed building is inspection-only.
 
 ## 11. Victory and Defeat
 
@@ -563,7 +579,6 @@ The game is not balanced mathematically. Win rates are measured, not derived.
 The following are intentionally outside this document or are not yet specified sufficiently. They belong in child documents or content specifications unless they require a change to a foundational rule above.
 
 - Exact anti-kingmaker formula, including the precise decay curve and the exact normalization function.
-- Exact income tax curve.
 - Exact Bulwark resistance curves and radii.
 - Exact relic pool, relic availability, and any relic pricing beyond 100 gold.
 - Exact targeting debounce, formation spacing, leash distance, and formation change debounce.
@@ -572,7 +587,7 @@ The following are intentionally outside this document or are not yet specified s
 - Specific buildings and the soldier, economy, and production values each one provides.
 - Creep types, camps, respawn behavior, and exact neutral bounty values.
 - Map layouts and exact resource-node placement.
-- Exact resource-node capacities, worker travel speed, gathering-rate distance falloff, and regrowth values.
+- Exact resource-node capacities, resistances, worker travel speed, worker capacity and charge values, and regrowth values.
 - Detailed nexus attack and defense rules.
 - Match length, pacing, and multi-team victory resolution beyond the ranking rule.
 - Behaviour when construction reaches completion while a draw has been offered but no option has been locked.

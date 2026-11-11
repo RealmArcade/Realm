@@ -696,6 +696,28 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		if (_context.World.Has<Worker>(entity)) _context.World.Remove<Worker>(entity);
 	}
 
+	public void SetUnitWorkerAssignment(UnitId unit, string resourceType)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+
+		if (string.IsNullOrEmpty(resourceType))
+		{
+			if (_context.World.Has<WorkerAssignment>(entity)) _context.World.Remove<WorkerAssignment>(entity);
+			return;
+		}
+
+		_context.World.SetOrAdd(entity, new WorkerAssignment(resourceType));
+	}
+
+	public string GetUnitWorkerAssignment(UnitId unit)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return string.Empty;
+
+		return _context.World.TryGet<WorkerAssignment>(entity, out WorkerAssignment assignment) ? assignment.ResourceType : string.Empty;
+	}
+
 	public void EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
 		Entity entity = ResolveUnit(unit);

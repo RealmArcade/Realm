@@ -102,48 +102,87 @@ internal static class MeleeContent
 		};
 	}
 
-	public static float GoldPerSwingOf(string buildingTemplateId)
+	public static int WorkerCapacityOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{
-			"building/bulwark_hall" => 30f,
-			"building/warband_yard" => 16f,
+			"building/bulwark_hall" => 2,
+			"building/warband_yard" => 2,
+			"building/spear_lodge" => 2,
+			"building/archery_range" => 3,
+			"building/sling_camp" => 3,
+			"building/bolt_foundry" => 1,
+			"building/mender_shrine" => 1,
+			"building/signal_post" => 2,
+			"building/vigil_bastion" => 2,
+			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no worker profile serves.")
+		};
+	}
+
+	public static int WorkerChargesOf(string buildingTemplateId)
+	{
+		return buildingTemplateId switch
+		{
+			"building/bulwark_hall" => 1,
+			"building/warband_yard" => 2,
+			"building/spear_lodge" => 1,
+			"building/archery_range" => 2,
+			"building/sling_camp" => 3,
+			"building/bolt_foundry" => 1,
+			"building/mender_shrine" => 1,
+			"building/signal_post" => 1,
+			"building/vigil_bastion" => 1,
+			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no worker profile serves.")
+		};
+	}
+
+	public static float WorkerRechargeSecondsOf(string buildingTemplateId)
+	{
+		return buildingTemplateId switch
+		{
+			"building/bulwark_hall" => 45f,
+			"building/warband_yard" => 30f,
+			"building/spear_lodge" => 35f,
+			"building/archery_range" => 25f,
+			"building/sling_camp" => 20f,
+			"building/bolt_foundry" => 50f,
+			"building/mender_shrine" => 40f,
+			"building/signal_post" => 30f,
+			"building/vigil_bastion" => 35f,
+			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no worker profile serves.")
+		};
+	}
+
+	public static float WorkerProductionSecondsOf(string buildingTemplateId)
+	{
+		return buildingTemplateId switch
+		{
+			"building/bulwark_hall" => 12f,
+			"building/warband_yard" => 8f,
 			"building/spear_lodge" => 10f,
-			"building/archery_range" => 0f,
-			"building/bolt_foundry" => 0f,
-			"building/sling_camp" => 0f,
-			"building/mender_shrine" => 14f,
-			"building/signal_post" => 6f,
+			"building/archery_range" => 7f,
+			"building/sling_camp" => 6f,
+			"building/bolt_foundry" => 14f,
+			"building/mender_shrine" => 12f,
+			"building/signal_post" => 9f,
 			"building/vigil_bastion" => 10f,
-			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no building profile pays.")
+			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no worker profile serves.")
 		};
 	}
 
-	/// <summary>
-	///     The share of its deliveries a player's income building keeps, by the order it was completed in: the first keeps
-	///     the whole swing, and every later building keeps less than the one before it.
-	/// </summary>
-	public static readonly float[] IncomeSharesByRank = { 1f, 0.65f, 0.5f, 0.4f, 0.35f };
-
-	public static float IncomeShareOfRank(int rank)
-	{
-		return IncomeSharesByRank[System.Math.Min(rank, IncomeSharesByRank.Length) - 1];
-	}
-
-	public static float WoodPerSwingOf(string buildingTemplateId)
+	public static string WorkerResourceOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{
-			"building/bulwark_hall" => 0f,
-			"building/warband_yard" => 0f,
-			"building/spear_lodge" => 0f,
-			"building/archery_range" => 22f,
-			"building/bolt_foundry" => 8f,
-			"building/sling_camp" => 16f,
-			"building/mender_shrine" => 0f,
-			"building/signal_post" => 0f,
-			"building/vigil_bastion" => 0f,
-			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no building profile pays.")
+			"building/archery_range" or "building/bolt_foundry" or "building/sling_camp" => "wood",
+			_ => "gold"
 		};
 	}
+
+	public static string WorkerItemOf(string buildingTemplateId)
+	{
+		return WorkerResourceOf(buildingTemplateId) == "wood" ? "item/wood" : "item/gold";
+	}
+
+	public const string WorkerTemplateId = "unit/worker";
 }

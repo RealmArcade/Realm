@@ -141,7 +141,7 @@ public partial class MultiplayerSimulationHarness : Node
 				if (unit.Player != 1) continue;
 				if (!unit.TemplateID.StartsWith("unit/", StringComparison.OrdinalIgnoreCase)) continue;
 				if (unit.TemplateID.StartsWith("unit/blueprint", StringComparison.OrdinalIgnoreCase)) continue;
-				if (unit.TemplateID.StartsWith("unit/building_worker", StringComparison.OrdinalIgnoreCase)) continue;
+				if (unit.TemplateID.StartsWith("unit/worker", StringComparison.OrdinalIgnoreCase)) continue;
 				return unit;
 			}
 			return null;

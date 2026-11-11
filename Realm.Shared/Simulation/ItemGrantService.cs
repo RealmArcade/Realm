@@ -30,7 +30,41 @@ public class ItemGrantService
 		if (!World.Has<Inventory>(entity)) return true;
 
 		ref Inventory inventory = ref World.Get<Inventory>(entity);
-		return inventory.Count < CarriedItemLimit || inventory.HasItem(itemId);
+		ItemMetadata? item = _catalog.FindItem(itemId);
+		if (item != null && !string.IsNullOrEmpty(item.ResourceType))
+		{
+			return inventory.AvailableRoom(itemId, StackLimitOf(item)) > 0;
+		}
+
+		return CountEquippedKinds(ref inventory) < CarriedItemLimit || inventory.HasItem(itemId);
+	}
+
+	/// <summary>
+	///     Counts the distinct equipped items a unit carries, leaving the resource pieces a worker hauls out of the
+	///     equipment limit so gathering never locks a hero out of its relic slots.
+	/// </summary>
+	/// <param name="inventory">The inventory being read.</param>
+	/// <returns>The number of carried item kinds that are not resources.</returns>
+	private int CountEquippedKinds(ref Inventory inventory)
+	{
+		int kinds = 0;
+		for (int index = 0; index < inventory.Count; index++)
+		{
+			string? carriedId = inventory.GetItemId(index);
+			if (string.IsNullOrEmpty(carriedId)) continue;
+
+			ItemMetadata? carried = _catalog.FindItem(carriedId);
+			if (carried != null && !string.IsNullOrEmpty(carried.ResourceType)) continue;
+
+			kinds++;
+		}
+
+		return kinds;
+	}
+
+	private static int StackLimitOf(ItemMetadata item)
+	{
+		return item.MaxStacks > 0 ? item.MaxStacks : 1;
 	}
 
 	public bool Equip(Entity entity, string itemId, int charges = 1)
@@ -40,9 +74,11 @@ public class ItemGrantService
 
 		if (!World.Has<Inventory>(entity)) World.Add(entity, default(Inventory));
 
-		int carried = CarriedCharges(entity, itemId);
+		ItemMetadata? metadata = _catalog.FindItem(itemId);
+		int limit = metadata != null ? StackLimitOf(metadata) : 1;
 		int added = Math.Max(1, charges);
-		if (!WriteCharges(entity, itemId, carried > 0 ? carried + added : added)) return false;
+		ref Inventory inventory = ref World.Get<Inventory>(entity);
+		if (!inventory.AddItem(itemId, added, limit)) return false;
 
 		ApplyGrants(entity, itemId);
 		return true;

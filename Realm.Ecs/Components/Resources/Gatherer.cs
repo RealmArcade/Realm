@@ -30,6 +30,12 @@ public struct Gatherer
 	/// <summary>Gets or sets the fraction of a resource the worker has earned but not yet been paid, so a taxed delivery stays exact over a run.</summary>
 	public float PendingIncomeRemainder;
 
+	/// <summary>Gets or sets the item the node yields, which is what the worker carries home and pays back.</summary>
+	public int ItemStringId;
+
+	/// <summary>Gets or sets the fraction of a point of the node's health the last hit earned but had not yet filled.</summary>
+	public float HarvestRemainder;
+
 	public bool ReturningToBase
 	{
 		get => ReturningToBaseByte != 0;
@@ -48,6 +54,8 @@ public struct Gatherer
 		SwingProgress = 0f;
 		GatherTaxRate = 0f;
 		PendingIncomeRemainder = 0f;
+		ItemStringId = 0;
+		HarvestRemainder = 0f;
 	}
 
 	public string ResourceType

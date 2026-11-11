@@ -54,7 +54,7 @@ public class MeleeRelicTests
 			"building/mender_shrine",
 			"building/signal_post",
 			"building/vigil_bastion"
-		}.Where(templateId => MeleeContent.GoldPerSwingOf(templateId) > 0f).ToArray();
+		}.Where(templateId => MeleeContent.WorkerResourceOf(templateId) == "gold").ToArray();
 	}
 
 	[Test]

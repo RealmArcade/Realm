@@ -235,10 +235,10 @@ namespace Realm.Ecs.Tests
 		public void WorkersOfTheSamePlayerBodyBlockEachOther()
 		{
 			InitializeTerrain();
-			Entity waitingWorker = SpawnUnit(Vector3.Zero, playerIndex: 1, definitionId: "unit/building_worker");
+			Entity waitingWorker = SpawnUnit(Vector3.Zero, playerIndex: 1, definitionId: "unit/worker");
 			World.Add(waitingWorker, new Worker());
 
-			Entity movingWorker = SpawnUnit(Start, playerIndex: 1, definitionId: "unit/building_worker");
+			Entity movingWorker = SpawnUnit(Start, playerIndex: 1, definitionId: "unit/worker");
 			World.Add(movingWorker, new Worker());
 
 			Vector3 end = WalkThroughTheLine(movingWorker, out float drift, out float closestApproach);
@@ -252,10 +252,10 @@ namespace Realm.Ecs.Tests
 		public void WorkersOfDifferentPlayersPassThroughEachOther()
 		{
 			InitializeTerrain();
-			Entity awaitingWorker = SpawnUnit(Vector3.Zero, playerIndex: 2, definitionId: "unit/building_worker");
+			Entity awaitingWorker = SpawnUnit(Vector3.Zero, playerIndex: 2, definitionId: "unit/worker");
 			World.Add(awaitingWorker, new Worker());
 
-			Entity movingWorker = SpawnUnit(Start, playerIndex: 1, definitionId: "unit/building_worker");
+			Entity movingWorker = SpawnUnit(Start, playerIndex: 1, definitionId: "unit/worker");
 			World.Add(movingWorker, new Worker());
 
 			Vector3 end = WalkThroughTheLine(movingWorker, out float drift, out float closestApproach);

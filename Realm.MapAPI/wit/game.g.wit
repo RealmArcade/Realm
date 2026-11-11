@@ -110,6 +110,7 @@ interface game-api {
     get-unit-template-id: func(unit-id: s32) -> string;
     get-unit-type-abilities-count: func(unit-type-id: string) -> s32;
     get-unit-type-abilities-get: func(unit-type-id: string, index: s32) -> string;
+    get-unit-worker-assignment: func(unit-id: s32) -> string;
     get-units-in-radius: func(center-x: f32, center-y: f32, center-z: f32, radius: f32) -> list<s32>;
     get-units-owned-by-player: func(player-index: s32) -> list<s32>;
     get-weather: func() -> string;
@@ -244,6 +245,7 @@ interface game-api {
     set-unit-tooltip-text: func(unit-id: s32, key: string, value: string);
     set-unit-tooltip-value: func(unit-id: s32, key: string, value: f32);
     set-unit-worker: func(unit-id: s32, worker: bool);
+    set-unit-worker-assignment: func(unit-id: s32, resource-type: string);
     set-upgrade-tooltip-value: func(upgrade-id: string, key: string, value: f32);
     set-weather: func(weather-type: string);
     shake-camera: func(intensity: f32, duration: f32);

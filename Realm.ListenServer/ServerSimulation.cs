@@ -108,6 +108,7 @@ public class ServerSimulation : IDisposable
 			resources.GoldResourceId,
 			resources.WoodResourceId,
 			resources.StoneResourceId);
+		map.Simulation.ResourceEconomyService.ItemMaxStacksProvider = itemId => map.Catalog.FindItem(itemId)?.MaxStacks ?? 1;
 
 		BakeNavMesh();
 	}

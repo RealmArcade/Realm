@@ -1,28 +1,32 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using NUnit.Framework;
 using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Tags;
 
 namespace Realm.Simulation.Tests;
 
 /// <summary>
-///     Plays the authored economy on the authority: a finished building's worker carries its advertised swing out of the
-///     nearest node and back, a site that still stands unfinished takes nothing, and a node the worker has to walk to is
-///     worked less often than one beside the building. The tests read what the nodes lost rather than what the player was
-///     paid, because a bounty from a skirmish lands in the same purse as a delivery.
+///     Plays the authored economy on the authority: a building raises its own workers on its own production profile, each
+///     worker attacks the node its building assigns with its own combat statistics, every point of damage becomes a piece
+///     of the node's item in the worker's inventory, and the pieces are delivered at a drop-off. Workers are attackable
+///     units, not an abstract income rate.
 /// </summary>
 [TestFixture]
 [NonParallelizable]
 public class MeleeEconomyTests
 {
-	private const float IncomeSeconds = 60f;
 	private const string GoldMineTemplateId = "resource/melee_gold_mine";
 	private const string WoodlandTemplateId = "resource/melee_woodland";
+	private const string GoldItemId = "item/gold";
+	private const string WoodItemId = "item/wood";
 
-	private static readonly Vector3 NearNodeSitePosition = new(-50f, 0f, -50f);
+	private static readonly Vector3 SitePosition = new(-50f, 0f, -50f);
+	private static readonly Vector3 SecondSitePosition = new(-26f, 0f, 9f);
 
 	private MeleeMatch _match = null!;
 
@@ -40,173 +44,169 @@ public class MeleeEconomyTests
 	}
 
 	[Test]
-	public void AFinishedBuildingsWorkerTakesItsAdvertisedSwingOutOfTheNode()
+	public void AFinishedBuildingRaisesItsWorkerAfterItsOwnProductionTime()
 	{
-		UnitId building = _match.PlaceCompletedBuilding(NearNodeSitePosition);
-		string templateId = _match.TemplateOf(building);
-		float swing = MeleeContent.GoldPerSwingOf(templateId) + MeleeContent.WoodPerSwingOf(templateId);
-		Assert.That(swing, Is.GreaterThan(0f), "The drawn package has to advertise something its worker can carry.");
+		UnitId building = _match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", SitePosition, 1, 0f);
+		Assert.That(building.IsValid, Is.True, "The test has to raise the building its worker belongs to.");
 
-		float nodesBefore = _match.TotalResourceAmount();
-		float carriedInHands = _match.TotalCarriedAmount(1);
+		_match.Step(2f);
+		Assert.That(WorkersOf(1), Is.Empty, "A worker is produced on the building's worker production timer, not the instant it stands.");
 
-		_match.Step(IncomeSeconds);
+		_match.Step(MeleeContent.WorkerProductionSecondsOf("building/bulwark_hall") + 1f);
 
-		float nodeLoss = nodesBefore - _match.TotalResourceAmount();
-
-		Assert.That(nodeLoss, Is.GreaterThan(0f), "A finished building has to put a worker on a node.");
-		Assert.That(carriedInHands, Is.EqualTo(0f), "Nothing is in hand before the worker is spawned.");
-
-		float swings = nodeLoss / swing;
-		Assert.That(swings, Is.EqualTo(MathF.Round(swings)).Within(0.02f), "Every swing has to take exactly the amount the building advertises.");
+		List<UnitId> workers = WorkersOf(1);
+		Assert.That(workers.Count, Is.EqualTo(1), "The building has to raise one worker from its opening charge.");
+		Assert.That(_match.World.Has<Worker>(new Entity(workers[0].Value)), Is.True, "Every worker the ruleset raises carries the worker tag.");
+		Assert.That(_match.World.Has<Invulnerable>(new Entity(workers[0].Value)), Is.False, "Workers are attackable units.");
+		Assert.That(_match.Api.GetUnitWorkerAssignment(workers[0]), Is.EqualTo("gold"),
+			"The building has to assign the resource its worker gathers.");
 	}
 
 	[Test]
-	public void AFinishedBuildingsWorkerCarriesTheWorkerTagTheCollisionRuleReads()
+	public void WorkersAreRaisedAtTheConstructionOrderOfTheirBuilding()
 	{
-		UnitId building = _match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", NearNodeSitePosition, 1, 0f);
-		Assert.That(building.IsValid, Is.True, "The test has to raise the gathering building its worker belongs to.");
+		UnitId firstBuilding = _match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", SitePosition, 1, 0f);
+		_match.Step(1f);
+		UnitId secondBuilding = _match.Api.SpawnBuildingUnderConstruction("building/archery_range", SecondSitePosition, 1, 0f);
 		_match.Step(2f);
 
-		int workers = 0;
-		int markedWorkers = 0;
-		EcsWorld world = _match.World;
-		var query = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
-		world.Query(in query, (Entity entity, ref Position position) =>
+		Assert.That(firstBuilding.IsValid && secondBuilding.IsValid, Is.True, "Both buildings have to stand.");
+		_match.Step(20f);
+
+		var levels = new HashSet<int>();
+		foreach (UnitId worker in WorkersOf(1))
 		{
-			if (world.Get<DefinitionId>(entity).Value != "unit/building_worker") return;
-			workers++;
-			if (world.Has<Worker>(entity)) markedWorkers++;
-		});
+			int level = _match.World.Get<Level>(new Entity(worker.Value)).Value;
+			levels.Add(level);
 
-		Assert.That(workers, Is.GreaterThan(0), "A finished gathering building has to put its worker on the board.");
-		Assert.That(markedWorkers, Is.EqualTo(workers), "Every worker the ruleset spawns has to carry the tag the worker collision rule reads.");
+			string expectedAssignment = level == 2 ? "wood" : "gold";
+			Assert.That(_match.Api.GetUnitWorkerAssignment(worker), Is.EqualTo(expectedAssignment),
+				$"A level {level} worker has to gather the resource of the building that raised it.");
+		}
+
+		Assert.That(levels, Does.Contain(1), "The first building has to raise level 1 workers.");
+		Assert.That(levels, Does.Contain(2), "The second building has to raise level 2 workers.");
 	}
 
 	[Test]
-	public void ASitePaysNothingBeforeItStands()
+	public void ALaterBuildingRaisesStrongerWorkersOfTheSameTemplate()
 	{
-		UnitId site = _match.PlaceDraftBuilding(NearNodeSitePosition);
-		Assert.That(_match.IsUnderConstruction(site), Is.True, "The test has to hold a site that is still building.");
+		_match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", SitePosition, 1, 0f);
+		_match.Step(1f);
+		_match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", SecondSitePosition, 1, 0f);
+		_match.Step(20f);
+
+		float firstWorkerHealth = 0f;
+		float secondWorkerHealth = 0f;
+		foreach (UnitId worker in WorkersOf(1))
+		{
+			Assert.That(_match.World.Get<DefinitionId>(new Entity(worker.Value)).Value, Is.EqualTo(MeleeContent.WorkerTemplateId),
+				"Every building raises the same worker template.");
+
+			float maxHealth = _match.MaxHealthOf(worker);
+			if (_match.World.Get<Level>(new Entity(worker.Value)).Value == 1) firstWorkerHealth = maxHealth;
+			else secondWorkerHealth = maxHealth;
+		}
+
+		Assert.That(firstWorkerHealth, Is.GreaterThan(0f), "The first building has to raise a level 1 worker.");
+		Assert.That(secondWorkerHealth, Is.GreaterThan(firstWorkerHealth),
+			"The second building's level 2 worker has to be stronger than the first building's level 1 worker.");
+	}
+
+	[Test]
+	public void AWorkerTakesTheNodesItemAndDeliversItToThePurse()
+	{
+		_match.Api.SpawnBuildingUnderConstruction("building/warband_yard", SitePosition, 1, 0f);
+		UnitId node = _match.ResourceNode(GoldMineTemplateId, SitePosition);
+		Assert.That(node.IsValid, Is.True, "The board has to place the node the building works.");
 
 		float goldBefore = _match.Gold(1);
-		float woodBefore = _match.Wood(1);
-		float nodesBefore = _match.TotalResourceAmount();
-
-		_match.Step(10f);
-
-		Assert.That(_match.IsUnderConstruction(site), Is.True, "Ten seconds must not finish the site.");
-		Assert.That(_match.Gold(1), Is.EqualTo(goldBefore).Within(0.01f), "A building that does not stand pays nothing.");
-		Assert.That(_match.Wood(1), Is.EqualTo(woodBefore).Within(0.01f), "A building that does not stand pays nothing.");
-		Assert.That(_match.TotalResourceAmount(), Is.EqualTo(nodesBefore).Within(0.01f), "A site nobody works takes nothing from a node.");
-	}
-
-	[Test]
-	public void AWorkerWhoseNodeRunsDryMovesToTheNextOne()
-	{
-		UnitId building = _match.PlaceCompletedBuilding(NearNodeSitePosition);
-		string templateId = _match.TemplateOf(building);
-		string nodeTemplate = MeleeContent.GoldPerSwingOf(templateId) > 0f ? GoldMineTemplateId : WoodlandTemplateId;
-
-		UnitId firstNode = _match.ResourceNode(nodeTemplate, NearNodeSitePosition);
-		Assert.That(firstNode.IsValid, Is.True, "The board has to place the first node the building works.");
-
-		_match.Step(8f);
-		_match.EmptyResourceNode(firstNode);
-		Assert.That(_match.ResourceAmount(firstNode), Is.EqualTo(0f).Within(0.01f), "The test has to empty the node the worker was using.");
-
-		float nodesBefore = _match.TotalResourceAmount();
-		_match.Step(IncomeSeconds);
-		float nodesAfter = _match.TotalResourceAmount();
-
-		Assert.That(_match.ResourceAmount(firstNode), Is.EqualTo(0f).Within(0.01f), "A dry node stays dry.");
-		Assert.That(nodesBefore - nodesAfter, Is.GreaterThan(0f), "A worker whose node ran dry has to find the next node of the same resource rather than stand idle.");
-	}
-
-	[Test]
-	public void TheSecondIncomeBuildingPaysItsRankShareWhileTheFirstKeepsItsWholeSwing()
-	{
-		// The buildings are raised straight through the engine rather than drawn from the deck, so the two ranks are
-		// known before a shuffle decides which package a player would have been offered.
-		UnitId firstBuilding = _match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", NearNodeSitePosition, 1, 0f);
-		_match.Step(1f);
-		UnitId secondBuilding = _match.Api.SpawnBuildingUnderConstruction("building/warband_yard", new Vector3(-26f, 0f, 9f), 1, 0f);
-		_match.Step(1f);
-
-		Assert.That(firstBuilding.IsValid && secondBuilding.IsValid, Is.True, "Both buildings have to be raised.");
-		Assert.That(firstBuilding.UniqueId, Is.LessThan(secondBuilding.UniqueId), "The first building has to be the older one, which is what its rank is read from.");
-		Assert.That(_match.IsUnderConstruction(firstBuilding) || _match.IsUnderConstruction(secondBuilding), Is.False, "Both buildings have to stand before their workers can be read.");
-
-		UnitId firstNode = _match.ResourceNode(GoldMineTemplateId, _match.PositionOf(firstBuilding));
-		UnitId secondNode = _match.ResourceNode(GoldMineTemplateId, _match.PositionOf(secondBuilding));
-		Assert.That(firstNode.IsValid && secondNode.IsValid && firstNode.Value != secondNode.Value, Is.True,
-			"The two buildings have to work different nodes, or neither worker's delivery can be told apart from the other's.");
-
-		float goldBefore = _match.Gold(1);
-		float firstNodeBefore = _match.ResourceAmount(firstNode);
-		float secondNodeBefore = _match.ResourceAmount(secondNode);
+		float nodeBefore = _match.ResourceAmount(node);
 
 		bool delivered = false;
 		for (int step = 0; step < 240 && !delivered; step++)
 		{
 			_match.Step(0.5f);
-			delivered = _match.Gold(1) > goldBefore
-			            && _match.ResourceAmount(firstNode) < firstNodeBefore
-			            && _match.ResourceAmount(secondNode) < secondNodeBefore;
+			delivered = _match.Gold(1) > goldBefore;
 		}
-		Assert.That(delivered, Is.True, "Both income buildings have to deliver at least once.");
 
-		// Sampling while no worker holds anything makes what the nodes lost exactly what the workers have delivered, so
-		// the tax reads off the purse without having to know how much is still being carried home.
-		bool handsEmpty = false;
-		for (int step = 0; step < 400 && !handsEmpty; step++)
-		{
-			_match.Step(0.1f);
-			handsEmpty = _match.TotalCarriedAmount(1) <= 0.001f;
-		}
-		Assert.That(handsEmpty, Is.True, "Both workers have to be between trips for the accounting to close.");
+		Assert.That(delivered, Is.True, "A worker has to take gold from the node and pay it into the player's purse.");
+		Assert.That(_match.ResourceAmount(node), Is.LessThan(nodeBefore), "The node has to lose the capacity the worker took.");
 
-		float paid = _match.Gold(1) - goldBefore;
-		float firstDelivered = firstNodeBefore - _match.ResourceAmount(firstNode);
-		float secondDelivered = secondNodeBefore - _match.ResourceAmount(secondNode);
-		float expected = firstDelivered * MeleeContent.IncomeShareOfRank(1) + secondDelivered * MeleeContent.IncomeShareOfRank(2);
-
-		Assert.That(paid, Is.EqualTo(expected).Within(1f),
-			$"The first building keeps its whole swing and the second keeps its rank's share: paid {paid:0.##} for {firstDelivered:0.##} and {secondDelivered:0.##} delivered.");
-		Assert.That(paid, Is.LessThan(firstDelivered + secondDelivered), "The second building has to be taxed rather than paid in full.");
+		int carried = _match.TotalItemCount(1, GoldItemId);
+		float nodeLoss = nodeBefore - _match.ResourceAmount(node);
+		float gained = _match.Gold(1) - goldBefore;
+		Assert.That(nodeLoss, Is.EqualTo(gained + carried).Within(2f),
+			$"Every point the node lost must be one gold piece, whether it was delivered or is still in hand: lost {nodeLoss:0.#}, paid {gained:0.#}, carried {carried}.");
 	}
 
 	[Test]
-	public void ANodeAcrossTheBoardIsWorkedLessThanOneBesideTheBuilding()
+	public void AWorkerWhoseNodeRunsDryMovesToTheNextOne()
 	{
-		UnitId nearBuilding = _match.PlaceCompletedBuilding(NearNodeSitePosition);
-		string templateId = _match.TemplateOf(nearBuilding);
-		string nodeTemplate = MeleeContent.GoldPerSwingOf(templateId) > 0f ? GoldMineTemplateId : WoodlandTemplateId;
+		_match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", SitePosition, 1, 0f);
+		UnitId firstNode = _match.ResourceNode(GoldMineTemplateId, SitePosition);
+		Assert.That(firstNode.IsValid, Is.True, "The board has to place the first node the building works.");
 
-		UnitId nearNode = _match.ResourceNode(nodeTemplate, NearNodeSitePosition);
-		Assert.That(nearNode.IsValid, Is.True, "The board has to place the node the building works.");
+		_match.Step(20f);
+		_match.EmptyResourceNode(firstNode);
 
-		float nearBefore = _match.ResourceAmount(nearNode);
-		_match.Step(IncomeSeconds);
-		float nearLoss = nearBefore - _match.ResourceAmount(nearNode);
+		var secondPosition = SitePosition + new Vector3(12f, 0f, 0f);
+		_match.Api.SpawnResourceNode(GoldMineTemplateId, secondPosition, 800f);
+		UnitId secondNode = _match.ResourceNode(GoldMineTemplateId, secondPosition);
+		Assert.That(secondNode.IsValid, Is.True, "The board has to place a second node of the same resource.");
+		Assert.That(_match.ResourceAmount(secondNode), Is.GreaterThan(0f), "A node spawned during the match has to hold the resource it was asked for.");
 
-		using MeleeMatch distant = MeleeMatch.StartDuel();
-		string drawnLabel = _match.Api.GetUnitName(templateId);
-		UnitId farBuilding = distant.PlaceCompletedBuilding(NearNodeSitePosition, label => label == drawnLabel);
-		Assert.That(distant.TemplateOf(farBuilding), Is.EqualTo(templateId), "Both matches have to draw the same building for the comparison to mean anything.");
+		float secondBefore = _match.ResourceAmount(secondNode);
+		_match.Step(45f);
 
-		UnitId farNode = distant.ResourceNode(nodeTemplate, NearNodeSitePosition);
-		Assert.That(farNode.IsValid, Is.True, "The board has to place the node the building works.");
+		Assert.That(_match.ResourceAmount(secondNode), Is.LessThan(secondBefore),
+			"A worker whose node is exhausted has to move to the next node of its resource.");
+	}
 
-		// The same node, moved away from the same building, so the only thing that differs between the two runs is how
-		// long the worker has to walk.
-		distant.MoveProp(farNode, distant.PositionOf(farNode) + new Vector3(60f, 0f, 0f));
+	[Test]
+	public void ASitePaysNothingBeforeItStands()
+	{
+		UnitId site = _match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", SitePosition, 1, 60f);
+		Assert.That(_match.IsUnderConstruction(site), Is.True, "The test has to hold a site that is still building.");
 
-		float farBefore = distant.ResourceAmount(farNode);
-		distant.Step(IncomeSeconds);
-		float farLoss = farBefore - distant.ResourceAmount(farNode);
+		float nodesBefore = _match.TotalResourceAmount();
+		_match.Step(10f);
 
-		Assert.That(nearLoss, Is.GreaterThan(0f), "The building beside its node has to work it.");
-		Assert.That(farLoss, Is.LessThan(nearLoss), "Walking further for the same swing has to work the node less, which is what makes node distance matter.");
+		Assert.That(_match.IsUnderConstruction(site), Is.True, "Ten seconds must not finish a sixty second site.");
+		Assert.That(WorkersOf(1), Is.Empty, "A building that does not stand raises no worker.");
+		Assert.That(_match.TotalResourceAmount(), Is.EqualTo(nodesBefore).Within(0.01f), "A site nobody works takes nothing from a node.");
+	}
+
+	[Test]
+	public void WoodStacksOnePerSlotAndGoldStacksFive()
+	{
+		UnitId worker = _match.Api.SpawnUnitForPlayer(MeleeContent.WorkerTemplateId, new Vector2(SitePosition.X, SitePosition.Z), 1);
+		Assert.That(worker.IsValid, Is.True, "The test has to hold a worker to fill.");
+
+		Assert.That(_match.Api.AddItemToUnitWithCharges(worker, WoodItemId, 3), Is.True, "Wood has to fit in the worker's inventory.");
+		Assert.That(_match.TryGet(worker, out Inventory wood), Is.True, "The worker has to carry an inventory.");
+		Assert.That(wood.Count, Is.EqualTo(3), "Wood holds one piece per slot, so three pieces open three slots.");
+
+		Assert.That(_match.Api.AddItemToUnitWithCharges(worker, GoldItemId, 7), Is.True, "Gold has to fit in the worker's inventory.");
+		Assert.That(_match.TryGet(worker, out Inventory inventory), Is.True);
+		Assert.That(inventory.GetItemCount(GoldItemId), Is.EqualTo(7), "All seven gold pieces have to be carried.");
+		Assert.That(inventory.Count, Is.EqualTo(5), "Seven gold fills five, then opens a second slot for the remaining two.");
+	}
+
+	private List<UnitId> WorkersOf(int slot)
+	{
+		var workers = new List<UnitId>();
+		var query = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
+
+		_match.World.Query(in query, (Entity entity, ref Position position) =>
+		{
+			if (_match.World.Get<DefinitionId>(entity).Value != MeleeContent.WorkerTemplateId) return;
+			if (!_match.World.Has<UnitOwnerPlayer>(entity)) return;
+			if (_match.World.Get<UnitOwnerPlayer>(entity).PlayerIndex != slot) return;
+
+			workers.Add(new UnitId(entity.Id));
+		});
+
+		return workers;
 	}
 }

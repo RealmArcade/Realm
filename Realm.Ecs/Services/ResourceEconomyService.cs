@@ -40,6 +40,12 @@ public class ResourceEconomyService
 	private ResourceId _stoneResourceId;
 
 	public Action<int, string, float>? OnResourceDepositedForPlayer;
+
+	/// <summary>
+	///     States the number of pieces one inventory slot holds for an item. The map's catalog answers it, so the engine
+	///     needs no knowledge of which items exist, and a worker with a full slot opens another before it stops gathering.
+	/// </summary>
+	public Func<string, int>? ItemMaxStacksProvider;
 	public Action<Entity> OnClearUnitOrdersRequested = null!;
 	public Action<Entity> OnStopGatheringMovementRequested = null!;
 	public Action<Entity> OnPropDepleted = null!;
@@ -213,18 +219,35 @@ public class ResourceEconomyService
 		newState.ReturningToBase = false;
 		newState.CarriedAmount = 0;
 		newState.TargetEntity = Entity.Null;
+		newState.ItemStringId = 0;
+		newState.HarvestRemainder = 0f;
 		_tickGatherersToUpdate.Add((entity, newState, null));
 	}
 
 	private void DepositResources(Entity entity, ref Gatherer gather)
 	{
-		float carry = gather.CarriedAmount;
 		var ownerEntity = _context.World.Get<Owner>(entity).PlayerEntity.Value;
+		float carry = gather.CarriedAmount;
 
-		// A map may tax what a worker delivers, and the tax is taken here rather than out of the swing: the node still
-		// loses exactly what the building advertises, and only the pay into the purse is reduced. The fraction of a
-		// resource the tax leaves behind rides on the worker into its next delivery instead of being rounded away, so a
-		// taxed economy pays the same total over a run that its advertised rate states.
+		// A worker hauls the node's own item, so delivering is spending that item: the inventory empties as the purse
+		// fills, and what the node lost is exactly what the player may be paid for. A node that predates the item rule
+		// still pays out of the carried amount it kept in hand.
+		string itemId = StringRegistry.Get(gather.ItemStringId);
+		if (!string.IsNullOrEmpty(itemId) && _context.World.Has<Inventory>(entity))
+		{
+			ref var inventory = ref _context.World.Get<Inventory>(entity);
+			int carriedItemCount = inventory.GetItemCount(itemId);
+			if (carriedItemCount > 0)
+			{
+				inventory.RemoveItem(itemId, carriedItemCount);
+				carry = carriedItemCount;
+			}
+		}
+
+		// A map may tax what a worker delivers, and the tax is taken here rather than out of the hit: the node still
+		// loses exactly what the worker took, and only the pay into the purse is reduced. The fraction of a resource the
+		// tax leaves behind rides on the worker into its next delivery instead of being rounded away, so a taxed economy
+		// pays the same total over a run that its advertised rate states.
 		float taxRate = Math.Clamp(gather.GatherTaxRate, 0f, 0.99f);
 		float earned = carry * (1f - taxRate) + gather.PendingIncomeRemainder;
 		int paid = (int)MathF.Floor(earned);
@@ -256,7 +279,9 @@ public class ResourceEconomyService
 	private void HandleNodeAfterDeposit(Entity entity, ref Gatherer gather)
 	{
 		Entity targetNode = gather.TargetEntity;
-		bool nodeAlive = _context.World.IsAlive(targetNode) && _context.World.Has<Position>(targetNode);
+		bool nodeAlive = _context.World.IsAlive(targetNode)
+		                && _context.World.Has<Position>(targetNode)
+		                && (!_context.World.TryGet<ResourceNode>(targetNode, out ResourceNode node) || node.Amount > 0f);
 
 		var newState = gather;
 		newState.ReturningToBase = false;
@@ -270,6 +295,7 @@ public class ResourceEconomyService
 		else
 		{
 			newState.TargetEntity = Entity.Null;
+			newState.ItemStringId = 0;
 			_tickGatherersToUpdate.Add((entity, newState, null));
 		}
 	}
@@ -318,9 +344,10 @@ public class ResourceEconomyService
 	}
 
 	/// <summary>
-	///     Works the node the worker is standing at, one swing at a time. A swing takes its whole amount from the node and
-	///     puts it in the worker's hands, so what a player is paid is exactly what a node lost, and the time a trip takes
-	///     is what makes a distant node pay less than a near one.
+	///     Works the node the worker is standing at, one hit at a time. The hit is the unit's own attack, resolved against
+	///     the node's resistances, so the resource a node loses is the damage the worker would have dealt in combat and the
+	///     pieces it yields are that damage in items. A worker that cannot hold another piece carries what it has home,
+	///     which is what makes the walk, the hit rate and the damage all show up in income.
 	/// </summary>
 	private void MineResource(Entity entity, ref Gatherer gather, Entity targetNode, Vector3 currentPos)
 	{
@@ -330,51 +357,92 @@ public class ResourceEconomyService
 		}
 
 		var newState = gather;
-		ref var resNode = ref _context.World.Get<ResourceNode>(targetNode);
+		bool harvestsByDamage = _context.World.TryGet<Harvestable>(targetNode, out Harvestable harvestable);
 
-		if (newState.SwingAmount <= 0f) newState.SwingAmount = resNode.HarvestRate > 0f ? resNode.HarvestRate : 4f;
-		if (newState.SwingSeconds <= 0f) newState.SwingSeconds = DefaultSwingSeconds;
-
-		float swingAmount = newState.SwingAmount;
-		var ownerPlayerEntity = _context.World.Has<Owner>(entity) ? _context.World.Get<Owner>(entity).PlayerEntity.Value : Entity.Null;
-		if (ownerPlayerEntity != Entity.Null && GetHarvestingUpgrade(ownerPlayerEntity)) swingAmount *= 1.5f;
+		if (harvestsByDamage)
+		{
+			newState.ItemStringId = harvestable.ItemStringId;
+			newState.SwingSeconds = _context.CombatDamageService.GetGatherInterval(entity);
+		}
+		else
+		{
+			ref var legacyNode = ref _context.World.Get<ResourceNode>(targetNode);
+			if (newState.SwingAmount <= 0f) newState.SwingAmount = legacyNode.HarvestRate > 0f ? legacyNode.HarvestRate : 4f;
+			if (newState.SwingSeconds <= 0f) newState.SwingSeconds = DefaultSwingSeconds;
+		}
 
 		newState.SwingProgress += _fDelta;
+		bool harvestedAnything = false;
 
-		// A swing is worth its whole amount or nothing: a worker whose hands cannot hold one more full swing takes what it
-		// has home instead of shaving the swing down, so what a node loses is always a whole multiple of what the building
-		// advertises. Only a node with less than a swing left is taken for the remainder, which is the node running dry.
-		while (newState.SwingProgress >= newState.SwingSeconds && resNode.Amount > 0f)
+		while (newState.SwingProgress >= newState.SwingSeconds)
 		{
-			if (newState.MaxCapacity - newState.CarriedAmount < MathF.Min(swingAmount, resNode.Amount)) break;
+			float nodeAmount = _context.World.Get<ResourceNode>(targetNode).Amount;
+			if (nodeAmount <= 0f) break;
 
-			newState.SwingProgress -= newState.SwingSeconds;
+			if (harvestsByDamage)
+			{
+				string itemId = harvestable.ItemId;
+				int maxStacks = ItemMaxStacksProvider != null ? ItemMaxStacksProvider(itemId) : 1;
+				int room = _context.World.Has<Inventory>(entity)
+					? _context.World.Get<Inventory>(entity).AvailableRoom(itemId, maxStacks)
+					: 0;
+				if (room <= 0) break;
 
-			float taken = MathF.Min(swingAmount, resNode.Amount);
-			resNode.Amount -= taken;
-			newState.CarriedAmount += taken;
+				float dealt = _context.CombatDamageService.HarvestFromNode(entity, targetNode, ref newState.HarvestRemainder, room);
+				newState.SwingProgress -= newState.SwingSeconds;
+				if (dealt <= 0f) continue;
+
+				int pieces = Math.Min((int)MathF.Floor(dealt * harvestable.YieldPerDamage), room);
+				if (pieces <= 0) continue;
+
+				ref var inventory = ref _context.World.Get<Inventory>(entity);
+				inventory.AddItem(itemId, pieces, maxStacks);
+				harvestedAnything = true;
+			}
+			else
+			{
+				float swingAmount = newState.SwingAmount;
+				var ownerPlayerEntity = _context.World.Has<Owner>(entity) ? _context.World.Get<Owner>(entity).PlayerEntity.Value : Entity.Null;
+				if (ownerPlayerEntity != Entity.Null && GetHarvestingUpgrade(ownerPlayerEntity)) swingAmount *= 1.5f;
+
+				if (newState.MaxCapacity - newState.CarriedAmount < MathF.Min(swingAmount, nodeAmount)) break;
+
+				newState.SwingProgress -= newState.SwingSeconds;
+				float taken = MathF.Min(swingAmount, nodeAmount);
+				ref var resNode = ref _context.World.Get<ResourceNode>(targetNode);
+				resNode.Amount -= taken;
+				_context.World.Set(targetNode, resNode);
+				newState.CarriedAmount += taken;
+				harvestedAnything = true;
+			}
 		}
 
-		_context.World.Set(targetNode, resNode);
-		if (newState.CarriedAmount > gather.CarriedAmount) OnResourceHarvested?.Invoke(targetNode);
+		float remaining = _context.World.TryGet<ResourceNode>(targetNode, out ResourceNode node) ? node.Amount : 0f;
+		if (harvestedAnything) OnResourceHarvested?.Invoke(targetNode);
+		if (remaining <= 0f) OnPropDepleted?.Invoke(targetNode);
 
-		if (resNode.Amount <= 0f)
-		{
-			OnPropDepleted?.Invoke(targetNode);
-		}
+		bool handsFull = harvestsByDamage
+			? !CanHoldMore(entity, harvestable.ItemId, ItemMaxStacksProvider != null ? ItemMaxStacksProvider(harvestable.ItemId) : 1)
+			: newState.CarriedAmount > 0f && newState.MaxCapacity - newState.CarriedAmount < newState.SwingAmount;
 
-		bool handsFull = newState.CarriedAmount > 0f && newState.MaxCapacity - newState.CarriedAmount < swingAmount;
-		if (handsFull || resNode.Amount <= 0f)
+		if (handsFull || remaining <= 0f)
 		{
 			newState.ReturningToBase = true;
 			FindNearestDropoffAndReturn(entity, ref newState, currentPos);
 		}
 		else
 		{
-			// The swing in progress is part of the state: without writing it back each tick the worker would restart
-			// the same swing forever and a node would never be touched.
+			// The hit in progress is part of the state: without writing it back each tick the worker would restart
+			// the same hit forever and a node would never be touched.
 			_tickGatherersToUpdate.Add((entity, newState, null));
 		}
+	}
+
+	private bool CanHoldMore(Entity entity, string itemId, int maxStacks)
+	{
+		if (!_context.World.Has<Inventory>(entity)) return false;
+
+		return _context.World.Get<Inventory>(entity).AvailableRoom(itemId, maxStacks) > 0;
 	}
 
 	private void FindNearestDropoff(Vector3 currentPos, PlayerEntity wOwner, out Entity nearestDropoff, out Vector3 nearestDropoffPos, out float dropoffRadius)

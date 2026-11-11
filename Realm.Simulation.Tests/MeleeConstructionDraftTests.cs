@@ -39,7 +39,7 @@ public class MeleeConstructionDraftTests
 	private static Vector3 SitePosition => new(-50f, 0f, -50f);
 
 	[Test]
-	public void EveryDraftCommandComparesItsSoldierChargesRechargeAndIncome()
+	public void EveryDraftCommandComparesItsSoldierAndItsWorkerCrew()
 	{
 		var tooltips = new List<string>();
 
@@ -51,12 +51,13 @@ public class MeleeConstructionDraftTests
 			Assert.That(tooltip, Is.Not.Empty, $"The draft command for '{buildingTemplateId}' has to explain what it raises.");
 			Assert.That(tooltip, Does.Contain(soldierName), $"The draft command for '{buildingTemplateId}' has to name the soldier it raises, so two packages can be told apart before one is locked.");
 			Assert.That(tooltip, Does.Match(@"\d+ charges every \d+s\."), $"The draft command for '{buildingTemplateId}' has to state its charge count and its recharge: '{tooltip}'");
-			Assert.That(tooltip, Does.Match(@"Income (\d+(\.\d+)? gold a swing|\d+(\.\d+)? wood a swing)\.$"), $"The draft command for '{buildingTemplateId}' has to state the income it adds: '{tooltip}'");
+			Assert.That(tooltip, Does.Match(@"Workers gather (gold|wood): \d+ at \d+s each, gaining .+\.$"), $"The draft command for '{buildingTemplateId}' has to state the worker crew and the buffs it gives them: '{tooltip}'");
+			Assert.That(tooltip, Does.Not.Contain("Income"), $"A draft command must not advertise a computed income: '{tooltip}'");
 			tooltips.Add(tooltip);
 		}
 
-		Assert.That(tooltips, Has.Some.Contains("gold a swing"), "The deck compares gold buildings as well as resource ones.");
-		Assert.That(tooltips, Has.Some.Contains("wood a swing"), "The deck compares wood buildings as well as gold ones.");
+		Assert.That(tooltips, Has.Some.Contains("Workers gather gold"), "The deck compares gold buildings as well as wood ones.");
+		Assert.That(tooltips, Has.Some.Contains("Workers gather wood"), "The deck compares wood buildings as well as gold ones.");
 		Assert.That(tooltips.Distinct().Count(), Is.EqualTo(tooltips.Count), "No two draft commands may read the same, or the choice cannot be made from the tooltips.");
 	}
 

@@ -264,6 +264,26 @@ public partial interface IGameAPI
 	void SetUnitWorker(UnitId unit, bool worker);
 
 	/// <summary>
+	///     Assigns the resource a worker gathers, which is how the building that raised it states what its crew works.
+	/// </summary>
+	/// <remarks>
+	///     The assignment is the script's own instruction to the worker, not an order: the map reads it back with
+	///     <see cref="GetUnitWorkerAssignment"/> and issues the gather order to the matching node, so one worker template
+	///     can be sent to gold by one building and to wood by another. A resource name the map never uses is kept as stated,
+	///     which lets a package add its own resource without an engine change. An empty name clears the assignment.
+	/// </remarks>
+	/// <param name="unit">The worker to assign.</param>
+	/// <param name="resourceType">The resource type to gather, such as gold or wood, or an empty string to clear it.</param>
+	void SetUnitWorkerAssignment(UnitId unit, string resourceType);
+
+	/// <summary>
+	///     Answers the resource a worker was assigned to gather.
+	/// </summary>
+	/// <param name="unit">The worker whose assignment is read.</param>
+	/// <returns>The assigned resource type, or an empty string when the unit has no assignment.</returns>
+	string GetUnitWorkerAssignment(UnitId unit);
+
+	/// <summary>
 	/// Shows or hides the overhead health and mana bars for a single unit.
 	/// </summary>
 	/// <remarks>

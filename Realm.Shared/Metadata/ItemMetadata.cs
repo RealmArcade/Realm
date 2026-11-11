@@ -9,6 +9,8 @@ public class ItemMetadata
 	public float CostGold { get; set; }
 	public string? UseAbility { get; set; }
 	public int ChargeCount { get; set; }
+	public int MaxStacks { get; set; } = 1;
+	public string? ResourceType { get; set; }
 	public string? CooldownLink { get; set; }
 	public bool CanDrop { get; set; }
 	public int ItemLevel { get; set; }

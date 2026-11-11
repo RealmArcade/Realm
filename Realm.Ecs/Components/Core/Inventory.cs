@@ -38,13 +38,47 @@ public struct Inventory
 
 	public int GetItemCount(string? itemId)
 	{
-		int index = IndexOf(itemId);
-		return index < 0 ? 0 : Slots[index].Count;
+		if (string.IsNullOrEmpty(itemId)) return 0;
+
+		int total = 0;
+		for (int index = 0; index < Count; index++)
+		{
+			string knownItemId = StringRegistry.Get(Slots[index].ItemStringId);
+			if (!string.Equals(knownItemId, itemId, StringComparison.OrdinalIgnoreCase)) continue;
+
+			total += Slots[index].Count;
+		}
+
+		return total;
 	}
 
 	public bool HasItem(string? itemId)
 	{
 		return GetItemCount(itemId) > 0;
+	}
+
+	/// <summary>
+	///     Answers how many more of an item the inventory could take when each slot holds at most the stated number.
+	/// </summary>
+	/// <param name="itemId">The item definition identifier.</param>
+	/// <param name="maxStacks">The greatest number one slot may hold.</param>
+	/// <returns>The number of pieces that would fit, never negative.</returns>
+	public int AvailableRoom(string? itemId, int maxStacks)
+	{
+		if (string.IsNullOrEmpty(itemId)) return 0;
+
+		int limit = Math.Max(1, maxStacks);
+		int room = (InventorySlotArray.Capacity - Count) * limit;
+
+		for (int index = 0; index < Count; index++)
+		{
+			string knownItemId = StringRegistry.Get(Slots[index].ItemStringId);
+			if (!string.Equals(knownItemId, itemId, StringComparison.OrdinalIgnoreCase)) continue;
+
+			room += Math.Max(0, limit - Slots[index].Count);
+		}
+
+		return room;
 	}
 
 	public void SetItemCount(string? itemId, int count)
@@ -54,44 +88,98 @@ public struct Inventory
 		int index = IndexOf(itemId);
 		if (count <= 0)
 		{
-			if (index >= 0) RemoveAt(index);
+			for (int slot = Count - 1; slot >= 0; slot--)
+			{
+				if (string.Equals(StringRegistry.Get(Slots[slot].ItemStringId), itemId, StringComparison.OrdinalIgnoreCase)) RemoveAt(slot);
+			}
+
 			return;
 		}
 
-		if (index >= 0)
+		if (index < 0)
 		{
-			Slots[index].Count = count;
+			if (Count >= InventorySlotArray.Capacity) return;
+
+			int newItemStringId = StringRegistry.GetOrAdd(itemId);
+			if (newItemStringId == 0) return;
+
+			Slots[Count] = new InventorySlot { ItemStringId = newItemStringId, Count = count };
+			Count++;
 			return;
 		}
 
-		if (Count >= InventorySlotArray.Capacity) return;
-
-		int itemStringId = StringRegistry.GetOrAdd(itemId);
-		if (itemStringId == 0) return;
-
-		Slots[Count] = new InventorySlot { ItemStringId = itemStringId, Count = count };
-		Count++;
+		Slots[index].Count = count;
+		for (int slot = Count - 1; slot > index; slot--)
+		{
+			if (string.Equals(StringRegistry.Get(Slots[slot].ItemStringId), itemId, StringComparison.OrdinalIgnoreCase)) RemoveAt(slot);
+		}
 	}
 
 	public bool AddItem(string? itemId, int count = 1)
 	{
+		return AddItem(itemId, count, int.MaxValue);
+	}
+
+	/// <summary>
+	///     Adds an item, filling each slot only up to the stated stack limit and opening further slots for the overflow.
+	/// </summary>
+	/// <param name="itemId">The item definition identifier.</param>
+	/// <param name="count">The number of pieces to add; values below one are treated as one.</param>
+	/// <param name="maxStacks">The greatest number one slot may hold.</param>
+	/// <returns>True when every requested piece was added; otherwise false.</returns>
+	public bool AddItem(string? itemId, int count, int maxStacks)
+	{
 		if (string.IsNullOrEmpty(itemId)) return false;
 
-		int index = IndexOf(itemId);
-		if (index < 0 && Count >= InventorySlotArray.Capacity) return false;
+		int limit = Math.Max(1, maxStacks);
+		int remaining = Math.Max(1, count);
+		int itemStringId = StringRegistry.GetOrAdd(itemId);
+		if (itemStringId == 0) return false;
 
-		int added = Math.Max(1, count);
-		SetItemCount(itemId, (index < 0 ? 0 : Slots[index].Count) + added);
-		return true;
+		for (int index = 0; index < Count && remaining > 0; index++)
+		{
+			if (Slots[index].ItemStringId != itemStringId) continue;
+
+			int room = limit - Slots[index].Count;
+			if (room <= 0) continue;
+
+			int moved = Math.Min(room, remaining);
+			Slots[index].Count += moved;
+			remaining -= moved;
+		}
+
+		while (remaining > 0 && Count < InventorySlotArray.Capacity)
+		{
+			int moved = Math.Min(limit, remaining);
+			Slots[Count] = new InventorySlot { ItemStringId = itemStringId, Count = moved };
+			Count++;
+			remaining -= moved;
+		}
+
+		return remaining == 0;
 	}
 
 	public bool RemoveItem(string? itemId, int count = 1)
 	{
-		int index = IndexOf(itemId);
-		if (index < 0) return false;
+		if (string.IsNullOrEmpty(itemId)) return false;
 
-		SetItemCount(itemId, Slots[index].Count - Math.Max(1, count));
-		return true;
+		int remaining = Math.Max(1, count);
+		bool removedAny = false;
+
+		for (int index = Count - 1; index >= 0 && remaining > 0; index--)
+		{
+			string knownItemId = StringRegistry.Get(Slots[index].ItemStringId);
+			if (!string.Equals(knownItemId, itemId, StringComparison.OrdinalIgnoreCase)) continue;
+
+			int taken = Math.Min(Slots[index].Count, remaining);
+			Slots[index].Count -= taken;
+			remaining -= taken;
+			removedAny |= taken > 0;
+
+			if (Slots[index].Count <= 0) RemoveAt(index);
+		}
+
+		return removedAny;
 	}
 
 	public void RemoveAt(int index)

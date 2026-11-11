@@ -454,6 +454,24 @@ internal sealed class MeleeMatch : IDisposable
 		return total;
 	}
 
+	/// <summary>
+	///     Adds up one item across every unit of a seat, which is what its workers are holding but have not delivered.
+	/// </summary>
+	/// <param name="slot">The seat whose units are read.</param>
+	/// <param name="itemId">The item definition identifier to add up.</param>
+	/// <returns>The number of pieces carried across every slot and unit.</returns>
+	public int TotalItemCount(int slot, string itemId)
+	{
+		int total = 0;
+		foreach (UnitId unit in Owned(slot))
+		{
+			if (!IsAlive(unit)) continue;
+			if (TryGet(unit, out Realm.Ecs.Components.Core.Inventory inventory)) total += inventory.GetItemCount(itemId);
+		}
+
+		return total;
+	}
+
 	public bool IsGathering(UnitId unit) => Has<Gatherer>(unit);
 
 	/// <summary>

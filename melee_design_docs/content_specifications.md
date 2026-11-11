@@ -33,7 +33,7 @@ Map packaging. A melee map uses the existing Asset Import system in a split form
 
 - Heroes: `IsHero`, `LevelGrowth`, `ExperiencePerLevel`, `XpBounty`, and `LevelService` already apply per-level growth from a template.
 - Production queues: buildings already support queued unit production. This content drives each queue automatically from its building's charges instead of exposing a player training command.
-- Economy: Gold, Wood, and Stone exist as player resources; gathering is `Gatherer` plus `ResourceNode`; passive income exists behind `EnablePassiveResourceIncome`. This content uses gold for relics and wood for buildings.
+- Economy: Gold, Wood, and Stone exist as player resources. A gatherable node is an entity with `Health` and `Harvestable`: its health is its capacity, and every point of post-mitigation damage turns into one piece of the node's item. Workers carry those pieces as stacked inventory items and spend them at a drop-off. Passive timer income is not used by this content.
 - Construction: `ConstructionState`, the `UnderConstruction` tag, `Invulnerable`, `BuildTask`, and `ConstructionRange` already exist.
 - Combat: weapons carry windup, backswing, burst count, projectile speed, splash bands, penetration, and friendly-fire flags; `AutoCastMetadata` supports the Mender.
 - Victory: `TriggerPlayerDefeat`, `TriggerPlayerVictory`, and per-player defeat reasons exist, as do timers and zones for mission scripting.
@@ -48,14 +48,16 @@ Map packaging. A melee map uses the existing Asset Import system in a split form
 | Floating charge counts above buildings and in unit statistics | No charge state or indicator | Simulation state and UI |
 | Production-value modifiers from hero actives, hero innates, and relics | No API exposes charge count, capacity, recharge, or production time as buffable building values | Simulation state and buff-source effect API |
 | Hero innate as an always-on player-wide effect | Aura delivery and buffs exist; no innate slot or permanent player-wide hero effect | Hero definition and buff-source effect API |
-| Passive income drawn from finite resource nodes | Passive income is not tied to node capacity, exhaustion, or worker travel distance | Economy service |
+| Gathering by combat damage against a finite node | Present. A `Harvestable` node states the item each point of its health yields, and a worker spends the items it carries at a drop-off | Economy service |
+| Item templates with a per-slot stack limit | Present. `MaxStacks` opens another inventory slot when the current one is full | Items and inventory |
+| Building worker production with its own capacity, charges, recharge, and production time | Present in the map script, separate from the soldier profile | Authored content and script |
+| Permanent worker buffs applied by the raising building | Present. A buff applied with a long duration uses the ordinary stat pipeline and is listed on the worker panel | Buff and stat service |
 | Shared building deck, draw of three, lock-in during construction | Not present | Editor authoring plus new runtime state |
 | Building supply bounded by draft count | Not present | New runtime state |
 | Building lifecycle: destroyed dormant at 0 HP, invulnerable, repairable to 100% | Present. A building the map marks repairable falls dormant at zero health, takes no further damage, keeps its charges and queue, and is restored by a repairing hero | Implemented |
 | Hero death removes the army and clears queues; revival refills charges | No revival system exists | New system |
 | Nexus elimination with team survival | Per-player victory/defeat triggers exist; the team rule does not | Mission/engine rule layer |
 | Bulwark resistance for buildings and heroes | Not present. No physical-and-magic mitigation layer, and no proximity scaling for heroes | Damage resolver hook plus an owned-soldier proximity count |
-| Income tax | Not present | Economy service |
 | Free-for-all damage affinity | Not present | Damage resolver |
 | Construction progress manipulation by an ability | Construction state exists; no API exposes it | Script or simulation API |
 | Player-wide relic purchases at the Nexus and six equipment slots | Items and equipment exist; no purchase flow | New runtime state |
@@ -191,48 +193,50 @@ Co-op level: **Ledger of Salt**. Teaches the economy-to-draft race, action commi
 
 ## 5. The Shared Building Deck
 
-Every building is a complete package: one soldier type, that building's charge count, capacity contribution, recharge rate, production time, an income rate, and a construction time. There are no mutually exclusive unit pools; every package competes with every other package. All nine buildings sit in one deck; the Nexus is present from the start and is not part of it.
+Every building is a complete package: one soldier type with that building's charge count, capacity contribution, recharge rate, and production time; its own worker profile, meaning worker capacity, worker charges, worker recharge, worker production time, assigned resource, and the permanent buffs its workers receive; and a construction time. There are no mutually exclusive unit pools; every package competes with every other package. All nine buildings sit in one deck; the Nexus is present from the start and is not part of it.
 
 Each construction costs 100 wood and takes the building's authored construction time. It draws up to three buildings still in the deck that the player does not already own; in a lobby that allows duplicate copies, an owned building stays eligible up to the configured limit. The player chooses one; it leaves the deck, and the unchosen options return. The next construction draws a fresh set of up to three. When the deck empties, it is restored and reshuffled.
 
-Because every constructed building costs the same 100 wood, the package is the balance unit. A weaker soldier can carry a stronger economy, and a stronger soldier can carry a weaker economy. Gold income buys relics; wood income buys more buildings. A building is the unlock, so a player's base is a readable statement of that player's army.
+Because every constructed building costs the same 100 wood, the package is the balance unit. A weaker soldier can carry stronger workers, and a stronger soldier can carry weaker workers. Gold income buys relics; wood income buys more buildings. A building is the unlock, so a player's base is a readable statement of that player's army.
 
 ## 6. Buildings
 
 Every constructed building costs 100 wood. Construction time varies by package.
 
-| Building | MaxHp | Armor | Bulwark | Income per minute | Soldier | Cap | Charges | Recharge | Production | Construction |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| Bulwark Hall | 2000 | 10 | 0.9 | 30 gold | Shieldbearer | 6 | 3 | 22 s | 5 s | 30 s |
-| Warband Yard | 1500 | 7 | 0.7 | 16 gold | Axeman | 6 | 3 | 20 s | 4 s | 30 s |
-| Spear Lodge | 1600 | 8 | 0.8 | 10 gold | Spear Militia | 5 | 3 | 24 s | 5 s | 30 s |
-| Archery Range | 1400 | 6 | 0.6 | 22 wood | Bowman | 8 | 4 | 18 s | 4 s | 30 s |
-| Bolt Foundry | 1800 | 9 | 0.85 | 8 wood | Bolt Thrower | 2 | 1 | 30 s | 8 s | 30 s |
-| Sling Camp | 1200 | 5 | 0.5 | 16 wood | Slinger | 8 | 4 | 16 s | 3 s | 30 s |
-| Mender Shrine | 1500 | 7 | 0.7 | 14 gold | Mender | 4 | 2 | 26 s | 5 s | 35 s |
-| Signal Post | 1300 | 6 | 0.6 | 6 gold | Standard Bearer | 3 | 2 | 28 s | 5 s | 35 s |
-| Vigil Bastion | 1600 | 8 | 0.75 | 10 gold | Warder | 3 | 2 | 26 s | 6 s | 35 s |
-| Nexus | 6000 | 15 | 1.0 | 0 | None. Hero revival location and relic vendor | — | — | — | — | Cannot be repaired |
+| Building | MaxHp | Armor | Bulwark | Soldier | Cap | Charges | Recharge | Production | Worker cap | Worker charges | Worker recharge | Worker production | Worker buff | Construction |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Bulwark Hall | 2000 | 10 | 0.9 | Shieldbearer | 6 | 3 | 22 s | 5 s | 2 | 1 | 45 s | 12 s | +2 armor, +5% health | 30 s |
+| Warband Yard | 1500 | 7 | 0.7 | Axeman | 6 | 3 | 20 s | 4 s | 2 | 2 | 30 s | 8 s | +20% attack | 30 s |
+| Spear Lodge | 1600 | 8 | 0.8 | Spear Militia | 5 | 3 | 24 s | 5 s | 2 | 1 | 35 s | 10 s | +10% move speed | 30 s |
+| Archery Range | 1400 | 6 | 0.6 | Bowman | 8 | 4 | 18 s | 4 s | 3 | 2 | 25 s | 7 s | +15% attack | 30 s |
+| Bolt Foundry | 1800 | 9 | 0.85 | Bolt Thrower | 2 | 1 | 30 s | 8 s | 1 | 1 | 50 s | 14 s | +40% attack, -10% move speed | 30 s |
+| Sling Camp | 1200 | 5 | 0.5 | Slinger | 8 | 4 | 16 s | 3 s | 3 | 3 | 20 s | 6 s | +10% attack | 30 s |
+| Mender Shrine | 1500 | 7 | 0.7 | Mender | 4 | 2 | 26 s | 5 s | 1 | 1 | 40 s | 12 s | +1 armor, +15% move speed | 35 s |
+| Signal Post | 1300 | 6 | 0.6 | Standard Bearer | 3 | 2 | 28 s | 5 s | 2 | 1 | 30 s | 9 s | +25% attack | 35 s |
+| Vigil Bastion | 1600 | 8 | 0.75 | Warder | 3 | 2 | 26 s | 6 s | 2 | 1 | 35 s | 10 s | +2 armor, +10% health | 35 s |
+| Nexus | 6000 | 15 | 1.0 | None. Hero revival location and relic vendor | — | — | — | — | — | — | — | — | — | Cannot be repaired |
 
 Building notes:
 
-- Income is the base value before the income tax curve, which is not specified yet. Actual income is reduced by the travel distance between the building and the nearest matching resource node with remaining capacity. If no matching node is reachable, the building produces no income of that type. The distance falloff curve is not specified yet.
-- Passive income is produced by invulnerable workers traveling to the nearest matching node. A node has no worker cap. Workers from different players ghost through one another; workers owned by the same player body-block.
+- A building raises workers with its worker profile, using the same charge algorithm as its soldiers. A new building begins with one worker charge. Worker cap and worker charges are separate from the soldier cap and charges.
+- Workers are the same template for every building, with per-level attribute scaling. A worker's level is the construction order of the building that raised it: first building level 1, second level 2, and so on. The worker buff in the table is applied to every worker the building raises and lasts for that worker's lifetime.
+- The building tags each worker it raises with its assigned resource (`worker_assignment_gold` or `worker_assignment_wood`), and the worker AI sends it to the nearest node of that resource. Each point of post-mitigation damage is one piece of that node's item, and the worker carries the pieces as inventory stacks (wood one per slot, gold five per slot) until it delivers them at the nearest drop-off. There is no income-per-minute value to state: what a building earns is what its workers physically take and carry home.
+- Workers are attackable and are replaced from their building's charges when killed. A node has no worker cap. Workers from different players ghost through one another; workers owned by the same player body-block.
 - Cap is the building's capacity contribution to its soldier type. A type's total cap is the sum of the contributions of the player's owned buildings that grant it.
 - Charges is the building's maximum charge count. A newly completed building begins with one charge.
 - Recharge is the time to regain one charge. Production is the time to produce one queued soldier.
 - Bulwark is the physical-and-magic resistance layer, not armor. It scales with the attacking force and building count.
-- The three melee packages are ordered by tradeoff, not by power. The Bulwark Hall has the strongest income (30 gold), the toughest building, and the slowest, least damaging soldier. The Warband Yard has mid income (16 gold) and the hardest-hitting melee soldier. The Spear Lodge has the weakest income (10 gold) and the longest-reaching melee soldier. That is the tradeoff being tested.
-- The Bolt Foundry is the extreme case: almost no economy, the strongest soldier in the set. It should be a real choice and a real risk.
-- The Signal Post has the weakest economy in the set. Its soldier is the only army aura in the proof of concept, so it must be visible or it will be removed.
+- The three melee packages are ordered by tradeoff, not by power. The Bulwark Hall has the toughest workers and building, and the slowest, least damaging soldier. The Warband Yard has the fastest worker cadence and the hardest-hitting melee soldier. The Spear Lodge has the fastest workers but the longest-reaching melee soldier and a weaker soldier economy. That is the tradeoff being tested.
+- The Bolt Foundry is the extreme case: one slow, hard-hitting worker and the strongest soldier in the set. It should be a real choice and a real risk.
+- The Signal Post has the fewest workers in the set. Its soldier is the only army aura in the proof of concept, so it must be visible or it will be removed.
 - The Mender Shrine, Signal Post, and Vigil Bastion answer three different questions. The Mender Shrine restores health already lost, the Vigil Bastion prevents damage from being taken, and the Signal Post spends its economy on moving the army faster. The Vigil Bastion is the sturdiest of the three.
 - No building is a higher tier than another. Every soldier scales with the hero's level, so a package drafted early remains valid late. The tradeoff is economy against unit and capability, not power over time.
-- Gold income funds relics; wood income funds further buildings. A package's income type is part of its tradeoff.
-- A constructed building has no command card. Selection shows only its health, the soldier type it unlocked, its capacity contribution, current charge count and recharge, active production queue, and current income. Repair remains a hero action. Your own Nexus is the exception: it is the relic vendor, not a drafted building.
+- Gold income funds relics; wood income funds further buildings. A package's assigned worker resource is part of its tradeoff.
+- A constructed building has no command card. Selection shows only its health, the soldier type it unlocked, its capacity contribution, current charge count and recharge, active production queue, its worker capacity and buff, and the workers it maintains. Repair remains a hero action. Your own Nexus is the exception: it is the relic vendor, not a drafted building.
 - Every soldier-granting building shows its current charge count as a floating number above it. The number is visible to every player, includes zero, and requires no selection. The Nexus has no charge indicator because it grants no soldier type.
 - Building locations are permanent. Deactivation is the destroyed state, not demolition.
 - Buildings may be placed anywhere with buildable pathing, so a building can sit beside a resource, inside a chokepoint, or next to an opponent's building. Location is part of a draft's value.
-- In a lobby that allows a second copy of a building, the copy owns its own production profile. It contributes its full income, charge capacity, capacity contribution, recharge throughput, and production throughput, so two copies double those values while tracking charges and production separately.
+- In a lobby that allows a second copy of a building, the copy owns its own production profile, worker charges, worker capacity and worker production. Two copies therefore double soldier and worker throughput while tracking charges and production separately.
 
 ## 7. Soldiers
 
@@ -269,7 +273,7 @@ Soldier notes:
 
 Each building owns the production profile for its soldier type: charge count, capacity contribution, recharge rate, and production time. These values are part of the building's authored package, not a separate unlock.
 
-- A duplicate building has its own profile and state. Two copies add both income and production contributions, so income, total charge capacity, capacity contribution, recharge throughput, and production throughput double. Each copy keeps its authored per-building values; only the totals across copies double.
+- A duplicate building has its own profile and state. Two copies add both worker and soldier production contributions, so worker and soldier throughput double while each copy keeps its authored per-building values.
 - Each copy consumes its own charges, recharges on its own timer, and runs its own production queue.
 - Relics, hero actives, and hero innates can modify these values. A modifier applies to each affected building independently, including duplicate copies.
 - No building grants an upgrade or exposes a research or post-construction modification surface.
@@ -285,7 +289,7 @@ Relics and the hero kit are the only sources that modify building production val
 | Sigil of the Wall | Front-formation soldiers gain +10% max HP | Shown on the hero panel, in the unit stat panel, and as a persistent aura cue |
 | Courier's Knot | All recharge is 10% faster | Shown on the hero panel |
 | Spiked Barricades | All owned buildings return damage to their attackers | Shown on the hero panel and on the reflecting building |
-| Deep Granaries | Passive income +10% | Shown on the hero panel |
+| Deep Granaries | Workers gain +10% attack | Shown on the hero panel and in the worker stat panel |
 | Warden's Writ | All owned units have 10% shorter debuff durations | Shown on the hero panel and in the unit stat panel |
 | Muster Bell | Charge recharge is 10% faster | Shown on the hero panel |
 
@@ -297,7 +301,7 @@ Relics never add conditional damage, on-hit effects, or per-unit behaviour. Each
 
 These are arithmetic checks, not balance claims.
 
-- **First decision.** The starting 100 wood reaches a building draft immediately, and the starting 200 gold can buy up to two relics. A player who gathers before building delays the first building but can chain the next one sooner. Both paths are viable by construction.
+- **First decision.** The starting 100 wood reaches a building draft immediately, and the starting 200 gold can buy up to two relics. A player who gathers before building delays the first building but can chain the next one sooner, because the hero's own hit also yields resource pieces. Both paths are viable by construction.
 - **Raw time to kill, ignoring armor.** An Axeman kills a Bowman in 8 hits, about 12.8 s. A Bowman kills an Axeman in 18 hits, about 23.4 s. The ranged soldier loses a standing fight and wins by not standing in one.
 - **Splash value.** A Bolt Thrower hit on three Slings deals 46 to the centre target and roughly 23 and 11 to the others through its bands. That is weaker than its cost suggests against a spread army, which is intentional.
 - **Sustained throughput.** A Bowman's 18 s recharge is the throughput limit: about three soldiers per minute once the opening charge has been spent. Its cap of 8 fills only over several minutes if no Bowman dies, so recharge binds before capacity in a standing army.
@@ -312,9 +316,9 @@ These are arithmetic checks, not balance claims.
 - Creeps, creep camps, respawn timing, and exact neutral bounty values.
 - The proof-of-concept map, its resource layout, and its choke points.
 - Nexus defense details beyond health, armor, and Bulwark resistance.
-- The income tax curve, and the Bulwark resistance formula and radii.
+- The Bulwark resistance formula and radii.
 - Additional heroes beyond the three, and their co-op levels.
 - Hero items other than relics.
 - The shipping relic pool beyond the proof-of-concept six, and relic availability or pricing beyond 100 gold.
 - Targeting debounce, formation spacing, leash distance, and formation change debounce values.
-- Resource-node capacity, harvest rate, regrowth, worker travel speed, and the distance income falloff curve.
+- Resource-node capacity, resistances, per-level scaling, regrowth, worker travel speed, and worker production values.

@@ -33,7 +33,7 @@ public class MeleeInspectorReadoutTests
 	}
 
 	[Test]
-	public void ABuildingReportsWhatItUnlocksItsCapacityItsIncomeAndItsProduction()
+	public void ABuildingReportsWhatItUnlocksItsCapacityItsWorkerCrewAndItsProduction()
 	{
 		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
 		string templateId = _match.TemplateOf(building);
@@ -46,7 +46,8 @@ public class MeleeInspectorReadoutTests
 		Assert.That(_match.UnitReadout(1, building, 0, valueColumn: true), Is.EqualTo(soldierName), "The building has to name the soldier it raises.");
 		Assert.That(_match.UnitReadout(1, building, 1), Is.EqualTo("Capacity"), "The building has to report the capacity it holds.");
 		Assert.That(_match.UnitReadout(1, building, 1, valueColumn: true), Is.EqualTo($"0 / {capacity}"), "A finished building starts empty.");
-		Assert.That(_match.UnitReadout(1, building, 2, valueColumn: true), Is.Not.Empty, "The building has to report its income.");
+		string workers = _match.UnitReadout(1, building, 2, valueColumn: true);
+		Assert.That(workers, Does.Match(@"(gold|wood): \d+ at \d+s; \+.+"), $"The building has to report the crew it raises and the buffs it gives them: '{workers}'");
 		Assert.That(_match.UnitReadout(1, building, 3), Is.EqualTo("Production"), "The building has to report what its production is doing.");
 		Assert.That(_match.UnitReadout(1, building, 3, valueColumn: true), Is.Not.Empty, "The production row needs a state.");
 	}

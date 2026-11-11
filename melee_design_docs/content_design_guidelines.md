@@ -104,7 +104,8 @@ Each content type is evaluated primarily on its own terms. This is the strongest
 - Both halves of the tradeoff must be real: a building that is strong in both is not a choice, and a building that is weak in both is not content.
 - A building's military half must be readable from its base presence, because observing an opponent's buildings is how army capability is communicated.
 - A building's charge count, capacity contribution, recharge rate, and production time are fixed authored values. Hero actives, hero innates, and relics may modify them; a building never grants an upgrade that does.
-- A building's income must be drawn from a finite resource node. A building cannot create gold or wood from nothing; its income falls with worker travel distance to the nearest matching node with remaining capacity, and stops when no matching node is reachable.
+- A building's income must be drawn from a finite resource node. A building cannot create gold or wood from nothing: its workers attack the nearest matching node with their own attack, carry the pieces their damage earns, and deliver them at a drop-off, so income falls with worker travel distance and stops when no matching node is reachable.
+- A building's worker profile is stated in its tooltip: how many workers it raises, how quickly, and which permanent buffs it gives them. A building never advertises a computed income rate, because its income is what its workers physically take and carry.
 - A building's placement is part of its value. Content must remain meaningful both when placed beside a resource and when placed inside a chokepoint.
 
 ### 6.4 Relics
@@ -114,7 +115,7 @@ Each content type is evaluated primarily on its own terms. This is the strongest
 - Relic effects use standardized stat or effect types and are fully inspectable on the hero by any opponent.
 - Relic effects are limited in number and must be summarizable in one line. Keystone-rune impact is the target; a small novel subsystem is not.
 - A relic may change how an army, building, or economy performs, but must never make an individual soldier's combat identity ambiguous.
-- Relics are one of the two sanctioned buff sources. The hero kit, including its innate, is the other. A relic must read as a rule of the player's whole side, not as a hidden exception on one unit.
+- Relics and the hero kit are the sanctioned match-time buff sources; a building's authored worker buffs are the third, applied only to the workers it raises. A relic must read as a rule of the player's whole side, not as a hidden exception on one unit.
 
 ### 6.5 Ambition
 
@@ -144,7 +145,7 @@ Content should reinforce that economic and military development are the same cho
 - A building's economic strength and military strength trade off against each other.
 - Gold income funds relics and wood income funds further buildings, so a package's income type is part of its tradeoff.
 - Content should not provide a way to escape the tradeoff, such as a building that is efficient at both, or a soldier that generates its own economy.
-- Gatherable gold and wood are finite. Depleting a node, choosing which nodes to protect, and denying an opponent's gathering by destroying buildings or exhausting shared nodes are economic decisions alongside drafting, not separate upkeep systems. Bounty gold is additional to node income; wood has no bounty source.
+- Gatherable gold and wood are finite. Depleting a node, choosing which nodes to protect, and denying an opponent's gathering by destroying buildings, killing workers, or exhausting shared nodes are economic decisions alongside drafting, not separate upkeep systems. Bounty gold is additional to node income; wood has no bounty source.
 - Army capacity, charge cadence, production time, and the breadth of formations a draft can cover are the correct places for economic investment to pay off, because they preserve the immutability of individual soldiers at a given hero level.
 
 ## 9. Content That Should Not Be Created

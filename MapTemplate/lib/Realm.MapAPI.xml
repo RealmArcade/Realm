@@ -3031,6 +3031,26 @@
             <param name="unit">The unit to mark or unmark.</param>
             <param name="worker">True to make the unit a worker; false to give it ordinary unit collision again.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitWorkerAssignment(Realm.Ecs.UnitId,System.String)">
+            <summary>
+                Assigns the resource a worker gathers, which is how the building that raised it states what its crew works.
+            </summary>
+            <remarks>
+                The assignment is the script's own instruction to the worker, not an order: the map reads it back with
+                <see cref="M:Realm.MapAPI.IGameAPI.GetUnitWorkerAssignment(Realm.Ecs.UnitId)"/> and issues the gather order to the matching node, so one worker template
+                can be sent to gold by one building and to wood by another. A resource name the map never uses is kept as stated,
+                which lets a package add its own resource without an engine change. An empty name clears the assignment.
+            </remarks>
+            <param name="unit">The worker to assign.</param>
+            <param name="resourceType">The resource type to gather, such as gold or wood, or an empty string to clear it.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitWorkerAssignment(Realm.Ecs.UnitId)">
+            <summary>
+                Answers the resource a worker was assigned to gather.
+            </summary>
+            <param name="unit">The worker whose assignment is read.</param>
+            <returns>The assigned resource type, or an empty string when the unit has no assignment.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitHideHealthAndManaBars(Realm.Ecs.UnitId,System.Boolean)">
             <summary>
             Shows or hides the overhead health and mana bars for a single unit.

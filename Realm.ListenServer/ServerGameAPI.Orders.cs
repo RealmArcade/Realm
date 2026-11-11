@@ -421,10 +421,19 @@ public partial class ServerGameAPI
 
 		float groundHeight = ReadTerrainHeight(position);
 		var placed = new Vector3(position.X, groundHeight, position.Z);
-		PlaceableMetadata? metadata = _map.Catalog.FindResource(resourceType) ?? (PlaceableMetadata?)_map.Catalog.FindProp(resourceType);
+		ResourceMetadata? resourceMetadata = _map.Catalog.FindResource(resourceType);
+		PlaceableMetadata? metadata = resourceMetadata ?? (PlaceableMetadata?)_map.Catalog.FindProp(resourceType);
 		float collisionRadius = metadata != null ? PropEntityFactory.ResolveCollisionRadius(metadata) : 0f;
 		Entity node = PropEntityFactory.CreateCore(_context.World, resourceType, placed, 0f, 1f, collisionRadius);
-		PropEntityFactory.AddResourceNode(_context.World, node, metadata: null, savedAmount: amount);
+		if (resourceMetadata != null)
+		{
+			PropEntityFactory.AddHarvestableNode(_context.World, node, resourceMetadata, amount);
+		}
+		else
+		{
+			PropEntityFactory.AddResourceNode(_context.World, node, metadata: null, savedAmount: amount);
+		}
+
 		_log.Write($"spawned a '{resourceType}' node with {amount} in it");
 	}
 
@@ -471,8 +480,17 @@ public partial class ServerGameAPI
 		Entity entity = ResolveResourceNode(node);
 		if (entity == Entity.Null) return;
 
+		float amount = Math.Max(0f, value);
 		ref ResourceNode resourceNode = ref _context.World.Get<ResourceNode>(entity);
-		resourceNode.Amount = Math.Max(0f, value);
+		resourceNode.Amount = amount;
+
+		// A gatherable node's capacity is its health, so a script that states the capacity states the body too.
+		if (_context.World.Has<Health>(entity))
+		{
+			ref Health health = ref _context.World.Get<Health>(entity);
+			health.Max = MathF.Max(health.Max, amount);
+			health.Current = amount;
+		}
 	}
 
 	public bool IsResourceNodeDepleted(ResourceNodeId node)

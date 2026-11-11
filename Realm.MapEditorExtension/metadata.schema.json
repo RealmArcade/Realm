@@ -604,8 +604,7 @@
                 "type": "number"
               },
               "MaxLevel": {
-                "type": "integer",
-                "minimum": 0
+                "type": "integer"
               },
               "PathingCapabilities": {
                 "type": [
@@ -1115,6 +1114,30 @@
               },
               "MaxWorkers": {
                 "type": "integer"
+              },
+              "Level": {
+                "type": "integer"
+              },
+              "MaxCapacityPerLevel": {
+                "type": "number"
+              },
+              "Armor": {
+                "type": "number"
+              },
+              "ArmorPerLevel": {
+                "type": "number"
+              },
+              "MagicResistance": {
+                "type": "number"
+              },
+              "MagicResistancePerLevel": {
+                "type": "number"
+              },
+              "ResourceType": {
+                "type": "string"
+              },
+              "ItemTemplateId": {
+                "type": "string"
               },
               "Scale": {
                 "type": "number"
@@ -2050,6 +2073,15 @@
               },
               "ChargeCount": {
                 "type": "integer"
+              },
+              "MaxStacks": {
+                "type": "integer"
+              },
+              "ResourceType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "CooldownLink": {
                 "type": [
