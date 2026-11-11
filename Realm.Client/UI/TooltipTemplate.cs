@@ -312,7 +312,7 @@ public static class TooltipTemplate
 		}
 
 		TooltipValueStore? published = PublishedValues;
-		return published != null && published.TryGetNumber(TooltipValueStore.OwnerKey("unit", entity.Id), key, out value);
+		return published != null && published.TryGetNumber(TooltipValueStore.UnitOwnerKey(entity), key, out value);
 	}
 
 	private static bool TryResolveUnitText(Entity entity, string key, out string value)
@@ -322,7 +322,7 @@ public static class TooltipTemplate
 
 		TooltipValueStore? published = PublishedValues;
 		if (published != null &&
-			published.TryGetText(TooltipValueStore.OwnerKey("unit", entity.Id), key, out value))
+			published.TryGetText(TooltipValueStore.UnitOwnerKey(entity), key, out value))
 		{
 			return true;
 		}

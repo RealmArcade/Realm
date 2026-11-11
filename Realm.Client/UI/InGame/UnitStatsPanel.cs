@@ -548,7 +548,7 @@ public class UnitStatsPanel
 		int wholeRemainingSeconds = (int)MathF.Ceiling(remainingSeconds);
 
 		TooltipValueStore? published = GameContext.RegistryService?.TooltipValues;
-		string owner = TooltipValueStore.OwnerKey("unit", entity.Id);
+		string owner = TooltipValueStore.UnitOwnerKey(entity);
 		int publishedRows = 0;
 
 		ulong signature = SignatureSeed;
