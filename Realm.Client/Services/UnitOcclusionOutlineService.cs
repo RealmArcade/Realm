@@ -6,7 +6,6 @@ using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Ecs;
 using Realm.Ecs.Common;
-using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Tags;
 
@@ -41,8 +40,8 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 	private readonly List<BuildingOccluder> _buildingOccluders = new();
 	private readonly List<PropOccluder> _propOccluders = new();
-	private readonly List<Entity> _markerTargets = new();
 	private readonly List<MeshInstance3D> _targetMarkers = new();
+	private readonly AttackTargetResolver _attackTargetResolver = new();
 	private readonly Dictionary<ulong, SilhouetteState> _silhouetteStates = new();
 	private readonly List<ulong> _staleSilhouetteIds = new();
 
@@ -54,6 +53,7 @@ public partial class UnitOcclusionOutlineService : Node3D
 	private Vector3 _propOccluderEye;
 	private float _propOccluderDistanceSquared;
 	private int _terrainOcclusionSamples = TerrainOcclusionSamples;
+	private float _markerPulseSeconds;
 	private float _buildingRefreshTimer;
 	private float _propRefreshTimer;
 	private bool _buildingOccludersDirty = true;
@@ -96,7 +96,7 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 	public void Tick(float delta, Camera3D camera, IReadOnlyList<Unit3D> units)
 	{
-		UpdateAttackTargetMarkers(units);
+		UpdateAttackTargetMarkers(units, delta);
 
 		// The outline is a readability aid a player asks for, so it is not switched off with the quality preset. Low
 		// quality samples the terrain coarsely instead, which keeps the cost of a dense army bounded.
@@ -188,53 +188,30 @@ public partial class UnitOcclusionOutlineService : Node3D
 		       || IsOccludedByProp(eye, samplePoint, toUnit, distance);
 	}
 
-	/// <summary>
-	///     Marks the units this screen's own army is attacking. The marker is drawn without a depth test, so a camp or a
-	///     commander stays findable even when a canopy covers the fight.
-	/// </summary>
-	/// <param name="units">Every unit the screen is drawing.</param>
-	private void UpdateAttackTargetMarkers(IReadOnlyList<Unit3D> units)
+	private void UpdateAttackTargetMarkers(IReadOnlyList<Unit3D> units, float delta)
 	{
 		for (int index = 0; index < _targetMarkers.Count; index++) _targetMarkers[index].Visible = false;
+		if (units == null) return;
 
-		_markerTargets.Clear();
-		int localSlot = GameContext.ServerSession?.LocalPlayerSlot ?? -1;
-		EcsWorld? world = GameContext.World;
-		if (units == null || world == null || localSlot <= 0 || GameContext.SessionState.IsMapEditorMode) return;
+		IReadOnlyList<Entity> targets = _attackTargetResolver.Collect();
+		if (targets.Count == 0) return;
 
-		for (int index = 0; index < units.Count && _markerTargets.Count < MaximumTargetMarkers; index++)
+		_markerPulseSeconds += delta;
+		float pulse = 1f + MathF.Sin(_markerPulseSeconds * 5f) * 0.12f;
+		int markerIndex = 0;
+
+		for (int index = 0; index < targets.Count && markerIndex < MaximumTargetMarkers; index++)
 		{
-			Unit3D unit = units[index];
-			if (!GodotObject.IsInstanceValid(unit) || unit.Player != localSlot) continue;
-			if (!world.IsAlive(unit.Entity) || !world.Has<AttackTarget>(unit.Entity)) continue;
-
-			Entity target = world.Get<AttackTarget>(unit.Entity).Target;
-			if (target == Entity.Null || !world.IsAlive(target)) continue;
-			if (ContainsTarget(target)) continue;
-
-			_markerTargets.Add(target);
-		}
-
-		for (int index = 0; index < _markerTargets.Count; index++)
-		{
-			Unit3D? targetUnit = FindUnitById(units, _markerTargets[index]);
+			Unit3D? targetUnit = FindUnitById(units, targets[index]);
 			if (targetUnit == null) continue;
 
-			MeshInstance3D marker = EnsureTargetMarker(index);
+			MeshInstance3D marker = EnsureTargetMarker(markerIndex);
 			float height = targetUnit.IsBuilding ? BuildingTargetMarkerHeight : UnitTargetMarkerHeight;
 			marker.GlobalPosition = targetUnit.GlobalPosition + new Vector3(0f, height, 0f);
+			marker.Scale = Vector3.One * pulse;
 			marker.Visible = true;
+			markerIndex++;
 		}
-	}
-
-	private bool ContainsTarget(Entity target)
-	{
-		for (int index = 0; index < _markerTargets.Count; index++)
-		{
-			if (_markerTargets[index].Id == target.Id) return true;
-		}
-
-		return false;
 	}
 
 	private static Unit3D? FindUnitById(IReadOnlyList<Unit3D> units, Entity target)
