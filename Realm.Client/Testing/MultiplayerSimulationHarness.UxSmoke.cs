@@ -159,7 +159,12 @@ public partial class MultiplayerSimulationHarness : Node
 			{
 				int buildingsBefore = CountPlayerBuildings(currentHost, 1);
 				string draftedCard = draftOptions[0].TooltipText.Split('\n')[0];
-				draftOptions[0].EmitSignal(Button.SignalName.Pressed);
+				int offerIndex = draftCard.IndexOf(draftOptions[0]);
+				string offerKey = offerIndex >= 0 && offerIndex < draftKeys.Count ? draftKeys[offerIndex] : string.Empty;
+				Key offerHotkey = ParseHotkey(offerKey);
+				Check("the drafted offer names its hotkey", offerHotkey != Key.None, offerKey);
+				bool lockedByHotkey = offerHotkey != Key.None && hud.HandleCommandCardHotkey(offerHotkey, (KeyModifierMask)0);
+				Check("the drafted offer answers its hotkey", lockedByHotkey, offerKey);
 				await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
 
 				int buildingsAfter = CountPlayerBuildings(currentHost, 1);
@@ -355,6 +360,11 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		return hotkeys;
+	}
+
+	private static Key ParseHotkey(string hotkey)
+	{
+		return Enum.TryParse(hotkey, true, out Key key) ? key : Key.None;
 	}
 
 	private static bool HasDuplicateHotkeys(List<string> hotkeys)
