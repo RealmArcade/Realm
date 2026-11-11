@@ -102,7 +102,7 @@ public partial class MultiplayerSimulationHarness : Node
 		{
 			currentHost.SelectUnitInternal(new UnitId(targetHero.Entity.Id));
 			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
-			Check("the dev kill cheat is accepted", hud.TryTriggerCheat("sacrifice"));
+			Check("the dev kill cheat is accepted", hud.TryTriggerCheat("cooked"));
 			bool fell = await WaitUntilAsync(() => FindUnit(currentHost, "hero/", 1) == null, 10f);
 			Check("the hero leaves the field when it dies", fell);
 			return ReadFeedback(hud);
@@ -392,7 +392,7 @@ public partial class MultiplayerSimulationHarness : Node
 			SaveUxScreenshot("ux_smoke_building.png", "building", Note);
 		}
 
-		Note("sacrificing the hero to play the death and revival flow");
+		Note("cooking the hero to play the death and revival flow");
 		string deathFeedback = await SacrificeHeroAsync(hero);
 		Check("the death states when the hero returns", deathFeedback.Contains("returns in", StringComparison.OrdinalIgnoreCase), deathFeedback);
 		bool armyDispersed = await WaitUntilAsync(() => FindUnit(currentHost, "unit/", 1) == null, 5f);

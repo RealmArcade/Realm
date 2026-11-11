@@ -21,7 +21,7 @@ public class CheatService
 		{ "aura", CheatResult.NoCap },
 		{ "speedrun", CheatResult.WarpSpeed },
 		{ "skibidi", CheatResult.UnlimitedPower },
-		{ "sacrifice", CheatResult.Sacrifice }
+		{ "cooked", CheatResult.Sacrifice }
 	};
 
 	public (CheatResult Result, int AffectedCount) TryTriggerCheat(string text, bool isMultiplayer, IEnumerable<Entity> selectedEntities)
