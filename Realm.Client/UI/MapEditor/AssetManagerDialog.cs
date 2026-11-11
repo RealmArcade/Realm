@@ -482,26 +482,43 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		string cleanBase = GetCleanBaseAudioName(sourceFilePath);
 		string targetCategory = _selectedAssetType == "Music" ? "Music" : "SoundEffect";
 		string destPath = SetupAudioDestinationPath(wsPath, targetCategory, cleanBase);
+		string temporaryPath = $"{destPath}.converting.ogg";
 
 		RunBackgroundConversion(
 			TranslationServer.Translate("CONVERTING AUDIO"),
 			string.Format(TranslationServer.Translate("Converting {0} to Ogg Vorbis ..."), Path.GetFileName(sourceFilePath)),
-			() =>
-			{
-				var result = AudioConverter.ConvertToOgg(sourceFilePath, destPath);
-				return (result.Success, result.ErrorMessage);
-			},
+			() => ConvertAudioIntoPlace(sourceFilePath, temporaryPath, destPath),
 			outcome =>
 			{
 				if (!outcome.Success)
 				{
-					SafeDeletePartialConversion(destPath);
 					Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Failed to convert audio: {0}"), outcome.ErrorMessage));
 					return;
 				}
 
 				FinalizeAudioConversionSafely(wsPath, targetCategory, destPath, cleanBase);
 			});
+	}
+
+	private static (bool Success, string ErrorMessage) ConvertAudioIntoPlace(string sourceFilePath, string temporaryPath, string destPath)
+	{
+		var result = AudioConverter.ConvertToOgg(sourceFilePath, temporaryPath);
+		if (!result.Success)
+		{
+			SafeDeletePartialConversion(temporaryPath);
+			return (false, result.ErrorMessage);
+		}
+
+		try
+		{
+			File.Move(temporaryPath, destPath, true);
+			return (true, result.ErrorMessage);
+		}
+		catch (Exception ex)
+		{
+			SafeDeletePartialConversion(temporaryPath);
+			return (false, ex.Message);
+		}
 	}
 
 	private void FinalizeAudioConversionSafely(string wsPath, string targetCategory, string destPath, string cleanBase)

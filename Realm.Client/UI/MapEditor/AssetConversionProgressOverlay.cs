@@ -13,8 +13,8 @@ public partial class AssetConversionProgressOverlay : Control
 {
 	private const double CreepStartPercent = 4.0;
 	private const double CreepCeilingPercent = 90.0;
-	private const double CreepCatchUpRate = 1.2;
-	private const double CreepFloorPercentPerSecond = 0.8;
+	private const double CreepCatchUpRate = 0.08;
+	private const double CreepFloorPercentPerSecond = 0.1;
 
 	private ProgressBar _progressBar = null!;
 	private Label _statusLabel = null!;
