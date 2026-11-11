@@ -742,6 +742,11 @@ public partial class MultiplayerSimulationHarness : Node
 			Check("the target marker stands over the camp",
 				targetMarker != null && targetMarker.GlobalPosition.DistanceTo(campPosition) < 8f,
 				targetMarker == null ? "no marker" : $"marker {targetMarker.GlobalPosition}, camp {campPosition}");
+
+			MinimapOverlay? minimapOverlay = hud.FindChild("MinimapOverlay", true, false) as MinimapOverlay;
+			bool minimapRinged = await WaitUntilAsync(() => minimapOverlay != null && minimapOverlay.AttackTargetRingsDrawn > 0, 5f);
+			Check("the minimap rings the camp being attacked", minimapRinged,
+				minimapOverlay == null ? "no minimap overlay" : $"rings={minimapOverlay.AttackTargetRingsDrawn}");
 			SaveUxScreenshot("ux_smoke_battle.png", "battle", Note);
 
 			bool felled = await WaitUntilAsync(() => !GodotObject.IsInstanceValid(boar) || ReadHealth(boar) <= 0f, 30f);

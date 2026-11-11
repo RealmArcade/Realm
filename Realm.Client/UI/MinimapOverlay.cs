@@ -26,6 +26,8 @@ public partial class MinimapOverlay : Control
 
 	private readonly AttackTargetResolver _attackTargetResolver = new();
 
+	public int AttackTargetRingsDrawn { get; private set; }
+
 	public override void _Draw()
 	{
 		if (GameContext.Host == null) return;
@@ -155,6 +157,8 @@ public partial class MinimapOverlay : Control
 
 	private void DrawAttackTargets(Vector2 size)
 	{
+		AttackTargetRingsDrawn = 0;
+
 		IReadOnlyList<Entity> targets = _attackTargetResolver.Collect();
 		if (targets.Count == 0) return;
 
@@ -173,6 +177,7 @@ public partial class MinimapOverlay : Control
 
 			Vector2 drawPos = MinimapHelper.WorldToMinimap(targetUnit.GlobalPosition, size);
 			DrawArc(drawPos, radius, 0f, Mathf.Tau, 24, AttackTargetColor, 2f, true);
+			AttackTargetRingsDrawn++;
 		}
 	}
 
