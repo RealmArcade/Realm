@@ -310,9 +310,9 @@ public partial class CommandPanel
 			float costGold = itemMeta?.CostGold ?? 0f;
 			string iconPath = itemMeta != null && !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.webp";
 
-			string costStr = costGold > 0f ? $" (Cost: {costGold:F0} Gold)" : "";
+			string header = $"Buy {UIHelper.BuildHeader(itemName, costGold, 0f, 0f)}";
 			string statBlock = TooltipStatBlock.ForItem(itemMeta);
-			string tooltip = $"Buy {itemName}{costStr} — {itemDesc}";
+			string tooltip = string.IsNullOrEmpty(itemDesc) ? header : $"{header}\n{itemDesc}";
 			if (statBlock.Length > 0) tooltip += "\n" + statBlock;
 
 			items.Add(new CommandCardItem
@@ -368,12 +368,6 @@ public partial class CommandPanel
 			int maxLevel = upgMeta != null && upgMeta.MaxLevel > 0 ? upgMeta.MaxLevel : 1;
 			string iconPath = upgMeta != null && !string.IsNullOrEmpty(upgMeta.IconPath) ? upgMeta.IconPath : "res://Assets/UI/magic_upgrade_arrow.webp";
 
-			var costParts = new List<string>();
-			if (gold > 0f) costParts.Add($"{gold:F0} Gold");
-			if (wood > 0f) costParts.Add($"{wood:F0} Wood");
-			if (stone > 0f) costParts.Add($"{stone:F0} Stone");
-			string costStr = costParts.Count > 0 ? $" (Cost: {string.Join(", ", costParts)})" : "";
-
 			HotkeySpec hotkey = HotkeySpec.None;
 			if (upgMeta != null && !string.IsNullOrEmpty(upgMeta.Hotkey))
 			{
@@ -382,9 +376,8 @@ public partial class CommandPanel
 
 			string hotkeyPrefix = !hotkey.IsNone ? $"[{hotkey}] " : "";
 			string statBlock = TooltipStatBlock.ForUpgrade(upgMeta);
-			string tooltip = !string.IsNullOrEmpty(desc)
-				? $"{hotkeyPrefix}Upgrade {name}{costStr}\n{desc}"
-				: $"{hotkeyPrefix}Upgrade {name}{costStr}";
+			string header = $"{hotkeyPrefix}Upgrade {UIHelper.BuildHeader(name, gold, wood, stone)}";
+			string tooltip = string.IsNullOrEmpty(desc) ? header : $"{header}\n{desc}";
 			if (statBlock.Length > 0) tooltip += "\n" + statBlock;
 
 			string canonicalId = upgMeta != null && !string.IsNullOrEmpty(upgMeta.TemplateID) ? upgMeta.TemplateID : upgradeId;

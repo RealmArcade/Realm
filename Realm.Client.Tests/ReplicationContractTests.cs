@@ -28,7 +28,7 @@ public partial class ReplicationContractTests
 		"TargetIntel", "Ability", "HasAbilities",
 		"AutoCastState", "CastTarget",
 		"Velocity",
-		"LatestDescription", "RenderPosition", "PathingFlags",
+		"LatestDescription", "RenderPosition", "TraversableTerrain",
 		"WaypointBuffer",
 		"Gatherer", "ResourceCost",
 		"Food", "Gold",

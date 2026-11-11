@@ -64,6 +64,11 @@ public partial class UIManager : Control
 
 	private AudioStreamPlayer _musicPlayer = null!;
 	private AudioStreamPlayer _sfxPlayer = null!;
+	private string[] _musicPlaylist = System.Array.Empty<string>();
+	private int _musicPlaylistIndex;
+
+	private static readonly string[] MenuMusicPlaylist = { "res://Assets/Audio/Music/enchanted_realm.ogg" };
+	private static readonly string[] BattleMusicPlaylist = { "res://Assets/Audio/Music/battle_anthem.ogg" };
 
 	public override void _ExitTree()
 	{
@@ -102,6 +107,7 @@ public partial class UIManager : Control
 
 
 		_musicPlayer = new AudioStreamPlayer { Name = "MusicPlayer", Bus = AudioService.MusicBusName };
+		_musicPlayer.Finished += OnMusicTrackFinished;
 		AddChild(_musicPlayer);
 
 		_sfxPlayer = new AudioStreamPlayer { Name = "SfxPlayer", Bus = AudioService.SfxBusName };

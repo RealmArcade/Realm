@@ -13,7 +13,6 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
 namespace Realm.Ecs.Services
 {
@@ -39,8 +38,8 @@ namespace Realm.Ecs.Services
 
 		private bool IsFlying(Entity entity)
 		{
-			return _context.World.Has<PathingFlags>(entity)
-			       && ((TerrainPathingFlags)_context.World.Get<PathingFlags>(entity).Value & TerrainPathingFlags.Flying) != 0;
+			return _context.World.Has<TraversableTerrain>(entity)
+			       && ((TerrainPathingFlags)_context.World.Get<TraversableTerrain>(entity).Value & TerrainPathingFlags.Flying) != 0;
 		}
 
 		private bool CanAttackTarget(Entity attacker, Entity target)

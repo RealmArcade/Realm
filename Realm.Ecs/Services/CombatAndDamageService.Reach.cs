@@ -13,7 +13,6 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
 namespace Realm.Ecs.Services
 {
@@ -117,7 +116,7 @@ namespace Realm.Ecs.Services
 		private bool IsReachableWithinRange(Entity attacker, Entity target, Vector3 attackerPos, Vector3 targetPos, float effectiveRange, bool isMelee, float meleeVerticalReach)
 		{
 			bool attackerIsFlying = IsFlying(attacker);
-			int includeFlags = _context.World.Has<PathingFlags>(attacker) ? _context.World.Get<PathingFlags>(attacker).Value : (int)TerrainPathingFlags.Ground;
+			int includeFlags = _context.World.Has<TraversableTerrain>(attacker) ? _context.World.Get<TraversableTerrain>(attacker).Value : (int)TerrainPathingFlags.Ground;
 			return IsReachableWithinRangeThreadSafe(attacker, target, attackerPos, targetPos, effectiveRange, isMelee, meleeVerticalReach, attackerIsFlying, includeFlags);
 		}
 

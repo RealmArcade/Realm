@@ -13,7 +13,6 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
-using PathingFlags = Realm.Ecs.Components.Movement.PathingFlags;
 
 namespace Realm.Ecs.Services
 {
@@ -72,7 +71,7 @@ namespace Realm.Ecs.Services
 				bool isFlying = IsFlying(entity);
 				bool canTargetAir = !_context.World.Has<CombatTargeting>(entity) || _context.World.Get<CombatTargeting>(entity).CanTargetAir;
 				bool isGroundMelee = !isFlying && atk.Range <= MeleeRangeThreshold;
-				int includeFlags = _context.World.Has<PathingFlags>(entity) ? _context.World.Get<PathingFlags>(entity).Value : (int)TerrainPathingFlags.Ground;
+				int includeFlags = _context.World.Has<TraversableTerrain>(entity) ? _context.World.Get<TraversableTerrain>(entity).Value : (int)TerrainPathingFlags.Ground;
 
 				if (_attackerCount >= _attackerArray.Length)
 					Array.Resize(ref _attackerArray, _attackerArray.Length * 2);

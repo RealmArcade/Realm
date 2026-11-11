@@ -279,10 +279,10 @@ public class WasmEntryPoint
     }
 
     [UnmanagedCallersOnly(EntryPoint = "on-player-chat-message")]
-    public static void OnPlayerChatMessage(nint textPtr, int textLen, int param, int value)
+    public static void OnPlayerChatMessage(nint textPtr, int textLen, int value)
     {
         string text = ReadString(textPtr, textLen);
-        if (_gameApi is GameAPI_WasmModule api) api.TriggerOnPlayerChatMessage(text, param, value);
+        if (_gameApi is GameAPI_WasmModule api) api.TriggerOnPlayerChatMessage(text, value);
     }
 
     [UnmanagedCallersOnly(EntryPoint = "on-player-left")]

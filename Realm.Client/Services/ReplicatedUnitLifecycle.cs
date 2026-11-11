@@ -158,7 +158,7 @@ public class ReplicatedUnitLifecycle
 			world.Add(entity, new MovementStats(meta.Speed, 20f, 10f));
 			world.Add(entity, new Movable());
 			world.Add(entity, new Inventory());
-			world.Add(entity, new Realm.Ecs.Components.Movement.PathingFlags(GameHost.GetUnitPathingFlags(meta)));
+			world.Add(entity, new TraversableTerrain(GameHost.GetUnitPathingFlags(meta)));
 		}
 
 		var interpolationTarget = new LatestDescription

@@ -202,7 +202,7 @@ public class AuthorityBenchmark : IDisposable
 				new CombatTargeting(false, true),
 				new ScanRadius(ScanRadiusMeters),
 				new MovementStats(UnitSpeedMetersPerSecond, UnitAcceleration, UnitTurnRate),
-				new PathingFlags((int)TerrainPathingFlags.Ground),
+				new TraversableTerrain((int)TerrainPathingFlags.Ground),
 				new Movable(),
 				new CollisionScale(1f),
 				new DefinitionId("bench_soldier"),

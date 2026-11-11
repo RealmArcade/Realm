@@ -20,7 +20,7 @@ namespace Realm.ListenServer;
 /// <summary>the debug chat command, formula evaluation, shared memory, seeds and snapshot import.</summary>
 public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisposable
 	{
-	private void HandleDebugChatCommand(string message, UnitId senderUnitId, int senderPlayerIndex)
+	private void HandleDebugChatCommand(string message, int senderPlayerIndex)
 	{
 		if (string.Equals(message, "/wasmperf", StringComparison.OrdinalIgnoreCase) ||
 		    string.Equals(message, "/wasmprofile", StringComparison.OrdinalIgnoreCase))

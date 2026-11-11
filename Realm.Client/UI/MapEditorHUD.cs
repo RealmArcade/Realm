@@ -28,7 +28,11 @@ public partial class MapEditorHUD : Control
 	{
 		Realm.Client.Services.GameContext.EnsureServices();
 
-		if (OperatingSystem.IsWindows()) DotnetSdkInstaller.EnsureInstalledInBackground();
+		if (OperatingSystem.IsWindows())
+		{
+			DotnetSdkInstaller.EnsureInstalledInBackground();
+			GameContext.VSCode.StartInstallIfNeeded();
+		}
 	}
 
 	public static string defaultLoadFolder

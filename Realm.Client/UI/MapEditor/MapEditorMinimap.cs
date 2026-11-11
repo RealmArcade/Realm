@@ -12,7 +12,6 @@ namespace Realm.Client.UI.MapEditor;
 public class MapEditorMinimap
 {
 	public const string ThumbnailFileName = "thumbnail.webp";
-	public const string LegacyThumbnailFileName = "thumbnail.png";
 	private const int ThumbnailSize = 512;
 	private const int ThumbnailWebpQuality = 90;
 
@@ -191,12 +190,6 @@ public class MapEditorMinimap
 		byte[] encodedThumbnail = TextureConverter.EncodeWebp(bitmap, lossless: false, quality: ThumbnailWebpQuality);
 		string destinationWebpPath = Path.Combine(workspacePath, ThumbnailFileName);
 		File.WriteAllBytes(destinationWebpPath, encodedThumbnail);
-
-		string stalePngPath = Path.Combine(workspacePath, LegacyThumbnailFileName);
-		if (File.Exists(stalePngPath))
-		{
-			File.Delete(stalePngPath);
-		}
 
 		return true;
 	}

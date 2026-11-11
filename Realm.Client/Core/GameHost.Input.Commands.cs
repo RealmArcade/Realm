@@ -216,9 +216,9 @@ public partial class GameHost
 		var focusUnit = SelectedUnits[index];
 
 		var camera = GetViewport().GetCamera3D();
-		if (camera != null)
+		if (camera is CameraControl cameraControl)
 		{
-			camera.GlobalPosition = new Vector3(focusUnit.GlobalPosition.X, camera.GlobalPosition.Y, focusUnit.GlobalPosition.Z);
+			cameraControl.FocusOnPosition(focusUnit.GlobalPosition);
 		}
 
 		GameContext.InGameHud?.ShowFeedbackText($"Focused: {focusUnit.UnitId.ToUpper()} ({index + 1}/{SelectedUnits.Count})", new Color(0.5f, 1.0f, 0.5f));

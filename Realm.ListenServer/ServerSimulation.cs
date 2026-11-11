@@ -542,7 +542,7 @@ public class ServerSimulation : IDisposable
 		if (!_peerPlayerSlots.TryGetValue(peerId, out int playerSlot)) return;
 		if (!ChatLineLimits.IsAcceptable(message)) return;
 
-		_script.Api.RaisePlayerChatMessage(playerSlot, message.Trim(), 0);
+		_script.Api.RaisePlayerChatMessage(playerSlot, message.Trim());
 	}
 
 	public int ReadTeam(int playerSlot)
@@ -572,7 +572,7 @@ public class ServerSimulation : IDisposable
 		if (!_peerPlayerSlots.TryGetValue(peerId, out int playerSlot)) return;
 		if (!ScriptConsoleCommandLimits.IsAcceptable(command.Command)) return;
 
-		_script.Api.RaisePlayerChatMessage(playerSlot, command.Command.Trim(), command.SelectedUnitEntityId);
+		_script.Api.RaisePlayerChatMessage(playerSlot, command.Command.Trim());
 	}
 
 	private int ReadPlayerTechLevel(int playerIndex, string techId)

@@ -530,7 +530,7 @@ namespace Realm.Ecs.Tests
 			var start = new Vector3(-20f, 0f, 0f);
 
 			var groundUnit = SpawnUnit(start);
-			_world.Add(groundUnit, new PathingFlags((int)TerrainPathingFlags.Ground));
+			_world.Add(groundUnit, new TraversableTerrain((int)TerrainPathingFlags.Ground));
 			_world.Add(groundUnit, new MoveTo(new Vector3(20f, 0f, 0f)));
 
 			int ticks = 0;
@@ -545,7 +545,7 @@ namespace Realm.Ecs.Tests
 			Assert.That(groundPos.X, Is.GreaterThan(18f), $"Ground unit stopped at X={groundPos.X} instead of reaching X=20.");
 
 			var flyingUnit = SpawnUnit(start);
-			_world.Add(flyingUnit, new PathingFlags((int)TerrainPathingFlags.Flying));
+			_world.Add(flyingUnit, new TraversableTerrain((int)TerrainPathingFlags.Flying));
 			_world.Add(flyingUnit, new MoveTo(new Vector3(40f, 0f, 0f)));
 
 			ticks = 0;
@@ -567,7 +567,7 @@ namespace Realm.Ecs.Tests
 			BakeAndAssert(expectedObstacleCount: 0);
 
 			var unit = SpawnUnit(new Vector3(20f, 0f, 20f));
-			_world.Add(unit, new PathingFlags((int)TerrainPathingFlags.Flying));
+			_world.Add(unit, new TraversableTerrain((int)TerrainPathingFlags.Flying));
 			var destination = new Vector3(20f, 1.0f, 20f);
 
 			_world.Add(unit, new MoveTo(destination));
@@ -589,7 +589,7 @@ namespace Realm.Ecs.Tests
 			BakeAndAssert(expectedObstacleCount: 0);
 
 			var unit = SpawnUnit(new Vector3(20f, 0f, 20f));
-			_world.Add(unit, new PathingFlags((int)TerrainPathingFlags.Flying));
+			_world.Add(unit, new TraversableTerrain((int)TerrainPathingFlags.Flying));
 			var destination = new Vector3(20f, 5f, 20f);
 
 			_world.Add(unit, new MoveTo(destination));
@@ -623,7 +623,7 @@ namespace Realm.Ecs.Tests
 			BakeAndAssert(expectedObstacleCount: 0);
 
 			var unit = SpawnUnit(new Vector3(0f, 0f, 0f));
-			_world.Add(unit, new PathingFlags((int)TerrainPathingFlags.Flying));
+			_world.Add(unit, new TraversableTerrain((int)TerrainPathingFlags.Flying));
 			_world.Add(unit, new MoveTo(new Vector3(20f, 0f, 0f)));
 
 			int ticks = 0;

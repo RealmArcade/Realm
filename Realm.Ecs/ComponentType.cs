@@ -107,7 +107,7 @@ public static class ComponentTypeRegistry
 			typeof(HoldPosition),
 			typeof(LatestDescription),
 			typeof(RenderPosition),
-			typeof(Realm.Ecs.Components.Movement.PathingFlags),
+			typeof(TraversableTerrain),
 			typeof(Patrol),
 			typeof(WaypointBuffer),
 			typeof(WaypointQueue),

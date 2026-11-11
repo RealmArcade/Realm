@@ -498,6 +498,11 @@ public partial class WeaponVfxDialog : FloatingPreview3DDialogBase
 			{
 				_sfxPlayer.Stream = stream;
 				_sfxPlayer.Play();
+
+				if (!AudioService.IsMasterVolumeAudible())
+				{
+					Hud?.ShowFeedback(AudioService.PreviewInaudibleWarning);
+				}
 			}
 		}
 		catch (Exception ex)

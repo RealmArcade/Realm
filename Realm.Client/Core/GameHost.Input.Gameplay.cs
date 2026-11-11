@@ -214,13 +214,6 @@ public partial class GameHost
 				return;
 			}
 
-			if (keyEvent.Keycode == Key.Z)
-			{
-				CycleCameraZoom();
-				GetViewport().SetInputAsHandled();
-				return;
-			}
-
 			if (keyEvent.Keycode == Key.Space)
 			{
 				CenterCameraOnPrimaryBuilding();

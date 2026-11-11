@@ -422,8 +422,8 @@ public partial class GameHost
 
 	public bool IsPathingCapability(Entity entity, TerrainPathingFlags capability)
 	{
-		if (GameContext.World == null || !World.IsAlive(entity) || !World.Has<Realm.Ecs.Components.Movement.PathingFlags>(entity)) return false;
-		int flags = World.Get<Realm.Ecs.Components.Movement.PathingFlags>(entity).Value;
+		if (GameContext.World == null || !World.IsAlive(entity) || !World.Has<TraversableTerrain>(entity)) return false;
+		int flags = World.Get<TraversableTerrain>(entity).Value;
 		return ((TerrainPathingFlags)flags & capability) != 0;
 	}
 
