@@ -52,8 +52,10 @@ public class BotController
 	public Action<int, string, Vector3, string>? CustomActionCallback { get; set; }
 
 	/// <summary>
-	/// Supplies candidate actions a map registered for this player, which every genre offers alongside the ones it
-	/// scans itself. Whoever owns the world sets it once, so a seat keeps receiving them when its genre changes.
+	/// Supplies candidate actions a map registered for this player. Whoever owns the world sets it once, so a seat
+	/// keeps receiving them when its genre changes. While the list comes back non-empty it takes the seat's
+	/// decision for that tick, because its candidates carry their own feature vector and are scored with
+	/// <see cref="MapCandidateWeights"/>; the genre scan resumes once the map clears what it registered.
 	/// </summary>
 	public Func<List<GenericAffordance>?>? MapCandidateSource { get; set; }
 
