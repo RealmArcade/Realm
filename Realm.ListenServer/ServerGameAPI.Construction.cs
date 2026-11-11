@@ -26,7 +26,7 @@ public partial class ServerGameAPI
 			return UnitId.Invalid;
 		}
 
-		UnitId site = SpawnUnit(buildingTypeId, position, owner, playerIndex, bypassPopulation: true);
+		UnitId site = SpawnUnit(buildingTypeId, position, owner, playerIndex, bypassPopulation: false);
 		if (!site.IsValid) return site;
 
 		Entity siteEntity = new(site.Value);

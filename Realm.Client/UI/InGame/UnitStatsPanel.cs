@@ -30,8 +30,12 @@ public class UnitStatsPanel
 	private const int SectionSpacing = 4;
 	private const int SectionSeparation = 1;
 	private const int RowSeparation = 4;
-	private const int ColumnSeparation = 10;
-	private const int RowsPerColumn = 6;
+	private const int CategoryIconSize = 30;
+	private const int CategoryIconFontSize = 18;
+	private const int PopupWidth = 250;
+	private const int PopupPadding = 12;
+	private const float PopupCloseDelaySeconds = 0.18f;
+	private const float PopupIconGap = 6f;
 	private const float HeaderTitleMinimumWidth = 80f;
 	private const float StripIconSize = 22f;
 	private const ulong SignatureSeed = 1469598103934665603UL;
@@ -79,8 +83,13 @@ public class UnitStatsPanel
 	private readonly VBoxContainer _root;
 	private readonly Label _messageLabel;
 	private readonly VBoxContainer _content;
-	private readonly HFlowContainer _columns;
-	private readonly List<StatRow> _orderedRows = new();
+	private readonly HBoxContainer _categoryStrip;
+	private readonly List<StatCategory> _categories = new();
+	private readonly List<StatRow> _popupAttachedRows = new();
+	private readonly PopupPanel _categoryPopup;
+	private readonly Timer _popupCloseDelay;
+	private readonly VBoxContainer _popupRows;
+	private readonly Label _popupTitle;
 	private readonly VBoxContainer _footer;
 	private readonly Label _stateLabel;
 	private readonly Label _descriptionLabel;
@@ -117,7 +126,7 @@ public class UnitStatsPanel
 	private readonly VBoxContainer _upgradesSection;
 
 	private readonly List<string> _statusEffectIds = new();
-	private int _lastColumnLayoutMask = -1;
+	private StatCategory? _popupCategory;
 	private ulong _lastSignature;
 	private ulong _lastStatusEffectsSignature;
 	private ulong _lastUpgradesSignature;
@@ -148,13 +157,60 @@ public class UnitStatsPanel
 		_content.AddThemeConstantOverride("separation", SectionSpacing);
 		_root.AddChild(_content);
 
-		_columns = new HFlowContainer();
-		_columns.Name = "UnitStatsColumns_HFlowContainer";
-		_columns.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_columns.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
-		_columns.AddThemeConstantOverride("h_separation", ColumnSeparation);
-		_columns.AddThemeConstantOverride("v_separation", SectionSpacing);
-		_content.AddChild(_columns);
+		// The panel lists what a player checks at a glance as one icon per category rather than every stat at once: the
+		// rows themselves live in the popup a category opens on hover, so the frame stays a short strip instead of a wall
+		// of labels. Readings, status effects and upgrades below keep their own sections because they are the map's own
+		// statements about the unit rather than the engine's generic stat sheet.
+		var statsSection = new VBoxContainer();
+		statsSection.Name = "UnitStatsCategories_VBoxContainer";
+		statsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		statsSection.AddThemeConstantOverride("separation", SectionSeparation);
+		_content.AddChild(statsSection);
+		AddSectionHeader(statsSection, UnicodeIcons.TABLE, TranslationServer.Translate("Stats"));
+
+		_categoryStrip = new HBoxContainer();
+		_categoryStrip.Name = "UnitStatsCategories_HBoxContainer";
+		_categoryStrip.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_categoryStrip.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
+		_categoryStrip.AddThemeConstantOverride("separation", RowSeparation);
+		statsSection.AddChild(_categoryStrip);
+
+		_categoryPopup = new PopupPanel();
+		_categoryPopup.Name = "UnitStatsCategoryPopup_PopupPanel";
+		_categoryPopup.AddThemeStyleboxOverride("panel", CreatePopupStyle());
+		_root.AddChild(_categoryPopup);
+		_root.VisibilityChanged += HideCategoryPopupWhenHidden;
+
+		// Moving from an icon into its popup crosses a small gap, so the close is delayed by a moment and cancelled when
+		// the pointer arrives; a row's own tooltip stays readable instead of vanishing the instant the icon is left.
+		_popupCloseDelay = new Timer();
+		_popupCloseDelay.Name = "UnitStatsCategoryPopupCloseTimer";
+		_popupCloseDelay.OneShot = true;
+		_popupCloseDelay.WaitTime = PopupCloseDelaySeconds;
+		_popupCloseDelay.Timeout += HideCategoryPopup;
+		_root.AddChild(_popupCloseDelay);
+
+		var popupMargin = new MarginContainer();
+		popupMargin.Name = "UnitStatsCategoryPopupMargin_MarginContainer";
+		popupMargin.AddThemeConstantOverride("margin_left", PopupPadding);
+		popupMargin.AddThemeConstantOverride("margin_right", PopupPadding);
+		popupMargin.AddThemeConstantOverride("margin_top", PopupPadding);
+		popupMargin.AddThemeConstantOverride("margin_bottom", PopupPadding);
+		popupMargin.MouseEntered += CancelCategoryPopupClose;
+		popupMargin.MouseExited += ScheduleCategoryPopupClose;
+		_categoryPopup.AddChild(popupMargin);
+
+		_popupRows = new VBoxContainer();
+		_popupRows.Name = "UnitStatsCategoryPopupRows_VBoxContainer";
+		_popupRows.AddThemeConstantOverride("separation", SectionSeparation);
+		popupMargin.AddChild(_popupRows);
+
+		_popupTitle = new Label();
+		_popupTitle.Name = "UnitStatsCategoryPopupTitle_Label";
+		_popupTitle.CustomMinimumSize = new Vector2(PopupWidth - PopupPadding * 2, 0f);
+		_popupTitle.AddThemeFontSizeOverride("font_size", HeaderFontSize + 1);
+		_popupTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
+		_popupRows.AddChild(_popupTitle);
 
 		_strengthRow = AddStatRow(UnicodeIcons.HAND_FIST, "Strength", AttributeTooltip(AttributeType.Strength));
 		_agilityRow = AddStatRow(UnicodeIcons.WIND, "Agility", AttributeTooltip(AttributeType.Agility));
@@ -183,6 +239,17 @@ public class UnitStatsPanel
 		_magicResistanceRow = AddStatRow(UnicodeIcons.WIZARD_HAT, "Magic Resistance", "Magic resistance points that reduce incoming magic damage.");
 		_evasionRow = AddStatRow(UnicodeIcons.FEATHER_POINTED, "Evasion", "Chance to avoid an incoming attack entirely.");
 		_tenacityRow = AddStatRow(UnicodeIcons.SHIELD_HEART, "Tenacity", "Share of an incoming crowd-control effect's duration that is resisted.");
+
+		RegisterCategory(UnicodeIcons.HAND_FIST, "Attributes",
+			_strengthRow, _agilityRow, _vitalityRow, _intelligenceRow, _wisdomRow, _fortuneRow);
+		RegisterCategory(UnicodeIcons.BURST, "Offense",
+			_attackDamageRow, _damagePerSecondRow, _attackRangeRow, _attackSpeedRow, _criticalHitRow, _damageTypeRow, _armorPenetrationRow);
+		RegisterCategory(UnicodeIcons.WAND_MAGIC, "Magic",
+			_spellPowerRow, _magicPenetrationRow, _cooldownReductionRow);
+		RegisterCategory(UnicodeIcons.SHIELD, "Defense",
+			_armorRow, _magicResistanceRow, _evasionRow, _tenacityRow, _lifeStealRow);
+		RegisterCategory(UnicodeIcons.SHOE_PRINTS, "Mobility", _moveSpeedRow);
+		RegisterCategory(UnicodeIcons.STAR, "Progression", _levelRow, _experienceRow);
 
 		_footer = new VBoxContainer();
 		_footer.Name = "UnitStatsFooter_VBoxContainer";
@@ -254,11 +321,17 @@ public class UnitStatsPanel
 
 	public VBoxContainer Root => _root;
 
+	public void DismissCategoryPopup()
+	{
+		HideCategoryPopup();
+	}
+
 	public void ShowMessage(string message)
 	{
 		_messageLabel.Text = message;
 		_messageLabel.Visible = !string.IsNullOrEmpty(message);
 		_content.Visible = string.IsNullOrEmpty(message);
+		if (_content.Visible == false) HideCategoryPopup();
 	}
 
 	public void UpdateSingleSelection(SelectedUnitInfo info, bool forceRefresh)
@@ -690,16 +763,6 @@ public class UnitStatsPanel
 		};
 	}
 
-	private static VBoxContainer CreateColumn(string nodeName)
-	{
-		var column = new VBoxContainer();
-		column.Name = nodeName;
-		column.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
-		column.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
-		column.AddThemeConstantOverride("separation", SectionSeparation);
-		return column;
-	}
-
 	private static void AddSectionHeader(VBoxContainer column, string icon, string title)
 	{
 		var header = new HBoxContainer();
@@ -733,9 +796,134 @@ public class UnitStatsPanel
 
 	private StatRow AddStatRow(string icon, string name, string tooltip)
 	{
-		var row = new StatRow(icon, name, tooltip);
-		_orderedRows.Add(row);
-		return row;
+		return new StatRow(icon, name, tooltip);
+	}
+
+	/// <summary>
+	///     Registers one group of rows under an icon the player hovers to read them. The rows keep living in this panel
+	///     so their values are written the same way whatever the popup is showing.
+	/// </summary>
+	private void RegisterCategory(string glyph, string title, params StatRow[] rows)
+	{
+		var category = new StatCategory(glyph, title, rows);
+
+		var icon = new Label();
+		icon.Name = $"UnitStatsCategory{title}_Label";
+		icon.Text = glyph;
+		icon.TooltipText = TranslationServer.Translate(title);
+		icon.MouseFilter = Control.MouseFilterEnum.Stop;
+		icon.CustomMinimumSize = new Vector2(CategoryIconSize, CategoryIconSize);
+		icon.HorizontalAlignment = HorizontalAlignment.Center;
+		icon.VerticalAlignment = VerticalAlignment.Center;
+		ApplyIconFont(icon);
+		icon.AddThemeFontSizeOverride("font_size", CategoryIconFontSize);
+		icon.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
+		icon.MouseEntered += () =>
+		{
+			icon.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			ShowCategoryPopup(category, icon);
+		};
+		icon.MouseExited += () =>
+		{
+			icon.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
+			ScheduleCategoryPopupClose();
+		};
+
+		category.Icon = icon;
+		_categories.Add(category);
+		_categoryStrip.AddChild(icon);
+	}
+
+	private void ShowCategoryPopup(StatCategory category, Control icon)
+	{
+		CancelCategoryPopupClose();
+		if (_popupCategory == category && _categoryPopup.Visible) return;
+
+		DetachPopupRows();
+		_popupCategory = category;
+		_popupTitle.Text = TranslationServer.Translate(category.Title);
+
+		int rowCount = 0;
+		for (int index = 0; index < category.Rows.Length; index++)
+		{
+			StatRow row = category.Rows[index];
+			if (!row.Root.Visible) continue;
+
+			_popupRows.AddChild(row.Root);
+			_popupAttachedRows.Add(row);
+			rowCount++;
+		}
+
+		if (rowCount == 0)
+		{
+			HideCategoryPopup();
+			return;
+		}
+
+		Vector2 contentSize = _popupRows.GetCombinedMinimumSize();
+		Vector2 iconScreen = icon.GetScreenPosition();
+		Vector2 viewportSize = icon.GetViewportRect().Size;
+		int width = Math.Max(PopupWidth, (int)contentSize.X + PopupPadding * 2);
+		width = Math.Min(width, Math.Max(1, (int)viewportSize.X));
+		int height = (int)contentSize.Y + PopupPadding * 2;
+		int x = (int)(iconScreen.X + icon.Size.X + PopupIconGap);
+		if (x + width > viewportSize.X) x = (int)(iconScreen.X - width - PopupIconGap);
+		int y = (int)(iconScreen.Y + icon.Size.Y * 0.5f - height * 0.5f);
+		x = Math.Clamp(x, 0, Math.Max(0, (int)viewportSize.X - width));
+		y = Math.Clamp(y, 0, Math.Max(0, (int)viewportSize.Y - height));
+
+		_categoryPopup.Popup(new Rect2I(x, y, width, height));
+	}
+
+	private void ScheduleCategoryPopupClose()
+	{
+		if (_categoryPopup.Visible) _popupCloseDelay.Start();
+	}
+
+	private void CancelCategoryPopupClose()
+	{
+		_popupCloseDelay.Stop();
+	}
+
+	private void HideCategoryPopup()
+	{
+		_popupCloseDelay.Stop();
+		if (_categoryPopup.Visible) _categoryPopup.Hide();
+		_popupCategory = null;
+	}
+
+	/// <summary>
+	///     Closes the popup when the panel it belongs to is hidden. The popup is its own window, so it would otherwise stay
+	///     on screen over a panel that no longer draws anything, such as when the selection is cleared.
+	/// </summary>
+	private void HideCategoryPopupWhenHidden()
+	{
+		if (!_root.IsVisibleInTree()) HideCategoryPopup();
+	}
+
+	private static StyleBoxFlat CreatePopupStyle()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = UIStyle.ColorPanelBg;
+		style.BorderColor = UIStyle.ColorBronze;
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(4);
+		return style;
+	}
+
+	/// <summary>
+	///     Takes the rows back out of the popup without freeing them, so the next category can show its own. The title
+	///     stays, because it is the popup's own label rather than a stat.
+	/// </summary>
+	private void DetachPopupRows()
+	{
+		for (int index = 0; index < _popupAttachedRows.Count; index++)
+		{
+			StatRow row = _popupAttachedRows[index];
+			if (row.Root.GetParent() == _popupRows) _popupRows.RemoveChild(row.Root);
+		}
+
+		_popupAttachedRows.Clear();
 	}
 
 	private void ApplyRowVisibility(bool hasExperience, bool hasLevel, bool hasAttack)
@@ -745,45 +933,19 @@ public class UnitStatsPanel
 		_damagePerSecondRow.Root.Visible = hasAttack;
 		_attackRangeRow.Root.Visible = hasAttack;
 
-		int layoutMask = (hasExperience ? 1 : 0) | (hasLevel ? 2 : 0) | (hasAttack ? 4 : 0);
-		EnsureColumnLayout(layoutMask);
-	}
-
-	private void EnsureColumnLayout(int layoutMask)
-	{
-		if (layoutMask == _lastColumnLayoutMask && _columns.GetChildCount() > 0) return;
-
-		_lastColumnLayoutMask = layoutMask;
-
-		for (int index = 0; index < _orderedRows.Count; index++)
+		for (int index = 0; index < _categories.Count; index++)
 		{
-			StatRow row = _orderedRows[index];
-			row.Root.GetParent()?.RemoveChild(row.Root);
-		}
-
-		for (int index = _columns.GetChildCount() - 1; index >= 0; index--)
-		{
-			Node column = _columns.GetChild(index);
-			_columns.RemoveChild(column);
-			column.QueueFree();
-		}
-
-		VBoxContainer? currentColumn = null;
-		int rowsInColumn = RowsPerColumn;
-		for (int index = 0; index < _orderedRows.Count; index++)
-		{
-			StatRow row = _orderedRows[index];
-			if (!row.Root.Visible) continue;
-
-			if (currentColumn == null || rowsInColumn >= RowsPerColumn)
+			StatCategory category = _categories[index];
+			bool anyVisible = false;
+			for (int rowIndex = 0; rowIndex < category.Rows.Length; rowIndex++)
 			{
-				currentColumn = CreateColumn("UnitStatsColumn_VBoxContainer");
-				_columns.AddChild(currentColumn);
-				rowsInColumn = 0;
+				if (!category.Rows[rowIndex].Root.Visible) continue;
+
+				anyVisible = true;
+				break;
 			}
 
-			currentColumn.AddChild(row.Root);
-			rowsInColumn++;
+			category.Icon.Visible = anyVisible;
 		}
 	}
 
@@ -824,6 +986,28 @@ public class UnitStatsPanel
 		icon.CustomMinimumSize = new Vector2(StripIconSize, StripIconSize);
 		icon.Modulate = researched ? Colors.White : new Color(1f, 1f, 1f, 0.55f);
 		return icon;
+	}
+
+	/// <summary>
+	///     One group of stat rows the panel keeps behind an icon: the glyph that names the group, the translated title the
+	///     popup heads itself with, and the rows the group shows in the order a player reads them.
+	/// </summary>
+	private class StatCategory
+	{
+		public StatCategory(string glyph, string title, StatRow[] rows)
+		{
+			Glyph = glyph;
+			Title = title;
+			Rows = rows;
+		}
+
+		public string Glyph { get; }
+
+		public string Title { get; }
+
+		public StatRow[] Rows { get; }
+
+		public Label Icon { get; set; } = null!;
 	}
 
 	private class ReadingRowControl
@@ -885,7 +1069,7 @@ public class UnitStatsPanel
 		public StatRow(string icon, string name, string tooltip)
 		{
 			Root = new HBoxContainer();
-			Root.Name = "UnitStatsRow_HBoxContainer";
+			Root.Name = $"UnitStatsRow{name.Replace(" ", string.Empty, StringComparison.Ordinal)}_HBoxContainer";
 			Root.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
 			Root.AddThemeConstantOverride("separation", RowSeparation);
 			Root.MouseFilter = Control.MouseFilterEnum.Pass;

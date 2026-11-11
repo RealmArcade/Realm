@@ -4,6 +4,7 @@ using NUnit.Framework;
 using Realm.Ecs;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Shared.Simulation;
 
 namespace Realm.Simulation.Tests;
 
@@ -50,12 +51,12 @@ public class MeleeConstructionDraftTests
 			Assert.That(tooltip, Is.Not.Empty, $"The draft command for '{buildingTemplateId}' has to explain what it raises.");
 			Assert.That(tooltip, Does.Contain(soldierName), $"The draft command for '{buildingTemplateId}' has to name the soldier it raises, so two packages can be told apart before one is locked.");
 			Assert.That(tooltip, Does.Match(@"\d+ charges every \d+s\."), $"The draft command for '{buildingTemplateId}' has to state its charge count and its recharge: '{tooltip}'");
-			Assert.That(tooltip, Does.Match(@"Income (\d+(\.\d+)? gold/min|\d+(\.\d+)? wood/min)\.$"), $"The draft command for '{buildingTemplateId}' has to state the income it adds: '{tooltip}'");
+			Assert.That(tooltip, Does.Match(@"Income (\d+(\.\d+)? gold a swing|\d+(\.\d+)? wood a swing)\.$"), $"The draft command for '{buildingTemplateId}' has to state the income it adds: '{tooltip}'");
 			tooltips.Add(tooltip);
 		}
 
-		Assert.That(tooltips, Has.Some.Contains("gold/min"), "The deck compares gold buildings as well as resource ones.");
-		Assert.That(tooltips, Has.Some.Contains("wood/min"), "The deck compares wood buildings as well as gold ones.");
+		Assert.That(tooltips, Has.Some.Contains("gold a swing"), "The deck compares gold buildings as well as resource ones.");
+		Assert.That(tooltips, Has.Some.Contains("wood a swing"), "The deck compares wood buildings as well as gold ones.");
 		Assert.That(tooltips.Distinct().Count(), Is.EqualTo(tooltips.Count), "No two draft commands may read the same, or the choice cannot be made from the tooltips.");
 	}
 
@@ -70,6 +71,8 @@ public class MeleeConstructionDraftTests
 		Assert.That(offer.AbilityIds, Has.All.Not.Empty, "Every offered package has to be a command the grid can draw.");
 		Assert.That(_match.Wood(1), Is.EqualTo(400f).Within(0.01f), "The 100 wood is charged when the draw is made.");
 		Assert.That(_match.IsDraftAbandonVisible(1), Is.True, "The draw has to offer a way to give the wood back.");
+		Assert.That(_match.Blueprint(1).IsValid, Is.True, "The cast has to leave a blueprint on the ground it named.");
+		Assert.That(Vector2.Distance(new Vector2(_match.PositionOf(_match.Blueprint(1)).X, _match.PositionOf(_match.Blueprint(1)).Z), new Vector2(SitePosition.X, SitePosition.Z)), Is.LessThan(1f), "The blueprint marks the site that was cast at.");
 		Assert.That(_match.Buildings(1).Count, Is.EqualTo(1), "Nothing is placed until the player picks.");
 	}
 
@@ -86,16 +89,20 @@ public class MeleeConstructionDraftTests
 		_match.SetWood(1, 500f);
 		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
 
+		UnitId blueprint = _match.Blueprint(1);
 		UnitId hero = _match.Hero(1);
 		UnitId nexus = _match.Nexus(1);
+		Assert.That(blueprint.IsValid, Is.True, "The cast has to leave a blueprint to answer the draw from.");
 		foreach (string buildingTemplateId in offer.AbilityIds)
 		{
-			Assert.That(_match.IsAbilityVisible(hero, buildingTemplateId), Is.True, "The selected hero has to show the packages the deck drew.");
-			Assert.That(_match.IsAbilityVisible(nexus, buildingTemplateId), Is.True, "The Nexus has to show the same packages, because it carries the same grid.");
+			Assert.That(_match.IsAbilityVisible(blueprint, buildingTemplateId), Is.True, "The blueprint's grid has to show the packages the deck drew.");
+			Assert.That(_match.IsAbilityVisible(hero, buildingTemplateId), Is.False, "The packages belong to the blueprint, not to the hero that cast it.");
+			Assert.That(_match.IsAbilityVisible(nexus, buildingTemplateId), Is.False, "The Nexus must not keep a grid the blueprint now owns.");
 		}
 
 		_match.AbandonDraft(1);
 
+		Assert.That(_match.Blueprint(1).IsValid, Is.False, "Answering the draw takes the blueprint away.");
 		foreach (string buildingTemplateId in MeleeContent.DraftableBuildings)
 		{
 			Assert.That(_match.IsAbilityVisible(hero, buildingTemplateId), Is.False, $"{buildingTemplateId} has to leave the grid once the draft ends.");
@@ -135,13 +142,47 @@ public class MeleeConstructionDraftTests
 		Assert.That(_match.IsDraftAbandonVisible(1), Is.False, "An answered draw has nothing left to abandon.");
 		Assert.That(_match.ConstructionProgress(site), Is.LessThan(0.05f), "A fresh site starts at the beginning of its work.");
 
+		Assert.That(_match.Blueprint(1).IsValid, Is.False, "The blueprint gives way to the site it placed.");
+
 		_match.Step(ShortestAuthoredConstructionSeconds - 1f);
-		Assert.That(_match.IsUnderConstruction(site), Is.True, "Nothing is working the site, so it must not finish early.");
+		Assert.That(_match.IsUnderConstruction(site), Is.True, "The hero has not stood at the site long enough for it to finish early.");
 		Assert.That(_match.CountCharges(site), Is.EqualTo(0), "A site holds no charge while it is being built.");
 
 		_match.Step(ShortestAuthoredConstructionSeconds + 6f);
 		Assert.That(_match.IsUnderConstruction(site), Is.False, "The map's own clock finishes the site within the authored window.");
 		Assert.That(_match.Has<Building>(site), Is.True, "The finished site is an ordinary building.");
+	}
+
+	[Test]
+	public void ASiteStallsWhileTheHeroIsAwayAndResumesWhenItReturns()
+	{
+		_match.SetWood(1, 500f);
+		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
+		_match.LockDraftOption(1, offer.AbilityIds[0], SitePosition);
+
+		UnitId site = FindSite(1);
+		UnitId hero = _match.Hero(1);
+		Assert.That(site.IsValid, Is.True, "The test needs the site the draw placed.");
+
+		_match.Step(2f);
+		float worked = _match.ConstructionProgress(site);
+		Assert.That(worked, Is.GreaterThan(0.01f), "A hero standing at its site has to raise it.");
+
+		ServerCommandResult march = _match.Order(1, "move", new Vector3(-50f, 0f, -20f), hero);
+		Assert.That(march.HasRejection, Is.False, $"The hero has to be able to walk away: {march.RejectionReason}");
+		_match.Step(8f);
+
+		float paused = _match.ConstructionProgress(site);
+		Assert.That(_match.IsUnderConstruction(site), Is.True, "The site is nowhere near finished when the hero leaves it.");
+
+		_match.Step(8f);
+		Assert.That(_match.ConstructionProgress(site), Is.EqualTo(paused).Within(0.001f), "A site nobody stands at must freeze instead of raising itself.");
+
+		ServerCommandResult returnMarch = _match.Order(1, "move", new Vector3(-51f, 0f, -51f), hero);
+		Assert.That(returnMarch.HasRejection, Is.False, $"The hero has to be able to walk back: {returnMarch.RejectionReason}");
+		_match.Step(12f);
+
+		Assert.That(_match.ConstructionProgress(site), Is.GreaterThan(paused + 0.01f), "The hero returning has to resume the work where it stopped.");
 	}
 
 	[Test]
@@ -222,7 +263,7 @@ public class MeleeConstructionDraftTests
 		_match.LockDraftOption(1, firstDraw.AbilityIds[0], SitePosition);
 		UnitId firstSite = FindSite(1);
 
-		_match.Cast(1, firstDraw.AbilityIds[1], new Vector3(-40f, 0f, -50f));
+		_match.CastFrom(1, firstSite, firstDraw.AbilityIds[1], new Vector3(-40f, 0f, -50f));
 
 		Assert.That(_match.Buildings(1).Count, Is.EqualTo(2), "A package cast with no open draw may not place a second site.");
 		Assert.That(FindSite(1), Is.EqualTo(firstSite), "The only site has to be the one the answered draw placed.");

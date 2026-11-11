@@ -230,6 +230,7 @@ public class PortraitPanel
 	private void UpdateEmptySelection()
 	{
 		_statsContainer.Visible = false;
+		_unitStatsPanel.DismissCategoryPopup();
 		_armyCompositionLabel?.Hide();
 
 		if (_lastSelectionType != SelectionType.Empty)
@@ -348,6 +349,7 @@ public class PortraitPanel
 	{
 		_unitsContainer.Visible = true;
 		_statsContainer.Visible = false;
+		_unitStatsPanel.DismissCategoryPopup();
 
 		if (_lastSelectionType != SelectionType.Multi)
 		{

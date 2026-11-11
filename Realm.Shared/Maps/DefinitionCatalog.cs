@@ -110,7 +110,9 @@ public class DefinitionCatalog
 	public void BindTo(MapRulesCatalog rules)
 	{
 		rules.BuildOptionsProvider = templateId => FindBuilding(templateId)?.BuildOptions;
-		rules.PopulationCostProvider = templateId => FindUnit(templateId)?.PopCost ?? 0;
+		// A building consumes the food it takes as well as a unit does: a base that costs nothing to hold could be raised
+		// without limit, and the cap would only ever describe the army standing in front of it.
+		rules.PopulationCostProvider = templateId => FindUnitOrBuilding(templateId)?.PopCost ?? 0;
 	}
 
 	public void BindTo(CommandAuthorityService authority)

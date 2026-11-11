@@ -65,4 +65,6 @@ public static class ComponentIds
 	public const int UnitCharges = 133;
 	/// <summary>Player damage effectiveness component identifier, holding the multiplier a seat's damage carries against each other seat.</summary>
 	public const int PlayerDamageEffectiveness = 134;
+	/// <summary>Player orders locked tag component identifier, marking player-owned units the map drives itself.</summary>
+	public const int PlayerOrdersLocked = 135;
 }

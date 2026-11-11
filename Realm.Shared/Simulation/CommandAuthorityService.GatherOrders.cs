@@ -57,6 +57,8 @@ public partial class CommandAuthorityService
 				continue;
 			}
 
+			if (RejectsPlayerOrder(entity, serverId, rejectedServerEntityIds, ref rejectionReason)) continue;
+
 			string definitionId = _context.World.TryGet<DefinitionId>(entity, out DefinitionId definition) ? definition.Value : string.Empty;
 			if (!_context.MapRules.IsResourceWorkerUnit(definitionId))
 			{

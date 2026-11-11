@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 
 namespace Realm.Simulation.Tests;
@@ -26,6 +27,12 @@ internal static class MeleeContent
 		"building/signal_post",
 		"building/vigil_bastion"
 	};
+
+	/// <summary>
+	///     Every soldier template the deck can raise. A building's worker is not one of them: it carries the economy and
+	///     never joins the army, so a test that counts what a building fields must not count it.
+	/// </summary>
+	public static readonly string[] SoldierTemplateIds = DraftableBuildings.Select(SoldierFor).Distinct().ToArray();
 
 	public static string SoldierFor(string buildingTemplateId)
 	{
@@ -95,7 +102,7 @@ internal static class MeleeContent
 		};
 	}
 
-	public static float GoldPerMinuteOf(string buildingTemplateId)
+	public static float GoldPerSwingOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{
@@ -112,7 +119,7 @@ internal static class MeleeContent
 		};
 	}
 
-	public static float WoodPerMinuteOf(string buildingTemplateId)
+	public static float WoodPerSwingOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{

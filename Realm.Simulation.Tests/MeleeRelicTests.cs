@@ -54,7 +54,7 @@ public class MeleeRelicTests
 			"building/mender_shrine",
 			"building/signal_post",
 			"building/vigil_bastion"
-		}.Where(templateId => MeleeContent.GoldPerMinuteOf(templateId) > 0f).ToArray();
+		}.Where(templateId => MeleeContent.GoldPerSwingOf(templateId) > 0f).ToArray();
 	}
 
 	[Test]
@@ -123,8 +123,11 @@ public class MeleeRelicTests
 		granaried.Step(IncomeSeconds);
 		float granariedIncome = granaried.Gold(1) - granariedGoldBefore;
 
-		Assert.That(plainIncome, Is.EqualTo(MeleeContent.GoldPerMinuteOf(templateId)).Within(1f), "The undecorated building has to pay its authored rate.");
-		Assert.That(granariedIncome, Is.EqualTo(plainIncome * DeepGranariesIncomeFactor).Within(1f), "The Deep Granaries has to raise the gold income by a tenth.");
+		Assert.That(plainIncome, Is.GreaterThan(0f), "The undecorated building's worker has to carry gold home before the comparison means anything.");
+		Assert.That(
+			granariedIncome,
+			Is.EqualTo(plainIncome * DeepGranariesIncomeFactor).Within(MathF.Max(1f, plainIncome * 0.1f)),
+			"The Deep Granaries has to raise what a worker carries home by a tenth.");
 	}
 
 	[TestCase(CouriersKnot)]

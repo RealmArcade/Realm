@@ -242,6 +242,7 @@ internal sealed class MeleeMatch : IDisposable
 		foreach (UnitId unit in Owned(slot))
 		{
 			if (Has<Building>(unit) || Has<Hero>(unit)) continue;
+			if (Array.IndexOf(MeleeContent.SoldierTemplateIds, TemplateOf(unit)) < 0) continue;
 			soldiers.Add(unit);
 		}
 
@@ -368,6 +369,87 @@ internal sealed class MeleeMatch : IDisposable
 
 	public float ResourceAmount(UnitId node) => TryGet(node, out ResourceNode resourceNode) ? resourceNode.Amount : 0f;
 
+	/// <summary>
+	///     Empties one placed node the way a worker would over time, so a test can watch what the worker does when its
+	///     node runs dry without spending the minutes a full swing count would take.
+	/// </summary>
+	/// <param name="node">The placed node whose capacity is emptied.</param>
+	public void EmptyResourceNode(UnitId node)
+	{
+		if (!TryGet(node, out Position position)) return;
+
+		foreach (ResourceNodeId candidate in Api.GetResourceNodes())
+		{
+			if (Vector3.Distance(Api.GetResourceNodePosition(candidate), position.Value) > 0.01f) continue;
+
+			Api.SetResourceNodeAmount(candidate, 0f);
+			return;
+		}
+	}
+
+	/// <summary>
+	///     Adds up what every node on the board still holds, which is how a test tells what the workers took out of them.
+	/// </summary>
+	/// <returns>The remaining capacity of every resource node.</returns>
+	public float TotalResourceAmount()
+	{
+		float total = 0f;
+		foreach (ResourceNodeId node in Api.GetResourceNodes()) total += Api.GetResourceNodeAmount(node);
+		return total;
+	}
+
+	/// <summary>
+	///     Adds up what every worker of a seat is holding, which is what a node has given up but the player has not been
+	///     paid yet.
+	/// </summary>
+	/// <param name="slot">The seat whose workers are counted.</param>
+	/// <returns>The total a seat's gatherers carry in their hands.</returns>
+	/// <summary>
+	///     Reads how much food a seat's living units have consumed, which is what the lobby row shows as population.
+	/// </summary>
+	/// <param name="slot">The seat whose food is read.</param>
+	/// <returns>The food the seat's units consume.</returns>
+	public int PopulationOf(int slot) => ReadPopulation(slot).Current;
+
+	/// <summary>
+	///     Reads the food cap a seat was given.
+	/// </summary>
+	/// <param name="slot">The seat whose food cap is read.</param>
+	/// <returns>The greatest food the seat may consume.</returns>
+	public int MaxPopulationOf(int slot) => ReadPopulation(slot).Max;
+
+	private PlayerPopulation ReadPopulation(int slot)
+	{
+		Entity worldEntity = Simulation.Map.WorldEntity;
+		if (!World.TryGet(worldEntity, out NetworkMappingState mapping) || mapping.PlayerEntities == null) return default;
+		if (slot < 0 || slot >= mapping.PlayerEntities.Length) return default;
+
+		return TryGet(new UnitId(mapping.PlayerEntities[slot].Id), out PlayerPopulation population) ? population : default;
+	}
+
+	/// <summary>
+	///     Moves a placed prop to another point on the board, which is how a test puts the same node at two different
+	///     distances from the same building without authoring a second board.
+	/// </summary>
+	/// <param name="prop">The prop entity to move.</param>
+	/// <param name="position">The point it should stand at.</param>
+	public void MoveProp(UnitId prop, Vector3 position)
+	{
+		World.Set(new Entity(prop.Value), new Position(position));
+	}
+
+	public float TotalCarriedAmount(int slot)
+	{
+		float total = 0f;
+		foreach (UnitId unit in Owned(slot))
+		{
+			if (!IsAlive(unit)) continue;
+			if (TryGet(unit, out Gatherer gatherer)) total += gatherer.CarriedAmount;
+		}
+
+		return total;
+	}
+
 	public bool IsGathering(UnitId unit) => Has<Gatherer>(unit);
 
 	/// <summary>
@@ -483,22 +565,58 @@ internal sealed class MeleeMatch : IDisposable
 		return new DraftOffer(slot, DraftOptions(slot));
 	}
 
+	/// <summary>
+	///     The blueprint a draw leaves standing on the ground the player cast at. It is the unit whose command grid offers
+	///     the packages the deck drew, so a test reads the draw from it rather than from the hero that paid for the site.
+	/// </summary>
+	/// <param name="slot">The seat whose blueprint is wanted.</param>
+	/// <returns>The blueprint, or an invalid id when no draw is open.</returns>
+	public UnitId Blueprint(int slot)
+	{
+		foreach (UnitId unit in Owned(slot))
+		{
+			if (!IsAlive(unit)) continue;
+			if (string.Equals(TemplateOf(unit), "unit/blueprint", StringComparison.OrdinalIgnoreCase)) return unit;
+		}
+
+		return UnitId.Invalid;
+	}
+
 	public string[] DraftOptions(int slot)
 	{
 		var options = new List<string>();
+		UnitId blueprint = Blueprint(slot);
+		if (!blueprint.IsValid) return options.ToArray();
+
 		foreach (string buildingTemplateId in MeleeContent.DraftableBuildings)
 		{
-			if (IsAbilityVisible(Hero(slot), buildingTemplateId)) options.Add(buildingTemplateId);
+			if (IsAbilityVisible(blueprint, buildingTemplateId)) options.Add(buildingTemplateId);
 		}
 
 		return options.ToArray();
 	}
 
-	public bool IsDraftAbandonVisible(int slot) => IsAbilityVisible(Hero(slot), AbandonConstructionAbilityId);
+	public bool IsDraftAbandonVisible(int slot)
+	{
+		UnitId blueprint = Blueprint(slot);
+		return blueprint.IsValid && IsAbilityVisible(blueprint, AbandonConstructionAbilityId);
+	}
 
 	public bool IsAbilityVisible(UnitId unit, string abilityId)
 	{
-		if (!unit.IsValid) return false;
+		if (!unit.IsValid || !IsAlive(unit)) return false;
+
+		IReadOnlyList<string> carried = Api.GetUnitTypeAbilities(TemplateOf(unit));
+		bool carriesAbility = false;
+		for (int index = 0; index < carried.Count; index++)
+		{
+			if (!string.Equals(carried[index], abilityId, StringComparison.OrdinalIgnoreCase)) continue;
+
+			carriesAbility = true;
+			break;
+		}
+
+		if (!carriesAbility) return false;
 
 		return !Api.Abilities.IsUnitAbilityHidden(unit.UniqueId, abilityId);
 	}
@@ -528,12 +646,20 @@ internal sealed class MeleeMatch : IDisposable
 	/// </summary>
 	public void LockDraftOption(int slot, string buildingTemplateId, Vector3 position)
 	{
-		Cast(slot, buildingTemplateId, position);
+		UnitId blueprint = Blueprint(slot);
+		if (!blueprint.IsValid) throw new InvalidOperationException("No blueprint stands to answer the draw from.");
+
+		CastFrom(slot, blueprint, buildingTemplateId, position);
+		if (DraftOptions(slot).Length == 0) StepTicks(2);
 	}
 
 	public void AbandonDraft(int slot)
 	{
-		Cast(slot, AbandonConstructionAbilityId, Vector3.Zero);
+		UnitId blueprint = Blueprint(slot);
+		if (!blueprint.IsValid) return;
+
+		CastFrom(slot, blueprint, AbandonConstructionAbilityId, Vector3.Zero);
+		StepTicks(2);
 	}
 
 	public ServerCommandResult Send(int slot, NetworkCommand command)

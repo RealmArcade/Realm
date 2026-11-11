@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Godot;
@@ -13,6 +14,7 @@ using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Tags;
 using Realm.Shared;
 using Realm.Shared.Abilities;
 using Realm.Shared.Maps;
@@ -88,6 +90,16 @@ public partial class MultiplayerSimulationHarness : Node
 		Check("game host present", currentHost != null);
 		if (hud == null || currentHost == null) return FinishUxSmoke(report, passed);
 
+		// A headless window keeps the pointer at the top-left corner, which is inside the edge-pan margin and drags the
+		// camera every frame. Edge panning is a player's pointer rule, not part of what a focus is being measured for, so
+		// it is switched off for the run: otherwise every centring check is answered by the pan that follows it.
+		if (GameContext.InputService.TryGetCameraState(out CameraState cameraState))
+		{
+			cameraState.EnableEdgePanning = false;
+			GameContext.World.Set(GameContext.Simulation.WorldEntity, cameraState);
+			Note("edge panning disabled for the automated camera checks");
+		}
+
 		void FocusCamera(Vector3 position)
 		{
 			ActiveCamera()?.FocusOnPosition(position);
@@ -102,6 +114,36 @@ public partial class MultiplayerSimulationHarness : Node
 		{
 			CameraControl? camera = ActiveCamera();
 			return camera != null && camera.IsPositionInFrustum(position);
+		}
+
+		List<Button> FindDraftOffers()
+		{
+			var offers = new List<Button>();
+			foreach (Button button in FindCommandButtons(hud))
+			{
+				// A package card names its building and nothing else. The hero's own cards are tagged the same way, so
+				// the mana line and the construction card are what keep them out of the draw's list.
+				if (!button.TooltipText.Contains("[/b]", StringComparison.Ordinal)) continue;
+				if (button.TooltipText.Contains("Abandon Construction", StringComparison.OrdinalIgnoreCase)) continue;
+				if (button.TooltipText.Contains("Begin Construction", StringComparison.OrdinalIgnoreCase)) continue;
+				if (button.TooltipText.Contains("mana", StringComparison.OrdinalIgnoreCase)) continue;
+				offers.Add(button);
+			}
+			return offers;
+		}
+
+		Unit3D? FindRaisedSoldier()
+		{
+			foreach (Unit3D unit in currentHost.AllUnits)
+			{
+				if (!GodotObject.IsInstanceValid(unit)) continue;
+				if (unit.Player != 1) continue;
+				if (!unit.TemplateID.StartsWith("unit/", StringComparison.OrdinalIgnoreCase)) continue;
+				if (unit.TemplateID.StartsWith("unit/blueprint", StringComparison.OrdinalIgnoreCase)) continue;
+				if (unit.TemplateID.StartsWith("unit/building_worker", StringComparison.OrdinalIgnoreCase)) continue;
+				return unit;
+			}
+			return null;
 		}
 
 		void CheckReadingsFold(string label, Node? readingsNode)
@@ -169,7 +211,31 @@ public partial class MultiplayerSimulationHarness : Node
 		currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
 		FocusCamera(hero.GlobalPosition);
 		await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
+		// The presentation places a replicated node on its first drawn frame, so the first focus can land on the
+		// placeholder the node was built at. Focusing again once the world has been drawn measures the camera, not
+		// the frame the node spent at the origin.
+		FocusCamera(hero.GlobalPosition);
+		await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 		Check("the hero stands on screen", IsOnScreen(hero.GlobalPosition), $"hero {hero.GlobalPosition} camera {ActiveCamera()?.Position}");
+
+		// The ruleset's own food cap has to be the one the readout states, and a building has to spend from it rather
+		// than raising the cap. The label is read as the player sees it, not from the player component behind it.
+		Node? supplyReadout = hud.FindChild("SupplyLabel", true, false);
+		Check("the food readout states the ruleset cap", supplyReadout is Label supplyLabel && supplyLabel.Text.EndsWith("/ 40", StringComparison.Ordinal), (supplyReadout as Label)?.Text ?? "missing");
+
+		// Focusing a unit has to bring it to the middle of the screen, not the top of the frustum. The camera is moved
+		// off the hero first so centering cannot pass by being where the camera already was. The control-group recall
+		// and the focus key both route through CenterCameraAt, so this measures the rule they share.
+		FocusCamera(hero.GlobalPosition + new Vector3(30f, 0f, 30f));
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		currentHost.CenterCameraOnSelectedOrBase();
+		await ToSignal(GetTree().CreateTimer(0.25f), SceneTreeTimer.SignalName.Timeout);
+		if (ActiveCamera() is { } centeringCamera)
+		{
+			Vector2 unitOnScreen = centeringCamera.UnprojectPosition(hero.GlobalPosition);
+			Vector2 screenCenter = GetViewport().GetVisibleRect().Size * 0.5f;
+			Check("double-tapping a control group centers it on screen", unitOnScreen.DistanceTo(screenCenter) < 60f, $"unit at {unitOnScreen}, center {screenCenter}");
+		}
 
 		Node? readings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
 		Check("readings section visible", readings is Control { Visible: true });
@@ -183,6 +249,52 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		CheckReadingsFold("hero", readings);
+
+		// The stat sheet is read through category icons: the frame stays a short strip, and hovering a category shows the
+		// rows that belong to it. The pointer is driven by emitting the same signals Godot sends, so the popup path is
+		// exercised without depending on where the operating system's cursor happens to be during an automated run.
+		Node? categoryStrip = hud.FindChild("UnitStatsCategories_HBoxContainer", true, false);
+		Check("the stat sheet folds into category icons", categoryStrip is HBoxContainer, categoryStrip?.Name ?? "missing");
+		if (categoryStrip is HBoxContainer strip)
+		{
+			int visibleIcons = 0;
+			foreach (Node child in strip.GetChildren())
+			{
+				if (child is Control { Visible: true }) visibleIcons++;
+			}
+
+			Check("every stat category a unit has shows an icon", visibleIcons >= 5, $"icons={visibleIcons}");
+			int foldedRows = hud.FindChildren("UnitStatsRow*", string.Empty, true, false).Count;
+			Check("no stat row is drawn until a category is hovered", foldedRows == 0, $"rows={foldedRows}");
+			SaveUxScreenshot("ux_smoke_stats_folded.png", "folded stats", Note);
+
+			Node? offenseIcon = hud.FindChild("UnitStatsCategoryOffense_Label", true, false);
+			Check("the offense category has an icon to hover", offenseIcon is Label);
+			if (offenseIcon is Label offenseLabel)
+			{
+				offenseLabel.EmitSignal(Control.SignalName.MouseEntered);
+				await ToSignal(GetTree().CreateTimer(0.35f), SceneTreeTimer.SignalName.Timeout);
+
+				Node? popup = hud.FindChild("UnitStatsCategoryPopup_PopupPanel", true, false);
+				Check("hovering a category opens its popup", popup is PopupPanel { Visible: true });
+				int popupRows = 0;
+				if (hud.FindChild("UnitStatsCategoryPopupRows_VBoxContainer", true, false) is VBoxContainer popupRowList)
+				{
+					foreach (Node child in popupRowList.GetChildren())
+					{
+						if (child.Name.ToString().StartsWith("UnitStatsRow", StringComparison.Ordinal)) popupRows++;
+					}
+				}
+
+				Check("the popup lists the category's own rows", popupRows >= 4, $"rows={popupRows}");
+				Note($"offense popup position={((PopupPanel?)popup)?.Position} size={((PopupPanel?)popup)?.Size}");
+				SaveUxScreenshot("ux_smoke_stats_popup.png", "stat category popup", Note);
+
+				offenseLabel.EmitSignal(Control.SignalName.MouseExited);
+				await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
+				Check("leaving the icon closes its popup", popup is not PopupPanel { Visible: true });
+			}
+		}
 
 		List<Button> commandButtons = FindCommandButtons(hud);
 		Note($"hero command buttons={commandButtons.Count}");
@@ -203,49 +315,97 @@ public partial class MultiplayerSimulationHarness : Node
 		if (beginButton != null)
 		{
 			Check("begin construction card enabled", !beginButton.Disabled);
+
+			// A card's key is the slot it is drawn in, so the build command may not be wired to B regardless of where the
+			// grid puts it: the tooltip has to name a grid key, and that key has to be the one the card answers.
+			string beginTooltip = beginButton.TooltipText;
+			char beginKey = beginTooltip.StartsWith('[') && beginTooltip.Length > 2 ? beginTooltip[1] : '\0';
+			Check("begin construction names a grid key", "QWERASDFZXCV".Contains(beginKey), beginTooltip);
+			Check("begin construction is not hard-wired to B", beginKey != 'B', beginTooltip);
+
 			float woodBefore = hud.Wood;
-			beginButton.EmitSignal(Button.SignalName.Pressed);
+			bool answeredByKey = beginKey != '\0' && hud.HandleCommandCardHotkey(ParseHotkey(beginKey.ToString()), (KeyModifierMask)0);
+			Check("begin construction answers the key its slot names", answeredByKey, beginTooltip);
 			await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
 			Check("begin construction asks for a site", currentHost.ActiveSpellTargeting == "ability/begin_construction", currentHost.ActiveSpellTargeting ?? "none");
 
-			currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(4f, 0f, 4f));
-			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+			currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(2f, 0f, 2f));
+			await ToSignal(GetTree().CreateTimer(1.2f), SceneTreeTimer.SignalName.Timeout);
 			Check("begin construction reserves 100 wood", hud.Wood <= woodBefore - 90f, $"{woodBefore:0.##} -> {hud.Wood:0.##}");
 
 			string draftFeedback = ReadFeedback(hud);
 			Check("the draw announces its offers", draftFeedback.Contains("offered", StringComparison.OrdinalIgnoreCase), draftFeedback);
-			Check("begin construction is withdrawn while its draw is open", FindCommandButton(hud, "Begin Construction") == null);
 
-			List<Button> draftOptions = FindCommandButtonsContaining(hud, "for 100 wood");
-			Check("all three drawn packages are on the first page", draftOptions.Count == 3, $"cards={draftOptions.Count}");
+			// The offers belong to the blueprint that was marked on the ground, not to the hero that cast the draw. A
+			// player who never selects the site sees no packages, which is what separates the two grids.
+			Unit3D? blueprint = FindUnit(currentHost, "unit/blueprint", 1);
+			Check("the draw stands on the board as a blueprint", blueprint != null);
+			Check("the hero does not list the drawn packages", FindDraftOffers().Count == 0, $"hero cards={FindDraftOffers().Count}");
+			if (blueprint != null)
+			{
+				currentHost.SelectUnitInternal(new UnitId(blueprint.Entity.Id));
+				await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
 
-			Node? draftReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
-			int offeredReadings = CountReadingRowsNamed(draftReadings, "Offered");
-			Check("the draw publishes an offered reading per package", offeredReadings == 3, $"rows={offeredReadings}");
-			CheckReadingsFold("hero with the draw open", draftReadings);
+				List<Button> draftOptions = FindDraftOffers();
+				Check("all three drawn packages are on the blueprint's grid", draftOptions.Count == 3, $"cards={draftOptions.Count}");
 
-			List<Button> draftCard = FindCommandButtons(hud);
-			List<string> draftKeys = ReadCommandHotkeys(draftCard);
-			Note($"draft card buttons={draftCard.Count} keys=[{string.Join(", ", draftKeys)}]");
-			Check("the drawn card names a key for every command", draftKeys.Count == draftCard.Count, $"keys={draftKeys.Count} buttons={draftCard.Count}");
-			Check("the drawn card has no duplicate keys", HasDuplicateHotkeys(draftKeys) == false, string.Join(", ", draftKeys));
-			SaveUxScreenshot("ux_smoke_draft.png", "draft", Note);
+				List<Button> draftCard = FindCommandButtons(hud);
+				List<string> draftKeys = ReadCommandHotkeys(draftCard);
+				Note($"draft card buttons={draftCard.Count} keys=[{string.Join(", ", draftKeys)}]");
+				Check("the drawn card names a key for every command", draftKeys.Count == draftCard.Count, $"keys={draftKeys.Count} buttons={draftCard.Count}");
+				Check("the drawn card has no duplicate keys", HasDuplicateHotkeys(draftKeys) == false, string.Join(", ", draftKeys));
+				SaveUxScreenshot("ux_smoke_draft.png", "draft", Note);
 
-			// Abandoning is the only way back out of a draw, so it is played before anything is locked: the reserved wood
-			// has to return, the begin card has to come back and the offers have to leave the inspector.
-			Check("the drawn card offers the abandon command", draftKeys.Exists(key => string.Equals(key, "V", StringComparison.OrdinalIgnoreCase)), string.Join(", ", draftKeys));
-			bool abandonedByHotkey = hud.HandleCommandCardHotkey(Key.V, (KeyModifierMask)0);
-			Check("the draw answers the abandon hotkey", abandonedByHotkey);
-			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+				// What the draw offers is read from the hero's sheet while the site holds the cards, so both halves of
+				// the draw are exercised: the packages where they are picked, the offer list where it is read.
+				currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
+				await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+				Check("begin construction is withdrawn while its draw is open", FindCommandButton(hud, "Begin Construction") == null);
+				Node? draftReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
+				int offeredReadings = CountReadingRowsNamed(draftReadings, "Offered");
+				Check("the draw publishes an offered reading per package", offeredReadings == 3, $"rows={offeredReadings}");
+				CheckReadingsFold("hero with the draw open", draftReadings);
 
-			Check("abandoning the draw returns its wood", hud.Wood >= woodBefore - 1f, $"wood {hud.Wood:0.##} expected {woodBefore:0.##}");
-			string abandonFeedback = ReadFeedback(hud);
-			Check("abandoning the draw announces the refund", abandonFeedback.Contains("returned", StringComparison.OrdinalIgnoreCase), abandonFeedback);
-			Check("abandoning the draw restores the begin card", FindCommandButton(hud, "Begin Construction") != null);
-			Check("abandoning the draw withdraws the offers", FindCommandButtonsContaining(hud, "for 100 wood").Count == 0);
-			Node? abandonedReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
-			Check("abandoning the draw clears the offered readings", CountReadingRowsNamed(abandonedReadings, "Offered") == 0);
-			SaveUxScreenshot("ux_smoke_abandoned.png", "abandoned", Note);
+				// Abandoning is the only way back out of a draw, so it is played before anything is locked: the reserved
+				// wood has to return, the begin card has to come back and the offers have to leave both grids.
+				currentHost.SelectUnitInternal(new UnitId(blueprint.Entity.Id));
+				await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+				Button? abandonButton = FindCommandButton(hud, "Abandon Construction");
+				Check("the drawn card offers the abandon command", abandonButton != null);
+				if (abandonButton != null)
+				{
+					List<Button> abandonCard = FindCommandButtons(hud);
+					List<string> abandonKeys = ReadCommandHotkeys(abandonCard);
+					int abandonIndex = abandonCard.IndexOf(abandonButton);
+					string abandonKey = abandonIndex >= 0 && abandonIndex < abandonKeys.Count ? abandonKeys[abandonIndex] : string.Empty;
+					Check("the abandon command names its grid key", abandonKey.Length > 0, abandonKey);
+					bool abandonedByHotkey = abandonKey.Length > 0 && hud.HandleCommandCardHotkey(ParseHotkey(abandonKey), (KeyModifierMask)0);
+					Check("the draw answers the abandon hotkey", abandonedByHotkey, abandonKey);
+				}
+
+				await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+				Check("abandoning the draw returns its wood", hud.Wood >= woodBefore - 1f, $"wood {hud.Wood:0.##} expected {woodBefore:0.##}");
+				string abandonFeedback = ReadFeedback(hud);
+				Check("abandoning the draw announces the refund", abandonFeedback.Contains("returned", StringComparison.OrdinalIgnoreCase), abandonFeedback);
+				Check("abandoning the draw clears its blueprint", FindUnit(currentHost, "unit/blueprint", 1) == null);
+
+				currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
+				await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+				Check("abandoning the draw restores the begin card", FindCommandButton(hud, "Begin Construction") != null);
+				Check("abandoning the draw withdraws the offers", FindDraftOffers().Count == 0);
+				Node? abandonedReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
+				Check("abandoning the draw clears the offered readings", CountReadingRowsNamed(abandonedReadings, "Offered") == 0);
+				SaveUxScreenshot("ux_smoke_abandoned.png", "abandoned", Note);
+			}
+			else
+			{
+				Check("the draw can be abandoned", FindCommandButton(hud, "Abandon Construction") != null);
+				if (FindCommandButton(hud, "Abandon Construction") is { } fallbackAbandon)
+				{
+					fallbackAbandon.EmitSignal(Button.SignalName.Pressed);
+					await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+				}
+			}
 
 			Button? reopenButton = FindCommandButton(hud, "Begin Construction");
 			Check("the begin card answers again after an abandon", reopenButton != null && !reopenButton.Disabled);
@@ -255,20 +415,27 @@ public partial class MultiplayerSimulationHarness : Node
 				await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
 				Check("the second draw asks for a site", currentHost.ActiveSpellTargeting == "ability/begin_construction", currentHost.ActiveSpellTargeting ?? "none");
 
-				currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(4f, 0f, 4f));
-				await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+				currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(2f, 0f, 2f));
+				await ToSignal(GetTree().CreateTimer(1.2f), SceneTreeTimer.SignalName.Timeout);
 				Check("the second draw reserves 100 wood", hud.Wood <= woodBefore - 90f, $"{woodBefore:0.##} -> {hud.Wood:0.##}");
-				Check("the second draw offers three packages", FindCommandButtonsContaining(hud, "for 100 wood").Count == 3, $"cards={FindCommandButtonsContaining(hud, "for 100 wood").Count}");
+				Unit3D? secondBlueprint = FindUnit(currentHost, "unit/blueprint", 1);
+				Check("the second draw stands on the board", secondBlueprint != null);
+				if (secondBlueprint != null)
+				{
+					currentHost.SelectUnitInternal(new UnitId(secondBlueprint.Entity.Id));
+					await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+					Check("the second draw offers three packages", FindDraftOffers().Count == 3, $"cards={FindDraftOffers().Count}");
+				}
 
-				// A hero can die while its draw is open, and the draw has to close with it: the reserved wood comes back and
-				// the card returns to the state a player who never began a construction sees.
+				// A hero can die while its draw is open, and the draw has to close with it: the reserved wood comes back
+				// and the card returns to the state a player who never began a construction sees.
 				Note("dying with the second draw open");
 				string midDrawDeath = await SacrificeHeroAsync(hero);
 				Check("the death states when the hero returns", midDrawDeath.Contains("returns in", StringComparison.OrdinalIgnoreCase), midDrawDeath);
 				await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
 
 				Check("dying with a draw open returns its wood", hud.Wood >= woodBefore - 1f, $"wood {hud.Wood:0.##} expected {woodBefore:0.##}");
-				Check("dying with a draw open withdraws the offers", FindCommandButtonsContaining(hud, "for 100 wood").Count == 0);
+				Check("dying with a draw open withdraws the offers", FindUnit(currentHost, "unit/blueprint", 1) == null);
 				Check("a fallen hero offers no construction draw", FindCommandButton(hud, "Begin Construction") == null);
 				Node? midDrawReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
 				Check("dying with a draw open clears the offered readings", CountReadingRowsNamed(midDrawReadings, "Offered") == 0);
@@ -295,35 +462,50 @@ public partial class MultiplayerSimulationHarness : Node
 				await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
 				Check("the final draw asks for a site", currentHost.ActiveSpellTargeting == "ability/begin_construction", currentHost.ActiveSpellTargeting ?? "none");
 
-				currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(4f, 0f, 4f));
-				await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+				currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(2f, 0f, 2f));
+				await ToSignal(GetTree().CreateTimer(1.2f), SceneTreeTimer.SignalName.Timeout);
 				Check("the final draw reserves 100 wood", hud.Wood <= woodBefore - 90f, $"{woodBefore:0.##} -> {hud.Wood:0.##}");
 			}
 
-			draftOptions = FindCommandButtonsContaining(hud, "for 100 wood");
-			Check("the final draw offers three packages", draftOptions.Count == 3, $"cards={draftOptions.Count}");
-			draftCard = FindCommandButtons(hud);
-			draftKeys = ReadCommandHotkeys(draftCard);
-
-			if (draftOptions.Count > 0)
+			Unit3D? finalBlueprint = FindUnit(currentHost, "unit/blueprint", 1);
+			Check("the final draw stands on the board", finalBlueprint != null);
+			if (finalBlueprint != null)
 			{
-				int buildingsBefore = CountPlayerBuildings(currentHost, 1);
-				string draftedCard = draftOptions[0].TooltipText.Split('\n')[0];
-				int offerIndex = draftCard.IndexOf(draftOptions[0]);
-				string offerKey = offerIndex >= 0 && offerIndex < draftKeys.Count ? draftKeys[offerIndex] : string.Empty;
-				Key offerHotkey = ParseHotkey(offerKey);
-				Check("the drafted offer names its hotkey", offerHotkey != Key.None, offerKey);
-				bool lockedByHotkey = offerHotkey != Key.None && hud.HandleCommandCardHotkey(offerHotkey, (KeyModifierMask)0);
-				Check("the drafted offer answers its hotkey", lockedByHotkey, offerKey);
-				await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
+				currentHost.SelectUnitInternal(new UnitId(finalBlueprint.Entity.Id));
+				await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+				List<Button> draftOptions = FindDraftOffers();
+				Check("the final draw offers three packages", draftOptions.Count == 3, $"cards={draftOptions.Count}");
+				List<Button> draftCard = FindCommandButtons(hud);
+				List<string> draftKeys = ReadCommandHotkeys(draftCard);
 
-				int buildingsAfter = CountPlayerBuildings(currentHost, 1);
-				Check("locking a draft starts its site", buildingsAfter == buildingsBefore + 1, $"buildings {buildingsBefore} -> {buildingsAfter}");
-				string siteFeedback = ReadFeedback(hud);
-				Check("the site announces construction", siteFeedback.Contains("under construction", StringComparison.OrdinalIgnoreCase), siteFeedback);
-				Note($"drafted card='{draftedCard}'");
+				if (draftOptions.Count > 0)
+				{
+					int buildingsBefore = CountPlayerBuildings(currentHost, 1);
+
+					// The Mender Shrine is preferred when the draw offers it, because its soldier carries an ability card:
+					// that is the only way this run can see a locked soldier's card stay readable and unpressable.
+					Button drafted = draftOptions.Find(option => option.TooltipText.Contains("Mender Shrine", StringComparison.OrdinalIgnoreCase)) ?? draftOptions[0];
+					string draftedCard = drafted.TooltipText.Split('\n')[0];
+					int offerIndex = draftCard.IndexOf(drafted);
+					string offerKey = offerIndex >= 0 && offerIndex < draftKeys.Count ? draftKeys[offerIndex] : string.Empty;
+					Key offerHotkey = ParseHotkey(offerKey);
+					Check("the drafted offer names its hotkey", offerHotkey != Key.None, offerKey);
+					bool lockedByHotkey = offerHotkey != Key.None && hud.HandleCommandCardHotkey(offerHotkey, (KeyModifierMask)0);
+					Check("the drafted offer answers its hotkey", lockedByHotkey, offerKey);
+					await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
+
+					int buildingsAfter = CountPlayerBuildings(currentHost, 1);
+					Check("locking a draft starts its site", buildingsAfter == buildingsBefore + 1, $"buildings {buildingsBefore} -> {buildingsAfter}");
+					string siteFeedback = ReadFeedback(hud);
+					Check("the site announces construction", siteFeedback.Contains("under construction", StringComparison.OrdinalIgnoreCase), siteFeedback);
+					Check("locking the draw answers its blueprint", FindUnit(currentHost, "unit/blueprint", 1) == null);
+					Note($"drafted card='{draftedCard}'");
+				}
 			}
 		}
+
+		currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
+		await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
 
 		string activeAbility = IsSable ? "ability/cinderfield" : "ability/grounding_shout";
 		float activeManaCost = IsSable ? 100f : 60f;
@@ -415,10 +597,10 @@ public partial class MultiplayerSimulationHarness : Node
 		Check("the hotkeyed relic spends its gold", hud.Gold <= goldBeforeHotkeyRelic - 90f, $"{goldBeforeHotkeyRelic:0.##} -> {hud.Gold:0.##}");
 
 		Note("waiting for the drafted building to finish construction and raise its first soldier");
-		bool soldierArrived = await WaitUntilAsync(() => FindUnit(currentHost, "unit/", 1) != null, 55f);
+		bool soldierArrived = await WaitUntilAsync(() => FindRaisedSoldier() != null, 55f);
 		Check("the drafted building raises its first soldier", soldierArrived);
 
-		Unit3D? soldier = FindUnit(currentHost, "unit/", 1);
+		Unit3D? soldier = FindRaisedSoldier();
 		if (soldier != null)
 		{
 			currentHost.SelectUnitInternal(new UnitId(soldier.Entity.Id));
@@ -431,6 +613,31 @@ public partial class MultiplayerSimulationHarness : Node
 			Check("soldier reports its source building", ReadReadingValue(soldierReadings, "Produced by") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Produced by") ?? "missing");
 			Check("soldier reports the charges of its source building", ReadReadingValue(soldierReadings, "Charges") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Charges") ?? "missing");
 			CheckReadingsFold("soldier", soldierReadings);
+
+			// A soldier is the map's to command: its cards stay on the grid so a player can read what the army does, but
+			// nothing on that grid may be pressed. The order cards are left off entirely rather than offered and refused.
+			// The lock is a replicated component, so it may land a description after the unit's spawn record does. Waiting
+			// for it is part of the check: reading the grid the instant the soldier appears measured the frame before the
+			// map's own tag had been applied and called a correct lock a missing one.
+			bool soldierOrdersLocked = await WaitUntilAsync(
+				() => GameContext.World != null && GameContext.World.Has<PlayerOrdersLocked>(soldier.Entity), 5f);
+			Note($"selected unit type={soldier.UnitId} entity={soldier.Entity.Id} player={soldier.Player} ordersLocked={soldierOrdersLocked}");
+			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+			List<Button> soldierCards = FindCommandButtons(hud);
+			for (int cardIndex = 0; cardIndex < soldierCards.Count; cardIndex++)
+			{
+				Note($"soldier card[{cardIndex}] disabled={soldierCards[cardIndex].Disabled} tooltip='{soldierCards[cardIndex].TooltipText.Split('\n')[0]}'");
+			}
+			Check("the map locks the soldier it raised", soldierOrdersLocked);
+			if (string.Equals(soldier.UnitId, "unit/mender", StringComparison.Ordinal))
+			{
+				Check("a soldier still shows the ability card its tooltip describes", soldierCards.Count > 0, $"cards={soldierCards.Count}");
+				Check("a soldier's ability card names its tooltip", soldierCards.Exists(card => card.TooltipText.Contains("Mend", StringComparison.OrdinalIgnoreCase)), string.Join(" | ", soldierCards.Select(card => card.TooltipText.Split('\n')[0])));
+			}
+
+			Check("a soldier's cards are disabled to the player", soldierCards.TrueForAll(card => card.Disabled), $"enabled={soldierCards.Count(card => !card.Disabled)}");
+			Check("a soldier offers no move card", FindCommandButton(hud, "Move / Right-Click Ground") == null);
+			Check("a soldier offers no attack card", FindCommandButton(hud, "Attack / Attack-Move") == null);
 			FocusCamera(soldier.GlobalPosition);
 			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 			Check("the soldier stands on screen", IsOnScreen(soldier.GlobalPosition), $"soldier {soldier.GlobalPosition} camera {ActiveCamera()?.Position}");
@@ -480,10 +687,10 @@ public partial class MultiplayerSimulationHarness : Node
 			// than beside the hero at every moment of the march.
 			bool soldierJoined = await WaitUntilAsync(() =>
 			{
-				Unit3D? follower = FindUnit(currentHost, "unit/", 1);
+				Unit3D? follower = FindRaisedSoldier();
 				return follower != null && follower.GlobalPosition.DistanceTo(campPosition) < 25f;
 			}, 25f);
-			Unit3D? follower = FindUnit(currentHost, "unit/", 1);
+			Unit3D? follower = FindRaisedSoldier();
 			Check("the soldier marches with the hero to the camp", soldierJoined,
 				follower == null ? "no soldier" : $"soldier at {follower.GlobalPosition}, camp {campPosition}");
 
@@ -507,15 +714,20 @@ public partial class MultiplayerSimulationHarness : Node
 			int campsAfterKill = CountUnits(currentHost, "unit/crest_boar", 0);
 			Check("the felled camp leaves the board", campsAfterKill < campsBefore, $"camps {campsBefore} -> {campsAfterKill}");
 
+			Vector3 campWatchPost = campPosition + new Vector3(24f, 0f, 24f);
+			currentHost.IssueMoveCommand(campWatchPost);
+			await WaitUntilAsync(() => GodotObject.IsInstanceValid(hero) && hero.GlobalPosition.DistanceTo(campPosition) > 16f, 30f);
+
 			Note("waiting for the camp to return on its authored timer");
-			bool campReturned = await WaitUntilAsync(() => CountUnits(currentHost, "unit/crest_boar", 0) >= campsBefore, 70f);
-			Check("the camp returns on the timer its template states", campReturned, $"camps {campsAfterKill} -> {CountUnits(currentHost, "unit/crest_boar", 0)}");
+			bool campReturned = await WaitUntilAsync(() => FindNeutralNear(currentHost, campPosition, 4f) != null, 60f);
+			Check("the camp returns where it was placed on the timer its template states", campReturned,
+				$"camps {campsAfterKill} -> {CountUnits(currentHost, "unit/crest_boar", 0)}");
 		}
 
 		Note("cooking the hero to play the death and revival flow");
 		string deathFeedback = await SacrificeHeroAsync(hero);
 		Check("the death states when the hero returns", deathFeedback.Contains("returns in", StringComparison.OrdinalIgnoreCase), deathFeedback);
-		bool armyDispersed = await WaitUntilAsync(() => FindUnit(currentHost, "unit/", 1) == null, 5f);
+		bool armyDispersed = await WaitUntilAsync(() => FindRaisedSoldier() == null, 5f);
 		Check("the hero's army disperses with it", armyDispersed);
 
 		Unit3D? revivedHero = await WaitForRevivalAsync();
@@ -703,6 +915,21 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		return count;
+	}
+
+	private static Unit3D? FindNeutralNear(GameHost host, Vector3 position, float radius)
+	{
+		foreach (Unit3D unit in host.AllUnits)
+		{
+			if (!GodotObject.IsInstanceValid(unit)) continue;
+			if (unit.Player != 0) continue;
+			if (!unit.TemplateID.StartsWith("unit/crest_boar", StringComparison.OrdinalIgnoreCase)) continue;
+			if (unit.GlobalPosition.DistanceTo(position) > radius) continue;
+
+			return unit;
+		}
+
+		return null;
 	}
 
 	private static Unit3D? FindUnit(GameHost host, string templatePrefix, int player)

@@ -99,7 +99,11 @@ public partial class CommandPanel
 
 	private static bool IsCommandsFrozen(Entity entity)
 	{
-		return entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<CommandsFrozen>(entity);
+		if (entity == Entity.Null || GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
+
+		// A unit the map drives keeps its ability cards so a player can read them, but the order commands are left off
+		// its grid entirely: the player cannot issue them, and a card that only refuses is a card that lies.
+		return GameContext.World.Has<CommandsFrozen>(entity) || GameContext.World.Has<PlayerOrdersLocked>(entity);
 	}
 
 	private void UpdateExistingButtons()

@@ -174,7 +174,8 @@ public static class ComponentTypeRegistry
 			typeof(AttackSpeedStat),
 			typeof(OverheadBadge),
 			typeof(UnitCharges),
-			typeof(PlayerDamageEffectiveness)
+			typeof(PlayerDamageEffectiveness),
+			typeof(PlayerOrdersLocked)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)
@@ -225,7 +226,8 @@ public static class ComponentTypeRegistry
 			(typeof(AnimationsFrozen), ComponentIds.AnimationsFrozen),
 			(typeof(OverheadBarsHidden), ComponentIds.OverheadBarsHidden),
 			(typeof(UnitCharges), ComponentIds.UnitCharges),
-			(typeof(PlayerDamageEffectiveness), ComponentIds.PlayerDamageEffectiveness)
+			(typeof(PlayerDamageEffectiveness), ComponentIds.PlayerDamageEffectiveness),
+			(typeof(PlayerOrdersLocked), ComponentIds.PlayerOrdersLocked)
 		};
 
 		for (int index = 0; index < sharedComponents.Length; index++)

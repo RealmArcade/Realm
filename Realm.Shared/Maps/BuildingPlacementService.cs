@@ -35,7 +35,7 @@ public static class BuildingPlacementService
 
 		bool builtByWorker = workerEntity != Entity.Null && world.IsAlive(workerEntity);
 
-		buildingEntity = UnitEntityFactory.CreateFromMetadata(world, catalog, templateId, position, 0f, 0f, ownerPlayer, bypassPopulation: true);
+		buildingEntity = UnitEntityFactory.CreateFromMetadata(world, catalog, templateId, position, 0f, 0f, ownerPlayer, bypassPopulation: false);
 		if (buildingEntity == Entity.Null) return false;
 
 		if (world.TryGet<UnitOwnerPlayer>(ownerPlayer.Value, out UnitOwnerPlayer owner))

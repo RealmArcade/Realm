@@ -46,6 +46,7 @@ public partial class CommandAuthorityService
 			}
 
 			if (entity == targetEntity) continue;
+			if (RejectsPlayerOrder(entity, serverId, rejectedServerEntityIds, ref rejectionReason)) continue;
 
 			applyAction(entity, targetEntity, targetPos, isQueued);
 		}

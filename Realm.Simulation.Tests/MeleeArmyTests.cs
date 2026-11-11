@@ -3,6 +3,7 @@ using NUnit.Framework;
 using Realm.Ecs;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Tags;
+using Realm.Shared.Simulation;
 
 namespace Realm.Simulation.Tests;
 
@@ -78,6 +79,45 @@ public class MeleeArmyTests
 	}
 
 	[Test]
+	public void ASoldierShowsItsAbilitiesButTakesNoPlayerOrder()
+	{
+		string menderLabel = _match.Api.GetUnitName("building/mender_shrine");
+		UnitId building = _match.PlaceCompletedBuilding(SitePosition, label => label == menderLabel);
+		Assert.That(_match.TemplateOf(building), Is.EqualTo("building/mender_shrine"), "The test needs the package whose soldier carries an ability card.");
+
+		Assert.That(_match.StepUntilSoldiers(1), Is.EqualTo(1), "The shrine has to raise its mender.");
+		UnitId soldier = _match.Soldiers(1)[0];
+
+		Assert.That(_match.Has<PlayerOrdersLocked>(soldier), Is.True, "A soldier the map drives has to be locked to it.");
+
+		var abilities = _match.Api.GetUnitTypeAbilities(_match.TemplateOf(soldier));
+		Assert.That(abilities, Does.Contain("ability/mend"), "Selecting the soldier still has to list the card its tooltip describes.");
+		foreach (string abilityId in abilities)
+		{
+			Assert.That(_match.Api.Abilities.IsUnitAbilityHidden(soldier.UniqueId, abilityId), Is.False, $"'{abilityId}' has to stay on the soldier's card so the player can read what the army does.");
+		}
+
+		ServerCommandResult order = _match.Order(1, "move", new Vector3(-40f, 0f, -60f), soldier);
+		Assert.That(order.HasRejection, Is.True, "A soldier the map drives may not be walked around by its player.");
+		Assert.That(order.RejectionReason, Does.Contain("driven by its map"), "The refusal has to say why the soldier did not move.");
+	}
+
+	[Test]
+	public void EveryBuildingConsumesTheFoodItTakes()
+	{
+		int foodCap = _match.MaxPopulationOf(1);
+		Assert.That(foodCap, Is.EqualTo(40), "The ruleset's own food cap has to be the one the seat is given.");
+
+		int before = _match.PopulationOf(1);
+		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
+		_match.Step(1f);
+		int after = _match.PopulationOf(1);
+
+		Assert.That(_match.IsAlive(building), Is.True, "The building has to stand for its food to be counted.");
+		Assert.That(after - before, Is.EqualTo(2), "A building has to consume the food it takes, or a player could raise buildings without limit.");
+	}
+
+	[Test]
 	public void ABuildingStopsProducingOnceItsCapacityIsFilled()
 	{
 		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
@@ -95,7 +135,7 @@ public class MeleeArmyTests
 
 		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(capacity), "The test has to fill the building's capacity first.");
 
-		_match.Step(30f);
+		_match.Step(MeleeContent.RechargeSecondsOf(templateId) + 1f);
 
 		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(capacity), "A full capacity slot must stop the building from spending a charge.");
 		Assert.That(_match.CountCharges(building), Is.EqualTo(MeleeContent.MaximumChargesOf(templateId)), "The charge the building recharged has to wait for a free capacity slot.");

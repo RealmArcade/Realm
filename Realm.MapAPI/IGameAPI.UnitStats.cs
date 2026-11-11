@@ -168,6 +168,35 @@ public partial interface IGameAPI
 	void SetUnitFrozen(UnitId unit, bool value);
 
 	/// <summary>
+	/// Makes a player-owned unit refuse its player's orders while the map script keeps commanding it, or releases it again.
+	/// </summary>
+	/// <remarks>
+	/// A locked unit keeps its owner, its abilities and its position, but its player cannot move, attack, hold, patrol or
+	/// gather with it, and the client draws every ability card it owns as disabled so the player cannot cast from it. The
+	/// map is unaffected: orders and casts it issues itself still apply, which is what lets a ruleset run an autonomous army
+	/// that the player watches and inspects but cannot steer. This differs from <see cref="SetUnitCommandsFrozen"/>, which
+	/// stops the unit acting at all, and from hiding its abilities, which leaves the player able to move it.
+	/// </remarks>
+	/// <param name="unit">The unit to lock to its map.</param>
+	/// <param name="value">True to refuse player orders; false to accept them again.</param>
+	void SetUnitPlayerOrdersLocked(UnitId unit, bool value);
+
+	/// <summary>
+	/// States how much one gathering swing takes from a node and how long that swing lasts.
+	/// </summary>
+	/// <remarks>
+	/// A gather order sets the worker going; this states what a swing is worth. The amount is taken from the node and
+	/// carried back to a dropoff one swing at a time, so a player is paid exactly what its nodes lost and the trip's
+	/// length is what decides the real rate: a near node is worked more often than a far one at the same swing value.
+	/// Leaving the amount at zero makes the worker take whatever the node advertises as its harvest rate, and leaving the
+	/// seconds at zero makes one swing take a second. The call does nothing for a unit that is not gathering.
+	/// </remarks>
+	/// <param name="unit">The gathering unit.</param>
+	/// <param name="swingAmount">The amount one swing takes from the node, or zero to use the node's own harvest rate.</param>
+	/// <param name="swingSeconds">The seconds one swing lasts, or zero for one second.</param>
+	void SetUnitGatherSwing(UnitId unit, float swingAmount, float swingSeconds);
+
+	/// <summary>
 	/// Shows or hides the overhead health and mana bars for a single unit.
 	/// </summary>
 	/// <remarks>

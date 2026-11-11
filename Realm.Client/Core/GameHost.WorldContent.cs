@@ -384,7 +384,7 @@ public partial class GameHost
 	{
 		foreach (Unit3D unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player)) continue;
+			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player) || !CanCommandUnit(unit)) continue;
 			if (GameContext.RegistryService.IsResourceWorkerUnit(unit.UnitId)) return true;
 		}
 
@@ -425,7 +425,7 @@ public partial class GameHost
 		var targetIds = new List<int>();
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.Player != localPlayerIndex) continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex || !CanCommandUnit(unit)) continue;
 			if (!GameContext.RegistryService.IsResourceWorkerUnit(unit.UnitId)) continue;
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}

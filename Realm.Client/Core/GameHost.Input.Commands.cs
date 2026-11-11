@@ -82,11 +82,22 @@ public partial class GameHost
 		}
 	}
 
+	/// <summary>
+	///     Answers whether the player may order this unit. A unit the map drives itself is selectable and inspectable, so
+	///     its abilities and tooltips stay readable, but every order the player sends for it is refused by the authority.
+	/// </summary>
+	/// <param name="unit">The selected unit to test.</param>
+	/// <returns>True when the unit accepts the player's orders.</returns>
+	private static bool CanCommandUnit(Unit3D unit)
+	{
+		return GameContext.World == null || !GameContext.World.IsAlive(unit.Entity) || !GameContext.World.Has<PlayerOrdersLocked>(unit.Entity);
+	}
+
 	private void ViewCollectMoveCommandTargets(List<Entity> selectedEntities, List<int> targetIds)
 	{
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player)) continue;
+			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player) || !CanCommandUnit(unit)) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
@@ -136,7 +147,7 @@ public partial class GameHost
 	{
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player)) continue;
+			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player) || !CanCommandUnit(unit)) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
@@ -177,7 +188,7 @@ public partial class GameHost
 	{
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player) || unit.Entity == target.Entity) continue;
+			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player) || unit.Entity == target.Entity || !CanCommandUnit(unit)) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
@@ -241,7 +252,7 @@ public partial class GameHost
 
 		var camera = GetViewport().GetCamera3D();
 		if (camera != null)
-			camera.GlobalPosition = new Vector3(building.GlobalPosition.X, camera.GlobalPosition.Y, building.GlobalPosition.Z);
+			CenterCameraAt(building.GlobalPosition);
 		SelectOnlyUnit(building);
 		GameContext.InGameHud?.ShowFeedbackText($"Jumped to: {building.UnitId.ToUpper()}", new Color(0.9f, 0.8f, 0.3f));
 	}
@@ -338,6 +349,38 @@ public partial class GameHost
 		GameContext.InGameHud?.ShowFeedbackText($"Selected {visibleUnits.Count} {type.ToUpper()}(s)", new Color(0.5f, 1.0f, 0.5f));
 	}
 
+	/// <summary>
+	///     Puts a world point at the centre of the screen without changing the camera's pitch or zoom. The camera keeps
+	///     its height and steps back along the axis it looks down, which is what places the point in the middle of the
+	///     frustum; moving the camera to the point itself, or a fixed number of units south of it, leaves it near an edge.
+	/// </summary>
+	/// <param name="worldPosition">The point that should be centred.</param>
+	private void CenterCameraAt(Vector3 worldPosition)
+	{
+		// One focus rule for every caller. The camera's own FocusOnPosition is what the rest of the game uses, and it
+		// keeps the zoom the player set; computing a second placement here from the camera's current forward used the
+		// pitch swing as well as the pitch, so a recall could centre on a point the camera was not yet looking down at.
+		if (MainCamera is CameraControl cameraControl)
+		{
+			cameraControl.FocusOnPosition(worldPosition);
+			return;
+		}
+
+		var camera = GetViewport().GetCamera3D();
+		if (camera == null) return;
+
+		Vector3 forward = -camera.GlobalTransform.Basis.Z;
+		float cameraHeight = camera.GlobalPosition.Y;
+		if (forward.Y > -0.01f)
+		{
+			camera.GlobalPosition = new Vector3(worldPosition.X, cameraHeight, worldPosition.Z);
+			return;
+		}
+
+		float distance = (cameraHeight - worldPosition.Y) / -forward.Y;
+		camera.GlobalPosition = worldPosition - forward * distance;
+	}
+
 	public void CenterCameraOnPrimaryBuilding()
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
@@ -359,11 +402,7 @@ public partial class GameHost
 		var target = primaryBuilding ?? anyOwnedBuilding;
 		if (target != null)
 		{
-			var camera = GetViewport().GetCamera3D();
-			if (camera != null)
-			{
-				camera.GlobalPosition = new Vector3(target.GlobalPosition.X, target.GlobalPosition.Y, target.GlobalPosition.Z + 25f);
-			}
+			CenterCameraAt(target.GlobalPosition);
 		}
 	}
 
@@ -371,12 +410,7 @@ public partial class GameHost
 	{
 		if (SelectedUnits.Count > 0)
 		{
-			var unit = SelectedUnits[0];
-			var camera = GetViewport().GetCamera3D();
-			if (camera != null)
-			{
-				camera.GlobalPosition = new Vector3(unit.GlobalPosition.X, unit.GlobalPosition.Y, unit.GlobalPosition.Z + 25f);
-			}
+			CenterCameraAt(SelectedUnits[0].GlobalPosition);
 		}
 		else
 		{
@@ -534,12 +568,7 @@ public partial class GameHost
 				sumPos += u.GlobalPosition;
 			}
 
-			Vector3 avgPos = sumPos / group.Count;
-			var camera = GetViewport().GetCamera3D();
-			if (camera != null)
-			{
-				camera.GlobalPosition = new Vector3(avgPos.X, camera.GlobalPosition.Y, avgPos.Z + 25f);
-			}
+			CenterCameraAt(sumPos / group.Count);
 		}
 
 		_lastGroupPressTime[index] = now;

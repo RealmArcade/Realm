@@ -91,6 +91,11 @@ public partial class CommandPanel
 	private bool IsAbilityDisabled(GameHost? host, Unit_WasmRuntime? unitWrapper, Entity casterEntity, string abilityId, float manaCost)
 	{
 		if (host == null) return false;
+
+		// A unit the map drives keeps its cards, so a player can read what the army does, but the cards are disabled:
+		// casting is the map's decision for that unit, and a click here would either be refused or fight the script.
+		if (GameContext.World != null && casterEntity != Entity.Null && GameContext.World.Has<PlayerOrdersLocked>(casterEntity)) return true;
+
 		if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;
 
 		int casterPlayer = GameContext.World != null && GameContext.World.IsAlive(casterEntity) && GameContext.World.Has<UnitOwnerPlayer>(casterEntity)

@@ -249,6 +249,21 @@ public readonly unsafe record struct UnitId(int Value)
 	}
 
 	/// <summary>
+	/// Gets or sets a value indicating whether the unit refuses the orders of the player who owns it.
+	/// </summary>
+	/// <remarks>
+	/// A locked unit is still a player's unit: it keeps its owner, its abilities and its place in the army, but the
+	/// player cannot move, attack, hold, patrol or gather with it, and clients show its ability cards disabled. Orders
+	/// the map script issues itself still apply, which is what lets a ruleset drive an autonomous army while the player
+	/// can only watch it. Setting the property to the value it already has does nothing.
+	/// </remarks>
+	public bool PlayerOrdersLocked
+	{
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.PlayerOrdersLocked);
+		set => HandleCommands.Current?.SetUnitPlayerOrdersLocked(this, value);
+	}
+
+	/// <summary>
 	/// Gets or sets a value indicating whether the unit is frozen in place with its animation suspended.
 	/// </summary>
 	/// <remarks>

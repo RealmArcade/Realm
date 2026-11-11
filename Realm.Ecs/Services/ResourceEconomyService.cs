@@ -14,6 +14,8 @@ namespace Realm.Ecs.Services;
 
 public class ResourceEconomyService
 {
+	private const float DefaultSwingSeconds = 1f;
+
 	private readonly SimulationContext _context;
 	private float _fDelta;
 
@@ -299,6 +301,11 @@ public class ResourceEconomyService
 		}
 	}
 
+	/// <summary>
+	///     Works the node the worker is standing at, one swing at a time. A swing takes its whole amount from the node and
+	///     puts it in the worker's hands, so what a player is paid is exactly what a node lost, and the time a trip takes
+	///     is what makes a distant node pay less than a near one.
+	/// </summary>
 	private void MineResource(Entity entity, ref Gatherer gather, Entity targetNode, Vector3 currentPos)
 	{
 		if (_context.World.Has<MoveTo>(entity))
@@ -307,43 +314,51 @@ public class ResourceEconomyService
 		}
 
 		var newState = gather;
-		float mineRate = CalculateMineRate(entity);
-
 		ref var resNode = ref _context.World.Get<ResourceNode>(targetNode);
-		mineRate = Math.Min(mineRate, resNode.Amount);
 
-		resNode.Amount -= mineRate;
+		if (newState.SwingAmount <= 0f) newState.SwingAmount = resNode.HarvestRate > 0f ? resNode.HarvestRate : 4f;
+		if (newState.SwingSeconds <= 0f) newState.SwingSeconds = DefaultSwingSeconds;
+
+		float swingAmount = newState.SwingAmount;
+		var ownerPlayerEntity = _context.World.Has<Owner>(entity) ? _context.World.Get<Owner>(entity).PlayerEntity.Value : Entity.Null;
+		if (ownerPlayerEntity != Entity.Null && GetHarvestingUpgrade(ownerPlayerEntity)) swingAmount *= 1.5f;
+
+		newState.SwingProgress += _fDelta;
+
+		// A swing is worth its whole amount or nothing: a worker whose hands cannot hold one more full swing takes what it
+		// has home instead of shaving the swing down, so what a node loses is always a whole multiple of what the building
+		// advertises. Only a node with less than a swing left is taken for the remainder, which is the node running dry.
+		while (newState.SwingProgress >= newState.SwingSeconds && resNode.Amount > 0f)
+		{
+			if (newState.MaxCapacity - newState.CarriedAmount < MathF.Min(swingAmount, resNode.Amount)) break;
+
+			newState.SwingProgress -= newState.SwingSeconds;
+
+			float taken = MathF.Min(swingAmount, resNode.Amount);
+			resNode.Amount -= taken;
+			newState.CarriedAmount += taken;
+		}
+
 		_context.World.Set(targetNode, resNode);
-		OnResourceHarvested?.Invoke(targetNode);
-
-		newState.CarriedAmount = Math.Min(gather.MaxCapacity, gather.CarriedAmount + mineRate);
+		if (newState.CarriedAmount > gather.CarriedAmount) OnResourceHarvested?.Invoke(targetNode);
 
 		if (resNode.Amount <= 0f)
 		{
 			OnPropDepleted?.Invoke(targetNode);
 		}
 
-		if (newState.CarriedAmount >= gather.MaxCapacity)
+		bool handsFull = newState.CarriedAmount > 0f && newState.MaxCapacity - newState.CarriedAmount < swingAmount;
+		if (handsFull || resNode.Amount <= 0f)
 		{
 			newState.ReturningToBase = true;
 			FindNearestDropoffAndReturn(entity, ref newState, currentPos);
 		}
 		else
 		{
+			// The swing in progress is part of the state: without writing it back each tick the worker would restart
+			// the same swing forever and a node would never be touched.
 			_tickGatherersToUpdate.Add((entity, newState, null));
 		}
-	}
-
-	private float CalculateMineRate(Entity entity)
-	{
-		float mineRate = 4.0f * _fDelta;
-		var ownerPlayerEntity = _context.World.Has<Owner>(entity) ? _context.World.Get<Owner>(entity).PlayerEntity.Value : Entity.Null;
-		if (ownerPlayerEntity != Entity.Null && GetHarvestingUpgrade(ownerPlayerEntity))
-		{
-			mineRate *= 1.5f;
-		}
-
-		return mineRate;
 	}
 
 	private void FindNearestDropoff(Vector3 currentPos, PlayerEntity wOwner, out Entity nearestDropoff, out Vector3 nearestDropoffPos, out float dropoffRadius)

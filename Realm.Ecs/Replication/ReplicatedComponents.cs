@@ -786,6 +786,7 @@ public static class ReplicatedComponents
 		Register(new ResistanceNumbersCodec());
 		Register(new TagComponentCodec<Invulnerable>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<CommandsFrozen>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<PlayerOrdersLocked>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<AnimationsFrozen>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<OverheadBarsHidden>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<OverheadBadge>(ReplicatedScope.Unit));

@@ -216,6 +216,7 @@ interface game-api {
     set-unit-experience: func(unit-id: s32, value: f32);
     set-unit-facing: func(unit-id: s32, facing-radians: f32);
     set-unit-frozen: func(unit-id: s32, value: bool);
+    set-unit-gather-swing: func(unit-id: s32, swing-amount: f32, swing-seconds: f32);
     set-unit-hand-attachment: func(unit-id: s32, hand: string, attachment-id: string);
     set-unit-health: func(unit-id: s32, value: f32);
     set-unit-hide-health-and-mana-bars: func(unit-id: s32, value: bool);
@@ -229,6 +230,7 @@ interface game-api {
     set-unit-name: func(unit-id: s32, value: string);
     set-unit-overhead-badge: func(unit-id: s32, value: s32, color-x: f32, color-y: f32, color-z: f32);
     set-unit-owner: func(unit-id: s32, player-index: s32);
+    set-unit-player-orders-locked: func(unit-id: s32, value: bool);
     set-unit-range: func(unit-id: s32, value: f32);
     set-unit-route-state: func(unit-id: s32, state: s32);
     set-unit-scale: func(unit-id: s32, value: f32);

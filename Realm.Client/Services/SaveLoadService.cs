@@ -362,6 +362,7 @@ public class SaveLoadService
 	private List<PropSaveData> GetPropSaveData(string directory)
 	{
 		var props = new List<PropSaveData>();
+		var savedPlacements = new HashSet<string>();
 		var propQuery = QueryCache.AllPropIdentityAndPositionQuery;
 
 		World.Query(in propQuery, (Entity entity, ref PropIdentity propId, ref Position pos) =>
@@ -370,6 +371,10 @@ public class SaveLoadService
 
 			float rotY = World.Has<RotationY>(entity) ? World.Get<RotationY>(entity).Value : 0f;
 			float scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1f;
+
+			// One placement is one entry. Two props that agree on everything the file records are the same thing drawn
+			// twice, and writing both would double it again the next time the file is read.
+			if (!savedPlacements.Add(PropPlacementKey(propId.PropId, pos.Value.X, pos.Value.Y, pos.Value.Z, scale))) return;
 
 			props.Add(new PropSaveData
 			{
@@ -517,7 +522,13 @@ public class SaveLoadService
 		World.Query(in worldQuery2, (Entity entity, ref TerrainState t, ref EditorState e) => { World.Set(entity, updatedEditor); });
 	}
 
-	private void CleanupOldMapEntities()
+	/// <summary>
+	///     Removes every placed entity a map's file describes: units, props, decals and any spawn request still waiting to
+	///     become one. The ECS is the source of truth for what the map holds, so a restore has to empty it rather than only
+	///     the Godot nodes it drew them with: a static prop is placed as a multimesh instance with no node of its own, and
+	///     clearing the nodes alone leaves its entity behind to be counted and saved a second time.
+	/// </summary>
+	public void ClearPlacedEntities()
 	{
 		var unitQuery = QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
 		var unitsToDestroy = new List<Entity>();
@@ -621,7 +632,7 @@ public class SaveLoadService
 			_lastLoadedCoordinates = saveData.Coordinates ?? new List<CoordinateSaveData>();
 			_lastLoadedSpawnAnchors = saveData.SpawnAnchors ?? new List<SpawnAnchorSaveData>();
 
-			CleanupOldMapEntities();
+			ClearPlacedEntities();
 
 			DetermineMapDimensions(mapDir, saveData, out int width, out int depth);
 			saveData.Width = width;
@@ -751,6 +762,7 @@ public class SaveLoadService
 	private void SpawnProps(List<PropSaveData>? props, string mapDir)
 	{
 		if (props == null) return;
+		var loadedPlacements = new HashSet<string>();
 		foreach (var p in props)
 		{
 			if (!MapAssetSync.IsValidPropObjectId(p.TemplateId, mapDir))
@@ -759,8 +771,19 @@ public class SaveLoadService
 				continue;
 			}
 
+			if (!loadedPlacements.Add(PropPlacementKey(p.TemplateId, p.PosX, p.PosY, p.PosZ, p.Scale))) continue;
+
 			World.Add(World.Create(), new PropSpawnRequest(p.TemplateId, new Vector3(p.PosX, p.PosY, p.PosZ), p.RotationY, p.Scale));
 		}
+	}
+
+	/// <summary>
+	///     Names one prop placement by everything a save records about it. A second entry that names the same placement is
+	///     the same prop, so the file and the world hold it once however many times a restore read it.
+	/// </summary>
+	private static string PropPlacementKey(string templateId, float x, float y, float z, float scale)
+	{
+		return $"{templateId}_{x:F3}_{y:F3}_{z:F3}_{scale:F3}";
 	}
 
 	private void SpawnDecals(List<DecalSaveData>? decals)

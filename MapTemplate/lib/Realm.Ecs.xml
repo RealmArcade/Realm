@@ -1059,9 +1059,18 @@
         </member>
         <member name="T:Realm.Ecs.Components.Resources.Gatherer">
             <summary>
-                Stores the gathering state for a worker unit entity, including the resource type,
-                carried amount, capacity, and the target resource node entity.
+                Stores the gathering state for a worker unit entity, including the resource type, the amount each swing takes
+                from the node, how long a swing lasts, what the worker carries and where it is taking it.
             </summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Resources.Gatherer.SwingAmount">
+            <summary>Gets or sets the amount one swing takes from the node, or zero to take what the node advertises.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Resources.Gatherer.SwingSeconds">
+            <summary>Gets or sets the seconds one swing lasts, or zero to swing once a second.</summary>
+        </member>
+        <member name="F:Realm.Ecs.Components.Resources.Gatherer.SwingProgress">
+            <summary>Gets or sets the seconds accumulated toward the swing the worker is taking.</summary>
         </member>
         <member name="T:Realm.Ecs.Components.Resources.Gold">
             <summary>
@@ -1254,6 +1263,11 @@
         <member name="T:Realm.Ecs.Components.Tags.Player">
             <summary>
                 Tag indicating the entity represents a player.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Tags.PlayerOrdersLocked">
+            <summary>
+                Tag indicating the entity belongs to a player but takes no orders from that player, because the map script drives it.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Components.Tags.Prop">
@@ -2181,6 +2195,13 @@
                 Demonstrates how player-specific resource data is used with archetype definition data.
             </summary>
         </member>
+        <member name="M:Realm.Ecs.Services.ResourceEconomyService.MineResource(Realm.Ecs.Entity,Realm.Ecs.Components.Resources.Gatherer@,Realm.Ecs.Entity,System.Numerics.Vector3)">
+            <summary>
+                Works the node the worker is standing at, one swing at a time. A swing takes its whole amount from the node and
+                puts it in the worker's hands, so what a player is paid is exactly what a node lost, and the time a trip takes
+                is what makes a distant node pay less than a near one.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Services.RouteReachabilityEntry">
             <summary>
                 A cached verdict on whether one attacker can route to one target, carrying the positions and navmesh it was judged
@@ -2504,6 +2525,9 @@
         </member>
         <member name="F:Realm.Ecs.ComponentIds.PlayerDamageEffectiveness">
             <summary>Player damage effectiveness component identifier, holding the multiplier a seat's damage carries against each other seat.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.PlayerOrdersLocked">
+            <summary>Player orders locked tag component identifier, marking player-owned units the map drives itself.</summary>
         </member>
         <member name="T:Realm.Ecs.ComponentMask">
             <summary>
@@ -3298,6 +3322,19 @@
             </remarks>
             <param name="unit">The unit to freeze orders on.</param>
             <param name="value">True to ignore movement and attack orders; false to accept them again.</param>
+        </member>
+        <member name="M:Realm.Ecs.IHandleCommands.SetUnitPlayerOrdersLocked(Realm.Ecs.UnitId,System.Boolean)">
+            <summary>
+            Locks the unit to the map script that drives it, or gives it back to its player.
+            </summary>
+            <remarks>
+            A locked unit keeps its owner, abilities and position, but its player cannot move, attack, hold, patrol or gather
+            with it, and clients draw its ability cards disabled. Orders the script issues itself still apply, so a ruleset can
+            run an autonomous army the player can watch but not command. Setting the flag again is a no-op rather than a
+            stacked count, and false removes it cleanly.
+            </remarks>
+            <param name="unit">The unit to lock to its map.</param>
+            <param name="value">True to refuse player orders; false to accept them again.</param>
         </member>
         <member name="M:Realm.Ecs.IHandleCommands.SetUnitFrozen(Realm.Ecs.UnitId,System.Boolean)">
             <summary>
@@ -4296,6 +4333,17 @@
             to move, stop, hold or attack commands, and clients hide those command buttons for it. Ability
             casting and ability buttons stay available, so map-authored abilities such as rerolls keep
             working. Setting the property to the value it already has does nothing.
+            </remarks>
+        </member>
+        <member name="P:Realm.Ecs.UnitId.PlayerOrdersLocked">
+            <summary>
+            Gets or sets a value indicating whether the unit refuses the orders of the player who owns it.
+            </summary>
+            <remarks>
+            A locked unit is still a player's unit: it keeps its owner, its abilities and its place in the army, but the
+            player cannot move, attack, hold, patrol or gather with it, and clients show its ability cards disabled. Orders
+            the map script issues itself still apply, which is what lets a ruleset drive an autonomous army while the player
+            can only watch it. Setting the property to the value it already has does nothing.
             </remarks>
         </member>
         <member name="P:Realm.Ecs.UnitId.Frozen">

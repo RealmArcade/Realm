@@ -100,6 +100,12 @@ public class MapStateSnapshot
 				host.DeleteNodeExternal(vfx);
 			}
 		}
+
+		// A static prop is drawn from a multimesh and owns no node, so the nodes above are not the whole world. Emptying
+		// the ECS is what makes the restore replace the placements rather than stack a second copy of each on top of them.
+		GameContext.SaveLoadService.ClearPlacedEntities();
+		host.AllProps.Clear();
+		GameHost.EntityToProp3D.Clear();
 	}
 
 	private static void RestoreTerrain(GameHost host, MapStateSnapshot snapshot)

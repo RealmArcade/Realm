@@ -32,6 +32,8 @@ public partial class CommandAuthorityService
 				continue;
 			}
 
+			if (RejectsPlayerOrder(entity, serverId, rejectedServerEntityIds, ref rejectionReason)) continue;
+
 			ClearUnitOrders(entity);
 			stopVelocityEntityIds.Add(serverId);
 		}
@@ -48,6 +50,8 @@ public partial class CommandAuthorityService
 				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"entity {serverId} is not owned by peer {peerId}";
 				continue;
 			}
+
+			if (RejectsPlayerOrder(entity, serverId, rejectedServerEntityIds, ref rejectionReason)) continue;
 
 			ClearUnitOrders(entity);
 			holdVelocityEntityIds.Add(serverId);

@@ -199,13 +199,22 @@ public partial class CameraControl : Camera3D
 
 	public void FocusOnPosition(Vector3 targetPos)
 	{
-		float yawRadians = Mathf.DegToRad(_currentYaw);
-		float pitchRadians = Mathf.DegToRad(_currentPitch);
-		Vector3 forwardXZ = new Vector3(-Mathf.Sin(yawRadians), 0.0f, -Mathf.Cos(yawRadians));
+		// The rendered forward is the one the player sees, and it carries the pitch and yaw swings the rotation fields
+		// do not. Centring on the raw yaw and pitch fields put the target off the middle of the screen whenever a swing
+		// was in progress, which is exactly when a focus or a control-group recall is used.
+		Vector3 forward = -GlobalTransform.Basis.Z;
+		float horizontalLength = new Vector2(forward.X, forward.Z).Length();
+		if (horizontalLength < 0.001f)
+		{
+			Position = new Vector3(targetPos.X, Position.Y, targetPos.Z);
+			return;
+		}
+
+		Vector3 forwardXZ = new Vector3(forward.X / horizontalLength, 0.0f, forward.Z / horizontalLength);
 		float heightAboveTarget = Mathf.Max(0.0f, Position.Y - targetPos.Y);
-		float pitchTangent = Mathf.Tan(Mathf.Abs(pitchRadians));
+		float pitchTangent = Mathf.Max(0.001f, -forward.Y) / horizontalLength;
 		float horizontalDistance = pitchTangent > 0.0001f ? heightAboveTarget / pitchTangent : 0.0f;
-		Vector3 focusPosition = new Vector3(targetPos.X, Position.Y, targetPos.Z) - (forwardXZ * horizontalDistance);
+		Vector3 focusPosition = new Vector3(targetPos.X, Position.Y, targetPos.Z) - forwardXZ * horizontalDistance;
 		Position = focusPosition;
 	}
 
