@@ -79,6 +79,24 @@ public partial class MultiplayerSimulationHarness : Node
 		Check("game host present", currentHost != null);
 		if (hud == null || currentHost == null) return FinishUxSmoke(report, passed);
 
+		void CheckReadingsFold(string label, Node? readingsNode)
+		{
+			if (readingsNode is not Control readingsControl || hud.FindChild("StatsScroll", true, false) is not ScrollContainer scroll)
+			{
+				Check($"{label} readings are measurable", false);
+				return;
+			}
+
+			float viewportTop = scroll.GlobalPosition.Y;
+			float viewportBottom = viewportTop + scroll.Size.Y;
+			float readingsTop = readingsControl.GlobalPosition.Y;
+			float readingsBottom = readingsTop + readingsControl.Size.Y;
+			Check($"{label} readings lead the inspector", MathF.Abs(readingsTop - viewportTop) <= 1f,
+				$"readings start {readingsTop:0.#} viewport start {viewportTop:0.#}");
+			Check($"{label} readings stay above the fold", readingsBottom <= viewportBottom + 1f,
+				$"readings {readingsTop:0.#}..{readingsBottom:0.#} viewport {viewportTop:0.#}..{viewportBottom:0.#}");
+		}
+
 		Unit3D? hero = FindUnit(currentHost, "hero/", 1);
 		Check("Vale hero replicated", hero != null);
 		if (hero == null) return FinishUxSmoke(report, passed);
@@ -94,18 +112,7 @@ public partial class MultiplayerSimulationHarness : Node
 		Check("bulwark row present", bulwark != null, bulwark ?? "missing");
 		Check("bulwark uses one building", bulwark != null && bulwark.Contains("1 building", StringComparison.Ordinal), bulwark ?? "missing");
 
-		if (readings is Control readingsControl && hud.FindChild("StatsScroll", true, false) is ScrollContainer statsScroll)
-		{
-			float viewportTop = statsScroll.GlobalPosition.Y;
-			float viewportBottom = viewportTop + statsScroll.Size.Y;
-			float readingsTop = readingsControl.GlobalPosition.Y;
-			float readingsBottom = readingsTop + readingsControl.Size.Y;
-			Note($"stats viewport {viewportTop:0.#}..{viewportBottom:0.#}, readings {readingsTop:0.#}..{readingsBottom:0.#}");
-			Check("the hero's readings lead the inspector", MathF.Abs(readingsTop - viewportTop) <= 1f,
-				$"readings start {readingsTop:0.#} viewport start {viewportTop:0.#}");
-			Check("the hero's first reading is drawn above the fold", readingsTop + 40f <= viewportBottom,
-				$"readings {readingsTop:0.#}..{readingsBottom:0.#} viewport {viewportTop:0.#}..{viewportBottom:0.#}");
-		}
+		CheckReadingsFold("hero", readings);
 
 		List<Button> commandButtons = FindCommandButtons(hud);
 		Note($"hero command buttons={commandButtons.Count}");
@@ -140,14 +147,7 @@ public partial class MultiplayerSimulationHarness : Node
 			Node? draftReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
 			int offeredReadings = CountReadingRowsNamed(draftReadings, "Offered");
 			Check("the draw publishes an offered reading per package", offeredReadings == 3, $"rows={offeredReadings}");
-			if (draftReadings is Control draftReadingsControl && hud.FindChild("StatsScroll", true, false) is ScrollContainer draftStatsScroll)
-			{
-				float draftFoldBottom = draftStatsScroll.GlobalPosition.Y + draftStatsScroll.Size.Y;
-				float draftReadingsBottom = draftReadingsControl.GlobalPosition.Y + draftReadingsControl.Size.Y;
-				Note($"draft readings {draftReadingsControl.GlobalPosition.Y:0.#}..{draftReadingsBottom:0.#} fold {draftFoldBottom:0.#}");
-				Check("every reading stays above the fold while the draw is open", draftReadingsBottom <= draftFoldBottom + 1f,
-					$"{draftReadingsBottom:0.#} > {draftFoldBottom:0.#}");
-			}
+			CheckReadingsFold("hero with the draw open", draftReadings);
 
 			List<Button> draftCard = FindCommandButtons(hud);
 			List<string> draftKeys = ReadCommandHotkeys(draftCard);
@@ -214,6 +214,43 @@ public partial class MultiplayerSimulationHarness : Node
 		await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
 		Check("the hotkeyed relic spends its gold", hud.Gold <= goldBeforeHotkeyRelic - 90f, $"{goldBeforeHotkeyRelic:0.##} -> {hud.Gold:0.##}");
 
+		Note("waiting for the drafted building to finish construction and raise its first soldier");
+		bool soldierArrived = await WaitUntilAsync(() => FindUnit(currentHost, "unit/", 1) != null, 55f);
+		Check("the drafted building raises its first soldier", soldierArrived);
+
+		Unit3D? soldier = FindUnit(currentHost, "unit/", 1);
+		if (soldier != null)
+		{
+			currentHost.SelectUnitInternal(new UnitId(soldier.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+
+			Node? soldierReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
+			Check("soldier readings visible", soldierReadings is Control { Visible: true });
+			Check("soldier reports its formation", ReadReadingValue(soldierReadings, "Formation") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Formation") ?? "missing");
+			Check("soldier reports its targeting rule", ReadReadingValue(soldierReadings, "Targeting") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Targeting") ?? "missing");
+			Check("soldier reports its source building", ReadReadingValue(soldierReadings, "Produced by") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Produced by") ?? "missing");
+			Check("soldier reports the charges of its source building", ReadReadingValue(soldierReadings, "Charges") is { Length: > 0 }, ReadReadingValue(soldierReadings, "Charges") ?? "missing");
+			CheckReadingsFold("soldier", soldierReadings);
+			SaveUxScreenshot("ux_smoke_soldier.png", "soldier", Note);
+		}
+
+		Unit3D? productionBuilding = FindPlayerProductionBuilding(currentHost);
+		Check("the drafted building is replicated", productionBuilding != null);
+		if (productionBuilding != null)
+		{
+			currentHost.SelectUnitInternal(new UnitId(productionBuilding.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+
+			Node? buildingReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
+			Check("building readings visible", buildingReadings is Control { Visible: true });
+			Check("building reports what it unlocks", ReadReadingValue(buildingReadings, "Unlocks") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Unlocks") ?? "missing");
+			Check("building reports its capacity", ReadReadingValue(buildingReadings, "Capacity") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Capacity") ?? "missing");
+			Check("building reports its income", ReadReadingValue(buildingReadings, "Income") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Income") ?? "missing");
+			Check("building reports its production", ReadReadingValue(buildingReadings, "Production") is { Length: > 0 }, ReadReadingValue(buildingReadings, "Production") ?? "missing");
+			CheckReadingsFold("building", buildingReadings);
+			SaveUxScreenshot("ux_smoke_building.png", "building", Note);
+		}
+
 		currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
 		await ToSignal(GetTree().CreateTimer(2.0f), SceneTreeTimer.SignalName.Timeout);
 		Node? heroReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
@@ -232,6 +269,21 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 
 		return FinishUxSmoke(report, passed);
+	}
+
+	private static Unit3D? FindPlayerProductionBuilding(GameHost host)
+	{
+		foreach (Unit3D unit in host.AllUnits)
+		{
+			if (!GodotObject.IsInstanceValid(unit)) continue;
+			if (unit.Player != 1) continue;
+			if (!unit.TemplateID.StartsWith("building/", StringComparison.OrdinalIgnoreCase)) continue;
+			if (unit.TemplateID == "building/nexus") continue;
+
+			return unit;
+		}
+
+		return null;
 	}
 
 	private static Unit3D? FindUnit(GameHost host, string templatePrefix, int player)
