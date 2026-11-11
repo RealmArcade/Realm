@@ -41,7 +41,13 @@ public partial class CommandAuthorityService
 			return;
 		}
 
-		switch (ParseCheat(key))
+		if (!CheatCatalog.TryParse(key, out CheatKind kind))
+		{
+			rejectionReason = $"'{key}' is not a cheat this build knows";
+			return;
+		}
+
+		switch (kind)
 		{
 			case CheatKind.GrantResources:
 				GrantResources(playerEntity);
@@ -75,38 +81,6 @@ public partial class CommandAuthorityService
 				break;
 		}
 	}
-
-	/// <summary>
-	///     The cheats this build answers to, named for what they do. The wire carries the chat word the player typed, which
-	///     is translated here and nowhere else, so a rename of a cheat never reaches the player's vocabulary.
-	/// </summary>
-	private enum CheatKind
-	{
-		None,
-		GrantResources,
-		EmpowerOwnedUnits,
-		BoostSelectedMovementSpeed,
-		KillEnemyAiUnits,
-		EndMatch,
-		DisableShroud,
-		ToggleFastBuild,
-		ToggleUnlimitedPower,
-		KillSelectedUnits
-	}
-
-	private static CheatKind ParseCheat(string key) => key switch
-	{
-		"securethebag" => CheatKind.GrantResources,
-		"gigachad" => CheatKind.EmpowerOwnedUnits,
-		"needforspeed" => CheatKind.BoostSelectedMovementSpeed,
-		"thanossnap" => CheatKind.KillEnemyAiUnits,
-		"ezclap" => CheatKind.EndMatch,
-		"aura" => CheatKind.DisableShroud,
-		"speedrun" => CheatKind.ToggleFastBuild,
-		"skibidi" => CheatKind.ToggleUnlimitedPower,
-		"cooked" => CheatKind.KillSelectedUnits,
-		_ => CheatKind.None
-	};
 
 	private void GrantResources(Entity playerEntity)
 	{

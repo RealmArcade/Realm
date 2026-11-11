@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using Realm.Shared.Simulation;
 
@@ -12,18 +13,7 @@ namespace Realm.Simulation.Tests;
 [NonParallelizable]
 public class MeleeCheatTests
 {
-	private static readonly string[] ChatWords =
-	{
-		"securethebag",
-		"gigachad",
-		"needforspeed",
-		"thanossnap",
-		"ezclap",
-		"aura",
-		"speedrun",
-		"skibidi",
-		"cooked"
-	};
+	private static IEnumerable<string> ChatWords => CheatCatalog.Words;
 
 	[TestCaseSource(nameof(ChatWords))]
 	public void TheAuthorityAcceptsTheCheatWord(string chatWord)
