@@ -36,7 +36,7 @@ internal sealed class MeleeMatch : IDisposable
 	private readonly List<ServerPresentationEvent> _events = new();
 	private int _nextCommandId = 1;
 
-	private MeleeMatch(string[] factions, int seed, string mapFolder, string scriptPath, MatchOptionSet? matchOptions = null, int[]? teams = null)
+	private MeleeMatch(string[] factions, int seed, string mapFolder, string scriptPath, MatchOptionSet? matchOptions = null, int[]? teams = null, bool cheatsEnabled = false)
 	{
 		Factions = factions;
 		_workDirectory = Path.Combine(Path.GetTempPath(), "realm-melee-simulation", $"{Environment.ProcessId}-{seed}-{Guid.NewGuid():N}");
@@ -59,7 +59,7 @@ internal sealed class MeleeMatch : IDisposable
 			paths,
 			_log,
 			seed,
-			cheatsEnabled: false,
+			cheatsEnabled: cheatsEnabled,
 			wasmDebug: false,
 			mapWorkspacePath: null,
 			roster: roster,
@@ -86,9 +86,9 @@ internal sealed class MeleeMatch : IDisposable
 
 	public int PlayerCount => Factions.Length;
 
-	public static MeleeMatch Start(string[] factions, int seed = 1, MatchOptionSet? matchOptions = null, int[]? teams = null)
+	public static MeleeMatch Start(string[] factions, int seed = 1, MatchOptionSet? matchOptions = null, int[]? teams = null, bool cheatsEnabled = false)
 	{
-		return new MeleeMatch(factions, seed, MeleeTestMaps.BoardFolder, MeleeTestMaps.ScriptPath, matchOptions, teams);
+		return new MeleeMatch(factions, seed, MeleeTestMaps.BoardFolder, MeleeTestMaps.ScriptPath, matchOptions, teams, cheatsEnabled);
 	}
 
 	/// <summary>
@@ -103,9 +103,9 @@ internal sealed class MeleeMatch : IDisposable
 		return new MeleeMatch(factions, seed, MeleeTestMaps.BoardFolder, MeleeTestMaps.ScriptPath, matchOptions: null, teams: teams);
 	}
 
-	public static MeleeMatch StartDuel(string firstFaction = "Vale", string secondFaction = "Sable", int seed = 1, MatchOptionSet? matchOptions = null)
+	public static MeleeMatch StartDuel(string firstFaction = "Vale", string secondFaction = "Sable", int seed = 1, MatchOptionSet? matchOptions = null, bool cheatsEnabled = false)
 	{
-		return Start(new[] { firstFaction, secondFaction }, seed, matchOptions);
+		return Start(new[] { firstFaction, secondFaction }, seed, matchOptions, cheatsEnabled: cheatsEnabled);
 	}
 
 	/// <summary>
@@ -345,6 +345,28 @@ internal sealed class MeleeMatch : IDisposable
 	public float ResourceAmount(UnitId node) => TryGet(node, out ResourceNode resourceNode) ? resourceNode.Amount : 0f;
 
 	public bool IsGathering(UnitId unit) => Has<Gatherer>(unit);
+
+	/// <summary>
+	///     Sends a line the way chat does when a player types a cheat, so a test reads the authority's own answer rather
+	///     than inferring it from the effect the cheat applied.
+	/// </summary>
+	/// <param name="slot">The seat that typed the line.</param>
+	/// <param name="cheatWord">The word that was typed, exactly as it was typed.</param>
+	/// <returns>What the authority answered the line with.</returns>
+	public ServerCommandResult SubmitCheat(int slot, string cheatWord)
+	{
+		var command = new NetworkCommand
+		{
+			CommandId = _nextCommandId++,
+			CommandType = "cheat",
+			UnitEntityIds = new System.Collections.Generic.List<int>(),
+			TargetPosition = new NetworkVector3(0f, 0f, 0f),
+			TargetEntityId = 0,
+			ArgString = cheatWord
+		};
+
+		return Send(slot, command);
+	}
 
 	/// <summary>
 	///     Sends the order a player's right-click on a resource node sends, so a test exercises the authority's own gather
