@@ -200,6 +200,12 @@ public class AbilityEffectRunner
 		float facing = world.Has<RotationY>(casterEntity) ? world.Get<RotationY>(casterEntity).Value : 0f;
 		var facingDirection = new Vector3(MathF.Cos(facing), 0f, MathF.Sin(facing));
 
+		if (effect.Delivery is AbilityEffectDelivery.Line or AbilityEffectDelivery.Cone)
+		{
+			Vector3 aim = targetPosition - casterPosition;
+			if (aim.LengthSquared() > 0.0001f) facingDirection = Vector3.Normalize(aim);
+		}
+
 		foreach (Entity entity in world.Query<Position, Health>())
 		{
 			Health health = world.Get<Health>(entity);

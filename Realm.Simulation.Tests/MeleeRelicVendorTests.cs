@@ -59,6 +59,22 @@ public class MeleeRelicVendorTests
 	}
 
 	[Test]
+	public void TheVendorFillsTheCommandGridWithoutDroppingARelic()
+	{
+		var occupiedSlots = new HashSet<(int X, int Y)>();
+
+		for (int index = 0; index < RelicIds.Length; index++)
+		{
+			var definition = _match.Api.Abilities.GetDefinition(RelicIds[index]);
+			Assert.That(definition.GridX, Is.InRange(0, 3), $"'{RelicIds[index]}' has to sit inside the four-column command grid.");
+			Assert.That(definition.GridY, Is.InRange(0, 2), $"'{RelicIds[index]}' has to sit inside the three-row command grid.");
+			Assert.That(occupiedSlots.Add((definition.GridX, definition.GridY)), Is.True, $"'{RelicIds[index]}' must not share a command slot with another relic.");
+		}
+
+		Assert.That(occupiedSlots.Count, Is.EqualTo(RelicIds.Length), "Every relic needs its own visible command slot.");
+	}
+
+	[Test]
 	public void BuyingARelicSpendsAHundredGoldAndEquipsIt()
 	{
 		const string relicId = "item/sigil_of_the_wall";

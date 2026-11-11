@@ -68,6 +68,37 @@ public class MeleeProgressionTests
 	}
 
 	[Test]
+	public void KillingAnEnemyHeroPaysItsLargerBounty()
+	{
+		UnitId hero = _match.Hero(1);
+		UnitId enemyHero = _match.Hero(2);
+		float goldBefore = _match.Gold(1);
+		float experienceBefore = _match.ExperienceOf(hero);
+
+		_match.Kill(enemyHero, hero);
+
+		Assert.That(_match.Gold(1) - goldBefore, Is.EqualTo(100f).Within(0.01f), "An enemy hero pays the larger bounty its template states.");
+		Assert.That(_match.ExperienceOf(hero) - experienceBefore, Is.EqualTo(120f).Within(0.01f), "The experience portion of a hero's bounty reaches the killer's hero.");
+	}
+
+	[Test]
+	public void KillingAnEnemyBuildingPaysTheBountyItsTemplateStates()
+	{
+		UnitId hero = _match.Hero(1);
+		UnitId building = _match.Api.SpawnUnitForPlayer("building/spear_lodge", new Vector2(EnemyPosition.X, EnemyPosition.Z), 2, executeSpawnShader: false, bypassPopulation: true);
+		Assert.That(_match.IsAlive(building), Is.True, "The test needs an enemy building to destroy.");
+
+		float goldBefore = _match.Gold(1);
+		float experienceBefore = _match.ExperienceOf(hero);
+
+		_match.Kill(building, hero);
+
+		Assert.That(_match.IsAlive(building), Is.False, "The building has to fall.");
+		Assert.That(_match.Gold(1) - goldBefore, Is.EqualTo(50f).Within(0.01f), "A building pays the gold bounty its template states.");
+		Assert.That(_match.ExperienceOf(hero) - experienceBefore, Is.EqualTo(40f).Within(0.01f), "A building pays the experience bounty its template states.");
+	}
+
+	[Test]
 	public void AKillByNothingPaysNoBounty()
 	{
 		UnitId hero = _match.Hero(1);

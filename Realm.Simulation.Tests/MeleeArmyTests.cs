@@ -47,6 +47,37 @@ public class MeleeArmyTests
 	}
 
 	[Test]
+	public void EverySoldierScalesWithTheHerosLevel()
+	{
+		UnitId soldier = _match.SpawnSoldier(1, "unit/shieldbearer", new Vector3(-46f, 0f, -52f));
+		float maxHealthBefore = _match.MaxHealthOf(soldier);
+
+		_match.Api.SetUnitLevel(_match.Hero(1), 4);
+		_match.Step(0.2f);
+
+		Assert.That(_match.LevelOf(soldier), Is.EqualTo(4), "The soldier has to carry the hero's level.");
+		Assert.That(_match.MaxHealthOf(soldier), Is.GreaterThan(maxHealthBefore), "The soldier's authored per-level growth has to raise its stats, not only its level number.");
+	}
+
+	[Test]
+	public void LosingTheHeroClearsEveryProductionQueue()
+	{
+		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
+		Assert.That(_match.StepUntilSoldiers(1), Is.EqualTo(1), "The building has to raise its first soldier first.");
+
+		_match.Api.SetUnitChargeCount(building, 1);
+		_match.Step(0.2f);
+
+		_match.Kill(_match.Hero(1), _match.Hero(2));
+		_match.Step(10f);
+
+		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(0), "A queue that was cleared by the hero's death must not field a soldier while the hero is gone.");
+
+		_match.Step(15f);
+		Assert.That(_match.Soldiers(1).Count, Is.GreaterThan(0), "Production has to resume once the hero revives.");
+	}
+
+	[Test]
 	public void ABuildingStopsProducingOnceItsCapacityIsFilled()
 	{
 		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
@@ -143,6 +174,24 @@ public class MeleeArmyTests
 
 		_match.Step(1.5f);
 		Assert.That(_match.IsAlive(_match.Hero(1)), Is.True, "The second hero returns once fifteen seconds have passed.");
+	}
+
+	[Test]
+	public void TheHeroRevivesAtADestroyedNexusWhileAnAllyHoldsTheTeam()
+	{
+		using MeleeMatch allied = MeleeMatch.StartWithTeams(new[] { "Vale", "Sable" }, new[] { 1, 1 });
+		Vector3 lostNexusPosition = allied.PositionOf(allied.Nexus(2));
+
+		allied.Kill(allied.Nexus(2), allied.Hero(1));
+		allied.Step(0.2f);
+		Assert.That(allied.ReadPlayer(2).Active, Is.True, "A seat whose ally still holds a Nexus stays in the match.");
+
+		allied.Kill(allied.Hero(2), allied.Hero(1));
+		allied.Step(12.5f);
+
+		UnitId revived = allied.Hero(2);
+		Assert.That(allied.IsAlive(revived), Is.True, "The hero of a seat that lost its Nexus still revives.");
+		Assert.That(Vector3.Distance(allied.PositionOf(revived), lostNexusPosition), Is.LessThan(8f), "The revival has to happen where the destroyed Nexus stood.");
 	}
 
 	[Test]
