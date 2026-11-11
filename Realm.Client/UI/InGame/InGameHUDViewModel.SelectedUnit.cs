@@ -252,6 +252,22 @@ public partial class InGameHUDViewModel
 				}
 			}
 		}
+		else if (!info.IsEnemy && world.TryGet(u.Entity, out UnitCharges charges) && charges.MaximumCharges > 0)
+		{
+			// A building that fields what it holds instead of training on a timer has no queue to read, but it still
+			// produces: what a player needs to see is how many it holds and how long the next one takes.
+			info.HasProduction = true;
+			info.ProductionTitle = string.Format(TranslationServer.Translate("CHARGES: {0} / {1}"), charges.Charges, charges.MaximumCharges);
+			float partialCharge = charges.RechargeSeconds > 0f && charges.Charges < charges.MaximumCharges
+				? charges.RechargeProgress / charges.RechargeSeconds
+				: 0f;
+			info.ProductionProgress = charges.Charges + partialCharge;
+			info.ProductionMaxProgress = charges.MaximumCharges;
+			if (info.ProductionQueue.Count > 0)
+			{
+				info.ProductionQueue.Clear();
+			}
+		}
 	}
 
 	private void UpdateUnitProductionQueue(SelectedUnitInfo info, ProductionQueue prod)

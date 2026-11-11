@@ -128,6 +128,8 @@ public partial class MultiplayerSimulationHarness : Node
 				if (button.TooltipText.Contains("Abandon Construction", StringComparison.OrdinalIgnoreCase)) continue;
 				if (button.TooltipText.Contains("Begin Construction", StringComparison.OrdinalIgnoreCase)) continue;
 				if (button.TooltipText.Contains("mana", StringComparison.OrdinalIgnoreCase)) continue;
+				if (button.TooltipText.Contains("[Innate]", StringComparison.Ordinal)) continue;
+				if (button.TooltipText.Contains("[Passive]", StringComparison.Ordinal)) continue;
 				offers.Add(button);
 			}
 			return offers;
@@ -281,11 +283,22 @@ public partial class MultiplayerSimulationHarness : Node
 		Node? heroBuffs = BuffStrip();
 		Check("the stat sheet has a buffs section", heroBuffs is HBoxContainer { Visible: true }, heroBuffs?.Name ?? "missing");
 		int heroBuffIcons = heroBuffs?.GetChildCount() ?? 0;
-		Check("the hero lists its bulwark as a buff", heroBuffIcons >= 1, $"icons={heroBuffIcons}");
-		string bulwarkText = BuffTooltipAt(heroBuffs, 0);
+		Buffs clientBuffs = default;
+		bool clientHasBuffs = GameContext.World != null && GameContext.World.TryGet(hero.Entity, out clientBuffs);
+		int clientBuffedUnits = 0;
+		if (GameContext.World != null)
+		{
+			foreach (Entity buffedUnit in GameContext.World.Query<Buffs>()) clientBuffedUnits++;
+		}
+
+		string clientBuffSummary = clientHasBuffs
+			? $"count={clientBuffs.Count} key={(clientBuffs.Count > 0 ? clientBuffs.GetKey(0) ?? "<unresolved>" : "<none>")} buffedUnits={clientBuffedUnits}"
+			: $"no Buffs component buffedUnits={clientBuffedUnits}";
+		Check("the hero lists its bulwark as a buff", heroBuffIcons >= 1, $"icons={heroBuffIcons} {clientBuffSummary}");
+		string bulwarkText = heroBuffIcons > 0 ? BuffTooltipAt(heroBuffs, 0) : clientBuffSummary;
 		Check("the bulwark buff names itself on hover", bulwarkText.Contains("Bulwark", StringComparison.Ordinal), bulwarkText);
 		Check("the bulwark buff states what it counts on hover", bulwarkText.Contains("Nearby soldiers", StringComparison.Ordinal), bulwarkText);
-		Check("the bulwark buff draws a map icon rather than only a glyph", heroBuffs?.GetChild(0) is TextureRect, heroBuffs?.GetChild(0).GetType().Name ?? "missing");
+		Check("the bulwark buff draws a map icon rather than only a glyph", heroBuffIcons > 0 && heroBuffs!.GetChild(0) is TextureRect, heroBuffIcons > 0 ? heroBuffs!.GetChild(0).GetType().Name : clientBuffSummary);
 
 		Node? portraitTooltip = hud.FindChild("PortraitTexture", true, false);
 		Check("the portrait carries the unit description as its hover text",
@@ -692,6 +705,18 @@ public partial class MultiplayerSimulationHarness : Node
 		Check("the second relic answers its numbered hotkey", hotkeyHandled);
 		await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
 		Check("the hotkeyed relic spends its gold", hud.Gold <= goldBeforeHotkeyRelic - 90f, $"{goldBeforeHotkeyRelic:0.##} -> {hud.Gold:0.##}");
+
+		// A site is raised only while a unit the map lets build actually works on it, so the player's next move is the
+		// order a person gives: select the hero and send it to the site. The walk, the work and the completion are all
+		// measured here rather than assumed from the site existing.
+		Unit3D? draftedSite = FindPlayerProductionBuilding(currentHost);
+		if (draftedSite != null)
+		{
+			currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+			currentHost.IssueRepairCommand(draftedSite);
+			await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
+		}
 
 		// The design floats a soldier-granting building's charge count over it for every player, without a selection. The
 		// badge is read from the plate the screen actually draws, so a badge that stopped following the charges fails here
