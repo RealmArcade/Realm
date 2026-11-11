@@ -93,7 +93,6 @@ internal sealed class ComposedMeleeMap : IDisposable
 			ManifestBlake3 = referenced.ComputeManifestBlake3(),
 			FolderPath = ReferencedFolder
 		});
-		references.SetConflictPriority(RulesScriptFileName, ReferencedMapName);
 		references.Save(folder);
 	}
 

@@ -84,10 +84,10 @@ namespace Realm.Ecs.Services
 		///     hero does to every soldier and what a worker does to every worker of another player.
 		/// </summary>
 		/// <remarks>
-		///     A hero is not body-blocked by soldiers, so a hero's retreat is never walled in by its own army. The rule is
-		///     one-directional in effect: a soldier still resolves against a hero, so the soldier steps aside while the hero
-		///     keeps its line. Two heroes do block each other, and two workers of the same player block each other, so a
-		///     gathering crew keeps its shape while a rival crew walks through it.
+	///     A hero is not body-blocked by soldiers, so a hero's retreat is never walled in by its own army. The rule is
+	///     one-directional in effect: a soldier still resolves against a hero, so the soldier steps aside while the hero
+	///     keeps its line. Two heroes, and two workers of the same player, resolve against each other, so a gathering
+	///     crew keeps its shape while a rival crew walks through it.
 		/// </remarks>
 		private bool GhostsUnitCollision(Entity mover, Entity other)
 		{
@@ -193,12 +193,20 @@ namespace Realm.Ecs.Services
 			if (distSq >= minDist * minDist) return;
 
 			float otherDist = (float)Math.Sqrt(distSq);
-			Vector3 pushDir = otherDist < 0.001f
-				? new Vector3(1f, 0f, 0f)
-				: new Vector3(ox / otherDist, 0f, oz / otherDist);
+			if (otherDist < 0.001f)
+			{
+				nextPos += new Vector3(minDist, 0f, 0f);
+				return;
+			}
 
-			if (otherDist < 0.001f) otherDist = 1f;
+			float lateralFraction = oz / otherDist;
 
+			// A body pressed exactly head-on has no sideways component to slide along, so pushing it straight back
+			// would cancel its own step every tick and leave it pressed against the other body forever. Giving the
+			// push a fixed sideways lean turns that deadlock into a slide around the contact.
+			if (MathF.Abs(lateralFraction) < HeadOnLateralLeanThreshold) lateralFraction = HeadOnLateralLean;
+
+			Vector3 pushDir = Vector3.Normalize(new Vector3(ox / otherDist, 0f, lateralFraction));
 			float overlap = minDist - otherDist;
 			nextPos += pushDir * overlap;
 		}

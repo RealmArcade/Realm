@@ -14,10 +14,11 @@ using Realm.Ecs.Services;
 namespace Realm.Ecs.Tests
 {
 	/// <summary>
-	///     The movement rules a body follows when it is not stopped by another body: a hero walks through soldiers and
-	///     through buildings that are not worth blocking, while a soldier is still stopped by everything. Every case here
-	///     walks a mover down the Z=0 line at a stationary body spawned after the navigation bake, so the path the
-	///     navigation mesh gives is straight through it and any sideways movement is the collision rule answering.
+	///     The movement rules a body follows when another body is in its way: a hero walks through soldiers and through
+	///     buildings that are not worth blocking, while a soldier, a second hero and another worker of the same player
+	///     cannot pass through and go around the contact instead. Every case here walks a mover down the Z=0 line at a
+	///     stationary body spawned after the navigation bake, so the path the navigation mesh gives is straight through
+	///     it and any sideways movement is the collision rule answering.
 	/// </summary>
 	[TestFixture]
 	public class MovementGhostingTests
@@ -90,10 +91,11 @@ namespace Realm.Ecs.Tests
 			);
 		}
 
-		private Vector3 WalkThroughTheLine(Entity mover, out float maximumLateralDrift, int maximumSteps = 240)
+		private Vector3 WalkThroughTheLine(Entity mover, out float maximumLateralDrift, out float closestApproachToTheBlocker, int maximumSteps = 400)
 		{
 			World.Add(mover, new MoveTo(Destination));
 			maximumLateralDrift = 0f;
+			closestApproachToTheBlocker = float.MaxValue;
 
 			int steps = 0;
 			while (World.Has<MoveTo>(mover) && steps < maximumSteps)
@@ -102,6 +104,9 @@ namespace Realm.Ecs.Tests
 				Vector3 position = World.Get<Position>(mover).Value;
 				float drift = MathF.Abs(position.Z - Start.Z);
 				if (drift > maximumLateralDrift) maximumLateralDrift = drift;
+
+				float approach = MathF.Sqrt(position.X * position.X + position.Z * position.Z);
+				if (approach < closestApproachToTheBlocker) closestApproachToTheBlocker = approach;
 				steps++;
 			}
 
@@ -117,12 +122,12 @@ namespace Realm.Ecs.Tests
 		}
 
 		/// <summary>
-		///     A body that is blocked stops against the blocker instead of crossing it, which is the behaviour the ghosting
-		///     rule has to be compared against.
+		///     A body that is blocked never occupies the blocker's space: it slides around the contact instead, which is the
+		///     behaviour the ghosting rule has to be compared against.
 		/// </summary>
-		private static void AssertStoppedAgainstTheBlocker(Vector3 end)
+		private static void AssertWentAroundTheBlocker(float closestApproach, float contactDistance)
 		{
-			Assert.That(end.X, Is.LessThan(-0.5f), $"The mover reached {end}, so it was not stopped by the body on its line.");
+			Assert.That(closestApproach, Is.GreaterThanOrEqualTo(contactDistance), $"The mover came within {closestApproach:0.##} of the blocker, closer than the {contactDistance:0.##} its contact allows.");
 		}
 
 		[Test]
@@ -134,9 +139,10 @@ namespace Realm.Ecs.Tests
 			Entity hero = SpawnUnit(Start);
 			World.Add(hero, new Hero());
 
-			Vector3 end = WalkThroughTheLine(hero, out float drift);
+			Vector3 end = WalkThroughTheLine(hero, out float drift, out float closestApproach);
 
 			AssertCrossedTheBlocker(end);
+			Assert.That(closestApproach, Is.LessThan(0.3f), $"The hero went around its own soldier instead of through it (closest approach {closestApproach:0.##}).");
 			Assert.That(drift, Is.LessThan(LateralDriftThatProvesABlock),
 				$"The hero was pushed aside by its own soldier (drift {drift:0.##}).");
 		}
@@ -149,11 +155,11 @@ namespace Realm.Ecs.Tests
 
 			Entity soldier = SpawnUnit(Start);
 
-			Vector3 end = WalkThroughTheLine(soldier, out float drift);
+			Vector3 end = WalkThroughTheLine(soldier, out float drift, out float closestApproach);
 
-			AssertStoppedAgainstTheBlocker(end);
-			Assert.That(drift, Is.LessThan(LateralDriftThatProvesABlock),
-				$"A soldier slid around another soldier instead of being stopped by it (drift {drift:0.##}).");
+			AssertWentAroundTheBlocker(closestApproach, 0.55f);
+			Assert.That(drift, Is.GreaterThan(0.4f),
+				$"A soldier slid sideways around another soldier (drift {drift:0.##}); the mover has to leave the blocker's line.");
 		}
 
 		[Test]
@@ -165,15 +171,16 @@ namespace Realm.Ecs.Tests
 			Entity hero = SpawnUnit(Start, playerIndex: 1);
 			World.Add(hero, new Hero());
 
-			Vector3 end = WalkThroughTheLine(hero, out float drift);
+			Vector3 end = WalkThroughTheLine(hero, out float drift, out float closestApproach);
 
 			AssertCrossedTheBlocker(end);
+			Assert.That(closestApproach, Is.LessThan(0.3f), $"The hero went around its own building instead of through it (closest approach {closestApproach:0.##}).");
 			Assert.That(drift, Is.LessThan(LateralDriftThatProvesABlock),
 				$"The hero was stopped by its own building (drift {drift:0.##}).");
 		}
 
 		[Test]
-		public void HeroIsStoppedByAFunctionalEnemyBuilding()
+		public void HeroGoesAroundAFunctionalEnemyBuilding()
 		{
 			InitializeTerrain();
 			SpawnBuilding(Vector3.Zero, playerIndex: 2);
@@ -181,10 +188,10 @@ namespace Realm.Ecs.Tests
 			Entity hero = SpawnUnit(Start, playerIndex: 1);
 			World.Add(hero, new Hero());
 
-			Vector3 end = WalkThroughTheLine(hero, out float drift);
+			Vector3 end = WalkThroughTheLine(hero, out float drift, out float closestApproach);
 
-			AssertStoppedAgainstTheBlocker(end);
-			Assert.That(end.X, Is.LessThan(-1.4f), $"The hero walked through a functional enemy building and reached {end}.");
+			AssertWentAroundTheBlocker(closestApproach, 1.4f);
+			Assert.That(drift, Is.GreaterThan(1f), $"The hero had to leave the building's line to get past it (drift {drift:0.##}).");
 		}
 
 		[Test]
@@ -197,9 +204,10 @@ namespace Realm.Ecs.Tests
 			Entity hero = SpawnUnit(Start, playerIndex: 1);
 			World.Add(hero, new Hero());
 
-			Vector3 end = WalkThroughTheLine(hero, out float drift);
+			Vector3 end = WalkThroughTheLine(hero, out float drift, out float closestApproach);
 
 			AssertCrossedTheBlocker(end);
+			Assert.That(closestApproach, Is.LessThan(0.3f), $"The hero went around a construction silhouette instead of through it (closest approach {closestApproach:0.##}).");
 			Assert.That(drift, Is.LessThan(LateralDriftThatProvesABlock),
 				$"The hero was stopped by a construction silhouette (drift {drift:0.##}).");
 		}
@@ -215,9 +223,10 @@ namespace Realm.Ecs.Tests
 			Entity hero = SpawnUnit(Start, playerIndex: 1);
 			World.Add(hero, new Hero());
 
-			Vector3 end = WalkThroughTheLine(hero, out float drift);
+			Vector3 end = WalkThroughTheLine(hero, out float drift, out float closestApproach);
 
 			AssertCrossedTheBlocker(end);
+			Assert.That(closestApproach, Is.LessThan(0.3f), $"The hero went around a dormant ruin instead of through it (closest approach {closestApproach:0.##}).");
 			Assert.That(drift, Is.LessThan(LateralDriftThatProvesABlock),
 				$"The hero was stopped by a dormant ruin (drift {drift:0.##}).");
 		}
@@ -232,11 +241,11 @@ namespace Realm.Ecs.Tests
 			Entity movingWorker = SpawnUnit(Start, playerIndex: 1, definitionId: "unit/building_worker");
 			World.Add(movingWorker, new Worker());
 
-			Vector3 end = WalkThroughTheLine(movingWorker, out float drift);
+			Vector3 end = WalkThroughTheLine(movingWorker, out float drift, out float closestApproach);
 
-			AssertStoppedAgainstTheBlocker(end);
-			Assert.That(drift, Is.LessThan(LateralDriftThatProvesABlock),
-				$"Two of one player's workers slid past one another instead of stopping (drift {drift:0.##}).");
+			AssertWentAroundTheBlocker(closestApproach, 0.55f);
+			Assert.That(drift, Is.GreaterThan(0.4f),
+				$"One of a player's workers had to leave the other's line to get past it (drift {drift:0.##}).");
 		}
 
 		[Test]
@@ -249,9 +258,10 @@ namespace Realm.Ecs.Tests
 			Entity movingWorker = SpawnUnit(Start, playerIndex: 1, definitionId: "unit/building_worker");
 			World.Add(movingWorker, new Worker());
 
-			Vector3 end = WalkThroughTheLine(movingWorker, out float drift);
+			Vector3 end = WalkThroughTheLine(movingWorker, out float drift, out float closestApproach);
 
 			AssertCrossedTheBlocker(end);
+			Assert.That(closestApproach, Is.LessThan(0.3f), $"A worker went around another player's worker instead of through it (closest approach {closestApproach:0.##}).");
 			Assert.That(drift, Is.LessThan(LateralDriftThatProvesABlock),
 				$"A worker was stopped by another player's worker (drift {drift:0.##}).");
 		}
