@@ -72,7 +72,7 @@ public partial class InGameHUDViewModel
 			info.ProductionQueue.Clear();
 		}
 
-		if (entityChanged || info.Abilities.Count == 0 || DescribedAbilityListChanged(world, u, info))
+		if (entityChanged || DescribedAbilityListChanged(world, u, info))
 		{
 			UpdateUnitAbilities(world, u, info);
 		}
@@ -291,22 +291,5 @@ public partial class InGameHUDViewModel
 		// abilities of every type it can be replaced by, so painting the template while the description is still in
 		// flight offered every ability the type was widened with.
 		world.Get<AbilityState>(u.Entity).CopyTo(info.Abilities);
-		ReportDescribedAbilityList(u, info);
-	}
-
-	/// <summary>
-	///     Names what the panel was given for the unit it just read, so a grid that offers more than the map let through
-	///     can be told apart from a grid reading a list the authority never described.
-	/// </summary>
-	private static void ReportDescribedAbilityList(Unit3D u, SelectedUnitInfo info)
-	{
-		var unitId = new UnitId(u.Entity.Id);
-		int hiddenAbilities = 0;
-		for (int index = 0; index < info.Abilities.Count; index++)
-		{
-			if (GameContext.RegistryService.IsAbilityHiddenForUnit(unitId, info.Abilities[index])) hiddenAbilities++;
-		}
-
-		GameLog.LogToConsole($"[CommandPanel] unit {u.Entity.Id} ('{u.UnitId}') lists {info.Abilities.Count} ability(ies) at handle {info.AbilityListHandle}, {hiddenAbilities} of them hidden");
 	}
 }

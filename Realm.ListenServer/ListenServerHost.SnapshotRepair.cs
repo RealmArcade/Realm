@@ -123,6 +123,10 @@ public partial class ListenServerHost
 		if (simulation == null) return;
 
 		long tick = simulation.TickCount;
+		// The repeat is kept alive by the peer still naming losses, whether or not the match could answer the request:
+		// a run the ring no longer holds is still a link that lost descriptions.
+		_lastLossNamedTickPerPeer[peerId] = tick;
+
 		if (!_lossWindowStartedTickPerPeer.TryGetValue(peerId, out long windowStarted) || tick - windowStarted > LossyPeerMemoryTicks)
 		{
 			_lossWindowStartedTickPerPeer[peerId] = tick;

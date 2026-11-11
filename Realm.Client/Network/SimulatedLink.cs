@@ -35,6 +35,7 @@ public class SimulatedLink
 	private readonly int _unreliableLossPercent;
 	private readonly Random _random;
 	private readonly List<PendingFrame> _pendingFrames = new();
+	private readonly long[] _lastDueTimestampPerStream = new long[4];
 	private readonly long _delayTicks;
 	private readonly long _jitterTicks;
 	private long _droppedFrameCount;
@@ -125,12 +126,22 @@ public class SimulatedLink
 	{
 		long jitterTicks = _jitterTicks > 0 ? _random.Next(_jitterMilliseconds + 1) * System.Diagnostics.Stopwatch.Frequency / 1000L : 0L;
 		long dueTimestamp = System.Diagnostics.Stopwatch.GetTimestamp() + _delayTicks + jitterTicks;
+
+		// Each stream is a queue, and jitter is a delay spread over the queue rather than a reordering of it: ENet
+		// never delivers a reliable frame ahead of the one sent before it, and an ordered-unreliable frame that turns
+		// up late is dropped rather than drawn out of order. A frame is therefore never due before the frame queued
+		// ahead of it on the same stream, which keeps jitter from inventing an out-of-order link that no real one is.
+		int stream = (outbound ? 2 : 0) + (unreliable ? 1 : 0);
+		dueTimestamp = Math.Max(dueTimestamp, _lastDueTimestampPerStream[stream]);
+		_lastDueTimestampPerStream[stream] = dueTimestamp;
+
 		_pendingFrames.Add(new PendingFrame(outbound, kind, payload, unreliable, dueTimestamp));
 	}
 
 	/// <summary>
-	///     Answers the oldest frame that has waited its delay, in the order the frames were taken. Constant delay keeps
-	///     those due times in order, so the head is the only frame worth looking at.
+	///     Answers the frame that has waited its delay and comes due first. Every frame is due no earlier than the one
+	///     queued ahead of it on its own stream, so a stream is handed back in the order it was taken; across the two
+	///     directions and the two streams the earliest due time is simply the first one the link owes.
 	/// </summary>
 	public bool TryDequeue(out bool outbound, out NetworkFrameKind kind, out byte[] payload, out bool unreliable)
 	{

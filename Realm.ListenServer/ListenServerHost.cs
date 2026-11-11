@@ -91,6 +91,9 @@ public partial class ListenServerHost : IServerTransportSink
 
 	private readonly Dictionary<int, long> _lossWindowStartedTickPerPeer = new();
 
+	/// <summary>When each peer last named a loss, which is what the repeat above is kept alive for.</summary>
+	private readonly Dictionary<int, long> _lastLossNamedTickPerPeer = new();
+
 	private int _startupSettlesAtSequence;
 
 	/// <summary>
