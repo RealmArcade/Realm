@@ -123,6 +123,12 @@ public partial class MultiplayerSimulationHarness : Node
 
 			List<Button> draftOptions = FindCommandButtonsContaining(hud, "for 100 wood");
 			Check("all three drawn packages are on the first page", draftOptions.Count == 3, $"cards={draftOptions.Count}");
+
+			List<Button> draftCard = FindCommandButtons(hud);
+			List<string> draftKeys = ReadCommandHotkeys(draftCard);
+			Note($"draft card buttons={draftCard.Count} keys=[{string.Join(", ", draftKeys)}]");
+			Check("the drawn card names a key for every command", draftKeys.Count == draftCard.Count, $"keys={draftKeys.Count} buttons={draftCard.Count}");
+			Check("the drawn card has no duplicate keys", HasDuplicateHotkeys(draftKeys) == false, string.Join(", ", draftKeys));
 			if (draftOptions.Count > 0)
 			{
 				int buildingsBefore = CountPlayerBuildings(currentHost, 1);
@@ -258,6 +264,30 @@ public partial class MultiplayerSimulationHarness : Node
 	private static string ReadFeedback(InGameHUD hud)
 	{
 		return hud.FindChild("FeedbackLabel", true, false) is Label label ? label.Text : string.Empty;
+	}
+
+	private static List<string> ReadCommandHotkeys(List<Button> buttons)
+	{
+		var hotkeys = new List<string>();
+		foreach (Button button in buttons)
+		{
+			string tooltip = button.TooltipText;
+			int closingBracket = tooltip.IndexOf(']');
+			if (tooltip.StartsWith('[') && closingBracket > 1) hotkeys.Add(tooltip[1..closingBracket]);
+		}
+
+		return hotkeys;
+	}
+
+	private static bool HasDuplicateHotkeys(List<string> hotkeys)
+	{
+		var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		foreach (string hotkey in hotkeys)
+		{
+			if (!seen.Add(hotkey)) return true;
+		}
+
+		return false;
 	}
 
 	private static int CountPlayerBuildings(GameHost host, int player)
