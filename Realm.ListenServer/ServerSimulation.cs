@@ -29,6 +29,7 @@ public class ServerSimulation : IDisposable
 	private readonly ServerPresentationQueue _presentation = new();
 	private readonly ServerMapScript _script;
 	private readonly NeutralRespawnService _neutralRespawns;
+	private readonly MatchBountyService _bounties;
 	private readonly GroundLootService _loot;
 	private readonly HashSet<int> _peersNeedingBaseline = new();
 	private readonly HashSet<int> _peersNeedingDescriptionRepeat = new();
@@ -95,6 +96,7 @@ public class ServerSimulation : IDisposable
 
 		_neutralRespawns = new NeutralRespawnService(map, _script.Api, log);
 		_neutralRespawns.Start();
+		_bounties = new MatchBountyService(map, _script.Api);
 
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
@@ -234,7 +236,10 @@ public class ServerSimulation : IDisposable
 		if (!_map.World.IsAlive(entity)) return;
 
 		Entity killer = _map.World.TryGet<LastAttacker>(entity, out LastAttacker lastAttacker) ? lastAttacker.Value : Entity.Null;
-		_neutralRespawns.OnPlacementDestroyed(new UnitId(entity.Id), killer == Entity.Null ? UnitId.Invalid : new UnitId(killer.Id));
+		var victimId = new UnitId(entity.Id);
+		UnitId killerId = killer == Entity.Null ? UnitId.Invalid : new UnitId(killer.Id);
+		_neutralRespawns.OnPlacementDestroyed(victimId);
+		_bounties.PayKill(victimId, killerId);
 		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
 
 		if (_map.World.IsAlive(entity)) _map.World.Destroy(entity);

@@ -2,6 +2,7 @@ using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
 using Realm.MapAPI;
+using Realm.Shared.Abilities;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
 
@@ -35,15 +36,23 @@ public partial class ServerGameAPI
 
 		AbilityMetadata? ability = _map.Catalog.FindAbility(abilityId);
 		UnitMetadata? unit = ability == null ? _map.Catalog.FindUnitOrBuilding(abilityId) : null;
+		AbilityDefinition definition = _abilities.GetDefinition(abilityId);
 
-		string displayName = ability?.Name ?? unit?.Name ?? GetUnitName(abilityId);
-		string tooltip = ability?.Description ?? unit?.Description ?? string.Empty;
-		string iconPath = ability?.IconPath ?? string.Empty;
+		// A script that registered the ability first owns its name and tooltip. Handing that same ability to a unit
+		// type publishes the registration again so every peer sees it on the unit, and taking the catalog's fallback
+		// there would replace the wording the script wrote with the identifier of an ability the catalog never held.
+		string displayName = !string.IsNullOrWhiteSpace(definition.DisplayName)
+			? definition.DisplayName
+			: ability?.Name ?? unit?.Name ?? GetUnitName(abilityId);
+		string tooltip = !string.IsNullOrWhiteSpace(definition.TooltipTemplate)
+			? definition.TooltipTemplate
+			: ability?.Description ?? unit?.Description ?? string.Empty;
+		string iconPath = !string.IsNullOrWhiteSpace(definition.IconPath) ? definition.IconPath : ability?.IconPath ?? string.Empty;
 
 		// A template ability the map hands to a unit keeps whatever the map or the ability template said about it,
 		// including whether it is a self cast. Publishing it as a location spell took the instant flag away from
 		// every ability a script added to a template, so an instant ability asked the player for a target instead.
-		bool isInstant = _abilities.GetDefinition(abilityId).IsInstant;
+		bool isInstant = definition.IsInstant;
 
 		_presentation.Write(PresentationKind.AbilityRegistered, AllPlayers, 0, abilityId, displayName, tooltip, iconPath, null,
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, isInstant ? 1 : 0, 0, 0f, 0f, 0f, isInstant);

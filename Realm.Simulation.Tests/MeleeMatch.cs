@@ -1,5 +1,6 @@
 using System.Numerics;
 using Realm.Ecs;
+using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Resources;
@@ -147,10 +148,13 @@ internal sealed class MeleeMatch : IDisposable
 
 	private void DrainPresentation()
 	{
-		ServerPresentationEvent[] drained = Simulation.CollectPresentation();
+		ReadOnlySpan<ServerPresentationEvent> drained = Simulation.CollectPresentation();
 		if (drained.Length == 0) return;
 
-		_events.AddRange(drained);
+		for (int index = 0; index < drained.Length; index++)
+		{
+			_events.Add(drained[index]);
+		}
 	}
 
 	public IReadOnlyList<ServerPresentationEvent> EventsFor(int slot, PresentationKind kind)
@@ -391,10 +395,81 @@ internal sealed class MeleeMatch : IDisposable
 		return added;
 	}
 
+	public bool UnitHasItem(UnitId unit, string itemId) => Api.UnitHasItem(unit, itemId);
+
+	public float ExperienceOf(UnitId unit) => TryGet(unit, out Experience experience) ? experience.Current : 0f;
+
+	public bool IsAbilityDisabled(UnitId unit, string abilityId) => Api.Abilities.IsUnitAbilityDisabled(unit.UniqueId, abilityId);
+
+	/// <summary>
+	///     Casts an ability from a chosen unit, which is how a player uses the Nexus it selected rather than its hero.
+	/// </summary>
+	public void CastFrom(int slot, UnitId caster, string abilityId, Vector3 position)
+	{
+		Api.CastAbility(caster, abilityId, position);
+		DrainPresentation();
+	}
+
+	/// <summary>
+	///     Reads the last feedback line a seat was shown, which is where a refused purchase explains itself.
+	/// </summary>
+	public string LastFeedbackText(int slot)
+	{
+		string text = string.Empty;
+		for (int index = 0; index < _events.Count; index++)
+		{
+			ServerPresentationEvent candidate = _events[index];
+			if (candidate.Kind != PresentationKind.PlayerFeedbackText) continue;
+			if (candidate.PlayerIndex != slot && candidate.PlayerIndex != ServerPresentationEvent.Everyone) continue;
+
+			text = candidate.Text;
+		}
+
+		return text;
+	}
+
+	/// <summary>
+	///     Reads one inspector row the authority published for a unit, as the client's stat panel receives it.
+	/// </summary>
+	/// <param name="slot">The seat whose presentation stream is read.</param>
+	/// <param name="unit">The unit whose readout is being read.</param>
+	/// <param name="row">The readout row, zero based.</param>
+	/// <param name="valueColumn">Whether to read the row's value instead of its name.</param>
+	/// <returns>The last text published for that row, or an empty string when it was never published.</returns>
+	public string UnitReadout(int slot, UnitId unit, int row, bool valueColumn = false)
+	{
+		string key = $"readout.{row}.{(valueColumn ? "value" : "name")}";
+		string owner = unit.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		string text = string.Empty;
+
+		for (int index = 0; index < _events.Count; index++)
+		{
+			ServerPresentationEvent candidate = _events[index];
+			if (candidate.Kind != PresentationKind.TooltipTextSet) continue;
+			if (candidate.PlayerIndex != slot && candidate.PlayerIndex != ServerPresentationEvent.Everyone) continue;
+			if (!string.Equals(candidate.Key, "unit", StringComparison.OrdinalIgnoreCase)) continue;
+			if (!string.Equals(candidate.Text, owner, StringComparison.Ordinal)) continue;
+			if (!string.Equals(candidate.Text2, key, StringComparison.Ordinal)) continue;
+
+			text = candidate.Text3;
+		}
+
+		return text;
+	}
+
 	public void Kill(UnitId target, UnitId attacker, float damage = 100000f)
 	{
 		Api.DealTypedDamage(attacker, target, damage, "physical");
 		DrainPresentation();
+	}
+
+	/// <summary>
+	///     Reads the unit an order is currently aimed at, which is how a test observes the target a ruleset's targeting
+	///     rule selected rather than inferring it from damage other units may also have dealt.
+	/// </summary>
+	public UnitId CurrentTarget(UnitId unit)
+	{
+		return TryGet(unit, out AttackTarget target) ? new UnitId(target.Target.Id) : UnitId.Invalid;
 	}
 
 	public int LevelOf(UnitId unit)

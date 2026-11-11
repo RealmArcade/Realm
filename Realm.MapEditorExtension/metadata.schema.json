@@ -603,6 +603,10 @@
               "ExperiencePerLevel": {
                 "type": "number"
               },
+              "MaxLevel": {
+                "type": "integer",
+                "minimum": 0
+              },
               "PathingCapabilities": {
                 "type": [
                   "array",

@@ -69,6 +69,7 @@ public class UnitMetadata
 	public string[]? Abilities { get; set; }
 	public float XpBounty { get; set; }
 	public float ExperiencePerLevel { get; set; }
+	public int MaxLevel { get; set; }
 	public string[]? PathingCapabilities { get; set; }
 	public int PathingType { get; set; }
 	public string[]? Targets { get; set; }

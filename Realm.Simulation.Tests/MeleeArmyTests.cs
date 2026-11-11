@@ -120,8 +120,8 @@ public class MeleeArmyTests
 		Assert.That(_match.CountCharges(building), Is.EqualTo(MeleeContent.MaximumChargesOf(templateId) - 1), "The building spends a charge on its first soldier.");
 
 		_match.Kill(_match.Hero(1), _match.Hero(2));
-		_match.Step(5.5f);
-		Assert.That(_match.IsAlive(_match.Hero(1)), Is.False, "The first revival takes six seconds.");
+		_match.Step(11.5f);
+		Assert.That(_match.IsAlive(_match.Hero(1)), Is.False, "The first revival takes twelve seconds.");
 
 		_match.Step(1f);
 		UnitId revived = _match.Hero(1);
@@ -134,15 +134,15 @@ public class MeleeArmyTests
 	public void EachRevivalTakesThreeSecondsLongerThanTheLast()
 	{
 		_match.Kill(_match.Hero(1), _match.Hero(2));
-		_match.Step(6.5f);
-		Assert.That(_match.IsAlive(_match.Hero(1)), Is.True, "The first revival happens six seconds after the death.");
+		_match.Step(12.5f);
+		Assert.That(_match.IsAlive(_match.Hero(1)), Is.True, "The first revival happens twelve seconds after the death.");
 
 		_match.Kill(_match.Hero(1), _match.Hero(2));
-		_match.Step(8f);
-		Assert.That(_match.IsAlive(_match.Hero(1)), Is.False, "The second revival waits nine seconds, not six.");
+		_match.Step(14.5f);
+		Assert.That(_match.IsAlive(_match.Hero(1)), Is.False, "The second revival waits fifteen seconds, not twelve.");
 
 		_match.Step(1.5f);
-		Assert.That(_match.IsAlive(_match.Hero(1)), Is.True, "The second hero returns once nine seconds have passed.");
+		Assert.That(_match.IsAlive(_match.Hero(1)), Is.True, "The second hero returns once fifteen seconds have passed.");
 	}
 
 	[Test]

@@ -36,6 +36,10 @@ public class UnitStatsPanel
 	private const float StripIconSize = 22f;
 	private const ulong SignatureSeed = 1469598103934665603UL;
 	private const ulong SignaturePrime = 1099511628211UL;
+	private const int MaximumReadoutRows = 8;
+
+	private static readonly string[] ReadoutNameKeys = BuildReadoutKeys("name");
+	private static readonly string[] ReadoutValueKeys = BuildReadoutKeys("value");
 
 	private static readonly StatId StrengthStat = new(AttributeType.Strength);
 	private static readonly StatId AgilityStat = new(AttributeType.Agility);
@@ -60,6 +64,17 @@ public class UnitStatsPanel
 	private static readonly StatId FlatMagicPenetrationStat = new(CombatStatType.FlatMagicPenetration);
 	private static readonly StatId PercentMagicPenetrationStat = new(CombatStatType.PercentMagicPenetration);
 	private static readonly StatId AttackDelayStat = new(StatKeys.AttackDelay);
+
+	private static string[] BuildReadoutKeys(string field)
+	{
+		var keys = new string[MaximumReadoutRows];
+		for (int index = 0; index < keys.Length; index++)
+		{
+			keys[index] = $"readout.{index}.{field}";
+		}
+
+		return keys;
+	}
 
 	private readonly VBoxContainer _root;
 	private readonly Label _messageLabel;
@@ -259,6 +274,11 @@ public class UnitStatsPanel
 		_statusEffectIds.Clear();
 		buffs.CopyKeys(_statusEffectIds);
 
+		// A map's inspector rows live in the presentation store rather than the ECS, so they are refreshed before the
+		// stat signature short-circuits: a change to a published row is not a change to the unit's stats, and a panel
+		// that only redrew when the stats moved would leave its readouts frozen at whatever they were when it opened.
+		UpdateReadings(entity, forceRefresh);
+
 		ulong signature = ComputeSignature(entity, stats, attributes, experience, level, attack, hasExperience, hasLevel, hasAttack,
 			damageType, experiencePerLevel, info.StateText, info.Description, info.Player, metadata);
 		if (!forceRefresh && signature == _lastSignature)
@@ -288,7 +308,6 @@ public class UnitStatsPanel
 		_attackRangeRow.SetValue(FormatAmount(attack.Range));
 
 		ApplyRowVisibility(hasExperience, hasLevel, hasAttack);
-		UpdateReadings(entity, forceRefresh);
 
 		_moveSpeedRow.SetValue(FormatAmount(ReadStat(stats, MovementSpeedStat)));
 		_armorRow.SetValue(FormatAmount(ReadStat(stats, ArmorStat)));
@@ -528,7 +547,12 @@ public class UnitStatsPanel
 		float remainingSeconds = hasCharges ? charges.RemainingSecondsToNextCharge() : 0f;
 		int wholeRemainingSeconds = (int)MathF.Ceiling(remainingSeconds);
 
+		TooltipValueStore? published = GameContext.RegistryService?.TooltipValues;
+		string owner = TooltipValueStore.OwnerKey("unit", entity.Id);
+		int publishedRows = 0;
+
 		ulong signature = SignatureSeed;
+		signature = Mix(signature, hasCharges ? 1 : 0);
 		if (hasCharges)
 		{
 			signature = Mix(signature, charges.Charges);
@@ -536,33 +560,60 @@ public class UnitStatsPanel
 			signature = Mix(signature, wholeRemainingSeconds);
 		}
 
+		for (int index = 0; index < MaximumReadoutRows; index++)
+		{
+			if (published == null || !published.TryGetText(owner, ReadoutNameKeys[index], out string name) || string.IsNullOrWhiteSpace(name))
+			{
+				signature = Mix(signature, 0);
+				continue;
+			}
+
+			published.TryGetText(owner, ReadoutValueKeys[index], out string value);
+			signature = Mix(signature, name);
+			signature = Mix(signature, value);
+			publishedRows++;
+		}
+
+		signature = Mix(signature, publishedRows);
+
 		if (!forceRefresh && signature == _lastReadingsSignature) return;
 		_lastReadingsSignature = signature;
 
-		if (!hasCharges)
-		{
-			for (int index = 0; index < _readingRows.Count; index++)
-			{
-				_readingRows[index].Root.Visible = false;
-			}
+		int visibleRows = publishedRows + (hasCharges ? 2 : 0);
+		EnsureReadingRows(visibleRows);
 
-			_readingsSection.Visible = false;
-			return;
+		int rowIndex = 0;
+		for (int index = 0; index < MaximumReadoutRows; index++)
+		{
+			if (published == null || !published.TryGetText(owner, ReadoutNameKeys[index], out string name) || string.IsNullOrWhiteSpace(name)) continue;
+
+			published.TryGetText(owner, ReadoutValueKeys[index], out string value);
+			_readingRows[rowIndex].Root.Visible = true;
+			_readingRows[rowIndex].Set(TranslationServer.Translate(name), TranslationServer.Translate(value));
+			rowIndex++;
 		}
 
-		EnsureReadingRows(2);
+		if (hasCharges)
+		{
+			_readingRows[rowIndex].Root.Visible = true;
+			_readingRows[rowIndex].Set(TranslationServer.Translate("Charges"), $"{charges.Charges} / {charges.MaximumCharges}");
+			rowIndex++;
 
-		_readingRows[0].Root.Visible = true;
-		_readingRows[0].Set(TranslationServer.Translate("Charges"), $"{charges.Charges} / {charges.MaximumCharges}");
+			_readingRows[rowIndex].Root.Visible = true;
+			_readingRows[rowIndex].Set(
+				TranslationServer.Translate("Next charge"),
+				wholeRemainingSeconds <= 0
+					? TranslationServer.Translate("Ready")
+					: string.Format(TranslationServer.Translate("{0} s"), wholeRemainingSeconds.ToString(CultureInfo.InvariantCulture)));
+			rowIndex++;
+		}
 
-		_readingRows[1].Root.Visible = true;
-		_readingRows[1].Set(
-			TranslationServer.Translate("Next charge"),
-			wholeRemainingSeconds <= 0
-				? TranslationServer.Translate("Ready")
-				: string.Format(TranslationServer.Translate("{0} s"), wholeRemainingSeconds.ToString(CultureInfo.InvariantCulture)));
+		for (int index = rowIndex; index < _readingRows.Count; index++)
+		{
+			_readingRows[index].Root.Visible = false;
+		}
 
-		_readingsSection.Visible = true;
+		_readingsSection.Visible = visibleRows > 0;
 	}
 
 	private void EnsureReadingRows(int count)

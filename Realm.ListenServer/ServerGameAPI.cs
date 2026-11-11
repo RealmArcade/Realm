@@ -9,6 +9,7 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
+using Realm.Shared.Metadata;
 using Realm.Shared.Network;
 using Realm.Shared.Simulation;
 using Realm.MapAPI;
@@ -512,7 +513,42 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return;
 
-		_context.World.SetOrAdd(entity, new Experience(value));
+		_context.World.SetOrAdd(entity, new Experience(Math.Max(0f, value)));
+		AdvanceLevelsFromExperience(entity);
+	}
+
+	/// <summary>
+	///     Spends a unit's accumulated experience on every level its template allows, applying that template's own growth
+	///     curve as each level is reached. A template that states no experience per level never advances, and one that
+	///     states no maximum level is not capped.
+	/// </summary>
+	/// <param name="entity">The unit whose experience is being spent.</param>
+	private void AdvanceLevelsFromExperience(Entity entity)
+	{
+		if (!_context.World.TryGet<DefinitionId>(entity, out DefinitionId definitionId)) return;
+		if (!_context.World.TryGet<Experience>(entity, out Experience experience)) return;
+		if (!_context.World.TryGet<Level>(entity, out Level level)) return;
+
+		UnitMetadata? metadata = _map.Catalog.FindUnitOrBuilding(definitionId.Value);
+		if (metadata == null) return;
+
+		float experiencePerLevel = metadata.ExperiencePerLevel;
+		if (experiencePerLevel <= 0f) return;
+
+		int maximumLevel = metadata.MaxLevel > 0 ? metadata.MaxLevel : int.MaxValue;
+		int gainedLevels = 0;
+		while (experience.Current >= experiencePerLevel && level.Value < maximumLevel)
+		{
+			experience.Current -= experiencePerLevel;
+			level.Value++;
+			gainedLevels++;
+		}
+
+		if (gainedLevels == 0) return;
+
+		_context.World.Set(entity, experience);
+		_context.World.Set(entity, level);
+		LevelService.Apply(_context.World, entity, level.Value, ResolveLevelGrowth(entity));
 	}
 
 	/// <summary>

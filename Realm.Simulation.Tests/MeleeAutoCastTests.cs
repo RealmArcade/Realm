@@ -95,9 +95,10 @@ public class MeleeAutoCastTests
 	[Test]
 	public void TheStandardBearerKeepsItsAuraOnTheSoldiersAroundIt()
 	{
-		_match.SpawnSoldier(1, "unit/standard_bearer", CasterPosition);
-		UnitId near = _match.SpawnSoldier(1, "unit/axeman", BesideCasterPosition);
-		UnitId far = _match.SpawnSoldier(1, "unit/axeman", FarFromCasterPosition);
+		Vector3 heroPosition = _match.PositionOf(_match.Hero(1));
+		_match.SpawnSoldier(1, "unit/standard_bearer", heroPosition + new Vector3(4f, 0f, 0f));
+		UnitId near = _match.SpawnSoldier(1, "unit/axeman", heroPosition + new Vector3(5f, 0f, 0f));
+		UnitId far = _match.SpawnSoldier(1, "unit/axeman", heroPosition + new Vector3(24f, 0f, 0f));
 
 		_match.Step(0.5f);
 
