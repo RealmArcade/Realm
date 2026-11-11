@@ -736,6 +736,12 @@ public partial class MultiplayerSimulationHarness : Node
 			float boarHealthAfterFirstBlow = GodotObject.IsInstanceValid(boar) ? ReadHealth(boar) : 0f;
 			Note($"camp health {boarHealthBefore:0.#} -> {boarHealthAfterFirstBlow:0.#}");
 			Check("the camp takes the army's blows", struck);
+
+			MeshInstance3D? targetMarker = currentHost.FindChild("AttackTargetMarker_0", true, false) as MeshInstance3D;
+			Check("the camp being attacked carries a target marker", targetMarker is { Visible: true });
+			Check("the target marker stands over the camp",
+				targetMarker != null && targetMarker.GlobalPosition.DistanceTo(campPosition) < 8f,
+				targetMarker == null ? "no marker" : $"marker {targetMarker.GlobalPosition}, camp {campPosition}");
 			SaveUxScreenshot("ux_smoke_battle.png", "battle", Note);
 
 			bool felled = await WaitUntilAsync(() => !GodotObject.IsInstanceValid(boar) || ReadHealth(boar) <= 0f, 30f);

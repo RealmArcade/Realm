@@ -6,6 +6,7 @@ using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Ecs;
 using Realm.Ecs.Common;
+using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Tags;
 
@@ -24,6 +25,9 @@ public partial class UnitOcclusionOutlineService : Node3D
 	private const float MaximumPropOccluderDistance = 90.0f;
 	private const float MinimumPropOccluderHeight = 2.0f;
 	private const float MinimumPropOccluderWidth = 0.8f;
+	private const int MaximumTargetMarkers = 8;
+	private const float UnitTargetMarkerHeight = 3.2f;
+	private const float BuildingTargetMarkerHeight = 6.5f;
 	private const float SilhouetteFadeInSeconds = 0.15f;
 	private const float SilhouetteFadeOutSeconds = 0.35f;
 	private const float SilhouetteOcclusionHoldSeconds = 0.25f;
@@ -37,10 +41,14 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 	private readonly List<BuildingOccluder> _buildingOccluders = new();
 	private readonly List<PropOccluder> _propOccluders = new();
+	private readonly List<Entity> _markerTargets = new();
+	private readonly List<MeshInstance3D> _targetMarkers = new();
 	private readonly Dictionary<ulong, SilhouetteState> _silhouetteStates = new();
 	private readonly List<ulong> _staleSilhouetteIds = new();
 
 	private ShaderMaterial _silhouetteMaterial = null!;
+	private Mesh? _targetMarkerMesh;
+	private StandardMaterial3D? _targetMarkerMaterial;
 	private EntityCallback<Position, PropIdentity> _propOccluderQueryDelegate = null!;
 	private PropMultiMeshManager? _propOccluderManager;
 	private Vector3 _propOccluderEye;
@@ -88,6 +96,8 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 	public void Tick(float delta, Camera3D camera, IReadOnlyList<Unit3D> units)
 	{
+		UpdateAttackTargetMarkers(units);
+
 		// The outline is a readability aid a player asks for, so it is not switched off with the quality preset. Low
 		// quality samples the terrain coarsely instead, which keeps the cost of a dense army bounded.
 		bool isEnabled = GameSettings.OccludedUnitOutlines
@@ -176,6 +186,103 @@ public partial class UnitOcclusionOutlineService : Node3D
 		return IsOccludedByTerrain(eye, toUnit, distance)
 		       || IsOccludedByBuilding(eye, samplePoint, toUnit, distance)
 		       || IsOccludedByProp(eye, samplePoint, toUnit, distance);
+	}
+
+	/// <summary>
+	///     Marks the units this screen's own army is attacking. The marker is drawn without a depth test, so a camp or a
+	///     commander stays findable even when a canopy covers the fight.
+	/// </summary>
+	/// <param name="units">Every unit the screen is drawing.</param>
+	private void UpdateAttackTargetMarkers(IReadOnlyList<Unit3D> units)
+	{
+		for (int index = 0; index < _targetMarkers.Count; index++) _targetMarkers[index].Visible = false;
+
+		_markerTargets.Clear();
+		int localSlot = GameContext.ServerSession?.LocalPlayerSlot ?? -1;
+		EcsWorld? world = GameContext.World;
+		if (units == null || world == null || localSlot <= 0 || GameContext.SessionState.IsMapEditorMode) return;
+
+		for (int index = 0; index < units.Count && _markerTargets.Count < MaximumTargetMarkers; index++)
+		{
+			Unit3D unit = units[index];
+			if (!GodotObject.IsInstanceValid(unit) || unit.Player != localSlot) continue;
+			if (!world.IsAlive(unit.Entity) || !world.Has<AttackTarget>(unit.Entity)) continue;
+
+			Entity target = world.Get<AttackTarget>(unit.Entity).Target;
+			if (target == Entity.Null || !world.IsAlive(target)) continue;
+			if (ContainsTarget(target)) continue;
+
+			_markerTargets.Add(target);
+		}
+
+		for (int index = 0; index < _markerTargets.Count; index++)
+		{
+			Unit3D? targetUnit = FindUnitById(units, _markerTargets[index]);
+			if (targetUnit == null) continue;
+
+			MeshInstance3D marker = EnsureTargetMarker(index);
+			float height = targetUnit.IsBuilding ? BuildingTargetMarkerHeight : UnitTargetMarkerHeight;
+			marker.GlobalPosition = targetUnit.GlobalPosition + new Vector3(0f, height, 0f);
+			marker.Visible = true;
+		}
+	}
+
+	private bool ContainsTarget(Entity target)
+	{
+		for (int index = 0; index < _markerTargets.Count; index++)
+		{
+			if (_markerTargets[index].Id == target.Id) return true;
+		}
+
+		return false;
+	}
+
+	private static Unit3D? FindUnitById(IReadOnlyList<Unit3D> units, Entity target)
+	{
+		for (int index = 0; index < units.Count; index++)
+		{
+			Unit3D unit = units[index];
+			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
+			if (unit.Entity.Id != target.Id) continue;
+
+			return unit;
+		}
+
+		return null;
+	}
+
+	private MeshInstance3D EnsureTargetMarker(int index)
+	{
+		while (_targetMarkers.Count <= index)
+		{
+			_targetMarkerMesh ??= new CylinderMesh { TopRadius = 0f, BottomRadius = 0.6f, Height = 1.1f, RadialSegments = 12, Rings = 0 };
+			_targetMarkerMaterial ??= new StandardMaterial3D
+			{
+				ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				NoDepthTest = true,
+				AlbedoColor = new Color(0.95f, 0.2f, 0.15f, 0.95f),
+				EmissionEnabled = true,
+				Emission = new Color(0.95f, 0.2f, 0.15f),
+				DisableReceiveShadows = true,
+				RenderPriority = 1
+			};
+
+			var marker = new MeshInstance3D
+			{
+				Name = $"AttackTargetMarker_{_targetMarkers.Count}",
+				Mesh = _targetMarkerMesh,
+				MaterialOverride = _targetMarkerMaterial,
+				CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+				GIMode = GeometryInstance3D.GIModeEnum.Disabled,
+				RotationDegrees = new Vector3(180f, 0f, 0f)
+			};
+
+			AddChild(marker);
+			_targetMarkers.Add(marker);
+		}
+
+		return _targetMarkers[index];
 	}
 
 	private static bool IsEligibleUnit(Unit3D unit)
