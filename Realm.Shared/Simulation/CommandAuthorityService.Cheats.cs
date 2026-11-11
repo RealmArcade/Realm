@@ -152,6 +152,8 @@ public partial class CommandAuthorityService
 
 	private void DisableShroud()
 	{
+		_context.ShroudDisabled = true;
+
 		Entity worldEntity = _context.WorldEntity;
 		if (worldEntity == Entity.Null || !_context.World.IsAlive(worldEntity)) return;
 

@@ -4,6 +4,7 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
@@ -181,6 +182,20 @@ internal sealed class MeleeMatch : IDisposable
 		return Api.GetUnitsOwnedByPlayer(slot).ToArray();
 	}
 
+	public Entity PlayerEntity(int slot) => Simulation.Map.GetPlayerEntity(slot).Value;
+
+	public bool IsGameOver => Simulation.IsGameOver;
+
+	public bool FastBuildEnabled => Simulation.Map.Simulation.FastBuildEnabled;
+
+	public bool UnlimitedPowerEnabled => Simulation.Map.Simulation.UnlimitedPowerEnabled;
+
+	public bool ShroudDisabled => Simulation.Map.Simulation.ShroudDisabled;
+
+	public float SpeedOf(UnitId unit) => TryGet(unit, out MovementStats movement) ? movement.Speed : 0f;
+
+	public float AttackDamageOf(UnitId unit) => TryGet(unit, out Attack attack) ? attack.Damage : 0f;
+
 	public UnitId Hero(int slot)
 	{
 		foreach (UnitId unit in Owned(slot))
@@ -353,13 +368,19 @@ internal sealed class MeleeMatch : IDisposable
 	/// <param name="slot">The seat that typed the line.</param>
 	/// <param name="cheatWord">The word that was typed, exactly as it was typed.</param>
 	/// <returns>What the authority answered the line with.</returns>
-	public ServerCommandResult SubmitCheat(int slot, string cheatWord)
+	public ServerCommandResult SubmitCheat(int slot, string cheatWord, params UnitId[] units)
 	{
+		var selectedIds = new System.Collections.Generic.List<int>();
+		for (int index = 0; index < units.Length; index++)
+		{
+			if (units[index].IsValid) selectedIds.Add(units[index].Value);
+		}
+
 		var command = new NetworkCommand
 		{
 			CommandId = _nextCommandId++,
 			CommandType = "cheat",
-			UnitEntityIds = new System.Collections.Generic.List<int>(),
+			UnitEntityIds = selectedIds,
 			TargetPosition = new NetworkVector3(0f, 0f, 0f),
 			TargetEntityId = 0,
 			ArgString = cheatWord
