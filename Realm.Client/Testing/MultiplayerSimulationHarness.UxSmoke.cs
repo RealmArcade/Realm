@@ -155,6 +155,41 @@ public partial class MultiplayerSimulationHarness : Node
 			Check("the drawn card names a key for every command", draftKeys.Count == draftCard.Count, $"keys={draftKeys.Count} buttons={draftCard.Count}");
 			Check("the drawn card has no duplicate keys", HasDuplicateHotkeys(draftKeys) == false, string.Join(", ", draftKeys));
 			SaveUxScreenshot("ux_smoke_draft.png", "draft", Note);
+
+			// Abandoning is the only way back out of a draw, so it is played before anything is locked: the reserved wood
+			// has to return, the begin card has to come back and the offers have to leave the inspector.
+			Check("the drawn card offers the abandon command", draftKeys.Exists(key => string.Equals(key, "V", StringComparison.OrdinalIgnoreCase)), string.Join(", ", draftKeys));
+			bool abandonedByHotkey = hud.HandleCommandCardHotkey(Key.V, (KeyModifierMask)0);
+			Check("the draw answers the abandon hotkey", abandonedByHotkey);
+			await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+
+			Check("abandoning the draw returns its wood", hud.Wood >= woodBefore - 1f, $"wood {hud.Wood:0.##} expected {woodBefore:0.##}");
+			string abandonFeedback = ReadFeedback(hud);
+			Check("abandoning the draw announces the refund", abandonFeedback.Contains("returned", StringComparison.OrdinalIgnoreCase), abandonFeedback);
+			Check("abandoning the draw restores the begin card", FindCommandButton(hud, "Begin Construction") != null);
+			Check("abandoning the draw withdraws the offers", FindCommandButtonsContaining(hud, "for 100 wood").Count == 0);
+			Node? abandonedReadings = hud.FindChild("UnitStatsReadings_VBoxContainer", true, false);
+			Check("abandoning the draw clears the offered readings", CountReadingRowsNamed(abandonedReadings, "Offered") == 0);
+			SaveUxScreenshot("ux_smoke_abandoned.png", "abandoned", Note);
+
+			Button? reopenButton = FindCommandButton(hud, "Begin Construction");
+			Check("the begin card answers again after an abandon", reopenButton != null && !reopenButton.Disabled);
+			if (reopenButton != null)
+			{
+				reopenButton.EmitSignal(Button.SignalName.Pressed);
+				await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
+				Check("the second draw asks for a site", currentHost.ActiveSpellTargeting == "ability/begin_construction", currentHost.ActiveSpellTargeting ?? "none");
+
+				currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(4f, 0f, 4f));
+				await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
+				Check("the second draw reserves 100 wood", hud.Wood <= woodBefore - 90f, $"{woodBefore:0.##} -> {hud.Wood:0.##}");
+			}
+
+			draftOptions = FindCommandButtonsContaining(hud, "for 100 wood");
+			Check("the second draw offers three packages", draftOptions.Count == 3, $"cards={draftOptions.Count}");
+			draftCard = FindCommandButtons(hud);
+			draftKeys = ReadCommandHotkeys(draftCard);
+
 			if (draftOptions.Count > 0)
 			{
 				int buildingsBefore = CountPlayerBuildings(currentHost, 1);
@@ -420,7 +455,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 		foreach (Node child in readings.GetChildren())
 		{
-			if (child is HBoxContainer row)
+			if (child is HBoxContainer { Visible: true } row)
 			{
 				string rowName = string.Empty;
 				string rowValue = string.Empty;
@@ -448,7 +483,7 @@ public partial class MultiplayerSimulationHarness : Node
 		int count = 0;
 		foreach (Node child in readings.GetChildren())
 		{
-			if (child is HBoxContainer row)
+			if (child is HBoxContainer { Visible: true } row)
 			{
 				foreach (Node labelNode in row.GetChildren())
 				{
