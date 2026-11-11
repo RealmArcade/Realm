@@ -123,7 +123,12 @@ public partial class GameHost
 
 		if (GameContext.InGameHud != null)
 		{
-			Hud.ShowFeedbackText($"Command: Attack {target.UnitId.ToUpper()}", new Color(0.9f, 0.2f, 0.2f));
+			// The unit the order names is shown by the name the map gave it, not by its template identifier: a player
+			// who right-clicks a camp reads "Crest Boar", never "UNIT/CREST_BOAR".
+			string targetName = GameHost.TryGetUnitOrBuildingMetadata(target.TemplateID, out UnitMetadata? targetMetadata) && !string.IsNullOrEmpty(targetMetadata.Name)
+				? targetMetadata.Name
+				: target.UnitId;
+			Hud.ShowFeedbackText(string.Format(TranslationServer.Translate("Command: Attack {0}"), targetName), new Color(0.9f, 0.2f, 0.2f));
 		}
 	}
 

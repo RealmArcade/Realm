@@ -457,6 +457,61 @@ public partial class MultiplayerSimulationHarness : Node
 			SaveUxScreenshot("ux_smoke_building.png", "building", Note);
 		}
 
+		// The board guards its middle with a neutral camp, and the soldier that was just raised is the army sent to
+		// clear it. This is the only fight the screen can show before the enemy base is described: the hero marches
+		// there, the camp fights back, the kill pays the bounty its template states, and the camp returns on its timer.
+		Check("the shroud cheat is accepted", hud.TryTriggerCheat("aura"));
+		Unit3D? boar = await WaitForUnitAsync(currentHost, "unit/crest_boar", 0, 15f);
+		if (boar != null) boar = FindNearestUnit(currentHost, "unit/crest_boar", 0, hero.GlobalPosition) ?? boar;
+		Check("the neutral camp is described once the board is revealed", boar != null, $"camp {boar?.GlobalPosition.ToString() ?? "missing"}");
+		if (boar != null)
+		{
+			Vector3 campPosition = boar.GlobalPosition;
+			int campsBefore = CountUnits(currentHost, "unit/crest_boar", 0);
+			Note($"marching the army onto the camp at {campPosition} with {campsBefore} camp(s) on the board");
+			float goldBeforeCamp = hud.Gold;
+			currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+			currentHost.IssueMoveCommand(campPosition);
+			bool arrived = await WaitUntilAsync(() => GodotObject.IsInstanceValid(hero) && hero.GlobalPosition.DistanceTo(campPosition) < 12f, 75f);
+			Check("the army marches to the neutral camp", arrived, $"{hero.GlobalPosition} -> camp {campPosition}");
+
+			// The soldier walks slower than the hero and follows its slot, so the army is gathered at the camp rather
+			// than beside the hero at every moment of the march.
+			bool soldierJoined = await WaitUntilAsync(() =>
+			{
+				Unit3D? follower = FindUnit(currentHost, "unit/", 1);
+				return follower != null && follower.GlobalPosition.DistanceTo(campPosition) < 25f;
+			}, 25f);
+			Unit3D? follower = FindUnit(currentHost, "unit/", 1);
+			Check("the soldier marches with the hero to the camp", soldierJoined,
+				follower == null ? "no soldier" : $"soldier at {follower.GlobalPosition}, camp {campPosition}");
+
+			FocusCamera(campPosition);
+			await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
+			Check("the camp stands on screen", IsOnScreen(boar.GlobalPosition), $"camp {boar.GlobalPosition} camera {ActiveCamera()?.Position}");
+
+			float boarHealthBefore = ReadHealth(boar);
+			currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
+			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
+			currentHost.IssueAttackCommand(boar);
+			bool struck = await WaitUntilAsync(() => !GodotObject.IsInstanceValid(boar) || ReadHealth(boar) < boarHealthBefore - 0.5f, 20f);
+			float boarHealthAfterFirstBlow = GodotObject.IsInstanceValid(boar) ? ReadHealth(boar) : 0f;
+			Note($"camp health {boarHealthBefore:0.#} -> {boarHealthAfterFirstBlow:0.#}");
+			Check("the camp takes the army's blows", struck);
+			SaveUxScreenshot("ux_smoke_battle.png", "battle", Note);
+
+			bool felled = await WaitUntilAsync(() => !GodotObject.IsInstanceValid(boar) || ReadHealth(boar) <= 0f, 30f);
+			Check("the army fells the camp", felled);
+			Check("the kill pays the bounty the camp states", hud.Gold >= goldBeforeCamp + 40f, $"gold {goldBeforeCamp:0.#} -> {hud.Gold:0.#}");
+			int campsAfterKill = CountUnits(currentHost, "unit/crest_boar", 0);
+			Check("the felled camp leaves the board", campsAfterKill < campsBefore, $"camps {campsBefore} -> {campsAfterKill}");
+
+			Note("waiting for the camp to return on its authored timer");
+			bool campReturned = await WaitUntilAsync(() => CountUnits(currentHost, "unit/crest_boar", 0) >= campsBefore, 70f);
+			Check("the camp returns on the timer its template states", campReturned, $"camps {campsAfterKill} -> {CountUnits(currentHost, "unit/crest_boar", 0)}");
+		}
+
 		Note("cooking the hero to play the death and revival flow");
 		string deathFeedback = await SacrificeHeroAsync(hero);
 		Check("the death states when the hero returns", deathFeedback.Contains("returns in", StringComparison.OrdinalIgnoreCase), deathFeedback);
@@ -480,10 +535,8 @@ public partial class MultiplayerSimulationHarness : Node
 
 		// A match only ends when the enemy Nexus falls, so the hero is sent at it through the same attack order a right
 		// click issues and given the damage a developer needs to reach the end in one blow. What the screen has to show is
-		// the fight and then the victory it causes.
-		// The enemy base is out of this screen's sight when the match starts, so it has never been described. The shroud
-		// cheat reveals the whole board, which is how a developer reaches the far side without marching there to look.
-		Check("the shroud cheat is accepted", hud.TryTriggerCheat("aura"));
+		// the fight and then the victory it causes. The board is already revealed by the shroud cheat, so the enemy base
+		// is described and can be clicked without marching there to look first.
 		Unit3D? enemyNexus = await WaitForUnitAsync(currentHost, "building/nexus", 2, 10f);
 		Check("the enemy Nexus replicates once the board is revealed", enemyNexus != null);
 		Unit3D? attacker = FindUnit(currentHost, "hero/", 1);
@@ -615,6 +668,41 @@ public partial class MultiplayerSimulationHarness : Node
 
 		await WaitUntilAsync(() => FindUnit(host, templatePrefix, player) != null, seconds);
 		return FindUnit(host, templatePrefix, player);
+	}
+
+	private static Unit3D? FindNearestUnit(GameHost host, string templatePrefix, int player, Vector3 from)
+	{
+		Unit3D? nearest = null;
+		float nearestDistance = float.MaxValue;
+		foreach (Unit3D unit in host.AllUnits)
+		{
+			if (!GodotObject.IsInstanceValid(unit)) continue;
+			if (unit.Player != player) continue;
+			if (!unit.TemplateID.StartsWith(templatePrefix, StringComparison.OrdinalIgnoreCase)) continue;
+
+			float distance = unit.GlobalPosition.DistanceTo(from);
+			if (distance >= nearestDistance) continue;
+
+			nearest = unit;
+			nearestDistance = distance;
+		}
+
+		return nearest;
+	}
+
+	private static int CountUnits(GameHost host, string templatePrefix, int player)
+	{
+		int count = 0;
+		foreach (Unit3D unit in host.AllUnits)
+		{
+			if (!GodotObject.IsInstanceValid(unit)) continue;
+			if (unit.Player != player) continue;
+			if (!unit.TemplateID.StartsWith(templatePrefix, StringComparison.OrdinalIgnoreCase)) continue;
+
+			count++;
+		}
+
+		return count;
 	}
 
 	private static Unit3D? FindUnit(GameHost host, string templatePrefix, int player)
