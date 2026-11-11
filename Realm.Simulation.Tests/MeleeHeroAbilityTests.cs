@@ -118,6 +118,29 @@ public class MeleeHeroAbilityTests
 	}
 
 	[Test]
+	public void ShieldBashStunsTheEnemyItIsAimedAt()
+	{
+		Start("Vale");
+		Vector3 spawnedAt = _heroPosition + new Vector3(3f, 0f, 0f);
+		UnitId enemy = SpawnEnemy(spawnedAt);
+		_match.Api.IssueMoveOrder(enemy, _heroPosition + new Vector3(15f, 0f, 0f));
+		_match.Step(0.1f);
+		Assert.That(Vector3.Distance(_match.PositionOf(enemy), spawnedAt), Is.GreaterThan(0.1f), "The enemy has to be walking before the bash so the stun has movement to stop.");
+
+		_match.Cast(1, "ability/shield_bash", _match.PositionOf(enemy));
+		_match.Step(0.3f);
+
+		Assert.That(_match.Api.UnitHasBuff(enemy, "stun"), Is.True, "Shield Bash has to stun the enemy it hit.");
+		Vector3 stunnedPosition = _match.PositionOf(enemy);
+
+		_match.Step(0.6f);
+		Assert.That(Vector3.Distance(_match.PositionOf(enemy), stunnedPosition), Is.LessThan(0.5f), "A stunned enemy must not walk away during the stun.");
+
+		_match.Step(0.6f);
+		Assert.That(_match.Api.UnitHasBuff(enemy, "stun"), Is.False, "The stun has to end when its authored 1.25 seconds run out.");
+	}
+
+	[Test]
 	public void SablessCommandCardOffersEveryActive()
 	{
 		Start("Sable");

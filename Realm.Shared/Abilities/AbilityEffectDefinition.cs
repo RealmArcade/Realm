@@ -10,6 +10,7 @@ public enum AbilityEffectKind
 	Shield,
 	Buff,
 	Debuff,
+	Stun,
 	Summon,
 	Teleport,
 	Knockback

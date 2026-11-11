@@ -140,7 +140,7 @@ public static class AbilityEffectFactory
 
 		return kind switch
 		{
-			AbilityEffectKind.Damage or AbilityEffectKind.Debuff or AbilityEffectKind.Knockback => AbilityTargetSide.Enemies,
+			AbilityEffectKind.Damage or AbilityEffectKind.Debuff or AbilityEffectKind.Stun or AbilityEffectKind.Knockback => AbilityTargetSide.Enemies,
 			AbilityEffectKind.Heal or AbilityEffectKind.Shield or AbilityEffectKind.Buff => AbilityTargetSide.Allies,
 			_ => AbilityTargetSide.Self
 		};

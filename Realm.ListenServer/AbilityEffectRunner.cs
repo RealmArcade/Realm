@@ -97,6 +97,12 @@ public class AbilityEffectRunner
 				ApplyStatus(target, effect, duration);
 				break;
 
+			case AbilityEffectKind.Stun:
+				if (duration <= 0f) return;
+				UnitOrderService.ApplyBuff(world, target, "stun", duration);
+				UnitOrderService.Stop(world, target);
+				break;
+
 			case AbilityEffectKind.Knockback:
 				if (amount > 0f) ApplyKnockback(casterEntity, casterAlive, target, amount);
 				break;
