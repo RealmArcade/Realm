@@ -114,6 +114,25 @@ public class MeleeEconomyTests
 	}
 
 	[Test]
+	public void AWorkersLevelStaysAtItsBuildingsConstructionOrder()
+	{
+		_match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", SitePosition, 1, 0f);
+		_match.Step(20f);
+
+		List<UnitId> workers = WorkersOf(1);
+		Assert.That(workers, Is.Not.Empty, "The building has to raise a worker to check its level.");
+
+		UnitId worker = workers[0];
+		Assert.That(_match.LevelOf(worker), Is.EqualTo(1), "The first building raises level 1 workers.");
+
+		_match.Api.SetUnitLevel(_match.Hero(1), 4);
+		_match.Step(1f);
+
+		Assert.That(_match.LevelOf(worker), Is.EqualTo(1),
+			"The army's level growth must not overwrite the level a worker was raised at.");
+	}
+
+	[Test]
 	public void AWorkerTakesTheNodesItemAndDeliversItToThePurse()
 	{
 		_match.Api.SpawnBuildingUnderConstruction("building/warband_yard", SitePosition, 1, 0f);
