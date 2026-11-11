@@ -250,6 +250,20 @@ public partial interface IGameAPI
 	void SetUnitRepairable(UnitId unit, bool repairable);
 
 	/// <summary>
+	/// States whether a unit is a resource worker for the worker collision rule.
+	/// </summary>
+	/// <remarks>
+	/// Workers body-block the workers of their own player and pass through the workers of every other player, so a
+	/// gathering crew never jams on itself while rival crews walk through one another. Only worker against worker is
+	/// decided here: a worker still collides with soldiers, heroes and buildings like any other unit, and a match that
+	/// never marks a worker keeps every unit blocking every other unit. The flag belongs to the unit, so two workers of
+	/// the same player body-block while two workers of different players ghost, whatever their teams say.
+	/// </remarks>
+	/// <param name="unit">The unit to mark or unmark.</param>
+	/// <param name="worker">True to make the unit a worker; false to give it ordinary unit collision again.</param>
+	void SetUnitWorker(UnitId unit, bool worker);
+
+	/// <summary>
 	/// Shows or hides the overhead health and mana bars for a single unit.
 	/// </summary>
 	/// <remarks>

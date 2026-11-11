@@ -2,6 +2,9 @@ using System;
 using System.Numerics;
 using NUnit.Framework;
 using Realm.Ecs;
+using Realm.Ecs.Common;
+using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Tags;
 
 namespace Realm.Simulation.Tests;
 
@@ -56,6 +59,28 @@ public class MeleeEconomyTests
 
 		float swings = nodeLoss / swing;
 		Assert.That(swings, Is.EqualTo(MathF.Round(swings)).Within(0.02f), "Every swing has to take exactly the amount the building advertises.");
+	}
+
+	[Test]
+	public void AFinishedBuildingsWorkerCarriesTheWorkerTagTheCollisionRuleReads()
+	{
+		UnitId building = _match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", NearNodeSitePosition, 1, 0f);
+		Assert.That(building.IsValid, Is.True, "The test has to raise the gathering building its worker belongs to.");
+		_match.Step(2f);
+
+		int workers = 0;
+		int markedWorkers = 0;
+		EcsWorld world = _match.World;
+		var query = QueryCache.AllPositionAndDefinitionIdNoneDeadQuery;
+		world.Query(in query, (Entity entity, ref Position position) =>
+		{
+			if (world.Get<DefinitionId>(entity).Value != "unit/building_worker") return;
+			workers++;
+			if (world.Has<Worker>(entity)) markedWorkers++;
+		});
+
+		Assert.That(workers, Is.GreaterThan(0), "A finished gathering building has to put its worker on the board.");
+		Assert.That(markedWorkers, Is.EqualTo(workers), "Every worker the ruleset spawns has to carry the tag the worker collision rule reads.");
 	}
 
 	[Test]

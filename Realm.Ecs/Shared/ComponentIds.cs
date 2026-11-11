@@ -71,4 +71,6 @@ public static class ComponentIds
 	public const int Dormant = 136;
 	/// <summary>Repairable building tag component identifier, marking a building that falls dormant instead of dying.</summary>
 	public const int RepairableBuilding = 137;
+	/// <summary>Worker tag component identifier, marking a unit that follows the worker collision rule.</summary>
+	public const int Worker = 140;
 }

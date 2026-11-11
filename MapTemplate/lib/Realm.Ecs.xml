@@ -1327,6 +1327,12 @@
                 Tag indicating the entity is a primary game unit.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Components.Tags.Worker">
+            <summary>
+                Tag marking a unit as a resource worker: workers body-block the workers of their own player and pass through the
+                workers of every other player, so a gathering crew never jams on itself while rival crews walk through one another.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Terrain.ShroudGridRegistry">
             <summary>
                 Resolves a shroud grid handle in the ambient world's own store. Only one world is alive per process at a time,
@@ -2188,6 +2194,28 @@
                 as a flat ground marker - blocks nothing, exactly as it contributes no obstacle volume to the navigation bake.
             </summary>
         </member>
+        <member name="M:Realm.Ecs.Services.MovementAndPathfindingService.GhostsUnitCollision(Realm.Ecs.Entity,Realm.Ecs.Entity)">
+            <summary>
+                Answers whether the moving body passes through the other body instead of being stopped by it, which is what a
+                hero does to every soldier and what a worker does to every worker of another player.
+            </summary>
+            <remarks>
+                A hero is not body-blocked by soldiers, so a hero's retreat is never walled in by its own army. The rule is
+                one-directional in effect: a soldier still resolves against a hero, so the soldier steps aside while the hero
+                keeps its line. Two heroes do block each other, and two workers of the same player block each other, so a
+                gathering crew keeps its shape while a rival crew walks through it.
+            </remarks>
+        </member>
+        <member name="M:Realm.Ecs.Services.MovementAndPathfindingService.GhostsObstacleCollision(Realm.Ecs.Entity,Realm.Ecs.Entity)">
+            <summary>
+                Answers whether a hero passes through a static obstacle: allied buildings, enemy buildings still in their
+                construction silhouette, and enemy buildings that were reduced to zero health and wait to be repaired.
+            </summary>
+            <remarks>
+                Terrain props always block, so a hero cannot walk through a rock or a tree line. An enemy building that is
+                functional or merely damaged still blocks, which is what makes a building worth defending.
+            </remarks>
+        </member>
         <member name="M:Realm.Ecs.Services.MovementAndPathfindingService.CollectPreviewMovementWorkItemAction(Realm.Ecs.Entity,Realm.Ecs.Components.Core.Position@,Realm.Ecs.Components.Movement.PreviewMoveTo@,Realm.Ecs.Components.Movement.MovementStats@)">
             <summary>
                 Plans the route a click drew before the authority answered it. The order it stands for has not been decided
@@ -2597,6 +2625,9 @@
         </member>
         <member name="F:Realm.Ecs.ComponentIds.RepairableBuilding">
             <summary>Repairable building tag component identifier, marking a building that falls dormant instead of dying.</summary>
+        </member>
+        <member name="F:Realm.Ecs.ComponentIds.Worker">
+            <summary>Worker tag component identifier, marking a unit that follows the worker collision rule.</summary>
         </member>
         <member name="T:Realm.Ecs.ComponentMask">
             <summary>

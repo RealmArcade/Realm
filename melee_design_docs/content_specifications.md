@@ -61,8 +61,8 @@ Map packaging. A melee map uses the existing Asset Import system in a split form
 | Player-wide relic purchases at the Nexus and six equipment slots | Items and equipment exist; no purchase flow | New runtime state |
 | Per-soldier targeting and formation rulesets | Acquisition and scan radii exist; no shared ruleset enums | Movement and target selection |
 | Army-wide buffs resolved per unit | Abilities support radius and aura delivery; no army-wide buff bookkeeping | Ability effects and the unit stat panel |
-| Ghost movement through soldiers and selected buildings | Pathing flags and collision exist; selective tag-based ghosting does not | Movement/pathing |
-| Worker collision: same-player workers body-block, allied and enemy workers ghost | No owner-aware worker collision | Movement/pathing |
+| Ghost movement through soldiers and selected buildings | Present. A hero passes through every soldier, through allied buildings, and through enemy buildings that are still under construction or reduced to a dormant ruin; another hero and a functional or damaged enemy building still stop it | Engine movement service |
+| Worker collision: same-player workers body-block, allied and enemy workers ghost | Present. A unit the map marks with `SetUnitWorker` body-blocks that player's other workers and passes through the workers of every other player | Engine movement service |
 
 This draft does not pretend those gaps are small. It specifies the content so the gaps have a concrete target, and it avoids specifying content that would require capability the engine cannot plausibly gain.
 

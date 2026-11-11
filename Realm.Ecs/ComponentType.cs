@@ -179,7 +179,8 @@ public static class ComponentTypeRegistry
 			typeof(Dormant),
 			typeof(RepairableBuilding),
 			typeof(RepairWorker),
-			typeof(RepairTask)
+			typeof(RepairTask),
+			typeof(Worker)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)
@@ -219,6 +220,7 @@ public static class ComponentTypeRegistry
 			(typeof(Building), ComponentIds.Building),
 			(typeof(Dead), ComponentIds.Dead),
 			(typeof(Hero), ComponentIds.Hero),
+			(typeof(Worker), ComponentIds.Worker),
 			(typeof(Invulnerable), ComponentIds.Invulnerable),
 			(typeof(Unit), ComponentIds.Unit),
 			(typeof(Experience), ComponentIds.Experience),

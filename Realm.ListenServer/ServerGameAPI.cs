@@ -682,6 +682,20 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		if (_context.World.Has<RepairableBuilding>(entity)) _context.World.Remove<RepairableBuilding>(entity);
 	}
 
+	public void SetUnitWorker(UnitId unit, bool worker)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+
+		if (worker)
+		{
+			_context.World.SetOrAdd(entity, new Worker());
+			return;
+		}
+
+		if (_context.World.Has<Worker>(entity)) _context.World.Remove<Worker>(entity);
+	}
+
 	public void EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
 		Entity entity = ResolveUnit(unit);
