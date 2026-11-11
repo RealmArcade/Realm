@@ -22,9 +22,6 @@ public class TrainingRunResult
 
 public static class MatchTrainer
 {
-	public const float WinWeight = 0.9f;
-	public const float DamageShareWeight = 0.1f;
-
 	public static TrainingRunResult Train(MatchRunOptions options)
 	{
 		IAiGenreProvider provider = AiGenreRegistry.Get(options.TrainGenre);
@@ -49,8 +46,7 @@ public static class MatchTrainer
 				RealmVersion.GameBuildNumber,
 				options.TrainInitialWeights,
 				ReportGeneration,
-				options.TrainParallel,
-				evaluator.EvaluateWinRate);
+				options.TrainParallel);
 
 			return new TrainingRunResult
 			{
@@ -90,7 +86,7 @@ public static class MatchTrainer
 			initialWeights = options.TrainInitialWeights,
 			pairedEvaluationSeeds = true,
 			matchedSeatOrientationsPerSeed = true,
-			fitnessShaping = new { win = WinWeight, damageShare = DamageShareWeight },
+			fitness = "wins only, played from both seats against the factory profile",
 			maximumSecondsPerMatch = options.MaxSeconds,
 			seats = options.Seats,
 			opponentPolicy = options.Policy,
@@ -175,19 +171,12 @@ public class TrainingMatchEvaluator
 
 	public float Evaluate(float[] weights, int seed)
 	{
-		float candidateAsSeatOne = PlayOrientation(weights, seed, candidateSeat: 1, winOnly: false);
-		float candidateAsSeatTwo = PlayOrientation(weights, seed, candidateSeat: 2, winOnly: false);
+		float candidateAsSeatOne = PlayOrientation(weights, seed, candidateSeat: 1);
+		float candidateAsSeatTwo = PlayOrientation(weights, seed, candidateSeat: 2);
 		return 0.5f * (candidateAsSeatOne + candidateAsSeatTwo);
 	}
 
-	public float EvaluateWinRate(float[] weights, int seed)
-	{
-		float candidateAsSeatOne = PlayOrientation(weights, seed, candidateSeat: 1, winOnly: true);
-		float candidateAsSeatTwo = PlayOrientation(weights, seed, candidateSeat: 2, winOnly: true);
-		return 0.5f * (candidateAsSeatOne + candidateAsSeatTwo);
-	}
-
-	private float PlayOrientation(float[] weights, int seed, int candidateSeat, bool winOnly)
+	private float PlayOrientation(float[] weights, int seed, int candidateSeat)
 	{
 		string profilePath = WriteCandidateProfile(weights);
 		string outcomePath = Path.Combine(
@@ -199,7 +188,7 @@ public class TrainingMatchEvaluator
 		try
 		{
 			RunMatchProcess(profilePath, seed, candidateSeat, outcomePath);
-			return ReadScore(outcomePath, candidateSeat, winOnly);
+			return ReadScore(outcomePath, candidateSeat);
 		}
 		catch (InvalidOperationException exception)
 		{
@@ -329,7 +318,7 @@ public class TrainingMatchEvaluator
 		return hash.ToString("x8", CultureInfo.InvariantCulture);
 	}
 
-	private static float ReadScore(string outcomePath, int candidateSeat, bool winOnly)
+	private static float ReadScore(string outcomePath, int candidateSeat)
 	{
 		if (!File.Exists(outcomePath))
 		{
@@ -353,31 +342,10 @@ public class TrainingMatchEvaluator
 			}
 
 			int winnerSeat = winner.GetInt32();
-			float winScore = winnerSeat == candidateSeat ? 1.0f : winnerSeat <= 0 ? 0.5f : 0.0f;
-			if (winOnly) return winScore;
-			return MatchTrainer.WinWeight * winScore + MatchTrainer.DamageShareWeight * ReadDamageShare(root, candidateSeat);
+			return winnerSeat == candidateSeat ? 1.0f : winnerSeat <= 0 ? 0.5f : 0.0f;
 		}
 
 		throw new InvalidOperationException("the match outcome file is empty");
-	}
-
-	private static float ReadDamageShare(JsonElement root, int candidateSeat)
-	{
-		if (!root.TryGetProperty("perSeat", out JsonElement perSeat)) return DrawFitness;
-
-		float candidateDamage = 0.0f;
-		float totalDamage = 0.0f;
-		foreach (JsonElement seat in perSeat.EnumerateArray())
-		{
-			float damage = seat.TryGetProperty("damageDealt", out JsonElement damageValue) ? damageValue.GetSingle() : 0.0f;
-			totalDamage += damage;
-			if (seat.TryGetProperty("seat", out JsonElement seatValue) && seatValue.GetInt32() == candidateSeat)
-			{
-				candidateDamage = damage;
-			}
-		}
-
-		return totalDamage > 0.0f ? candidateDamage / totalDamage : DrawFitness;
 	}
 
 	private static void ClearOutcomeFiles(string outcomePath)

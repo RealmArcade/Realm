@@ -73,8 +73,7 @@ public class SelfPlayTrainer
 		string gameBuildNumber = "",
 		float[]? initialWeights = null,
 		Action<int, float>? generationReported = null,
-		int maxParallelEvaluations = 1,
-		Func<float[], int, float>? evaluateChampionAgainstFactory = null)
+		int maxParallelEvaluations = 1)
 	{
 		int baseSeed = RandomStreams.CreateBaseSeed(seed);
 		GenerationBestFitness.Clear();
@@ -114,7 +113,7 @@ public class SelfPlayTrainer
 
 		champion = SelectHistoricalChampion(
 			generationChampions,
-			evaluateChampionAgainstFactory ?? evaluateCandidate,
+			evaluateCandidate,
 			baseSeed,
 			matchesPerEvaluation,
 			maxParallelEvaluations);
