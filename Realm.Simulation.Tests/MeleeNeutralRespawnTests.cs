@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using Realm.Ecs;
+using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 
 namespace Realm.Simulation.Tests;
@@ -58,6 +59,19 @@ public class MeleeNeutralRespawnTests
 	}
 
 	[Test]
+	public void KillingTheMonsterCountsOnTheKillersScoreboard()
+	{
+		UnitId creep = OnlyPlacedMonster();
+
+		Assert.That(KillsOf(1), Is.EqualTo(0), "A seat starts the match with no kills.");
+
+		_match.Kill(creep, _match.Hero(1));
+
+		Assert.That(KillsOf(1), Is.EqualTo(1), "A neutral monster the seat fells counts on its scoreboard.");
+		Assert.That(KillsOf(2), Is.EqualTo(0), "The seat that did not land the blow is not credited with it.");
+	}
+
+	[Test]
 	public void TheMonsterReturnsAfterItsRespawnTime()
 	{
 		UnitId creep = OnlyPlacedMonster();
@@ -78,6 +92,13 @@ public class MeleeNeutralRespawnTests
 		Assert.That(neutralUnits.Length, Is.EqualTo(1), "The board places one monster nobody owns.");
 
 		return neutralUnits[0];
+	}
+
+	private int KillsOf(int slot)
+	{
+		Entity worldEntity = _match.Simulation.Map.WorldEntity;
+		ScriptPlayersState players = _match.World.Get<ScriptPlayersState>(worldEntity);
+		return players.Get(slot).KillCount;
 	}
 
 	private float ExperienceOf(UnitId unit)

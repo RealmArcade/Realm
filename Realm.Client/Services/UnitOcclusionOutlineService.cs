@@ -4,6 +4,9 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.UI;
 using Realm.Client.Utils;
+using Realm.Ecs;
+using Realm.Ecs.Common;
+using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Tags;
 
 namespace Realm.Client.Services;
@@ -13,9 +16,14 @@ public partial class UnitOcclusionOutlineService : Node3D
 {
 	private const string ShaderPath = "res://Assets/shaders/unit_occlusion_outline.gdshader";
 	private const int TerrainOcclusionSamples = 10;
+	private const int LowQualityTerrainOcclusionSamples = 3;
 	private const float TerrainOcclusionMargin = 0.25f;
 	private const float MaximumOcclusionDistance = 220.0f;
 	private const float BuildingOccluderRefreshSeconds = 1.0f;
+	private const float PropOccluderRefreshSeconds = 2.0f;
+	private const float MaximumPropOccluderDistance = 90.0f;
+	private const float MinimumPropOccluderHeight = 2.0f;
+	private const float MinimumPropOccluderWidth = 0.8f;
 	private const float SilhouetteFadeInSeconds = 0.15f;
 	private const float SilhouetteFadeOutSeconds = 0.35f;
 	private const float SilhouetteOcclusionHoldSeconds = 0.25f;
@@ -28,15 +36,31 @@ public partial class UnitOcclusionOutlineService : Node3D
 	private static readonly StringName SilhouetteAlphaParameter = new("silhouette_alpha");
 
 	private readonly List<BuildingOccluder> _buildingOccluders = new();
+	private readonly List<PropOccluder> _propOccluders = new();
 	private readonly Dictionary<ulong, SilhouetteState> _silhouetteStates = new();
 	private readonly List<ulong> _staleSilhouetteIds = new();
 
 	private ShaderMaterial _silhouetteMaterial = null!;
+	private EntityCallback<Position, PropIdentity> _propOccluderQueryDelegate = null!;
+	private PropMultiMeshManager? _propOccluderManager;
+	private Vector3 _propOccluderEye;
+	private float _propOccluderDistanceSquared;
+	private int _terrainOcclusionSamples = TerrainOcclusionSamples;
 	private float _buildingRefreshTimer;
+	private float _propRefreshTimer;
 	private bool _buildingOccludersDirty = true;
+	private bool _propOccludersDirty = true;
 	private long _tickIndex;
 
 	private struct BuildingOccluder
+	{
+		public Vector3 Center;
+		public Vector3 Extents;
+		public float BoundingRadius;
+		public float BoundingRadiusSquared;
+	}
+
+	private struct PropOccluder
 	{
 		public Vector3 Center;
 		public Vector3 Extents;
@@ -64,8 +88,9 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 	public void Tick(float delta, Camera3D camera, IReadOnlyList<Unit3D> units)
 	{
+		// The outline is a readability aid a player asks for, so it is not switched off with the quality preset. Low
+		// quality samples the terrain coarsely instead, which keeps the cost of a dense army bounded.
 		bool isEnabled = GameSettings.OccludedUnitOutlines
-		                 && GameSettings.QualityIdx != GraphicsQuality.Low
 		                 && !GameContext.SessionState.IsMapEditorMode;
 		if (!isEnabled || camera == null || !GodotObject.IsInstanceValid(camera) || units == null)
 		{
@@ -75,6 +100,7 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 		EnsureMaterial();
 		_tickIndex++;
+		_terrainOcclusionSamples = GameSettings.QualityIdx == GraphicsQuality.Low ? LowQualityTerrainOcclusionSamples : TerrainOcclusionSamples;
 
 		_buildingRefreshTimer += delta;
 		if (_buildingOccludersDirty || _buildingRefreshTimer >= BuildingOccluderRefreshSeconds)
@@ -82,6 +108,14 @@ public partial class UnitOcclusionOutlineService : Node3D
 			_buildingRefreshTimer = 0.0f;
 			_buildingOccludersDirty = false;
 			RebuildBuildingOccluders(units, camera.GlobalPosition);
+		}
+
+		_propRefreshTimer += delta;
+		if (_propOccludersDirty || _propRefreshTimer >= PropOccluderRefreshSeconds)
+		{
+			_propRefreshTimer = 0.0f;
+			_propOccludersDirty = false;
+			RebuildPropOccluders(camera.GlobalPosition);
 		}
 
 		Vector3 eye = camera.GlobalPosition;
@@ -139,7 +173,9 @@ public partial class UnitOcclusionOutlineService : Node3D
 		float distance = toUnit.Length();
 		if (distance < 1.0f || distance > MaximumOcclusionDistance) return false;
 
-		return IsOccludedByTerrain(eye, toUnit, distance) || IsOccludedByBuilding(eye, samplePoint, toUnit, distance);
+		return IsOccludedByTerrain(eye, toUnit, distance)
+		       || IsOccludedByBuilding(eye, samplePoint, toUnit, distance)
+		       || IsOccludedByProp(eye, samplePoint, toUnit, distance);
 	}
 
 	private static bool IsEligibleUnit(Unit3D unit)
@@ -156,15 +192,15 @@ public partial class UnitOcclusionOutlineService : Node3D
 		return shroud == null || shroud.IsUnitVisibleOnMinimap(unit);
 	}
 
-	private static bool IsOccludedByTerrain(Vector3 eye, Vector3 toUnit, float distance)
+	private bool IsOccludedByTerrain(Vector3 eye, Vector3 toUnit, float distance)
 	{
 		RuntimeTerrain? terrain = GameContext.Host?.GroundTerrain;
 		if (terrain == null) return false;
 
 		float travelFraction = MathF.Min(1.0f, MathF.Max(0.1f, (distance - 2.0f) / distance));
-		for (int sampleIndex = 1; sampleIndex <= TerrainOcclusionSamples; sampleIndex++)
+		for (int sampleIndex = 1; sampleIndex <= _terrainOcclusionSamples; sampleIndex++)
 		{
-			float fraction = travelFraction * sampleIndex / TerrainOcclusionSamples;
+			float fraction = travelFraction * sampleIndex / _terrainOcclusionSamples;
 			Vector3 samplePoint = eye + toUnit * fraction;
 			if (!terrain.TrySampleHeight(samplePoint.X, samplePoint.Z, out float terrainHeight)) return false;
 			if (terrainHeight > samplePoint.Y + TerrainOcclusionMargin) return true;
@@ -180,6 +216,27 @@ public partial class UnitOcclusionOutlineService : Node3D
 		for (int index = 0; index < _buildingOccluders.Count; index++)
 		{
 			BuildingOccluder occluder = _buildingOccluders[index];
+			Vector3 toCenter = occluder.Center - eye;
+			float alongSegment = toCenter.Dot(direction);
+			if (alongSegment + occluder.BoundingRadius <= 0.0f) continue;
+			if (alongSegment - occluder.BoundingRadius >= distance) continue;
+
+			float perpendicularDistanceSquared = toCenter.LengthSquared() - alongSegment * alongSegment;
+			if (perpendicularDistanceSquared > occluder.BoundingRadiusSquared) continue;
+
+			if (OcclusionSegmentQuery.SegmentIntersectsBox(ToEcsVector(eye), ToEcsVector(target), ToEcsVector(occluder.Center), ToEcsVector(occluder.Extents))) return true;
+		}
+
+		return false;
+	}
+
+	private bool IsOccludedByProp(Vector3 eye, Vector3 target, Vector3 toTarget, float distance)
+	{
+		Vector3 direction = toTarget / distance;
+
+		for (int index = 0; index < _propOccluders.Count; index++)
+		{
+			PropOccluder occluder = _propOccluders[index];
 			Vector3 toCenter = occluder.Center - eye;
 			float alongSegment = toCenter.Dot(direction);
 			if (alongSegment + occluder.BoundingRadius <= 0.0f) continue;
@@ -221,6 +278,40 @@ public partial class UnitOcclusionOutlineService : Node3D
 				BoundingRadiusSquared = boundingRadiusSquared
 			});
 		}
+	}
+
+	private void RebuildPropOccluders(Vector3 eye)
+	{
+		_propOccluders.Clear();
+
+		_propOccluderManager = GameContext.PropMultiMesh;
+		EcsWorld? world = GameContext.World;
+		if (_propOccluderManager == null || world == null) return;
+
+		_propOccluderEye = eye;
+		_propOccluderDistanceSquared = MaximumPropOccluderDistance * MaximumPropOccluderDistance;
+		_propOccluderQueryDelegate ??= CollectPropOccluder;
+		world.Query(in QueryCache.AllPropIdentityAndPositionQuery, _propOccluderQueryDelegate);
+	}
+
+	private void CollectPropOccluder(Entity entity, ref Position position, ref PropIdentity identity)
+	{
+		Vector3 worldPosition = new(position.Value.X, position.Value.Y, position.Value.Z);
+		if ((worldPosition - _propOccluderEye).LengthSquared() > _propOccluderDistanceSquared) return;
+		if (_propOccluderManager == null || !_propOccluderManager.TryGetPropWorldBounds(entity, out Aabb bounds)) return;
+		if (bounds.Size.Y < MinimumPropOccluderHeight) return;
+		if (MathF.Max(bounds.Size.X, bounds.Size.Z) < MinimumPropOccluderWidth) return;
+
+		Vector3 center = bounds.GetCenter();
+		Vector3 extents = bounds.Size * 0.5f;
+		float boundingRadius = extents.Length();
+		_propOccluders.Add(new PropOccluder
+		{
+			Center = center,
+			Extents = extents,
+			BoundingRadius = boundingRadius,
+			BoundingRadiusSquared = boundingRadius * boundingRadius
+		});
 	}
 
 	private static void GetBuildingWorldBounds(Unit3D unit, out Vector3 center, out Vector3 extents)
@@ -381,5 +472,6 @@ public partial class UnitOcclusionOutlineService : Node3D
 
 		_silhouetteStates.Clear();
 		_buildingOccludersDirty = true;
+		_propOccludersDirty = true;
 	}
 }

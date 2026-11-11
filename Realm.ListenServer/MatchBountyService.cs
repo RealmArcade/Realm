@@ -26,8 +26,9 @@ public class MatchBountyService
 	}
 
 	/// <summary>
-	///     Pays what the victim's template states. A kill by nothing, a kill of a unit its own team owns, and a kill of a
-	///     unit whose template states no bounty all pay nothing.
+	///     Counts the kill on the killer's scoreboard and pays what the victim's template states. A kill by nothing, a
+	///     kill of a unit its own team owns, and a kill of a unit whose template states no bounty all pay nothing, but an
+	///     enemy kill still counts.
 	/// </summary>
 	/// <param name="victim">The unit that died.</param>
 	/// <param name="killer">The unit that landed the killing blow.</param>
@@ -41,24 +42,43 @@ public class MatchBountyService
 		// The victim is already marked dead by the time the kill is published, so the question is whether its body is
 		// still in the world, not whether it is standing. The killer has to be standing to earn anything.
 		if (!_map.World.IsAlive(victimEntity) || !IsAlive(killer)) return;
+		if (!_map.World.TryGet<UnitOwnerPlayer>(killerEntity, out UnitOwnerPlayer killerOwner)) return;
+		int killerPlayerIndex = killerOwner.Value;
+		if (killerPlayerIndex <= 0) return;
+		if (!IsEnemyKill(victimEntity, killerPlayerIndex)) return;
+
+		RecordKill(killerPlayerIndex);
+
 		if (!_map.World.TryGet<DefinitionId>(victimEntity, out DefinitionId definitionId)) return;
 
 		UnitMetadata? metadata = _map.Catalog.FindUnitOrBuilding(definitionId.Value);
 		if (metadata == null) return;
 		if (metadata.GoldBounty <= 0f && metadata.XpBounty <= 0f) return;
 
-		if (!_map.World.TryGet<UnitOwnerPlayer>(killerEntity, out UnitOwnerPlayer killerOwner)) return;
-		int killerPlayerIndex = killerOwner.Value;
-		if (killerPlayerIndex <= 0) return;
-
-		if (_map.World.TryGet<UnitOwnerPlayer>(victimEntity, out UnitOwnerPlayer victimOwner))
-		{
-			int victimPlayerIndex = victimOwner.Value;
-			if (victimPlayerIndex > 0 && ReadTeam(victimPlayerIndex) == ReadTeam(killerPlayerIndex)) return;
-		}
-
 		PayGold(killerPlayerIndex, metadata.GoldBounty);
 		PayExperience(killerPlayerIndex, killer, metadata.XpBounty);
+	}
+
+	private bool IsEnemyKill(Entity victimEntity, int killerPlayerIndex)
+	{
+		if (!_map.World.TryGet<UnitOwnerPlayer>(victimEntity, out UnitOwnerPlayer victimOwner)) return true;
+
+		int victimPlayerIndex = victimOwner.Value;
+		return victimPlayerIndex <= 0 || ReadTeam(victimPlayerIndex) != ReadTeam(killerPlayerIndex);
+	}
+
+	private void RecordKill(int killerPlayerIndex)
+	{
+		Entity worldEntity = _map.WorldEntity;
+		if (!_map.World.IsAlive(worldEntity) || !_map.World.Has<ScriptPlayersState>(worldEntity)) return;
+
+		ref ScriptPlayersState players = ref _map.World.Get<ScriptPlayersState>(worldEntity);
+		if (!players.IsValidSlot(killerPlayerIndex)) return;
+
+		players.SetKills(killerPlayerIndex, players.Get(killerPlayerIndex).KillCount + 1);
+
+		ScriptPlayer updated = players.Get(killerPlayerIndex);
+		_map.World.GetBuffer<ScriptPlayer>().Set(killerPlayerIndex, in updated);
 	}
 
 	private void PayGold(int killerPlayerIndex, float bountyGold)

@@ -492,12 +492,26 @@ public partial class MultiplayerSimulationHarness : Node
 					Check("the drafted offer names its hotkey", offerHotkey != Key.None, offerKey);
 					bool lockedByHotkey = offerHotkey != Key.None && hud.HandleCommandCardHotkey(offerHotkey, (KeyModifierMask)0);
 					Check("the drafted offer answers its hotkey", lockedByHotkey, offerKey);
-					await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
+
+					// The announcement is a transient line the HUD replaces when it next speaks, such as the idle-worker
+					// notice that follows a finished unit. It is watched for as it appears instead of read once later.
+					bool siteAnnounced = false;
+					string siteFeedback = string.Empty;
+					for (int attempt = 0; attempt < 15; attempt++)
+					{
+						siteFeedback = ReadFeedback(hud);
+						if (siteFeedback.Contains("under construction", StringComparison.OrdinalIgnoreCase))
+						{
+							siteAnnounced = true;
+							break;
+						}
+
+						await ToSignal(GetTree().CreateTimer(0.1f), SceneTreeTimer.SignalName.Timeout);
+					}
 
 					int buildingsAfter = CountPlayerBuildings(currentHost, 1);
 					Check("locking a draft starts its site", buildingsAfter == buildingsBefore + 1, $"buildings {buildingsBefore} -> {buildingsAfter}");
-					string siteFeedback = ReadFeedback(hud);
-					Check("the site announces construction", siteFeedback.Contains("under construction", StringComparison.OrdinalIgnoreCase), siteFeedback);
+					Check("the site announces construction", siteAnnounced, siteFeedback);
 					Check("locking the draw answers its blueprint", FindUnit(currentHost, "unit/blueprint", 1) == null);
 					Note($"drafted card='{draftedCard}'");
 				}
