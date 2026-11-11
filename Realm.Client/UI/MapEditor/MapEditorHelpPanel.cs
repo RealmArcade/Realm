@@ -169,6 +169,8 @@ public sealed class MapEditorHelpPanel
 		AddHelpShortcutRow(grid, "V Key", TranslationServer.Translate("Toggle terrain alignment grid lines"));
 		AddHelpShortcutRow(grid, "M Key", TranslationServer.Translate("Toggle blocky sculpt mode"));
 		AddHelpShortcutRow(grid, "Alt + MouseWheel (Raise / Lower)", TranslationServer.Translate("Adjust block step height"));
+		AddHelpShortcutRow(grid, "Alt + MouseWheel (Height)", TranslationServer.Translate("Adjust exact height"));
+		AddHelpShortcutRow(grid, "Alt + MouseWheel (Water)", TranslationServer.Translate("Adjust water height"));
 		AddHelpShortcutRow(grid, "Shift + MouseWheel Scroll", TranslationServer.Translate("Rotate placement/selected object"));
 		AddHelpShortcutRow(grid, "Alt + MouseWheel (Objects)", TranslationServer.Translate("Fine-tune object scale size"));
 		AddHelpShortcutRow(grid, "Ctrl + G", TranslationServer.Translate("Toggle alignment grid snap placement"));

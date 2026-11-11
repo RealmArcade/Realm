@@ -5,19 +5,19 @@ namespace Realm.Client.UI.MapEditor;
 
 /// <summary>
 /// The blocking overlay shown while an external asset converts in the background. Conversion runs off the main
-/// thread, so the bar cannot report real progress: it sweeps instead, which is enough to show the editor is
-/// working rather than frozen.
+/// thread, so the bar cannot report real progress: it creeps forward toward a ceiling and never moves backwards,
+/// which is enough to show the editor is working rather than frozen.
 /// </summary>
 [GlobalClass]
 public partial class AssetConversionProgressOverlay : Control
 {
-	private const double MarqueeSpeed = 1.6;
-	private const double MarqueeMinimumPercent = 10.0;
-	private const double MarqueeAmplitudePercent = 80.0;
+	private const double CreepStartPercent = 4.0;
+	private const double CreepCeilingPercent = 90.0;
+	private const double CreepCatchUpRate = 1.2;
+	private const double CreepFloorPercentPerSecond = 0.8;
 
 	private ProgressBar _progressBar = null!;
 	private Label _statusLabel = null!;
-	private double _marqueePhase;
 
 	public void Initialize(string title, string status)
 	{
@@ -67,7 +67,7 @@ public partial class AssetConversionProgressOverlay : Control
 
 		_progressBar = UIStyle.CreateProgressBar(420f, 18f);
 		UIStyle.ApplyProgressBar(_progressBar);
-		_progressBar.Value = MarqueeMinimumPercent;
+		_progressBar.Value = CreepStartPercent;
 		vbox.AddChild(_progressBar);
 	}
 
@@ -80,9 +80,10 @@ public partial class AssetConversionProgressOverlay : Control
 	public override void _Process(double delta)
 	{
 		if (!GodotObject.IsInstanceValid(_progressBar)) return;
+		if (_progressBar.Value >= CreepCeilingPercent) return;
 
-		_marqueePhase += delta * MarqueeSpeed;
-		double wave = (Math.Sin(_marqueePhase) + 1.0) * 0.5;
-		_progressBar.Value = MarqueeMinimumPercent + wave * MarqueeAmplitudePercent;
+		double remaining = CreepCeilingPercent - _progressBar.Value;
+		double creep = remaining * Math.Min(1.0, delta * CreepCatchUpRate) + delta * CreepFloorPercentPerSecond;
+		_progressBar.Value = Math.Min(CreepCeilingPercent, _progressBar.Value + creep);
 	}
 }

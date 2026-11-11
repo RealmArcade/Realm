@@ -610,11 +610,16 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		infoVBox.Name = "InfoVBox_VBoxContainer";
 		infoVBox.AddThemeConstantOverride("separation", 2);
 
-		var lblName = new Label();
-		lblName.Name = "LblName_Label";
-		lblName.Text = item.Name;
-		lblName.AddThemeFontSizeOverride("font_size", 12);
-		lblName.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		var lblName = new RichTextLabel();
+		lblName.Name = "LblName_RichTextLabel";
+		lblName.BbcodeEnabled = true;
+		lblName.Text = RichTooltip.ConvertToBbCode(item.Name);
+		lblName.FitContent = true;
+		lblName.ScrollActive = false;
+		lblName.AutowrapMode = TextServer.AutowrapMode.Off;
+		lblName.MouseFilter = Control.MouseFilterEnum.Ignore;
+		lblName.AddThemeFontSizeOverride("normal_font_size", 12);
+		lblName.AddThemeColorOverride("default_color", UIStyle.ColorGold);
 		infoVBox.AddChild(lblName);
 
 		var lblId = new Label();

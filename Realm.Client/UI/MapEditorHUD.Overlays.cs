@@ -483,6 +483,29 @@ namespace Realm.Client.UI
 			}
 		}
 
+		public void StepExactHeightExternal(int direction)
+		{
+			if (_brushPanel?.HeightSlider == null) return;
+
+			double step = _brushPanel.HeightSlider.Step > 0.0 ? _brushPanel.HeightSlider.Step : 1.0;
+			double next = Math.Clamp(_brushPanel.HeightSlider.Value + step * direction, _brushPanel.HeightSlider.MinValue, _brushPanel.HeightSlider.MaxValue);
+			if (Mathf.IsEqualApprox((float)_brushPanel.HeightSlider.Value, (float)next)) return;
+
+			_brushPanel.HeightSlider.Value = next;
+			UpdateExactHeightExternal((float)next);
+		}
+
+		public void StepWaterHeightExternal(int direction)
+		{
+			if (_waterPanel?.HeightSlider == null) return;
+
+			double step = _waterPanel.HeightSlider.Step > 0.0 ? _waterPanel.HeightSlider.Step : 0.1;
+			double next = Math.Clamp(_waterPanel.HeightSlider.Value + step * direction, _waterPanel.HeightSlider.MinValue, _waterPanel.HeightSlider.MaxValue);
+			if (Mathf.IsEqualApprox((float)_waterPanel.HeightSlider.Value, (float)next)) return;
+
+			_waterPanel.HeightSlider.Value = next;
+		}
+
 		private TextureSwatchGrid? _swatchGrid;
 
 		/// <summary>The texture palette: its buttons, both selection overlays and the thumbnail cache.</summary>

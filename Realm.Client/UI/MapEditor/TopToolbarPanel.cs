@@ -49,6 +49,8 @@ public sealed record TopToolbarHooks(
 /// </summary>
 public sealed class TopToolbarPanel
 {
+	private const int FeedbackOverlayZIndex = 2000;
+
 	private Control? _owner;
 
 	public Button BackToHubButton { get; private set; } = null!;
@@ -91,6 +93,7 @@ public sealed class TopToolbarPanel
 		FeedbackLabel = _owner.GetNode<Label>("FeedbackLabel");
 		FeedbackLabel.Modulate = new Color(1, 1, 1, 0);
 		FeedbackLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+		FeedbackLabel.ZIndex = FeedbackOverlayZIndex;
 	}
 
 	private void BuildTopLeftToolbar(TopToolbarHooks hooks)

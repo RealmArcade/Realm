@@ -86,7 +86,7 @@ public sealed class WaterSettingsPanel
 
 		var lblWaterHeightTitle = new Label();
 		lblWaterHeightTitle.Name = "LblWaterHeightTitle";
-		lblWaterHeightTitle.Text = TranslationServer.Translate("Water Height");
+		lblWaterHeightTitle.Text = TranslationServer.Translate("Water Height (Alt + Mouse_Wheel)");
 		lblWaterHeightTitle.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		lblWaterHeightTitle.AddThemeFontSizeOverride("font_size", 10);
 		headerWaterHeight.AddChild(lblWaterHeightTitle);

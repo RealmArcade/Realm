@@ -74,6 +74,8 @@ public sealed class BrushSettingsPanel
 		SizeSlider = hooks.Owner.GetNode<Slider>(BasePath + "/ContentBrush/BrushSizeBox/SldBrushSize");
 		SizeValue = hooks.Owner.GetNode<Label>(BasePath + "/ContentBrush/BrushSizeBox/Header/LblBrushSizeValue");
 		SizeBox = hooks.Owner.GetNodeOrNull<Control>(BasePath + "/ContentBrush/BrushSizeBox");
+		var lblSizeTitle = hooks.Owner.GetNodeOrNull<Label>(BasePath + "/ContentBrush/BrushSizeBox/Header/LblSizeTitle");
+		if (lblSizeTitle != null) lblSizeTitle.Text = TranslationServer.Translate("Size (Shift + Mouse_Wheel)");
 		SizeSlider.DragStarted += () => hooks.SetSliderDragging(true);
 		SizeSlider.DragEnded += (valueChanged) => hooks.SetSliderDragging(false);
 	}
@@ -82,6 +84,8 @@ public sealed class BrushSettingsPanel
 	{
 		StrengthSlider = hooks.Owner.GetNode<Slider>(BasePath + "/ContentBrush/BrushStrengthBox/SldBrushStrength");
 		StrengthValue = hooks.Owner.GetNode<Label>(BasePath + "/ContentBrush/BrushStrengthBox/Header/LblBrushStrengthValue");
+		var lblStrengthTitle = hooks.Owner.GetNodeOrNull<Label>(BasePath + "/ContentBrush/BrushStrengthBox/Header/LblStrengthTitle");
+		if (lblStrengthTitle != null) lblStrengthTitle.Text = TranslationServer.Translate("Intensity (Ctrl + Mouse_Wheel)");
 		StrengthSlider.DragStarted += () => hooks.SetSliderDragging(true);
 		StrengthSlider.DragEnded += (valueChanged) => hooks.SetSliderDragging(false);
 	}
@@ -126,7 +130,7 @@ public sealed class BrushSettingsPanel
 		StepSlider.DragEnded += (valueChanged) => hooks.SetSliderDragging(false);
 		StepValue = hooks.Owner.GetNode<Label>(BasePath + "/ContentBrush/StepBox/Header/LblBlockStepValue");
 		var lblStepTitle = hooks.Owner.GetNodeOrNull<Label>(BasePath + "/ContentBrush/StepBox/Header/LblStepTitle");
-		if (lblStepTitle != null) lblStepTitle.Text = TranslationServer.Translate("Step Height");
+		if (lblStepTitle != null) lblStepTitle.Text = TranslationServer.Translate("Step Height (Alt + Mouse_Wheel)");
 	}
 
 	private void BuildHeightControls(BrushSettingsHooks hooks)
@@ -139,7 +143,7 @@ public sealed class BrushSettingsPanel
 		HeightSlider.DragEnded += (valueChanged) => hooks.SetSliderDragging(false);
 		HeightValue = hooks.Owner.GetNode<Label>(BasePath + "/ContentBrush/HeightBox/Header/LblHeightValue");
 		var lblHeightTitle = hooks.Owner.GetNodeOrNull<Label>(BasePath + "/ContentBrush/HeightBox/Header/LblHeightTitle");
-		if (lblHeightTitle != null) lblHeightTitle.Text = TranslationServer.Translate("Height");
+		if (lblHeightTitle != null) lblHeightTitle.Text = TranslationServer.Translate("Height (Alt + Mouse_Wheel)");
 	}
 
 	public void StyleControls()
