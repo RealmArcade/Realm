@@ -136,6 +136,6 @@ public static partial class MapProjectFileNormalizer
 	[GeneratedRegex(@"<Target\s+Name=""ClearComponentWit""[^>]*>.*?</Target>", RegexOptions.Singleline)]
 	private static partial Regex ClearComponentWitTargetRegex();
 
-	[GeneratedRegex(@"(<PropertyGroup[^>]*Condition=""'\$\(Configuration\)'\s*==\s*'Debug'""[^>]*>[\s\S]*?<Optimize>)true(</Optimize>)", RegexOptions.IgnoreCase)]
+	[GeneratedRegex(@"(<PropertyGroup[^>]*Condition=""'\$\(Configuration\)'\s*==\s*'Debug'""[^>]*>(?:(?!</PropertyGroup>)[\s\S])*?<Optimize>)true(</Optimize>)", RegexOptions.IgnoreCase)]
 	private static partial Regex DebugOptimizeTrueRegex();
 }

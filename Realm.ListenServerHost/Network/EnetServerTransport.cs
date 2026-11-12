@@ -10,9 +10,7 @@ public class EnetServerTransport : IServerTransport
 
 	private const int LongSilenceTimeoutLimit = 32;
 
-	private const int LongSilenceTimeoutMinimumMilliseconds = 5000;
-
-	private const int LongSilenceTimeoutMaximumMilliseconds = 86_400_000;
+	private const int LongSilenceTimeoutMilliseconds = 86_400_000;
 
 	private readonly ServerNetworkChannel _channel;
 	private readonly int _requestedPort;
@@ -159,7 +157,7 @@ public class EnetServerTransport : IServerTransport
 		if (!_allowLongSilence || _peer == null) return;
 
 		ENetPacketPeer? peer = _peer.GetPeer(peerId);
-		peer?.SetTimeout(LongSilenceTimeoutLimit, LongSilenceTimeoutMinimumMilliseconds, LongSilenceTimeoutMaximumMilliseconds);
+		peer?.SetTimeout(LongSilenceTimeoutLimit, LongSilenceTimeoutMilliseconds, LongSilenceTimeoutMilliseconds);
 	}
 
 	private void OnPeerDisconnected(long peerId) => _sink?.OnPeerDisconnected((int)peerId, "the peer left");

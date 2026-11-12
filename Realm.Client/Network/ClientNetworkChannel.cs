@@ -11,9 +11,7 @@ public partial class ClientNetworkChannel : Node
 
 	private const int LongSilenceTimeoutLimit = 32;
 
-	private const int LongSilenceTimeoutMinimumMilliseconds = 5000;
-
-	private const int LongSilenceTimeoutMaximumMilliseconds = 86_400_000;
+	private const int LongSilenceTimeoutMilliseconds = 86_400_000;
 
 	public event Action<NetworkFrameKind, byte[]>? FrameArrived;
 
@@ -96,7 +94,7 @@ public partial class ClientNetworkChannel : Node
 		ENetPacketPeer? authorityPeer = peer?.GetPeer(AuthorityPeerId);
 		if (authorityPeer == null) return false;
 
-		authorityPeer.SetTimeout(LongSilenceTimeoutLimit, LongSilenceTimeoutMinimumMilliseconds, LongSilenceTimeoutMaximumMilliseconds);
+		authorityPeer.SetTimeout(LongSilenceTimeoutLimit, LongSilenceTimeoutMilliseconds, LongSilenceTimeoutMilliseconds);
 		return true;
 	}
 

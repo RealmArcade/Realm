@@ -121,6 +121,8 @@ def get_shared_memory_base(target):
             try:
                 with open(debug_json, "r") as f:
                     data = json.load(f)
+                if data.get("pid") != target.GetProcess().GetProcessID():
+                    continue
                 ptr = data.get("sharedMemoryPointer", 0)
                 if ptr != 0:
                     err = lldb.SBError()
