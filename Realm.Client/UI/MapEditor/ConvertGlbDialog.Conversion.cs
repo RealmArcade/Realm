@@ -34,6 +34,7 @@ public partial class ConvertGlbDialog
 
 				if (doAutoRig)
 				{
+					if (!PerformPreRigOptimization(ref currentPath, tempWorkingDir, cleanBase, subCategory, out errorMessage)) return;
 					if (!PerformAutoRigging(ref currentPath, tempWorkingDir, cleanBase, out errorMessage)) return;
 				}
 
@@ -59,6 +60,26 @@ public partial class ConvertGlbDialog
 
 			CallDeferred(nameof(OnConversionFinished), resultPath ?? string.Empty, errorMessage ?? string.Empty);
 		});
+	}
+
+	private bool PerformPreRigOptimization(ref string currentPath, string tempWorkingDir, string cleanBase, string subCategory, out string? errorMessage)
+	{
+		errorMessage = null;
+		SetProgressStatus(TranslationServer.Translate("Optimizing textures & base mesh before rigging..."), 5, false);
+		string baseMeshPath = Path.Combine(tempWorkingDir, $"{cleanBase}_lod0.glb");
+		var optimizeResult = new GlbOptimizer().PrepareForAutoRiggingFile(
+			currentPath,
+			baseMeshPath,
+			GetMaxTextureResolution(subCategory));
+
+		if (!optimizeResult.Success)
+		{
+			errorMessage = string.Format(TranslationServer.Translate("Base mesh optimization failed: {0}"), optimizeResult.ErrorMessage);
+			return false;
+		}
+
+		currentPath = baseMeshPath;
+		return true;
 	}
 
 	private bool PerformAutoRigging(ref string currentPath, string tempWorkingDir, string cleanBase, out string? errorMessage)
@@ -114,7 +135,7 @@ public partial class ConvertGlbDialog
 		errorMessage = null;
 		outputBytes = null;
 		SetProgressStatus(TranslationServer.Translate("Step 3/4: Optimizing geometry & packaging RMESH..."), 40, false);
-		int maxRes = subCategory is "attachments" or "items" ? 512 : 1024;
+		int maxRes = GetMaxTextureResolution(subCategory);
 		string canonicalAssetType = GetCanonicalAssetType(subCategory);
 
 		byte[]? sourceProfileImageWebp;
@@ -150,6 +171,11 @@ public partial class ConvertGlbDialog
 
 		outputBytes = convRes.OutputBytes;
 		return true;
+	}
+
+	private static int GetMaxTextureResolution(string subCategory)
+	{
+		return subCategory is "attachments" or "items" ? 512 : 1024;
 	}
 
 	private static byte[]? EncodeReferenceImage(string referenceImagePath)
