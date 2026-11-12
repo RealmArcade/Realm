@@ -56,36 +56,38 @@ PLAYER_POPULATION_SIZE = 8
 
 # Fields auto-discovered for PlayerId (name, comp_id, array_offset, elem_size, sub_offset, type_name)
 PLAYER_FIELDS = [
-    ("Gold", 68, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 0, "int"),
-    ("Wood", 68, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 4, "int"),
-    ("Stone", 68, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 8, "int"),
-    ("Ore", 68, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 12, "int"),
-    ("IsActive", 31, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 0, "bool"),
-    ("IsComputer", 31, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 1, "bool"),
-    ("Team", 31, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 4, "int"),
-    ("CurrentPopulation", 24, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 0, "int"),
-    ("MaxPopulation", 24, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 4, "int"),
+    ("Id", -1, 0, 0, 0, "int"),
+    ("Gold", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 0, "int"),
+    ("Wood", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 4, "int"),
+    ("Stone", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 8, "int"),
+    ("Ore", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 12, "int"),
+    ("IsActive", 33, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 0, "bool"),
+    ("IsComputer", 33, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 1, "bool"),
+    ("Team", 33, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 4, "int"),
+    ("CurrentPopulation", 26, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 0, "int"),
+    ("MaxPopulation", 26, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 4, "int"),
 ]
 
 # Fields auto-discovered for UnitId (name, comp_id, array_offset, elem_size, sub_offset, type_name)
 ENTITY_FIELDS = [
-    ("Health", 1, HEALTH_OFFSET, HEALTH_SIZE, 0, "float"),
-    ("MaxHealth", 1, HEALTH_OFFSET, HEALTH_SIZE, 4, "float"),
-    ("Mana", 3, MANA_OFFSET, MANA_SIZE, 0, "float"),
-    ("MaxMana", 3, MANA_OFFSET, MANA_SIZE, 4, "float"),
-    ("ManaRegen", 3, MANA_OFFSET, MANA_SIZE, 8, "float"),
-    ("Damage", 43, ATTACK_OFFSET, ATTACK_SIZE, 0, "float"),
-    ("Range", 43, ATTACK_OFFSET, ATTACK_SIZE, 4, "float"),
-    ("AttackSpeed", 43, ATTACK_OFFSET, ATTACK_SIZE, 8, "float"),
-    ("Armor", 48, ARMOR_OFFSET, ARMOR_SIZE, 0, "float"),
-    ("MagicResistance", 48, ARMOR_OFFSET, ARMOR_SIZE, 4, "float"),
-    ("Speed", 57, MOVEMENT_STATS_OFFSET, MOVEMENT_STATS_SIZE, 0, "float"),
+    ("Id", -1, 0, 0, 0, "int"),
+    ("Health", 2, HEALTH_OFFSET, HEALTH_SIZE, 0, "float"),
+    ("MaxHealth", 2, HEALTH_OFFSET, HEALTH_SIZE, 4, "float"),
+    ("Mana", 4, MANA_OFFSET, MANA_SIZE, 0, "float"),
+    ("MaxMana", 4, MANA_OFFSET, MANA_SIZE, 4, "float"),
+    ("ManaRegen", 4, MANA_OFFSET, MANA_SIZE, 8, "float"),
+    ("Damage", 45, ATTACK_OFFSET, ATTACK_SIZE, 0, "float"),
+    ("Range", 45, ATTACK_OFFSET, ATTACK_SIZE, 4, "float"),
+    ("AttackSpeed", 45, ATTACK_OFFSET, ATTACK_SIZE, 8, "float"),
+    ("Armor", 50, ARMOR_OFFSET, ARMOR_SIZE, 0, "float"),
+    ("MagicResistance", 50, ARMOR_OFFSET, ARMOR_SIZE, 4, "float"),
+    ("Speed", 59, MOVEMENT_STATS_OFFSET, MOVEMENT_STATS_SIZE, 0, "float"),
     ("Position", 0, POSITION_OFFSET, POSITION_SIZE, 0, "Vector3"),
-    ("Player", 37, UNIT_OWNER_PLAYER_OFFSET, UNIT_OWNER_PLAYER_SIZE, 0, "int"),
-    ("Level", 105, LEVEL_OFFSET, LEVEL_SIZE, 0, "int"),
-    ("Experience", 103, EXPERIENCE_OFFSET, EXPERIENCE_SIZE, 0, "float"),
-    ("Scale", 107, MODEL_SCALE_OFFSET, MODEL_SCALE_SIZE, 0, "float"),
-    ("RotationY", 111, ROTATION_Y_OFFSET, ROTATION_Y_SIZE, 0, "float"),
+    ("Player", 39, UNIT_OWNER_PLAYER_OFFSET, UNIT_OWNER_PLAYER_SIZE, 0, "int"),
+    ("Level", 108, LEVEL_OFFSET, LEVEL_SIZE, 0, "int"),
+    ("Experience", 106, EXPERIENCE_OFFSET, EXPERIENCE_SIZE, 0, "float"),
+    ("Scale", 110, MODEL_SCALE_OFFSET, MODEL_SCALE_SIZE, 0, "float"),
+    ("RotationY", 114, ROTATION_Y_OFFSET, ROTATION_Y_SIZE, 0, "float"),
 ]
 
 PLAYER_OFFSETS = {name: (comp_id, array_offset, elem_size, sub_offset, type_name) for name, comp_id, array_offset, elem_size, sub_offset, type_name in PLAYER_FIELDS}
@@ -101,6 +103,35 @@ def get_shared_memory_base(target):
         if err.Success():
             return _CACHED_BASE_ADDR
         _CACHED_BASE_ADDR = 0
+
+    import os, json
+    search_dirs = [os.getcwd()]
+    if target and target.IsValid():
+        exe = target.GetExecutable()
+        if exe and exe.IsValid():
+            search_dirs.append(exe.GetDirectory())
+    if "__file__" in globals():
+        search_dirs.append(os.path.dirname(__file__))
+
+    for d in search_dirs:
+        if not d:
+            continue
+        debug_json = os.path.join(d, "MapScript.debug.json")
+        if os.path.exists(debug_json):
+            try:
+                with open(debug_json, "r") as f:
+                    data = json.load(f)
+                if data.get("pid") != target.GetProcess().GetProcessID():
+                    continue
+                ptr = data.get("sharedMemoryPointer", 0)
+                if ptr != 0:
+                    err = lldb.SBError()
+                    target.GetProcess().ReadMemory(ptr, 4, err)
+                    if err.Success():
+                        _CACHED_BASE_ADDR = ptr
+                        return ptr
+            except Exception:
+                pass
 
     candidate_names = [
         "g_realmSharedMemoryBase",
@@ -189,6 +220,12 @@ def resolve_array_base(process, base_addr, comp_id, default_offset):
         if err.Success() and len(val_bytes) == 4:
             val = struct.unpack_from("<I", val_bytes, 0)[0]
             if val != 0:
+                t0_bytes = process.ReadMemory(base_addr, 4, err)
+                if err.Success() and len(t0_bytes) == 4:
+                    t0 = struct.unpack_from("<I", t0_bytes, 0)[0]
+                    if val >= t0:
+                        c_start = globals().get("COMPONENTS_START_OFFSET", 273408)
+                        return base_addr + (val - t0) + c_start
                 if val >= base_addr:
                     return val
                 return base_addr + val
@@ -207,11 +244,42 @@ def resolve_component_stride(process, base_addr, comp_id, default_stride):
     return default_stride
 
 def extract_id_value(valobj):
+    if not valobj or not valobj.IsValid():
+        return -1
+    t = valobj.GetType()
+    if t.IsReferenceType() or t.IsPointerType():
+        valobj = valobj.Dereference()
+    raw_val = valobj.GetNonSyntheticValue() if hasattr(valobj, "GetNonSyntheticValue") and valobj.GetNonSyntheticValue().IsValid() else valobj
     for candidate in ["Value", "value", "<Value>k__BackingField", "_value"]:
-        child = valobj.GetChildMemberWithName(candidate)
+        child = raw_val.GetChildMemberWithName(candidate)
         if child.IsValid():
             return child.GetValueAsSigned(-1)
-    return valobj.GetValueAsSigned(-1)
+    val = raw_val.GetValueAsSigned(-1)
+    if val != -1:
+        return val
+    data = raw_val.GetData()
+    if data and data.GetByteSize() >= 4:
+        err = lldb.SBError()
+        return data.GetSignedInt32(err, 0)
+    return -1
+
+def resolve_field_type(target, f_type_name):
+    f_type = target.FindFirstType(f_type_name)
+    if not f_type.IsValid() and f_type_name == "Vector3":
+        for candidate in ("S_P_CoreLib_System_Numerics_Vector3", "System.Numerics.Vector3"):
+            f_type = target.FindFirstType(candidate)
+            if f_type.IsValid():
+                break
+        if not f_type.IsValid():
+            f_type = target.GetBasicType(lldb.eBasicTypeFloat).GetArrayType(3)
+    if not f_type.IsValid():
+        if f_type_name == "float":
+            f_type = target.GetBasicType(lldb.eBasicTypeFloat)
+        elif f_type_name == "bool":
+            f_type = target.GetBasicType(lldb.eBasicTypeBool)
+        else:
+            f_type = target.GetBasicType(lldb.eBasicTypeInt)
+    return f_type
 
 class PlayerIdSyntheticProvider:
     def __init__(self, valobj, internal_dict):
@@ -235,17 +303,22 @@ class PlayerIdSyntheticProvider:
     def get_child_at_index(self, index):
         if index < 0 or index >= len(PLAYER_FIELDS):
             return None
-        target = self.valobj.GetTarget()
-        base_addr = get_shared_memory_base(target)
-        if base_addr == 0:
-            return None
-
         player_id = extract_id_value(self.valobj)
         if player_id < 0 or player_id >= MAX_PLAYERS:
             return None
 
-        process = target.GetProcess()
         entry = PLAYER_FIELDS[index]
+        target = self.valobj.GetTarget()
+        if entry[0] in ("Id", "Value"):
+            f_type = target.GetBasicType(lldb.eBasicTypeInt)
+            data = lldb.SBData.CreateDataFromSInt32Array(lldb.eByteOrderLittle, 4, [player_id])
+            return self.valobj.CreateValueFromData(entry[0], data, f_type)
+
+        base_addr = get_shared_memory_base(target)
+        if base_addr == 0:
+            return None
+
+        process = target.GetProcess()
         if len(entry) == 6:
             f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
             arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
@@ -256,14 +329,7 @@ class PlayerIdSyntheticProvider:
             stride = elem_size
 
         slot_addr = arr_base + (player_id * stride) + sub_offset
-        f_type = target.FindFirstType(f_type_name)
-        if not f_type.IsValid():
-            if f_type_name == "float":
-                f_type = target.GetBasicType(lldb.eBasicTypeFloat)
-            elif f_type_name == "bool":
-                f_type = target.GetBasicType(lldb.eBasicTypeBool)
-            else:
-                f_type = target.GetBasicType(lldb.eBasicTypeInt)
+        f_type = resolve_field_type(target, f_type_name)
 
         return self.valobj.CreateValueFromAddress(f_name, slot_addr, f_type)
 
@@ -289,17 +355,22 @@ class UnitIdSyntheticProvider:
     def get_child_at_index(self, index):
         if index < 0 or index >= len(ENTITY_FIELDS):
             return None
-        target = self.valobj.GetTarget()
-        base_addr = get_shared_memory_base(target)
-        if base_addr == 0:
-            return None
-
         unit_id = extract_id_value(self.valobj)
         if unit_id < 0 or unit_id >= MAX_ENTITIES:
             return None
 
-        process = target.GetProcess()
         entry = ENTITY_FIELDS[index]
+        target = self.valobj.GetTarget()
+        if entry[0] in ("Id", "Value"):
+            f_type = target.GetBasicType(lldb.eBasicTypeInt)
+            data = lldb.SBData.CreateDataFromSInt32Array(lldb.eByteOrderLittle, 4, [unit_id])
+            return self.valobj.CreateValueFromData(entry[0], data, f_type)
+
+        base_addr = get_shared_memory_base(target)
+        if base_addr == 0:
+            return None
+
+        process = target.GetProcess()
         if len(entry) == 6:
             f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
             arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
@@ -310,16 +381,7 @@ class UnitIdSyntheticProvider:
             stride = elem_size
 
         slot_addr = arr_base + (unit_id * stride) + sub_offset
-        f_type = target.FindFirstType(f_type_name)
-        if not f_type.IsValid() and f_type_name == "Vector3":
-            f_type = target.FindFirstType("System.Numerics.Vector3")
-        if not f_type.IsValid():
-            if f_type_name == "float":
-                f_type = target.GetBasicType(lldb.eBasicTypeFloat)
-            elif f_type_name == "bool":
-                f_type = target.GetBasicType(lldb.eBasicTypeBool)
-            else:
-                f_type = target.GetBasicType(lldb.eBasicTypeInt)
+        f_type = resolve_field_type(target, f_type_name)
 
         return self.valobj.CreateValueFromAddress(f_name, slot_addr, f_type)
 
@@ -336,8 +398,8 @@ def PlayerIdSummaryProvider(valobj, internal_dict):
     error = lldb.SBError()
     process = target.GetProcess()
 
-    res_base = resolve_array_base(process, base_addr, 68, PLAYER_RESOURCES_OFFSET)
-    res_stride = resolve_component_stride(process, base_addr, 68, PLAYER_RESOURCES_SIZE)
+    res_base = resolve_array_base(process, base_addr, 69, PLAYER_RESOURCES_OFFSET)
+    res_stride = resolve_component_stride(process, base_addr, 69, PLAYER_RESOURCES_SIZE)
     res_addr = res_base + (player_id * res_stride)
     res_bytes = process.ReadMemory(res_addr, 16, error)
     gold = 0
@@ -393,13 +455,90 @@ def UnitIdSummaryProvider(valobj, internal_dict):
 
     return f"Unit {unit_id} [Health: {int(hp)}/{int(max_hp)}, Pos: ({pos_x:.1f}, {pos_z:.1f})]"
 
+def realm_attach(debugger, command, result, internal_dict):
+    import os
+    pid = None
+    search_dirs = [os.getcwd()]
+    target = debugger.GetSelectedTarget()
+    if target and target.IsValid():
+        exe = target.GetExecutable()
+        if exe and exe.IsValid():
+            search_dirs.append(exe.GetDirectory())
+    if "__file__" in globals():
+        search_dirs.append(os.path.dirname(__file__))
+
+    for d in search_dirs:
+        if not d:
+            continue
+        pid_file = os.path.join(d, "authority.pid")
+        if os.path.exists(pid_file):
+            try:
+                with open(pid_file, "r") as f:
+                    val = f.read().strip()
+                if val and val.isdigit():
+                    pid = val
+                    break
+            except Exception:
+                pass
+
+    if pid:
+        debugger.HandleCommand(f"process attach --pid {pid}")
+    else:
+        result.SetError("authority.pid was not found in the workspace.")
+
+def realm_load_modules(debugger, command, result, internal_dict):
+    import os, glob
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        return
+
+    search_dirs = [os.getcwd()]
+    exe = target.GetExecutable()
+    if exe and exe.IsValid():
+        search_dirs.append(exe.GetDirectory())
+    if "__file__" in globals():
+        search_dirs.append(os.path.dirname(__file__))
+
+    def load_elf(elf_path):
+        norm = os.path.abspath(elf_path).replace("\\", "/")
+        fs = lldb.SBFileSpec(norm)
+        mod = target.FindModule(fs)
+        if not mod or not mod.IsValid():
+            mod = target.AddModule(norm, "x86_64", "")
+        if mod and mod.IsValid():
+            target.SetModuleLoadAddress(mod, 0)
+            return True
+        return False
+
+    loaded = 0
+    seen = set()
+    for d in search_dirs:
+        if not d or not os.path.exists(d):
+            continue
+        for elf_path in glob.glob(os.path.join(d, "*.jit.elf")):
+            norm = os.path.abspath(elf_path).replace("\\", "/")
+            if norm in seen:
+                continue
+            seen.add(norm)
+            if load_elf(norm):
+                loaded += 1
+
+    if loaded == 0:
+        default_elf = os.path.join(os.getcwd(), "MapScript.jit.elf").replace("\\", "/")
+        if os.path.exists(default_elf):
+            load_elf(default_elf)
+
 def __lldb_init_module(debugger, internal_dict):
     category = "Realm"
 
-    debugger.HandleCommand(f"type synthetic add -l realm_lldb.PlayerIdSyntheticProvider -x \"^Realm[.:]Ecs[.:]PlayerId$\" -w {category}")
-    debugger.HandleCommand(f"type summary add -F realm_lldb.PlayerIdSummaryProvider -x \"^Realm[.:]Ecs[.:]PlayerId$\" -w {category}")
+    debugger.HandleCommand(f"type synthetic add -l realm_lldb.PlayerIdSyntheticProvider -x \"(^|.*[.:_ ])PlayerId$\" -w {category}")
+    debugger.HandleCommand(f"type summary add -F realm_lldb.PlayerIdSummaryProvider -x \"(^|.*[.:_ ])PlayerId$\" -w {category}")
 
-    debugger.HandleCommand(f"type synthetic add -l realm_lldb.UnitIdSyntheticProvider -x \"^Realm[.:]Ecs[.:]UnitId$\" -w {category}")
-    debugger.HandleCommand(f"type summary add -F realm_lldb.UnitIdSummaryProvider -x \"^Realm[.:]Ecs[.:]UnitId$\" -w {category}")
+    debugger.HandleCommand(f"type synthetic add -l realm_lldb.UnitIdSyntheticProvider -x \"(^|.*[.:_ ])UnitId$\" -w {category}")
+    debugger.HandleCommand(f"type summary add -F realm_lldb.UnitIdSummaryProvider -x \"(^|.*[.:_ ])UnitId$\" -w {category}")
 
+    debugger.HandleCommand(f"type summary add -s \"(${{var.X}}, ${{var.Y}}, ${{var.Z}})\" -x \"(^|.*[.:_ ])Vector3$\" -w {category}")
+
+    debugger.HandleCommand("command script add -f realm_lldb.realm_attach realm_attach")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_load_modules realm_load_modules")
     debugger.HandleCommand(f"type category enable {category}")

@@ -183,6 +183,7 @@ public class SnapshotTimeline
 	private int _delayFloorSequences = MinimumDelaySequences;
 	private int _delayCeilingSequences = InitialCeilingSequences;
 	private bool _isStarved;
+	private bool _debuggerHold;
 
 	/// <summary>
 	///     When this screen last stuttered on its own frames, or zero for none. It is kept for a moment because the
@@ -242,6 +243,7 @@ public class SnapshotTimeline
 		_delayFloorSequences = MinimumDelaySequences;
 		_delayCeilingSequences = InitialCeilingSequences;
 		_isStarved = false;
+		_debuggerHold = false;
 		_stalledAtSeconds = 0d;
 		_evaluationSeconds = 0f;
 		_cleanWindowsInARow = 0;
@@ -342,7 +344,15 @@ public class SnapshotTimeline
 		// A run that arrived faster than it was written is the same story with a different cause: a process that stepped
 		// several ticks in one call, or a screen that stopped reading for a moment and then drained what it had been sent.
 		// Both look exactly like a link that fell behind, and neither is fixed by holding the cursor further back.
-		if (NewestSequence >= 0 && _starvationsSinceArrival > 0)
+		//
+		// A debugger holding the authority is neither: the descriptions did not arrive late, the match did not write any
+		// while it was stopped. The window this resumes is not one the link was measured on.
+		if (_debuggerHold)
+		{
+			_debuggerHold = false;
+			_starvationsSinceArrival = 0;
+		}
+		else if (NewestSequence >= 0 && _starvationsSinceArrival > 0)
 		{
 			bool arrivedAsABurst = elapsedSpan < publishedSpan * ArrivalBurstFraction;
 			if (!arrivedAsABurst)
@@ -356,6 +366,17 @@ public class SnapshotTimeline
 
 		NewestSequence = sequence;
 		if (_cursor < 0f) _cursor = sequence - _delaySequences;
+	}
+
+	/// <summary>
+	///     States that the silence about to end was a debugger holding the authority rather than the link. The window that
+	///     follows is not measured as lateness, so a breakpoint never deepens the buffer it would look like a stall to.
+	/// </summary>
+	public void NoteDebuggerHold()
+	{
+		_debuggerHold = true;
+		_isStarved = false;
+		_starvationsSinceArrival = 0;
 	}
 
 	public void Advance(float delta)

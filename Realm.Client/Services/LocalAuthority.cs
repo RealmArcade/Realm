@@ -112,7 +112,7 @@ public class LocalAuthority : IDisposable
 		ResidentAuthority? resident = Resident;
 		if (resident == null) return LocalAuthorityReply.Failed("this build has no authority to run its matches", logPath);
 
-		ServerControlReply reply = await resident.SendAsync(command).ConfigureAwait(false);
+		ServerControlReply reply = await resident.SendAsync(command, command.WasmDebug ? System.Threading.Timeout.Infinite : 0).ConfigureAwait(false);
 		if (!reply.Accepted) return LocalAuthorityReply.Failed(reply.Failure, resident.LogPath);
 
 		return new LocalAuthorityReply(true, string.Empty, reply.Port, reply.MapHash, reply.WireTableHash, resident.LogPath, resident.ConsoleLogPath);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -226,6 +226,13 @@ public partial class GameHost
 			}
 
 			float fDelta = (float)delta;
+
+			if (IsWaitingForAuthorityDebugger)
+			{
+				GameContext.ServerSession?.Pump();
+				return;
+			}
+
 			if (_wasClientInMultiplayer) UpdateConnectionStatus();
 
 			if (GameContext.ReplayPlayback.IsPlayingReplay)

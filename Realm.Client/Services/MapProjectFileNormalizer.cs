@@ -42,6 +42,8 @@ public static partial class MapProjectFileNormalizer
 		csprojContent = ProjectReferenceMapApiRegex().Replace(csprojContent,
 			$"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>");
 
+		csprojContent = DebugOptimizeTrueRegex().Replace(csprojContent, "$1false$2");
+
 		csprojContent = ReferenceMapApiRegex().Replace(csprojContent,
 			$"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>");
 
@@ -133,4 +135,7 @@ public static partial class MapProjectFileNormalizer
 
 	[GeneratedRegex(@"<Target\s+Name=""ClearComponentWit""[^>]*>.*?</Target>", RegexOptions.Singleline)]
 	private static partial Regex ClearComponentWitTargetRegex();
+
+	[GeneratedRegex(@"(<PropertyGroup[^>]*Condition=""'\$\(Configuration\)'\s*==\s*'Debug'""[^>]*>(?:(?!</PropertyGroup>)[\s\S])*?<Optimize>)true(</Optimize>)", RegexOptions.IgnoreCase)]
+	private static partial Regex DebugOptimizeTrueRegex();
 }

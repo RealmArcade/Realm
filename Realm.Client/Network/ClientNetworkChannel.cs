@@ -9,6 +9,10 @@ public partial class ClientNetworkChannel : Node
 {
 	private const int AuthorityPeerId = 1;
 
+	private const int LongSilenceTimeoutLimit = 32;
+
+	private const int LongSilenceTimeoutMilliseconds = 86_400_000;
+
 	public event Action<NetworkFrameKind, byte[]>? FrameArrived;
 
 	private readonly SimulatedLink _simulatedLink = SimulatedLink.FromEnvironment();
@@ -55,9 +59,13 @@ public partial class ClientNetworkChannel : Node
 		FrameArrived?.Invoke((NetworkFrameKind)kind, frame);
 	}
 
-	public bool TryConnect(string address, int port, out string failure) => TryConnect(address, port, 0, out failure);
+	public bool TryConnect(string address, int port, out string failure) => TryConnect(address, port, 0, false, out failure);
 
-	public bool TryConnect(string address, int port, int localPort, out string failure)
+	public bool TryConnect(string address, int port, bool allowLongSilence, out string failure) => TryConnect(address, port, 0, allowLongSilence, out failure);
+
+	public bool TryConnect(string address, int port, int localPort, out string failure) => TryConnect(address, port, localPort, false, out failure);
+
+	public bool TryConnect(string address, int port, int localPort, bool allowLongSilence, out string failure)
 	{
 		failure = string.Empty;
 
@@ -71,6 +79,22 @@ public partial class ClientNetworkChannel : Node
 		}
 
 		Multiplayer.MultiplayerPeer = peer;
+		if (allowLongSilence) AllowLongAuthoritySilence();
+		return true;
+	}
+
+	/// <summary>
+	///     Lets the authority of a debug match stay silent for as long as a person stands at a breakpoint. The timeout is
+	///     ENet's own, so it has to be widened before the silence starts: the authority is stopped when the breakpoint is
+	///     hit and cannot answer, and a peer that times out there is a match that can never be resumed.
+	/// </summary>
+	public bool AllowLongAuthoritySilence()
+	{
+		ENetMultiplayerPeer? peer = Multiplayer.MultiplayerPeer as ENetMultiplayerPeer;
+		ENetPacketPeer? authorityPeer = peer?.GetPeer(AuthorityPeerId);
+		if (authorityPeer == null) return false;
+
+		authorityPeer.SetTimeout(LongSilenceTimeoutLimit, LongSilenceTimeoutMilliseconds, LongSilenceTimeoutMilliseconds);
 		return true;
 	}
 

@@ -2453,6 +2453,7 @@
   "WISHLIST ON STEAM": "WISHLIST ON STEAM",
   "WOOD": "WOOD",
   "WRITE A REVIEW": "WRITE A REVIEW",
+  "Waiting for the authority debugger ... the match is paused": "Waiting for the authority debugger ... the match is paused",
   "Want to turn your map into a standalone game? Go for it! However, you can only take your original work with you. You must replace any content created by other Realm users, unless you obtain their explicit written permission.": "Want to turn your map into a standalone game? Go for it! However, you can only take your original work with you. You must replace any content created by other Realm users, unless you obtain their explicit written permission.",
   "Warning: Asset '{0}' is referenced by {1} object(s) in metadata.json:\n\n • {2}\n\nDeleting this asset from manifest.json will orphan these objects. Are you sure you want to proceed?": "Warning: Asset '{0}' is referenced by {1} object(s) in metadata.json:\n\n • {2}\n\nDeleting this asset from manifest.json will orphan these objects. Are you sure you want to proceed?",
   "Warning: You have not placed any units, you won't see anything due to Shroud.": "Warning: You have not placed any units, you won't see anything due to Shroud.",

@@ -5,23 +5,29 @@
 			"name": "Attach to Realm Authority (Map Script WASM)",
 			"type": "lldb",
 			"request": "attach",
-			"pid": "${command:pickMyProcess}",
+			"program": "${workspaceFolder}/MapScript.jit.elf",
+			"processCreateCommands": [
+				"realm_attach"
+			],
 			"cwd": "${workspaceFolder}",
 			"breakpointMode": "file",
+			"showDisassembly": "never",
+			"expressions": "simple",
+			"consoleMode": "evaluate",
 			"initCommands": [
-				"command script import ${workspaceFolder}/realm_lldb.py",
+				"command script import \"${workspaceFolder}/realm_lldb.py\"",
 				"settings set plugin.jit-loader.gdb.enable off",
+				"settings set target.process.run-all-threads false",
+				"settings set target.process.thread.step-out-avoid-nodebug true",
 				"settings set target.process.thread.step-in-avoid-nodebug true",
-				"settings set target.process.thread.step-avoid-regexp ^(__wasm|wasmtime|cabi_|rhp_|System\\.|GameClientWorld\\.)"
+				"settings set target.process.thread.step-avoid-regexp ^(__wasm|wasmtime|cabi_|[rR]hp|System\\.|Internal\\.|GameClientWorld\\.|Realm\\.MapAPI\\.|Realm\\.Ecs\\.|Microsoft\\.)"
 			],
 			"postAttachCommands": [
-				"target modules add \"${workspaceFolder}/MapScript.jit.elf\"",
-				"target modules load --file \"${workspaceFolder}/MapScript.jit.elf\" --slide 0",
+				"realm_load_modules",
 				"continue"
 			],
 			"postRunCommands": [
-				"target modules add \"${workspaceFolder}/MapScript.jit.elf\"",
-				"target modules load --file \"${workspaceFolder}/MapScript.jit.elf\" --slide 0",
+				"realm_load_modules",
 				"continue"
 			],
 			"env": {
