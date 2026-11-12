@@ -107,6 +107,11 @@ public partial class ServerGameAPI
 		return (PathingFlags)_context.TerrainNavMeshService.GetRegionPathing(in terrain, minX, minZ, maxX, maxZ);
 	}
 
+	public float GetTerrainHeight(float worldX, float worldZ)
+	{
+		return ReadTerrainHeight(new Vector3(worldX, 0f, worldZ));
+	}
+
 	public PathingFlags GetRegionPathing(string coordinateName)
 	{
 		CoordinateSaveData? coordinate = FindCoordinate(coordinateName);

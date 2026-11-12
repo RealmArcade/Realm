@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -18,10 +18,76 @@ public partial class CameraControl : Camera3D
 		TargetHeight = 35.0f;
 		_isTopDown = false;
 		FollowTarget = null;
+		_pendingFollowUnitServerId = 0;
+		_hasScriptFollowConfig = false;
+		_hasScriptViewActive = false;
 		if (IsFreeCamera)
 		{
 			SetFreeCamera(false);
 		}
+	}
+
+	public void SetScriptCameraFollowUnit(
+		int serverUnitId,
+		float distance,
+		float heightOffset,
+		float pitchDegrees,
+		float yawOffsetDegrees,
+		bool alignToUnitFacing,
+		float smoothing,
+		bool lockCameraInput)
+	{
+		IsLocked = lockCameraInput;
+		_hasScriptViewActive = false;
+
+		if (serverUnitId <= 0)
+		{
+			FollowTarget = null;
+			_pendingFollowUnitServerId = 0;
+			_hasScriptFollowConfig = false;
+			return;
+		}
+
+		_scriptFollowDistance = Mathf.Max(0.5f, distance);
+		_scriptFollowHeightOffset = heightOffset;
+		_scriptFollowPitchDegrees = Mathf.Clamp(pitchDegrees, -89.0f, 89.0f);
+		_scriptFollowYawOffsetDegrees = yawOffsetDegrees;
+		_scriptFollowAlignToUnitFacing = alignToUnitFacing;
+		_scriptFollowSmoothing = smoothing;
+		_hasScriptFollowConfig = true;
+		_targetPitch = _scriptFollowPitchDegrees;
+
+		if (GameContext.Host != null && GameContext.Host.TryGetUnit3DByServerId(serverUnitId, out Unit3D? unit3D))
+		{
+			FollowTarget = unit3D;
+			_pendingFollowUnitServerId = 0;
+		}
+		else
+		{
+			FollowTarget = null;
+			_pendingFollowUnitServerId = serverUnitId;
+		}
+	}
+
+	public void SetScriptCameraView(float yawDegrees, float pitchDegrees, float height, bool lockCameraInput)
+	{
+		FollowTarget = null;
+		_pendingFollowUnitServerId = 0;
+		_hasScriptFollowConfig = false;
+		_hasScriptViewActive = true;
+		_targetYaw = yawDegrees;
+		_targetPitch = Mathf.Clamp(pitchDegrees, -89.0f, 89.0f);
+		TargetHeight = Mathf.Max(1.0f, height);
+		IsLocked = lockCameraInput;
+	}
+
+	public void ResetScriptCamera()
+	{
+		IsLocked = false;
+		_hasScriptFollowConfig = false;
+		_hasScriptViewActive = false;
+		_pendingFollowUnitServerId = 0;
+		ResetCamera();
 	}
 
 	public void ToggleFreeCamera()

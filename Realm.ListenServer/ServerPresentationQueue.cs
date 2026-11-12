@@ -149,6 +149,7 @@ public class ServerPresentationQueue
 				or PresentationKind.UnitAnimationSet or PresentationKind.UnitHandAttachmentSet or PresentationKind.TimeOfDaySet
 				or PresentationKind.DayNightCycleSet or PresentationKind.EnvironmentPresetSet or PresentationKind.WeatherSet
 				or PresentationKind.HudElementVisible or PresentationKind.CameraBoundsSet or PresentationKind.CameraPanned
+				or PresentationKind.CameraFollowUnitSet or PresentationKind.CameraViewSet or PresentationKind.CameraReset
 				or PresentationKind.SelectionChanged or PresentationKind.InstructionsSectionAdded
 
 				// A map declares its instructions and the card its standings share once, as the match starts, and never
@@ -166,6 +167,7 @@ public class ServerPresentationQueue
 			PresentationKind.TooltipNumberSet or PresentationKind.TooltipTextSet => $"{(byte)request.Kind}|{request.PlayerIndex}|{request.Key}|{request.Text}|{request.Text2}",
 			PresentationKind.UnitHandAttachmentSet => $"{(byte)request.Kind}|{request.PlayerIndex}|{request.Handle}|{request.Key}",
 			PresentationKind.HudElementVisible => $"{(byte)request.Kind}|{request.PlayerIndex}|{request.Key}",
+			PresentationKind.CameraFollowUnitSet or PresentationKind.CameraViewSet or PresentationKind.CameraReset => $"camera_view|{request.PlayerIndex}",
 			_ => $"{(byte)request.Kind}|{request.PlayerIndex}|{request.Key}"
 		};
 	}

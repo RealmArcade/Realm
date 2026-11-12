@@ -97,6 +97,7 @@ interface game-api {
     get-spawn-anchor-y: func(player-slot: s32) -> f32;
     get-spawn-anchor-z: func(player-slot: s32) -> f32;
     get-string-text: func(string-id: s32) -> string;
+    get-terrain-height: func(world-x: f32, world-z: f32) -> f32;
     get-unit-by-id: func(unique-id: s32) -> s32;
     get-unit-construction-progress: func(unit-id: s32) -> f32;
     get-unit-custom-data: func(unit-id: s32, key: string) -> string;
@@ -153,6 +154,7 @@ interface game-api {
     remove-loot-item: func(loot-item-id: s32) -> bool;
     remove-stat-modifiers: func(unit-id: s32, source-id: string);
     remove-unit-custom-data: func(unit-id: s32, key: string) -> bool;
+    reset-player-camera: func(player-index: s32);
     reset-player-camera-bounds: func(player-index: s32);
     schedule-repeating-timer: func(interval: f32) -> s32;
     schedule-timer: func(delay: f32) -> s32;
@@ -183,6 +185,8 @@ interface game-api {
     set-player-bot-profile: func(player-index: s32, profile-json: string);
     set-player-building-limit: func(player-index: s32, limit: s32);
     set-player-camera-bounds: func(player-index: s32, min-x: f32, min-z: f32, max-x: f32, max-z: f32);
+    set-player-camera-follow-unit: func(player-index: s32, unit-id: s32, distance: f32, height-offset: f32, pitch-degrees: f32, yaw-offset-degrees: f32, align-to-unit-facing: bool, smoothing: f32, lock-camera-input: bool);
+    set-player-camera-view: func(player-index: s32, yaw-degrees: f32, pitch-degrees: f32, height: f32, lock-camera-input: bool);
     set-player-computer-controlled: func(player-index: s32, is-proxy: bool);
     set-player-damage-effectiveness: func(attacking-player-index: s32, defending-player-index: s32, multiplier: f32);
     set-player-gold: func(player-index: s32, amount: f32);

@@ -200,6 +200,43 @@ public static unsafe class PlayerIdScriptExtensions
 	public void ResetCameraBounds() => GameAPI.Current.ResetPlayerCameraBounds(playerId.Value);
 
 	/// <summary>
+	/// Attaches this player's camera to follow a target unit with configurable distance, height offset, angles, and smoothing.
+	/// </summary>
+	/// <param name="unit">The unit to follow, or <see cref="UnitId.Invalid"/> to stop following.</param>
+	/// <param name="distance">Horizontal distance away from the followed unit in world units.</param>
+	/// <param name="heightOffset">Vertical offset above the followed unit in world units.</param>
+	/// <param name="pitchDegrees">Camera pitch angle in degrees (negative tilts downward).</param>
+	/// <param name="yawOffsetDegrees">Horizontal yaw angle in degrees (or offset relative to unit facing when <paramref name="alignToUnitFacing"/> is true).</param>
+	/// <param name="alignToUnitFacing">True to orient the camera behind the unit's facing direction; false to use a fixed world yaw.</param>
+	/// <param name="smoothing">Follow interpolation responsiveness in units per second; zero or negative snaps immediately.</param>
+	/// <param name="lockCameraInput">True to prevent manual player camera panning, zooming, and rotation while active.</param>
+	public void FollowUnitWithCamera(
+		UnitId unit,
+		float distance = 18.0f,
+		float heightOffset = 8.0f,
+		float pitchDegrees = -30.0f,
+		float yawOffsetDegrees = 0.0f,
+		bool alignToUnitFacing = false,
+		float smoothing = 8.0f,
+		bool lockCameraInput = false) =>
+		GameAPI.Current.SetPlayerCameraFollowUnit(playerId.Value, unit, distance, heightOffset, pitchDegrees, yawOffsetDegrees, alignToUnitFacing, smoothing, lockCameraInput);
+
+	/// <summary>
+	/// Configures this player's camera orientation, height, and input lock state without attaching to a unit.
+	/// </summary>
+	/// <param name="yawDegrees">Target horizontal yaw angle in degrees.</param>
+	/// <param name="pitchDegrees">Target vertical pitch angle in degrees.</param>
+	/// <param name="height">Target camera height in world units.</param>
+	/// <param name="lockCameraInput">True to prevent manual player camera panning, zooming, and rotation.</param>
+	public void SetCameraView(float yawDegrees, float pitchDegrees, float height, bool lockCameraInput = false) =>
+		GameAPI.Current.SetPlayerCameraView(playerId.Value, yawDegrees, pitchDegrees, height, lockCameraInput);
+
+	/// <summary>
+	/// Resets this player's camera follow target, orientation, height, and input lock back to default RTS controls.
+	/// </summary>
+	public void ResetCamera() => GameAPI.Current.ResetPlayerCamera(playerId.Value);
+
+	/// <summary>
 	/// Sets whether a specific built-in HUD element is visible for this player.
 	/// </summary>
 	/// <param name="element">The HUD element to show or hide.</param>

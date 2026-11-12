@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -74,6 +74,12 @@ public partial class CameraControl : Camera3D
 		float fDelta = (float)delta;
 
 		if (!HasCameraState) return;
+
+		if (_pendingFollowUnitServerId > 0 && GameContext.Host != null && GameContext.Host.TryGetUnit3DByServerId(_pendingFollowUnitServerId, out Unit3D? pendingUnit))
+		{
+			FollowTarget = pendingUnit;
+			_pendingFollowUnitServerId = 0;
+		}
 
 		ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 		state.MoveSpeed = 10.0f + (GameSettings.ScrollSpeed / 100.0f) * 50.0f;

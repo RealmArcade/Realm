@@ -563,8 +563,39 @@ public class ServerSimulation : IDisposable
 		}
 
 		ServerCommandResult result = _commands.ExecuteServerCommand(peerId, command);
+		RaiseAcceptedUnitOrders(command, result);
 		result = PlaceBuildingOrderedBy(command, result);
 		return CastSpellOrderedBy(command, result);
+	}
+
+	private void RaiseAcceptedUnitOrders(NetworkCommand command, in ServerCommandResult result)
+	{
+		if (!IsUnitOrderCommand(command.CommandType)) return;
+		if (command.UnitEntityIds == null || command.UnitEntityIds.Count == 0) return;
+
+		var targetPosition = new Vector3(command.TargetPosition.X, command.TargetPosition.Y, command.TargetPosition.Z);
+		for (int index = 0; index < command.UnitEntityIds.Count; index++)
+		{
+			int unitId = command.UnitEntityIds[index];
+			if (result.RejectedServerEntityIds != null && result.RejectedServerEntityIds.Contains(unitId)) continue;
+
+			Entity resolved = _commands.Targets.Resolve(unitId);
+			if (resolved == Entity.Null || !_map.World.IsAlive(resolved)) continue;
+
+			_script.Api.RaiseUnitOrdered(resolved.Id, command.CommandType, targetPosition);
+		}
+	}
+
+	private static bool IsUnitOrderCommand(string? commandType)
+	{
+		return commandType switch
+		{
+			"move" or "move_queued" or "attack_move" or "attack_move_queued"
+				or "stop" or "hold" or "patrol" or "patrol_queued"
+				or "attack" or "attack_queued" or "follow" or "follow_queued"
+				or "gather" or "gather_queued" => true,
+			_ => false
+		};
 	}
 
 	public void ApplyConsoleCommand(int peerId, ScriptConsoleCommand command)

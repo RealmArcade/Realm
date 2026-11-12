@@ -80,6 +80,39 @@ public class ClientRpcService
 		host.ResetCameraBoundsInternal();
 	}
 
+	public void SetPlayerCameraFollowUnit(
+		int playerIndex,
+		int serverUnitId,
+		float distance,
+		float heightOffset,
+		float pitchDegrees,
+		float yawOffsetDegrees,
+		bool alignToUnitFacing,
+		float smoothing,
+		bool lockCameraInput)
+	{
+		if (!TryResolveLocalPlayer(playerIndex, out var host))
+			return;
+
+		host.SetCameraFollowUnitInternal(serverUnitId, distance, heightOffset, pitchDegrees, yawOffsetDegrees, alignToUnitFacing, smoothing, lockCameraInput);
+	}
+
+	public void SetPlayerCameraView(int playerIndex, float yawDegrees, float pitchDegrees, float height, bool lockCameraInput)
+	{
+		if (!TryResolveLocalPlayer(playerIndex, out var host))
+			return;
+
+		host.SetCameraViewInternal(yawDegrees, pitchDegrees, height, lockCameraInput);
+	}
+
+	public void ResetPlayerCamera(int playerIndex)
+	{
+		if (!TryResolveLocalPlayer(playerIndex, out var host))
+			return;
+
+		host.ResetCameraInternal();
+	}
+
 	public void SetPlayerHudElementVisible(int playerIndex, HudElement element, bool visible)
 	{
 		var host = GameContext.Host;

@@ -150,4 +150,24 @@ public partial interface IGameAPI
 	{
 		return (GetRegionPathing(coordinate) & pathingFlags) == 0;
 	}
+
+	/// <summary>
+	/// Samples the terrain surface elevation (Y coordinate) at the specified 2D world coordinates (X, Z).
+	/// </summary>
+	/// <param name="worldX">The world X coordinate.</param>
+	/// <param name="worldZ">The world Z coordinate.</param>
+	/// <returns>The terrain surface height at that position, or 0 if terrain data is unavailable.</returns>
+	float GetTerrainHeight(float worldX, float worldZ);
+
+	/// <summary>
+	/// Checks whether a single world point (X, Z) is passable for at least one of the specified movement flags.
+	/// </summary>
+	/// <param name="worldX">The world X coordinate.</param>
+	/// <param name="worldZ">The world Z coordinate.</param>
+	/// <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+	/// <returns>True if the point is passable for the specified flags; otherwise, false.</returns>
+	bool IsPointPassable(float worldX, float worldZ, PathingFlags pathingFlags = PathingFlags.Ground)
+	{
+		return (GetRegionPathing(worldX, worldZ, worldX, worldZ) & pathingFlags) != 0;
+	}
 }

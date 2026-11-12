@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -202,6 +202,55 @@ public partial class GameHost
 				}
 				camera.ClampToValidGameCamera();
 			}
+		}).CallDeferred();
+	}
+
+	public bool TryGetUnit3DByServerId(int serverEntityId, [NotNullWhen(true)] out Unit3D? unit3D)
+	{
+		unit3D = null;
+		if (TryGetLocalEntity(serverEntityId, out Entity targetEntity)
+			&& TryGetUnit3D(targetEntity, out Unit3D? resolved)
+			&& GodotObject.IsInstanceValid(resolved))
+		{
+			unit3D = resolved;
+			return true;
+		}
+
+		return false;
+	}
+
+	public void SetCameraFollowUnitInternal(
+		int serverUnitId,
+		float distance,
+		float heightOffset,
+		float pitchDegrees,
+		float yawOffsetDegrees,
+		bool alignToUnitFacing,
+		float smoothing,
+		bool lockCameraInput)
+	{
+		Callable.From(() =>
+		{
+			var camera = MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
+			camera?.SetScriptCameraFollowUnit(serverUnitId, distance, heightOffset, pitchDegrees, yawOffsetDegrees, alignToUnitFacing, smoothing, lockCameraInput);
+		}).CallDeferred();
+	}
+
+	public void SetCameraViewInternal(float yawDegrees, float pitchDegrees, float height, bool lockCameraInput)
+	{
+		Callable.From(() =>
+		{
+			var camera = MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
+			camera?.SetScriptCameraView(yawDegrees, pitchDegrees, height, lockCameraInput);
+		}).CallDeferred();
+	}
+
+	public void ResetCameraInternal()
+	{
+		Callable.From(() =>
+		{
+			var camera = MainCamera ?? GetTree().Root.GetNodeOrNull<CameraControl>("Main/Camera3D");
+			camera?.ResetScriptCamera();
 		}).CallDeferred();
 	}
 

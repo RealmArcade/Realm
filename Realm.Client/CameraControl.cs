@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -357,5 +357,14 @@ public partial class CameraControl : Camera3D
 	}
 
 	private bool _isAltRightDragging = false;
+	private bool _hasScriptFollowConfig = false;
+	private bool _hasScriptViewActive = false;
+	private float _scriptFollowDistance = 18.0f;
+	private float _scriptFollowHeightOffset = 8.0f;
+	private float _scriptFollowPitchDegrees = -30.0f;
+	private float _scriptFollowYawOffsetDegrees = 0.0f;
+	private bool _scriptFollowAlignToUnitFacing = false;
+	private float _scriptFollowSmoothing = 8.0f;
+	private int _pendingFollowUnitServerId = 0;
 
 }

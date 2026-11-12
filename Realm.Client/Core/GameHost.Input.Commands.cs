@@ -336,6 +336,7 @@ public partial class GameHost
 	public void CenterCameraOnPrimaryBuilding()
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (MainCamera is { IsLocked: true }) return;
 		Unit3D? primaryBuilding = null;
 		Unit3D? anyOwnedBuilding = null;
 		foreach (var unit in AllUnits)

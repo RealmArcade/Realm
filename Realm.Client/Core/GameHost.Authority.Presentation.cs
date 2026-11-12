@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Godot;
@@ -183,6 +183,27 @@ public partial class GameHost
 
 			case PresentationKind.CameraBoundsReset:
 				clientRpc.ResetPlayerCameraBounds(message.PlayerIndex);
+				break;
+
+			case PresentationKind.CameraFollowUnitSet:
+				clientRpc.SetPlayerCameraFollowUnit(
+					message.PlayerIndex,
+					message.Handle,
+					position.X,
+					position.Y,
+					position.Z,
+					secondary.X,
+					secondary.Z > 0.5f,
+					secondary.Y,
+					message.Flag);
+				break;
+
+			case PresentationKind.CameraViewSet:
+				clientRpc.SetPlayerCameraView(message.PlayerIndex, position.X, position.Y, position.Z, message.Flag);
+				break;
+
+			case PresentationKind.CameraReset:
+				clientRpc.ResetPlayerCamera(message.PlayerIndex);
 				break;
 
 			case PresentationKind.HudElementVisible:

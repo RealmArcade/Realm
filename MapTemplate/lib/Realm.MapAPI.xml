@@ -1033,6 +1033,37 @@
             </summary>
             <param name="playerIndex">Zero-based player slot index.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerCameraFollowUnit(System.Int32,Realm.Ecs.UnitId,System.Single,System.Single,System.Single,System.Single,System.Boolean,System.Single,System.Boolean)">
+            <summary>
+            Attaches the specified player's camera to follow a target unit with configurable distance, height offset, angles, and smoothing.
+            Pass <see cref="F:Realm.Ecs.UnitId.Invalid"/> to stop following while keeping current camera settings, or call <see cref="M:Realm.MapAPI.IGameAPI.ResetPlayerCamera(System.Int32)"/> to restore defaults.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="unit">The unit to follow, or <see cref="F:Realm.Ecs.UnitId.Invalid"/> to clear the follow target.</param>
+            <param name="distance">Horizontal distance away from the followed unit in world units.</param>
+            <param name="heightOffset">Vertical offset above the followed unit's position in world units.</param>
+            <param name="pitchDegrees">Camera pitch angle in degrees (negative values look downward, e.g. -25 for chase view or -55 for RTS view).</param>
+            <param name="yawOffsetDegrees">Horizontal yaw angle in degrees (world yaw when <paramref name="alignToUnitFacing"/> is false, or offset relative to unit facing when true).</param>
+            <param name="alignToUnitFacing">True to orient the camera behind the unit's facing direction; false to use a fixed world yaw.</param>
+            <param name="smoothing">Follow interpolation responsiveness in units per second; zero or negative snaps immediately.</param>
+            <param name="lockCameraInput">True to prevent manual player camera panning, zooming, and rotation while active.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetPlayerCameraView(System.Int32,System.Single,System.Single,System.Single,System.Boolean)">
+            <summary>
+            Configures the specified player's camera orientation, height, and input lock state without attaching to a unit.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+            <param name="yawDegrees">Target horizontal yaw angle in degrees.</param>
+            <param name="pitchDegrees">Target vertical pitch angle in degrees.</param>
+            <param name="height">Target camera height in world units.</param>
+            <param name="lockCameraInput">True to prevent manual player camera panning, zooming, and rotation.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ResetPlayerCamera(System.Int32)">
+            <summary>
+            Resets the specified player's camera follow target, orientation, height, and input lock back to default RTS controls.
+            </summary>
+            <param name="playerIndex">Zero-based player slot index.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerHudElementVisible(System.Int32,Realm.Ecs.HudElement,System.Boolean)">
             <summary>
             Sets whether a specific built-in HUD element is visible for the designated player.
@@ -2198,6 +2229,23 @@
             <param name="coordinate">The coordinate bounding region.</param>
             <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
             <returns>True if the specified flags are blocked; false if passable.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetTerrainHeight(System.Single,System.Single)">
+            <summary>
+            Samples the terrain surface elevation (Y coordinate) at the specified 2D world coordinates (X, Z).
+            </summary>
+            <param name="worldX">The world X coordinate.</param>
+            <param name="worldZ">The world Z coordinate.</param>
+            <returns>The terrain surface height at that position, or 0 if terrain data is unavailable.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.IsPointPassable(System.Single,System.Single,Realm.MapAPI.PathingFlags)">
+            <summary>
+            Checks whether a single world point (X, Z) is passable for at least one of the specified movement flags.
+            </summary>
+            <param name="worldX">The world X coordinate.</param>
+            <param name="worldZ">The world Z coordinate.</param>
+            <param name="pathingFlags">The movement-type pathing flags to test (defaults to Ground).</param>
+            <returns>True if the point is passable for the specified flags; otherwise, false.</returns>
         </member>
         <member name="P:Realm.MapAPI.IGameAPI.PlayerCount">
             <summary>
@@ -4104,6 +4152,15 @@
         <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.ResetCameraBounds(Realm.Ecs.PlayerId)">
             <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ResetCameraBounds"/>
         </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.FollowUnitWithCamera(Realm.Ecs.PlayerId,Realm.Ecs.UnitId,System.Single,System.Single,System.Single,System.Single,System.Boolean,System.Single,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.FollowUnitWithCamera(Realm.Ecs.UnitId,System.Single,System.Single,System.Single,System.Single,System.Boolean,System.Single,System.Boolean)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetCameraView(Realm.Ecs.PlayerId,System.Single,System.Single,System.Single,System.Boolean)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetCameraView(System.Single,System.Single,System.Single,System.Boolean)"/>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.ResetCamera(Realm.Ecs.PlayerId)">
+            <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ResetCamera"/>
+        </member>
         <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.SetHudElementVisible(Realm.Ecs.PlayerId,Realm.Ecs.HudElement,System.Boolean)">
             <inheritdoc cref="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetHudElementVisible(Realm.Ecs.HudElement,System.Boolean)"/>
         </member>
@@ -4370,6 +4427,33 @@
         <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ResetCameraBounds">
             <summary>
             Resets this player's camera movement boundaries back to the map default boundaries.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.FollowUnitWithCamera(Realm.Ecs.UnitId,System.Single,System.Single,System.Single,System.Single,System.Boolean,System.Single,System.Boolean)">
+            <summary>
+            Attaches this player's camera to follow a target unit with configurable distance, height offset, angles, and smoothing.
+            </summary>
+            <param name="unit">The unit to follow, or <see cref="F:Realm.Ecs.UnitId.Invalid"/> to stop following.</param>
+            <param name="distance">Horizontal distance away from the followed unit in world units.</param>
+            <param name="heightOffset">Vertical offset above the followed unit in world units.</param>
+            <param name="pitchDegrees">Camera pitch angle in degrees (negative tilts downward).</param>
+            <param name="yawOffsetDegrees">Horizontal yaw angle in degrees (or offset relative to unit facing when <paramref name="alignToUnitFacing"/> is true).</param>
+            <param name="alignToUnitFacing">True to orient the camera behind the unit's facing direction; false to use a fixed world yaw.</param>
+            <param name="smoothing">Follow interpolation responsiveness in units per second; zero or negative snaps immediately.</param>
+            <param name="lockCameraInput">True to prevent manual player camera panning, zooming, and rotation while active.</param>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetCameraView(System.Single,System.Single,System.Single,System.Boolean)">
+            <summary>
+            Configures this player's camera orientation, height, and input lock state without attaching to a unit.
+            </summary>
+            <param name="yawDegrees">Target horizontal yaw angle in degrees.</param>
+            <param name="pitchDegrees">Target vertical pitch angle in degrees.</param>
+            <param name="height">Target camera height in world units.</param>
+            <param name="lockCameraInput">True to prevent manual player camera panning, zooming, and rotation.</param>
+        </member>
+        <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.ResetCamera">
+            <summary>
+            Resets this player's camera follow target, orientation, height, and input lock back to default RTS controls.
             </summary>
         </member>
         <member name="M:Realm.MapAPI.PlayerIdScriptExtensions.&lt;G&gt;$D7C44EFF2AC4D0D0A28132E4CD7E1F57.SetHudElementVisible(Realm.Ecs.HudElement,System.Boolean)">

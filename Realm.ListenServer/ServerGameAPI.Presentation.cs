@@ -224,6 +224,82 @@ public partial class ServerGameAPI
 		_presentation.Write(PresentationKind.CameraBoundsReset, playerIndex, Vector3.Zero);
 	}
 
+	public void SetPlayerCameraFollowUnit(
+		int playerIndex,
+		UnitId unit,
+		float distance = 18.0f,
+		float heightOffset = 8.0f,
+		float pitchDegrees = -30.0f,
+		float yawOffsetDegrees = 0.0f,
+		bool alignToUnitFacing = false,
+		float smoothing = 8.0f,
+		bool lockCameraInput = false)
+	{
+		int unitHandle = unit.IsValid && ResolveUnit(unit) != Entity.Null ? unit.Value : 0;
+		_presentation.Write(
+			PresentationKind.CameraFollowUnitSet,
+			playerIndex,
+			unitHandle,
+			"camera_view",
+			string.Empty,
+			string.Empty,
+			string.Empty,
+			null,
+			new Vector3(distance, heightOffset, pitchDegrees),
+			new Vector3(yawOffsetDegrees, smoothing, alignToUnitFacing ? 1f : 0f),
+			Vector3.Zero,
+			0,
+			0,
+			0f,
+			0f,
+			0f,
+			lockCameraInput);
+	}
+
+	public void SetPlayerCameraView(int playerIndex, float yawDegrees, float pitchDegrees, float height, bool lockCameraInput = false)
+	{
+		_presentation.Write(
+			PresentationKind.CameraViewSet,
+			playerIndex,
+			0,
+			"camera_view",
+			string.Empty,
+			string.Empty,
+			string.Empty,
+			null,
+			new Vector3(yawDegrees, pitchDegrees, height),
+			Vector3.Zero,
+			Vector3.Zero,
+			0,
+			0,
+			0f,
+			0f,
+			0f,
+			lockCameraInput);
+	}
+
+	public void ResetPlayerCamera(int playerIndex)
+	{
+		_presentation.Write(
+			PresentationKind.CameraReset,
+			playerIndex,
+			0,
+			"camera_view",
+			string.Empty,
+			string.Empty,
+			string.Empty,
+			null,
+			Vector3.Zero,
+			Vector3.Zero,
+			Vector3.Zero,
+			0,
+			0,
+			0f,
+			0f,
+			0f,
+			false);
+	}
+
 	public void SetPlayerHudElementVisible(int playerIndex, HudElement element, bool visible)
 	{
 		_presentation.Write(PresentationKind.HudElementVisible, playerIndex, 0, string.Empty, string.Empty, string.Empty, string.Empty, null,
