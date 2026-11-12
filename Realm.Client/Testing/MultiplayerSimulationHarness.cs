@@ -234,9 +234,14 @@ public partial class MultiplayerSimulationHarness : Node
 		if (peerId <= 0 || peerId == _recordedClientPeerId) return;
 
 		_recordedClientPeerId = peerId;
+		// The id travels beside the records it names, so the host screen's own id lands in the directory the host screen
+		// writes its client records into rather than in the client's. Sharing one file put both ids in the client's, and a
+		// baseline the authority published to the host screen was then read as one the client should have applied.
+		string peerIdDirectory = _role == "host" ? Path.Combine(_outputDirectory, "host") : _outputDirectory;
 		try
 		{
-			File.AppendAllText(Path.Combine(_outputDirectory, "client_peer_id.txt"), peerId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n");
+			Directory.CreateDirectory(peerIdDirectory);
+			File.AppendAllText(Path.Combine(peerIdDirectory, "client_peer_id.txt"), peerId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n");
 		}
 		catch (IOException)
 		{
