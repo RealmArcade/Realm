@@ -130,6 +130,9 @@ public partial class GameHost
 		if (World.Has<BuildTask>(entity))
 			return TryGetTargetPosition(World.Get<BuildTask>(entity).BuildingEntity, out lookTargetPos);
 
+		if (World.Has<RepairTask>(entity))
+			return TryGetTargetPosition(World.Get<RepairTask>(entity).BuildingEntity, out lookTargetPos);
+
 		if (World.Has<Gatherer>(entity) && !World.Get<Gatherer>(entity).ReturningToBase)
 			return TryGetTargetPosition(World.Get<Gatherer>(entity).TargetEntity, out lookTargetPos);
 

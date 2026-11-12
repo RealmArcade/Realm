@@ -149,13 +149,20 @@ public partial class GameHost
 		Callable.From(() => unit3D.ApplyModelTint(tint)).CallDeferred();
 	}
 
+	/// <summary>
+	///     Holds the animation the authority staged for a unit until one cycle of it has been drawn. The unit's own orders
+	///     choose its animation every animation step, so an animation that is merely started here would be taken back before
+	///     it could be seen; holding it is what makes a cast - or any pose a map stages - reach the screen.
+	/// </summary>
+	/// <param name="message">The authority's animation message: the animation in its key and its duration in its value.</param>
 	private void PresentUnitAnimation(PresentationMessage message)
 	{
 		if (string.IsNullOrWhiteSpace(message.Key)) return;
 		if (!TryPresentUnit(message.Handle, out Unit3D? unit3D)) return;
 
 		string animationName = message.Key;
-		Callable.From(() => unit3D.PlayAnimation(animationName)).CallDeferred();
+		float holdSeconds = message.Duration;
+		Callable.From(() => unit3D.PlayAnimationHeld(animationName, holdSeconds)).CallDeferred();
 	}
 
 	private void PresentUnitHandAttachment(PresentationMessage message)

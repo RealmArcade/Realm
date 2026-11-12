@@ -78,7 +78,8 @@ public enum PresentationKind : byte
 
 	InstructionsSectionAdded,
 	ResourceNodeDepleted,
-	ResourceNodeAmountChanged
+	ResourceNodeAmountChanged,
+	UnitAnimationPulse
 }
 
 [MemoryPackable]

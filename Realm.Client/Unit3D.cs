@@ -339,6 +339,8 @@ public partial class Unit3D : Node3D
 	private float _animStepAccumulator = 0f;
 	private string? _deferredAnimationName;
 	private float _deferredAnimationDelayRemaining = 0f;
+	private string? _heldAnimationName;
+	private float _heldAnimationSecondsRemaining = 0f;
 	private Aabb _cachedLocalAabb = new Aabb(new Vector3(-1.5f, 0f, -1.5f), new Vector3(3f, 4f, 3f));
 
 	public bool IsCulled => _isCulled;

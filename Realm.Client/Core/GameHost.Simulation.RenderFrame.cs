@@ -306,7 +306,7 @@ public partial class GameHost
 		bool isLaborAnimating = (world.Has<Gatherer>(entity) && !world.Get<Gatherer>(entity).ReturningToBase)
 		                        || ((world.Has<BuildTask>(entity) || world.Has<RepairTask>(entity)) && !world.Has<MoveTo>(entity));
 
-		if (!posChanged && !hasMovement && !hasVelocity && !hasLookTarget && !isLaborAnimating)
+		if (!posChanged && !hasMovement && !hasVelocity && !hasLookTarget && !isLaborAnimating && !item.Unit.HasHeldAnimation)
 		{
 			return;
 		}

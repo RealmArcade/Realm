@@ -231,6 +231,7 @@ public partial class GameHost
 				break;
 
 			case PresentationKind.UnitAnimationSet:
+			case PresentationKind.UnitAnimationPulse:
 				PresentUnitAnimation(message);
 				break;
 

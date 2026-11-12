@@ -257,8 +257,9 @@ public class InputService
 				bool hasAttackTarget = World.Has<AttackTarget>(entity);
 				bool hasAttackMove = World.Has<AttackMove>(entity);
 				bool isGathering = World.Has<Gatherer>(entity) && World.Get<Gatherer>(entity).TargetEntity != Entity.Null;
+				bool isWorkingOnBuilding = World.Has<BuildTask>(entity) || World.Has<RepairTask>(entity);
 
-				if (!hasMoveTo && !hasAttackTarget && !hasAttackMove && !isGathering)
+				if (!hasMoveTo && !hasAttackTarget && !hasAttackMove && !isGathering && !isWorkingOnBuilding)
 				{
 					result.Add(entity);
 				}

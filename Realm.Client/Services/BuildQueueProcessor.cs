@@ -81,6 +81,7 @@ public sealed class BuildQueueProcessor
 	{
 		return SimulationService.World.Has<MoveTo>(entity) ||
 			   SimulationService.World.Has<BuildTask>(entity) ||
+			   SimulationService.World.Has<RepairTask>(entity) ||
 			   SimulationService.World.Has<AttackTarget>(entity) ||
 			   SimulationService.World.Has<AttackMove>(entity) ||
 			   SimulationService.World.Has<Follow>(entity) ||

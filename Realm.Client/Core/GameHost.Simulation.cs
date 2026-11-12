@@ -125,7 +125,7 @@ public partial class GameHost
 
 		if (playDeathAnimation)
 		{
-			unit.PlayAnimation("Death");
+			unit.PlayAnimationHeld("Death");
 		}
 
 

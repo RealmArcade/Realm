@@ -439,6 +439,24 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
 	}
 
+	/// <summary>
+	///     Hands every screen one pose to draw on a unit, which is what a cast is: the unit is drawn in that pose for one
+	///     cycle of the animation and then goes back to the pose its orders describe. Unlike <see cref="SetUnitAnimation" />
+	///     this is not remembered as the unit's standing animation, so a peer that joins after the cast is not shown a pose
+	///     that finished before it arrived.
+	/// </summary>
+	/// <param name="unit">The unit to pose.</param>
+	/// <param name="animationName">The animation to draw once.</param>
+	private void PulseUnitAnimation(UnitId unit, string animationName)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+		if (string.IsNullOrWhiteSpace(animationName)) return;
+
+		_presentation.Write(PresentationKind.UnitAnimationPulse, AllPlayers, unit.Value, animationName, string.Empty, string.Empty, string.Empty, null,
+			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
+	}
+
 	public void SetUnitHandAttachment(UnitId unit, string hand, string? attachmentId)
 	{
 		Entity entity = ResolveUnit(unit);
