@@ -151,6 +151,7 @@ public class ScriptAbilityRegistry
 		definition.VisualEffect = metadata.VisualEffect;
 		definition.ProjectileId = metadata.ProjectileId;
 		definition.CastSound = metadata.CastSound;
+		definition.PlacementTemplateId = metadata.PlacementTemplateId;
 		definition.GridX = metadata.GridX;
 		definition.GridY = metadata.GridY;
 		definition.Hotkey = metadata.Hotkey ?? string.Empty;
