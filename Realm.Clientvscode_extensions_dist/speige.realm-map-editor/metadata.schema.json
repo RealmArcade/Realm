@@ -294,6 +294,30 @@
             "integer",
             "null"
           ]
+        },
+        "ShowUnitHealthBar": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "ShowUnitManaBar": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "ShowUnitLevel": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "InventorySlots": {
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       }
     },
@@ -507,6 +531,9 @@
               "GoldBounty": {
                 "type": "number"
               },
+              "RespawnSeconds": {
+                "type": "number"
+              },
               "ModelPath": {
                 "type": [
                   "string",
@@ -578,6 +605,12 @@
               },
               "XpBounty": {
                 "type": "number"
+              },
+              "ExperiencePerLevel": {
+                "type": "number"
+              },
+              "MaxLevel": {
+                "type": "integer"
               },
               "PathingCapabilities": {
                 "type": [
@@ -1088,6 +1121,33 @@
               "MaxWorkers": {
                 "type": "integer"
               },
+              "Level": {
+                "type": "integer"
+              },
+              "MaxCapacityPerLevel": {
+                "type": "number"
+              },
+              "Armor": {
+                "type": "number"
+              },
+              "ArmorPerLevel": {
+                "type": "number"
+              },
+              "MagicResistance": {
+                "type": "number"
+              },
+              "MagicResistancePerLevel": {
+                "type": "number"
+              },
+              "ResourceType": {
+                "type": "string"
+              },
+              "ItemTemplateId": {
+                "type": "string"
+              },
+              "YieldPerDamage": {
+                "type": "number"
+              },
               "Scale": {
                 "type": "number"
               },
@@ -1341,6 +1401,15 @@
               "ManaCost": {
                 "type": "number"
               },
+              "CostGold": {
+                "type": "number"
+              },
+              "CostWood": {
+                "type": "number"
+              },
+              "CostStone": {
+                "type": "number"
+              },
               "Cooldown": {
                 "type": "number"
               },
@@ -1353,7 +1422,19 @@
                   "null"
                 ]
               },
+              "ProjectileId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "CastSound": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "PlacementTemplateId": {
                 "type": [
                   "string",
                   "null"
@@ -1368,8 +1449,14 @@
                   "Enabled": {
                     "type": "boolean"
                   },
-                  "RequiresEnemyTarget": {
-                    "type": "boolean"
+                  "TargetRule": {
+                    "enum": [
+                      "Self",
+                      "NearestEnemy",
+                      "MostWoundedAlly",
+                      "LowestHealthAlly",
+                      "AllyWithoutEffect"
+                    ]
                   },
                   "AllyHealthPercentBelow": {
                     "type": "number"
@@ -1504,6 +1591,9 @@
                           "type": "number"
                         },
                         "Cap": {
+                          "type": "number"
+                        },
+                        "Offset": {
                           "type": "number"
                         },
                         "ScalesDuration": {
@@ -2004,6 +2094,15 @@
               },
               "ChargeCount": {
                 "type": "integer"
+              },
+              "MaxStacks": {
+                "type": "integer"
+              },
+              "ResourceType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "CooldownLink": {
                 "type": [

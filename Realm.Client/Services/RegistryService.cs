@@ -14,6 +14,7 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared.Abilities;
+using Realm.Shared.Metadata;
 
 namespace Realm.Client.Services;
 
@@ -638,7 +639,7 @@ public class RegistryService
 				IsInstant = string.Equals(meta.AbilityType, "instant_spell", StringComparison.OrdinalIgnoreCase),
 				IsPassive = string.Equals(meta.AbilityType, "passive", StringComparison.OrdinalIgnoreCase),
 				AutoCastEnabled = meta.AutoCast?.Enabled ?? false,
-				AutoCastRequiresEnemy = meta.AutoCast?.RequiresEnemyTarget ?? true,
+				AutoCastTargetRule = meta.AutoCast?.TargetRule ?? AutoCastTargetRule.NearestEnemy,
 				AutoCastAllyHealthPercentBelow = meta.AutoCast?.AllyHealthPercentBelow ?? 1f,
 				AutoCastManaReserve = meta.AutoCast?.ManaReserve ?? 0f,
 				AutoCastMinManaPercent = meta.AutoCast?.MinManaPercent ?? 0f,

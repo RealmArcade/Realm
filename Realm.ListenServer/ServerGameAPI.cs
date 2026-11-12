@@ -541,7 +541,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		if (entity == Entity.Null || seconds <= 0f) return;
 		if (!_context.World.TryGet<ConstructionState>(entity, out ConstructionState construction)) return;
 
-		construction.Progress = MathF.Min(construction.Progress + seconds, construction.TotalBuildTime);
+		construction.Progress = MathF.Min(construction.Progress + seconds, construction.ProgressCeiling);
 		_context.World.Set(entity, construction);
 	}
 

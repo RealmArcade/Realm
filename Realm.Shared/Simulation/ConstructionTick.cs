@@ -89,9 +89,12 @@ public class ConstructionTick
 		float progressGain = BaseWorkRatePerSecond * (_simulation.FastBuildEnabled ? WorkRateMultiplierFastBuild : 1f) * _deltaSeconds;
 
 		ref ConstructionState construction = ref _simulation.World.Get<ConstructionState>(site);
-		construction.Progress = MathF.Min(construction.Progress + progressGain, construction.TotalBuildTime);
 
-		buildTask.Progress = MathF.Min(buildTask.Progress + progressGain, MathF.Max(buildTask.TotalBuildTime, construction.TotalBuildTime));
+		// A site a map is holding short of completion takes work up to its ceiling and no more, which is how a site that
+		// has not been committed to a building yet stands finished to look at without ever becoming one.
+		construction.Progress = MathF.Min(construction.Progress + progressGain, construction.ProgressCeiling);
+
+		buildTask.Progress = MathF.Min(buildTask.Progress + progressGain, MathF.Max(buildTask.TotalBuildTime, construction.ProgressCeiling));
 
 		_workingPairs.Add((workerEntity, site));
 

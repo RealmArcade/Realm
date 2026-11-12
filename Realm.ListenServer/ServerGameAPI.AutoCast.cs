@@ -11,6 +11,7 @@ using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.MapAPI;
 using Realm.Shared.Abilities;
+using Realm.Shared.Metadata;
 
 namespace Realm.ListenServer;
 
@@ -78,7 +79,7 @@ public partial class ServerGameAPI
 			if (!CanPayAutoCastMana(entity, definition, manaCost)) continue;
 
 			Vector3 targetPosition = casterPosition;
-			if (definition.AutoCastRequiresEnemy && !TryFindAutoCastTarget(entity, casterPosition, definition, out targetPosition)) continue;
+			if (!TryResolveAutoCastTarget(entity, casterPosition, definition, out targetPosition)) continue;
 
 			if (manaCost > 0f) SpendMana(entity, manaCost);
 
@@ -112,12 +113,32 @@ public partial class ServerGameAPI
 		mana.Current = MathF.Max(0f, mana.Current - manaCost);
 	}
 
-	private bool TryFindAutoCastTarget(Entity caster, Vector3 casterPosition, AbilityDefinition definition, out Vector3 targetPosition)
+	private bool TryResolveAutoCastTarget(Entity caster, Vector3 casterPosition, AbilityDefinition definition, out Vector3 targetPosition)
+	{
+		targetPosition = casterPosition;
+
+		return definition.AutoCastTargetRule switch
+		{
+			AutoCastTargetRule.Self => true,
+			AutoCastTargetRule.NearestEnemy => TryFindNearestEnemyTarget(caster, casterPosition, definition, out targetPosition),
+			AutoCastTargetRule.MostWoundedAlly => TryFindLowestHealthAlly(caster, casterPosition, definition, out targetPosition, byHealthFraction: true),
+			AutoCastTargetRule.LowestHealthAlly => TryFindLowestHealthAlly(caster, casterPosition, definition, out targetPosition, byHealthFraction: false),
+			AutoCastTargetRule.AllyWithoutEffect => TryFindAllyWithoutEffect(caster, casterPosition, definition, out targetPosition),
+			_ => false,
+		};
+	}
+
+	private static float ResolveAutoCastSearchRadius(AbilityDefinition definition)
+	{
+		return definition.TargetRange > 0f ? definition.TargetRange : DefaultAutoCastSearchRadius;
+	}
+
+	private bool TryFindNearestEnemyTarget(Entity caster, Vector3 casterPosition, AbilityDefinition definition, out Vector3 targetPosition)
 	{
 		targetPosition = casterPosition;
 
 		EcsWorld world = _context.World;
-		float searchRadius = definition.TargetRange > 0f ? definition.TargetRange : DefaultAutoCastSearchRadius;
+		float searchRadius = ResolveAutoCastSearchRadius(definition);
 		float bestDistanceSquared = searchRadius * searchRadius;
 		Entity best = Entity.Null;
 		int casterPlayer = AutoCastPlayerOf(caster);
@@ -143,6 +164,96 @@ public partial class ServerGameAPI
 
 		targetPosition = world.Get<Position>(best).Value;
 		return true;
+	}
+
+	private bool TryFindLowestHealthAlly(Entity caster, Vector3 casterPosition, AbilityDefinition definition, out Vector3 targetPosition, bool byHealthFraction)
+	{
+		targetPosition = casterPosition;
+
+		EcsWorld world = _context.World;
+		float searchRadius = ResolveAutoCastSearchRadius(definition);
+		float searchRadiusSquared = searchRadius * searchRadius;
+		float healthFractionCeiling = Math.Clamp(definition.AutoCastAllyHealthPercentBelow, 0f, 1f);
+		int casterPlayer = AutoCastPlayerOf(caster);
+		Entity best = Entity.Null;
+		float bestReading = float.MaxValue;
+
+		foreach (Entity candidate in world.Query<Position, Health>())
+		{
+			if (candidate.Id == caster.Id) continue;
+			if (world.Has<Dead>(candidate) || world.Has<Building>(candidate)) continue;
+			if (!world.TryGet<Health>(candidate, out Health health)) continue;
+			if (health.Current <= 0f || health.Max <= 0f) continue;
+
+			int candidatePlayer = AutoCastPlayerOf(candidate);
+			if (candidatePlayer <= 0) continue;
+			if (!ArePlayersAllied(casterPlayer, candidatePlayer)) continue;
+
+			float healthFraction = health.Current / health.Max;
+			if (healthFraction > healthFractionCeiling) continue;
+
+			float distanceSquared = Vector3.DistanceSquared(world.Get<Position>(candidate).Value, casterPosition);
+			if (distanceSquared > searchRadiusSquared) continue;
+
+			float reading = byHealthFraction ? healthFraction : health.Current;
+			if (reading >= bestReading) continue;
+
+			best = candidate;
+			bestReading = reading;
+		}
+
+		if (best == Entity.Null) return false;
+
+		targetPosition = world.Get<Position>(best).Value;
+		return true;
+	}
+
+	private bool TryFindAllyWithoutEffect(Entity caster, Vector3 casterPosition, AbilityDefinition definition, out Vector3 targetPosition)
+	{
+		targetPosition = casterPosition;
+
+		string? buffId = FirstAutoCastBuffId(definition);
+		if (string.IsNullOrEmpty(buffId)) return false;
+
+		EcsWorld world = _context.World;
+		float searchRadius = ResolveAutoCastSearchRadius(definition);
+		float bestDistanceSquared = searchRadius * searchRadius;
+		int casterPlayer = AutoCastPlayerOf(caster);
+		Entity best = Entity.Null;
+
+		foreach (Entity candidate in world.Query<Position, Health>())
+		{
+			if (world.Has<Dead>(candidate) || world.Has<Building>(candidate)) continue;
+			if (!world.TryGet<Health>(candidate, out Health health)) continue;
+			if (health.Current <= 0f) continue;
+
+			int candidatePlayer = AutoCastPlayerOf(candidate);
+			if (candidatePlayer <= 0) continue;
+			if (!ArePlayersAllied(casterPlayer, candidatePlayer)) continue;
+			if (UnitOrderService.HasBuff(world, candidate, buffId)) continue;
+
+			float distanceSquared = Vector3.DistanceSquared(world.Get<Position>(candidate).Value, casterPosition);
+			if (distanceSquared > bestDistanceSquared) continue;
+
+			best = candidate;
+			bestDistanceSquared = distanceSquared;
+		}
+
+		if (best == Entity.Null) return false;
+
+		targetPosition = world.Get<Position>(best).Value;
+		return true;
+	}
+
+	private static string? FirstAutoCastBuffId(AbilityDefinition definition)
+	{
+		List<AbilityEffectDefinition> effects = definition.Effects;
+		for (int index = 0; index < effects.Count; index++)
+		{
+			if (!string.IsNullOrEmpty(effects[index].BuffId)) return effects[index].BuffId;
+		}
+
+		return null;
 	}
 
 	/// <summary>

@@ -147,7 +147,9 @@ Rules:
 ### 4.5 Auto-Cast Abilities
 
 - Soldier abilities are auto-cast, each with its own deterministic rule drawn from a shared enum of auto-cast rules. Soldiers never receive a player order.
+- The enum is the engine's, not a map's: an ability states its rule in `AutoCast.TargetRule`, and the engine resolves the target from it. The rules are: `Self`, which casts at the caster because no target is needed; `NearestEnemy`, which needs an enemy inside the cast range; `MostWoundedAlly`, which takes the allied unit with the lowest share of its health left; `LowestHealthAlly`, which takes the allied unit with the least health points left; and `AllyWithoutEffect`, which takes the nearest ally that does not already carry the buff the cast applies. Any allied target may also be limited by `AutoCast.AllyHealthPercentBelow`, the highest health share a candidate may be at, so a heal declares 0.9 and a shield that wants any ally leaves it at 1.
 - A typical auto-cast is an area-of-effect cast onto the entire army and hero simultaneously, triggered on cooldown when its criteria are met: sufficient mana, an available target, and a valid target inside cast range. A heal, for example, requires an allied unit below 100% health.
+- Because the rule is authored beside the ability, a new soldier ability that heals, shields or refreshes the army needs no map code at all: the map states the rule and the engine finds the target every tick.
 - Because every unit has its own stats, one cast resolves differently on each unit. A stun reduced by high tenacity or ignored by spell immunity is the expected outcome, not a special case.
 - Abilities are deliberately simple, both to keep cognitive load low and to keep the engine implementation tractable. More creative abilities can be added in later patches without changing these rules.
 
@@ -223,19 +225,20 @@ Rules:
 The draft is expressed through building construction, so that the decision and its commitment are the same act.
 
 1. **Accumulate the cost.** The player gathers 100 wood.
-2. **Begin construction.** The player presses Begin Construction and places the site with the standard construction placement: the blueprint's own silhouette follows the cursor, turning red over ground the match would refuse, instead of a targeting cross-hair. The 100 wood is charged and the blueprint marks the site; no building exists yet, and the hero's own grid stops offering Begin Construction while a draw is open.
-3. **Draw up to three options.** Up to three buildings still in the shared deck and not already owned by the player are drawn and reserved for this player, and the blueprint's command grid shows exactly those packages; if the lobby allows duplicates, owned buildings are eligible up to the configured limit. Fewer than three is correct when fewer exist.
-4. **Choose one.** The drawn options are visible immediately and the player picks one from the blueprint's command grid. That building leaves the deck, the blueprint gives way to the site as an unidentified silhouette, and the others return to the shared deck.
-5. **Raise the site.** The site is invulnerable and not operational. It rises only while the hero is ordered to work at it, equivalent to repairing the building from 0 to 100% health at the package's construction time, and an order for somewhere else stops the work where it stands. Construction time is the decision window that began with the draw; no separate draft timer exists.
-6. **Establish the building.** On completion the site becomes the player's building at that location, becomes attackable, and begins its production.
-7. **No undrafted completion.** A site exists only once an option is locked, so construction can never finish without a chosen package. A draw left unanswered leaves its blueprint and its reserved wood until the player answers it or abandons it.
+2. **Begin construction.** The player presses Begin Construction and places the site with the standard construction placement: the site's own silhouette follows the cursor, turning red over ground the match would refuse, instead of a targeting cross-hair. The 100 wood is charged and the unidentified site stands there; it is the only construction site a player may hold open, so the hero's own grid stops offering Begin Construction while a draw is open.
+3. **Draw up to three options.** Up to three buildings still in the shared deck and not already owned by the player are drawn and reserved for this player, and the site's command grid shows exactly those packages; if the lobby allows duplicates, owned buildings are eligible up to the configured limit. Fewer than three is correct when fewer exist.
+4. **Labour the site while deciding.** The unidentified site is invulnerable, not operational and not identifiable, and it rises only while a hero is ordered to work at it. Its progress is held one percent short of completion until a package is locked, so a player may prepare the ground before committing but nothing can ever finish as a building nobody chose. A draw left unanswered holds its site, its work and its reserved wood until the player answers it or abandons it.
+5. **Choose one.** The drawn options are visible immediately and the player picks one from the site's command grid. That building leaves the deck, the site becomes that building, and the others return to the shared deck.
+6. **Raise the site.** The revealed site keeps every second of work already spent on it and now needs the building's own construction time in total, so pre-building shortens the wait instead of being thrown away. It stays invulnerable and not operational until it is whole, and an order for somewhere else stops the work where it stands. Construction time is the decision window that began with the draw; no separate draft timer exists.
+7. **Establish the building.** On completion the site becomes the player's building at that location, becomes attackable, and begins its production.
+8. **No undrafted completion.** A site cannot complete while it is unidentified, so construction can never finish without a chosen package.
 
 Consequences of this structure:
 
 - The chosen option is committed before construction completes, so a player cannot wait to see how the battlefield develops before finalizing.
 - Drawing reserves options rather than consuming them; only the selected building leaves the deck.
 - The next construction draws a fresh set. A previous draw is never reused.
-- The decision window is the open draw itself: the choice is made before any construction time is spent, and the construction that follows measures the commitment the player already made.
+- The decision window is the open draw itself, and the site is the clock it runs on: a player may spend hero time on the ground before committing, and that time counts toward the building they eventually choose.
 - If construction is canceled before a choice is locked, its reserved options return to the deck and its 100 wood is refunded. No building is created and no draft is spent.
 - Once a choice is locked the construction is committed: the wood is not refunded, the package does not return to the deck, and the site waits invulnerable until a hero raises it. Abandoning is offered only while the draw is open.
 - If no option exists to offer, the construction is canceled before a draw and its 100 wood is refunded.
@@ -330,7 +333,7 @@ Rules:
 - A building at zero health enters the destroyed state and stays there until restored to 100% health. The destroyed status does not reset at partial repair.
 - A destroyed building is invulnerable while dormant and cannot be attacked again until fully repaired.
 - A destroyed building generates no income, regenerates no mana, and produces no soldiers or workers. Its stored mana and queue are retained until it is repaired, and its capacity contribution remains part of the type's total cap so destroying it never pushes a surviving army over capacity.
-- New construction uses the same silhouette presentation as a destroyed building, without the destruction visual effects, and is invulnerable until complete.
+- New construction uses the same silhouette presentation as a destroyed building, without the destruction visual effects, and is invulnerable until complete. A site that has not been committed to a building yet is drawn the same way, so what is being raised is not readable from the ground until its package is locked; the site then takes that building's silhouette and keeps the work it has already been given.
 - Repair is done as percent of max health per second, so the hero can repair two buildings from 0 to 100% in exactly the same amount of time. The repair rate can be different per hero or augmented by buff sources.
 - The nexus is an explicit exception: once destroyed it cannot be repaired.
 
@@ -451,7 +454,7 @@ Rules:
 - Competitive balance assumes full vision and full information. Shroud is an optional lobby mode (section 14); the standard rules and the balance model assume it is off. Shroud is the tactical hiding of knowledge, not the environmental fog that a weather preset draws, and the rules only ever refer to the former.
 - Scouting is optional flavor rather than a strategically mandatory activity.
 - Strategic advantage comes from making better decisions with visible information, not from hidden army compositions.
-- Building draft reservation is visible. Before a choice is locked, the three reserved options are stated on the blueprint's command grid, so the reservation is read the same way any other unit's cards are read and an opponent can act on it. Once the choice is locked, the grid empties, the unchosen options return to the deck and the site reveals only the locked option, even while construction continues.
+- Building draft reservation is visible. Before a choice is locked, the site states in its own state line the buildings the deck reserved for it, so any player who selects that ground reads the reservation and an opponent can act on it. Once the choice is locked, the note clears, the unchosen options return to the deck, and the site states what it is by being that building, even while construction continues.
 - A player may act on that information, for example by delaying their own construction when a desired option is reserved by an opponent and may return to the deck.
 - Counter information is exhaustive: clicking any unit, allied or enemy, shows its stats, targeting rule, formation, and active buffs. Selecting a unit the player does not own hides or disables the command card.
 - The readings the ruleset keeps itself reach every player through the unit's own panel rather than through a hidden script state: a soldier-granting building states the soldier it unlocks and both auto-cast cooldowns on its production cards, its soldiers and workers maintained against the capacity it contributes on its stat sheet, and the buffs its worker crew carries on the workers themselves.

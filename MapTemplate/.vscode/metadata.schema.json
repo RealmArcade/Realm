@@ -312,6 +312,12 @@
             "boolean",
             "null"
           ]
+        },
+        "InventorySlots": {
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       }
     },
@@ -1139,6 +1145,9 @@
               "ItemTemplateId": {
                 "type": "string"
               },
+              "YieldPerDamage": {
+                "type": "number"
+              },
               "Scale": {
                 "type": "number"
               },
@@ -1425,6 +1434,12 @@
                   "null"
                 ]
               },
+              "PlacementTemplateId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "AutoCast": {
                 "type": [
                   "object",
@@ -1434,8 +1449,14 @@
                   "Enabled": {
                     "type": "boolean"
                   },
-                  "RequiresEnemyTarget": {
-                    "type": "boolean"
+                  "TargetRule": {
+                    "enum": [
+                      "Self",
+                      "NearestEnemy",
+                      "MostWoundedAlly",
+                      "LowestHealthAlly",
+                      "AllyWithoutEffect"
+                    ]
                   },
                   "AllyHealthPercentBelow": {
                     "type": "number"

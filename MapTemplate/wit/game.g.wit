@@ -158,6 +158,7 @@ interface game-api {
     remove-stat-modifiers: func(unit-id: s32, source-id: string);
     remove-unit-custom-data: func(unit-id: s32, key: string) -> bool;
     reset-player-camera-bounds: func(player-index: s32);
+    reveal-building-site: func(site-id: s32, building-type-id: string, total-construction-seconds: f32) -> bool;
     schedule-repeating-timer: func(interval: f32) -> s32;
     schedule-timer: func(delay: f32) -> s32;
     select-player-unit: func(player-index: s32, unit-id: s32);
@@ -213,6 +214,7 @@ interface game-api {
     set-unit-bar-visibility: func(health-bar: bool, mana-bar: bool, level-badge: bool);
     set-unit-color: func(unit-id: s32, color-x: f32, color-y: f32, color-z: f32);
     set-unit-commands-frozen: func(unit-id: s32, value: bool);
+    set-unit-construction-ceiling: func(unit-id: s32, finished-fraction: f32);
     set-unit-custom-data: func(unit-id: s32, key: string, value: string);
     set-unit-damage: func(unit-id: s32, value: f32);
     set-unit-experience: func(unit-id: s32, value: f32);
@@ -265,6 +267,7 @@ interface game-api {
     spawn-visual-effect: func(effect-type-id: string, position-x: f32, position-y: f32, position-z: f32, scale: f32);
     start-countdown-timer: func(duration: f32, label: string);
     start-player-building-placement: func(player-index: s32, unit-type-id: string);
+    start-unit-construction: func(unit-id: s32, total-construction-seconds: f32);
     stop-countdown-timer: func();
     stun-unit: func(unit-id: s32, duration: f32);
     teleport-unit: func(unit-id: s32, position-x: f32, position-y: f32, position-z: f32);

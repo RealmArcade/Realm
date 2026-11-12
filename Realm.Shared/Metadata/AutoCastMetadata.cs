@@ -4,7 +4,7 @@ public class AutoCastMetadata
 {
 	public bool Enabled { get; set; } = true;
 
-	public bool RequiresEnemyTarget { get; set; } = true;
+	public AutoCastTargetRule TargetRule { get; set; } = AutoCastTargetRule.NearestEnemy;
 
 	public float AllyHealthPercentBelow { get; set; } = 1f;
 

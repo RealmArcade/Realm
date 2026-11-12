@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Abilities;
 
@@ -33,7 +34,7 @@ public class AbilityDefinition
 
 	public float Healing { get; set; } = 0f;
 	public bool AutoCastEnabled { get; set; } = true;
-	public bool AutoCastRequiresEnemy { get; set; } = true;
+	public AutoCastTargetRule AutoCastTargetRule { get; set; } = AutoCastTargetRule.NearestEnemy;
 	public float AutoCastAllyHealthPercentBelow { get; set; } = 1f;
 	public float AutoCastManaReserve { get; set; }
 	public float AutoCastMinManaPercent { get; set; }

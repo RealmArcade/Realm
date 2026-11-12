@@ -3368,6 +3368,49 @@
             <param name="totalConstructionSeconds">How much build time the site needs before it completes.</param>
             <returns>The site unit, or an invalid handle when the template is not a building this map defines.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.StartUnitConstruction(Realm.Ecs.UnitId,System.Single)">
+            <summary>
+            Turns a unit that already stands into a building site, which is how a map raises something from where it was
+            placed instead of spawning a second entity beside it. The unit takes the work it was given before it completes and
+            is announced through <see cref="E:Realm.MapAPI.IGameAPI.OnConstructionFinished" /> like any other site.
+            <para>
+            Whether a site may be attacked, ordered or worked on is the map's own decision, so nothing but the construction
+            itself is written here: a unit that should not be attacked is made invulnerable by the map, and a unit a worker
+            should be able to raise is one the map made a building.
+            </para>
+            </summary>
+            <param name="unit">The unit to raise as a building site.</param>
+            <param name="totalConstructionSeconds">How much work the site needs before it completes, which has to be greater than zero.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitConstructionCeiling(Realm.Ecs.UnitId,System.Single)">
+            <summary>
+            Holds a construction site short of completion: it takes work up to the given fraction of its construction time and
+            stops there, so it is drawn as a site that is nearly finished and never becomes a building until the ceiling is
+            lifted. This is what lets a map stand a site on the board before it is known what is being raised there, because a
+            site that could complete would become a building nobody chose.
+            </summary>
+            <param name="unit">The building site to hold, or to release when the fraction given is one.</param>
+            <param name="finishedFraction">
+            The furthest the site may be built, from zero to one. One releases the site and is the state every site starts in;
+            a site held below one keeps the progress it has already been given, shortened to the new ceiling.
+            </param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.RevealBuildingSite(Realm.Ecs.UnitId,System.String,System.Single)">
+            <summary>
+            Reveals what a construction site is being raised as: the site takes the chosen building's template, so every screen
+            draws that building from the next description it receives, and the work it now needs is the building's own. The
+            work the site has already taken stays with it rather than being paid for twice, which is what makes a site a player
+            has laboured at before choosing worth as much as the choice itself.
+            <para>
+            A site held by <see cref="M:Realm.MapAPI.IGameAPI.SetUnitConstructionCeiling(Realm.Ecs.UnitId,System.Single)" /> stays held until the map lifts the ceiling, so revealing a
+            site does not on its own make it possible for the site to complete.
+            </para>
+            </summary>
+            <param name="site">The building site to reveal.</param>
+            <param name="buildingTypeId">The template of the building the site is being raised as.</param>
+            <param name="totalConstructionSeconds">How much work the revealed site needs in total, which has to be greater than zero.</param>
+            <returns>True when the site now stands as that building, or false when it or the template is unknown to this map.</returns>
+        </member>
         <member name="T:Realm.MapAPI.ILobbyAPI">
             <summary>
                 The roster a map script owns while its lobby is filling: which factions the map offers, how many players it seats,

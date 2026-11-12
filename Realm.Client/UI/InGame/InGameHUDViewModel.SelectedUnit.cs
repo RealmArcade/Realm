@@ -24,6 +24,8 @@ namespace Realm.Client.UI.InGame;
 
 public partial class InGameHUDViewModel
 {
+	private const string StateNoteKey = "state.note";
+
 	public void UpdateSelectedUnits(List<Unit3D>? selectedUnits)
 	{
 		if (selectedUnits == null)
@@ -160,11 +162,35 @@ public partial class InGameHUDViewModel
 
 		info.StateText = GetBaseStateText(world, u);
 
+		// A map states what a unit is doing in its own words when the engine's reading would say nothing useful, which is
+		// how a site that has not been committed to a building yet tells every player what the deck has reserved there.
+		string? publishedNote = ReadPublishedStateNote(u.Entity);
+		if (!string.IsNullOrEmpty(publishedNote))
+		{
+			info.StateText = string.IsNullOrEmpty(info.StateText) ? publishedNote : $"{info.StateText}\n{publishedNote}";
+		}
+
 		if (u.UnitId == "tower" && world.Has<TowerUpgradeLevel>(u.Entity))
 		{
 			int lvl = world.Get<TowerUpgradeLevel>(u.Entity).Value;
 			info.StateText += $"   ★ {TranslationServer.Translate("LVL")} {lvl}";
 		}
+	}
+
+	/// <summary>
+	///     Reads the note a map published for a unit, which is text any player reads on the unit they select rather than
+	///     something only its owner sees. Whitespace is treated as no note, so a map clears one by publishing nothing.
+	/// </summary>
+	/// <param name="entity">The selected unit.</param>
+	/// <returns>The note the map published for that unit, or null when it published none.</returns>
+	private static string? ReadPublishedStateNote(Entity entity)
+	{
+		TooltipValueStore? published = GameContext.RegistryService?.TooltipValues;
+		if (published == null) return null;
+		if (!published.TryGetText(TooltipValueStore.UnitOwnerKey(entity), StateNoteKey, out string note)) return null;
+		if (string.IsNullOrWhiteSpace(note)) return null;
+
+		return TranslationServer.Translate(note);
 	}
 
 	private string? GetBaseStateText(EcsWorld world, Unit3D u)
