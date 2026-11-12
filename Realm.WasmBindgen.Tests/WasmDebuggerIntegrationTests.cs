@@ -133,6 +133,10 @@ public class WasmDebuggerIntegrationTests
 		Assert.That(script, Does.Contain("def realm_version"));
 		Assert.That(script, Does.Contain("def realm_verify"));
 		Assert.That(script, Does.Contain("def realm_doctor"));
+		Assert.That(script, Does.Contain("def realm_inspect"));
+		Assert.That(script, Does.Contain("def realm_watch"));
+		Assert.That(script, Does.Contain("def realm_plot"));
+		Assert.That(script, Does.Contain("def realm_export"));
 	}
 
 	[Test]

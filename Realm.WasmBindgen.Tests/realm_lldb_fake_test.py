@@ -41,6 +41,10 @@ class FakeType:
 class FakeProcess:
     def __init__(self, memory):
         self.memory = memory
+        self.thread = None
+
+    def GetSelectedThread(self):
+        return self.thread
 
     def ReadMemory(self, address, size, error):
         if address < 0 or address + size > len(self.memory):
@@ -175,9 +179,35 @@ class FakeResult:
 class FakeDebugger:
     def __init__(self, target):
         self.target = target
+        self.commands = []
 
     def GetSelectedTarget(self):
         return self.target
+
+    def HandleCommand(self, command):
+        self.commands.append(command)
+
+
+class FakeFrame:
+    def __init__(self, values):
+        self.values = values
+
+    def IsValid(self):
+        return True
+
+    def EvaluateExpression(self, expression):
+        return self.values.get(expression, FakeValue(None, expression, "int", 0, valid=False))
+
+
+class FakeThread:
+    def __init__(self, frame):
+        self.frame = frame
+
+    def IsValid(self):
+        return True
+
+    def GetSelectedFrame(self):
+        return self.frame
 
 
 class FakeSBData:
@@ -352,6 +382,46 @@ def main():
     doctor_output = chr(10).join(doctor_result.messages)
     expect("shared memory base" in doctor_output, "realm_doctor did not report the shared memory base")
     expect("component tables: 0 drift(s)" in doctor_output, "realm_doctor did not report clean component tables")
+
+    inspect_process = FakeProcess(MEMORY)
+    inspect_target = FakeTarget(inspect_process)
+    unit_value = FakeValue(inspect_target, "unit", "UnitId", ENTITY_ID)
+    api_value = FakeValue(inspect_target, "api", "GameAPI_WasmModule", 0)
+    inspect_frame = FakeFrame({"unit": unit_value, "api": api_value})
+    inspect_process.thread = FakeThread(inspect_frame)
+    inspect_debugger = FakeDebugger(inspect_target)
+
+    inspect_result = FakeResult()
+    module.realm_inspect(inspect_debugger, "unit", inspect_result, {})
+    inspect_output = chr(10).join(inspect_result.messages)
+    expect("Health = 100.00" in inspect_output, "realm_inspect did not print UnitId.Health")
+    expect("Charges = 3" in inspect_output, "realm_inspect did not print UnitId.Charges")
+
+    host_inspect_result = FakeResult()
+    module.realm_inspect(inspect_debugger, "api", host_inspect_result, {})
+    host_inspect_output = chr(10).join(host_inspect_result.messages)
+    expect("PlayerCount = " + module.INSPECTION_REQUIRES_THREADS in host_inspect_output, "realm_inspect did not report the host boundary")
+
+    watch_result = FakeResult()
+    module.realm_watch(inspect_debugger, "unit Health", watch_result, {})
+    expect(len(module._WATCHES) == 1, "realm_watch did not add a watch")
+    for _ in range(3):
+        module.record_watch_samples(inspect_frame)
+
+    plot_result = FakeResult()
+    module.realm_plot(inspect_debugger, "", plot_result, {})
+    plot_output = chr(10).join(plot_result.messages)
+    expect("n=3" in plot_output, "realm_plot did not report the sample count")
+
+    import tempfile
+    export_path = os.path.join(tempfile.gettempdir(), "realm_watch_export_test.csv")
+    export_result = FakeResult()
+    module.realm_export(inspect_debugger, export_path, export_result, {})
+    expect(os.path.exists(export_path), "realm_export did not write the CSV file")
+    with open(export_path, "r") as export_file:
+        export_content = export_file.read()
+    expect("watch,index,value" in export_content, "realm_export did not write the CSV header")
+    os.remove(export_path)
 
     print("OK")
     return 0

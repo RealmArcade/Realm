@@ -264,7 +264,7 @@ HOST_TYPES = {
 # Generated debugger script metadata
 REALM_LLDB_SCRIPT_VERSION = "1"
 REALM_LLDB_SCRIPT_HASH = "f683cd830eee2a946494ad66b004576a1e69bd91fef15b6693299a1f07a1a26b"
-REALM_LLDB_SOURCE_COMMIT = "0181bda7930e0b2d1f17b3c8640b8a3221a909a0"
+REALM_LLDB_SOURCE_COMMIT = "01d9381eedd7aee8deca0213217754429db0cc45"
 
 INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"
 
@@ -761,6 +761,210 @@ def realm_doctor(debugger, command, result, internal_dict):
     for line in lines:
         result.AppendMessage(line)
 
+_WATCHES = []
+_WATCH_HOOK_INSTALLED = False
+_WATCH_SAMPLE_LIMIT = 2000
+
+def sparkline(values):
+    if not values:
+        return ""
+    minimum = min(values)
+    maximum = max(values)
+    if maximum == minimum:
+        return "=" * len(values)
+    characters = " .:-=+*#%@"
+    return "".join(characters[int((value - minimum) / (maximum - minimum) * (len(characters) - 1))] for value in values)
+
+def record_watch_samples(frame):
+    if not frame or not frame.IsValid():
+        return
+    for watch in _WATCHES:
+        try:
+            valobj = frame.EvaluateExpression(watch["expression"])
+            if not valobj or not valobj.IsValid():
+                continue
+            value = read_field_value(valobj, watch["handle_spec"], watch["field_spec"])
+            watch["samples"].append(value)
+            if len(watch["samples"]) > _WATCH_SAMPLE_LIMIT:
+                del watch["samples"][0]
+        except Exception:
+            pass
+
+class RealmWatchStopHook:
+    def handle_stop(self, exe_ctx, stream):
+        record_watch_samples(exe_ctx.GetFrame())
+
+def install_watch_hook(debugger):
+    global _WATCH_HOOK_INSTALLED
+    if _WATCH_HOOK_INSTALLED:
+        return
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        return
+    debugger.HandleCommand("target stop-hook add -P realm_lldb.RealmWatchStopHook")
+    _WATCH_HOOK_INSTALLED = True
+
+def realm_inspect(debugger, command, result, internal_dict):
+    expression = command.strip()
+    if not expression:
+        result.SetError("usage: realm_inspect <handle-expression>")
+        return
+
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        result.SetError("no target is selected")
+        return
+
+    thread = target.GetProcess().GetSelectedThread()
+    if not thread or not thread.IsValid():
+        result.SetError("no thread is selected")
+        return
+
+    frame = thread.GetSelectedFrame()
+    if not frame or not frame.IsValid():
+        result.SetError("no frame is selected")
+        return
+
+    valobj = frame.EvaluateExpression(expression)
+    if not valobj or not valobj.IsValid():
+        result.SetError(f"could not evaluate '{expression}'")
+        return
+
+    type_name = valobj.GetType().GetName()
+    handle_spec = find_handle_spec(type_name)
+    if handle_spec:
+        result.AppendMessage(f"{expression} = {RealmHandleSummaryProvider(valobj, {})}")
+        for field in handle_spec.get("fields", []):
+            value = read_field_value(valobj, handle_spec, field)
+            result.AppendMessage(f"  {field.get('name')} = {format_summary_value(value)}")
+        return
+
+    host_spec = find_host_spec(type_name)
+    if host_spec:
+        result.AppendMessage(f"{expression} = {HostTypeSummaryProvider(valobj, {})}")
+        for field in host_spec.get("fields", []):
+            result.AppendMessage(f"  {field.get('name')} = {INSPECTION_REQUIRES_THREADS}")
+        return
+
+    value = valobj.GetValue()
+    if value is None:
+        value = valobj.GetSummary()
+    result.AppendMessage(f"{expression} = {value}")
+
+def realm_watch(debugger, command, result, internal_dict):
+    arguments = command.strip()
+    if not arguments or arguments == "list":
+        if not _WATCHES:
+            result.AppendMessage("realm_watch: no watches")
+            return
+        for index, watch in enumerate(_WATCHES):
+            result.AppendMessage(f"{index}: {watch['expression']}.{watch['field_spec']['name']} ({len(watch['samples'])} samples)")
+        return
+
+    if arguments == "clear":
+        _WATCHES.clear()
+        result.AppendMessage("realm_watch: cleared")
+        return
+
+    if arguments.startswith("remove "):
+        index_text = arguments[len("remove "):].strip()
+        if not index_text.isdigit():
+            result.SetError("usage: realm_watch remove <index>")
+            return
+        index = int(index_text)
+        if 0 <= index < len(_WATCHES):
+            del _WATCHES[index]
+            result.AppendMessage(f"realm_watch: removed {index}")
+        else:
+            result.SetError(f"realm_watch: no watch at index {index}")
+        return
+
+    if arguments == "tick":
+        target = debugger.GetSelectedTarget()
+        if target and target.IsValid():
+            record_watch_samples(target.GetProcess().GetSelectedThread().GetSelectedFrame())
+        return
+
+    parts = arguments.rsplit(None, 1)
+    if len(parts) < 2:
+        result.SetError("usage: realm_watch <handle-expression> <field>")
+        return
+
+    expression, field_name = parts
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        result.SetError("no target is selected")
+        return
+
+    frame = target.GetProcess().GetSelectedThread().GetSelectedFrame()
+    if not frame or not frame.IsValid():
+        result.SetError("no frame is selected")
+        return
+
+    valobj = frame.EvaluateExpression(expression)
+    if not valobj or not valobj.IsValid():
+        result.SetError(f"could not evaluate '{expression}'")
+        return
+
+    handle_spec = find_handle_spec(valobj.GetType().GetName())
+    if not handle_spec:
+        result.SetError(f"'{expression}' is not a Realm handle")
+        return
+
+    field_spec = find_field_spec(handle_spec, field_name)
+    if not field_spec:
+        result.SetError(f"'{field_name}' is not a field of {handle_spec.get('name')}")
+        return
+
+    _WATCHES.append({"expression": expression, "handle_spec": handle_spec, "field_spec": field_spec, "samples": []})
+    install_watch_hook(debugger)
+    result.AppendMessage(f"realm_watch: watching {expression}.{field_name}")
+
+def realm_plot(debugger, command, result, internal_dict):
+    if not _WATCHES:
+        result.AppendMessage("realm_plot: no watches")
+        return
+
+    for watch in _WATCHES:
+        name = f"{watch['expression']}.{watch['field_spec']['name']}"
+        samples = [value for value in watch["samples"] if isinstance(value, (int, float)) and not isinstance(value, bool)]
+        if not samples:
+            result.AppendMessage(f"{name}: no numeric samples")
+            continue
+        minimum = min(samples)
+        maximum = max(samples)
+        average = sum(samples) / len(samples)
+        result.AppendMessage(f"{name}: n={len(samples)} min={minimum:.3f} max={maximum:.3f} avg={average:.3f}")
+        result.AppendMessage("  " + sparkline(samples[-40:]))
+
+def realm_export(debugger, command, result, internal_dict):
+    import json
+    path = command.strip()
+    if not _WATCHES:
+        result.AppendMessage("realm_export: no watches")
+        return
+
+    rows = []
+    for watch in _WATCHES:
+        name = f"{watch['expression']}.{watch['field_spec']['name']}"
+        for index, value in enumerate(watch["samples"]):
+            rows.append({"watch": name, "index": index, "value": value})
+
+    if path.lower().endswith(".json"):
+        content = json.dumps(rows, indent=2)
+    else:
+        lines = ["watch,index,value"]
+        for row in rows:
+            lines.append(f"{row['watch']},{row['index']},{row['value']}")
+        content = chr(10).join(lines)
+
+    if path:
+        with open(path, "w") as output:
+            output.write(content)
+        result.AppendMessage(f"realm_export: wrote {len(rows)} sample(s) to {path}")
+    else:
+        result.AppendMessage(content)
+
 class RealmHandleSyntheticProvider:
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
@@ -936,4 +1140,8 @@ def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand("command script add -f realm_lldb.realm_version realm_version")
     debugger.HandleCommand("command script add -f realm_lldb.realm_verify realm_verify")
     debugger.HandleCommand("command script add -f realm_lldb.realm_doctor realm_doctor")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_inspect realm_inspect")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_watch realm_watch")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_plot realm_plot")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_export realm_export")
     debugger.HandleCommand(f"type category enable {category}")
