@@ -12,7 +12,7 @@ namespace Realm.Shared.Simulation;
 
 /// <summary>pickup orders and the ground item they collect.</summary>
 public partial class CommandAuthorityService
-	{
+{
 	private void HandlePickupCommand(int peerId, NetworkCommand cmd, bool isQueued, List<int> rejectedServerEntityIds, ref string rejectionReason)
 	{
 		Entity lootEntity = _targets.Resolve(cmd.TargetEntityId);

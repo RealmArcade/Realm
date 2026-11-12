@@ -100,6 +100,7 @@ public static partial class MapAssetHelper
 		CheckModelPaths(workspacePath, metadata.Templates.Resources?.SelectMany(e => new[] { e.ModelPath, e.PortraitModelPath }), "resources", missingFiles);
 		CheckModelPaths(workspacePath, metadata.Templates.Weapons?.Select(e => e.ProjectileModelPath), "weapons", missingFiles);
 		CheckModelPaths(workspacePath, metadata.Templates.Attachments?.Select(e => e.ModelPath), "attachments", missingFiles);
+		CheckModelPaths(workspacePath, metadata.Templates.Items?.Select(e => e.ModelPath), "items", missingFiles);
 	}
 
 	private static void CheckModelPaths(string workspacePath, IEnumerable<string?>? paths, string subCat, List<string> missingFiles)
