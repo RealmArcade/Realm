@@ -42,6 +42,20 @@ public partial class GameHost
 
 		if (clickedUnit == null)
 		{
+			LootItem3D? clickedLootItem = FindLootItemInParentChain(collider);
+			if (clickedLootItem == null && TryRaycastTerrainFromMousePosition(clickPos, out Vector3 groundPoint))
+			{
+				TryFindLootItemAt(groundPoint, out clickedLootItem);
+			}
+
+			if (clickedLootItem != null)
+			{
+				ClearSelection();
+				SelectLootItem(clickedLootItem);
+				GameContext.InGameHud?.RefreshUI(SelectedUnits);
+				return;
+			}
+
 			var camera = GetViewport()?.GetCamera3D();
 			if (camera != null && TryPickResourceNodeAtScreenPoint(camera, clickPos, out Entity nodeEntity, out string nodePropId))
 			{
@@ -80,6 +94,7 @@ public partial class GameHost
 
 		SelectedProp = null;
 		ClearSelectedResourceNode();
+		ClearSelectedLootItem();
 	}
 
 	private void HandleSingleUnitSelection(Unit3D clickedUnit, Vector2 clickPos)
@@ -430,6 +445,7 @@ public partial class GameHost
 
 		SelectedProp = null;
 		ClearSelectedResourceNode();
+		ClearSelectedLootItem();
 
 		foreach (var u in SelectedUnits)
 		{

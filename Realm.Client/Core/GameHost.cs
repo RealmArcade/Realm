@@ -297,6 +297,8 @@ public partial class GameHost : Node3D
 
 	public Prop3D? SelectedProp { get; set; }
 
+	public LootItem3D? SelectedLootItem { get; private set; }
+
 	private Node3D? _sharedPropSelectionRing;
 	private Node3D? _sharedPropHoverRing;
 	public Entity SelectedPropEntity { get; private set; } = Entity.Null;
@@ -331,6 +333,31 @@ public partial class GameHost : Node3D
 		{
 			ClearSelectedResourceNode();
 		}
+	}
+
+	/// <summary>
+	///     Selects a ground item for inspection, which is how a player reads what a drop is worth before sending a unit
+	///     to collect it. The drop marks itself, so no selection ring has to be placed for it.
+	/// </summary>
+	/// <param name="lootItem">The drop that was clicked.</param>
+	public void SelectLootItem(LootItem3D lootItem)
+	{
+		ClearSelectedLootItem();
+
+		if (lootItem == null || !GodotObject.IsInstanceValid(lootItem)) return;
+
+		SelectedLootItem = lootItem;
+		lootItem.IsSelected = true;
+	}
+
+	public void ClearSelectedLootItem()
+	{
+		if (SelectedLootItem != null && GodotObject.IsInstanceValid(SelectedLootItem))
+		{
+			SelectedLootItem.IsSelected = false;
+		}
+
+		SelectedLootItem = null;
 	}
 
 	public void ClearSelectedResourceNode()

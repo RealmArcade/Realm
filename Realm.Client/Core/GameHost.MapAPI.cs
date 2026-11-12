@@ -485,6 +485,12 @@ public partial class GameHost
 			if (GodotObject.IsInstanceValid(node) && node.UniqueId == lootItemId)
 			{
 				node.IsDespawned = true;
+				if (SelectedLootItem == node)
+				{
+					ClearSelection();
+					GameContext.InGameHud?.RefreshUI(SelectedUnits);
+				}
+
 				if (GameContext.World != null && GameContext.World.IsAlive(node.Entity))
 				{
 					GameContext.World.Destroy(node.Entity);

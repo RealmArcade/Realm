@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -12,6 +13,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Stats;
+using Realm.Shared.Abilities;
 using Realm.Shared.Metadata;
 
 namespace Realm.Client.UI.InGame;
@@ -116,6 +118,12 @@ public class UnitStatsPanel
 	private readonly StatRow _workerCapacityRow;
 
 	private readonly List<string> _buffIds = new();
+	private readonly StringBuilder _groundItemSheet = new(256);
+	private string _lastGroundItemId = string.Empty;
+	private int _lastGroundItemCharges = -1;
+	private int _lastGroundItemSecondsRemaining = -1;
+	private bool _lastGroundItemAutomaticPickup;
+	private bool _showingGroundItemSheet;
 	private StatCategory? _popupCategory;
 	private ulong _lastSignature;
 	private ulong _lastBuffsSignature;
@@ -305,6 +313,7 @@ public class UnitStatsPanel
 
 	public void ShowMessage(string message)
 	{
+		_showingGroundItemSheet = false;
 		_messageLabel.Text = message;
 		_messageLabel.Visible = !string.IsNullOrEmpty(message);
 		_content.Visible = string.IsNullOrEmpty(message);
@@ -339,6 +348,162 @@ public class UnitStatsPanel
 		_messageLabel.Visible = true;
 		_content.Visible = false;
 		HideCategoryPopup();
+	}
+
+	/// <summary>
+	///     Writes the sheet of a ground item: how many pieces of it lie there, what its template states it is, what
+	///     carrying a piece grants, and how long it has left before it goes. A drop is not a unit, so its readings come
+	///     from the replicated <see cref="Realm.Ecs.Components.Core.GroundLoot" /> state and its template rather than from
+	///     the stat rows a unit fills in.
+	/// </summary>
+	/// <param name="lootItem">The drop the local player selected.</param>
+	public void UpdateGroundItem(LootItem3D lootItem)
+	{
+		int charges = lootItem.Charges;
+		float lifetime = lootItem.Lifetime;
+		float remainingLifetime = lootItem.RemainingLifetime;
+		bool automaticPickup = lootItem.AutoPickup;
+
+		var world = GameContext.World;
+		if (world != null && lootItem.Entity != Entity.Null && world.IsAlive(lootItem.Entity)
+		    && world.TryGet(lootItem.Entity, out GroundLoot groundLoot))
+		{
+			charges = groundLoot.Charges;
+			lifetime = groundLoot.Lifetime;
+			remainingLifetime = groundLoot.RemainingLifetime;
+			automaticPickup = groundLoot.AutoPickup;
+		}
+
+		int secondsRemaining = lifetime > 0f ? Mathf.Max(0, Mathf.CeilToInt(remainingLifetime)) : -1;
+		bool sheetChanged = !string.Equals(_lastGroundItemId, lootItem.ItemTypeId, StringComparison.Ordinal)
+		                    || _lastGroundItemCharges != charges
+		                    || _lastGroundItemSecondsRemaining != secondsRemaining
+		                    || _lastGroundItemAutomaticPickup != automaticPickup;
+		if (_showingGroundItemSheet && !sheetChanged) return;
+
+		_lastGroundItemId = lootItem.ItemTypeId;
+		_lastGroundItemCharges = charges;
+		_lastGroundItemSecondsRemaining = secondsRemaining;
+		_lastGroundItemAutomaticPickup = automaticPickup;
+
+		ItemMetadata? metadata = null;
+		GameContext.RegistryService?.ItemRegistry.TryGetValue(lootItem.ItemTypeId, out metadata);
+
+		var sheet = _groundItemSheet;
+		sheet.Clear();
+
+		if (metadata != null && !string.IsNullOrEmpty(metadata.ItemClass))
+		{
+			sheet.Append(TranslationServer.Translate("ITEM CLASS"));
+			sheet.Append(": ");
+			sheet.Append(metadata.ItemClass.ToUpperInvariant());
+			sheet.Append('\n');
+		}
+
+		sheet.Append(TranslationServer.Translate("ON THE GROUND"));
+		sheet.Append(": ");
+		sheet.Append(charges.ToString(CultureInfo.InvariantCulture));
+
+		if (metadata != null && metadata.MaxStacks > 1)
+		{
+			sheet.Append("   ");
+			sheet.Append(TranslationServer.Translate("PER SLOT"));
+			sheet.Append(": ");
+			sheet.Append(metadata.MaxStacks.ToString(CultureInfo.InvariantCulture));
+		}
+
+		if (metadata != null && metadata.ItemLevel > 0)
+		{
+			sheet.Append("   ");
+			sheet.Append(TranslationServer.Translate("LEVEL"));
+			sheet.Append(": ");
+			sheet.Append(metadata.ItemLevel.ToString(CultureInfo.InvariantCulture));
+		}
+
+		string description = MapText.Translate(metadata?.Description);
+		if (description.Length > 0)
+		{
+			sheet.Append('\n');
+			sheet.Append(description);
+		}
+
+		string statBlock = TooltipStatBlock.ForItem(metadata, charges);
+		if (statBlock.Length > 0)
+		{
+			sheet.Append('\n');
+			sheet.Append(statBlock);
+		}
+
+		AppendGrantedReferences(sheet, TranslationServer.Translate("GRANTS WEAPON"), metadata?.GrantedWeapons);
+		AppendGrantedReferences(sheet, TranslationServer.Translate("GRANTS ABILITY"), metadata?.GrantedAbilities);
+		AppendGrantedReferences(sheet, TranslationServer.Translate("GRANTS UPGRADE"), metadata?.GrantedUpgrades);
+
+		if (!string.IsNullOrWhiteSpace(metadata?.Requirements))
+		{
+			sheet.Append('\n');
+			sheet.Append(TranslationServer.Translate("REQUIRES"));
+			sheet.Append(": ");
+			sheet.Append(MapText.Translate(metadata.Requirements));
+		}
+
+		string pickupMode = automaticPickup
+			? TranslationServer.Translate("AUTOMATIC")
+			: TranslationServer.Translate("BY HAND");
+
+		sheet.Append('\n');
+		sheet.Append(TranslationServer.Translate("PICKUP"));
+		sheet.Append(": ");
+		sheet.Append(pickupMode);
+
+		if (secondsRemaining >= 0)
+		{
+			sheet.Append("   ");
+			sheet.Append(TranslationServer.Translate("DESPAWNS IN"));
+			sheet.Append(": ");
+			sheet.Append(secondsRemaining.ToString(CultureInfo.InvariantCulture));
+			sheet.Append('s');
+		}
+
+		ShowMessage(sheet.ToString());
+		_showingGroundItemSheet = true;
+	}
+
+	/// <summary>
+	///     Appends one line per identifier a template grants, naming each one the way its own template does so a drop
+	///     states what a player's unit will actually receive. An identifier the map no longer defines is skipped, which
+	///     keeps a stale entry from printing a raw path in the sheet.
+	/// </summary>
+	private static void AppendGrantedReferences(StringBuilder sheet, string label, string[]? identifiers)
+	{
+		if (identifiers == null) return;
+
+		for (int index = 0; index < identifiers.Length; index++)
+		{
+			string? displayName = GrantedReferenceName(identifiers[index]);
+			if (string.IsNullOrEmpty(displayName)) continue;
+
+			sheet.Append('\n');
+			sheet.Append(label);
+			sheet.Append(": ");
+			sheet.Append(displayName);
+		}
+	}
+
+	private static string? GrantedReferenceName(string? identifier)
+	{
+		if (string.IsNullOrWhiteSpace(identifier)) return null;
+
+		if (GameHost.WeaponRegistry.TryGetValue(identifier, out var weapon) && !string.IsNullOrEmpty(weapon.Name))
+			return MapText.TranslateName(weapon.Name);
+
+		AbilityDefinition? ability = GameContext.RegistryService?.GetAbilityDefinition(identifier);
+		if (ability != null && !string.IsNullOrEmpty(ability.DisplayName))
+			return MapText.TranslateName(ability.DisplayName);
+
+		if (GameHost.UpgradeRegistry.TryGetValue(identifier, out var upgrade) && !string.IsNullOrEmpty(upgrade.Name))
+			return MapText.TranslateName(upgrade.Name);
+
+		return null;
 	}
 
 	public void UpdateSingleSelection(SelectedUnitInfo info, bool forceRefresh)

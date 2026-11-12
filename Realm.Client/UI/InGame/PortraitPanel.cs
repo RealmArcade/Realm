@@ -8,6 +8,7 @@ using Realm.Client.Services;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
+using Realm.Shared.Metadata;
 
 namespace Realm.Client.UI.InGame;
 
@@ -47,10 +48,11 @@ public class PortraitPanel
 
 	private Entity _lastPropEntity = Entity.Null;
 	private string _lastPropId = null!;
+	private LootItem3D _lastLootItem = null!;
 	private float _lastPropRemaining = -1f;
 	private string _lastPortraitDescription = string.Empty;
 
-	private enum SelectionType { None, Prop, ResourceNode, Empty, Single, Multi }
+	private enum SelectionType { None, Prop, LootItem, ResourceNode, Empty, Single, Multi }
 	private SelectionType _lastSelectionType = SelectionType.None;
 
 	private readonly string?[] _lastUnitStatuses;
@@ -164,6 +166,10 @@ public class PortraitPanel
 		{
 			UpdatePropSelection(viewModel);
 		}
+		else if (IsLootItemSelected(viewModel))
+		{
+			UpdateLootItemSelection(viewModel);
+		}
 		else if (IsResourceNodeSelected(viewModel))
 		{
 			UpdateResourceNodeSelection(viewModel);
@@ -204,6 +210,59 @@ public class PortraitPanel
 			_productionBox.Visible = false;
 			ApplyPortraitDescription(null, Entity.Null);
 		}
+	}
+
+	/// <summary>
+	///     Whether the local player is reading a drop rather than a unit. A drop the authority has already taken is
+	///     skipped, so a selected item never outlives the pickup it was selected for.
+	/// </summary>
+	private static bool IsLootItemSelected(InGameHUDViewModel viewModel)
+	{
+		LootItem3D? lootItem = viewModel.SelectedLootItem;
+		return lootItem != null && GodotObject.IsInstanceValid(lootItem) && !lootItem.IsDespawned && lootItem.Visible;
+	}
+
+	/// <summary>
+	///     Writes a selected ground item: its name and icon on the portrait, its description as the portrait's tooltip,
+	///     and the item's own sheet in the stat panel. A drop is not a unit, so nothing here reads a health bar or an
+	///     ability grid.
+	/// </summary>
+	private void UpdateLootItemSelection(InGameHUDViewModel viewModel)
+	{
+		if (viewModel.SelectedLootItem is not { } lootItem) return;
+
+		_statsContainer.Visible = true;
+		_armyCompositionLabel?.Hide();
+		_productionBox.Visible = false;
+
+		bool itemChanged = _lastSelectionType != SelectionType.LootItem || lootItem != _lastLootItem;
+		if (itemChanged)
+		{
+			_lastSelectionType = SelectionType.LootItem;
+			_lastLootItem = lootItem;
+			_lastPropEntity = Entity.Null;
+			_lastPropId = string.Empty;
+			_lastPropRemaining = -1f;
+
+			ItemMetadata? metadata = null;
+			GameContext.RegistryService?.ItemRegistry.TryGetValue(lootItem.ItemTypeId, out metadata);
+
+			_unitNameLabel.Text = metadata != null && !string.IsNullOrEmpty(metadata.Name)
+				? MapText.TranslateName(metadata.Name)
+				: lootItem.ItemTypeId.ToUpperInvariant();
+
+			if (_portraitTexture != null)
+			{
+				string iconPath = metadata != null && !string.IsNullOrEmpty(metadata.IconPath)
+					? metadata.IconPath
+					: "res://Assets/UI/unit_placeholder.webp";
+				_portraitTexture.Texture = RtexIconLoader.Load(iconPath);
+			}
+
+			ApplyPortraitDescription(metadata?.Description, Entity.Null);
+		}
+
+		_unitStatsPanel.UpdateGroundItem(lootItem);
 	}
 
 	private static bool IsResourceNodeSelected(InGameHUDViewModel viewModel)

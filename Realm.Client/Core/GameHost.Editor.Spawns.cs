@@ -161,6 +161,8 @@ public partial class GameHost
 	/// <summary>Removes every placed drop this screen drew, which is how a map load replaces the items the previous one held.</summary>
 	public void ClearPlacedLootItems()
 	{
+		ClearSelectedLootItem();
+
 		for (int index = AllLootItems.Count - 1; index >= 0; index--)
 		{
 			LootItem3D lootItem = AllLootItems[index];

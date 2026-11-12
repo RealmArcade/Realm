@@ -24,8 +24,31 @@ public partial class LootItem3D : Node3D
 	private const float PedestalTopHeight = 0.08f;
 	private const float ModelRestingHeight = 0.1f;
 
+	private static readonly Color PedestalColor = new(0.85f, 0.7f, 0.2f);
+	private static readonly Color PedestalEmission = new(0.7f, 0.5f, 0.1f);
+	private static readonly Color SelectedPedestalColor = new(1f, 0.96f, 0.72f);
+	private static readonly Color SelectedPedestalEmission = new(1f, 0.86f, 0.38f);
+
 	private Node3D? _visualRoot;
+	private StandardMaterial3D? _pedestalMaterial;
+	private bool _isSelected;
 	private float _hoverTimer;
+
+	/// <summary>
+	///     Whether this drop is the one the local player has selected. A drop owns its own node, so it marks the selection
+	///     on its pedestal instead of borrowing the ring the placed prop nodes share.
+	/// </summary>
+	public bool IsSelected
+	{
+		get => _isSelected;
+		set
+		{
+			if (_isSelected == value) return;
+
+			_isSelected = value;
+			ApplySelectionTint();
+		}
+	}
 
 	public void Initialize(int id, string itemTypeId, int charges, float lifetime, float pickupRadius, bool autoPickup, int ownerPlayerIndex)
 	{
@@ -38,6 +61,7 @@ public partial class LootItem3D : Node3D
 		AutoPickup = autoPickup;
 		OwnerPlayerIndex = ownerPlayerIndex;
 		IsDespawned = false;
+		IsSelected = false;
 
 		RebuildVisuals();
 	}
@@ -48,6 +72,8 @@ public partial class LootItem3D : Node3D
 	/// </summary>
 	public void RebuildVisuals()
 	{
+		_pedestalMaterial = null;
+
 		if (_visualRoot != null && GodotObject.IsInstanceValid(_visualRoot))
 		{
 			RemoveChild(_visualRoot);
@@ -78,12 +104,13 @@ public partial class LootItem3D : Node3D
 
 		var pedestalMat = new StandardMaterial3D
 		{
-			AlbedoColor = new Color(0.85f, 0.7f, 0.2f),
-			EmissionEnabled = true,
-			Emission = new Color(0.7f, 0.5f, 0.1f)
+			EmissionEnabled = true
 		};
 		meshInstance.MaterialOverride = pedestalMat;
 		_visualRoot.AddChild(meshInstance);
+
+		_pedestalMaterial = pedestalMat;
+		ApplySelectionTint();
 
 		ItemMetadata? itemMetadata = null;
 		if (GameContext.RegistryService?.ItemRegistry != null)
@@ -111,6 +138,18 @@ public partial class LootItem3D : Node3D
 		};
 		gemInstance.MaterialOverride = gemMat;
 		_visualRoot.AddChild(gemInstance);
+	}
+
+	/// <summary>
+	///     Draws the pedestal in its selected colours while this drop is selected, which is the only feedback a ground
+	///     item gives for the pointer landing on it.
+	/// </summary>
+	private void ApplySelectionTint()
+	{
+		if (_pedestalMaterial == null) return;
+
+		_pedestalMaterial.AlbedoColor = _isSelected ? SelectedPedestalColor : PedestalColor;
+		_pedestalMaterial.Emission = _isSelected ? SelectedPedestalEmission : PedestalEmission;
 	}
 
 	/// <summary>
