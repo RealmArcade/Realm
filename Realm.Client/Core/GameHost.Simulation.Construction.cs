@@ -119,7 +119,7 @@ public partial class GameHost
 		int ownerPlayer = World.Has<UnitOwnerPlayer>(buildingEntity)
 			? World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex
 			: 0;
-		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, ownerPlayer, false, false);
+		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, ownerPlayer, executeSpawnShader: true);
 
 		if (TryGetUnit3D(buildingEntity, out var bNode) && GodotObject.IsInstanceValid(bNode))
 		{

@@ -356,16 +356,12 @@ public static class SpawnDeathShaderManager
 		};
 	}
 
-	public static void AnimateTransition(Node3D targetNode, string shaderKey, bool isSpawn, float? durationOverride = null, Action? onComplete = null)
+	public static Tween? AnimateTransition(Node3D targetNode, string shaderKey, bool isSpawn, float? durationOverride = null, Action? onComplete = null)
 	{
 		if (!IsValidForTransition(targetNode))
 		{
-			if (onComplete != null)
-			{
-				onComplete();
-			}
-
-			return;
+			onComplete?.Invoke();
+			return null;
 		}
 
 		var config = GetTransitionConfig(shaderKey, isSpawn);
@@ -378,7 +374,7 @@ public static class SpawnDeathShaderManager
 		if (GetOrCreateShader() is not { } shader)
 		{
 			onComplete?.Invoke();
-			return;
+			return null;
 		}
 
 		var materials = new List<ShaderMaterial>(4);
@@ -389,6 +385,7 @@ public static class SpawnDeathShaderManager
 		tween.TweenMethod(Callable.From((float prog) => UpdateTransitionMaterialsProgress(targetNode, materials, prog)), startProgress, endProgress, duration);
 
 		tween.TweenCallback(Callable.From(() => CompleteTransition(targetNode, isSpawn, onComplete)));
+		return tween;
 	}
 
 	private static bool IsValidForTransition(Node3D targetNode)

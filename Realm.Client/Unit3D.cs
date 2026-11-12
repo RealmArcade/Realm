@@ -126,6 +126,43 @@ public partial class Unit3D : Node3D
 
 	private bool _isRuinSilhouette = false;
 
+	private Tween? _activeTransitionTween;
+
+	public bool HasPlayedSpawnShader { get; private set; }
+
+	public bool HasPlayedDespawnShader { get; private set; }
+
+	public bool TryPlaySpawnShader(string shaderKey)
+	{
+		if (HasPlayedSpawnShader) return false;
+		HasPlayedSpawnShader = true;
+
+		CancelActiveTransitionTween();
+		_activeTransitionTween = SpawnDeathShaderManager.AnimateTransition(this, shaderKey, true, null, () => _activeTransitionTween = null);
+		return true;
+	}
+
+	public bool TryPlayDespawnShader(string shaderKey, Action onComplete)
+	{
+		if (HasPlayedDespawnShader) return false;
+		HasPlayedDespawnShader = true;
+
+		CancelActiveTransitionTween();
+		_activeTransitionTween = SpawnDeathShaderManager.AnimateTransition(this, shaderKey, false, null, () =>
+		{
+			_activeTransitionTween = null;
+			onComplete();
+		});
+		return true;
+	}
+
+	private void CancelActiveTransitionTween()
+	{
+		if (_activeTransitionTween == null) return;
+		if (GodotObject.IsInstanceValid(_activeTransitionTween)) _activeTransitionTween.Kill();
+		_activeTransitionTween = null;
+	}
+
 	public void SetRuinSilhouette(bool dormant)
 	{
 		if (_isRuinSilhouette == dormant) return;

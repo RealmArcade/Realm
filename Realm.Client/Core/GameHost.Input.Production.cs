@@ -290,7 +290,7 @@ public partial class GameHost
 
 		var entity = CreateEcsUnit(unitId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, godotPosition, playerOwner);
 
-		var unit3D = SpawnUnit3D(entity, unitId, modelPath, godotPosition, false, parentPlayer, isFromQueue);
+		var unit3D = SpawnUnit3D(entity, unitId, modelPath, godotPosition, false, parentPlayer, isFromQueue, executeSpawnShader: true);
 
 		if (meta.Speed > 0f)
 		{

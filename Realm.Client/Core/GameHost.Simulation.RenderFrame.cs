@@ -195,7 +195,7 @@ public partial class GameHost
 				unit3D.ResetLaborPulseScale();
 			}
 
-			unit3D.SetRuinSilhouette(world.Has<Dormant>(item.Entity));
+			unit3D.SetRuinSilhouette(world.Has<Dormant>(item.Entity) || world.Has<UnderConstruction>(item.Entity));
 
 			if (item.ShouldSetTransform)
 			{
