@@ -6,6 +6,7 @@ namespace Realm.Ecs.Components.Core;
 /// Tracks current and maximum food population unit capacities for a player.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct PlayerPopulation
 {
 	public int Current;

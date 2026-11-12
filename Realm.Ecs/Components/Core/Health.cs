@@ -6,6 +6,7 @@ namespace Realm.Ecs.Components.Core;
 /// Represents the health point capacity and regeneration state of an entity.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct Health
 {
 	public float Current;

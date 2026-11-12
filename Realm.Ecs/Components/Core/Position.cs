@@ -7,6 +7,7 @@ namespace Realm.Ecs.Components.Core;
 /// Defines 3D spatial world position vector coordinates of an entity.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct Position
 {
 	public Vector3 Value;

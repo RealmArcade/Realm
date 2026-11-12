@@ -6,6 +6,7 @@ namespace Realm.Ecs.Components.Core;
 /// Associates an entity with its controlling player slot index.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct UnitOwnerPlayer
 {
 	public int Value;

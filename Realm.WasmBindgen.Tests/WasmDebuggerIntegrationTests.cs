@@ -123,6 +123,25 @@ public class WasmDebuggerIntegrationTests
 	}
 
 	[Test]
+	public void MapApiComponentsAreDiscoveredFromMarkerAttribute()
+	{
+		string generated = WasmEcsComponentEmitter.GenerateEcsComponents(_repoRoot);
+
+		foreach (string typeName in new[]
+		         {
+			         "ResourceId", "SplashType", "Attack", "Resistances", "Position", "PreviousPosition",
+			         "Health", "Mana", "PlayerPopulation", "ScriptPlayer", "UnitOwnerPlayer", "Experience",
+			         "Level", "ModelScale", "RotationY", "PreviousRotationY", "MovementType", "MovementStats",
+			         "PlayerResources"
+		         })
+		{
+			Assert.That(generated, Does.Contain(typeName), $"{typeName} was not discovered from the marker attribute");
+		}
+
+		Assert.That(generated, Does.Not.Contain("struct Ability"), "an unannotated component was exposed to map scripts");
+	}
+
+	[Test]
 	public void LaunchConfigurationSkipsHostAndWasmBoundaryCode()
 	{
 		string launchPath = Path.Combine(_repoRoot, "MapTemplate", ".vscode", "launch.json");
