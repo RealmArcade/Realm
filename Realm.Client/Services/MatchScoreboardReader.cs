@@ -5,6 +5,7 @@ using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Tags;
+using Realm.Shared.Network;
 
 namespace Realm.Client.Services;
 
@@ -60,7 +61,7 @@ public static class MatchScoreboardReader
 				slot,
 				ResolveName(player, seat, slot, hasPlayersState),
 				ResolveTeamName(player, seat, hasPlayersState),
-				seat != null ? seat.Faction : string.Empty,
+				ResolveFaction(player, seat, hasPlayersState),
 				hasPlayersState ? player.IsComputer : seat != null && seat.PeerId < 0,
 				hasPlayersState ? player.KillCount : 0,
 				hasPlayersState ? (int)player.Gold : 0,
@@ -161,6 +162,14 @@ public static class MatchScoreboardReader
 		if (string.IsNullOrWhiteSpace(name)) name = $"Player {slot}";
 
 		return name;
+	}
+
+	private static string ResolveFaction(ScriptPlayer player, PlayerInfo? seat, bool hasPlayersState)
+	{
+		if (seat == null) return string.Empty;
+		if (!LobbyLimits.IsRandomFaction(seat.Faction)) return seat.Faction;
+
+		return hasPlayersState ? player.Faction : string.Empty;
 	}
 
 	private static string ResolveTeamName(ScriptPlayer player, PlayerInfo? seat, bool hasPlayersState)

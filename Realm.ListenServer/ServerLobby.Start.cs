@@ -81,17 +81,21 @@ public partial class ServerLobby
 		string? rejection = ValidateStart(ignoreReadiness: true);
 		if (rejection != null) return rejection;
 
+		int seed = RandomNumberGenerator.GetInt32(1, int.MaxValue);
+		var factionPicker = new Random(seed);
+		string[] offeredFactions = Roster?.GetFactionNames() ?? Array.Empty<string>();
+
 		var roster = new List<MatchRosterSeat>(_seats.Count);
 		var assignments = new List<(int PeerId, int Slot)>(_seats.Count);
 		var sessionSeats = new Dictionary<string, int>(_seats.Count, StringComparer.Ordinal);
 		foreach (LobbySeat seat in _seats.Values)
 		{
-			roster.Add(new MatchRosterSeat(seat.Slot, seat.AccountId, seat.Name, seat.Team, seat.TeamName, seat.IsComputer, (int)LobbyBotDifficultyRules.Clamp(seat.Difficulty)));
+			string faction = ResolveSeatFaction(seat.Faction, offeredFactions, factionPicker);
+			roster.Add(new MatchRosterSeat(seat.Slot, seat.AccountId, seat.Name, seat.Team, seat.TeamName, seat.IsComputer, (int)LobbyBotDifficultyRules.Clamp(seat.Difficulty), faction));
 			if (!seat.IsComputer && seat.SessionToken.Length > 0) sessionSeats[seat.SessionToken] = seat.Slot;
 			if (!seat.IsComputer && !seat.IsDisconnected && seat.PeerId > 0) assignments.Add((seat.PeerId, seat.Slot));
 		}
 
-		int seed = RandomNumberGenerator.GetInt32(1, int.MaxValue);
 		rejection = _startMatch(roster, assignments, sessionSeats, seed);
 		if (rejection != null) return rejection;
 
@@ -118,5 +122,22 @@ public partial class ServerLobby
 		}
 
 		return null;
+	}
+
+	/// <summary>
+	///     Names the faction a seat plays the match as: the faction it holds, or, for a seat that left the choice to the
+	///     match, one of the factions its map offers drawn from the match seed. A map that offers no factions leaves a
+	///     random seat without one, exactly as a seat that chose nothing holds none.
+	/// </summary>
+	/// <param name="faction">The faction the seat holds in the lobby.</param>
+	/// <param name="offeredFactions">The factions the lobby's map offers.</param>
+	/// <param name="factionPicker">The draw this match resolves its random seats from.</param>
+	/// <returns>The faction the seat enters the match with.</returns>
+	private static string ResolveSeatFaction(string faction, IReadOnlyList<string> offeredFactions, Random factionPicker)
+	{
+		if (!LobbyLimits.IsRandomFaction(faction)) return faction;
+		if (offeredFactions.Count == 0) return string.Empty;
+
+		return offeredFactions[factionPicker.Next(offeredFactions.Count)];
 	}
 }

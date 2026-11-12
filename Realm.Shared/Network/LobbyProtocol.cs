@@ -300,6 +300,20 @@ public static class LobbyLimits
 	/// </summary>
 	public const string SpectatorTeamName = "Spectator";
 
+	/// <summary>
+	///     The faction a seat holds while it leaves the choice to the match. The lobby offers it as Random, and the authority
+	///     resolves it to one of the factions the map offers when it seats the match, so nothing that plays the match ever
+	///     reads it as a faction.
+	/// </summary>
+	public const string RandomFactionName = "@random";
+
+	/// <summary>
+	///     Answers whether a seat's faction is the lobby's random choice rather than a faction the map offers.
+	/// </summary>
+	/// <param name="factionName">The faction a seat holds.</param>
+	/// <returns>Whether the seat left its faction to the match.</returns>
+	public static bool IsRandomFaction(string? factionName) => string.Equals(factionName, RandomFactionName, StringComparison.Ordinal);
+
 	public const int MaximumMapBundleBytes = 2 * 1024 * 1024;
 
 	/// <summary>

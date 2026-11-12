@@ -365,9 +365,9 @@ public partial class LobbyRoom
 			if (seat == null) return;
 
 			IReadOnlyList<string> factions = FactionList;
-			if (idx < 0 || idx >= factions.Count) return;
+			if (idx < 0 || idx > factions.Count) return;
 
-			seat.Faction = factions[(int)idx];
+			seat.Faction = idx == factions.Count ? LobbyLimits.RandomFactionName : factions[(int)idx];
 			Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
 		};
 		optFaction.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
@@ -389,8 +389,17 @@ public partial class LobbyRoom
 			optFaction.AddItem(factions[factionIndex]);
 		}
 
-		int selectedIndex = IndexOfFaction(factions, p.Faction);
+		optFaction.AddItem(TranslationServer.Translate("Random"));
+
+		int selectedIndex = GetFactionOptionIndex(factions, p.Faction);
 		if (selectedIndex >= 0) optFaction.Select(selectedIndex);
+	}
+
+	private static int GetFactionOptionIndex(IReadOnlyList<string> factions, string faction)
+	{
+		if (LobbyLimits.IsRandomFaction(faction)) return factions.Count;
+
+		return IndexOfFaction(factions, faction);
 	}
 
 	private static int IndexOfFaction(IReadOnlyList<string> factions, string faction)
@@ -666,13 +675,13 @@ public partial class LobbyRoom
 		}
 
 		IReadOnlyList<string> factions = FactionList;
-		if (optFaction.ItemCount != factions.Count)
+		if (optFaction.ItemCount != factions.Count + 1)
 		{
 			FillFactionOptions(optFaction, p);
 		}
 		else
 		{
-			int selectedIndex = IndexOfFaction(factions, p.Faction);
+			int selectedIndex = GetFactionOptionIndex(factions, p.Faction);
 			if (selectedIndex >= 0 && optFaction.Selected != selectedIndex) optFaction.Select(selectedIndex);
 		}
 

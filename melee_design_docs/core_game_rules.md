@@ -51,6 +51,7 @@ Formulas throughout the game preserve intuitive monotonicity. More investment ne
 
 - The lobby presents hero selection as a single dropdown labelled Race / Faction, with Random as an option. The label is the lobby's affordance, not a rules concept: no race or faction exists, and no selection grants a distinct roster.
 - Each player enters the match with exactly one hero, either chosen directly or resolved from Random.
+- Random is the lobby's own entry, offered after the factions the map states, and the authority resolves it when it seats the match to one of those factions, drawn from the match seed. A seed therefore seats the same heroes each time, the choice cannot be re-rolled by picking Random again, and the hero a player plays is fixed for the whole match. Nothing that plays the match ever sees a random faction, so a map reads a faction and spawns its hero without knowing the option exists.
 - The Nexus is identical for every hero and every player, so hero choice never changes a player's starting structure.
 - The hero is the player's only directly controlled unit, and serves as both avatar and commander.
 - Every hero has Bulwark, like the Nexus, granting physical and magic resistance that scales with the number of that player's own soldiers nearby. Allied soldiers do not count.
