@@ -118,6 +118,7 @@ public class ConstructionTick
 	{
 		if (_simulation.World.Has<ConstructionState>(site)) _simulation.World.Remove<ConstructionState>(site);
 		if (_simulation.World.Has<UnderConstruction>(site)) _simulation.World.Remove<UnderConstruction>(site);
+		if (_simulation.World.Has<Invulnerable>(site)) _simulation.World.Remove<Invulnerable>(site);
 
 		for (int index = 0; index < _workingPairs.Count; index++)
 		{

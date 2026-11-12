@@ -161,6 +161,33 @@ public class MeleeConstructionDraftTests
 	}
 
 	[Test]
+	public void AConstructionSiteIsInvulnerableUntilItStands()
+	{
+		_match.SetWood(1, 500f);
+		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
+		_match.LockDraftOption(1, offer.AbilityIds[0], SitePosition);
+
+		UnitId site = FindSite(1);
+		Assert.That(site.IsValid, Is.True, "The test needs the site the draw placed.");
+		Assert.That(_match.Has<Invulnerable>(site), Is.True, "A building site is invulnerable while it is being raised.");
+
+		float siteHealthBefore = _match.HealthOf(site);
+		_match.Kill(site, _match.Hero(2));
+
+		Assert.That(_match.HealthOf(site), Is.EqualTo(siteHealthBefore).Within(0.01f), "A site that is still being raised must take no damage.");
+		Assert.That(_match.IsUnderConstruction(site), Is.True, "The hit must not finish or destroy the site.");
+
+		OrderHeroToRaise(site);
+		WaitForCompletion(site);
+
+		Assert.That(_match.Has<Invulnerable>(site), Is.False, "A completed building has to become attackable.");
+		float standingHealth = _match.HealthOf(site);
+		_match.Kill(site, _match.Hero(2));
+
+		Assert.That(_match.HealthOf(site), Is.LessThan(standingHealth), "A completed building has to take the damage a site refused.");
+	}
+
+	[Test]
 	public void TheAttackOrderOnAnAlliedSiteRaisesIt()
 	{
 		_match.SetWood(1, 500f);

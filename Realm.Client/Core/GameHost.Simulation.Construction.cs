@@ -349,6 +349,7 @@ public partial class GameHost
 
 		World.Add(bldEntity, new ConstructionState(buildTime));
 		World.Add(bldEntity, new UnderConstruction());
+		World.Add(bldEntity, new Invulnerable());
 
 		if (!World.Has<CollisionRadius>(bldEntity))
 		{

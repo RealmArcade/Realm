@@ -33,6 +33,7 @@ public partial class ServerGameAPI
 		var construction = new ConstructionState(Math.Max(totalConstructionSeconds, 0f));
 		_context.World.SetOrAdd(siteEntity, construction);
 		_context.World.SetOrAdd(siteEntity, new UnderConstruction());
+		_context.World.SetOrAdd(siteEntity, new Invulnerable());
 
 		return site;
 	}
