@@ -44,7 +44,7 @@ public partial class CommandAuthorityService
 
 			if (RejectsPlayerOrder(entity, serverId, rejectedServerEntityIds, ref rejectionReason)) continue;
 
-			if (!_context.World.Has<Unit>(entity) || _context.World.Has<Building>(entity))
+			if (_context.World.Has<Building>(entity))
 			{
 				RecordCommandRejection(rejectedServerEntityIds, serverId, $"entity {serverId} cannot pick anything up");
 				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"entity {serverId} cannot pick anything up";
