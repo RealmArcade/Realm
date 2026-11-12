@@ -3,6 +3,7 @@ using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.Utils;
+using Realm.Shared.Metadata;
 
 namespace Realm.Client;
 
@@ -19,6 +20,9 @@ public partial class LootItem3D : Node3D
 	public int OwnerPlayerIndex { get; set; } = -1;
 	public bool IsDespawned { get; set; }
 	public Entity Entity { get; set; }
+
+	private const float PedestalTopHeight = 0.08f;
+	private const float ModelRestingHeight = 0.1f;
 
 	private Node3D? _visualRoot;
 	private float _hoverTimer;
@@ -54,7 +58,7 @@ public partial class LootItem3D : Node3D
 			Height = 0.08f
 		};
 		meshInstance.Mesh = cylinderMesh;
-		meshInstance.Position = new Vector3(0, 0.04f, 0);
+		meshInstance.Position = new Vector3(0, PedestalTopHeight * 0.5f, 0);
 
 		var pedestalMat = new StandardMaterial3D
 		{
@@ -65,13 +69,15 @@ public partial class LootItem3D : Node3D
 		meshInstance.MaterialOverride = pedestalMat;
 		_visualRoot.AddChild(meshInstance);
 
-		string? iconPath = null;
-		if (GameContext.RegistryService?.ItemRegistry != null &&
-		    GameContext.RegistryService.ItemRegistry.TryGetValue(ItemTypeId, out var itemMeta) &&
-		    !string.IsNullOrEmpty(itemMeta.IconPath))
+		ItemMetadata? itemMetadata = null;
+		if (GameContext.RegistryService?.ItemRegistry != null)
 		{
-			iconPath = itemMeta.IconPath;
+			GameContext.RegistryService.ItemRegistry.TryGetValue(ItemTypeId, out itemMetadata);
 		}
+
+		if (AddModelVisual(itemMetadata?.ModelPath)) return;
+
+		string? iconPath = string.IsNullOrEmpty(itemMetadata?.IconPath) ? null : itemMetadata!.IconPath;
 
 		if (!string.IsNullOrEmpty(iconPath) && ResourceLoader.Exists(iconPath))
 		{
@@ -109,6 +115,35 @@ public partial class LootItem3D : Node3D
 		};
 		gemInstance.MaterialOverride = gemMat;
 		_visualRoot.AddChild(gemInstance);
+	}
+
+	/// <summary>
+	///     Puts the item's authored model on the pedestal, resting on it rather than sunk into the ground whatever the
+	///     mesh's own origin is. The pedestal stays, so a dropped item still reads as a pickup marker on the ground.
+	/// </summary>
+	/// <param name="modelPath">The model the item's template states, or nothing when it states none.</param>
+	/// <returns>True when a model was placed, which is what makes the icon and the gem the fallbacks.</returns>
+	private bool AddModelVisual(string? modelPath)
+	{
+		if (string.IsNullOrEmpty(modelPath) || _visualRoot == null) return false;
+
+		Node? model = ModelCache.GetModel(modelPath);
+		if (model == null)
+		{
+			return false;
+		}
+
+		if (model is not Node3D modelNode)
+		{
+			model.QueueFree();
+			return false;
+		}
+
+		(float _, float restingOffset) = ModelCache.CalculateModelBounds(modelPath);
+		modelNode.Name = "LootModel_Node3D";
+		modelNode.Position = new Vector3(0f, PedestalTopHeight + restingOffset + ModelRestingHeight, 0f);
+		_visualRoot.AddChild(modelNode);
+		return true;
 	}
 
 	public override void _Process(double delta)

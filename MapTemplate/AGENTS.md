@@ -45,7 +45,9 @@ VSCodium agent extensions can programmatically invoke editor operations by issui
 ## JSON Map Files
 
 ### metadata.json
-The primary map configuration file. Schema at `.vscode/metadata.schema.json` 
+The primary map configuration file. Schema at `.vscode/metadata.schema.json`
+
+An item under `Templates.Items` states two asset references: `IconPath`, which is what the item looks like in an inventory slot and on a ground drop that has no model, and `ModelPath`, which is the model a drop is rendered with when it lies on the ground. `ModelPath` takes the same forms any other model reference does - a `res://` path, a path relative to the map folder, or a bare name the engine looks up under `Assets/models/items` and the other model folders - so a dropped relic or resource piece reads as the object it is. A drop is also what a right-click walks a unit over to collect, and it is hit by that raycast as a small round body at the item's ground position, so a model that is tall or wide does not change how the item is picked. An item with no `ModelPath` keeps the icon billboard over a pedestal, which is what every item looked like before models were declared.
 
 ### manifest.json
 Tracks map asset registrations Schema at `.vscode/manifest.schema.json`.

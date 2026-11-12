@@ -15,6 +15,7 @@ public class ItemMetadata
 	public bool CanDrop { get; set; }
 	public int ItemLevel { get; set; }
 	public string? IconPath { get; set; }
+	public string? ModelPath { get; set; }
 	public string[]? PassiveStatusEffects { get; set; }
 	public string[]? GrantedWeapons { get; set; }
 	public string[]? GrantedAbilities { get; set; }

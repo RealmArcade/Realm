@@ -39,6 +39,7 @@ public static class UnitOrderService
 		RemoveIfPresent<WaypointQueue>(world, entity);
 		RemoveIfPresent<Gatherer>(world, entity);
 		RemoveIfPresent<RepairTask>(world, entity);
+		RemoveIfPresent<PickupTask>(world, entity);
 		RemoveIfPresent<BuildTask>(world, entity);
 		RemoveIfPresent<BuildQueue>(world, entity);
 	}

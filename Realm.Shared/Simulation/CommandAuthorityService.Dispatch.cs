@@ -83,6 +83,10 @@ public partial class CommandAuthorityService
 			case "repair_queued":
 				HandleRepairCommand(peerId, cmd, isQueued, rejectedServerEntityIds, ref rejectionReason);
 				return true;
+			case "pickup":
+			case "pickup_queued":
+				HandlePickupCommand(peerId, cmd, isQueued, rejectedServerEntityIds, ref rejectionReason);
+				return true;
 		}
 
 		return false;

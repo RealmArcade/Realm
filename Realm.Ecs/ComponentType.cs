@@ -179,7 +179,8 @@ public static class ComponentTypeRegistry
 			typeof(RepairableBuilding),
 			typeof(RepairWorker),
 			typeof(RepairTask),
-			typeof(Worker)
+			typeof(Worker),
+			typeof(PickupTask)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

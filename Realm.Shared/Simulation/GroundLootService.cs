@@ -3,6 +3,8 @@ using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Movement;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
@@ -17,8 +19,13 @@ public class GroundLootService
 
 	private const int LootBufferCapacity = 4096;
 
+	private const int PickupHolderCapacity = 2048;
+
+	private readonly record struct PickupHolder(Entity Unit, int LootItemId, Vector3 Position);
+
 	private static readonly QueryDescription AllLootQuery = new QueryDescription().WithAll<GroundLoot, Position>();
 	private static readonly QueryDescription CandidateQuery = new QueryDescription().WithAll<Position, Owner, Health>().WithNone<Dead, Building>();
+	private static readonly QueryDescription PickupHolderQuery = new QueryDescription().WithAll<PickupTask, Position>();
 
 	private readonly SimulationContext _context;
 	private readonly ItemGrantService _items;
@@ -26,8 +33,10 @@ public class GroundLootService
 	private readonly LootItemId[] _lootBuffer = new LootItemId[LootBufferCapacity];
 	private readonly List<Entity> _expired = new();
 	private readonly List<Entity> _sweepResult = new();
+	private readonly List<PickupHolder> _pickupHolders = new();
 	private readonly EntityCallback<GroundLoot, Position> _collectAll;
 	private readonly EntityCallback<Position, Owner, Health> _pickupCandidates;
+	private readonly EntityCallback<PickupTask, Position> _collectPickupHolders;
 
 	private Vector3 _pickupCenter;
 	private float _pickupRadiusSquared;
@@ -41,6 +50,7 @@ public class GroundLootService
 		_items = items;
 		_collectAll = CollectAll;
 		_pickupCandidates = CollectPickupCandidates;
+		_collectPickupHolders = CollectPickupHolders;
 	}
 
 	public EcsWorld World => _context.World;
@@ -152,6 +162,8 @@ public class GroundLootService
 
 	public void Step(float deltaSeconds)
 	{
+		StepPickupOrders();
+
 		_expired.Clear();
 		World.Query(in AllLootQuery, _collectAll);
 		if (_collectedCount == 0) return;
@@ -195,6 +207,52 @@ public class GroundLootService
 		{
 			if (World.IsAlive(_expired[index])) World.Destroy(_expired[index]);
 		}
+	}
+
+	/// <summary>
+	///     Walks every unit that carries a pickup order: the item is taken once the unit stands within the item's own
+	///     pickup radius, and the order is dropped when the item is gone or the unit has stopped short of it, so an
+	///     order never leaves a unit standing at a wall waiting for something it cannot reach.
+	/// </summary>
+	private void StepPickupOrders()
+	{
+		_pickupHolders.Clear();
+		World.Query(in PickupHolderQuery, _collectPickupHolders);
+		if (_pickupHolders.Count == 0) return;
+
+		for (int index = 0; index < _pickupHolders.Count; index++)
+		{
+			PickupHolder holder = _pickupHolders[index];
+			if (!World.IsAlive(holder.Unit) || !World.Has<PickupTask>(holder.Unit)) continue;
+
+			if (World.Has<Dead>(holder.Unit))
+			{
+				World.Remove<PickupTask>(holder.Unit);
+				continue;
+			}
+
+			if (!TryRead(holder.LootItemId, out GroundLoot loot, out Vector3 lootPosition))
+			{
+				World.Remove<PickupTask>(holder.Unit);
+				continue;
+			}
+
+			if (Vector3.Distance(holder.Position, lootPosition) <= loot.PickupRadius)
+			{
+				Collect(holder.LootItemId, holder.Unit);
+				if (World.Has<PickupTask>(holder.Unit)) World.Remove<PickupTask>(holder.Unit);
+				continue;
+			}
+
+			if (!World.Has<MoveTo>(holder.Unit)) World.Remove<PickupTask>(holder.Unit);
+		}
+	}
+
+	private void CollectPickupHolders(Entity entity, ref PickupTask task, ref Position position)
+	{
+		if (_pickupHolders.Count == PickupHolderCapacity) return;
+
+		_pickupHolders.Add(new PickupHolder(entity, task.LootEntity.Id, position.Value));
 	}
 
 	private int OwnerPlayerIndex(Entity unit)

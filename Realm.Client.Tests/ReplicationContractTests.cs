@@ -44,7 +44,7 @@ public partial class ReplicationContractTests
 		"HealingTarget",
 		"ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset",
 		"SummonedUnit",
-		"Worker", "WorkerAssignment", "RepairTask", "Harvestable", "PreviewMoveTo",
+		"Worker", "WorkerAssignment", "RepairTask", "PickupTask", "Harvestable", "PreviewMoveTo",
 		"PlayerBuildingLimit", "PlayerDamageEffectiveness", "EffectivenessAgainstPlayers"
 	};
 

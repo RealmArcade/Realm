@@ -268,6 +268,21 @@ public partial class GameHost
 		SetSkyboxTexture(EditorSkyboxPath);
 	}
 
+	private LootItem3D? FindLootItemInParentChain(Node? node)
+	{
+		while (node != null)
+		{
+			if (node is LootItem3D loot)
+			{
+				return loot;
+			}
+
+			node = node.GetParent();
+		}
+
+		return null;
+	}
+
 	private Prop3D? FindProp3DInParentChain(Node? node)
 	{
 		while (node != null)
@@ -334,6 +349,8 @@ public partial class GameHost
 
 	private const float ResourceNodeClickReach = 3.5f;
 
+	private const float LootClickReach = 1.5f;
+
 	/// <summary>
 	///     Finds the resource node a right-click landed on. A static prop is drawn by a multimesh and has no node of its
 	///     own to hit, so the click is resolved against the replicated props around the point it landed on.
@@ -370,6 +387,82 @@ public partial class GameHost
 	/// <param name="worldPosition">The point on the ground the click landed at.</param>
 	/// <param name="isQueued">Whether the order is appended behind the units' current ones.</param>
 	/// <returns>True when the click named a resource node and a selected unit can gather from it.</returns>
+	/// <summary>
+	///     Finds the ground item a click landed on, which is the item the order is about. A drop is small, so the reach
+	///     is tighter than a resource node's: clicking the ground beside a mine should gather, not pick something up.
+	/// </summary>
+	/// <param name="worldPosition">The point on the ground the click landed at.</param>
+	/// <param name="lootItem">The nearest ground item within reach of that point, or nothing.</param>
+	/// <returns>True when a dropped item lies within reach of the click.</returns>
+	public bool TryFindLootItemAt(Vector3 worldPosition, out LootItem3D? lootItem)
+	{
+		LootItem3D? closest = null;
+		float closestDistance = LootClickReach;
+
+		foreach (LootItem3D candidate in AllLootItems)
+		{
+			if (candidate == null || !GodotObject.IsInstanceValid(candidate) || !candidate.Visible) continue;
+
+			Vector3 candidatePosition = candidate.GlobalPosition;
+			float distance = new Vector2(candidatePosition.X - worldPosition.X, candidatePosition.Z - worldPosition.Z).Length();
+			if (distance >= closestDistance) continue;
+
+			closestDistance = distance;
+			closest = candidate;
+		}
+
+		lootItem = closest;
+		return lootItem != null;
+	}
+
+	/// <summary>
+	///     Sends a pickup order for a click that landed beside a ground item rather than on it, which is the same
+	///     forgiveness a click beside a resource node gets.
+	/// </summary>
+	/// <param name="worldPosition">The point on the ground the click landed at.</param>
+	/// <param name="isQueued">Whether the order is appended behind the units' current ones.</param>
+	/// <returns>True when the click named a ground item and a selected unit can walk to it.</returns>
+	public bool TryIssuePickupCommandAt(Vector3 worldPosition, bool isQueued = false)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return false;
+		if (!TryFindLootItemAt(worldPosition, out LootItem3D? lootItem) || lootItem == null) return false;
+
+		IssuePickupCommand(lootItem, isQueued);
+		return true;
+	}
+
+	/// <summary>
+	///     Sends the selected units to walk over a dropped item and take it. The authority owns the walk and the
+	///     collection, so this only names the item: a unit that cannot carry it stops at it and keeps its hands free.
+	/// </summary>
+	/// <param name="lootItem">The dropped item the units are sent to collect.</param>
+	/// <param name="isQueued">Whether the order is appended behind the units' current ones.</param>
+	public void IssuePickupCommand(LootItem3D lootItem, bool isQueued = false)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (lootItem == null || !GodotObject.IsInstanceValid(lootItem)) return;
+		if (SelectedUnits.Count == 0 || lootItem.Entity == Entity.Null || !World.IsAlive(lootItem.Entity)) return;
+
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		if (localPlayerIndex <= 0) return;
+
+		var targetIds = new List<int>();
+		foreach (Unit3D unit in SelectedUnits)
+		{
+			if (unit.IsBuilding || unit.Player != localPlayerIndex || !CanCommandUnit(unit)) continue;
+			targetIds.Add(GetServerEntityId(unit.Entity));
+		}
+
+		if (targetIds.Count == 0) return;
+
+		Vector3 lootPosition = lootItem.GlobalPosition;
+		SpawnTargetIndicator(lootPosition, new Color(0.85f, 0.75f, 0.25f));
+		GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Picking up"), new Color(0.85f, 0.75f, 0.25f));
+
+		int lootServerEntityId = lootItem.UniqueId > 0 ? lootItem.UniqueId : GetServerEntityId(lootItem.Entity);
+		SubmitOrderCommand(isQueued ? "pickup_queued" : "pickup", targetIds, lootPosition, lootServerEntityId, string.Empty);
+	}
+
 	public bool TryIssueGatherCommandAt(Vector3 worldPosition, bool isQueued = false)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return false;

@@ -928,6 +928,15 @@ public class SimulationService
 		return true;
 	}
 
+	public bool ExecutePickupCommandDomain(Entity entity, Vector3 targetPos, Entity targetEntity)
+	{
+		if (targetEntity == Entity.Null || !World.IsAlive(targetEntity)) return false;
+
+		World.SetOrAdd(entity, new PickupTask(targetEntity));
+		World.SetOrAdd(entity, new MoveTo(targetPos));
+		return true;
+	}
+
 	public bool ExecuteGatherCommandDomain(Entity entity, Vector3 targetPos, Entity targetEntity)
 	{
 		if (targetEntity == Entity.Null || !World.IsAlive(targetEntity)) return false;

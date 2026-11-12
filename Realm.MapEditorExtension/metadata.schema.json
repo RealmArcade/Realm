@@ -2128,6 +2128,12 @@
                   "null"
                 ]
               },
+              "ModelPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "PassiveStatusEffects": {
                 "type": [
                   "array",

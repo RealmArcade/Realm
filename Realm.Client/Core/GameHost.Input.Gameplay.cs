@@ -322,6 +322,7 @@ public partial class GameHost
 					var collider = hit["collider"].As<Node>();
 					var clickedUnit = FindUnit3DInParentChain(collider);
 					var clickedProp = FindProp3DInParentChain(collider);
+					var clickedLoot = FindLootItemInParentChain(collider);
 					bool shiftHeld = Input.IsKeyPressed(Key.Shift);
 					bool isClickedEnemy = clickedUnit != null && GameContext.PerspectiveFilter.IsHostileToObserved(clickedUnit.Player);
 
@@ -365,7 +366,11 @@ public partial class GameHost
 					{
 						IssueGatherCommand(clickedProp, shiftHeld);
 					}
-					else if (!TryIssueGatherCommandAt(hitPos, shiftHeld))
+					else if (clickedLoot != null && clickedLoot.Visible)
+					{
+						IssuePickupCommand(clickedLoot, shiftHeld);
+					}
+					else if (!TryIssueGatherCommandAt(hitPos, shiftHeld) && !TryIssuePickupCommandAt(hitPos, shiftHeld))
 					{
 						IssueMoveCommand(hitPos, shiftHeld);
 					}
@@ -546,6 +551,7 @@ public partial class GameHost
 					var collider = hit["collider"].As<Node>();
 					var clickedUnit = FindUnit3DInParentChain(collider);
 					var clickedProp = FindProp3DInParentChain(collider);
+					var clickedLoot = FindLootItemInParentChain(collider);
 
 					if (SelectedUnits.Count == 1 && GameContext.PerspectiveFilter.CanControl(SelectedUnits[0].Player) && CanProduceUnits(SelectedUnits[0]))
 					{
@@ -568,6 +574,10 @@ public partial class GameHost
 					else if (clickedProp != null && clickedProp.Visible && clickedProp.IsResource)
 					{
 						IssueGatherCommand(clickedProp);
+					}
+					else if (clickedLoot != null && clickedLoot.Visible)
+					{
+						IssuePickupCommand(clickedLoot);
 					}
 					else
 					{
