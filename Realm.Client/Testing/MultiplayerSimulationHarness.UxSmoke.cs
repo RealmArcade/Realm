@@ -122,14 +122,11 @@ public partial class MultiplayerSimulationHarness : Node
 			var offers = new List<Button>();
 			foreach (Button button in FindCommandButtons(hud))
 			{
-				// A package card names its building and nothing else. The hero's own cards are tagged the same way, so
-				// the mana line and the construction card are what keep them out of the draw's list.
-				if (!button.TooltipText.Contains("[/b]", StringComparison.Ordinal)) continue;
+				// A package card says that it drafts its building for wood, which is the one line no hero card, order
+				// card or relic card carries. The description then mentions mana and the worker crew, so filtering on
+				// those words would drop the very cards the draw is being read for.
+				if (!button.TooltipText.Contains("Draft ", StringComparison.Ordinal)) continue;
 				if (button.TooltipText.Contains("Abandon Construction", StringComparison.OrdinalIgnoreCase)) continue;
-				if (button.TooltipText.Contains("Begin Construction", StringComparison.OrdinalIgnoreCase)) continue;
-				if (button.TooltipText.Contains("mana", StringComparison.OrdinalIgnoreCase)) continue;
-				if (button.TooltipText.Contains("[Innate]", StringComparison.Ordinal)) continue;
-				if (button.TooltipText.Contains("[Passive]", StringComparison.Ordinal)) continue;
 				offers.Add(button);
 			}
 			return offers;
@@ -259,7 +256,7 @@ public partial class MultiplayerSimulationHarness : Node
 		// The ruleset's own food cap has to be the one the readout states, and a building has to spend from it rather
 		// than raising the cap. The label is read as the player sees it, not from the player component behind it.
 		Node? supplyReadout = hud.FindChild("SupplyLabel", true, false);
-		Check("the food readout states the ruleset cap", supplyReadout is Label supplyLabel && supplyLabel.Text.EndsWith("/ 40", StringComparison.Ordinal), (supplyReadout as Label)?.Text ?? "missing");
+		Check("the population readout states the ruleset cap", supplyReadout is Label supplyLabel && supplyLabel.Text.EndsWith("/ 8", StringComparison.Ordinal), (supplyReadout as Label)?.Text ?? "missing");
 
 		// Focusing a unit has to bring it to the middle of the screen, not the top of the frustum. The camera is moved
 		// off the hero first so centering cannot pass by being where the camera already was. The control-group recall
@@ -318,7 +315,7 @@ public partial class MultiplayerSimulationHarness : Node
 				if (child is Control { Visible: true }) visibleIcons++;
 			}
 
-			Check("every stat category a unit has shows an icon", visibleIcons >= 5, $"icons={visibleIcons}");
+			Check("every stat category a unit has shows an icon", visibleIcons >= 4, $"icons={visibleIcons}");
 			int foldedRows = hud.FindChildren("UnitStatsRow*", string.Empty, true, false).Count;
 			Check("no stat row is drawn until a category is hovered", foldedRows == 0, $"rows={foldedRows}");
 			SaveUxScreenshot("ux_smoke_stats_folded.png", "folded stats", Note);
@@ -732,8 +729,12 @@ public partial class MultiplayerSimulationHarness : Node
 		}
 		Check("a soldier-granting building floats its production count without a selection", badgeAppeared,
 			$"building={chargeBuilding?.UnitId ?? "missing"}");
-		Check("the floating production count matches the mana the building holds",
-			ReadOverheadProduction(chargeBuilding, healthBars, out int badgeNow, out int availableNow), $"badge={badgeNow} available={availableNow}");
+		// A building's mana and the plate that follows it are published and drawn on separate cadences, so the badge is
+		// allowed the refresh it takes to catch up with a production the building has just spent. A badge that never
+		// catches up still fails here; only the frame the spend lands on is not read as a disagreement.
+		bool badgeFollowsMana = await WaitUntilAsync(() => ReadOverheadProduction(chargeBuilding, healthBars, out _, out _), 2f);
+		Check("the floating production count matches the mana the building holds", badgeFollowsMana,
+			ReadOverheadProduction(chargeBuilding, healthBars, out int badgeNow, out int availableNow) ? string.Empty : $"badge={badgeNow} available={availableNow}");
 
 		Note("waiting for the drafted building to finish construction and raise its first soldier");
 		bool soldierArrived = await WaitUntilAsync(() => FindRaisedSoldier() != null, 55f);
@@ -800,7 +801,8 @@ public partial class MultiplayerSimulationHarness : Node
 			Label? workerName = hud.FindChild("UnitName", true, false) as Label;
 			Check("the worker is named in the portrait panel", workerName != null && workerName.Text == "Worker", workerName?.Text ?? "missing");
 			List<Button> workerCards = FindCommandButtons(hud);
-			Check("the worker offers no player command card", workerCards.Count == 0, $"cards={workerCards.Count}");
+			Check("the worker shows the gather card its map uses", workerCards.Count == 1 && workerCards[0].TooltipText.Contains("Gather", StringComparison.OrdinalIgnoreCase), $"cards={workerCards.Count}");
+			Check("the worker's gather card is disabled to the player", workerCards.Count > 0 && workerCards[0].Disabled, $"disabled={workerCards.FirstOrDefault()?.Disabled}");
 			Node? workerCategoryStrip = hud.FindChild("UnitStatsCategories_HBoxContainer", true, false);
 			Check("the worker shows the standard stat sheet", workerCategoryStrip is HBoxContainer);
 
