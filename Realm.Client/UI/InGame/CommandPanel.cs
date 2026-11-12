@@ -78,6 +78,7 @@ public partial class CommandPanel
 	private const string AutoCastMarqueeName = "AutoCastMarquee";
 	private const string AutoCastMarqueeShaderPath = "res://Assets/shaders/ability_autocast_marquee.gdshader";
 	private static readonly StringName AutoCastScrollScaleParameter = new("scroll_scale");
+	private static readonly StringName AutoCastEnabledParameter = new("cast_enabled");
 	private static Shader? s_autoCastMarqueeShader;
 
 	private static Shader? GetAutoCastMarqueeShader()
@@ -156,10 +157,10 @@ public partial class CommandPanel
 
 	/// <summary>
 	///     Draws the frame around an icon whose ability supports auto-cast, and keeps it drawn whether that auto-cast is on
-	///     or off: the dashes travel while this caster is casting on its own and hold still while it is not, so the frame
-	///     reads as the card being able to cast itself rather than as the cast being switched on. The state is the
-	///     replicated one, so the frame follows what the authority actually does rather than the last click this screen
-	///     made.
+	///     or off: the dashes travel while this caster is casting on its own and hold still while it is not, and the whole
+	///     frame is drawn dimmer while it is off, so the switched-on state is read at a glance instead of taken from the
+	///     dashes being in motion. The state is the replicated one, so the frame follows what the authority actually does
+	///     rather than the last click this screen made.
 	/// </summary>
 	private static void UpdateAutoCastMarquee(Button btn, CommandCardItem item)
 	{
@@ -177,6 +178,7 @@ public partial class CommandPanel
 		if (MathF.Abs(material.GetShaderParameter(AutoCastScrollScaleParameter).AsSingle() - scrollScale) < 0.001f) return;
 
 		material.SetShaderParameter(AutoCastScrollScaleParameter, scrollScale);
+		material.SetShaderParameter(AutoCastEnabledParameter, scrollScale);
 	}
 
 	private float GetMaxCooldown(CommandCardItem item, AbilityDefinition? abilityDef, float cdRemaining)
