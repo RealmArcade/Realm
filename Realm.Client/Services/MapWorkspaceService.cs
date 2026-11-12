@@ -772,6 +772,9 @@ public static partial class MapWorkspaceService
 	[GeneratedRegex(@"<Target\s+Name=""ClearComponentWit""[^>]*>.*?</Target>", RegexOptions.Singleline)]
 	private static partial Regex ClearComponentWitTargetRegex();
 
+	[GeneratedRegex(@"(<PropertyGroup[^>]*Condition=""'\$\(Configuration\)'\s*==\s*'Debug'""[^>]*>[\s\S]*?<Optimize>)true(</Optimize>)", RegexOptions.IgnoreCase)]
+	private static partial Regex DebugOptimizeTrueRegex();
+
 	public static string GetDefaultIlcLlvmTarget()
 	{
 		string templatePath = GetTemplatePath("MapScript.csproj");
@@ -799,6 +802,8 @@ public static partial class MapWorkspaceService
 
 		csprojContent = ProjectReferenceMapApiRegex().Replace(csprojContent,
 			$"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>");
+
+		csprojContent = DebugOptimizeTrueRegex().Replace(csprojContent, "$1false$2");
 
 		csprojContent = ReferenceMapApiRegex().Replace(csprojContent,
 			$"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>");

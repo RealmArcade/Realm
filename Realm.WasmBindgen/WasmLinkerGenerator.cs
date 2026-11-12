@@ -2933,26 +2933,27 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		var structSizes = new Dictionary<string, int>();
 		var structSymbols = new[]
 		{
-			("POSITION", "Realm.MapAPI.Position"),
-			("HEALTH", "Realm.MapAPI.Health"),
-			("MANA", "Realm.MapAPI.Mana"),
-			("ATTACK", "Realm.MapAPI.Attack"),
-			("ARMOR", "Realm.MapAPI.Resistances"),
-			("MOVEMENT_STATS", "Realm.MapAPI.MovementStats"),
-			("UNIT_OWNER_PLAYER", "Realm.MapAPI.UnitOwnerPlayer"),
-			("LEVEL", "Realm.MapAPI.Level"),
-			("EXPERIENCE", "Realm.MapAPI.Experience"),
-			("MODEL_SCALE", "Realm.MapAPI.ModelScale"),
-			("ROTATION_Y", "Realm.MapAPI.RotationY"),
-			("PLAYER_RESOURCES", "Realm.MapAPI.PlayerResources"),
-			("SCRIPT_PLAYER", "Realm.MapAPI.ScriptPlayer"),
-			("PLAYER_POPULATION", "Realm.MapAPI.PlayerPopulation"),
+			("POSITION", "Realm.Ecs.Components.Core.Position", "Realm.MapAPI.Position"),
+			("HEALTH", "Realm.Ecs.Components.Core.Health", "Realm.MapAPI.Health"),
+			("MANA", "Realm.Ecs.Components.Core.Mana", "Realm.MapAPI.Mana"),
+			("ATTACK", "Realm.Ecs.Components.Combat.Attack", "Realm.MapAPI.Attack"),
+			("ARMOR", "Realm.Ecs.Components.Combat.Resistances", "Realm.MapAPI.Resistances"),
+			("MOVEMENT_STATS", "Realm.Ecs.Components.Movement.MovementStats", "Realm.MapAPI.MovementStats"),
+			("UNIT_OWNER_PLAYER", "Realm.Ecs.Components.Core.UnitOwnerPlayer", "Realm.MapAPI.UnitOwnerPlayer"),
+			("LEVEL", "Realm.Ecs.Components.Meta.Level", "Realm.MapAPI.Level"),
+			("EXPERIENCE", "Realm.Ecs.Components.Meta.Experience", "Realm.MapAPI.Experience"),
+			("MODEL_SCALE", "Realm.Ecs.Components.Meta.ModelScale", "Realm.MapAPI.ModelScale"),
+			("ROTATION_Y", "Realm.Ecs.Components.Meta.RotationY", "Realm.MapAPI.RotationY"),
+			("PLAYER_RESOURCES", "Realm.Ecs.Components.Resources.PlayerResources", "Realm.MapAPI.PlayerResources"),
+			("SCRIPT_PLAYER", "Realm.Ecs.Components.Core.ScriptPlayer", "Realm.MapAPI.ScriptPlayer"),
+			("PLAYER_POPULATION", "Realm.Ecs.Components.Core.PlayerPopulation", "Realm.MapAPI.PlayerPopulation"),
 		};
 
-		foreach (var (prefix, typeName) in structSymbols)
+		foreach (var (prefix, typeName, fallbackName) in structSymbols)
 		{
 			var sym = compilation.GetTypeByMetadataName(typeName) ??
-			          compilation.GetTypeByMetadataName($"Realm.MapAPI.Components.{typeName.Substring("Realm.MapAPI.".Length)}");
+			          compilation.GetTypeByMetadataName(fallbackName) ??
+			          compilation.GetTypeByMetadataName($"Realm.MapAPI.Components.{fallbackName.Substring("Realm.MapAPI.".Length)}");
 			if (sym != null)
 			{
 				CalculateStructLayout(sym, out int size);
@@ -2964,38 +2965,54 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 			}
 		}
 
+		var componentIdsSymbol = compilation.GetTypeByMetadataName("Realm.Ecs.ComponentIds");
+		int GetCompId(string name, int fallback)
+		{
+			if (componentIdsSymbol != null)
+			{
+				var member = componentIdsSymbol.GetMembers(name).OfType<IFieldSymbol>().FirstOrDefault();
+				if (member != null && member.HasConstantValue && member.ConstantValue is int val)
+				{
+					return val;
+				}
+			}
+			return fallback;
+		}
+
 		var playerFields = new List<(string Name, int CompId, string ArrayOffsetName, string ElemSizeName, int SubOffset, string TypeName)>
 		{
-			("Gold", 68, "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 0, "int"),
-			("Wood", 68, "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 4, "int"),
-			("Stone", 68, "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 8, "int"),
-			("Ore", 68, "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 12, "int"),
-			("IsActive", 31, "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 0, "bool"),
-			("IsComputer", 31, "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 1, "bool"),
-			("Team", 31, "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 4, "int"),
-			("CurrentPopulation", 24, "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 0, "int"),
-			("MaxPopulation", 24, "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 4, "int"),
+			("Id", -1, "0", "0", 0, "int"),
+			("Gold", GetCompId("PlayerResources", 69), "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 0, "int"),
+			("Wood", GetCompId("PlayerResources", 69), "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 4, "int"),
+			("Stone", GetCompId("PlayerResources", 69), "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 8, "int"),
+			("Ore", GetCompId("PlayerResources", 69), "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 12, "int"),
+			("IsActive", GetCompId("ScriptPlayer", 31), "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 0, "bool"),
+			("IsComputer", GetCompId("ScriptPlayer", 31), "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 1, "bool"),
+			("Team", GetCompId("ScriptPlayer", 31), "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 4, "int"),
+			("CurrentPopulation", GetCompId("PlayerPopulation", 24), "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 0, "int"),
+			("MaxPopulation", GetCompId("PlayerPopulation", 24), "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 4, "int"),
 		};
 
 		var entityFields = new List<(string Name, int CompId, string ArrayOffsetName, string ElemSizeName, int SubOffset, string TypeName)>
 		{
-			("Health", 1, "HEALTH_OFFSET", "HEALTH_SIZE", 0, "float"),
-			("MaxHealth", 1, "HEALTH_OFFSET", "HEALTH_SIZE", 4, "float"),
-			("Mana", 3, "MANA_OFFSET", "MANA_SIZE", 0, "float"),
-			("MaxMana", 3, "MANA_OFFSET", "MANA_SIZE", 4, "float"),
-			("ManaRegen", 3, "MANA_OFFSET", "MANA_SIZE", 8, "float"),
-			("Damage", 43, "ATTACK_OFFSET", "ATTACK_SIZE", 0, "float"),
-			("Range", 43, "ATTACK_OFFSET", "ATTACK_SIZE", 4, "float"),
-			("AttackSpeed", 43, "ATTACK_OFFSET", "ATTACK_SIZE", 8, "float"),
-			("Armor", 48, "ARMOR_OFFSET", "ARMOR_SIZE", 0, "float"),
-			("MagicResistance", 48, "ARMOR_OFFSET", "ARMOR_SIZE", 4, "float"),
-			("Speed", 57, "MOVEMENT_STATS_OFFSET", "MOVEMENT_STATS_SIZE", 0, "float"),
-			("Position", 0, "POSITION_OFFSET", "POSITION_SIZE", 0, "Vector3"),
-			("Player", 37, "UNIT_OWNER_PLAYER_OFFSET", "UNIT_OWNER_PLAYER_SIZE", 0, "int"),
-			("Level", 105, "LEVEL_OFFSET", "LEVEL_SIZE", 0, "int"),
-			("Experience", 103, "EXPERIENCE_OFFSET", "EXPERIENCE_SIZE", 0, "float"),
-			("Scale", 107, "MODEL_SCALE_OFFSET", "MODEL_SCALE_SIZE", 0, "float"),
-			("RotationY", 111, "ROTATION_Y_OFFSET", "ROTATION_Y_SIZE", 0, "float"),
+			("Id", -1, "0", "0", 0, "int"),
+			("Health", GetCompId("Health", 1), "HEALTH_OFFSET", "HEALTH_SIZE", 0, "float"),
+			("MaxHealth", GetCompId("Health", 1), "HEALTH_OFFSET", "HEALTH_SIZE", 4, "float"),
+			("Mana", GetCompId("Mana", 3), "MANA_OFFSET", "MANA_SIZE", 0, "float"),
+			("MaxMana", GetCompId("Mana", 3), "MANA_OFFSET", "MANA_SIZE", 4, "float"),
+			("ManaRegen", GetCompId("Mana", 3), "MANA_OFFSET", "MANA_SIZE", 8, "float"),
+			("Damage", GetCompId("Attack", 43), "ATTACK_OFFSET", "ATTACK_SIZE", 0, "float"),
+			("Range", GetCompId("Attack", 43), "ATTACK_OFFSET", "ATTACK_SIZE", 4, "float"),
+			("AttackSpeed", GetCompId("Attack", 43), "ATTACK_OFFSET", "ATTACK_SIZE", 8, "float"),
+			("Armor", GetCompId("Resistances", 48), "ARMOR_OFFSET", "ARMOR_SIZE", 0, "float"),
+			("MagicResistance", GetCompId("Resistances", 48), "ARMOR_OFFSET", "ARMOR_SIZE", 4, "float"),
+			("Speed", GetCompId("MovementStats", 57), "MOVEMENT_STATS_OFFSET", "MOVEMENT_STATS_SIZE", 0, "float"),
+			("Position", GetCompId("Position", 0), "POSITION_OFFSET", "POSITION_SIZE", 0, "Vector3"),
+			("Player", GetCompId("UnitOwnerPlayer", 37), "UNIT_OWNER_PLAYER_OFFSET", "UNIT_OWNER_PLAYER_SIZE", 0, "int"),
+			("Level", GetCompId("Level", 106), "LEVEL_OFFSET", "LEVEL_SIZE", 0, "int"),
+			("Experience", GetCompId("Experience", 104), "EXPERIENCE_OFFSET", "EXPERIENCE_SIZE", 0, "float"),
+			("Scale", GetCompId("ModelScale", 108), "MODEL_SCALE_OFFSET", "MODEL_SCALE_SIZE", 0, "float"),
+			("RotationY", GetCompId("RotationY", 112), "ROTATION_Y_OFFSET", "ROTATION_Y_SIZE", 0, "float"),
 		};
 
 		var offsetsBuilder = new StringBuilder();
