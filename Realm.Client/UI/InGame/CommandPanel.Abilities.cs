@@ -117,11 +117,6 @@ public partial class CommandPanel
 
 		if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;
 
-		int casterPlayer = GameContext.World != null && GameContext.World.IsAlive(casterEntity) && GameContext.World.Has<UnitOwnerPlayer>(casterEntity)
-			? GameContext.World.Get<UnitOwnerPlayer>(casterEntity).PlayerIndex
-			: GameContext.PerspectiveFilter.ControlledPlayerIndex;
-		if (host.GetPlayerSpellCooldown(casterPlayer, abilityId) > 0f) return true;
-
 		var world = GameContext.World;
 		if (world == null || casterEntity == Entity.Null || !world.IsAlive(casterEntity)) return false;
 

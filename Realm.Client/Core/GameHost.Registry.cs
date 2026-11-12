@@ -97,30 +97,6 @@ public partial class GameHost
 			World.Set(GameContext.Simulation.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, value, s.DayNightCycleEnabled)));
 	}
 
-	public float GetPlayerSpellCooldown(int playerIndex, string abilityId)
-	{
-		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
-		if (GameContext.World == null || pe == Entity.Null || !World.IsAlive(pe)) return 0f;
-		if (World.Has<SpellCooldowns>(pe))
-		{
-			var spellCooldowns = World.Get<SpellCooldowns>(pe);
-			if (spellCooldowns.TryGetValue(abilityId, out float remaining)) return remaining;
-		}
-
-		return 0f;
-	}
-
-	public void SetPlayerSpellCooldown(int playerIndex, string abilityId, float cooldown)
-	{
-		var pe = GetPlayerEntityForPlayerIndex(playerIndex);
-		if (GameContext.World == null || pe == Entity.Null || !World.IsAlive(pe)) return;
-		if (World.Has<SpellCooldowns>(pe))
-		{
-			ref var spellCooldowns = ref World.Get<SpellCooldowns>(pe);
-			spellCooldowns.Set(abilityId, cooldown, cooldown);
-		}
-	}
-
 	public static Dictionary<StringName, UnitMetadata> UnitRegistry => GameContext.RegistryService?.UnitRegistry ?? new();
 	public static Dictionary<StringName, UnitMetadata> BuildingRegistry => GameContext.RegistryService?.BuildingRegistry ?? new();
 	public static Dictionary<StringName, PropMetadata> PropRegistry => GameContext.RegistryService?.PropRegistry ?? new();

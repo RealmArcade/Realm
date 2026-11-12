@@ -781,16 +781,6 @@ public class InputService
 		state.CycleSelectionIndex = selectedCount > 0 ? Math.Clamp(value, 0, selectedCount - 1) : 0;
 	}
 
-	public void SetSpellCooldown(Entity playerEntity, string spellId, float cooldown)
-	{
-		if (playerEntity == Entity.Null || !World.IsAlive(playerEntity)) return;
-		if (World.Has<SpellCooldowns>(playerEntity))
-		{
-			ref var spellCooldowns = ref World.Get<SpellCooldowns>(playerEntity);
-			spellCooldowns.Set(spellId, cooldown, cooldown);
-		}
-	}
-
 	public float GetSpellCooldown(Entity playerEntity, string spellId)
 	{
 		if (playerEntity == Entity.Null || !World.IsAlive(playerEntity)) return 0f;

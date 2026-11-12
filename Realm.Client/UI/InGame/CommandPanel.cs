@@ -220,11 +220,6 @@ public partial class CommandPanel
 
 		var caster = item.CasterEntity != Entity.Null && world.IsAlive(item.CasterEntity) ? item.CasterEntity : _lastFocusedEntity;
 		GetCasterState(caster, world, item.AbilityId, ref currentMana, ref cdRemaining);
-
-		if (cdRemaining <= 0f && GameContext.Host != null)
-		{
-			cdRemaining = GameContext.Host.GetPlayerSpellCooldown(GameContext.PerspectiveFilter.ControlledPlayerIndex, item.AbilityId);
-		}
 	}
 
 	private void UpdateAbilityLabelsAndSweep(Button btn, float manaCost, float cdRemaining, float maxCd)

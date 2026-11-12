@@ -84,11 +84,6 @@ public partial class GameHost
 
 	private void ExecuteClientMultiplayerSpellCast(string spellId, AbilityDefinition? def, Vector3 position)
 	{
-		if (def != null && def.Cooldown > 0f)
-		{
-			GameContext.InputService.SetSpellCooldown(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), spellId, def.Cooldown);
-		}
-
 		if (def != null)
 		{
 			GameContext.FXService.SpawnAbilityEffect(this, def, position);
