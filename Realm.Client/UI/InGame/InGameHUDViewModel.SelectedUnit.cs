@@ -258,7 +258,7 @@ public partial class InGameHUDViewModel
 			// still produces: what a player needs to see is the pool its auto-cast draws from and how fast it returns.
 			// The reading is inspection, not ownership, so an opponent's building shows the same pool.
 			info.HasProduction = true;
-			info.ProductionTitle = string.Format(TranslationServer.Translate("MANA: {0} / {1} (+{2}/s)"), (int)mana.Current, (int)mana.Max, mana.ManaRegen);
+			info.ProductionTitle = string.Format(TranslationServer.Translate("MANA: {0} / {1} (+{2:0.##}/s)"), (int)mana.Current, (int)mana.Max, mana.ManaRegen);
 			info.ProductionProgress = mana.Current;
 			info.ProductionMaxProgress = mana.Max;
 			if (info.ProductionQueue.Count > 0)

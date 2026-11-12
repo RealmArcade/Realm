@@ -1163,7 +1163,7 @@
   "Luma Threshold": "Luma Threshold",
   "Luminance To Alpha": "Luminance To Alpha",
   "M Key": "M Key",
-  "MANA: {0} / {1} (+{2}/s)": "MANA: {0} / {1} (+{2}/s)",
+  "MANA: {0} / {1} (+{2:0.##}/s)": "MANA: {0} / {1} (+{2:0.##}/s)",
   "MANAGE BACKUP STORAGE": "MANAGE BACKUP STORAGE",
   "MAP BUILD MISMATCH": "MAP BUILD MISMATCH",
   "MAP DESCRIPTION": "MAP DESCRIPTION",
