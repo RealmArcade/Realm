@@ -148,6 +148,56 @@ namespace Realm.Ecs.Tests
 		}
 
 		[Test]
+		public void HeroPassesThroughAnEnemySoldier()
+		{
+			InitializeTerrain();
+			SpawnUnit(Vector3.Zero, playerIndex: 2);
+
+			Entity hero = SpawnUnit(Start, playerIndex: 1);
+			World.Add(hero, new Hero());
+
+			Vector3 end = WalkThroughTheLine(hero, out float drift, out float closestApproach);
+
+			AssertCrossedTheBlocker(end);
+			Assert.That(closestApproach, Is.LessThan(0.3f), $"The hero went around an enemy soldier instead of through it (closest approach {closestApproach:0.##}).");
+			Assert.That(drift, Is.LessThan(LateralDriftThatProvesABlock),
+				$"The hero was pushed aside by an enemy soldier (drift {drift:0.##}).");
+		}
+
+		[Test]
+		public void HeroIsBodyBlockedByAnotherHero()
+		{
+			InitializeTerrain();
+			Entity waitingHero = SpawnUnit(Vector3.Zero, playerIndex: 2);
+			World.Add(waitingHero, new Hero());
+
+			Entity mover = SpawnUnit(Start, playerIndex: 1);
+			World.Add(mover, new Hero());
+
+			Vector3 end = WalkThroughTheLine(mover, out float drift, out float closestApproach);
+
+			AssertWentAroundTheBlocker(closestApproach, 0.55f);
+			Assert.That(drift, Is.GreaterThan(0.4f),
+				$"One hero had to leave the other's line to get past it (drift {drift:0.##}).");
+		}
+
+		[Test]
+		public void HeroGoesAroundADamagedEnemyBuilding()
+		{
+			InitializeTerrain();
+			Entity building = SpawnBuilding(Vector3.Zero, playerIndex: 2);
+			World.Add(building, new Health(500f, 1000f));
+
+			Entity hero = SpawnUnit(Start, playerIndex: 1);
+			World.Add(hero, new Hero());
+
+			Vector3 end = WalkThroughTheLine(hero, out float drift, out float closestApproach);
+
+			AssertWentAroundTheBlocker(closestApproach, 1.4f);
+			Assert.That(drift, Is.GreaterThan(1f), $"A damaged enemy building still blocks its line (drift {drift:0.##}).");
+		}
+
+		[Test]
 		public void SoldierIsStillBodyBlockedByAnotherSoldier()
 		{
 			InitializeTerrain();
