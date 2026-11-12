@@ -6,6 +6,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
@@ -631,6 +632,15 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		if (entity == Entity.Null) return 0f;
 
 		return _context.World.TryGet<RepairWorker>(entity, out RepairWorker repairWorker) ? repairWorker.HealthPercentPerSecond : 0f;
+	}
+
+	public float GetUnitSpellPower(UnitId unit)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return 0f;
+		if (!_context.World.TryGet<Stats>(entity, out Stats stats)) return 0f;
+
+		return stats.TryGetValue(new StatId(StatKeys.SpellPower), out float spellPower) ? spellPower : 0f;
 	}
 
 	public void SetUnitRepairable(UnitId unit, bool repairable)

@@ -70,7 +70,7 @@ public class MeleeInspectorTests
 			"The hero's hover text has to state the soldiers it counts.");
 		Assert.That(_match.UnitTooltipText(1, hero, "buff.bulwark.icon"), Does.EndWith(".webp"), "The buff needs the icon the strip draws.");
 
-		Assert.That(_match.UnitTooltipText(1, nexus, "buff.bulwark.description"), Does.Contain("Buildings counted: 1"),
+		Assert.That(_match.UnitTooltipText(1, nexus, "buff.bulwark.description"), Does.Contain("Allied buildings: 1"),
 			"The Nexus hover text has to state the buildings its bulwark counts.");
 	}
 

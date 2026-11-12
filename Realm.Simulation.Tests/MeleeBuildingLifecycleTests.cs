@@ -170,7 +170,7 @@ public class MeleeBuildingLifecycleTests
 
 		_match.Step(20f);
 
-		Assert.That(_match.ManaOf(building), Is.GreaterThanOrEqualTo(manaBefore - 0.5f), "The production mana a destroyed building held is kept, even as its pool keeps refilling.");
+		Assert.That(_match.ManaOf(building), Is.EqualTo(manaBefore).Within(0.5f), "The production mana a destroyed building held is kept, and its pool must not regenerate while it is dormant.");
 		Assert.That(_match.Soldiers(1).Count, Is.LessThanOrEqualTo(soldiersBefore), "A dormant building fields no soldiers.");
 
 		UnitId hero = _match.Hero(1);

@@ -333,8 +333,10 @@ public class MeleeConstructionDraftTests
 
 		Assert.That(_match.Buildings(1).Count, Is.EqualTo(MaximumBuildingsPerPlayer + 1), "Eight drafted sites plus the Nexus fill the player's building count.");
 
+		float woodAtLimit = _match.Wood(1);
 		_match.Cast(1, MeleeMatch.BeginConstructionAbilityId, new Vector3(-20f, 0f, -60f));
 		Assert.That(_match.DraftOptions(1), Is.Empty, "A player at the building limit must not be offered another draw.");
+		Assert.That(_match.Wood(1), Is.EqualTo(woodAtLimit).Within(0.01f), "A refused placement must not charge its wood.");
 	}
 
 	[Test]

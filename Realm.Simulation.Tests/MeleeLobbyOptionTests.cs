@@ -108,6 +108,45 @@ public class MeleeLobbyOptionTests
 	}
 
 	[Test]
+	public void OpenPoolDraftingKeepsAPickedBuildingAvailable()
+	{
+		var options = new MatchOptionSet();
+		options.Set(MatchOption.OpenPoolDrafting, 1);
+		MeleeTestMaps.RequireMaps();
+		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match.SetWood(1, 500f);
+		_match.SetWood(2, 500f);
+
+		DraftOffer firstDraw = _match.BeginConstruction(1, FirstSite);
+		string picked = firstDraw.AbilityIds[0];
+		_match.LockDraftOption(1, picked, FirstSite);
+
+		DraftOffer secondDraw = _match.BeginConstruction(2, SecondSite);
+
+		Assert.That(secondDraw.AbilityIds, Does.Contain(picked), "Open-pool drafting has to leave a picked building in the shared deck.");
+		_match.AbandonDraft(2);
+	}
+
+	[Test]
+	public void MirroredDraftOffersEveryPlayerTheSameBuildings()
+	{
+		var options = new MatchOptionSet();
+		options.Set(MatchOption.MirroredAutoDraft, 1);
+		options.Set(MatchOption.MaximumBuildingDraftCount, 2);
+		MeleeTestMaps.RequireMaps();
+		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match.SetWood(1, 500f);
+		_match.SetWood(2, 500f);
+
+		DraftOffer first = _match.BeginConstruction(1, FirstSite);
+		DraftOffer second = _match.BeginConstruction(2, SecondSite);
+
+		Assert.That(second.AbilityIds, Is.EquivalentTo(first.AbilityIds), "A mirrored draw has to offer the same buildings to every player.");
+		_match.AbandonDraft(1);
+		_match.AbandonDraft(2);
+	}
+
+	[Test]
 	public void TheHostRevealsTheBoardToEveryPlayer()
 	{
 		var options = new MatchOptionSet();

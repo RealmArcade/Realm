@@ -107,6 +107,7 @@ interface game-api {
     get-unit-name: func(unit-type-id: string) -> string;
     get-unit-repair-rate: func(unit-id: s32) -> f32;
     get-unit-route-state: func(unit-id: s32) -> s32;
+    get-unit-spell-power: func(unit-id: s32) -> f32;
     get-unit-template-id: func(unit-id: s32) -> string;
     get-unit-type-abilities-count: func(unit-type-id: string) -> s32;
     get-unit-type-abilities-get: func(unit-type-id: string, index: s32) -> string;

@@ -100,6 +100,68 @@ public class MeleeAffinityTests
 	}
 
 	[Test]
+	public void TwoTeamsJoiningOneDefenderAreEachHalved()
+	{
+		MeleeTestMaps.RequireMaps();
+		_match = MeleeMatch.Start(new[] { "Vale", "Sable", "Corvus" });
+
+		UnitId firstAttacker = _match.Hero(1);
+		UnitId secondAttacker = _match.Hero(3);
+		UnitId defender = _match.Hero(2);
+		_match.Api.EnableUnitAutoCombat(firstAttacker, false);
+		_match.Api.EnableUnitAutoCombat(secondAttacker, false);
+		_match.Api.EnableUnitAutoCombat(defender, false);
+		_match.Api.SetUnitMaxHealth(defender, 1000000f);
+		_match.Api.SetUnitHealth(defender, 1000000f);
+
+		for (int blow = 0; blow < 6; blow++)
+		{
+			_match.Api.DealTypedDamage(firstAttacker, defender, 400f, "physical");
+			_match.Api.DealTypedDamage(secondAttacker, defender, 400f, "physical");
+		}
+
+		_match.Step(1.5f);
+
+		Assert.That(_match.Effectiveness(1, 2), Is.EqualTo(0.5f).Within(0.03f), "A team sharing a fight with a second attacker has to deal roughly half its damage.");
+		Assert.That(_match.Effectiveness(3, 2), Is.EqualTo(0.5f).Within(0.03f), "The second attacker shares the same half effectiveness as the first.");
+	}
+
+	[Test]
+	public void AThreeWayFightKeepsRoughlyThreeQuartersForEveryTeam()
+	{
+		MeleeTestMaps.RequireMaps();
+		_match = MeleeMatch.Start(new[] { "Vale", "Corvus", "Vale" });
+
+		UnitId first = _match.Hero(1);
+		UnitId second = _match.Hero(2);
+		UnitId third = _match.Hero(3);
+		UnitId[] heroes = { first, second, third };
+		for (int index = 0; index < heroes.Length; index++)
+		{
+			_match.Api.EnableUnitAutoCombat(heroes[index], false);
+			_match.Api.SetUnitMaxHealth(heroes[index], 1000000f);
+			_match.Api.SetUnitHealth(heroes[index], 1000000f);
+		}
+
+		for (int blow = 0; blow < 3; blow++)
+		{
+			_match.Api.DealTypedDamage(first, second, 400f, "physical");
+			_match.Api.DealTypedDamage(first, third, 400f, "physical");
+			_match.Api.DealTypedDamage(second, first, 400f, "physical");
+			_match.Api.DealTypedDamage(second, third, 400f, "physical");
+			_match.Api.DealTypedDamage(third, first, 400f, "physical");
+			_match.Api.DealTypedDamage(third, second, 400f, "physical");
+		}
+
+		_match.Step(1.5f);
+
+		foreach ((int attacker, int defender) in new[] { (1, 2), (1, 3), (2, 1), (2, 3), (3, 1), (3, 2) })
+		{
+			Assert.That(_match.Effectiveness(attacker, defender), Is.EqualTo(0.77f).Within(0.04f), $"Team {attacker} against team {defender} has to keep roughly three quarters of its damage in a three-way fight.");
+		}
+	}
+
+	[Test]
 	public void ParticipationFadesSoAnAbandonedFightReturnsToFullEffectiveness()
 	{
 		MeleeTestMaps.RequireMaps();

@@ -236,6 +236,19 @@ public partial interface IGameAPI
 	float GetUnitRepairRate(UnitId unit);
 
 	/// <summary>
+	/// Answers a unit's current spell power, the multiplier its ability damage carries after its attributes and buffs
+	/// have been resolved.
+	/// </summary>
+	/// <remarks>
+	/// Spell power belongs to the caster rather than to one ability, so a rule that scales a burn, a heal or a shield
+	/// from it reads the same number every ability reads. It is a multiplier added to one, which is how the engine applies
+	/// it to authored ability damage; a unit with no spell power answers zero.
+	/// </remarks>
+	/// <param name="unit">The unit whose spell power is read.</param>
+	/// <returns>The spell power multiplier, or zero when the unit has none.</returns>
+	float GetUnitSpellPower(UnitId unit);
+
+	/// <summary>
 	/// States whether a building falls dormant when its health runs out instead of being destroyed.
 	/// </summary>
 	/// <remarks>
