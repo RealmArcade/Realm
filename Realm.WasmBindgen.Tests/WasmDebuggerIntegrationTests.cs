@@ -123,6 +123,19 @@ public class WasmDebuggerIntegrationTests
 	}
 
 	[Test]
+	public void GeneratedScriptCarriesVersionMetadataAndDiagnosticCommands()
+	{
+		string script = File.ReadAllText(_generatedScriptPath);
+
+		Assert.That(script, Does.Contain("REALM_LLDB_SCRIPT_VERSION"));
+		Assert.That(script, Does.Contain("REALM_LLDB_SCRIPT_HASH"));
+		Assert.That(script, Does.Contain("REALM_LLDB_SOURCE_COMMIT"));
+		Assert.That(script, Does.Contain("def realm_version"));
+		Assert.That(script, Does.Contain("def realm_verify"));
+		Assert.That(script, Does.Contain("def realm_doctor"));
+	}
+
+	[Test]
 	public void MapApiComponentsAreDiscoveredFromMarkerAttribute()
 	{
 		string generated = WasmEcsComponentEmitter.GenerateEcsComponents(_repoRoot);

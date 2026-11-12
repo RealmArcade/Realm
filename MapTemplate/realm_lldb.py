@@ -261,6 +261,11 @@ HOST_TYPES = {
     },
 }
 
+# Generated debugger script metadata
+REALM_LLDB_SCRIPT_VERSION = "1"
+REALM_LLDB_SCRIPT_HASH = "f683cd830eee2a946494ad66b004576a1e69bd91fef15b6693299a1f07a1a26b"
+REALM_LLDB_SOURCE_COMMIT = "0181bda7930e0b2d1f17b3c8640b8a3221a909a0"
+
 INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"
 
 _CACHED_BASE_ADDR = 0
@@ -632,6 +637,130 @@ def format_summary_value(value):
         return "(" + ", ".join(f"{part:.1f}" for part in value) + ")"
     return str(value)
 
+def workspace_search_dirs(target=None):
+    import os
+    dirs = [os.getcwd()]
+    if target and target.IsValid():
+        exe = target.GetExecutable()
+        if exe and exe.IsValid():
+            dirs.append(exe.GetDirectory())
+    if "__file__" in globals():
+        dirs.append(os.path.dirname(__file__))
+    return [directory for directory in dirs if directory]
+
+def find_workspace_file(name, target=None):
+    import os
+    for directory in workspace_search_dirs(target):
+        path = os.path.join(directory, name)
+        if os.path.exists(path):
+            return path
+    return None
+
+def verify_component_tables(target):
+    if not target or not target.IsValid():
+        return ["no target is selected"]
+    base_addr = get_shared_memory_base(target)
+    if base_addr == 0:
+        return ["shared memory base could not be resolved"]
+
+    process = target.GetProcess()
+    drift = []
+    for component_name in sorted(COMPONENT_OFFSETS):
+        component_id = COMPONENT_IDS.get(component_name, -1)
+        if component_id < 0:
+            drift.append(f"{component_name}: no component id")
+            continue
+
+        expected_offset = COMPONENT_OFFSETS[component_name]
+        expected_stride = COMPONENT_SIZES.get(component_name, 0)
+        actual_base = resolve_array_base(process, base_addr, component_id, expected_offset)
+        actual_offset = actual_base - base_addr
+        actual_stride = resolve_component_stride(process, base_addr, component_id, expected_stride)
+
+        if actual_offset != expected_offset:
+            drift.append(f"{component_name}: offset generated {expected_offset}, runtime {actual_offset}")
+        if expected_stride and actual_stride != expected_stride:
+            drift.append(f"{component_name}: stride generated {expected_stride}, runtime {actual_stride}")
+
+    return drift
+
+def realm_version(debugger, command, result, internal_dict):
+    result.AppendMessage(f"realm_lldb.py version: {globals().get('REALM_LLDB_SCRIPT_VERSION', 'unknown')}")
+    result.AppendMessage(f"script hash: {globals().get('REALM_LLDB_SCRIPT_HASH', 'unknown')}")
+    result.AppendMessage(f"source commit: {globals().get('REALM_LLDB_SOURCE_COMMIT', 'unknown')}")
+    result.AppendMessage(f"script path: {globals().get('__file__', 'unknown')}")
+    result.AppendMessage(f"handle types: {len(HANDLE_TYPES)}")
+    result.AppendMessage(f"host types: {len(HOST_TYPES)}")
+    result.AppendMessage(f"components: {len(COMPONENT_OFFSETS)}")
+
+def realm_verify(debugger, command, result, internal_dict):
+    target = debugger.GetSelectedTarget()
+    drift = verify_component_tables(target)
+    if not drift:
+        result.AppendMessage(f"realm_verify: {len(COMPONENT_OFFSETS)} component tables match the generated script")
+        return
+
+    result.AppendMessage(f"realm_verify: {len(drift)} drift(s) found")
+    for line in drift:
+        result.AppendMessage("  " + line)
+
+def realm_doctor(debugger, command, result, internal_dict):
+    import json
+    target = debugger.GetSelectedTarget()
+    lines = []
+
+    def add(ok, message):
+        lines.append(("[OK] " if ok else "[FAIL] ") + message)
+
+    pid_path = find_workspace_file("authority.pid", target)
+    if pid_path:
+        try:
+            with open(pid_path, "r") as pid_file:
+                pid_text = pid_file.read().strip()
+            add(pid_text.isdigit(), f"authority.pid: {pid_path} ({pid_text})")
+        except Exception as exception:
+            add(False, f"authority.pid: {pid_path} could not be read: {exception}")
+    else:
+        add(False, "authority.pid: not found")
+
+    debug_path = find_workspace_file("MapScript.debug.json", target)
+    if debug_path:
+        try:
+            with open(debug_path, "r") as debug_file:
+                data = json.load(debug_file)
+            pointer = data.get("sharedMemoryPointer", 0)
+            add(pointer != 0, f"MapScript.debug.json: {debug_path} (pid {data.get('pid')}, shared memory {pointer})")
+        except Exception as exception:
+            add(False, f"MapScript.debug.json: {debug_path} could not be parsed: {exception}")
+    else:
+        add(False, "MapScript.debug.json: not found")
+
+    elf_path = find_workspace_file("MapScript.jit.elf", target)
+    if elf_path:
+        try:
+            with open(elf_path, "rb") as elf_file:
+                magic = elf_file.read(4)
+            add(magic == b"ELF", f"MapScript.jit.elf: {elf_path}")
+        except Exception as exception:
+            add(False, f"MapScript.jit.elf: {elf_path} could not be read: {exception}")
+    else:
+        add(False, "MapScript.jit.elf: not found")
+
+    base_addr = get_shared_memory_base(target) if target and target.IsValid() else 0
+    add(base_addr != 0, f"shared memory base: {base_addr}")
+    add(True, f"script version: {globals().get('REALM_LLDB_SCRIPT_VERSION', 'unknown')}")
+    add(True, f"script hash: {globals().get('REALM_LLDB_SCRIPT_HASH', 'unknown')}")
+    add(True, f"source commit: {globals().get('REALM_LLDB_SOURCE_COMMIT', 'unknown')}")
+
+    if base_addr != 0:
+        drift = verify_component_tables(target)
+        add(not drift, f"component tables: {len(drift)} drift(s)")
+        for line in drift:
+            lines.append("       " + line)
+
+    for line in lines:
+        result.AppendMessage(line)
+
 class RealmHandleSyntheticProvider:
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
@@ -804,4 +933,7 @@ def __lldb_init_module(debugger, internal_dict):
 
     debugger.HandleCommand("command script add -f realm_lldb.realm_attach realm_attach")
     debugger.HandleCommand("command script add -f realm_lldb.realm_load_modules realm_load_modules")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_version realm_version")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_verify realm_verify")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_doctor realm_doctor")
     debugger.HandleCommand(f"type category enable {category}")

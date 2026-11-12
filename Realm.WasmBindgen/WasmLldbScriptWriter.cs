@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Security.Cryptography;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -104,6 +106,16 @@ public static class WasmLldbScriptWriter
 		}
 		builder.AppendLine("}");
 
+		string dataBlock = builder.ToString().TrimEnd();
+		string scriptHash = ComputeSha256(dataBlock);
+		string sourceCommit = ReadSourceCommit(repoRoot);
+
+		builder.AppendLine();
+		builder.AppendLine("# Generated debugger script metadata");
+		builder.AppendLine("REALM_LLDB_SCRIPT_VERSION = \"1\"");
+		builder.AppendLine($"REALM_LLDB_SCRIPT_HASH = \"{scriptHash}\"");
+		builder.AppendLine($"REALM_LLDB_SOURCE_COMMIT = \"{sourceCommit}\"");
+
 		string scriptContent = templateContent.Replace("# {{OFFSETS}}", builder.ToString().TrimEnd())
 			.Replace("{{OFFSETS}}", builder.ToString().TrimEnd());
 
@@ -116,6 +128,45 @@ public static class WasmLldbScriptWriter
 		}
 		catch
 		{
+		}
+	}
+
+	private static string ComputeSha256(string content)
+	{
+		byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(content));
+		return Convert.ToHexString(hash).ToLowerInvariant();
+	}
+
+	private static string ReadSourceCommit(string repoRoot)
+	{
+		string? environmentCommit = Environment.GetEnvironmentVariable("REALM_SOURCE_COMMIT");
+		if (!string.IsNullOrWhiteSpace(environmentCommit)) return environmentCommit.Trim();
+
+		try
+		{
+			var startInfo = new ProcessStartInfo("git", $"-C \"{repoRoot}\" rev-parse HEAD")
+			{
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+				UseShellExecute = false,
+				CreateNoWindow = true
+			};
+
+			using Process? process = Process.Start(startInfo);
+			if (process == null) return "unknown";
+
+			string output = process.StandardOutput.ReadToEnd().Trim();
+			if (!process.WaitForExit(2000))
+			{
+				try { process.Kill(); } catch { }
+				return "unknown";
+			}
+
+			return process.ExitCode == 0 && output.Length >= 7 ? output : "unknown";
+		}
+		catch
+		{
+			return "unknown";
 		}
 	}
 

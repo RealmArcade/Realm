@@ -62,6 +62,9 @@ class FakeTarget:
     def __init__(self, process):
         self.process = process
 
+    def IsValid(self):
+        return True
+
     def GetProcess(self):
         return self.process
 
@@ -156,6 +159,25 @@ class FakeValue:
 
     def Dereference(self):
         return self
+
+
+class FakeResult:
+    def __init__(self):
+        self.messages = []
+
+    def AppendMessage(self, message):
+        self.messages.append(message)
+
+    def SetError(self, message):
+        self.messages.append("ERROR: " + message)
+
+
+class FakeDebugger:
+    def __init__(self, target):
+        self.target = target
+
+    def GetSelectedTarget(self):
+        return self.target
 
 
 class FakeSBData:
@@ -314,6 +336,22 @@ def main():
     host_target = FakeTarget(FakeProcess(MEMORY))
     host_valobj = FakeValue(host_target, "GameAPI_WasmModule", "GameAPI_WasmModule", 0)
     expect(module.read_field_value(host_valobj, host_spec, host_field) == module.INSPECTION_REQUIRES_THREADS, "GameAPI_WasmModule.PlayerCount did not report the host boundary")
+
+    verify_target = FakeTarget(FakeProcess(MEMORY))
+    drift = module.verify_component_tables(verify_target)
+    expect(drift == [], f"component table verification reported drift: {drift}")
+
+    version_result = FakeResult()
+    module.realm_version(FakeDebugger(verify_target), "", version_result, {})
+    version_output = chr(10).join(version_result.messages)
+    expect(module.REALM_LLDB_SCRIPT_HASH in version_output, "realm_version did not print the script hash")
+    expect(module.REALM_LLDB_SOURCE_COMMIT in version_output, "realm_version did not print the source commit")
+
+    doctor_result = FakeResult()
+    module.realm_doctor(FakeDebugger(verify_target), "", doctor_result, {})
+    doctor_output = chr(10).join(doctor_result.messages)
+    expect("shared memory base" in doctor_output, "realm_doctor did not report the shared memory base")
+    expect("component tables: 0 drift(s)" in doctor_output, "realm_doctor did not report clean component tables")
 
     print("OK")
     return 0
