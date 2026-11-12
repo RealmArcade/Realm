@@ -523,6 +523,7 @@ public partial class ObjectAttachmentDialog : FloatingPreview3DDialogBase
 			Scale = scale == Vector3.Zero ? Vector3.One : scale
 		};
 
+		Realm.Client.Utils.ModelShaderManager.MarkOverlayMaterialMesh(previewGlow);
 		previewGlow.SetMeta("AttachmentId", attachmentId);
 		previewGlow.SetMeta("CleanAttachmentId", attachmentId);
 		return previewGlow;

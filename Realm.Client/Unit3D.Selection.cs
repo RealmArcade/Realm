@@ -160,6 +160,7 @@ public partial class Unit3D
 			GIMode = GeometryInstance3D.GIModeEnum.Disabled,
 			Visible = false
 		};
+		Realm.Client.Utils.ModelShaderManager.MarkOverlayMaterialMesh(_playerColorRing);
 		AddChild(_playerColorRing);
 	}
 

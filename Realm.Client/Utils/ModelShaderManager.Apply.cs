@@ -50,14 +50,24 @@ public static partial class ModelShaderManager
 		       || nodeName.StartsWith("SocketAttachment_", StringComparison.OrdinalIgnoreCase);
 	}
 
+	public const string OverlayMaterialMetaName = "realm_overlay_material";
+
+	public static void MarkOverlayMaterialMesh(GeometryInstance3D geometryInstance)
+	{
+		if (geometryInstance == null || !GodotObject.IsInstanceValid(geometryInstance)) return;
+		geometryInstance.SetMeta(OverlayMaterialMetaName, true);
+	}
+
 	private static bool IsExcludedMesh(GeometryInstance3D geomInst)
 	{
 		if (geomInst == null) return true;
+		if (geomInst.HasMeta(OverlayMaterialMetaName)) return true;
 		string nodeName = geomInst.Name.ToString();
 		return nodeName.StartsWith("_selection", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("Selection", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("_hover", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("Hover", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("PlayerColorGlow", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("BrushIndicator", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("DropShadow", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.Contains("SelectionRing", StringComparison.OrdinalIgnoreCase)

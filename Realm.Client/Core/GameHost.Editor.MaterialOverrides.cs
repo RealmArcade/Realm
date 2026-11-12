@@ -75,11 +75,14 @@ public partial class GameHost
 
 	private static bool ShouldSkipMeshInstance(MeshInstance3D meshInst)
 	{
+		if (meshInst.HasMeta(ModelShaderManager.OverlayMaterialMetaName)) return true;
+
 		string nameStr = meshInst.Name.ToString();
 		return nameStr.StartsWith("_selection", StringComparison.OrdinalIgnoreCase)
 		       || nameStr.StartsWith("Selection", StringComparison.OrdinalIgnoreCase)
 		       || nameStr.StartsWith("_hover", StringComparison.OrdinalIgnoreCase)
 		       || nameStr.StartsWith("Hover", StringComparison.OrdinalIgnoreCase)
+		       || nameStr.StartsWith("PlayerColorGlow", StringComparison.OrdinalIgnoreCase)
 		       || nameStr.StartsWith("BrushIndicator", StringComparison.OrdinalIgnoreCase)
 		       || nameStr.StartsWith("DropShadow", StringComparison.OrdinalIgnoreCase)
 		       || nameStr.Contains("SelectionRing", StringComparison.OrdinalIgnoreCase)
