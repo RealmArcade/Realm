@@ -1,4 +1,4 @@
-﻿// Event wiring. Each Register* group pairs a set of children with the callbacks that move the
+// Event wiring. Each Register* group pairs a set of children with the callbacks that move the
 // page: carousel arrows, the download button, the smooth scroll containers, and the hover rows.
 
 using System;
@@ -31,8 +31,9 @@ public partial class MapDetails
 	{
 		_btnLeftArrow.Pressed += () =>
 		{
-			if (_mapData?.Screenshots == null || _mapData.Screenshots.Length == 0) return;
-			_carouselIndex = (_carouselIndex - 1 + _mapData.Screenshots.Length) % _mapData.Screenshots.Length;
+			int mediaCount = GetCarouselMediaCount();
+			if (mediaCount <= 1) return;
+			_carouselIndex = (_carouselIndex - 1 + mediaCount) % mediaCount;
 			_carouselSlider.Value = _carouselIndex;
 			UpdateCarousel();
 			GameContext.UserInterface?.PlayClickSound();
@@ -40,8 +41,9 @@ public partial class MapDetails
 
 		_btnRightArrow.Pressed += () =>
 		{
-			if (_mapData?.Screenshots == null || _mapData.Screenshots.Length == 0) return;
-			_carouselIndex = (_carouselIndex + 1) % _mapData.Screenshots.Length;
+			int mediaCount = GetCarouselMediaCount();
+			if (mediaCount <= 1) return;
+			_carouselIndex = (_carouselIndex + 1) % mediaCount;
 			_carouselSlider.Value = _carouselIndex;
 			UpdateCarousel();
 			GameContext.UserInterface?.PlayClickSound();
@@ -67,8 +69,14 @@ public partial class MapDetails
 			GameContext.UserInterface?.PlayClickSound();
 			if (MapProvisioningService.IsLocalCopyPresent(_mapData))
 			{
-				GameLog.LogToConsole("Playing map: " + _mapData?.Title);
-				GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
+				if (_mapData != null && !string.IsNullOrWhiteSpace(_mapData.Title))
+				{
+					GameContext.UserInterface?.TransitionToLobbyCreateWithMap(_mapData.Title, _mapData.Version);
+				}
+				else
+				{
+					GameContext.UserInterface?.TransitionTo(GameScreen.LobbyCreate);
+				}
 			}
 			else
 			{

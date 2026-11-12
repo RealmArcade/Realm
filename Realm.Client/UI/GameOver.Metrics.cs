@@ -1,4 +1,4 @@
-﻿// Post-match metrics: report playtime and stars, add local playtime, and resolve the manifest info
+// Post-match metrics: report playtime and stars, add local playtime, and resolve the manifest info
 // (version, author key, contributors) that the report needs before it can be sent.
 
 using System;
@@ -59,11 +59,11 @@ public partial class GameOver
 		try
 		{
 			string rawName = CleanMapName(mapName);
-			var contributors = GetContributorsFromMetadata(rawName);
-
+			string mapVersion = GameContext.Lobby?.ActiveMapVersion ?? "1.0.0";
+			var contributors = GetContributorsFromMapData(mapName, rawName, mapVersion);
 			if (contributors.Count == 0)
 			{
-				contributors.Add(UnknownAuthorContributorName);
+				return;
 			}
 
 			UpdatePlaytimeStats(contributors, playtimeMinutes);
@@ -157,9 +157,22 @@ public partial class GameOver
 		return "";
 	}
 
-	private static List<string> GetContributorsFromMetadata(string rawName)
+	private static List<string> GetContributorsFromMapData(string mapName, string rawName, string mapVersion)
 	{
 		var contributors = new List<string>();
+		var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		string? manifestPath = MapAssetManager.FindManifestPath(mapName, mapVersion)
+		                       ?? MapAssetManager.FindManifestPath(rawName, mapVersion);
+		if (!string.IsNullOrEmpty(manifestPath) && File.Exists(manifestPath))
+		{
+			ExtractAuthorsFromJsonFile(manifestPath, contributors, seen);
+			if (contributors.Count > 0)
+			{
+				return contributors;
+			}
+		}
+
 		string[] paths =
 		{
 			ProjectSettings.GlobalizePath($"res://Maps/{rawName}/metadata.json"),
@@ -170,37 +183,70 @@ public partial class GameOver
 		foreach (var path in paths)
 		{
 			if (!File.Exists(path)) continue;
-
-			string json = File.ReadAllText(path);
-			using var doc = JsonDocument.Parse(json);
-			if (!doc.RootElement.TryGetProperty("Contributors", out var conts) || conts.ValueKind != JsonValueKind.Array) break;
-
-			foreach (var el in conts.EnumerateArray())
-			{
-				var s = el.GetString();
-				if (!string.IsNullOrEmpty(s)) contributors.Add(s);
-			}
-
-			break;
+			ExtractAuthorsFromJsonFile(path, contributors, seen);
+			if (contributors.Count > 0) break;
 		}
 
 		return contributors;
 	}
 
+	private static void ExtractAuthorsFromJsonFile(string path, List<string> contributors, HashSet<string> seen)
+	{
+		string json = File.ReadAllText(path);
+		using var doc = JsonDocument.Parse(json);
+		var root = doc.RootElement;
+
+		if (root.TryGetProperty("Author", out var authorProp) && authorProp.ValueKind == JsonValueKind.String)
+		{
+			string? author = authorProp.GetString()?.Trim();
+			if (!string.IsNullOrEmpty(author) && seen.Add(author))
+			{
+				contributors.Add(author);
+			}
+		}
+
+		if (root.TryGetProperty("Contributors", out var conts) && conts.ValueKind == JsonValueKind.Array)
+		{
+			foreach (var el in conts.EnumerateArray())
+			{
+				string? contributor = el.GetString()?.Trim();
+				if (!string.IsNullOrEmpty(contributor) && seen.Add(contributor))
+				{
+					contributors.Add(contributor);
+				}
+			}
+		}
+	}
+
 	private static void UpdatePlaytimeStats(List<string> contributors, double playtimeMinutes)
 	{
+		int minutesToAdd = playtimeMinutes > 0 ? Math.Max(1, (int)Math.Round(playtimeMinutes)) : 0;
+		if (minutesToAdd <= 0 || contributors.Count == 0)
+		{
+			return;
+		}
+
 		string statsPath = ProjectSettings.GlobalizePath("user://appdata/playtime_stats.json");
-		var stats = new Dictionary<string, int>();
+		var stats = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 		if (File.Exists(statsPath))
 		{
 			string statsJson = File.ReadAllText(statsPath);
-			stats = JsonSerializer.Deserialize<Dictionary<string, int>>(statsJson) ?? stats;
+			var loaded = JsonSerializer.Deserialize<Dictionary<string, int>>(statsJson);
+			if (loaded != null)
+			{
+				foreach (var kvp in loaded)
+				{
+					if (!string.IsNullOrWhiteSpace(kvp.Key) && kvp.Value > 0)
+					{
+						stats[kvp.Key] = stats.TryGetValue(kvp.Key, out int existing) ? existing + kvp.Value : kvp.Value;
+					}
+				}
+			}
 		}
 
 		foreach (var contributor in contributors)
 		{
-			if (!stats.ContainsKey(contributor)) stats[contributor] = 0;
-			stats[contributor] += (int)playtimeMinutes;
+			stats[contributor] = stats.TryGetValue(contributor, out int existing) ? existing + minutesToAdd : minutesToAdd;
 		}
 
 		Directory.CreateDirectory(Path.GetDirectoryName(statsPath)!);

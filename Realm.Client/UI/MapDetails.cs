@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -81,6 +81,7 @@ public partial class MapDetails : Control
 
 	private MapData _mapData = null!;
 	private int _carouselIndex = 0;
+	private int _carouselRenderVersion = 0;
 	private bool _isDownloading = false;
 	private float _downloadProgress = 0.0f;
 
@@ -245,6 +246,7 @@ public partial class MapDetails : Control
 		}
 
 		_versionDropdown.Select(selectedIndex);
+		_versionDropdown.Disabled = _mapData.AvailableVersions.Count <= 1;
 
 		UpdateVersionDisplay();
 	}
@@ -295,20 +297,18 @@ public partial class MapDetails : Control
 	{
 		if (_mapData == null) return;
 
-		UIStyle.ApplyTitle(_titleLabel, $"MAP DETAILS: {_mapData.Title}", 28);
-		_creatorLabel.Text = $"By: {_mapData.Creator}";
+		UIStyle.ApplyTitle(_titleLabel, string.Format(TranslationServer.Translate("MAP DETAILS: {0}"), _mapData.Title), 28);
+		string creatorDisplay = string.IsNullOrWhiteSpace(_mapData.Creator) || string.Equals(_mapData.Creator, "Unknown", StringComparison.OrdinalIgnoreCase)
+			? TranslationServer.Translate("Unknown")
+			: _mapData.Creator;
+		_creatorLabel.Text = string.Format(TranslationServer.Translate("By: {0}"), creatorDisplay);
 
-		_descText.Text = _mapData.Description;
+		_descText.Text = string.IsNullOrWhiteSpace(_mapData.Description)
+			? TranslationServer.Translate("No description provided.")
+			: _mapData.Description;
 
 		PopulateFeatures();
-
-		if (_mapData.Screenshots != null && _mapData.Screenshots.Length > 0)
-		{
-			_carouselSlider.MaxValue = _mapData.Screenshots.Length - 1;
-			_carouselSlider.Value = 0;
-			UpdateCarousel();
-		}
-
+		UpdateCarousel();
 		PopulateRatings();
 		PopulateAwards();
 		PopulateGameplayStats();
@@ -320,43 +320,133 @@ public partial class MapDetails : Control
 		if (isDownloaded)
 		{
 			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("PLAY MAP"), 18);
-			_downloadSubtitle.Text = Tr("Ready to Play");
+			_downloadSubtitle.Text = TranslationServer.Translate("Ready to Play");
 			_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		}
 		else
 		{
 			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("DOWNLOAD MAP"), 18);
-			_downloadSubtitle.Text = $"File Size: {_mapData.FileSize}";
+			_downloadSubtitle.Text = string.Format(TranslationServer.Translate("File Size: {0}"), _mapData.FileSize);
 			_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		}
 	}
 
+	private int GetCarouselMediaCount()
+	{
+		return BuildCarouselMediaEntries().Count;
+	}
+
+	private List<(string? Hash, string? FallbackPath)> BuildCarouselMediaEntries()
+	{
+		var entries = new List<(string? Hash, string? FallbackPath)>();
+		if (_mapData == null)
+		{
+			return entries;
+		}
+
+		string[] hashes = _mapData.ScreenshotHashes ?? Array.Empty<string>();
+		string[] paths = _mapData.Screenshots ?? Array.Empty<string>();
+		int count = Math.Max(hashes.Length, paths.Length);
+		for (int i = 0; i < count; i++)
+		{
+			string? hash = i < hashes.Length ? hashes[i] : null;
+			string? path = i < paths.Length ? paths[i] : null;
+			if (!string.IsNullOrWhiteSpace(hash) || !string.IsNullOrWhiteSpace(path))
+			{
+				entries.Add((hash, path));
+			}
+		}
+
+		if (entries.Count == 0 && (!string.IsNullOrWhiteSpace(_mapData.ThumbnailHash) || !string.IsNullOrWhiteSpace(_mapData.ThumbnailPath)))
+		{
+			entries.Add((_mapData.ThumbnailHash, _mapData.ThumbnailPath));
+		}
+
+		return entries;
+	}
+
 	private void UpdateCarousel()
 	{
-		if (!HasValidScreenshots()) return;
+		var media = BuildCarouselMediaEntries();
+		bool hasMultiple = media.Count > 1;
+		_btnLeftArrow.Visible = hasMultiple;
+		_btnRightArrow.Visible = hasMultiple;
+		_carouselSlider.Visible = hasMultiple;
 
-		UpdateCenterTexture();
-
-		bool hasMapFrame = CheckForMapFrame();
-		UpdatePeekVisibilities(!hasMapFrame);
-
-		if (hasMapFrame) return;
-
-		UpdatePeekTextures();
-	}
-
-	private bool HasValidScreenshots()
-	{
-		return _mapData?.Screenshots != null && _mapData.Screenshots.Length > 0;
-	}
-
-	private void UpdateCenterTexture()
-	{
-		Texture2D? centerTex = LoadTextureSafe(_mapData.Screenshots[_carouselIndex]);
-		if (centerTex != null)
+		if (media.Count == 0)
 		{
-			_texCenter.Texture = centerTex;
+			_carouselIndex = 0;
+			_carouselSlider.MaxValue = 0;
+			_carouselSlider.Value = 0;
+			_texCenter.Texture = UIStyle.EmptyBlackTexture;
+			UpdatePeekVisibilities(false);
+			return;
 		}
+
+		_carouselSlider.MaxValue = media.Count - 1;
+		if (_carouselIndex >= media.Count)
+		{
+			_carouselIndex = 0;
+		}
+
+		_carouselSlider.Value = _carouselIndex;
+
+		string serverUrl = GetRegistryServerUrl();
+		int renderVersion = ++_carouselRenderVersion;
+
+		var centerEntry = media[_carouselIndex];
+		Texture2D? localCenter = CasAssetImageLoader.TryLoadLocalTexture(centerEntry.Hash, centerEntry.FallbackPath);
+		_texCenter.Texture = localCenter ?? UIStyle.EmptyBlackTexture;
+		if (!string.IsNullOrEmpty(centerEntry.Hash) || !string.IsNullOrEmpty(centerEntry.FallbackPath))
+		{
+			_ = ApplyCarouselTextureIfCurrentAsync(_texCenter, centerEntry.Hash, serverUrl, centerEntry.FallbackPath, renderVersion);
+		}
+
+		bool showPeeks = hasMultiple && !CheckForMapFrame();
+		UpdatePeekVisibilities(showPeeks);
+		if (!showPeeks)
+		{
+			return;
+		}
+
+		int leftIndex = (_carouselIndex - 1 + media.Count) % media.Count;
+		int rightIndex = (_carouselIndex + 1) % media.Count;
+
+		var leftEntry = media[leftIndex];
+		var rightEntry = media[rightIndex];
+		_texLeftPeek.Texture = CasAssetImageLoader.TryLoadLocalTexture(leftEntry.Hash, leftEntry.FallbackPath) ?? UIStyle.EmptyBlackTexture;
+		_texRightPeek.Texture = CasAssetImageLoader.TryLoadLocalTexture(rightEntry.Hash, rightEntry.FallbackPath) ?? UIStyle.EmptyBlackTexture;
+
+		if (!string.IsNullOrEmpty(leftEntry.Hash) || !string.IsNullOrEmpty(leftEntry.FallbackPath))
+		{
+			_ = ApplyCarouselTextureIfCurrentAsync(_texLeftPeek, leftEntry.Hash, serverUrl, leftEntry.FallbackPath, renderVersion);
+		}
+
+		if (!string.IsNullOrEmpty(rightEntry.Hash) || !string.IsNullOrEmpty(rightEntry.FallbackPath))
+		{
+			_ = ApplyCarouselTextureIfCurrentAsync(_texRightPeek, rightEntry.Hash, serverUrl, rightEntry.FallbackPath, renderVersion);
+		}
+	}
+
+	private async Task ApplyCarouselTextureIfCurrentAsync(
+		TextureRect target,
+		string? hash,
+		string serverUrl,
+		string? fallbackPath,
+		int renderVersion)
+	{
+		Texture2D? texture = await CasAssetImageLoader.LoadTextureAsync(hash, serverUrl, fallbackPath);
+		if (texture != null && renderVersion == _carouselRenderVersion && GodotObject.IsInstanceValid(this) && GodotObject.IsInstanceValid(target))
+		{
+			target.Texture = texture;
+		}
+	}
+
+	private static string GetRegistryServerUrl()
+	{
+		return GodotObject.IsInstanceValid(GameContext.Lobby)
+			? GameContext.Lobby.RegistryServerUrl
+			: ServersConfigHelper.GetDefaultServerUrl();
 	}
 
 	private bool CheckForMapFrame()
@@ -368,16 +458,6 @@ public partial class MapDetails : Control
 	{
 		if (_texLeftPeek != null) _texLeftPeek.Visible = isVisible;
 		if (_texRightPeek != null) _texRightPeek.Visible = isVisible;
-	}
-
-	private void UpdatePeekTextures()
-	{
-		int len = _mapData.Screenshots.Length;
-		int leftIndex = (_carouselIndex - 1 + len) % len;
-		int rightIndex = (_carouselIndex + 1) % len;
-
-		if (_texLeftPeek != null) _texLeftPeek.Texture = LoadTextureSafe(_mapData.Screenshots[leftIndex]);
-		if (_texRightPeek != null) _texRightPeek.Texture = LoadTextureSafe(_mapData.Screenshots[rightIndex]);
 	}
 
 	private Texture2D? LoadTextureSafe(string resPath)
@@ -404,7 +484,7 @@ public partial class MapDetails : Control
 		if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingDownloads())
 		{
 			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("RETRY DOWNLOAD"), 18);
-			_downloadSubtitle.Text = Tr("Insufficient disk space (at least 1% free required).");
+			_downloadSubtitle.Text = TranslationServer.Translate("Insufficient disk space (at least 1% free required).");
 			_downloadSubtitle.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 			return;
 		}
@@ -416,9 +496,7 @@ public partial class MapDetails : Control
 		_downloadSubtitle.Text = $"0% ({_mapData.FileSize})";
 		_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 
-		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby)
-			? GameContext.Lobby.RegistryServerUrl
-			: ServersConfigHelper.GetDefaultServerUrl();
+		string seedServerUrl = GetRegistryServerUrl();
 
 		var distClient = new MapDistributionClient();
 		int lastReportedPercent = 0;
@@ -427,16 +505,26 @@ public partial class MapDetails : Control
 			seedServerUrl,
 			progress =>
 			{
+				if (!GodotObject.IsInstanceValid(this) || !GodotObject.IsInstanceValid(_downloadButton))
+				{
+					return;
+				}
+
 				int currentPercent = (int)MathF.Round(progress * 100.0f);
 				if (currentPercent != lastReportedPercent)
 				{
 					lastReportedPercent = currentPercent;
 					_downloadProgress = currentPercent;
-					_downloadButton.Text = $"Downloading... {currentPercent}%";
+					_downloadButton.Text = string.Format(TranslationServer.Translate("Downloading... {0}%"), currentPercent);
 					_downloadSubtitle.Text = $"{currentPercent}% ({_mapData.FileSize})";
 				}
 			}
 		);
+
+		if (!GodotObject.IsInstanceValid(this))
+		{
+			return;
+		}
 
 		_isDownloading = false;
 		_downloadButton.Disabled = false;
@@ -444,7 +532,7 @@ public partial class MapDetails : Control
 		if (success || MapProvisioningService.IsLocalCopyPresent(_mapData))
 		{
 			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("PLAY MAP"), 18);
-			_downloadSubtitle.Text = Tr("Ready to Play");
+			_downloadSubtitle.Text = TranslationServer.Translate("Ready to Play");
 			_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		}
 		else
@@ -452,11 +540,11 @@ public partial class MapDetails : Control
 			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("RETRY DOWNLOAD"), 18);
 			if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingDownloads())
 			{
-				_downloadSubtitle.Text = Tr("Insufficient disk space (at least 1% free required).");
+				_downloadSubtitle.Text = TranslationServer.Translate("Insufficient disk space (at least 1% free required).");
 			}
 			else
 			{
-				_downloadSubtitle.Text = Tr("Download failed. Click to retry.");
+				_downloadSubtitle.Text = TranslationServer.Translate("Download failed. Click to retry.");
 			}
 
 			_downloadSubtitle.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));

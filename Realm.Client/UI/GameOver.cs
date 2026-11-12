@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -53,7 +53,6 @@ public partial class GameOver : Control
 	private const int EconomyTabIndex = 1;
 	private const int MilitaryTabIndex = 2;
 	private const int FiveStarRatingOptionIndex = 0;
-	private const string UnknownAuthorContributorName = "Realm Builder";
 
 	private bool _isVictory = true;
 	private int _activeTab = OverviewTabIndex;

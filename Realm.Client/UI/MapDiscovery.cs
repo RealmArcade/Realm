@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared.Distribution;
@@ -38,9 +39,12 @@ public partial class MapDiscovery : Control
 	private Button _btnMelee = null!;
 	private Button _btnCampaign = null!;
 
-	private MapData[] _allMaps = null!;
+	private MapData[] _allMaps = Array.Empty<MapData>();
 	private string _selectedCategory = "All";
 	private string _searchQuery = "";
+	private string _registryServerUrl = string.Empty;
+	private bool _isLoading = true;
+	private bool _loadFailed;
 
 	private static Font? _fontNorseBold;
 
@@ -86,29 +90,40 @@ public partial class MapDiscovery : Control
 		_btnMelee = GetNode<Button>("FilterPanel/VBoxContainer/CatMelee");
 		_btnCampaign = GetNode<Button>("FilterPanel/VBoxContainer/CatCampaign");
 
-		_allMaps = [];
+		_allMaps = Array.Empty<MapData>();
+		_isLoading = true;
+		_loadFailed = false;
 
 		ApplyStyles();
 		RegisterEvents();
 		RenderMapGrid();
 
-		LoadDiscoveryMapsAsync();
+		_ = LoadDiscoveryMapsAsync();
 	}
 
-	private async void LoadDiscoveryMapsAsync()
+	private async Task LoadDiscoveryMapsAsync()
 	{
-		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby)
+		_registryServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby)
 			? GameContext.Lobby.RegistryServerUrl
 			: ServersConfigHelper.GetDefaultServerUrl();
 
 		try
 		{
-			var distClient = new DistributionClient(seedServerUrl);
+			var distClient = new DistributionClient(_registryServerUrl);
 			var discoveryDtos = await distClient.GetDiscoveryMapsAsync();
+			if (!GodotObject.IsInstanceValid(this))
+			{
+				return;
+			}
+
+			_loadFailed = false;
+			_isLoading = false;
+
 			if (discoveryDtos != null && discoveryDtos.Count > 0)
 			{
 				var liveMaps = discoveryDtos
-					.Select(dto => MapData.FromDto(dto, seedServerUrl))
+					.Where(dto => !dto.IsTestVersion)
+					.Select(dto => MapData.FromDto(dto, _registryServerUrl))
 					.ToList();
 
 				var groupedMaps = liveMaps
@@ -125,15 +140,26 @@ public partial class MapDiscovery : Control
 
 						return primary;
 					})
+					.OrderByDescending(m => m.GamesPlayed)
+					.ThenBy(m => m.Title, StringComparer.OrdinalIgnoreCase)
 					.ToArray();
 
 				_allMaps = groupedMaps;
-				RenderMapGrid();
-				return;
+			}
+			else
+			{
+				_allMaps = Array.Empty<MapData>();
 			}
 		}
 		catch (Exception ex)
 		{
+			if (!GodotObject.IsInstanceValid(this))
+			{
+				return;
+			}
+
+			_isLoading = false;
+			_loadFailed = true;
 			GameLog.LogError($"[MapDiscovery] Failed to load maps from server: {ex.Message}");
 		}
 
@@ -241,7 +267,8 @@ public partial class MapDiscovery : Control
 
 	private void SetupCategoryButton(Button button, string text, string categoryValue)
 	{
-		button.Text = TranslationServer.Translate(text);
+		button.Text = text;
+		button.AddThemeConstantOverride("icon_max_width", 20);
 		if (_fontNorseBold != null) button.AddThemeFontOverride("font", _fontNorseBold);
 		button.AddThemeFontSizeOverride("font_size", 19);
 		button.AddThemeConstantOverride("outline_size", 4);
@@ -310,7 +337,14 @@ public partial class MapDiscovery : Control
 	{
 		foreach (Node child in _mapGrid.GetChildren())
 		{
+			_mapGrid.RemoveChild(child);
 			child.QueueFree();
+		}
+
+		if (_isLoading)
+		{
+			AddEmptyStateMessage(TranslationServer.Translate("Loading maps from registry..."), showRetry: false, showClearFilters: false);
+			return;
 		}
 
 		var filtered = _allMaps.AsEnumerable();
@@ -321,12 +355,19 @@ public partial class MapDiscovery : Control
 
 		if (list.Count == 0)
 		{
-			var noMapsLabel = new Label();
-			noMapsLabel.Name = "NoMapsLabel_Label";
-			noMapsLabel.Text = TranslationServer.Translate("No maps found matching criteria.");
-			noMapsLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.7f));
-			noMapsLabel.AddThemeFontSizeOverride("font_size", 16);
-			_mapGrid.AddChild(noMapsLabel);
+			if (_loadFailed)
+			{
+				AddEmptyStateMessage(TranslationServer.Translate("Could not load maps from the registry."), showRetry: true, showClearFilters: false);
+			}
+			else if (_allMaps.Length == 0)
+			{
+				AddEmptyStateMessage(TranslationServer.Translate("No published maps are available yet."), showRetry: true, showClearFilters: false);
+			}
+			else
+			{
+				AddEmptyStateMessage(TranslationServer.Translate("No maps found matching criteria."), showRetry: false, showClearFilters: true);
+			}
+
 			return;
 		}
 
@@ -335,6 +376,65 @@ public partial class MapDiscovery : Control
 			var card = CreateMapCard(map);
 			_mapGrid.AddChild(card);
 		}
+	}
+
+	private void AddEmptyStateMessage(string messageText, bool showRetry, bool showClearFilters)
+	{
+		var box = new VBoxContainer();
+		box.Name = "EmptyStateBox_VBoxContainer";
+		box.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		box.AddThemeConstantOverride("separation", 12);
+
+		var msgLabel = new Label();
+		msgLabel.Name = "NoMapsLabel_Label";
+		msgLabel.Text = messageText;
+		msgLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		msgLabel.CustomMinimumSize = new Vector2(300, 0);
+		msgLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		msgLabel.AddThemeColorOverride("font_color", new Color(0.75f, 0.77f, 0.82f));
+		msgLabel.AddThemeFontSizeOverride("font_size", 16);
+		box.AddChild(msgLabel);
+
+		if (showRetry)
+		{
+			var retryBtn = new Button();
+			retryBtn.Name = "RetryMapsBtn_Button";
+			retryBtn.AddThemeConstantOverride("icon_max_width", 20);
+			retryBtn.CustomMinimumSize = new Vector2(140, 36);
+			retryBtn.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+			UIStyle.ApplyButtonText(retryBtn, TranslationServer.Translate("RETRY"), 15);
+			UIStyle.ApplyButtonStyleBoxesClearingFocus(retryBtn);
+			retryBtn.Pressed += () =>
+			{
+				_isLoading = true;
+				_loadFailed = false;
+				RenderMapGrid();
+				_ = LoadDiscoveryMapsAsync();
+			};
+			box.AddChild(retryBtn);
+		}
+
+		if (showClearFilters)
+		{
+			var clearBtn = new Button();
+			clearBtn.Name = "ClearFiltersBtn_Button";
+			clearBtn.AddThemeConstantOverride("icon_max_width", 20);
+			clearBtn.CustomMinimumSize = new Vector2(160, 36);
+			clearBtn.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+			UIStyle.ApplyButtonText(clearBtn, TranslationServer.Translate("SHOW ALL MAPS"), 15);
+			UIStyle.ApplyButtonStyleBoxesClearingFocus(clearBtn);
+			clearBtn.Pressed += () =>
+			{
+				_selectedCategory = "All";
+				_searchQuery = string.Empty;
+				_searchBar.Text = string.Empty;
+				UpdateButtonHighlight();
+				RenderMapGrid();
+			};
+			box.AddChild(clearBtn);
+		}
+
+		_mapGrid.AddChild(box);
 	}
 
 	private Control CreateMapCard(MapData map)
@@ -370,9 +470,12 @@ public partial class MapDiscovery : Control
 		thumbnail.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 		thumbnail.StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered;
 		thumbnail.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		var loadedTex = LoadTextureSafe(map.ThumbnailPath);
-		thumbnail.Texture = loadedTex ?? UIStyle.EmptyBlackTexture;
+		thumbnail.Texture = CasAssetImageLoader.TryLoadLocalTexture(map.ThumbnailHash, map.ThumbnailPath) ?? UIStyle.EmptyBlackTexture;
 		imgContainer.AddChild(thumbnail);
+		if (!string.IsNullOrEmpty(map.ThumbnailHash) || !string.IsNullOrEmpty(map.ThumbnailPath))
+		{
+			_ = CasAssetImageLoader.ApplyTextureAsync(thumbnail, map.ThumbnailHash, _registryServerUrl, map.ThumbnailPath);
+		}
 
 		var frameOverlay = new TextureRect();
 		frameOverlay.Name = "FrameOverlay_TextureRect";
@@ -410,17 +513,34 @@ public partial class MapDiscovery : Control
 
 		var ratingLabel = new Label();
 		ratingLabel.Name = "RatingLabel_Label";
-		ratingLabel.Text = $"★ {map.RatingStars:F1}";
+		if (map.TotalReviews > 0)
+		{
+			ratingLabel.Text = $"★ {map.RatingStars:F1}";
+			ratingLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		}
+		else if (map.GamesPlayed > 0)
+		{
+			ratingLabel.Text = string.Format(TranslationServer.Translate("{0} plays"), map.GamesPlayed);
+			ratingLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		}
+		else
+		{
+			ratingLabel.Text = TranslationServer.Translate("Unrated");
+			ratingLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		}
+
 		if (_fontNorseBold != null) ratingLabel.AddThemeFontOverride("font", _fontNorseBold);
-		ratingLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		ratingLabel.AddThemeFontSizeOverride("font_size", 17);
 		ratingLabel.AddThemeConstantOverride("outline_size", 4);
 		ratingLabel.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.06f, 0.08f));
 		headerBox.AddChild(ratingLabel);
 
+		string creatorName = string.IsNullOrWhiteSpace(map.Creator) || string.Equals(map.Creator, "Unknown", StringComparison.OrdinalIgnoreCase)
+			? TranslationServer.Translate("Unknown")
+			: map.Creator;
 		var creator = new Label();
 		creator.Name = "Creator_Label";
-		creator.Text = $"By: {map.Creator}  •  {map.Genre}";
+		creator.Text = $"{string.Format(TranslationServer.Translate("By: {0}"), creatorName)}  •  {map.Genre}  •  v{map.Version}";
 		if (_fontNorseBold != null) creator.AddThemeFontOverride("font", _fontNorseBold);
 		creator.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		creator.AddThemeFontSizeOverride("font_size", 14);
@@ -428,7 +548,9 @@ public partial class MapDiscovery : Control
 
 		var desc = new Label();
 		desc.Name = "Desc_Label";
-		desc.Text = map.Description;
+		desc.Text = string.IsNullOrWhiteSpace(map.Description)
+			? TranslationServer.Translate("No description provided.")
+			: map.Description;
 		desc.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		desc.CustomMinimumSize = new Vector2(300, 0);
 		desc.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -443,8 +565,20 @@ public partial class MapDiscovery : Control
 		footer.Alignment = BoxContainer.AlignmentMode.End;
 		vBox.AddChild(footer);
 
+		var metaFooter = new Label();
+		metaFooter.Name = "MetaFooter_Label";
+		metaFooter.Text = map.IsGreenlit
+			? $"{TranslationServer.Translate("GREENLIT")}  •  {map.FileSize}"
+			: map.FileSize;
+		metaFooter.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		metaFooter.VerticalAlignment = VerticalAlignment.Center;
+		metaFooter.AddThemeColorOverride("font_color", map.IsGreenlit ? UIStyle.ColorCyanGlow : new Color(0.72f, 0.74f, 0.80f));
+		metaFooter.AddThemeFontSizeOverride("font_size", 12);
+		footer.AddChild(metaFooter);
+
 		var btnDetails = new Button();
 		btnDetails.Name = "BtnDetails_Button";
+		btnDetails.AddThemeConstantOverride("icon_max_width", 20);
 		btnDetails.CustomMinimumSize = new Vector2(110, 32);
 		btnDetails.Text = TranslationServer.Translate("DETAILS");
 		if (_fontNorseBold != null) btnDetails.AddThemeFontOverride("font", _fontNorseBold);
@@ -459,16 +593,11 @@ public partial class MapDiscovery : Control
 		btnDetails.Pressed += () =>
 		{
 			GameContext.UserInterface?.PlayClickSound();
-			GameContext.UserInterface?.TransitionToMapDetails(map);
+			GameContext.UserInterface?.TransitionToMapDetails(map, GameScreen.MapDiscovery);
 		};
 		btnDetails.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		footer.AddChild(btnDetails);
 
 		return card;
-	}
-
-	private static Texture2D? LoadTextureSafe(string resPath)
-	{
-		return TrimmedTextureLoader.LoadTrimmedTexture(resPath);
 	}
 }
