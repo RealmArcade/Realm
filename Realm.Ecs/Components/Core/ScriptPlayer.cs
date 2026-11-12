@@ -13,7 +13,7 @@ public struct ScriptPlayer
 	public float Stone;
 	public byte ActiveByte;
 	public byte IsComputerByte;
-	public byte Reserved0;
+	public byte Placement;
 	public byte Reserved1;
 	public int Team;
 	public int NameStringId;

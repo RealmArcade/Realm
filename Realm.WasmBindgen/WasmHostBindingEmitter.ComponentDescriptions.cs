@@ -65,7 +65,7 @@ public static partial class WasmHostBindingEmitter
 		["ScriptPlayer.Stone"] = "Current stone resource amount.",
 		["ScriptPlayer.ActiveByte"] = "Backing byte indicating whether the player slot is active (1 if active, 0 otherwise).",
 		["ScriptPlayer.IsComputerByte"] = "Backing byte indicating whether the player is controlled by AI (1 if AI, 0 if human).",
-		["ScriptPlayer.Reserved0"] = "Reserved alignment padding byte.",
+		["ScriptPlayer.Placement"] = "Final placement of the player's team in the match ranking, one for the team that outlasted the others and zero while no ranking has been recorded.",
 		["ScriptPlayer.Reserved1"] = "Reserved alignment padding byte.",
 		["ScriptPlayer.Team"] = "Team identifier number.",
 		["ScriptPlayer.NameStringId"] = "String registry identifier for player display name.",

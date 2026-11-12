@@ -494,6 +494,7 @@ The victory condition is deliberately singular so that balance adjustments can b
 - In a two-team match, first place is labeled Winner and second place Loser.
 - Near-simultaneous destruction is resolved by whichever destruction occurs first.
 - If two opposing teams' nexuses are destroyed on the same simulation tick, their relative ranking is intentionally undefined and non-deterministic. No tie-break is implemented, because the choice is irrelevant.
+- The ranking is an engine result, not a ruleset one: the authority records a team as eliminated when its last active seat is defeated and writes every seat's team placement into the replicated player state when the match ends. The end-of-match table reads that placement, ranks seats by it ahead of the tab's own scoring column, and shows the rank column only when a ranking was recorded, so a match that ended without an elimination labels nobody.
 
 ## 12. Bulwark
 

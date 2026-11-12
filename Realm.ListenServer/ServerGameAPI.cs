@@ -29,6 +29,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	private readonly ServerTechLevels _techLevels;
 	private readonly ServerBots _bots;
 	private readonly AbilityEffectRunner _effects;
+	private readonly MatchPlacementService _placements;
 	private readonly PlayerId[] _activePlayersBuffer = new PlayerId[ScriptPlayersState.SlotCount];
 	private int _countingScratch;
 
@@ -45,6 +46,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		_abilities = new ScriptAbilityRegistry(map.Catalog);
 		_bots = new ServerBots(_context, paths.MapName, paths.DataDirectory, log);
 		_bots.CustomActionExecuted = ForwardBotCustomAction;
+		_placements = new MatchPlacementService(_context);
 		_effects = new AbilityEffectRunner(_context, ArePlayersAllied, SpawnAbilitySummon);
 		_effects.GatherRequested = RequestGatherAround;
 		Items = items;
@@ -802,6 +804,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public void TriggerVictory()
 	{
 		_context.IsGameOver = true;
+		_placements.WritePlacements();
 		Metrics?.RecordMatchEnded();
 		_log.Write("the map declared victory");
 	}
@@ -809,6 +812,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public void TriggerDefeat()
 	{
 		_context.IsGameOver = true;
+		_placements.WritePlacements();
 		Metrics?.RecordMatchEnded();
 		_log.Write("the map declared defeat");
 	}
@@ -816,6 +820,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public void TriggerPlayerDefeat(int playerIndex, string reason = "")
 	{
 		SetPlayerActive(playerIndex, false);
+		_placements.RecordPlayerDefeat(playerIndex);
 		_presentation.WriteText(PresentationKind.PlayerDefeated, playerIndex, reason, Vector3.Zero);
 		_log.Write(string.IsNullOrEmpty(reason) ? $"player {playerIndex} defeated" : $"player {playerIndex} defeated ({reason})");
 	}
@@ -823,6 +828,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public void TriggerPlayerVictory(int playerIndex)
 	{
 		_context.IsGameOver = true;
+		_placements.WritePlacements();
 		Metrics?.RecordVictory(playerIndex);
 		_presentation.Write(PresentationKind.PlayerVictory, playerIndex, Vector3.Zero);
 		_log.Write($"player {playerIndex} victorious");

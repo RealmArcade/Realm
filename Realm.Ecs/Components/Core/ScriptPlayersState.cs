@@ -99,6 +99,13 @@ public struct ScriptPlayersState
 		Slots[playerIndex].KillCount = kills;
 	}
 
+	public void SetPlacement(int playerIndex, int placement)
+	{
+		if (!IsValidSlot(playerIndex)) return;
+
+		Slots[playerIndex].Placement = placement <= 0 ? (byte)0 : (placement >= byte.MaxValue ? byte.MaxValue : (byte)placement);
+	}
+
 	public void SetFaction(int playerIndex, string? faction)
 	{
 		if (!IsValidSlot(playerIndex)) return;

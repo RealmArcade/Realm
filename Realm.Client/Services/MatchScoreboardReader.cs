@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Realm.Client.Network;
 using Realm.Ecs;
@@ -19,7 +20,9 @@ public readonly record struct MatchPlayerResult(
 	int Stone,
 	int ArmySize,
 	int PopulationUsed,
-	int PopulationCapacity)
+	int PopulationCapacity,
+	int Placement,
+	int TeamCount)
 {
 	public int TotalResources => Gold + Wood + Stone;
 }
@@ -42,13 +45,14 @@ public static class MatchScoreboardReader
 		Entity[]? playerEntities = world.Has<NetworkMappingState>(worldEntity) ? world.Get<NetworkMappingState>(worldEntity).PlayerEntities : null;
 		int[] armyCounts = CountArmyByPlayer(world);
 		List<PlayerInfo>? roster = GameContext.Lobby?.PlayerList;
+		int teamCount = CountTeams(hasPlayersState, playersState, roster);
 
 		for (int slot = 1; slot < ScriptPlayersState.SlotCount; slot++)
 		{
 			PlayerInfo? seat = FindSeat(roster, slot);
 			ScriptPlayer player = hasPlayersState ? playersState.Get(slot) : default;
-			bool active = hasPlayersState ? player.Active : seat != null;
-			if (!active || (!hasPlayersState && seat == null)) continue;
+			bool listed = hasPlayersState ? IsListed(player) : seat != null;
+			if (!listed) continue;
 
 			ReadPopulation(world, playerEntities, slot, out int populationUsed, out int populationCapacity);
 
@@ -64,8 +68,51 @@ public static class MatchScoreboardReader
 				hasPlayersState ? (int)player.Stone : 0,
 				armyCounts[slot],
 				populationUsed,
-				populationCapacity));
+				populationCapacity,
+				hasPlayersState ? player.Placement : 0,
+				teamCount));
 		}
+	}
+
+	private static bool IsListed(in ScriptPlayer player) => player.Active || player.Placement > 0;
+
+	private static int CountTeams(bool hasPlayersState, in ScriptPlayersState playersState, List<PlayerInfo>? roster)
+	{
+		Span<int> teams = stackalloc int[ScriptPlayersState.SlotCount];
+		int teamCount = 0;
+
+		for (int slot = 1; slot < ScriptPlayersState.SlotCount; slot++)
+		{
+			int team;
+			if (hasPlayersState)
+			{
+				ScriptPlayer player = playersState.Get(slot);
+				if (!IsListed(player)) continue;
+
+				team = player.Team;
+			}
+			else
+			{
+				team = FindSeat(roster, slot)?.TeamIndex ?? 0;
+			}
+
+			if (team == 0) continue;
+			if (ContainsTeam(teams, teamCount, team)) continue;
+
+			teams[teamCount++] = team;
+		}
+
+		return teamCount;
+	}
+
+	private static bool ContainsTeam(Span<int> teams, int teamCount, int team)
+	{
+		for (int index = 0; index < teamCount; index++)
+		{
+			if (teams[index] == team) return true;
+		}
+
+		return false;
 	}
 
 	private static int[] CountArmyByPlayer(EcsWorld world)

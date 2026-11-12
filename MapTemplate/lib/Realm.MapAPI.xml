@@ -5697,8 +5697,8 @@
         <member name="F:Realm.MapAPI.Components.ScriptPlayer.IsComputerByte">
             <summary>Backing byte indicating whether the player is controlled by AI (1 if AI, 0 if human).</summary>
         </member>
-        <member name="F:Realm.MapAPI.Components.ScriptPlayer.Reserved0">
-            <summary>Reserved alignment padding byte.</summary>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.Placement">
+            <summary>Final placement of the player's team in the match ranking, one for the team that outlasted the others and zero while no ranking has been recorded.</summary>
         </member>
         <member name="F:Realm.MapAPI.Components.ScriptPlayer.Reserved1">
             <summary>Reserved alignment padding byte.</summary>

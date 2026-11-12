@@ -2,6 +2,8 @@ namespace Realm.Client.UI;
 
 public struct StatsRow
 {
+	public string Rank;
+	public bool IsFirstPlace;
 	public string Player;
 	public string Faction;
 	public string Col3;
