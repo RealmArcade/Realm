@@ -77,6 +77,7 @@ public partial class CommandPanel
 
 	private const string AutoCastMarqueeName = "AutoCastMarquee";
 	private const string AutoCastMarqueeShaderPath = "res://Assets/shaders/ability_autocast_marquee.gdshader";
+	private static readonly StringName AutoCastScrollScaleParameter = new("scroll_scale");
 	private static Shader? s_autoCastMarqueeShader;
 
 	private static Shader? GetAutoCastMarqueeShader()
@@ -154,7 +155,9 @@ public partial class CommandPanel
 	}
 
 	/// <summary>
-	///     Shows the marching frame around the icon while the caster's own auto-cast slot is on. The state is the
+	///     Draws the frame around an icon whose ability supports auto-cast, and keeps it drawn whether that auto-cast is on
+	///     or off: the dashes travel while this caster is casting on its own and hold still while it is not, so the frame
+	///     reads as the card being able to cast itself rather than as the cast being switched on. The state is the
 	///     replicated one, so the frame follows what the authority actually does rather than the last click this screen
 	///     made.
 	/// </summary>
@@ -166,7 +169,14 @@ public partial class CommandPanel
 		bool active = item.CasterEntity != Entity.Null
 			&& GameContext.SimulationService.IsAbilityAutoCast(new UnitId(item.CasterEntity.Id), item.AbilityId);
 
-		if (marquee.Visible != active) marquee.Visible = active;
+		if (!marquee.Visible) marquee.Visible = true;
+
+		if (marquee.Material is not ShaderMaterial material) return;
+
+		float scrollScale = active ? 1f : 0f;
+		if (MathF.Abs(material.GetShaderParameter(AutoCastScrollScaleParameter).AsSingle() - scrollScale) < 0.001f) return;
+
+		material.SetShaderParameter(AutoCastScrollScaleParameter, scrollScale);
 	}
 
 	private float GetMaxCooldown(CommandCardItem item, AbilityDefinition? abilityDef, float cdRemaining)

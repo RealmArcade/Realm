@@ -171,7 +171,7 @@ Rules:
 - When no slot is open, mana accumulates to the pool's maximum and waits. Capacity caps are still authored per building and remain a map-side gate where the generic mana pool cannot express them.
 - A newly completed building begins with one production worth of mana, so its first cast does not wait on regeneration. Because both abilities share the pool, whichever casts first claims it and the other waits; that contention is intended.
 - A destroyed building stops regenerating mana and stops casting. Its stored mana and queue are retained, and both resume when the building is repaired.
-- Auto-cast is on when the building is completed. The player may right-click either production card to switch that ability off or back on; the card shows a marching border while the ability is auto-casting. Toggling is an order that reaches the authority, not a local UI state.
+- Auto-cast is on when the building is completed. The player may right-click either production card to switch that ability off or back on. Every card whose ability supports auto-cast carries the dashed border, whether the ability is on or off, and the border marches only while that ability is auto-casting; a still border therefore reads as an ability that could cast itself but is currently switched off. Toggling is an order that reaches the authority, not a local UI state.
 
 ### 5.2 Building Production Values
 

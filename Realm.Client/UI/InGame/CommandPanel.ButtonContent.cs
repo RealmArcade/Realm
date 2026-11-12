@@ -138,7 +138,7 @@ public partial class CommandPanel
 			{
 				Name = AutoCastMarqueeName,
 				Color = Colors.White,
-				Visible = false,
+				Visible = true,
 				MouseFilter = Control.MouseFilterEnum.Ignore,
 				Material = new ShaderMaterial { Shader = GetAutoCastMarqueeShader() }
 			};
