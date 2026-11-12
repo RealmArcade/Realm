@@ -31,18 +31,21 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 	private string? _initialTemplateJson = null;
 	private bool _templateExistedInitially = false;
 
-	private Action<int, int, float, bool> _onApplied;
-	private Action<string, string, int, int, float, bool> _onAppliedWithTemplateIdAndRtex;
+	/// <summary>Set by the overload that edits a sheet in place. Only one of the two callbacks is live.</summary>
+	private Action<int, int, float, bool>? _onApplied;
 
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
-	private LineEdit _txtRtexAsset;
-	private Action<string> _setRtexAssetValue;
+	/// <summary>Set by the overload that edits a template's sheet. Only one of the two callbacks is live.</summary>
+	private Action<string, string, int, int, float, bool>? _onAppliedWithTemplateIdAndRtex;
 
-	private SpinBox _spinCols;
-	private SpinBox _spinRows;
-	private SpinBox _spinFps;
-	private CheckBox _chkSubframeBlend;
+	private Label _lblObjectTypePrefix = null!;
+	private LineEdit _txtSlug = null!;
+	private LineEdit _txtRtexAsset = null!;
+	private Action<string> _setRtexAssetValue = null!;
+
+	private SpinBox _spinCols = null!;
+	private SpinBox _spinRows = null!;
+	private SpinBox _spinFps = null!;
+	private CheckBox _chkSubframeBlend = null!;
 
 	public SpritesheetAssetEditDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Edit VFX Spritesheet"), new Vector2(380, 360))
@@ -52,29 +55,12 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 
 	private void BuildControls()
 	{
-		var contentVBox = new VBoxContainer();
-		contentVBox.Name = "ContentVBox_VBoxContainer";
-		contentVBox.AddThemeConstantOverride("separation", 10);
+		var contentVBox = CreateContentColumn();
 		BodyContainer.AddChild(contentVBox);
 
 		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & ASSET"), new Color(0.95f, 0.8f, 0.4f));
 
-		var rowId = new HBoxContainer();
-		rowId.Name = "RowId_HBoxContainer";
-		rowId.AddThemeConstantOverride("separation", 6);
-		var lblId = new Label();
-		lblId.Name = "LblId_Label";
-		lblId.Text = TranslationServer.Translate("TemplateID:");
-		lblId.CustomMinimumSize = new Vector2(100, 0);
-		lblId.AddThemeFontSizeOverride("font_size", 11);
-		rowId.AddChild(lblId);
-
-		_lblObjectTypePrefix = new Label();
-		_lblObjectTypePrefix.Name = "LblObjectTypePrefix_Label";
-		_lblObjectTypePrefix.Text = "spritesheet/";
-		_lblObjectTypePrefix.AddThemeFontSizeOverride("font_size", 11);
-		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		rowId.AddChild(_lblObjectTypePrefix);
+		var rowId = BuildIdentityRow(contentVBox, "spritesheet/", out _lblObjectTypePrefix, 100f);
 
 		_txtSlug = new LineEdit();
 		_txtSlug.Name = "TxtSlug_LineEdit";
@@ -83,7 +69,6 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
 		_txtSlug.TextChanged += (val) => { _slug = TemplateIDHelper.ToSnakeCase(val); };
 		rowId.AddChild(_txtSlug);
-		contentVBox.AddChild(rowId);
 
 		(_txtRtexAsset, _setRtexAssetValue) = AddAssetFilterDropdown(
 			contentVBox,
@@ -253,7 +238,7 @@ public partial class SpritesheetAssetEditDialog : FloatingDialogBase
 	private string FindCandidateRtexAsset(string slug)
 	{
 		var candidates = ScanRtexAssets(true);
-		string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{slug}.rtex", StringComparison.OrdinalIgnoreCase))
+		string? candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{slug}.rtex", StringComparison.OrdinalIgnoreCase))
 		                        ?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), slug, StringComparison.OrdinalIgnoreCase));
 		return candidateMatch ?? string.Empty;
 	}

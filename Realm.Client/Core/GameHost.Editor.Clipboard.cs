@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Services;
@@ -13,9 +13,9 @@ namespace Realm.Client.Core
 	{
 		private void PerformCopyArea()
 		{
-			if (GroundTerrain == null || GameContext.EditorService.SelectionStart == null || GameContext.EditorService.SelectionEnd == null) return;
+			if (GroundTerrain == null || GameContext.EditorService.Interaction.SelectionStart == null || GameContext.EditorService.Interaction.SelectionEnd == null) return;
 
-			var (minX, minZ, maxX, maxZ) = GameContext.EditorService.GetCurrentSelectionBounds();
+			var (minX, minZ, maxX, maxZ) = GameContext.EditorService.Interaction.GetSelectionBounds();
 
 			var candidates = new List<CopiedEntityCandidate>();
 			foreach (var child in GetChildren())
@@ -42,8 +42,8 @@ namespace Realm.Client.Core
 				}
 			}
 
-			var entities = GameContext.EditorService.BuildCopiedEntityList(minX, minZ, maxX, maxZ, candidates, EditorBrushIsSquare);
-			GameContext.EditorService.CopyArea(minX, minZ, maxX, maxZ, entities, EditorBrushIsSquare);
+			var entities = GameContext.EditorService.Clipboard.BuildCopiedEntityList(minX, minZ, maxX, maxZ, candidates, EditorBrushIsSquare);
+			GameContext.EditorService.Clipboard.CopyArea(minX, minZ, maxX, maxZ, entities, EditorBrushIsSquare);
 
 			int selWidth = maxX - minX + 1;
 			int selDepth = maxZ - minZ + 1;
@@ -52,12 +52,12 @@ namespace Realm.Client.Core
 
 		private bool IsCopiedQuadMasked(int sx, int sz)
 		{
-			float r = GameContext.EditorService.EditorPasteRotation % 360.0f;
+			float r = GameContext.EditorService.Tools.PasteRotation % 360.0f;
 			if (r < 0) r += 360.0f;
 			int rotSteps = (int)Math.Round(r / 90.0f) % 4;
 
-			int pasteWidth = GameContext.EditorService.CopiedAreaWidth;
-			int pasteDepth = GameContext.EditorService.CopiedAreaDepth;
+			int pasteWidth = GameContext.EditorService.Clipboard.CopiedAreaWidth;
+			int pasteDepth = GameContext.EditorService.Clipboard.CopiedAreaDepth;
 
 			int origSx = sx;
 			int origSz = sz;
@@ -81,15 +81,15 @@ namespace Realm.Client.Core
 			int srcX = origSx;
 			int srcZ = origSz;
 
-			if (GameContext.EditorService.EditorPasteReflection == PasteReflection.Horizontal) srcX = pasteWidth - 1 - origSx;
-			else if (GameContext.EditorService.EditorPasteReflection == PasteReflection.Vertical) srcZ = pasteDepth - 1 - origSz;
+			if (GameContext.EditorService.Tools.PasteReflectionMode == PasteReflection.Horizontal) srcX = pasteWidth - 1 - origSx;
+			else if (GameContext.EditorService.Tools.PasteReflectionMode == PasteReflection.Vertical) srcZ = pasteDepth - 1 - origSz;
 
-			return GameContext.EditorService.IsCopiedCellMasked(srcX, srcZ);
+			return GameContext.EditorService.Clipboard.IsCopiedCellMasked(srcX, srcZ);
 		}
 
 		public void PerformCopyAreaExternal()
 		{
-			if (GroundTerrain == null || GameContext.EditorService.SelectionStart == null || GameContext.EditorService.SelectionEnd == null)
+			if (GroundTerrain == null || GameContext.EditorService.Interaction.SelectionStart == null || GameContext.EditorService.Interaction.SelectionEnd == null)
 			{
 				GameContext.MapEditorHud?.ShowFeedbackExternal("Nothing to Copy (select an area first)");
 				return;
@@ -101,7 +101,7 @@ namespace Realm.Client.Core
 
 		private List<IEditorAction> PerformPasteArea(int startX, int startZ, float rotationDegrees, PasteReflection reflection = PasteReflection.None, bool recordToHistory = true)
 		{
-			if (GroundTerrain?.Cells == null || GroundTerrain.SplatMap == null || !GameContext.EditorService.HasCopiedArea) return new List<IEditorAction>();
+			if (GroundTerrain?.Cells == null || GroundTerrain.SplatMap == null || !GameContext.EditorService.Clipboard.HasCopiedArea) return new List<IEditorAction>();
 
 			var cellsBefore = (TerrainCell[,])GroundTerrain.Cells.Clone();
 			var splatBefore = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
@@ -109,7 +109,7 @@ namespace Realm.Client.Core
 			var pathingBefore = (int[,])GroundTerrain.PathingCodes.Clone();
 
 			var pasteResult = GameContext.EditorService.BuildPasteAreaResult(
-				startX, startZ, GameContext.EditorService.PasteOptionHeights, GameContext.EditorService.PasteOptionTextures, GameContext.EditorService.PasteOptionEntities, PasteOptionPathing,
+				startX, startZ, GameContext.EditorService.Tools.PasteHeights, GameContext.EditorService.Tools.PasteTextures, GameContext.EditorService.Tools.PasteEntities, PasteOptionPathing,
 				EditorMirrorMode, rotationDegrees, reflection);
 
 			ApplyPasteTerrainModifications(startX, startZ, pasteResult);
@@ -122,7 +122,7 @@ namespace Realm.Client.Core
 		{
 			if (!pasteResult.TerrainModified) return;
 
-			int pasteW = Math.Max(GameContext.EditorService.CopiedAreaWidth, GameContext.EditorService.CopiedAreaDepth);
+			int pasteW = Math.Max(GameContext.EditorService.Clipboard.CopiedAreaWidth, GameContext.EditorService.Clipboard.CopiedAreaDepth);
 			var affectedRegions = GetAffectedRegions(startX, startZ, pasteW, pasteW);
 
 			if (pasteResult.HeightsModified)
@@ -130,7 +130,7 @@ namespace Realm.Client.Core
 				foreach (var aff in affectedRegions) AlignAllEntitiesToTerrain(aff);
 			}
 
-			GroundTerrain.UpdateMeshAndPhysics(pasteResult.HeightsModified, false, affectedRegions, pasteResult.HeightsModified);
+			RequireGroundTerrain().UpdateMeshAndPhysics(pasteResult.HeightsModified, false, affectedRegions, pasteResult.HeightsModified);
 
 			if (pasteResult.PathingModified) UpdatePathingOverlay();
 		}
@@ -140,13 +140,14 @@ namespace Realm.Client.Core
 			var affectedRegions = new List<Rect2I> { new Rect2I(startX - 2, startZ - 2, pasteW + 4, pasteD + 4) };
 			if (EditorMirrorMode == MirrorMode.None) return affectedRegions;
 
-			float quadSize = GroundTerrain.QuadSize;
-			Vector3 centerPos = new Vector3((startX + pasteW / 2.0f - GroundTerrain.Width / 2.0f) * quadSize, 0, (startZ + pasteD / 2.0f - GroundTerrain.Depth / 2.0f) * quadSize);
-			var transforms = GameContext.EditorService.GetMirroredTransforms(centerPos, 0.0f, EditorMirrorMode);
+			var ground = RequireGroundTerrain();
+			float quadSize = ground.QuadSize;
+			Vector3 centerPos = new Vector3((startX + pasteW / 2.0f - ground.Width / 2.0f) * quadSize, 0, (startZ + pasteD / 2.0f - ground.Depth / 2.0f) * quadSize);
+			var transforms = GameContext.EditorService.Symmetry.GetTransforms(centerPos, 0.0f, EditorMirrorMode);
 
 			foreach (var t in transforms)
 			{
-				var (rcx, rcz) = GameContext.EditorService.WorldPosToCellCoords(t.Position);
+				var (rcx, rcz) = EditorGridSnapping.WorldPosToCellCoords(t.Position);
 				affectedRegions.Add(new Rect2I(rcx - pasteW / 2 - 2, rcz - pasteD / 2 - 2, pasteW + 4, pasteD + 4));
 			}
 
@@ -168,7 +169,7 @@ namespace Realm.Client.Core
 			return spawnActions;
 		}
 
-		private Node SpawnPastedNode(EntitySpawnRequest req)
+		private Node? SpawnPastedNode(EntitySpawnRequest req)
 		{
 			if (req.Type == "unit") return SpawnUnitExternal(req.Id, req.Position, req.Rotation, req.Scale, req.Player);
 			if (req.Type == "prop") return SpawnPropExternalWithParams(req.Id, req.Position, req.Rotation, req.Scale);
@@ -177,15 +178,16 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private List<IEditorAction> FinalizePasteActions(bool terrainModified, TerrainCell[,] cellsBefore, TerrainSplatWeights[,] splatBefore, TerrainSplatWeights[,] cliffBefore, int[,] pathingBefore, List<IEditorAction> spawnActions, bool recordToHistory)
+		private List<IEditorAction> FinalizePasteActions(bool terrainModified, TerrainCell[,] cellsBefore, TerrainSplatWeights[,] splatBefore, TerrainSplatWeights[,]? cliffBefore, int[,] pathingBefore, List<IEditorAction> spawnActions, bool recordToHistory)
 		{
 			var actions = new List<IEditorAction>();
 			if (terrainModified)
 			{
-				var cellsAfter = (TerrainCell[,])GroundTerrain.Cells.Clone();
-				var splatAfter = (TerrainSplatWeights[,])GroundTerrain.SplatMap.Clone();
-				var cliffAfter = GroundTerrain.CliffSplatMap != null ? (TerrainSplatWeights[,])GroundTerrain.CliffSplatMap.Clone() : null;
-				var pathingAfter = (int[,])GroundTerrain.PathingCodes.Clone();
+				var ground = RequireGroundTerrain();
+				var cellsAfter = (TerrainCell[,])ground.Cells.Clone();
+				var splatAfter = (TerrainSplatWeights[,])ground.SplatMap.Clone();
+				TerrainSplatWeights[,]? cliffAfter = ground.CliffSplatMap != null ? (TerrainSplatWeights[,])ground.CliffSplatMap.Clone() : null;
+				var pathingAfter = (int[,])ground.PathingCodes.Clone();
 				actions.Add(new TerrainModifyAction(cellsBefore, cellsAfter, splatBefore, splatAfter, pathingBefore, pathingAfter, cliffBefore, cliffAfter));
 			}
 

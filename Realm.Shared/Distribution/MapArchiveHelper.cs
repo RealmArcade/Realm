@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Text;
 using Blake3;
 using Realm.Shared.Metadata;
@@ -20,12 +20,13 @@ public static class MapArchiveHelper
 		IReadOnlyCollection<string>? excludedRelativePaths = null)
 	{
 		PrepareArchiveDestination(sourceDirectory, destinationRmapPath);
-		IncludeMapSourcesInManifest(sourceDirectory);
 
+		DistributionReferences? references = BuildDistributionReferences(sourceDirectory);
 		var filesToArchive = GetFilesToArchive(sourceDirectory, fullExport, excludedRelativePaths);
+		IndexArchivedFilesInManifest(sourceDirectory, filesToArchive, references);
 		SortFilesForArchive(filesToArchive, sourceDirectory);
 
-		WriteFilesToZipArchive(filesToArchive, sourceDirectory, destinationRmapPath, progressCallback);
+		WriteFilesToZipArchive(filesToArchive, sourceDirectory, destinationRmapPath, progressCallback, references);
 
 		return AppendContentHashToRmapFileName(destinationRmapPath);
 	}
@@ -81,12 +82,21 @@ public static class MapArchiveHelper
 	}
 
 	/// <summary>
-	///     Makes sure every C# source the map is authored in is listed in the manifest the archive carries. A map script is
-	///     part of what a map is, so a package whose manifest omits it cannot be recompiled by anyone who opens it, even
-	///     though the file itself travels in the archive.
+	///     Makes the manifest the archive carries name every file the archive contains. A download, a lobby hand-off and a
+	///     peer mirror all rebuild a map folder from <c>manifest.json</c> alone, so a file that travels in the package
+	///     without being listed in it never reaches the player: the map arrives without its terrain, its metadata or the
+	///     script it runs, and cannot be loaded.
 	/// </summary>
-	/// <param name="sourceDirectory">The workspace being archived.</param>
-	private static void IncludeMapSourcesInManifest(string sourceDirectory)
+	/// <remarks>
+///     Entries the manifest already holds are left exactly as they are, including the hashes of assets a greenlit
+///     reference lends the package and which therefore never travel inside it. Only files the manifest does not name are
+///     added, with the canonical asset key their bytes produce. The one exception is the references file: the package
+///     ships a copy without the author's helper folders, so its entry is restated with the hash of the bytes that travel.
+/// </remarks>
+/// <param name="sourceDirectory">The package folder being archived.</param>
+/// <param name="filesToArchive">The files the archive will contain.</param>
+/// <param name="references">The portable references the package carries instead of the folder's own copy, when it has one.</param>
+private static void IndexArchivedFilesInManifest(string sourceDirectory, IReadOnlyList<string> filesToArchive, DistributionReferences? references)
 	{
 		string manifestPath = Path.Combine(sourceDirectory, "manifest.json");
 		if (!File.Exists(manifestPath)) return;
@@ -106,27 +116,33 @@ public static class MapArchiveHelper
 		Dictionary<string, string> listedFiles = manifest.Files;
 		bool added = false;
 
-		foreach (string sourcePath in Directory.EnumerateFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories))
+		foreach (string filePath in filesToArchive)
 		{
-			string relativePath = Path.GetRelativePath(sourceDirectory, sourcePath).Replace('\\', '/');
-			if (IsIgnoredPath(relativePath)) continue;
+			string relativePath = Path.GetRelativePath(sourceDirectory, filePath).Replace('\\', '/');
+			if (string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase)) continue;
 			if (listedFiles.ContainsKey(relativePath)) continue;
 
-			var sourceFile = new FileInfo(sourcePath);
-			if (!sourceFile.Exists || sourceFile.Length == 0) continue;
+			var archivedFile = new FileInfo(filePath);
+			if (!archivedFile.Exists || archivedFile.Length == 0) continue;
 
-			string hash = RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(sourcePath), ".cs");
+			string extension = Path.GetExtension(filePath).ToLowerInvariant();
+			string hash = RealmMetadataHelper.ComputeBlake3(File.ReadAllBytes(filePath), extension);
 			if (string.IsNullOrEmpty(hash)) continue;
 
-			manifest.Assets ??= new MapManifestAssets();
-			manifest.Assets.Other ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			manifest.Assets.Other[relativePath] = $"{hash}.cs";
+			listedFiles[relativePath] = string.IsNullOrEmpty(extension) ? hash : $"{hash}{extension}";
+			added = true;
+		}
+
+		if (references != null)
+		{
+			listedFiles[references.RelativePath] = references.AssetKey;
+			manifest.FileSizes![references.RelativePath] = references.Bytes.Length;
 			added = true;
 		}
 
 		if (!added) return;
 
-		MapFileService.SaveManifest(manifestPath, manifest);
+		MapFileService.WriteAllTextAtomically(manifestPath, manifest.ToJson());
 	}
 
 	private static bool IsIgnoredPath(string relPath)
@@ -139,7 +155,10 @@ public static class MapArchiveHelper
 		if (relPath.Contains("/obj/", StringComparison.OrdinalIgnoreCase)) return true;
 		if (string.Equals(Path.GetFileName(relPath), MapFileService.BuildFlavorFileName, StringComparison.OrdinalIgnoreCase)) return true;
 
-		return string.Equals(Path.GetFileName(relPath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
+		string fileName = Path.GetFileName(relPath);
+		if (string.Equals(fileName, MapMetadataMerger.MetadataPartialFileName, StringComparison.OrdinalIgnoreCase)) return true;
+
+		return string.Equals(fileName, "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static bool IsAllowedExcludedFile(string relativePath)
@@ -205,7 +224,7 @@ public static class MapArchiveHelper
 		});
 	}
 
-	private static void WriteFilesToZipArchive(List<string> filesToArchive, string sourceDirectory, string destinationRmapPath, Action<float, string>? progressCallback)
+	private static void WriteFilesToZipArchive(List<string> filesToArchive, string sourceDirectory, string destinationRmapPath, Action<float, string>? progressCallback, DistributionReferences? references)
 	{
 		using var fileStream = new FileStream(destinationRmapPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920);
 		using var zipArchive = new ZipArchive(fileStream, ZipArchiveMode.Create, leaveOpen: false);
@@ -217,11 +236,55 @@ public static class MapArchiveHelper
 			string relativePath = Path.GetRelativePath(sourceDirectory, file).Replace('\\', '/');
 			progressCallback?.Invoke((float)(i + 1) / Math.Max(1, total), relativePath);
 
+			if (references != null && string.Equals(relativePath, references.RelativePath, StringComparison.OrdinalIgnoreCase))
+			{
+				var referencesEntry = zipArchive.CreateEntry(relativePath, CompressionLevel.NoCompression);
+				using var referencesStream = referencesEntry.Open();
+				referencesStream.Write(references.Bytes, 0, references.Bytes.Length);
+				continue;
+			}
+
 			var entry = zipArchive.CreateEntry(relativePath, CompressionLevel.NoCompression);
 			using var entryStream = entry.Open();
 			using var inputFs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.SequentialScan);
 			inputFs.CopyTo(entryStream, 81920);
 		}
+	}
+
+	/// <summary>
+	///     Builds the copy of the references the package ships: the same maps, versions and conflict priorities, with the
+	///     helper folders cleared, because those name a place on the machine the map is being authored on.
+	/// </summary>
+	/// <param name="sourceDirectory">The package folder being archived.</param>
+	/// <returns>The bytes and asset key the package states, or null when the folder references no map.</returns>
+	private static DistributionReferences? BuildDistributionReferences(string sourceDirectory)
+	{
+		string path = Path.Combine(sourceDirectory, MapReferences.FileName);
+		if (!File.Exists(path)) return null;
+
+		MapReferences? references = MapReferences.Load(sourceDirectory);
+		if (references == null)
+		{
+			throw new InvalidDataException($"The map keeps '{MapReferences.FileName}' and it cannot be read, so the package cannot state the maps it is composed from.");
+		}
+
+		const string extension = ".json";
+		byte[] bytes = Encoding.UTF8.GetBytes(references.ToDistributionJson());
+		return new DistributionReferences
+		{
+			RelativePath = MapReferences.FileName,
+			Bytes = bytes,
+			AssetKey = $"{RealmMetadataHelper.ComputeBlake3(bytes, extension)}{extension}"
+		};
+	}
+
+	private class DistributionReferences
+	{
+		public string RelativePath { get; init; } = string.Empty;
+
+		public byte[] Bytes { get; init; } = Array.Empty<byte>();
+
+		public string AssetKey { get; init; } = string.Empty;
 	}
 
 	public static RmapHeaderInfo? ReadHeaderFromRmap(string rmapFilePath)
@@ -604,72 +667,6 @@ public static class MapArchiveHelper
 		return normalized.TrimStart('/');
 	}
 
-	private static RmapHeaderInfo ExtractRmapHeaderInfoFromDirectory(string sourceDirectory)
-	{
-		string mapName = Path.GetFileName(sourceDirectory);
-		string version = "1.0.0";
-		string gameBuildNumber = RealmVersion.GameBuildNumber;
-		string author = "Unknown";
-		string description = string.Empty;
-		var tags = new List<string>();
-
-		ApplyManifestToHeaderInfo(sourceDirectory, ref mapName, ref version, ref author, ref description, tags);
-		ApplyMetadataToHeaderInfo(sourceDirectory, ref gameBuildNumber);
-
-		return new RmapHeaderInfo
-		{
-			MapName = mapName,
-			Version = version,
-			GameBuildNumber = string.IsNullOrWhiteSpace(gameBuildNumber) ? RealmVersion.GameBuildNumber : gameBuildNumber,
-			Author = author,
-			Description = description,
-			Tags = tags
-		};
-	}
-
-	private static void ApplyManifestToHeaderInfo(
-		string sourceDirectory,
-		ref string mapName,
-		ref string version,
-		ref string author,
-		ref string description,
-		List<string> tags)
-	{
-		string manifestPath = Path.Combine(sourceDirectory, "manifest.json");
-		if (!File.Exists(manifestPath)) return;
-
-		try
-		{
-			var manifest = MapFileService.LoadManifest(manifestPath);
-			if (!string.IsNullOrWhiteSpace(manifest.MapName)) mapName = manifest.MapName.Trim();
-			if (!string.IsNullOrWhiteSpace(manifest.Version)) version = manifest.Version.Trim();
-			if (!string.IsNullOrWhiteSpace(manifest.Author)) author = manifest.Author.Trim();
-			if (!string.IsNullOrWhiteSpace(manifest.Description)) description = manifest.Description;
-			if (manifest.Tags != null) tags.AddRange(manifest.Tags);
-		}
-		catch
-		{
-		}
-	}
-
-	private static void ApplyMetadataToHeaderInfo(string sourceDirectory, ref string gameBuildNumber)
-	{
-		string metadataPath = Path.Combine(sourceDirectory, "metadata.json");
-		if (!File.Exists(metadataPath)) return;
-
-		try
-		{
-			var metadata = MapFileService.LoadMetadata(metadataPath);
-			if (!string.IsNullOrWhiteSpace(metadata.GameBuildNumber))
-			{
-				gameBuildNumber = metadata.GameBuildNumber.Trim();
-			}
-		}
-		catch
-		{
-		}
-	}
-
 	private static bool IsWorkspaceApiLibFile(string fileName)
 	{
 		return fileName.Equals("Realm.MapAPI.dll", StringComparison.OrdinalIgnoreCase) ||
@@ -712,7 +709,11 @@ public static class MapArchiveHelper
 					{
 						if (!IsWorkspaceApiLibFile(Path.GetFileName(file))) continue;
 
-						try { File.Delete(file); } catch { }
+						try { File.Delete(file); }
+						catch (Exception exception)
+						{
+							Console.Error.WriteLine($"[MapArchiveHelper] could not remove the stale API library {file}: {exception.GetType().Name}: {exception.Message}");
+						}
 					}
 				}
 			}
@@ -720,11 +721,16 @@ public static class MapArchiveHelper
 			var elfFiles = Directory.GetFiles(workspacePath, "*.elf", SearchOption.AllDirectories);
 			foreach (var file in elfFiles)
 			{
-				try { File.Delete(file); } catch { }
+				try { File.Delete(file); }
+				catch (Exception exception)
+				{
+					Console.Error.WriteLine($"[MapArchiveHelper] could not remove the stray ELF {file}: {exception.GetType().Name}: {exception.Message}");
+				}
 			}
 		}
-		catch
+		catch (Exception ex)
 		{
+			Console.Error.WriteLine($"[MapArchiveHelper] could not deduplicate the workspace build artifacts under {workspacePath}: {ex.GetType().Name}: {ex.Message}");
 		}
 	}
 

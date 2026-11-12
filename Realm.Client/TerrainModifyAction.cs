@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -13,24 +13,24 @@ public class TerrainModifyAction : IEditorAction
 	private readonly int _width;
 	private readonly int _depth;
 
-	private readonly TerrainCell[,] _beforeCells;
-	private readonly TerrainCell[,] _afterCells;
-	private readonly TerrainSplatWeights[,] _beforeSplatMap;
-	private readonly TerrainSplatWeights[,] _afterSplatMap;
-	private readonly TerrainSplatWeights[,] _beforeCliffSplatMap;
-	private readonly TerrainSplatWeights[,] _afterCliffSplatMap;
-	private readonly int[,] _beforePathing;
-	private readonly int[,] _afterPathing;
+	private readonly TerrainCell[,]? _beforeCells;
+	private readonly TerrainCell[,]? _afterCells;
+	private readonly TerrainSplatWeights[,]? _beforeSplatMap;
+	private readonly TerrainSplatWeights[,]? _afterSplatMap;
+	private readonly TerrainSplatWeights[,]? _beforeCliffSplatMap;
+	private readonly TerrainSplatWeights[,]? _afterCliffSplatMap;
+	private readonly int[,]? _beforePathing;
+	private readonly int[,]? _afterPathing;
 
 	public TerrainModifyAction(
-		TerrainCell[,] beforeCells,
-		TerrainCell[,] afterCells,
-		TerrainSplatWeights[,] beforeSplatMap,
-		TerrainSplatWeights[,] afterSplatMap,
-		int[,] beforePathing = null,
-		int[,] afterPathing = null,
-		TerrainSplatWeights[,] beforeCliffSplatMap = null,
-		TerrainSplatWeights[,] afterCliffSplatMap = null)
+		TerrainCell[,]? beforeCells,
+		TerrainCell[,]? afterCells,
+		TerrainSplatWeights[,]? beforeSplatMap,
+		TerrainSplatWeights[,]? afterSplatMap,
+		int[,]? beforePathing = null,
+		int[,]? afterPathing = null,
+		TerrainSplatWeights[,]? beforeCliffSplatMap = null,
+		TerrainSplatWeights[,]? afterCliffSplatMap = null)
 	{
 		_beforeCells = beforeCells;
 		_afterCells = afterCells;
@@ -66,14 +66,14 @@ public class TerrainModifyAction : IEditorAction
 
 	public TerrainModifyAction(
 		int minX, int minZ, int width, int depth,
-		TerrainCell[,] beforeCells,
-		TerrainCell[,] afterCells,
-		TerrainSplatWeights[,] beforeSplatMap,
-		TerrainSplatWeights[,] afterSplatMap,
-		int[,] beforePathing = null,
-		int[,] afterPathing = null,
-		TerrainSplatWeights[,] beforeCliffSplatMap = null,
-		TerrainSplatWeights[,] afterCliffSplatMap = null)
+		TerrainCell[,]? beforeCells,
+		TerrainCell[,]? afterCells,
+		TerrainSplatWeights[,]? beforeSplatMap,
+		TerrainSplatWeights[,]? afterSplatMap,
+		int[,]? beforePathing = null,
+		int[,]? afterPathing = null,
+		TerrainSplatWeights[,]? beforeCliffSplatMap = null,
+		TerrainSplatWeights[,]? afterCliffSplatMap = null)
 	{
 		_minX = minX;
 		_minZ = minZ;
@@ -90,10 +90,10 @@ public class TerrainModifyAction : IEditorAction
 	}
 
 	public TerrainModifyAction(
-		float[,] beforeHeights, float[,] afterHeights,
-		TerrainSplatWeights[,] beforeSplatMap, TerrainSplatWeights[,] afterSplatMap,
-		int[,] beforePathing = null, int[,] afterPathing = null,
-		TerrainSplatWeights[,] beforeCliffSplatMap = null, TerrainSplatWeights[,] afterCliffSplatMap = null)
+		float[,]? beforeHeights, float[,]? afterHeights,
+		TerrainSplatWeights[,]? beforeSplatMap, TerrainSplatWeights[,]? afterSplatMap,
+		int[,]? beforePathing = null, int[,]? afterPathing = null,
+		TerrainSplatWeights[,]? beforeCliffSplatMap = null, TerrainSplatWeights[,]? afterCliffSplatMap = null)
 		: this(ConvertHeights(beforeHeights), ConvertHeights(afterHeights), beforeSplatMap, afterSplatMap, beforePathing, afterPathing, beforeCliffSplatMap, afterCliffSplatMap)
 	{
 	}
@@ -101,14 +101,14 @@ public class TerrainModifyAction : IEditorAction
 	public TerrainModifyAction(
 		int minX, int minZ, int width, int depth,
 		float[,] beforeHeights, float[,] afterHeights,
-		TerrainSplatWeights[,] beforeSplatMap, TerrainSplatWeights[,] afterSplatMap,
-		int[,] beforePathing = null, int[,] afterPathing = null,
-		TerrainSplatWeights[,] beforeCliffSplatMap = null, TerrainSplatWeights[,] afterCliffSplatMap = null)
+		TerrainSplatWeights[,]? beforeSplatMap, TerrainSplatWeights[,] afterSplatMap,
+		int[,]? beforePathing = null, int[,]? afterPathing = null,
+		TerrainSplatWeights[,]? beforeCliffSplatMap = null, TerrainSplatWeights[,]? afterCliffSplatMap = null)
 		: this(minX, minZ, width, depth, ConvertHeights(beforeHeights), ConvertHeights(afterHeights), beforeSplatMap, afterSplatMap, beforePathing, afterPathing, beforeCliffSplatMap, afterCliffSplatMap)
 	{
 	}
 
-	private static TerrainCell[,] ConvertHeights(float[,] heights)
+	private static TerrainCell[,]? ConvertHeights(float[,]? heights)
 	{
 		if (heights == null) return null;
 		int w = heights.GetLength(0);
@@ -135,12 +135,14 @@ public class TerrainModifyAction : IEditorAction
 	}
 
 	private void ApplyState(
-		TerrainCell[,] cells,
-		TerrainSplatWeights[,] splatMap,
-		TerrainSplatWeights[,] cliffSplatMap,
-		int[,] pathingCodes)
+		TerrainCell[,]? cells,
+		TerrainSplatWeights[,]? splatMap,
+		TerrainSplatWeights[,]? cliffSplatMap,
+		int[,]? pathingCodes)
 	{
-		var terrain = GameContext.Host.GroundTerrain;
+		var terrain = GameContext.Host?.GroundTerrain;
+		if (terrain == null) return;
+
 		if (cells != null && terrain.Cells != null)
 		{
 			ApplyArray(cells, terrain.Cells, Math.Min(_width, cells.GetLength(0)), Math.Min(_depth, cells.GetLength(1)));
@@ -183,30 +185,35 @@ public class TerrainModifyAction : IEditorAction
 
 	private void UpdateTerrainSystems(bool heightsChanged, bool pathingChanged, bool splatChanged)
 	{
-		var terrain = GameContext.Host.GroundTerrain;
+		var host = GameContext.Host;
+		if (host == null) return;
+
+		var terrain = host.GroundTerrain;
+		if (terrain == null) return;
+
 		if (splatChanged && terrain.SplatMap != null)
 		{
 			var editorService = GameContext.EditorService;
 			if (editorService != null)
 			{
-				editorService.AlignSplatMapSlots(_minX - 2, _minZ - 2, _minX + _width + 2, _minZ + _depth + 2);
+				editorService.Surface.AlignSplatMapSlots(_minX - 2, _minZ - 2, _minX + _width + 2, _minZ + _depth + 2);
 			}
 		}
 
 		Rect2I affected = new Rect2I(_minX - 2, _minZ - 2, _width + 4, _depth + 4);
 		if (heightsChanged)
 		{
-			GameContext.Host.AlignAllEntitiesToTerrainExternal(affected);
+			host.AlignAllEntitiesToTerrainExternal(affected);
 		}
 
 		terrain.UpdateMeshAndPhysics(heightsChanged, false, affected, heightsChanged);
 		if (pathingChanged)
 		{
-			GameContext.Host.UpdatePathingOverlay();
+			host.UpdatePathingOverlay();
 		}
 	}
 
-	private bool GetSplatChanged(TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap)
+	private static bool GetSplatChanged(TerrainSplatWeights[,]? splatMap, TerrainSplatWeights[,]? cliffSplatMap)
 	{
 		return splatMap != null || cliffSplatMap != null;
 	}

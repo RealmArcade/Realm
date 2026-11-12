@@ -1,4 +1,4 @@
-import lldb
+﻿import lldb
 import struct
 
 # Constants auto-discovered from EcsSharedMemory
@@ -34,6 +34,8 @@ LOBBY_FACTION_NAME_CHARACTERS = 24
 LOBBY_ROSTER_HEADER_OFFSET = 1651820
 LOBBY_FACTION_NAMES_OFFSET = 1651840
 PLAYER_ROSTER_SLOTS_OFFSET = 1652608
+UNIT_CHARGES_OFFSET = 1653248
+PLAYER_DAMAGE_EFFECTIVENESS_OFFSET = 1784320
 TOTAL_SIZE_BYTES = 4194304
 
 # Element sizes auto-calculated from struct layouts
@@ -49,43 +51,43 @@ EXPERIENCE_SIZE = 4
 MODEL_SCALE_SIZE = 4
 ROTATION_Y_SIZE = 4
 PLAYER_RESOURCES_SIZE = 48
-SCRIPT_PLAYER_SIZE = 32
+SCRIPT_PLAYER_SIZE = 36
 PLAYER_POPULATION_SIZE = 8
 
 # Fields auto-discovered for PlayerId (name, comp_id, array_offset, elem_size, sub_offset, type_name)
 PLAYER_FIELDS = [
     ("Id", -1, 0, 0, 0, "int"),
-    ("Gold", 69, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 0, "int"),
-    ("Wood", 69, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 4, "int"),
-    ("Stone", 69, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 8, "int"),
-    ("Ore", 69, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 12, "int"),
-    ("IsActive", 31, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 0, "bool"),
-    ("IsComputer", 31, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 1, "bool"),
-    ("Team", 31, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 4, "int"),
-    ("CurrentPopulation", 24, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 0, "int"),
-    ("MaxPopulation", 24, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 4, "int"),
+    ("Gold", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 0, "int"),
+    ("Wood", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 4, "int"),
+    ("Stone", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 8, "int"),
+    ("Ore", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 12, "int"),
+    ("IsActive", 33, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 0, "bool"),
+    ("IsComputer", 33, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 1, "bool"),
+    ("Team", 33, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 4, "int"),
+    ("CurrentPopulation", 26, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 0, "int"),
+    ("MaxPopulation", 26, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 4, "int"),
 ]
 
 # Fields auto-discovered for UnitId (name, comp_id, array_offset, elem_size, sub_offset, type_name)
 ENTITY_FIELDS = [
     ("Id", -1, 0, 0, 0, "int"),
-    ("Health", 1, HEALTH_OFFSET, HEALTH_SIZE, 0, "float"),
-    ("MaxHealth", 1, HEALTH_OFFSET, HEALTH_SIZE, 4, "float"),
-    ("Mana", 3, MANA_OFFSET, MANA_SIZE, 0, "float"),
-    ("MaxMana", 3, MANA_OFFSET, MANA_SIZE, 4, "float"),
-    ("ManaRegen", 3, MANA_OFFSET, MANA_SIZE, 8, "float"),
-    ("Damage", 43, ATTACK_OFFSET, ATTACK_SIZE, 0, "float"),
-    ("Range", 43, ATTACK_OFFSET, ATTACK_SIZE, 4, "float"),
-    ("AttackSpeed", 43, ATTACK_OFFSET, ATTACK_SIZE, 8, "float"),
-    ("Armor", 48, ARMOR_OFFSET, ARMOR_SIZE, 0, "float"),
-    ("MagicResistance", 48, ARMOR_OFFSET, ARMOR_SIZE, 4, "float"),
-    ("Speed", 57, MOVEMENT_STATS_OFFSET, MOVEMENT_STATS_SIZE, 0, "float"),
+    ("Health", 2, HEALTH_OFFSET, HEALTH_SIZE, 0, "float"),
+    ("MaxHealth", 2, HEALTH_OFFSET, HEALTH_SIZE, 4, "float"),
+    ("Mana", 4, MANA_OFFSET, MANA_SIZE, 0, "float"),
+    ("MaxMana", 4, MANA_OFFSET, MANA_SIZE, 4, "float"),
+    ("ManaRegen", 4, MANA_OFFSET, MANA_SIZE, 8, "float"),
+    ("Damage", 45, ATTACK_OFFSET, ATTACK_SIZE, 0, "float"),
+    ("Range", 45, ATTACK_OFFSET, ATTACK_SIZE, 4, "float"),
+    ("AttackSpeed", 45, ATTACK_OFFSET, ATTACK_SIZE, 8, "float"),
+    ("Armor", 50, ARMOR_OFFSET, ARMOR_SIZE, 0, "float"),
+    ("MagicResistance", 50, ARMOR_OFFSET, ARMOR_SIZE, 4, "float"),
+    ("Speed", 59, MOVEMENT_STATS_OFFSET, MOVEMENT_STATS_SIZE, 0, "float"),
     ("Position", 0, POSITION_OFFSET, POSITION_SIZE, 0, "Vector3"),
-    ("Player", 37, UNIT_OWNER_PLAYER_OFFSET, UNIT_OWNER_PLAYER_SIZE, 0, "int"),
-    ("Level", 106, LEVEL_OFFSET, LEVEL_SIZE, 0, "int"),
-    ("Experience", 104, EXPERIENCE_OFFSET, EXPERIENCE_SIZE, 0, "float"),
-    ("Scale", 108, MODEL_SCALE_OFFSET, MODEL_SCALE_SIZE, 0, "float"),
-    ("RotationY", 112, ROTATION_Y_OFFSET, ROTATION_Y_SIZE, 0, "float"),
+    ("Player", 39, UNIT_OWNER_PLAYER_OFFSET, UNIT_OWNER_PLAYER_SIZE, 0, "int"),
+    ("Level", 108, LEVEL_OFFSET, LEVEL_SIZE, 0, "int"),
+    ("Experience", 106, EXPERIENCE_OFFSET, EXPERIENCE_SIZE, 0, "float"),
+    ("Scale", 110, MODEL_SCALE_OFFSET, MODEL_SCALE_SIZE, 0, "float"),
+    ("RotationY", 114, ROTATION_Y_OFFSET, ROTATION_Y_SIZE, 0, "float"),
 ]
 
 PLAYER_OFFSETS = {name: (comp_id, array_offset, elem_size, sub_offset, type_name) for name, comp_id, array_offset, elem_size, sub_offset, type_name in PLAYER_FIELDS}

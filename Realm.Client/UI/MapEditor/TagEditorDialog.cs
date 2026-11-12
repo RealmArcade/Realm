@@ -12,12 +12,12 @@ public partial class TagEditorDialog : FloatingDialogBase
 {
 	public TagEditorDialog() { }
 
-	private readonly IndexedAsset _asset;
-	private readonly Action<List<string>> _onSaveCallback;
+	private readonly IndexedAsset? _asset;
+	private readonly Action<List<string>> _onSaveCallback = null!;
 	private readonly List<string> _workingTags = new();
-	private LineEdit _txtNewTag;
-	private Button _btnAddTag;
-	private VBoxContainer _tagsListContainer;
+	private LineEdit _txtNewTag = null!;
+	private Button _btnAddTag = null!;
+	private VBoxContainer _tagsListContainer = null!;
 
 	public TagEditorDialog(MapEditorHUD hud, IndexedAsset asset, Action<List<string>> onSaveCallback)
 		: base(hud, string.Format(TranslationServer.Translate("Edit Tags - {0}"), asset?.FileName ?? string.Empty), new Vector2(380, 360))
@@ -73,12 +73,7 @@ public partial class TagEditorDialog : FloatingDialogBase
 		scrollPanel.SizeFlagsVertical = SizeFlags.ExpandFill;
 		scrollPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
 
-		var scroll = new ScrollContainer();
-		scroll.Name = "Scroll_ScrollContainer";
-		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+		var scroll = UIStyle.CreateScrollingBody();
 
 		_tagsListContainer = new VBoxContainer();
 		_tagsListContainer.Name = "TagsListContainer_VBoxContainer";
@@ -141,15 +136,15 @@ public partial class TagEditorDialog : FloatingDialogBase
 			lblEmpty.AddThemeFontSizeOverride("font_size", 10);
 			lblEmpty.HorizontalAlignment = HorizontalAlignment.Center;
 			lblEmpty.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			lblEmpty.CustomMinimumSize = new Vector2(360, 0);
+			lblEmpty.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 			_tagsListContainer.AddChild(lblEmpty);
 			return;
 		}
 
 		foreach (var tag in _workingTags)
 		{
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			row.AddThemeConstantOverride("separation", 6);
+			var row = UIStyle.CreateRowContainer();
 
 			var lblTag = new Label();
 			lblTag.Name = "LblTag_Label";
@@ -159,9 +154,7 @@ public partial class TagEditorDialog : FloatingDialogBase
 			lblTag.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 			row.AddChild(lblTag);
 
-			var btnRemove = new Button();
-			btnRemove.Name = "BtnRemove_Button";
-			btnRemove.Set("icon_max_width", 0);
+			var btnRemove = UIStyle.CreateBareButton("BtnRemove_Button");
 			btnRemove.Text = "✕";
 			btnRemove.CustomMinimumSize = new Vector2(22, 20);
 			btnRemove.AddThemeFontSizeOverride("font_size", 9);

@@ -18,7 +18,7 @@ public struct CustomMetadata
 
 	public Dictionary<string, object> Value
 	{
-		get => ColdPayloadRegistry<Dictionary<string, object>>.Get(Handle);
+		get => ColdPayloadRegistry<Dictionary<string, object>>.Get(Handle)!;
 		set => Handle = ColdPayloadRegistry<Dictionary<string, object>>.Register(value);
 	}
 }

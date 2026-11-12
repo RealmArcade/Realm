@@ -29,11 +29,14 @@ public class TechTreeService
 	{
 		if (upgradeDef == null || upgradeDef.Modifiers == null || upgradeDef.Modifiers.Count == 0) return;
 
-		if (!GameContext.World.Has<ModifierState>(entity))
+		EcsWorld? world = GameContext.World;
+		if (world == null) return;
+
+		if (!world.Has<ModifierState>(entity))
 		{
-			GameContext.World.Add(entity, new ModifierState(null));
+			world.Add(entity, new ModifierState(null));
 		}
-		ref var modState = ref GameContext.World.Get<ModifierState>(entity);
+		ref var modState = ref world.Get<ModifierState>(entity);
 
 		for (int i = modState.Count - 1; i >= 0; i--)
 		{

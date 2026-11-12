@@ -161,41 +161,6 @@ public static class NativeToolRunner
 		return null;
 	}
 
-	private static bool ExtractEmbeddedResource(string resourceSuffix, string destinationPath)
-	{
-		if (File.Exists(destinationPath) && new FileInfo(destinationPath).Length > 0)
-		{
-			return true;
-		}
-
-		Stream? stream = null;
-		foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-		{
-			var names = asm.GetManifestResourceNames();
-			foreach (var name in names)
-			{
-				if (name.EndsWith(resourceSuffix, StringComparison.OrdinalIgnoreCase))
-				{
-					stream = asm.GetManifestResourceStream(name);
-					break;
-				}
-			}
-
-			if (stream != null) break;
-		}
-
-		if (stream != null)
-		{
-			string? dir = Path.GetDirectoryName(destinationPath);
-			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-			using var fileStream = File.Create(destinationPath);
-			stream.CopyTo(fileStream);
-			return true;
-		}
-
-		return false;
-	}
-
 	public static (int ExitCode, string Stdout, string Stderr) RunTool(string toolFileName, string arguments, int timeoutMs = 60000, string? workingDir = null)
 	{
 		string effectiveWorkingDir = !string.IsNullOrEmpty(workingDir) && Directory.Exists(workingDir)
@@ -218,11 +183,37 @@ public static class NativeToolRunner
 			return (-1, string.Empty, $"Failed to start process: {toolFileName}");
 		}
 
+		// Both pipes are drained at once: a tool that narrates progress on stderr (ffmpeg does) fills its 64 KB pipe
+		// buffer and blocks while stdout is read to the end first, which stalls the calling thread forever.
+		Task<string> stderrTask = proc.StandardError.ReadToEndAsync();
 		string stdout = proc.StandardOutput.ReadToEnd();
-		string stderr = proc.StandardError.ReadToEnd();
-		proc.WaitForExit(timeoutMs);
 
-		return (proc.ExitCode, stdout, stderr);
+		if (!proc.WaitForExit(timeoutMs))
+		{
+			KillProcessTree(proc);
+			return (-1, stdout, $"Process timed out after {timeoutMs} ms: {toolFileName}");
+		}
+
+		return (proc.ExitCode, stdout, stderrTask.GetAwaiter().GetResult());
+	}
+
+	private static void KillProcessTree(Process proc)
+	{
+		try
+		{
+			proc.Kill(entireProcessTree: true);
+		}
+		catch
+		{
+		}
+
+		try
+		{
+			proc.WaitForExit(5000);
+		}
+		catch
+		{
+		}
 	}
 
 	private static bool HasBasisuExtension(JsonObject root, string propertyName)
@@ -337,9 +328,16 @@ public static class NativeToolRunner
 			return (false, null, "Failed to start gltfpack process.");
 		}
 
+		Task<string> stderrTask = proc.StandardError.ReadToEndAsync();
 		string stdout = proc.StandardOutput.ReadToEnd();
-		string stderr = proc.StandardError.ReadToEnd();
-		proc.WaitForExit(60000);
+
+		if (!proc.WaitForExit(60000))
+		{
+			KillProcessTree(proc);
+			return (false, null, "gltfpack timed out after 60000 ms.");
+		}
+
+		string stderr = stderrTask.GetAwaiter().GetResult();
 
 		if (proc.ExitCode == 0 && File.Exists(tempOutput))
 		{

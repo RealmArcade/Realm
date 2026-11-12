@@ -20,11 +20,11 @@ public partial class ReplayListPanel : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	private VBoxContainer _listContainer;
-	private Button _backBtn;
-	private Button _deleteAllBtn;
-	private Label _titleLabel;
-	private Label _noReplaysLabel;
+	private VBoxContainer _listContainer = null!;
+	private Button _backBtn = null!;
+	private Button _deleteAllBtn = null!;
+	private Label _titleLabel = null!;
+	private Label _noReplaysLabel = null!;
 
 	public override void _Ready()
 	{
@@ -63,13 +63,11 @@ public partial class ReplayListPanel : Control
 
 	private void ApplyStyles()
 	{
-		UIStyle.ApplyTitle(_titleLabel, "REPLAYS", 28);
+		UIStyle.ApplyTitle(_titleLabel, TranslationServer.Translate("REPLAYS"), 28);
 		UIStyle.ApplyBackButton(_backBtn, OnBackPressed);
 
-		UIStyle.ApplyButtonText(_deleteAllBtn, "DELETE ALL", 14);
-		_deleteAllBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_deleteAllBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_deleteAllBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonText(_deleteAllBtn, TranslationServer.Translate("DELETE ALL"), 14);
+		UIStyle.ApplyButtonStyleBoxes(_deleteAllBtn);
 		_deleteAllBtn.AddThemeConstantOverride("icon_max_width", 0);
 		_deleteAllBtn.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 		_deleteAllBtn.AddThemeColorOverride("font_hover_color", new Color(1.0f, 0.5f, 0.5f));
@@ -222,7 +220,7 @@ public partial class ReplayListPanel : Control
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[ReplayListPanel] Error processing replay file '{filePath}': {ex}");
+			GameLog.LogError($"[ReplayListPanel] Error processing replay file '{filePath}': {ex}");
 			return false;
 		}
 	}
@@ -234,18 +232,7 @@ public partial class ReplayListPanel : Control
 		panel.CustomMinimumSize = new Vector2(0, 70);
 		panel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.15f, 0.15f, 0.15f, 0.6f);
-		style.SetBorderWidthAll(1);
-		style.BorderColor = UIStyle.ColorBronze;
-		style.CornerRadiusTopLeft = 4;
-		style.CornerRadiusTopRight = 4;
-		style.CornerRadiusBottomLeft = 4;
-		style.CornerRadiusBottomRight = 4;
-		style.ContentMarginLeft = 15;
-		style.ContentMarginRight = 15;
-		style.ContentMarginTop = 10;
-		style.ContentMarginBottom = 10;
+		var style = UIStyle.CreateCardPlate(new Color(0.15f, 0.15f, 0.15f, 0.6f), UIStyle.ColorBronze, 1, 4, 15, 15, 10, 10);
 		panel.AddThemeStyleboxOverride("panel", style);
 
 		var hBox = new HBoxContainer();
@@ -253,9 +240,7 @@ public partial class ReplayListPanel : Control
 		hBox.AddThemeConstantOverride("separation", 20);
 		panel.AddChild(hBox);
 
-		var infoVBox = new VBoxContainer();
-		infoVBox.Name = "InfoVBox_VBoxContainer";
-		infoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		var infoVBox = UIStyle.CreateInfoColumn();
 		hBox.AddChild(infoVBox);
 
 		var mapLabel = new Label();
@@ -290,10 +275,8 @@ public partial class ReplayListPanel : Control
 		playBtn.Name = "PlayBtn_Button";
 		playBtn.CustomMinimumSize = new Vector2(100, 40);
 		playBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		UIStyle.ApplyButtonText(playBtn, "WATCH", 13);
-		playBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		playBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		playBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonText(playBtn, TranslationServer.Translate("WATCH"), 13);
+		UIStyle.ApplyButtonStyleBoxes(playBtn);
 		playBtn.AddThemeConstantOverride("icon_max_width", 0);
 
 		playBtn.Pressed += () => OnPlayReplayPressed(path);
@@ -304,10 +287,8 @@ public partial class ReplayListPanel : Control
 		deleteBtn.Name = "DeleteBtn_Button";
 		deleteBtn.CustomMinimumSize = new Vector2(100, 40);
 		deleteBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		UIStyle.ApplyButtonText(deleteBtn, "DELETE", 13);
-		deleteBtn.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		deleteBtn.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		deleteBtn.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonText(deleteBtn, TranslationServer.Translate("DELETE"), 13);
+		UIStyle.ApplyButtonStyleBoxes(deleteBtn);
 		deleteBtn.AddThemeConstantOverride("icon_max_width", 0);
 		deleteBtn.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 		deleteBtn.AddThemeColorOverride("font_hover_color", new Color(1.0f, 0.5f, 0.5f));
@@ -373,13 +354,13 @@ public partial class ReplayListPanel : Control
 		}
 		else
 		{
-			GD.PrintErr($"Failed to load replay: {path}");
+			GameLog.LogError($"Failed to load replay: {path}");
 		}
 	}
 
 	private void OnDeleteReplayPressed(string path)
 	{
-		ShowConfirmationDialog("Are you sure you want to delete this replay?", () =>
+		ShowConfirmationDialog(TranslationServer.Translate("Are you sure you want to delete this replay?"), () =>
 		{
 			try
 			{
@@ -390,7 +371,7 @@ public partial class ReplayListPanel : Control
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[ReplayListPanel] Failed to delete replay file '{path}': {ex}");
+				GameLog.LogError($"[ReplayListPanel] Failed to delete replay file '{path}': {ex}");
 			}
 
 			PopulateReplaysList();
@@ -399,7 +380,7 @@ public partial class ReplayListPanel : Control
 
 	private void OnDeleteAllPressed()
 	{
-		ShowConfirmationDialog("Are you sure you want to delete all replays?", () =>
+		ShowConfirmationDialog(TranslationServer.Translate("Are you sure you want to delete all replays?"), () =>
 		{
 			string replayDir = ProjectSettings.GlobalizePath("user://replays");
 			if (Directory.Exists(replayDir))
@@ -416,7 +397,7 @@ public partial class ReplayListPanel : Control
 					}
 					catch (Exception ex)
 					{
-						GD.PrintErr($"[ReplayListPanel] Failed to delete replay file '{filePath}': {ex}");
+						GameLog.LogError($"[ReplayListPanel] Failed to delete replay file '{filePath}': {ex}");
 					}
 				}
 			}

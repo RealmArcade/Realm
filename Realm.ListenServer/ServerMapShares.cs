@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Network;
@@ -52,8 +52,9 @@ public class ServerMapShares
 				{
 					total += new FileInfo(path).Length;
 				}
-				catch (IOException)
+				catch (IOException ex)
 				{
+					_log.Write($"a map file could not be measured while summing the map size: {ex.GetType().Name}: {ex.Message}");
 				}
 			}
 
@@ -90,8 +91,9 @@ public class ServerMapShares
 			{
 				missing.Add((normalized, path, new FileInfo(path).Length));
 			}
-			catch (IOException)
+			catch (IOException ex)
 			{
+				_log.Write($"the map file {path} could not be measured, so it was left out of the transfer: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 

@@ -8,12 +8,14 @@ using Realm.Client.Network;
 using Realm.Client.Testing;
 using Realm.Ecs.Replication;
 using Realm.Shared;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 using Realm.Shared.Network;
+using Realm.Shared.Simulation;
 
 namespace Realm.Client.Services;
 
-public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null);
+public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null, bool LoopbackOnly = false, MatchOptionSet? Options = null);
 
 public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false, bool Cheats = false, bool LoopbackOnly = false);
 
@@ -34,23 +36,7 @@ public class ClientServerSession : IDisposable
 
 	private byte[] _snapshotBuffer = new byte[SnapshotWireFormat.FrameHeaderBytes];
 
-	/// <summary>
-	///     Descriptions waiting to be applied, oldest first. They live in a ring because the oldest is dropped whenever a
-	///     screen falls behind, and shifting the rest of a list to do it was work paid on the tick that could least afford
-	///     it.
-	/// </summary>
-	private readonly QueuedFrame[] _descriptionQueue = new QueuedFrame[MaximumQueuedDescriptions];
-	private int _descriptionHead;
-	private int _descriptionCount;
-
-	/// <summary>
-	///     Frames the match cannot proceed without, in the order they arrived. Nothing waiting here is ever dropped: it
-	///     came over the stream that guarantees delivery, and discarding it would throw away the only copy of something
-	///     this screen needs.
-	/// </summary>
-	private readonly Queue<QueuedFrame> _reliableQueue = new();
-
-	private bool _descriptionsWereDropped;
+	private readonly SessionFrameQueue _frames = new();
 
 	private readonly struct QueuedFrame
 	{
@@ -125,25 +111,11 @@ public class ClientServerSession : IDisposable
 	private bool _longSilenceAllowed;
 
 	/// <summary>
-	///     How many descriptions the ring holds before the oldest is overwritten. A screen with this many waiting has
-	///     stopped reading rather than met a link that is late, and the ones at its front describe a world the ones behind
-	///     them already supersede.
-	/// </summary>
-	private const int MaximumQueuedDescriptions = 32;
-
-	/// <summary>
 	///     How many descriptions one tick may apply. A tick that spent all of itself draining a backlog applied state the
 	///     screen was about to be told again anyway, and everything after the first of them was older than the world it left
 	///     behind; what is left keeps waiting for the next tick.
 	/// </summary>
 	private const int MaximumSnapshotsAppliedPerPump = 3;
-
-	/// <summary>
-	///     How many descriptions may wait to be applied before the older ones are dropped. A queue this deep is a screen
-	///     that stopped reading for a fifth of a second, and the descriptions at its front describe a world the ones behind
-	///     them already supersede.
-	/// </summary>
-	private const int MaximumQueuedDescriptionsBeforeDiscard = 6;
 
 	public bool IsRunning => TerminationReport == null && (_local ? GameContext.LocalAuthority.IsRunning : _joined);
 
@@ -244,7 +216,7 @@ public class ClientServerSession : IDisposable
 		return MatchStartResult.Failed(detail.Length == 0 ? failure : $"{failure}\n\n{detail}", logPath);
 	}
 
-	public async Task<MatchStartResult> TryStartAsync(ServerMatchStart start, int authorityPort = 0)
+	public async Task<MatchStartResult> TryStartAsync(ServerMatchStart start, int authorityPort = 0, int connectPort = 0)
 	{
 		IsDebugSession = start.WasmDebug;
 		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out string failure) || target == null) return MatchStartResult.Failed(failure, string.Empty);
@@ -266,7 +238,7 @@ public class ClientServerSession : IDisposable
 		if (start.Roster is { Count: > 0 })
 		{
 			rosterPath = Path.Combine(start.LogDirectory, $"{logName}{MatchRosterFile.FileSuffix}");
-			MatchRosterFile.Write(rosterPath, start.Roster);
+			MatchRosterFile.Write(rosterPath, start.Roster, start.Options);
 		}
 
 		var command = new ServerControlCommand
@@ -280,10 +252,11 @@ public class ClientServerSession : IDisposable
 			WasmDebug = start.WasmDebug,
 			MapWorkspacePath = start.WasmDebug ? start.MapFolderPath : string.Empty,
 			RosterPath = rosterPath ?? string.Empty,
-			AuthorityRecordFolderPath = start.AuthorityRecordDirectory ?? string.Empty
+			AuthorityRecordFolderPath = start.AuthorityRecordDirectory ?? string.Empty,
+			LoopbackOnly = start.LoopbackOnly
 		};
 
-		return await StartOnLocalAuthorityAsync(target, command, start.LogDirectory, start.DataFolderPath, start.Language);
+		return await StartOnLocalAuthorityAsync(target, command, start.LogDirectory, start.DataFolderPath, start.Language, connectPort);
 	}
 
 	public bool TryJoin(string address, int port, string language, string? mapFolder, out string failure)
@@ -355,7 +328,7 @@ public class ClientServerSession : IDisposable
 	///     Puts a match on the authority this screen owns and joins it. The authority is already running - it came up while
 	///     the screen was in its menus - so this hands it the match rather than starting a process to hold it.
 	/// </summary>
-	private async Task<MatchStartResult> StartOnLocalAuthorityAsync(ServerLaunchTarget target, ServerControlCommand command, string logDirectory, string dataFolderPath, string language)
+	private async Task<MatchStartResult> StartOnLocalAuthorityAsync(ServerLaunchTarget target, ServerControlCommand command, string logDirectory, string dataFolderPath, string language, int connectPort = 0)
 	{
 		LocalAuthority authority = GameContext.LocalAuthority;
 		authority.Configure(target, logDirectory, dataFolderPath);
@@ -363,7 +336,8 @@ public class ClientServerSession : IDisposable
 		LocalAuthorityReply started = await authority.StartMatchAsync(command);
 		if (!started.Started) return FailedLaunch(started.Failure, started.LogPath);
 
-		if (!_channel.TryConnect("127.0.0.1", started.Port, IsDebugSession, out string failure))
+		int portToConnect = connectPort > 0 ? connectPort : started.Port;
+		if (!_channel.TryConnect("127.0.0.1", portToConnect, IsDebugSession, out string failure))
 		{
 			authority.Pause();
 			return MatchStartResult.Failed(failure, started.LogPath);
@@ -451,14 +425,15 @@ public class ClientServerSession : IDisposable
 	///     Names a run of descriptions this screen never received, so the match can send exactly those again instead of
 	///     describing the whole world to it.
 	/// </summary>
-	public bool RequestSnapshotRepair(int firstSequence, int count)
+	public bool RequestSnapshotRepair(int firstSequence, int count, SnapshotRepairReason reason)
 	{
 		if (!IsRunning || firstSequence <= 0 || count <= 0) return false;
 
 		var request = new SnapshotRepairRequest
 		{
 			FirstSequence = firstSequence,
-			Count = count
+			Count = count,
+			Reason = reason
 		};
 		_channel.Send(NetworkFrameKind.SnapshotRepairRequest, MemoryPackSerializer.Serialize(request));
 		return true;
@@ -532,6 +507,14 @@ public class ClientServerSession : IDisposable
 
 	public bool Pump()
 	{
+		long pumpStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
+		bool pumped = PumpCore();
+		if (pumpStarted != 0L) LagProbe.Add(LagStage.ClientNetworkPumpMilliseconds, LagProbe.ElapsedMilliseconds(pumpStarted));
+		return pumped;
+	}
+
+	private bool PumpCore()
+	{
 		if (!IsRunning)
 		{
 			if (_started) ReportLost(DescribeStop());
@@ -551,7 +534,7 @@ public class ClientServerSession : IDisposable
 
 		bool handed = false;
 
-		DiscardSupersededDescriptions();
+		_frames.DiscardSuperseded();
 
 		if (_helloSent && _connectedBefore && !_channel.IsConnected)
 		{
@@ -576,33 +559,29 @@ public class ClientServerSession : IDisposable
 
 		// Everything the match cannot proceed without is handed over whole and in the order it arrived. Descriptions are
 		// the only frames with a budget, because they are the only frames a later one can stand in for.
-		int reliableToDrain = _reliableQueue.Count;
-		while (reliableToDrain-- > 0 && _reliableQueue.Count > 0)
+		int reliableToDrain = _frames.ReliableCount;
+		while (reliableToDrain-- > 0 && _frames.TryDequeueReliable(out SessionFrameQueue.QueuedFrame reliable))
 		{
-			DispatchFrame(_reliableQueue.Dequeue());
+			DispatchFrame(reliable);
 			handed = true;
 		}
 
 		int snapshotsApplied = 0;
-		while (_descriptionCount > 0)
+		while (_frames.TryPeekDescription(out SessionFrameQueue.QueuedFrame frame))
 		{
-			QueuedFrame frame = _descriptionQueue[_descriptionHead];
 			if (frame.Kind == NetworkFrameKind.Snapshot && snapshotsApplied >= MaximumSnapshotsAppliedPerPump) break;
 
-			_descriptionQueue[_descriptionHead] = default;
-			_descriptionHead = (_descriptionHead + 1) % _descriptionQueue.Length;
-			_descriptionCount--;
-
+			_frames.PopDescription();
 			if (frame.Kind == NetworkFrameKind.Snapshot) snapshotsApplied++;
 
 			DispatchFrame(frame);
 			handed = true;
 		}
 
-		if (_descriptionsWereDropped)
+		if (_frames.TakeDroppedDescriptionMark() && !InLobby)
 		{
-			_descriptionsWereDropped = false;
-			if (!InLobby) GameContext.SnapshotApply.RequestBaseline();
+			LagProbe.Count(LagEvent.ClientDescriptionsDiscardedByQueue);
+			GameContext.SnapshotApply.RequestBaseline();
 		}
 
 		return handed;
@@ -702,52 +681,7 @@ public class ClientServerSession : IDisposable
 		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
 		IsAuthorityHeldForDebug = false;
 		GameContext.NetworkService?.NoteAuthorityAlive();
-
-		ulong arrivalMilliseconds = kind == NetworkFrameKind.LatencyProbeEcho ? Time.GetTicksMsec() : 0UL;
-		var frame = new QueuedFrame(kind, payload, arrivalMilliseconds);
-
-		if (kind is not (NetworkFrameKind.Snapshot or NetworkFrameKind.Presentation))
-		{
-			_reliableQueue.Enqueue(frame);
-			return;
-		}
-
-		if (_descriptionCount == _descriptionQueue.Length)
-		{
-			_descriptionQueue[_descriptionHead] = default;
-			_descriptionHead = (_descriptionHead + 1) % _descriptionQueue.Length;
-			_descriptionCount--;
-			_descriptionsWereDropped = true;
-		}
-
-		_descriptionQueue[(_descriptionHead + _descriptionCount) % _descriptionQueue.Length] = frame;
-		_descriptionCount++;
-	}
-
-	/// <summary>
-	///     Keeps only the newest descriptions waiting to be applied. Nothing is repaired here: the hole the drops leave is
-	///     what tells the apply path which run of descriptions this screen is missing, and it asks for exactly that run.
-	/// </summary>
-	private void DiscardSupersededDescriptions()
-	{
-		int queuedDescriptions = 0;
-		for (int offset = 0; offset < _descriptionCount; offset++)
-		{
-			if (_descriptionQueue[(_descriptionHead + offset) % _descriptionQueue.Length].Kind == NetworkFrameKind.Snapshot) queuedDescriptions++;
-		}
-
-		if (queuedDescriptions <= MaximumQueuedDescriptionsBeforeDiscard) return;
-
-		int toDiscard = queuedDescriptions - MaximumQueuedDescriptionsBeforeDiscard;
-		while (toDiscard > 0 && _descriptionCount > 0)
-		{
-			QueuedFrame oldest = _descriptionQueue[_descriptionHead];
-			_descriptionQueue[_descriptionHead] = default;
-			_descriptionHead = (_descriptionHead + 1) % _descriptionQueue.Length;
-			_descriptionCount--;
-
-			if (oldest.Kind == NetworkFrameKind.Snapshot) toDiscard--;
-		}
+		_frames.Enqueue(kind, payload);
 	}
 
 	/// <summary>
@@ -756,7 +690,7 @@ public class ClientServerSession : IDisposable
 	///     the one it is sent in answer asks for the world instead. Any other frame it cannot read is one it never received,
 	///     and nothing else would report it missing.
 	/// </summary>
-	private void DispatchFrame(QueuedFrame frame)
+	private void DispatchFrame(SessionFrameQueue.QueuedFrame frame)
 	{
 		try
 		{
@@ -936,10 +870,13 @@ public class ClientServerSession : IDisposable
 	{
 		// A description too large for one datagram arrives as several. A group a piece short is a description this screen
 		// was not told: nothing is applied for it, the acknowledgement reports the hole, and the match sends it again.
-		if (!_snapshotReassembler.TryTake(payload, out byte[] frame)) return;
+		if (!_snapshotReassembler.TryTake(payload, out byte[]? frame)) return;
 
+		long deserializeStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		ReadOnlySpan<byte> serialized = _snapshotDecompressor.Decode(frame, ref _snapshotBuffer);
 		WorldSnapshot snapshot = MemoryPackSerializer.Deserialize<WorldSnapshot>(serialized);
+		if (deserializeStarted != 0L) LagProbe.Add(LagStage.ClientDeserializeMilliseconds, LagProbe.ElapsedMilliseconds(deserializeStarted));
+		LagProbe.NoteDescriptionArrival(snapshot.Sequence, LagProbe.NowSeconds());
 
 		if (MultiplayerBandwidthMeter.IsRecording) MultiplayerBandwidthMeter.RecordReceivedSnapshot(frame.Length, snapshot.IsBaseline);
 
@@ -975,11 +912,7 @@ public class ClientServerSession : IDisposable
 		_port = 0;
 		_channel.FrameArrived -= Enqueue;
 
-		Array.Clear(_descriptionQueue);
-		_descriptionHead = 0;
-		_descriptionCount = 0;
-		_reliableQueue.Clear();
-		_descriptionsWereDropped = false;
+		_frames.Clear();
 		IsAuthorityHeldForDebug = false;
 		_longSilenceAllowed = false;
 		_lastReconnectAttemptMilliseconds = 0;

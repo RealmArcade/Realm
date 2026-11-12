@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading.Tasks;
 using Godot;
@@ -30,22 +30,22 @@ namespace Realm.Client.UI
 
 		public float GetSelectedWaterHeight()
 		{
-			if (_sldWaterHeight == null) return 0.9f;
-			return (float)_sldWaterHeight.Value;
+			if (_waterPanel?.HeightSlider == null) return 0.9f;
+			return (float)_waterPanel.HeightSlider.Value;
 		}
 
 		public void SelectPaintSwatchByIndexView(int index)
 		{
-			if (index >= 0 && index < _swatchButtons.Count)
+			var swatch = Swatches.GetButton(index);
+			if (swatch == null) return;
+
+			if (ChkApplyCliffTexture != null && ChkApplyCliffTexture.ButtonPressed && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
 			{
-				if (ChkApplyCliffTexture != null && ChkApplyCliffTexture.ButtonPressed && (ChkApplyGroundTexture == null || !ChkApplyGroundTexture.ButtonPressed))
-				{
-					SelectCliffTexture(index);
-				}
-				else
-				{
-					SelectTerrainTexture(index, _swatchButtons[index]);
-				}
+				SelectCliffTexture(index);
+			}
+			else
+			{
+				SelectTerrainTexture(index, swatch);
 			}
 		}
 
@@ -184,17 +184,17 @@ namespace Realm.Client.UI
 					return;
 				}
 
-				GameContext.EditorService.EditorPaintTextureIndex = index;
+				GameContext.EditorService.Tools.PaintTextureIndex = index;
 				HighlightSwatch(swatch);
 
 				if (!IsSwatchCompatibleTool(GameContext.Host.ActiveEditorTool))
 				{
-					TriggerToolSelection(EditorTool.PaintTexture, _btnTextureBrush);
+					TriggerToolSelection(EditorTool.PaintTexture, _toolPanel.TextureBrushButton);
 				}
 
 				UpdateTextureLabels();
 
-				string name = TranslationServer.Translate(GameContext.EditorService.SwatchDisplayNames[index]);
+				string name = TranslationServer.Translate(GameContext.EditorService.Swatches.DisplayNames[index]);
 				ShowFeedback(string.Format(TranslationServer.Translate("Selected Terrain: {0}"), name));
 			}
 		}

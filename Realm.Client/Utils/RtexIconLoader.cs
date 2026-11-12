@@ -77,7 +77,7 @@ public static class RtexIconLoader
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[RtexIconLoader] Failed to decode .rtex from '{resolvedPath}': {ex.Message}");
+			GameLog.LogError($"[RtexIconLoader] Failed to decode .rtex from '{resolvedPath}': {ex.Message}");
 			return null;
 		}
 	}

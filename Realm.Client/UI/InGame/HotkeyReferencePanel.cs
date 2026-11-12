@@ -1,0 +1,320 @@
+using Godot;
+using Realm.Client.Utils;
+
+namespace Realm.Client.UI.InGame;
+
+/// <summary>
+/// The in-match hotkey reference: the artwork frame, the four shortcut groups and their rows, and the plate's own
+/// placement, which has to sit over the playfield rather than the console. The panel builds itself into the HUD it is
+/// given and owns whether it is showing, so the HUD only toggles it and tells it how much room the playfield has.
+/// </summary>
+public sealed class HotkeyReferencePanel
+{
+	private const float PanelHalfWidth = 240f;
+	private const float PanelHalfHeight = 336f;
+	private const float PanelHeight = 672f;
+
+	private static readonly (string GroupTitle, (string Key, string Desc)[] Items)[] Groups =
+	{
+		(
+			"COMMANDS",
+			new (string Key, string Desc)[]
+			{
+				("Right-Click", "Smart Command (Move/Attack/Rally)"),
+				("Shift+R-Click", "Queue Action / Waypoint"),
+				("A", "Attack / Attack-Move"),
+				("M", "Move to Target"),
+				("P", "Patrol Route"),
+				("S", "Stop Current Action"),
+				("H", "Hold Position"),
+				("B", "Open Build Menu"),
+			}
+		),
+		(
+			"SELECTION & GROUPS",
+			new (string Key, string Desc)[]
+			{
+				("Left-Click", "Select Unit (Drag to Box-Select)"),
+				("Shift+Click", "Add / Remove from Selection"),
+				("Double-Click", "Select All Same Type on Screen"),
+				("Tab", "Cycle Selection Focus"),
+				("F1", "Select All Idle Units"),
+				("F2", "Select All Military Units"),
+				("F3", "Select All Buildings"),
+				("`", "Cycle Through Buildings"),
+				("Ctrl+0..9", "Assign Control Group"),
+				("0..9", "Recall Group (Double: Jump)"),
+			}
+		),
+		(
+			"CAMERA & MINIMAP",
+			new (string Key, string Desc)[]
+			{
+				("WASD / Edge", "Pan Camera"),
+				("Shift+WASD", "Fast Camera Pan"),
+				("Space", "Center Camera on Base"),
+				("F4", "Toggle Terrain Radar Mode"),
+				("Alt+G", "Ping Map Alert"),
+				("Ctrl+F5..F8", "Save Camera Location 1..4"),
+				("F5..F8", "Jump to Saved Camera 1..4"),
+			}
+		),
+		(
+			"BUILDINGS & SYSTEM",
+			new (string Key, string Desc)[]
+			{
+				("Y", "Set Building Rally Point"),
+				("Enter", "Open Chat (Shift: All Chat)"),
+				("Esc", "Clear Selection / Cancel Targeting"),
+				("F12", "Settings"),
+				("~ (Tilde)", "Developer Console"),
+			}
+		),
+	};
+
+	public PanelContainer? Root { get; private set; }
+
+	public bool Visible => Root?.Visible ?? false;
+
+	/// <summary>
+	/// Builds the plate and parents it to the HUD. Nothing is shown until <see cref="Toggle"/> is called, because the
+	/// reference is opened from the minimap's key button.
+	/// </summary>
+	public void Build(Node owner)
+	{
+		Root = new PanelContainer();
+		Root.Name = "HotkeyPanel";
+		Root.Visible = false;
+		Root.MouseFilter = Control.MouseFilterEnum.Stop;
+		Root.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+
+		Root.SetAnchorsPreset(Control.LayoutPreset.Center);
+		Root.GrowHorizontal = Control.GrowDirection.Both;
+		Root.GrowVertical = Control.GrowDirection.Both;
+		Root.OffsetLeft = -PanelHalfWidth;
+		Root.OffsetRight = PanelHalfWidth;
+		Root.OffsetTop = -372;
+		Root.OffsetBottom = 300;
+		Root.PivotOffset = new Vector2(PanelHalfWidth, PanelHalfHeight);
+
+		var bgTexture = new TextureRect();
+		bgTexture.Name = "Background";
+		bgTexture.Texture = UIStyle.LoadTextureWithFallback("res://Assets/UI/In-Game_MatchView_HotkeyReference.webp");
+		bgTexture.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+		bgTexture.StretchMode = TextureRect.StretchModeEnum.Scale;
+		bgTexture.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+		bgTexture.MouseFilter = Control.MouseFilterEnum.Ignore;
+		Root.AddChild(bgTexture);
+
+		var contentRoot = new Control();
+		contentRoot.Name = "ContentRoot";
+		contentRoot.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+		contentRoot.MouseFilter = Control.MouseFilterEnum.Pass;
+		Root.AddChild(contentRoot);
+
+		contentRoot.AddChild(CreateTitle());
+		contentRoot.AddChild(CreateCloseButton());
+		contentRoot.AddChild(CreateRowList());
+
+		owner.AddChild(Root);
+	}
+
+	public void Toggle()
+	{
+		if (Root == null) return;
+
+		Root.Visible = !Root.Visible;
+		if (Root.Visible)
+		{
+			Root.MoveToFront();
+		}
+	}
+
+	public void Close()
+	{
+		if (Root != null) Root.Visible = false;
+	}
+
+	/// <summary>
+	/// Centres the plate on the playfield, which is the area above the bottom console rather than the whole window. The
+	/// offsets are relative to the centre anchor, so a taller console pushes the plate up.
+	/// </summary>
+	/// <summary>
+	/// Centres the reference over the playfield rather than the screen, so the console artwork never cuts through it. The
+	/// console height follows the same 1920-scaled rule the console layout uses.
+	/// </summary>
+	public void CenterInPlayfield(float viewportWidth, float viewportHeight)
+	{
+		float vpW = viewportWidth <= 0f ? 1920f : viewportWidth;
+		float vpH = viewportHeight <= 0f ? 1080f : viewportHeight;
+		float consoleH = vpW * (BottomConsoleLayout.BaseConsoleHeight / 1920f);
+		float playfieldCenterY = (80f + (vpH - consoleH)) / 2f;
+		PlaceOverPlayfield(playfieldCenterY, vpH);
+	}
+
+	public void PlaceOverPlayfield(float playfieldCenterY, float viewportHeight)
+	{
+		if (Root == null) return;
+
+		Root.OffsetLeft = -PanelHalfWidth;
+		Root.OffsetRight = PanelHalfWidth;
+		Root.OffsetTop = playfieldCenterY - (viewportHeight / 2f) - PanelHalfHeight;
+		Root.OffsetBottom = Root.OffsetTop + PanelHeight;
+	}
+
+	/// <summary>
+	/// HUD scaling pivots on the plate's own centre so it grows away from the playfield centre instead of from its
+	/// corner.
+	/// </summary>
+	public void ApplyScale(float scale)
+	{
+		if (Root == null) return;
+
+		Root.PivotOffset = new Vector2(PanelHalfWidth, PanelHalfHeight);
+		Root.Scale = new Vector2(scale, scale);
+	}
+
+	private Label CreateTitle()
+	{
+		var titleLbl = new Label();
+		titleLbl.Name = "TitleLabel";
+		titleLbl.Text = TranslationServer.Translate("HOTKEY REFERENCE");
+		titleLbl.SetAnchorsPreset(Control.LayoutPreset.TopWide);
+		titleLbl.OffsetLeft = 65;
+		titleLbl.OffsetRight = -105;
+		titleLbl.OffsetTop = 22;
+		titleLbl.OffsetBottom = 58;
+		titleLbl.HorizontalAlignment = HorizontalAlignment.Center;
+		titleLbl.VerticalAlignment = VerticalAlignment.Center;
+		titleLbl.AddThemeFontOverride("font", UIStyle.FontNorseBold);
+		titleLbl.AddThemeFontSizeOverride("font_size", 16);
+		titleLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		titleLbl.AddThemeConstantOverride("outline_size", 3);
+		titleLbl.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.95f));
+		return titleLbl;
+	}
+
+	private Button CreateCloseButton()
+	{
+		var btnClose = UIStyle.CreateOverlayCloseButton();
+		btnClose.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+		btnClose.OffsetLeft = -98;
+		btnClose.OffsetRight = -72;
+		btnClose.OffsetTop = 27;
+		btnClose.OffsetBottom = 53;
+		btnClose.TooltipText = TranslationServer.Translate("Close [Esc]");
+		btnClose.Pressed += Toggle;
+		return btnClose;
+	}
+
+	private ScrollContainer CreateRowList()
+	{
+		var scroll = new ScrollContainer();
+		scroll.Name = "HotkeyScroll";
+		scroll.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+		scroll.OffsetLeft = 90;
+		scroll.OffsetRight = -90;
+		scroll.OffsetTop = 88;
+		scroll.OffsetBottom = -82;
+		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+
+		UIStyle.ApplyScrollBar(scroll.GetVScrollBar());
+
+		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
+		vbox.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		vbox.AddThemeConstantOverride("separation", 3);
+		scroll.AddChild(vbox);
+
+		for (int groupIndex = 0; groupIndex < Groups.Length; groupIndex++)
+		{
+			var (groupTitle, items) = Groups[groupIndex];
+
+			if (groupIndex > 0)
+			{
+				var groupSpacer = new Control();
+				groupSpacer.Name = "GroupSpacer_Control";
+				groupSpacer.CustomMinimumSize = new Vector2(0, 6);
+				vbox.AddChild(groupSpacer);
+			}
+
+			vbox.AddChild(CreateGroupHeader(groupTitle));
+
+			for (int i = 0; i < items.Length; i++)
+			{
+				vbox.AddChild(CreateRow(items[i].Key, items[i].Desc, i));
+			}
+		}
+
+		return scroll;
+	}
+
+	private static PanelContainer CreateGroupHeader(string groupTitle)
+	{
+		var catHeader = new PanelContainer();
+		catHeader.Name = "CatHeader_PanelContainer";
+
+		catHeader.AddThemeStyleboxOverride("panel", UIStyle.CreateHotkeyGroupHeaderPlate());
+
+		var catTitleLbl = new Label();
+		catTitleLbl.Name = "CatTitleLbl_Label";
+		catTitleLbl.Text = TranslationServer.Translate(groupTitle);
+		catTitleLbl.AddThemeFontOverride("font", UIStyle.FontNorseBold);
+		catTitleLbl.AddThemeFontSizeOverride("font_size", 13);
+		catTitleLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		catTitleLbl.AddThemeConstantOverride("outline_size", 2);
+		catTitleLbl.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.95f));
+		catTitleLbl.HorizontalAlignment = HorizontalAlignment.Center;
+		catTitleLbl.VerticalAlignment = VerticalAlignment.Center;
+		catHeader.AddChild(catTitleLbl);
+
+		return catHeader;
+	}
+
+	/// <summary>
+	/// One shortcut: the key badge keeps a fixed width so the descriptions line up down the column, and the rows
+	/// alternate their background so a long group stays readable.
+	/// </summary>
+	private static PanelContainer CreateRow(string key, string desc, int rowIndex)
+	{
+		var rowPanel = new PanelContainer();
+		rowPanel.Name = "RowPanel_PanelContainer";
+
+		rowPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateHotkeyRowPlate(rowIndex));
+
+		var row = UIStyle.CreateRowContainer();
+		row.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+
+		var keyBadge = new PanelContainer();
+		keyBadge.Name = "KeyBadge_PanelContainer";
+		keyBadge.AddThemeStyleboxOverride("panel", UIStyle.CreateHotkeyKeyPlate());
+		keyBadge.CustomMinimumSize = new Vector2(86, 0);
+
+		var keyLbl = new Label();
+		keyLbl.Name = "KeyLbl_Label";
+		keyLbl.Text = TranslationServer.Translate(key);
+		keyLbl.AddThemeFontSizeOverride("font_size", 10);
+		keyLbl.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		keyLbl.AddThemeConstantOverride("outline_size", 1);
+		keyLbl.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.9f));
+		keyLbl.HorizontalAlignment = HorizontalAlignment.Center;
+		keyLbl.VerticalAlignment = VerticalAlignment.Center;
+		keyBadge.AddChild(keyLbl);
+		row.AddChild(keyBadge);
+
+		var descLbl = new Label();
+		descLbl.Name = "DescLbl_Label";
+		descLbl.Text = TranslationServer.Translate(desc);
+		descLbl.AddThemeFontSizeOverride("font_size", 11);
+		descLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		descLbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		descLbl.CustomMinimumSize = new Vector2(170, 0);
+		descLbl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		descLbl.VerticalAlignment = VerticalAlignment.Center;
+		row.AddChild(descLbl);
+
+		rowPanel.AddChild(row);
+		return rowPanel;
+	}
+}

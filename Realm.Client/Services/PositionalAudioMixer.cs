@@ -16,7 +16,7 @@ public enum AudioPlaybackChannel
 
 public static class PositionalAudioProfile
 {
-	public const AudioStreamPlayer3D.AttenuationModelEnum AttenuationModel = AudioStreamPlayer3D.AttenuationModelEnum.InverseDistance;
+	public static readonly AudioStreamPlayer3D.AttenuationModelEnum AttenuationModel = AudioStreamPlayer3D.AttenuationModelEnum.InverseDistance;
 	public const float UnitSize = 10f;
 	public const float DefaultMaxDistance = 120f;
 	public const float VoiceMaxDistance = 160f;

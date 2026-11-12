@@ -13,14 +13,14 @@ public partial class AttributionPopover : Control
 	private const float RowHeight = 30.0f;
 	private const float PanelMaximumHeight = 420.0f;
 
-	private ColorRect _dismissOverlay;
-	private PanelContainer _panel;
-	private Label _titleLabel;
-	private Label _subtitleLabel;
-	private ScrollContainer _sourceScroll;
-	private VBoxContainer _sourceList;
-	private Label _emptyLabel;
-	private Button _closeButton;
+	private ColorRect _dismissOverlay = null!;
+	private PanelContainer _panel = null!;
+	private Label _titleLabel = null!;
+	private Label _subtitleLabel = null!;
+	private ScrollContainer _sourceScroll = null!;
+	private VBoxContainer _sourceList = null!;
+	private Label _emptyLabel = null!;
+	private Button _closeButton = null!;
 	private bool _built;
 
 	public override void _Ready()
@@ -33,16 +33,9 @@ public partial class AttributionPopover : Control
 		if (_built) return;
 		_built = true;
 
-		Name = "AttributionPopover";
-		Visible = false;
-		MouseFilter = MouseFilterEnum.Stop;
-		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		UIStyle.ConfigurePopoverRoot(this, "AttributionPopover");
 
-		_dismissOverlay = new ColorRect();
-		_dismissOverlay.Name = "DismissOverlay_ColorRect";
-		_dismissOverlay.Color = new Color(0.0f, 0.0f, 0.0f, 0.55f);
-		_dismissOverlay.MouseFilter = MouseFilterEnum.Stop;
-		_dismissOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		_dismissOverlay = UIStyle.CreateDismissOverlay(0.55f);
 		_dismissOverlay.GuiInput += OnDismissOverlayInput;
 		AddChild(_dismissOverlay);
 
@@ -106,18 +99,27 @@ public partial class AttributionPopover : Control
 		_closeButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		_closeButton.FocusMode = FocusModeEnum.None;
 		_closeButton.AddThemeFontSizeOverride("font_size", 11);
-		_closeButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_closeButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_closeButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_closeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_closeButton);
 		_closeButton.Pressed += Close;
 		vbox.AddChild(_closeButton);
 	}
 
 	public void ShowFor(Control anchor, IReadOnlyList<string> sourceMapNames)
 	{
+		ShowFor(anchor,
+			LocalizationManager.Translate("ATTRIBUTION"),
+			LocalizationManager.Translate("This map contains content imported from:"),
+			LocalizationManager.Translate("No imported content has been attributed to this map."),
+			sourceMapNames);
+	}
+
+	public void ShowFor(Control anchor, string title, string subtitle, string emptyText, IReadOnlyList<string> entries)
+	{
 		EnsureBuilt();
-		Populate(sourceMapNames);
+		_titleLabel.Text = title;
+		_subtitleLabel.Text = subtitle;
+		_emptyLabel.Text = emptyText;
+		Populate(entries);
 		Visible = true;
 
 		Node? parent = GetParent();
@@ -158,15 +160,8 @@ public partial class AttributionPopover : Control
 		row.Name = "SourceRow_PanelContainer";
 		row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
-		var rowStyle = new StyleBoxFlat();
-		rowStyle.BgColor = new Color(0.04f, 0.05f, 0.07f, 0.75f);
-		rowStyle.BorderColor = new Color(0.45f, 0.38f, 0.25f, 0.35f);
-		rowStyle.SetBorderWidthAll(1);
-		rowStyle.SetCornerRadiusAll(4);
-		rowStyle.ContentMarginLeft = 10;
-		rowStyle.ContentMarginRight = 10;
-		rowStyle.ContentMarginTop = 5;
-		rowStyle.ContentMarginBottom = 5;
+		var rowStyle = UIStyle.CreateCardPlate(new Color(0.04f, 0.05f, 0.07f, 0.75f),
+			new Color(0.45f, 0.38f, 0.25f, 0.35f), 1, 4, 10, 10, 5, 5);
 		row.AddThemeStyleboxOverride("panel", rowStyle);
 
 		var label = new Label();
@@ -217,19 +212,5 @@ public partial class AttributionPopover : Control
 		GetViewport().SetInputAsHandled();
 	}
 
-	private static StyleBoxFlat CreatePanelStyle()
-	{
-		var style = new StyleBoxFlat();
-		style.BgColor = new Color(0.04f, 0.05f, 0.08f, 0.98f);
-		style.BorderColor = UIStyle.ColorGoldDull;
-		style.SetBorderWidthAll(1);
-		style.SetCornerRadiusAll(8);
-		style.ShadowColor = new Color(0.0f, 0.0f, 0.0f, 0.6f);
-		style.ShadowSize = 12;
-		style.ContentMarginLeft = 16;
-		style.ContentMarginRight = 16;
-		style.ContentMarginTop = 14;
-		style.ContentMarginBottom = 14;
-		return style;
-	}
+	private static StyleBoxFlat CreatePanelStyle() => UIStyle.CreatePopoverPanelPlate();
 }

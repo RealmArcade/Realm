@@ -45,7 +45,7 @@ public enum AbilityScalingShape
 	Conversion
 }
 
-public sealed class AbilityEffectDefinition
+public class AbilityEffectDefinition
 {
 	public AbilityEffectKind Kind { get; init; }
 	public AbilityEffectDelivery Delivery { get; init; }

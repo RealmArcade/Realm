@@ -4,10 +4,10 @@ namespace Realm.Client.Utils;
 
 public struct MaterialParameters
 {
-	public Texture2D RawAlbedoTexture;
-	public Texture2D OrmTexture;
-	public Texture2D NormalTexture;
-	public Texture2D EmissionTexture;
+	public Texture2D? RawAlbedoTexture;
+	public Texture2D? OrmTexture;
+	public Texture2D? NormalTexture;
+	public Texture2D? EmissionTexture;
 	public Color AlbedoColor;
 	public Color EmissionColor;
 	public float EmissionEnergy;

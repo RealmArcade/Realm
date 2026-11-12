@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -125,6 +125,35 @@ public class AccountService
 		{
 			lock (_sessionLock) return _session?.DisplayName ?? string.Empty;
 		}
+	}
+
+	/// <summary>Whether a refused sign-in or rename was refused on the name itself, which is the one refusal the player can fix.</summary>
+	public static bool IsDisplayNameRefusal(string errorCode)
+	{
+		return errorCode is AccountErrorCodes.DisplayNameEmpty
+			or AccountErrorCodes.DisplayNameTooShort
+			or AccountErrorCodes.DisplayNameTooLong
+			or AccountErrorCodes.DisplayNameTooManyBytes
+			or AccountErrorCodes.DisplayNameDisallowedCharacter
+			or AccountErrorCodes.DisplayNameCombiningMarkWithoutBase
+			or AccountErrorCodes.DisplayNameNeedsLetterOrDigit
+			or AccountErrorCodes.DisplayNameAlreadyTaken
+			or AccountErrorCodes.DisplayNameVisuallySimilar;
+	}
+
+	/// <summary>
+	///     Makes the account's name the name this machine falls back to when it is signed out, so the local name tracks the
+	///     most recent name the player actually used instead of freezing whatever was typed before the first sign-in. The
+	///     account's name is canonical already, so it is stored as it stands and never re-validated here.
+	/// </summary>
+	public void AdoptDisplayNameAsLocalName()
+	{
+		string accountName = DisplayName;
+		if (accountName.Length == 0) return;
+		if (string.Equals(accountName, GameSettings.PlayerName, StringComparison.Ordinal)) return;
+
+		GameSettings.PlayerName = accountName;
+		GameSettings.Save();
 	}
 
 	/// <summary>
@@ -316,8 +345,9 @@ public class AccountService
 			using HttpResponseMessage response = await _httpClient.SendAsync(request).ConfigureAwait(false);
 			_ = response.IsSuccessStatusCode;
 		}
-		catch (HttpRequestException)
+		catch (HttpRequestException ex)
 		{
+			GameLog.LogError($"the logout request to {AuthorityUrl} failed, so the session may stay valid on the authority: {ex.GetType().Name}: {ex.Message}");
 		}
 		catch (TaskCanceledException)
 		{
@@ -598,7 +628,7 @@ public class AccountService
 		}
 		catch (IOException exception)
 		{
-			GD.PrintErr($"[AccountService] Could not persist the session: {exception.Message}");
+			GameLog.LogError($"[AccountService] Could not persist the session: {exception.Message}");
 		}
 	}
 

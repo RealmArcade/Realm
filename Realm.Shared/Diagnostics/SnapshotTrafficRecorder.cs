@@ -18,7 +18,7 @@ public enum SnapshotBaselineReason
 ///     One file a traffic report is made of. The report is rendered where the recorder's counters are, and written by
 ///     whichever lane was given the files, so rendering and storing are separable.
 /// </summary>
-public sealed record SnapshotReportFile(string FileName, string Contents);
+public record SnapshotReportFile(string FileName, string Contents);
 
 public class SnapshotTrafficRecorder
 {
@@ -272,7 +272,7 @@ public class SnapshotTrafficRecorder
 
 	private static string Format(double value, string format) => value.ToString(format, CultureInfo.InvariantCulture);
 
-	private sealed class PeerTraffic
+	private class PeerTraffic
 	{
 		public long SnapshotBytes;
 		public long SerializedBytes;

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using Realm.Shared.Metadata;
 
@@ -116,8 +116,9 @@ public class SeederPropagationEngine
 			{
 				break;
 			}
-			catch
+			catch (Exception ex)
 			{
+				Console.Error.WriteLine($"[SeederPropagation] a propagation cycle failed; the loop continues: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 	}

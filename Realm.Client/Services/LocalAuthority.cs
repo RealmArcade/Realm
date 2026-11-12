@@ -131,6 +131,27 @@ public class LocalAuthority : IDisposable
 		_ = resident.SendAsync(new ServerControlCommand { Kind = ServerControlKind.Pause });
 	}
 
+	/// <summary>
+	///     Parks the authority and waits for it to answer. The authority writes its reports as the match ends, so a caller
+	///     that is about to exit has to wait for that answer rather than ask and leave: a process that exits first takes
+	///     its own reports with it.
+	/// </summary>
+	public async Task<bool> PauseAsync()
+	{
+		ResidentAuthority? resident = Resident;
+		if (resident == null) return false;
+
+		try
+		{
+			ServerControlReply reply = await resident.SendAsync(new ServerControlCommand { Kind = ServerControlKind.Pause }).ConfigureAwait(false);
+			return reply.Accepted;
+		}
+		catch (Exception exception) when (exception is IOException or TimeoutException or InvalidOperationException)
+		{
+			return false;
+		}
+	}
+
 	public void Dispose()
 	{
 		if (_disposed) return;

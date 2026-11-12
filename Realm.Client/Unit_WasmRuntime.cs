@@ -183,7 +183,7 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 						_world.Add(_entity, new Dead());
 						if (GameHost.TryGetUnit3D(_entity, out var deadU3D))
 						{
-							GameContext.Host.TriggerKillUnit(deadU3D);
+							GameContext.Host?.TriggerKillUnit(deadU3D);
 						}
 					}
 				}
@@ -857,8 +857,8 @@ public class Unit_WasmRuntime : IEcsEntityWrapper
 			ref var buffState = ref _world.Get<BuffState>(_entity);
 			for (int buffIndex = 0; buffIndex < buffState.Count; buffIndex++)
 			{
-				string buffKey = buffState.GetKey(buffIndex);
-				if (BuffRegistry.BuffModifiers.TryGetValue(buffKey, out var mods))
+				string? buffKey = buffState.GetKey(buffIndex);
+				if (buffKey is string buffName && BuffRegistry.BuffModifiers.TryGetValue(buffName, out var mods))
 				{
 					foreach (var mod in mods)
 					{

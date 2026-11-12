@@ -1,6 +1,6 @@
 namespace Realm.Benchmarks;
 
-public sealed record ZstdSweep(
+public record ZstdSweep(
 	double UncompressedBytesPerFrame,
 	double UncompressedMicrosPerFrame,
 	double FrameCount,
@@ -10,7 +10,7 @@ public sealed record ZstdSweep(
 	double EncodeBytesAllocated,
 	IReadOnlyList<ZstdLevelSample> Levels);
 
-public sealed record ZstdLevelSample(
+public record ZstdLevelSample(
 	int Level,
 	double BytesPerFrame,
 	double MedianMicrosPerFrame,

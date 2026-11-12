@@ -18,8 +18,6 @@ namespace Realm.Client.Services;
 
 public static class MultiplayerSyncDiagnostics
 {
-	private const int BaselineIntervalTicks = 30;
-
 	private static BinaryWriter? _writer;
 	private static byte[] _fileHeader = Array.Empty<byte>();
 	private static BinaryWriter? _presentationWriter;
@@ -336,6 +334,15 @@ public static class MultiplayerSyncDiagnostics
 			presentationWriter.WriteLine($"extrapolated_samples={GameContext.SnapshotTimeline.ExtrapolatedSampleCount}");
 			for (int index = 0; index < _presentationGaps.Count; index++) presentationWriter.WriteLine(_presentationGaps[index]);
 			for (int index = 0; index < _presentationStepDetails.Count; index++) presentationWriter.WriteLine(_presentationStepDetails[index]);
+		}
+		catch (IOException)
+		{
+		}
+
+		try
+		{
+			using StreamWriter repairWriter = new(Path.Combine(_outputDirectory, "ECS_client_repair_trace.txt"), false);
+			GameContext.SnapshotApply?.WriteRepairTrace(repairWriter);
 		}
 		catch (IOException)
 		{

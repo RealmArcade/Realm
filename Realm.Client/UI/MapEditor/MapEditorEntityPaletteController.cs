@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using Godot;
 using Realm.Client.Core;
@@ -31,7 +32,7 @@ public class MapEditorEntityPaletteController
 		if (file.StartsWith("vfx:", StringComparison.OrdinalIgnoreCase))
 		{
 			string sub = file.Substring(4);
-			if (TryGetVfxName(sub, out string subName))
+			if (TryGetVfxName(sub, out string? subName))
 			{
 				return "✨ " + subName;
 			}
@@ -39,22 +40,22 @@ public class MapEditorEntityPaletteController
 			return "✨ " + sub;
 		}
 
-		if (TryGetVfxName(file, out string vfxName))
+		if (TryGetVfxName(file, out string? vfxName))
 		{
 			return "✨ " + vfxName;
 		}
 
-		if (TryGetUnitName(file, out string unitName))
+		if (TryGetUnitName(file, out string? unitName))
 		{
 			return unitName;
 		}
 
-		if (TryGetPropName(file, out string propName))
+		if (TryGetPropName(file, out string? propName))
 		{
 			return propName;
 		}
 
-		if (TryGetResourceName(file, out string resourceName))
+		if (TryGetResourceName(file, out string? resourceName))
 		{
 			return resourceName;
 		}
@@ -62,7 +63,7 @@ public class MapEditorEntityPaletteController
 		return Path.GetFileNameWithoutExtension(file).Replace("_", " ");
 	}
 
-	private bool TryGetVfxName(string key, out string name)
+	private bool TryGetVfxName(string key, [NotNullWhen(true)] out string? name)
 	{
 		name = null;
 		if (GameContext.RegistryService.VfxRegistry == null)
@@ -82,7 +83,7 @@ public class MapEditorEntityPaletteController
 		return false;
 	}
 
-	private bool TryGetUnitName(string key, out string name)
+	private bool TryGetUnitName(string key, [NotNullWhen(true)] out string? name)
 	{
 		name = null;
 		if (GameHost.UnitRegistry == null)
@@ -102,7 +103,7 @@ public class MapEditorEntityPaletteController
 		return false;
 	}
 
-	private bool TryGetPropName(string key, out string name)
+	private bool TryGetPropName(string key, [NotNullWhen(true)] out string? name)
 	{
 		name = null;
 		if (GameHost.PropRegistry == null)
@@ -122,7 +123,7 @@ public class MapEditorEntityPaletteController
 		return false;
 	}
 
-	private bool TryGetResourceName(string key, out string name)
+	private bool TryGetResourceName(string key, [NotNullWhen(true)] out string? name)
 	{
 		name = null;
 		if (GameHost.ResourceRegistry == null)
@@ -183,37 +184,37 @@ public class MapEditorEntityPaletteController
 		_btnChars = new Button();
 		_btnChars.Name = "BtnChars_Button";
 		_btnChars.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnChars, "👥 Units", () => SelectCategory("Units"), 12, "Select Units category");
+		UIStyle.SetupButton(_btnChars, TranslationServer.Translate("👥 Units"), () => SelectCategory("Units"), 12, TranslationServer.Translate("Select Units category"));
 		categoryGrid.AddChild(_btnChars);
 
 		_btnBuilds = new Button();
 		_btnBuilds.Name = "BtnBuilds_Button";
 		_btnBuilds.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnBuilds, "🏢 Buildings", () => SelectCategory("Buildings"), 12, "Select Buildings category");
+		UIStyle.SetupButton(_btnBuilds, TranslationServer.Translate("🏢 Buildings"), () => SelectCategory("Buildings"), 12, TranslationServer.Translate("Select Buildings category"));
 		categoryGrid.AddChild(_btnBuilds);
 
 		_btnEnv = new Button();
 		_btnEnv.Name = "BtnEnv_Button";
 		_btnEnv.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnEnv, "🪵 Resources", () => SelectCategory("Resources"), 12, "Select Resources category");
+		UIStyle.SetupButton(_btnEnv, TranslationServer.Translate("🪵 Resources"), () => SelectCategory("Resources"), 12, TranslationServer.Translate("Select Resources category"));
 		categoryGrid.AddChild(_btnEnv);
 
 		_btnProps = new Button();
 		_btnProps.Name = "BtnProps_Button";
 		_btnProps.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnProps, "📦 Props", () => SelectCategory("Props"), 12, "Select Props category");
+		UIStyle.SetupButton(_btnProps, TranslationServer.Translate("📦 Props"), () => SelectCategory("Props"), 12, TranslationServer.Translate("Select Props category"));
 		categoryGrid.AddChild(_btnProps);
 
 		_btnDecals = new Button();
 		_btnDecals.Name = "BtnDecals_Button";
 		_btnDecals.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnDecals, "🎨 Decals", () => SelectCategory("Decals"), 12, "Select Decals category");
+		UIStyle.SetupButton(_btnDecals, TranslationServer.Translate("🎨 Decals"), () => SelectCategory("Decals"), 12, TranslationServer.Translate("Select Decals category"));
 		categoryGrid.AddChild(_btnDecals);
 
 		_btnVfx = new Button();
 		_btnVfx.Name = "BtnVfx_Button";
 		_btnVfx.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnVfx, "✨ VFX", () => SelectCategory("VFX"), 12, "Select VFX category");
+		UIStyle.SetupButton(_btnVfx, TranslationServer.Translate("✨ VFX"), () => SelectCategory("VFX"), 12, TranslationServer.Translate("Select VFX category"));
 		categoryGrid.AddChild(_btnVfx);
 
 		SelectCategory("Units", triggerAddObject: false);
@@ -229,7 +230,7 @@ public class MapEditorEntityPaletteController
 		_currentCategory = category;
 		UpdateCategoryButtonsStyle(category);
 
-		string previousSelectedId = GetPreviousSelectedId();
+		string? previousSelectedId = GetPreviousSelectedId();
 
 		_categoryFiles.Clear();
 		_idToDisplayName.Clear();
@@ -255,14 +256,7 @@ public class MapEditorEntityPaletteController
 
 	private void UpdateCategoryButtonsStyle(string category)
 	{
-		var activeStyle = new StyleBoxFlat();
-		activeStyle.BgColor = new Color(0.15f, 0.45f, 0.7f, 0.8f);
-		activeStyle.BorderColor = UIStyle.ColorCyanGlow;
-		activeStyle.SetBorderWidthAll(2);
-		activeStyle.CornerRadiusTopLeft = 4;
-		activeStyle.CornerRadiusTopRight = 4;
-		activeStyle.CornerRadiusBottomLeft = 4;
-		activeStyle.CornerRadiusBottomRight = 4;
+		var activeStyle = UIStyle.CreateEditorPaletteCategoryActive();
 
 		_btnChars.RemoveThemeStyleboxOverride("normal");
 		_btnBuilds.RemoveThemeStyleboxOverride("normal");
@@ -271,26 +265,20 @@ public class MapEditorEntityPaletteController
 		_btnDecals.RemoveThemeStyleboxOverride("normal");
 		_btnVfx.RemoveThemeStyleboxOverride("normal");
 
-		if (category == "Units" || category == "Characters") _btnChars.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnChars.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-
-		if (category == "Buildings") _btnBuilds.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnBuilds.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-
-		if (category == "Resources" || category == "Environment") _btnEnv.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnEnv.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-
-		if (category == "Props") _btnProps.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnProps.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-
-		if (category == "Decals") _btnDecals.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnDecals.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-
-		if (category == "VFX") _btnVfx.AddThemeStyleboxOverride("normal", activeStyle);
-		else _btnVfx.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
+		ApplyCategoryButton(_btnChars, category is "Units" or "Characters", activeStyle);
+		ApplyCategoryButton(_btnBuilds, category is "Buildings", activeStyle);
+		ApplyCategoryButton(_btnEnv, category is "Resources" or "Environment", activeStyle);
+		ApplyCategoryButton(_btnProps, category is "Props", activeStyle);
+		ApplyCategoryButton(_btnDecals, category is "Decals", activeStyle);
+		ApplyCategoryButton(_btnVfx, category is "VFX", activeStyle);
 	}
 
-	private string GetPreviousSelectedId()
+	private static void ApplyCategoryButton(Button button, bool isActive, StyleBox activeStyle)
+	{
+		button.AddThemeStyleboxOverride("normal", isActive ? activeStyle : UIStyle.CreateButtonNormal());
+	}
+
+	private string? GetPreviousSelectedId()
 	{
 		if (_optCategoryItems != null && _optCategoryItems.Selected >= 0 && _optCategoryItems.Selected < _categoryFiles.Count)
 		{
@@ -300,7 +288,7 @@ public class MapEditorEntityPaletteController
 		return null;
 	}
 
-	private void RestorePreviousSelection(string previousSelectedId)
+	private void RestorePreviousSelection(string? previousSelectedId)
 	{
 		if (_optCategoryItems.ItemCount == 0)
 		{
@@ -359,7 +347,7 @@ public class MapEditorEntityPaletteController
 		}
 	}
 
-	private void AddCategoryItem(string id, string displayName)
+	private void AddCategoryItem(string id, string? displayName)
 	{
 		var (prefix, slug) = TemplateIDHelper.ParseTemplateID(id);
 
@@ -382,7 +370,7 @@ public class MapEditorEntityPaletteController
 		{
 			if (string.IsNullOrEmpty(vObj.VfxId)) continue;
 
-			string name = string.IsNullOrEmpty(vObj.Name) ? null : "✨ " + vObj.Name;
+			string? name = string.IsNullOrEmpty(vObj.Name) ? null : "✨ " + vObj.Name;
 			AddCategoryItem(vObj.VfxId, name);
 		}
 	}

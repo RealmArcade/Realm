@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Godot;
@@ -93,6 +93,8 @@ public class UnitStatsPanel
 	private readonly StatRow _cooldownReductionRow;
 	private readonly StatRow _tenacityRow;
 	private readonly StatRow _damageTypeRow;
+	private readonly VBoxContainer _readingsSection;
+	private readonly List<ReadingRowControl> _readingRows = new();
 	private readonly HBoxContainer _statusEffectsStrip;
 	private readonly VBoxContainer _statusEffectsSection;
 	private readonly HBoxContainer _upgradesStrip;
@@ -103,6 +105,7 @@ public class UnitStatsPanel
 	private ulong _lastSignature;
 	private ulong _lastStatusEffectsSignature;
 	private ulong _lastUpgradesSignature;
+	private ulong _lastReadingsSignature;
 
 	public UnitStatsPanel()
 	{
@@ -172,6 +175,14 @@ public class UnitStatsPanel
 		_footer.AddThemeConstantOverride("separation", SectionSpacing);
 		_content.AddChild(_footer);
 
+		_readingsSection = new VBoxContainer();
+		_readingsSection.Name = "UnitStatsReadings_VBoxContainer";
+		_readingsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_readingsSection.AddThemeConstantOverride("separation", SectionSeparation);
+		_readingsSection.Visible = false;
+		_footer.AddChild(_readingsSection);
+		AddSectionHeader(_readingsSection, UnicodeIcons.LIST, "Readings");
+
 		_statusEffectsSection = new VBoxContainer();
 		_statusEffectsSection.Name = "UnitStatsStatusEffects_VBoxContainer";
 		_statusEffectsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -240,7 +251,7 @@ public class UnitStatsPanel
 		world.TryGet(entity, out Level level);
 		world.TryGet(entity, out Buffs buffs);
 
-		UnitMetadata metadata = null;
+		UnitMetadata? metadata = null;
 		GameHost.TryGetUnitOrBuildingMetadata(info.UnitId, out metadata);
 		string damageType = metadata != null && !string.IsNullOrEmpty(metadata.DamageType) ? metadata.DamageType : string.Empty;
 		float experiencePerLevel = metadata != null ? metadata.ExperiencePerLevel : 0f;
@@ -277,6 +288,7 @@ public class UnitStatsPanel
 		_attackRangeRow.SetValue(FormatAmount(attack.Range));
 
 		ApplyRowVisibility(hasExperience, hasLevel, hasAttack);
+		UpdateReadings(entity, forceRefresh);
 
 		_moveSpeedRow.SetValue(FormatAmount(ReadStat(stats, MovementSpeedStat)));
 		_armorRow.SetValue(FormatAmount(ReadStat(stats, ArmorStat)));
@@ -307,7 +319,7 @@ public class UnitStatsPanel
 
 	private ulong ComputeSignature(Entity entity, in Stats stats, in UnitAttributes attributes,
 		in Experience experience, in Level level, in Attack attack, bool hasExperience, bool hasLevel, bool hasAttack,
-		string damageType, float experiencePerLevel, string stateText, string description, int playerIndex, UnitMetadata metadata)
+		string damageType, float experiencePerLevel, string? stateText, string? description, int playerIndex, UnitMetadata? metadata)
 	{
 		ulong signature = SignatureSeed;
 		signature = Mix(signature, entity.Id);
@@ -390,7 +402,7 @@ public class UnitStatsPanel
 		_statusEffectsSection.Visible = _statusEffectsStrip.GetChildCount() > 0;
 	}
 
-	private void UpdateUpgradeStrip(SelectedUnitInfo info, UnitMetadata metadata)
+	private void UpdateUpgradeStrip(SelectedUnitInfo info, UnitMetadata? metadata)
 	{
 		if (metadata?.Upgrades == null || metadata.Upgrades.Length == 0)
 		{
@@ -421,7 +433,7 @@ public class UnitStatsPanel
 			string upgradeId = metadata.Upgrades[index];
 			if (string.IsNullOrEmpty(upgradeId)) continue;
 
-			UpgradeMetadata upgrade = ResolveUpgrade(upgradeId);
+			UpgradeMetadata? upgrade = ResolveUpgrade(upgradeId);
 			int upgradeLevel = ReadUpgradeLevel(info.Player, upgradeId);
 			string upgradeName = upgrade != null && !string.IsNullOrEmpty(upgrade.Name) ? upgrade.Name : ToDisplayName(upgradeId);
 			string tooltip = TranslationServer.Translate(upgradeName);
@@ -439,14 +451,14 @@ public class UnitStatsPanel
 	{
 		if (playerIndex <= 0 || GameContext.Host == null) return 0;
 
-		UpgradeMetadata upgrade = ResolveUpgrade(upgradeId);
+		UpgradeMetadata? upgrade = ResolveUpgrade(upgradeId);
 		string canonicalId = upgrade != null && !string.IsNullOrEmpty(upgrade.TemplateID) ? upgrade.TemplateID : upgradeId;
 		return GameContext.Host.GetPlayerTechLevel(playerIndex, canonicalId);
 	}
 
-	private static UpgradeMetadata ResolveUpgrade(string upgradeId)
+	private static UpgradeMetadata? ResolveUpgrade(string upgradeId)
 	{
-		if (GameHost.UpgradeRegistry.TryGetValue(upgradeId, out UpgradeMetadata upgrade)) return upgrade;
+		if (GameHost.UpgradeRegistry.TryGetValue(upgradeId, out UpgradeMetadata? upgrade)) return upgrade;
 
 		string alternateId = upgradeId.StartsWith("upgrade/", StringComparison.OrdinalIgnoreCase)
 			? upgradeId.Substring("upgrade/".Length)
@@ -507,6 +519,62 @@ public class UnitStatsPanel
 		return UnicodeIcons.CIRCLE_EXCLAMATION;
 	}
 
+	private void UpdateReadings(Entity entity, bool forceRefresh)
+	{
+		var world = GameContext.World;
+		UnitCharges charges = default;
+		bool hasCharges = world != null && world.TryGet(entity, out charges) && charges.MaximumCharges > 0;
+
+		float remainingSeconds = hasCharges ? charges.RemainingSecondsToNextCharge() : 0f;
+		int wholeRemainingSeconds = (int)MathF.Ceiling(remainingSeconds);
+
+		ulong signature = SignatureSeed;
+		if (hasCharges)
+		{
+			signature = Mix(signature, charges.Charges);
+			signature = Mix(signature, charges.MaximumCharges);
+			signature = Mix(signature, wholeRemainingSeconds);
+		}
+
+		if (!forceRefresh && signature == _lastReadingsSignature) return;
+		_lastReadingsSignature = signature;
+
+		if (!hasCharges)
+		{
+			for (int index = 0; index < _readingRows.Count; index++)
+			{
+				_readingRows[index].Root.Visible = false;
+			}
+
+			_readingsSection.Visible = false;
+			return;
+		}
+
+		EnsureReadingRows(2);
+
+		_readingRows[0].Root.Visible = true;
+		_readingRows[0].Set(TranslationServer.Translate("Charges"), $"{charges.Charges} / {charges.MaximumCharges}");
+
+		_readingRows[1].Root.Visible = true;
+		_readingRows[1].Set(
+			TranslationServer.Translate("Next charge"),
+			wholeRemainingSeconds <= 0
+				? TranslationServer.Translate("Ready")
+				: string.Format(TranslationServer.Translate("{0} s"), wholeRemainingSeconds.ToString(CultureInfo.InvariantCulture)));
+
+		_readingsSection.Visible = true;
+	}
+
+	private void EnsureReadingRows(int count)
+	{
+		while (_readingRows.Count < count)
+		{
+			var row = new ReadingRowControl();
+			_readingsSection.AddChild(row.Root);
+			_readingRows.Add(row);
+		}
+	}
+
 	private static ulong Mix(ulong signature, float value)
 	{
 		return (signature ^ BitConverter.SingleToUInt32Bits(value)) * SignaturePrime;
@@ -517,7 +585,7 @@ public class UnitStatsPanel
 		return (signature ^ (uint)value) * SignaturePrime;
 	}
 
-	private static ulong Mix(ulong signature, string text)
+	private static ulong Mix(ulong signature, string? text)
 	{
 		return (signature ^ (uint)(text?.GetHashCode() ?? 0)) * SignaturePrime;
 	}
@@ -527,7 +595,7 @@ public class UnitStatsPanel
 		if (UIStyle.FontAwesome != null) label.AddThemeFontOverride("font", UIStyle.FontAwesome);
 	}
 
-	private static void ApplyText(Label label, string text)
+	private static void ApplyText(Label label, string? text)
 	{
 		string resolved = text ?? string.Empty;
 		if (label.Text != resolved) label.Text = resolved;
@@ -634,7 +702,7 @@ public class UnitStatsPanel
 			column.QueueFree();
 		}
 
-		VBoxContainer currentColumn = null;
+		VBoxContainer? currentColumn = null;
 		int rowsInColumn = RowsPerColumn;
 		for (int index = 0; index < _orderedRows.Count; index++)
 		{
@@ -690,6 +758,58 @@ public class UnitStatsPanel
 		icon.CustomMinimumSize = new Vector2(StripIconSize, StripIconSize);
 		icon.Modulate = researched ? Colors.White : new Color(1f, 1f, 1f, 0.55f);
 		return icon;
+	}
+
+	private class ReadingRowControl
+	{
+		private readonly Label _valueLabel;
+		private readonly Label _nameLabel;
+
+		public ReadingRowControl()
+		{
+			Root = new HBoxContainer();
+			Root.Name = "UnitStatsReadingRow_HBoxContainer";
+			Root.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
+			Root.AddThemeConstantOverride("separation", RowSeparation);
+			Root.MouseFilter = Control.MouseFilterEnum.Pass;
+
+			var iconLabel = new Label();
+			iconLabel.Name = "UnitStatsReadingRowIcon_Label";
+			iconLabel.Text = UnicodeIcons.CIRCLE;
+			iconLabel.CustomMinimumSize = new Vector2(IconColumnWidth, 0f);
+			iconLabel.VerticalAlignment = VerticalAlignment.Center;
+			iconLabel.MouseFilter = Control.MouseFilterEnum.Pass;
+			ApplyIconFont(iconLabel);
+			iconLabel.AddThemeFontSizeOverride("font_size", IconFontSize);
+			iconLabel.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
+			Root.AddChild(iconLabel);
+
+			_nameLabel = new Label();
+			_nameLabel.Name = "UnitStatsReadingRowName_Label";
+			_nameLabel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
+			_nameLabel.VerticalAlignment = VerticalAlignment.Center;
+			_nameLabel.MouseFilter = Control.MouseFilterEnum.Pass;
+			_nameLabel.AddThemeFontSizeOverride("font_size", ValueFontSize);
+			_nameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+			Root.AddChild(_nameLabel);
+
+			_valueLabel = new Label();
+			_valueLabel.Name = "UnitStatsReadingRowValue_Label";
+			_valueLabel.VerticalAlignment = VerticalAlignment.Center;
+			_valueLabel.MouseFilter = Control.MouseFilterEnum.Pass;
+			_valueLabel.AddThemeFontSizeOverride("font_size", ValueFontSize);
+			_valueLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			Root.AddChild(_valueLabel);
+		}
+
+		public HBoxContainer Root { get; }
+
+		public void Set(string label, string value)
+		{
+			ApplyText(_nameLabel, label);
+			ApplyText(_valueLabel, value);
+			_valueLabel.Visible = !string.IsNullOrEmpty(value);
+		}
 	}
 
 	private class StatRow

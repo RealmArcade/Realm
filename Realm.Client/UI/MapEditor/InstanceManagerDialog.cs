@@ -15,13 +15,14 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	public InstanceManagerDialog() { }
 
-	private Tree _objectTree;
-	private LineEdit _filterInput;
-	private OptionButton _typeFilterOpt;
-	private Label _summaryLabel;
+	private Tree _objectTree = null!;
+	private LineEdit _filterInput = null!;
+	private OptionButton _typeFilterOpt = null!;
+	private Label _summaryLabel = null!;
 	private string _filterText = string.Empty;
 	private readonly Dictionary<TreeItem, Node3D> _treeItemToObjectMap = new();
 	private readonly Dictionary<TreeItem, string> _treeItemToCoordinateMap = new();
+	private readonly Dictionary<TreeItem, int> _treeItemToSpawnAnchorMap = new();
 	private Texture2D? _trashIconTexture;
 
 	private double _refreshCheckTimer = 0.0;
@@ -29,6 +30,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	private int _lastPropsCount = -1;
 	private int _lastDecalsCount = -1;
 	private int _lastCoordinatesCount = -1;
+	private int _lastSpawnAnchorsCount = -1;
 
 	public InstanceManagerDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Placed Objects"), new Vector2(720, 680))
@@ -63,6 +65,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		_typeFilterOpt.AddItem(TranslationServer.Translate("Decals"), 5);
 		_typeFilterOpt.AddItem(TranslationServer.Translate("VFX / Effects"), 6);
 		_typeFilterOpt.AddItem(TranslationServer.Translate("Coordinates"), 7);
+		_typeFilterOpt.AddItem(TranslationServer.Translate("Spawn Anchors"), 8);
 		_typeFilterOpt.Selected = 0;
 		_typeFilterOpt.ItemSelected += (_) => RefreshObjectTree();
 		topHBox.AddChild(_typeFilterOpt);
@@ -119,12 +122,14 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private bool HasCountsChanged()
 	{
-		int curUnits = GameContext.Host.AllUnits?.Count ?? 0;
-		int curProps = GameContext.Host.AllProps?.Count ?? 0;
-		int curDecals = GameContext.Host.AllDecals?.Count ?? 0;
+		var host = GameContext.Host;
+		int curUnits = host?.AllUnits?.Count ?? 0;
+		int curProps = host?.AllProps?.Count ?? 0;
+		int curDecals = host?.AllDecals?.Count ?? 0;
 		int curCoords = GameContext.EditorService?.EditorCoordinates?.Count ?? 0;
+		int curAnchors = GameContext.EditorService?.EditorSpawnAnchors?.Count ?? 0;
 
-		return curUnits != _lastUnitsCount || curProps != _lastPropsCount || curDecals != _lastDecalsCount || curCoords != _lastCoordinatesCount;
+		return curUnits != _lastUnitsCount || curProps != _lastPropsCount || curDecals != _lastDecalsCount || curCoords != _lastCoordinatesCount || curAnchors != _lastSpawnAnchorsCount;
 	}
 
 	public override void _Process(double delta)
@@ -194,6 +199,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		_objectTree.Clear();
 		_treeItemToObjectMap.Clear();
 		_treeItemToCoordinateMap.Clear();
+		_treeItemToSpawnAnchorMap.Clear();
 
 		if (GameContext.Host == null)
 		{
@@ -232,10 +238,12 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void UpdateLastCounts()
 	{
-		_lastUnitsCount = GameContext.Host.AllUnits?.Count ?? 0;
-		_lastPropsCount = GameContext.Host.AllProps?.Count ?? 0;
-		_lastDecalsCount = GameContext.Host.AllDecals?.Count ?? 0;
+		var host = GameContext.Host;
+		_lastUnitsCount = host?.AllUnits?.Count ?? 0;
+		_lastPropsCount = host?.AllProps?.Count ?? 0;
+		_lastDecalsCount = host?.AllDecals?.Count ?? 0;
 		_lastCoordinatesCount = GameContext.EditorService?.EditorCoordinates?.Count ?? 0;
+		_lastSpawnAnchorsCount = GameContext.EditorService?.EditorSpawnAnchors?.Count ?? 0;
 	}
 
 	private void UpdateSummaryLabel(int totalCount, int matchedCount)
@@ -254,12 +262,12 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		}
 	}
 
-	private int ProcessCategoryGroup(TreeItem rootNode, string categoryName, List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName)> objectsInCategory)
+	private int ProcessCategoryGroup(TreeItem rootNode, string categoryName, List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)> objectsInCategory)
 	{
 		int matchedCount = 0;
-		TreeItem categoryNode = null;
+		TreeItem? categoryNode = null;
 
-		foreach (var (displayTitle, node, posText, coordName) in objectsInCategory)
+		foreach (var (displayTitle, node, posText, coordName, spawnAnchorSlot) in objectsInCategory)
 		{
 			if (!string.IsNullOrEmpty(_filterText) &&
 			    displayTitle.IndexOf(_filterText, StringComparison.OrdinalIgnoreCase) < 0 &&
@@ -291,7 +299,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 				Vector3 pos = node.Position;
 				itemNode.SetText(1, $"({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1})");
 
-				if (GameContext.Host.SelectedEditorObject == node)
+				if (GameContext.Host?.SelectedEditorObject == node)
 				{
 					itemNode.Select(0);
 					categoryNode.Collapsed = false;
@@ -304,6 +312,11 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 				itemNode.SetText(1, posText ?? string.Empty);
 				_treeItemToCoordinateMap[itemNode] = coordName;
 			}
+			else if (spawnAnchorSlot > 0)
+			{
+				itemNode.SetText(1, posText ?? string.Empty);
+				_treeItemToSpawnAnchorMap[itemNode] = spawnAnchorSlot;
+			}
 
 			matchedCount++;
 		}
@@ -311,9 +324,9 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		return matchedCount;
 	}
 
-	private List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> CollectAllPlacedObjects()
+	private List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)> CollectAllPlacedObjects()
 	{
-		var result = new List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)>();
+		var result = new List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)>();
 		if (GameContext.Host == null) return result;
 
 		CollectUnits(result);
@@ -321,15 +334,17 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		CollectDecals(result);
 		CollectVfx(result);
 		CollectCoordinates(result);
+		CollectSpawnAnchors(result);
 
 		return result;
 	}
 
-	private void CollectUnits(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
+	private void CollectUnits(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)> result)
 	{
-		if (GameContext.Host.AllUnits == null) return;
+		var host = GameContext.Host;
+		if (host?.AllUnits == null) return;
 
-		foreach (var unit in GameContext.Host.AllUnits)
+		foreach (var unit in host.AllUnits)
 		{
 			if (!GodotObject.IsInstanceValid(unit)) continue;
 
@@ -348,7 +363,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 			}
 
 			string displayTitle = $"{resolvedName} [Player {unit.Player}]";
-			result.Add((displayTitle, assetType, unit, null, null));
+			result.Add((displayTitle, assetType, unit, null, null, 0));
 		}
 	}
 
@@ -373,16 +388,17 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		return Path.GetFileNameWithoutExtension(id);
 	}
 
-	private void CollectProps(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
+	private void CollectProps(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)> result)
 	{
-		if (GameContext.Host.AllProps == null) return;
+		var host = GameContext.Host;
+		if (host?.AllProps == null) return;
 
-		foreach (var prop in GameContext.Host.AllProps)
+		foreach (var prop in host.AllProps)
 		{
 			if (!GodotObject.IsInstanceValid(prop)) continue;
 
 			string resolvedName = GetPropRegistryName(prop.PropId);
-			result.Add((resolvedName, "Props", prop, null, null));
+			result.Add((resolvedName, "Props", prop, null, null, 0));
 		}
 	}
 
@@ -393,35 +409,37 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		return Path.GetFileNameWithoutExtension(id);
 	}
 
-	private void CollectDecals(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
+	private void CollectDecals(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)> result)
 	{
-		if (GameContext.Host.AllDecals == null) return;
+		var host = GameContext.Host;
+		if (host?.AllDecals == null) return;
 
-		foreach (var decal in GameContext.Host.AllDecals)
+		foreach (var decal in host.AllDecals)
 		{
 			if (!GodotObject.IsInstanceValid(decal)) continue;
 
 			string resolvedName = decal is Decal3D d3d ? d3d.DecalId : Path.GetFileNameWithoutExtension(decal.Name);
-			result.Add((resolvedName, "Decals", decal, null, null));
+			result.Add((resolvedName, "Decals", decal, null, null, 0));
 		}
 	}
 
-	private void CollectVfx(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
+	private void CollectVfx(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)> result)
 	{
-		if (GameContext.Host.AllVfx == null) return;
+		var host = GameContext.Host;
+		if (host?.AllVfx == null) return;
 
-		foreach (var vfx in GameContext.Host.AllVfx)
+		foreach (var vfx in host.AllVfx)
 		{
 			if (!GodotObject.IsInstanceValid(vfx)) continue;
 
 			string resolvedName = !string.IsNullOrEmpty(vfx.Config?.Name)
 				? vfx.Config.Name
 				: vfx.Config?.PrimitiveType.ToString() ?? "VFX";
-			result.Add((resolvedName, "VFX / Effects", vfx, null, null));
+			result.Add((resolvedName, "VFX / Effects", vfx, null, null, 0));
 		}
 	}
 
-	private void CollectCoordinates(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> result)
+	private void CollectCoordinates(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)> result)
 	{
 		var coordinates = GameContext.EditorService?.EditorCoordinates;
 		if (coordinates == null) return;
@@ -430,23 +448,36 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		{
 			string displayTitle = coord.Name;
 			string posText = $"({coord.MinX:F0},{coord.MinZ:F0}) → ({coord.MaxX:F0},{coord.MaxZ:F0})";
-			result.Add((displayTitle, "Coordinates", null, posText, coord.Name));
+			result.Add((displayTitle, "Coordinates", null, posText, coord.Name, 0));
 		}
 	}
 
-	private Dictionary<string, List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName)>> GroupPlacedObjectsByAssetType(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName)> rawList)
+	private void CollectSpawnAnchors(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)> result)
 	{
-		var grouped = new Dictionary<string, List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName)>>(StringComparer.OrdinalIgnoreCase);
+		var anchors = GameContext.EditorService?.EditorSpawnAnchors;
+		if (anchors == null) return;
+
+		foreach (var anchor in anchors)
+		{
+			string displayTitle = string.Format(TranslationServer.Translate("Slot {0}"), anchor.Player);
+			string posText = $"({anchor.PositionX:F0}, {anchor.PositionZ:F0})";
+			result.Add((displayTitle, "Spawn Anchors", null, posText, null, anchor.Player));
+		}
+	}
+
+	private Dictionary<string, List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)>> GroupPlacedObjectsByAssetType(List<(string DisplayTitle, string AssetType, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)> rawList)
+	{
+		var grouped = new Dictionary<string, List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)>>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var item in rawList)
 		{
 			if (!grouped.TryGetValue(item.AssetType, out var list))
 			{
-				list = new List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName)>();
+				list = new List<(string DisplayTitle, Node3D? Node, string? PosText, string? CoordName, int SpawnAnchorSlot)>();
 				grouped[item.AssetType] = list;
 			}
 
-			list.Add((item.DisplayTitle, item.Node, item.PosText, item.CoordName));
+			list.Add((item.DisplayTitle, item.Node, item.PosText, item.CoordName, item.SpawnAnchorSlot));
 		}
 
 		return grouped;
@@ -457,13 +488,17 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		TreeItem selectedItem = _objectTree.GetSelected();
 		if (selectedItem == null) return;
 
-		if (_treeItemToObjectMap.TryGetValue(selectedItem, out Node3D targetObject) && GodotObject.IsInstanceValid(targetObject))
+		if (_treeItemToObjectMap.TryGetValue(selectedItem, out var targetObject) && GodotObject.IsInstanceValid(targetObject))
 		{
 			FocusOnObject(targetObject);
 		}
-		else if (_treeItemToCoordinateMap.TryGetValue(selectedItem, out string coordName))
+		else if (_treeItemToCoordinateMap.TryGetValue(selectedItem, out var coordName))
 		{
 			FocusOnCoordinate(coordName);
+		}
+		else if (_treeItemToSpawnAnchorMap.TryGetValue(selectedItem, out int anchorSlot))
+		{
+			FocusOnSpawnAnchor(anchorSlot);
 		}
 	}
 
@@ -471,7 +506,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	{
 		if (item == null) return;
 
-		if (_treeItemToObjectMap.TryGetValue(item, out Node3D targetObject) && GodotObject.IsInstanceValid(targetObject))
+		if (_treeItemToObjectMap.TryGetValue(item, out var targetObject) && GodotObject.IsInstanceValid(targetObject))
 		{
 			if (GameContext.Host != null)
 			{
@@ -479,9 +514,14 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 			}
 			DeleteObject(targetObject);
 		}
-		else if (_treeItemToCoordinateMap.TryGetValue(item, out string coordName) && !string.IsNullOrEmpty(coordName))
+		else if (_treeItemToCoordinateMap.TryGetValue(item, out var coordName) && !string.IsNullOrEmpty(coordName))
 		{
 			GameContext.IEditorAPI?.DeleteCoordinate(coordName);
+			RefreshObjectTree();
+		}
+		else if (_treeItemToSpawnAnchorMap.TryGetValue(item, out int anchorSlot))
+		{
+			GameContext.IEditorAPI?.DeleteSpawnAnchor(anchorSlot);
 			RefreshObjectTree();
 		}
 	}
@@ -491,13 +531,26 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 		TreeItem selectedItem = _objectTree.GetSelected();
 		if (selectedItem == null) return;
 
-		if (_treeItemToObjectMap.TryGetValue(selectedItem, out Node3D targetObject) && GodotObject.IsInstanceValid(targetObject))
+		if (_treeItemToObjectMap.TryGetValue(selectedItem, out var targetObject) && GodotObject.IsInstanceValid(targetObject))
 		{
 			FocusOnObject(targetObject);
 		}
-		else if (_treeItemToCoordinateMap.TryGetValue(selectedItem, out string coordName))
+		else if (_treeItemToCoordinateMap.TryGetValue(selectedItem, out var coordName))
 		{
 			FocusOnCoordinate(coordName);
+		}
+		else if (_treeItemToSpawnAnchorMap.TryGetValue(selectedItem, out int anchorSlot))
+		{
+			FocusOnSpawnAnchor(anchorSlot);
+		}
+	}
+
+	private void FocusOnSpawnAnchor(int playerSlot)
+	{
+		var result = GameContext.IEditorAPI?.SelectSpawnAnchor(playerSlot);
+		if (result == null || !result.Value.Success)
+		{
+			Hud?.ShowFeedback(result?.Error ?? string.Empty);
 		}
 	}
 

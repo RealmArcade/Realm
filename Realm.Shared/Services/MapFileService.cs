@@ -1,4 +1,4 @@
-using System.Text.Encodings.Web;
+﻿using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Realm.Shared.Distribution;
@@ -58,7 +58,7 @@ public static class MapFileService
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
-	public static string ResolvePath(string pathOrDirectory, string targetFileName)
+	public static string ResolvePath(string? pathOrDirectory, string targetFileName)
 	{
 		if (string.IsNullOrWhiteSpace(pathOrDirectory))
 		{
@@ -121,7 +121,7 @@ public static class MapFileService
 		return JsonSerializer.Serialize(manifest, ManifestJsonOptions);
 	}
 
-	public static MapMetadata LoadMetadata(string pathOrDirectory)
+	public static MapMetadata LoadMetadata(string? pathOrDirectory)
 	{
 		string targetPath = ResolvePath(pathOrDirectory, "metadata.json");
 		if (!File.Exists(targetPath))

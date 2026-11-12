@@ -67,7 +67,7 @@ namespace Realm.Ecs.Tests
 		private Entity SpawnFlyingEnemy(Vector3 pos, float maxHp, float armor, PlayerEntity owner)
 		{
 			var enemy = SpawnEnemy(pos, maxHp, armor, owner);
-			_world.Add(enemy, new PathingFlags((int)TerrainPathingFlags.Flying));
+			_world.Add(enemy, new TraversableTerrain((int)TerrainPathingFlags.Flying));
 			return enemy;
 		}
 
@@ -88,7 +88,7 @@ namespace Realm.Ecs.Tests
 		private Entity SpawnFlyingAttacker(Vector3 pos, float damage, float range, float scanRadius, PlayerEntity owner)
 		{
 			var attacker = SpawnMeleeUnit(pos, damage, range, 1.5f, scanRadius, owner);
-			_world.Add(attacker, new PathingFlags((int)TerrainPathingFlags.Flying));
+			_world.Add(attacker, new TraversableTerrain((int)TerrainPathingFlags.Flying));
 			return attacker;
 		}
 

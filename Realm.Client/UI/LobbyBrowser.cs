@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -29,39 +29,37 @@ public partial class LobbyBrowser : Control
 	private List<LobbyData> _filteredLobbies = new List<LobbyData>();
 	private bool _connectionFailed;
 
-	private Panel _bgPanel;
-	private Panel _leftPillar;
-	private Panel _rightPillar;
-	private PanelContainer _filterPanel;
-	private PanelContainer _lobbyPanel;
+	private Panel _bgPanel = null!;
+	private Panel _leftPillar = null!;
+	private Panel _rightPillar = null!;
+	private PanelContainer _filterPanel = null!;
+	private PanelContainer _lobbyPanel = null!;
 
-	private Button _backButton;
-	private Button _refreshButton;
-	private Button _hostButton;
-	private Button _directConnectButton;
-	private LineEdit _searchBar;
+	private Button _backButton = null!;
+	private Button _refreshButton = null!;
+	private Button _hostButton = null!;
+	private Button _directConnectButton = null!;
+	private LineEdit _searchBar = null!;
 	private readonly List<(string Tag, CheckBox CheckBox)> _tagFilters = new();
-	private CheckBox _betaTestingMapsCheck;
-	private VBoxContainer _lobbyListContainer;
+	private CheckBox _betaTestingMapsCheck = null!;
+	private CheckBox _versionMismatchCheck = null!;
+	private VBoxContainer _lobbyListContainer = null!;
 
-	private Label _browserTitle;
-	private Label _filterTitle;
-	private Label _mapCol;
-	private Label _sizeCol;
-	private Label _modeCol;
-	private Label _playersCol;
-	private Label _pingCol;
-	private Label _refreshIcon;
-	private Timer _refreshTimer;
+	private Label _browserTitle = null!;
+	private Label _filterTitle = null!;
+	private Label _mapCol = null!;
+	private Label _sizeCol = null!;
+	private Label _modeCol = null!;
+	private Label _playersCol = null!;
+	private Label _pingCol = null!;
+	private Timer _refreshTimer = null!;
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 	private readonly HttpClient _httpClient = new HttpClient();
 
 	public override void _Ready()
 	{
-		_bgPanel = GetNode<Panel>("Background");
-		_leftPillar = GetNode<Panel>("LeftPillar");
-		_rightPillar = GetNode<Panel>("RightPillar");
+		(_bgPanel, _leftPillar, _rightPillar) = UIStyle.BindStandardChrome(this);
 		_filterPanel = GetNode<PanelContainer>("FilterPanel");
 		_lobbyPanel = GetNode<PanelContainer>("LobbyPanel");
 
@@ -77,6 +75,7 @@ public partial class LobbyBrowser : Control
 
 		_searchBar = GetNode<LineEdit>("SearchBar");
 		_betaTestingMapsCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/BetaTestingMapsCheck");
+		_versionMismatchCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/VersionMismatchCheck");
 		_lobbyListContainer = GetNode<VBoxContainer>("LobbyPanel/VBoxContainer/ScrollContainer/LobbyListContainer");
 
 
@@ -94,23 +93,25 @@ public partial class LobbyBrowser : Control
 		CenterFpsCounter();
 
 
-		GameContext.Lobby.NatTestCompleted += UpdateHostButtonState;
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby != null) lobby.NatTestCompleted += UpdateHostButtonState;
 		UpdateHostButtonState();
 
 
 		FetchLobbiesFromRegistry();
 
 		_refreshTimer = new Timer();
+		_refreshTimer.Name = "RefreshTimer_Timer";
 		_refreshTimer.WaitTime = 30.0f;
 		_refreshTimer.OneShot = false;
 		_refreshTimer.Timeout += TriggerRefresh;
 		AddChild(_refreshTimer);
 		_refreshTimer.Start();
 
-		if (!string.IsNullOrEmpty(GameContext.Lobby.LobbyJoinError))
+		if (lobby != null && !string.IsNullOrEmpty(lobby.LobbyJoinError))
 		{
-			ShowLobbyJoinErrorPopup(GameContext.Lobby.LobbyJoinError);
-			GameContext.Lobby.LobbyJoinError = null;
+			ShowLobbyJoinErrorPopup(lobby.LobbyJoinError);
+			lobby.LobbyJoinError = null;
 		}
 	}
 
@@ -122,11 +123,10 @@ public partial class LobbyBrowser : Control
 		ApplyFilterPanelStyle();
 		ApplyMainPanelStyle();
 
-		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
-		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
+		UIStyle.ApplyCustomLobbySearchInput(_searchBar);
 
-		UIStyle.ApplyTitle(_browserTitle, "CUSTOM LOBBY BROWSER", 36);
-		UIStyle.ApplyTitle(_filterTitle, "FILTER", 20);
+		UIStyle.ApplyTitle(_browserTitle, TranslationServer.Translate("CUSTOM LOBBY BROWSER"), 36);
+		UIStyle.ApplyTitle(_filterTitle, TranslationServer.Translate("FILTER"), 20);
 
 		ApplyTableHeaderStyle();
 
@@ -144,7 +144,7 @@ public partial class LobbyBrowser : Control
 
 	private void ApplyBackgroundStyle()
 	{
-		Texture2D bgTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_bg.webp");
+		Texture2D? bgTexture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_bg.webp");
 
 		if (bgTexture != null)
 		{
@@ -168,7 +168,7 @@ public partial class LobbyBrowser : Control
 
 	private void ApplyFilterPanelStyle()
 	{
-		Texture2D filterPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_filter.webp");
+		Texture2D? filterPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_filter.webp");
 
 		if (filterPanelTex != null)
 		{
@@ -195,7 +195,7 @@ public partial class LobbyBrowser : Control
 
 	private void ApplyMainPanelStyle()
 	{
-		Texture2D mainPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_main.webp");
+		Texture2D? mainPanelTex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/custom_lobby_panel_main.webp");
 
 		if (mainPanelTex != null)
 		{
@@ -260,24 +260,28 @@ public partial class LobbyBrowser : Control
 		_betaTestingMapsCheck.TooltipText = Tr("Also list lobbies for maps that are still in Beta-Testing and have not been greenlit yet");
 		_betaTestingMapsCheck.ButtonPressed = true;
 		SetupFilterCheckbox(_betaTestingMapsCheck);
+
+		_versionMismatchCheck.Text = TranslationServer.Translate("Show mismatched game version");
+		_versionMismatchCheck.TooltipText = TranslationServer.Translate("Also list lobbies that run a different game version and cannot be joined from this build");
+		_versionMismatchCheck.ButtonPressed = false;
+		SetupFilterCheckbox(_versionMismatchCheck);
 	}
 
 	private void SetupFilterCheckbox(CheckBox checkBox)
 	{
 		checkBox.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			ApplyFilters();
 		};
-		checkBox.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		checkBox.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		UIStyle.ApplyCheckboxStyle(checkBox);
 	}
 
 	private void SetupSearchBar()
 	{
 		_searchBar.TextChanged += (text) => ApplyFilters();
-		_searchBar.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbySearchInput(false));
-		_searchBar.AddThemeStyleboxOverride("focus", UIStyle.CreateCustomLobbySearchInput(true));
+		UIStyle.ApplyCustomLobbySearchInput(_searchBar);
 		_searchBar.AddThemeFontSizeOverride("font_size", 18);
 		_searchBar.AddThemeColorOverride("font_color", new Color(0.95f, 0.9f, 0.8f));
 		_searchBar.AddThemeColorOverride("font_placeholder_color", new Color(0.65f, 0.6f, 0.5f));
@@ -292,20 +296,17 @@ public partial class LobbyBrowser : Control
 	{
 		_hostButton.Flat = false;
 		_hostButton.CustomMinimumSize = new Vector2(300, 86);
-		UIStyle.ApplyButtonText(_hostButton, "HOST A GAME", 24);
+		UIStyle.ApplyButtonText(_hostButton, TranslationServer.Translate("HOST A GAME"), 24);
 		_hostButton.AddThemeFontOverride("font", UIStyle.FontNorseBold);
 
-		_hostButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
-		_hostButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
-		_hostButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyStartGameButton(false, true));
-		_hostButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyStartGameButton(_hostButton);
 
 		_hostButton.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
-			GameContext.UserInterface.TransitionTo(GameScreen.LobbyCreate);
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyCreate);
 		};
-		_hostButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_hostButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void SetupDirectConnectButton()
@@ -318,17 +319,14 @@ public partial class LobbyBrowser : Control
 		UIStyle.ApplyButtonText(_directConnectButton, Tr("DIRECT CONNECT"), 22);
 		_directConnectButton.AddThemeFontOverride("font", UIStyle.FontNorseBold);
 
-		_directConnectButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyStartGameButton(false, false));
-		_directConnectButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyStartGameButton(true, false));
-		_directConnectButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyStartGameButton(false, true));
-		_directConnectButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyStartGameButton(_directConnectButton);
 
 		_directConnectButton.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			ShowDirectConnectDialog();
 		};
-		_directConnectButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_directConnectButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void ShowDirectConnectDialog()
@@ -419,26 +417,16 @@ public partial class LobbyBrowser : Control
 		hbox.AddThemeConstantOverride("separation", 20);
 		vbox.AddChild(hbox);
 
-		var cancelBtn = new Button();
-		cancelBtn.Name = "CancelBtn_Button";
-		cancelBtn.Flat = false;
-		cancelBtn.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxes(cancelBtn);
-		UIStyle.ApplyButtonText(cancelBtn, Tr("CANCEL"), 14);
+		var cancelBtn = UIStyle.CreateActionButton("CancelBtn_Button", Tr("CANCEL"), 14);
 		cancelBtn.CustomMinimumSize = new Vector2(140, 38);
 		cancelBtn.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			overlay.QueueFree();
 		};
 		hbox.AddChild(cancelBtn);
 
-		var connectBtn = new Button();
-		connectBtn.Name = "ConnectBtn_Button";
-		connectBtn.Flat = false;
-		connectBtn.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxes(connectBtn);
-		UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
+		var connectBtn = UIStyle.CreateActionButton("ConnectBtn_Button", Tr("CONNECT"), 14);
 		connectBtn.CustomMinimumSize = new Vector2(140, 38);
 		connectBtn.Pressed += async () =>
 		{
@@ -447,21 +435,23 @@ public partial class LobbyBrowser : Control
 			int port = 8999;
 			if (int.TryParse(portInput.Text.Trim(), out int customPort)) port = customPort;
 
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			connectBtn.Disabled = true;
 			UIStyle.ApplyButtonText(connectBtn, Tr("CONNECTING..."), 14);
 
-			bool success = await GameContext.Lobby.JoinByIpAsync(ip, port);
+			if (GameContext.Lobby is not { } lobby) return;
+
+			bool success = await lobby.JoinByIpAsync(ip, port);
 			if (success)
 			{
 				overlay.QueueFree();
-				GameContext.UserInterface.TransitionTo(GameScreen.LobbyRoom);
+				GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
 			}
 			else
 			{
 				connectBtn.Disabled = false;
 				UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
-				GameContext.UserInterface.PlayWarningSound();
+				GameContext.UserInterface?.PlayWarningSound();
 			}
 		};
 		hbox.AddChild(connectBtn);
@@ -475,17 +465,14 @@ public partial class LobbyBrowser : Control
 		_backButton.PivotOffset = new Vector2(55, 55);
 		_backButton.AddThemeConstantOverride("icon_max_width", 110);
 
-		_backButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyBackButton(false, false));
-		_backButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyBackButton(true, false));
-		_backButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyBackButton(false, true));
-		_backButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyBackButton(_backButton);
 
 		_backButton.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
-			GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 		};
-		_backButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_backButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void SetupRefreshButton()
@@ -496,22 +483,14 @@ public partial class LobbyBrowser : Control
 		_refreshButton.PivotOffset = new Vector2(55, 55);
 		_refreshButton.AddThemeConstantOverride("icon_max_width", 110);
 
-		_refreshButton.AddThemeStyleboxOverride("normal", UIStyle.CreateCustomLobbyRechargeButton(false, false));
-		_refreshButton.AddThemeStyleboxOverride("hover", UIStyle.CreateCustomLobbyRechargeButton(true, false));
-		_refreshButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateCustomLobbyRechargeButton(false, true));
-		_refreshButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyCustomLobbyRechargeButton(_refreshButton);
 
 		_refreshButton.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			TriggerRefresh();
 		};
-		_refreshButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-	}
-
-	private void ShowHostingErrorPopup()
-	{
-		GameContext.UserInterface?.ShowPopupMessage(Tr("HOSTING ERROR"), Tr("Your network configuration is not compatible with hosting games."));
+		_refreshButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void UpdateHostButtonState()
@@ -529,412 +508,6 @@ public partial class LobbyBrowser : Control
 	private void PopulateRunicPillar(VBoxContainer container)
 	{
 		container.Visible = false;
-	}
-
-	private void FetchLobbiesFromRegistry()
-	{
-		GameContext.Lobby.RandomizeServerIndex();
-		Task.Run(async () =>
-		{
-			try
-			{
-				var json = await GameContext.Lobby.FetchLobbiesRawAsync();
-				if (json == null)
-				{
-					Callable.From(() => OnLobbiesFetchedFallback()).CallDeferred();
-					return;
-				}
-
-				int clientBaseline = await GameContext.Lobby.MeasurePingToRegistryAsync();
-				using var doc = JsonDocument.Parse(json);
-				var lobbyList = new List<LobbyData>();
-
-				foreach (var item in doc.RootElement.EnumerateArray())
-				{
-					lobbyList.Add(ParseLobbyData(item, clientBaseline));
-				}
-
-				Callable.From(() => OnLobbiesFetched(lobbyList)).CallDeferred();
-			}
-			catch (Exception ex)
-			{
-				GD.PrintErr($"[LobbyBrowser] Error fetching lobbies: {ex.Message}");
-				Callable.From(() => OnLobbiesFetchedFallback()).CallDeferred();
-			}
-		});
-	}
-
-	private static string GetStringProp(JsonElement item, string key, string fallback = "")
-	{
-		if (item.TryGetProperty(key, out var prop))
-		{
-			return prop.GetString() ?? fallback;
-		}
-
-		return fallback;
-	}
-
-	private static int GetIntProp(JsonElement item, string key, int fallback = 0)
-	{
-		if (item.TryGetProperty(key, out var prop) && prop.ValueKind == JsonValueKind.Number)
-		{
-			return prop.GetInt32();
-		}
-
-		return fallback;
-	}
-
-	private static bool GetBoolProp(JsonElement item, string key, bool fallback = false)
-	{
-		if (item.TryGetProperty(key, out var prop) && prop.ValueKind is JsonValueKind.True or JsonValueKind.False)
-		{
-			return prop.GetBoolean();
-		}
-
-		return fallback;
-	}
-
-	private static LobbyData ParseLobbyData(JsonElement item, int clientBaseline)
-	{
-		string hostIp = GetStringProp(item, "hostIP");
-		if (string.IsNullOrEmpty(hostIp))
-		{
-			hostIp = GetStringProp(item, "hostIp");
-		}
-
-		int calculatedPing = CalculatePing(item, hostIp, clientBaseline);
-		long mapSizeBytes = GetMapSizeBytes(item);
-
-		string mapName = GetStringProp(item, "map");
-		string mapVersion = GetStringProp(item, "mapVersion");
-
-		if (mapSizeBytes <= 0)
-		{
-			mapSizeBytes = MapAssetManager.GetMapTotalSizeBytes(mapName, mapVersion);
-		}
-
-		int slotsUsed = GetIntProp(item, "slotsUsed", 0);
-		int maxPlayers = GetIntProp(item, "maxPlayers", 8);
-
-		return new LobbyData
-		{
-			LobbyId = GetStringProp(item, "lobbyId"),
-			Map = mapName,
-			Mode = "Melee",
-			IsGreenlit = GetBoolProp(item, "isGreenlit"),
-			MapCreator = GetStringProp(item, "mapCreator"),
-			Players = $"{slotsUsed}/{maxPlayers}",
-			Ping = calculatedPing,
-			GameVersion = GetStringProp(item, "gameVersion"),
-			MapSizeBytes = mapSizeBytes,
-			MapSizeFormatted = MapAssetManager.FormatSizeInMB(mapSizeBytes)
-		};
-	}
-
-	private static int CalculatePing(JsonElement item, string hostIp, int clientBaseline)
-	{
-		if (hostIp == "127.0.0.1" || hostIp == "localhost" || string.IsNullOrEmpty(hostIp))
-		{
-			return 5;
-		}
-
-		double distanceKm = 0;
-		if (item.TryGetProperty("distanceKm", out var distProp))
-		{
-			distanceKm = distProp.GetDouble();
-		}
-		else if (item.TryGetProperty("distance", out distProp))
-		{
-			distanceKm = distProp.GetDouble();
-		}
-
-		int hostPingBaseline = 20;
-		if (item.TryGetProperty("hostPingBaseline", out var baselineProp))
-		{
-			hostPingBaseline = baselineProp.GetInt32();
-		}
-
-		double geoPing = 10.0 + (distanceKm / 100.0);
-		double clientOverhead = Math.Max(0, clientBaseline - 20);
-		double hostOverhead = Math.Max(0, hostPingBaseline - 20);
-		return (int)Math.Round(geoPing + clientOverhead + hostOverhead);
-	}
-
-	private static long GetMapSizeBytes(JsonElement item)
-	{
-		if (item.TryGetProperty("mapSizeBytes", out var sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
-		{
-			return sizeProp.GetInt64();
-		}
-
-		if (item.TryGetProperty("MapSizeBytes", out sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
-		{
-			return sizeProp.GetInt64();
-		}
-
-		if (item.TryGetProperty("mapSize", out sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
-		{
-			return sizeProp.GetInt64();
-		}
-
-		return 0;
-	}
-
-	private void OnLobbiesFetched(List<LobbyData> list)
-	{
-		_connectionFailed = false;
-		_allLobbies.Clear();
-		if (list != null)
-		{
-			_allLobbies.AddRange(list);
-		}
-
-		ApplyFilters();
-	}
-
-	private void OnLobbiesFetchedFallback()
-	{
-		_connectionFailed = true;
-		_allLobbies.Clear();
-		ApplyFilters();
-	}
-
-	private string GetMapDisplayName(LobbyData data)
-	{
-		if (data.IsGreenlit) return data.Map;
-
-		string betaDisplayName = $"[{Tr("Beta-Testing")}] {data.Map}";
-		return string.IsNullOrEmpty(data.MapCreator) ? betaDisplayName : $"{betaDisplayName} - {data.MapCreator}";
-	}
-
-	private void ApplyFilters()
-	{
-		_filteredLobbies = _allLobbies.ToList();
-
-		string query = _searchBar.Text.Trim().ToLower();
-		if (!string.IsNullOrEmpty(query))
-		{
-			_filteredLobbies = _filteredLobbies.Where(x => x.Map.ToLower().Contains(query)).ToList();
-		}
-
-		var activeModes = GetActiveModes();
-		if (activeModes.Count > 0)
-		{
-			_filteredLobbies = _filteredLobbies.Where(x => activeModes.Contains(x.Mode.ToLower())).ToList();
-		}
-
-		if (!_betaTestingMapsCheck.ButtonPressed)
-		{
-			_filteredLobbies = _filteredLobbies.Where(x => x.IsGreenlit).ToList();
-		}
-
-		RefreshLobbyDisplay();
-	}
-
-	private HashSet<string> GetActiveModes()
-	{
-		var modes = new HashSet<string>();
-		foreach (var (tag, checkBox) in _tagFilters)
-		{
-			if (checkBox.ButtonPressed) modes.Add(tag.ToLowerInvariant());
-		}
-
-		return modes;
-	}
-
-	private void RefreshLobbyDisplay()
-	{
-		foreach (Node child in _lobbyListContainer.GetChildren())
-		{
-			child.QueueFree();
-		}
-
-		if (_connectionFailed)
-		{
-			var lbl = new Label();
-			lbl.Name = "RegistryUnavailable_Label";
-			lbl.Text = TranslationServer.Translate("⚠️ Failed to connect to the lobby registry server. Please check your internet connection or try again later.\n\nSingle player against AI bots is always available from the main menu.");
-			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-			lbl.CustomMinimumSize = new Vector2(760, 0);
-			lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			lbl.HorizontalAlignment = HorizontalAlignment.Center;
-			lbl.VerticalAlignment = VerticalAlignment.Center;
-			lbl.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-			lbl.AddThemeFontSizeOverride("font_size", 15);
-			_lobbyListContainer.AddChild(lbl);
-		}
-		else if (_filteredLobbies.Count == 0)
-		{
-			bool noLobbiesOnline = _allLobbies.Count == 0;
-			var lbl = new Label();
-			lbl.Name = noLobbiesOnline ? "NoLobbiesOnline_Label" : "NoLobbiesMatched_Label";
-			lbl.Text = noLobbiesOnline
-				? TranslationServer.Translate("No lobbies are open right now. Realm is new, so the player base is still growing.\n\nStart a lobby and invite friends, or play single player against AI bots.")
-				: TranslationServer.Translate("No lobbies match your search or filters.");
-			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-			lbl.CustomMinimumSize = new Vector2(760, 0);
-			lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			lbl.HorizontalAlignment = HorizontalAlignment.Center;
-			lbl.VerticalAlignment = VerticalAlignment.Center;
-			lbl.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
-			lbl.AddThemeFontSizeOverride("font_size", 15);
-
-			if (noLobbiesOnline)
-			{
-				var spacer = new Control();
-				spacer.Name = "NoLobbiesOnline_Spacer";
-				spacer.CustomMinimumSize = new Vector2(0, 50);
-				_lobbyListContainer.AddChild(spacer);
-			}
-
-			_lobbyListContainer.AddChild(lbl);
-		}
-		else
-		{
-			foreach (var lobby in _filteredLobbies)
-			{
-				var row = CreateLobbyRow(lobby);
-				_lobbyListContainer.AddChild(row);
-			}
-		}
-	}
-
-	private PanelContainer CreateLobbyRow(LobbyData data)
-	{
-		var panel = new PanelContainer();
-		panel.Name = "Panel_PanelContainer";
-		panel.CustomMinimumSize = new Vector2(0, 48);
-
-		var rowStyle = new StyleBoxFlat();
-		rowStyle.BgColor = new Color(0.12f, 0.13f, 0.16f, 0.3f);
-		rowStyle.BorderColor = new Color(0.25f, 0.25f, 0.3f, 0.2f);
-		rowStyle.SetBorderWidthAll(1);
-		rowStyle.ContentMarginLeft = 12;
-		rowStyle.ContentMarginRight = 24;
-		rowStyle.ContentMarginTop = 0;
-		rowStyle.ContentMarginBottom = 0;
-
-		var hoverStyle = new StyleBoxFlat();
-		hoverStyle.BgColor = new Color(0.95f, 0.82f, 0.55f, 0.12f);
-		hoverStyle.BorderColor = UIStyle.ColorGold;
-		hoverStyle.SetBorderWidthAll(1);
-		hoverStyle.ContentMarginLeft = 12;
-		hoverStyle.ContentMarginRight = 24;
-		hoverStyle.ContentMarginTop = 0;
-		hoverStyle.ContentMarginBottom = 0;
-
-		panel.AddThemeStyleboxOverride("panel", rowStyle);
-
-		var hBox = new HBoxContainer();
-		hBox.Name = "HBox_HBoxContainer";
-		panel.AddChild(hBox);
-
-		bool isBetaTesting = !data.IsGreenlit;
-
-		var lblMap = new Label();
-		lblMap.Name = "LblMap_Label";
-		lblMap.Text = $"  {GetMapDisplayName(data)}";
-		lblMap.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblMap.AddThemeColorOverride("font_color", isBetaTesting ? new Color(0.95f, 0.6f, 0.35f) : new Color(0.9f, 0.85f, 0.7f));
-		lblMap.AddThemeFontSizeOverride("font_size", 16);
-		lblMap.VerticalAlignment = VerticalAlignment.Center;
-		hBox.AddChild(lblMap);
-
-		var lblSize = new Label();
-		lblSize.Name = "LblSize_Label";
-		lblSize.Text = data.MapSizeFormatted;
-		lblSize.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblSize.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
-		lblSize.AddThemeFontSizeOverride("font_size", 15);
-		lblSize.VerticalAlignment = VerticalAlignment.Center;
-		hBox.AddChild(lblSize);
-
-		var lblMode = new Label();
-		lblMode.Name = "LblMode_Label";
-		lblMode.Text = data.Mode;
-		lblMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblMode.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
-		lblMode.AddThemeFontSizeOverride("font_size", 15);
-		lblMode.VerticalAlignment = VerticalAlignment.Center;
-		hBox.AddChild(lblMode);
-
-		var lblPlayers = new Label();
-		lblPlayers.Name = "LblPlayers_Label";
-		lblPlayers.Text = data.Players;
-		lblPlayers.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblPlayers.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
-		lblPlayers.AddThemeFontSizeOverride("font_size", 15);
-		lblPlayers.VerticalAlignment = VerticalAlignment.Center;
-		hBox.AddChild(lblPlayers);
-
-		var lblPing = new Label();
-		lblPing.Name = "LblPing_Label";
-		lblPing.Text = $"{data.Ping} ms  ";
-		lblPing.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblPing.HorizontalAlignment = HorizontalAlignment.Right;
-		lblPing.AddThemeColorOverride("font_color", data.Ping < 80 ? new Color(0.3f, 0.8f, 0.4f) : new Color(0.85f, 0.65f, 0.3f));
-		lblPing.AddThemeFontSizeOverride("font_size", 15);
-		lblPing.VerticalAlignment = VerticalAlignment.Center;
-		hBox.AddChild(lblPing);
-
-		var lblVersion = new Label();
-		lblVersion.Name = "LblVersion_Label";
-		lblVersion.Text = $"v{data.GameVersion}  ";
-		lblVersion.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblVersion.HorizontalAlignment = HorizontalAlignment.Right;
-		lblVersion.AddThemeColorOverride("font_color", data.GameVersion == RealmVersion.GameBinaryVersion ? new Color(0.3f, 0.8f, 0.4f) : new Color(0.85f, 0.3f, 0.3f));
-		lblVersion.AddThemeFontSizeOverride("font_size", 15);
-		lblVersion.VerticalAlignment = VerticalAlignment.Center;
-		hBox.AddChild(lblVersion);
-
-		panel.MouseEntered += () =>
-		{
-			GameContext.UserInterface.PlayHoverSound();
-			panel.AddThemeStyleboxOverride("panel", hoverStyle);
-		};
-		panel.MouseExited += () => panel.AddThemeStyleboxOverride("panel", rowStyle);
-
-		panel.GuiInput += async (@event) =>
-		{
-			if (@event is InputEventMouseButton mouseBtn && mouseBtn.Pressed && mouseBtn.ButtonIndex == MouseButton.Left)
-			{
-				GameContext.UserInterface.PlayClickSound();
-
-				if (!string.IsNullOrEmpty(data.GameVersion) && data.GameVersion != RealmVersion.GameBinaryVersion)
-				{
-					ShowVersionMismatchPopup(data.GameVersion, RealmVersion.GameBinaryVersion);
-					return;
-				}
-
-				panel.MouseFilter = MouseFilterEnum.Ignore;
-				var connectingOverlay = ShowConnectingPopup();
-
-				GameContext.Lobby.ActiveMapName = data.Map;
-				bool success = await GameContext.Lobby.JoinLobbyAsync(data.LobbyId);
-
-				if (connectingOverlay != null && GodotObject.IsInstanceValid(connectingOverlay))
-				{
-					connectingOverlay.QueueFree();
-				}
-
-				if (success)
-				{
-					GameContext.UserInterface.TransitionTo(GameScreen.LobbyRoom);
-				}
-				else
-				{
-					GameContext.UserInterface.PlayWarningSound();
-					panel.MouseFilter = MouseFilterEnum.Stop;
-					string errMsg = !string.IsNullOrEmpty(GameContext.Lobby.LobbyJoinError)
-						? GameContext.Lobby.LobbyJoinError
-						: "Direct connection handshake failed. The host could not be reached.";
-					GameContext.Lobby.LobbyJoinError = null;
-					ShowLobbyJoinErrorPopup(errMsg);
-				}
-			}
-		};
-
-		return panel;
 	}
 
 	private void ShowVersionMismatchPopup(string lobbyVersion, string currentVersion)
@@ -1020,28 +593,33 @@ public partial class LobbyBrowser : Control
 	private Panel ShowConnectingPopup()
 	{
 		var overlay = new Panel();
+		overlay.Name = "ConnectingOverlay_Panel";
 		overlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		AddChild(overlay);
 
 		var cardPanel = new Panel();
+		cardPanel.Name = "CardPanel_Panel";
 		cardPanel.CustomMinimumSize = new Vector2(440, 160);
 		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		overlay.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
+		vbox.Name = "Vbox_VBoxContainer";
 		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		vbox.Alignment = BoxContainer.AlignmentMode.Center;
 		cardPanel.AddChild(vbox);
 
 		var titleLabel = new Label();
+		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, Tr("CONNECTING TO LOBBY ..."), 22);
 		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(titleLabel);
 
 		var statusLabel = new Label();
+		statusLabel.Name = "StatusLabel_Label";
 		statusLabel.Text = Tr("Traversing NAT and establishing connection...");
 		statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		statusLabel.AddThemeFontSizeOverride("font_size", 13);

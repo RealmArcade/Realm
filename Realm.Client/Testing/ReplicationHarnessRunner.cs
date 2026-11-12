@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.Testing;
 
@@ -37,12 +38,12 @@ public partial class ReplicationHarnessRunner : SceneTree
 			MultiplayerEcsSyncReport report = MultiplayerEcsSyncTestSupport.Verify(settings);
 			string rendered = report.Render();
 			File.WriteAllText(Path.Combine(outputDirectory, "multiplayer_ecs_sync_report.txt"), rendered);
-			GD.Print(rendered);
+			GameLog.LogToConsole(rendered);
 			Quit(report.Failures.Count > 0 ? 1 : 0);
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr(exception.ToString());
+			GameLog.LogError(exception.ToString());
 			Quit(2);
 		}
 	}

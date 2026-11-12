@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Realm.Shared.Animation;
 
 namespace Realm.Shared.Metadata;
@@ -51,6 +52,7 @@ public class UnitMetadata
 	public float SightRange { get; set; } = 15.0f;
 	public float AcquisitionRange { get; set; } = 15.0f;
 	public float GoldBounty { get; set; }
+	public float RespawnSeconds { get; set; }
 	public string? ModelPath { get; set; }
 	public string? PortraitModelPath { get; set; }
 	public string VisualMode { get; set; } = "GroundPlane";
@@ -98,7 +100,7 @@ public class UnitMetadata
 
 	public string? Attribution_ImportedFromMap { get; set; }
 
-	public bool TryGetObjectAttachment(HumanoidBone hand, string attachmentId, out HandAttachmentOrientation? orientation)
+	public bool TryGetObjectAttachment(HumanoidBone hand, string attachmentId, [NotNullWhen(true)] out HandAttachmentOrientation? orientation)
 	{
 		if (ObjectAttachments != null)
 		{
@@ -109,7 +111,7 @@ public class UnitMetadata
 		return false;
 	}
 
-	public bool TryGetObjectAttachment(string socket, string attachmentId, out HandAttachmentOrientation? orientation)
+	public bool TryGetObjectAttachment(string socket, string attachmentId, [NotNullWhen(true)] out HandAttachmentOrientation? orientation)
 	{
 		if (ObjectAttachments != null)
 		{

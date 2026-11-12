@@ -9,6 +9,7 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
+using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Core;
@@ -34,7 +35,7 @@ public partial class GameHost
 	public void SetBackupResources(float gold, float wood, float stone) =>
 		GameContext.NetworkService.SetBackupResources(gold, wood, stone);
 
-	public void KillUnitDeferredExternal(Unit3D unit)
+	public void KillUnitDeferredExternal(Unit3D? unit)
 	{
 		Callable.From(() => KillUnitDeferred(unit)).CallDeferred();
 	}
@@ -98,8 +99,14 @@ public partial class GameHost
 			return false;
 		}
 
+		if (GameContext.World is not EcsWorld world)
+		{
+			failure = "there is no match running to buy from";
+			return false;
+		}
+
 		Entity localBuilding = new Entity(building.Value);
-		if (!GameContext.World.IsAlive(localBuilding))
+		if (!world.IsAlive(localBuilding))
 		{
 			failure = "the shop is gone";
 			return false;
@@ -362,16 +369,41 @@ public partial class GameHost
 
 		// The match clock is advanced once per tick and every replicated unit is placed from it below, so this is the only
 		// thing that moves one: the client renders the authority's own timeline from a little behind it.
+		int starvationsBefore = GameContext.SnapshotTimeline.StarvationCount;
 		GameContext.SnapshotTimeline.Advance(fDelta);
+
+		// A stall is caused by the link or by this process, and the two are told apart where they are measured: the step
+		// that ran the buffer out says whether the clock was moved further in one frame than the link could answer, and
+		// the descriptions already held say whether the world was here waiting while the clock moved past it.
+		if (LagProbe.IsEnabled && GameContext.SnapshotTimeline.StarvationCount != starvationsBefore)
+		{
+			LagProbe.RecordWorst(LagEvent.ClientStarvationStepMilliseconds, fDelta * 1000d);
+			LagProbe.RecordWorst(LagEvent.ClientStarvationHeldSequences, GameContext.SnapshotApply.HeldDescriptionCount);
+		}
+
+		if (LagProbe.IsEnabled) ObservePresentationMetrics(fDelta);
 
 		// Effects and unit removals share the cursor the units are drawn from, so an effect and the unit it is about are
 		// drawn at the same moment rather than a presentation delay apart.
 		FlushPresentationForCursor();
 		FlushUnitViewRemovalsForCursor();
 
+		long placementStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
 		var query = QueryCache.AllLatestDescriptionQuery;
 		GameContext.SimulationService.SetDelta(fDelta);
 		GameContext.World.Query(in query, GameContext.SimulationService.PresentationQueryDelegate);
+		if (placementStarted != 0L) LagProbe.Add(LagStage.ClientPlacementMilliseconds, LagProbe.ElapsedMilliseconds(placementStarted));
+	}
+
+	private static void ObservePresentationMetrics(float fDelta)
+	{
+		var timeline = GameContext.SnapshotTimeline;
+		double nowSeconds = LagProbe.NowSeconds();
+		LagProbe.ObserveGauge(LagGauge.ClientPresentationDelaySequences, timeline.DelaySequences, nowSeconds);
+		LagProbe.ObserveGauge(LagGauge.ClientPresentationDelayMilliseconds, timeline.DelayMilliseconds, nowSeconds);
+		LagProbe.ObserveGauge(LagGauge.ClientNewestDescriptionLeadSequences, timeline.NewestSequence - timeline.CursorSequence, nowSeconds);
+		LagProbe.ObserveGauge(LagGauge.ClientCatchUpRatePercent, timeline.LastRateCorrection * 100d, nowSeconds);
+		LagProbe.ObserveDrawnSequence((int)MathF.Floor(timeline.CursorSequence), nowSeconds);
 	}
 
 	/// <summary>
@@ -387,7 +419,7 @@ public partial class GameHost
 
 	public void RequestSnapshotBaseline() => GameContext.ServerSession?.RequestBaseline();
 
-	public void RequestSnapshotRepair(int firstSequence, int count) => GameContext.ServerSession?.RequestSnapshotRepair(firstSequence, count);
+	public void RequestSnapshotRepair(int firstSequence, int count, SnapshotRepairReason reason) => GameContext.ServerSession?.RequestSnapshotRepair(firstSequence, count, reason);
 
 	private void ApplyReceivedSnapshot(WorldSnapshot snapshot)
 	{

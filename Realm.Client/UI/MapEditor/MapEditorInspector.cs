@@ -28,8 +28,8 @@ public class MapEditorInspector
 		_btnInspectorDelete = btnInspectorDelete;
 	}
 
-	private string _lastInspectorTitle = null;
-	private string _lastInspectorPos = null;
+	private string? _lastInspectorTitle;
+	private string? _lastInspectorPos;
 
 	public void Update(MapEditorHUDViewModel viewModel)
 	{

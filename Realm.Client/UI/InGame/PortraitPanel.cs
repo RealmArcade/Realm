@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using Realm.Ecs;
@@ -26,7 +26,7 @@ public class PortraitPanel
 	private HBoxContainer _queueSlotsContainer;
 	private Label _armyCompositionLabel;
 	private Label _unitNameLabel;
-	private TextureRect _portraitTexture;
+	private TextureRect? _portraitTexture;
 
 	private readonly List<string> _lastProductionQueue = new();
 	private readonly Dictionary<string, int> _unitTypeCounts = new();
@@ -41,26 +41,26 @@ public class PortraitPanel
 	private readonly Label[] _unitButtonStatusLabels;
 
 	private Entity _lastSingleEntity = Entity.Null;
-	private string _lastSingleName;
-	private string _lastSingleUnitId;
+	private string _lastSingleName = null!;
+	private string _lastSingleUnitId = null!;
 
 	private Entity _lastPropEntity = Entity.Null;
-	private string _lastPropId;
+	private string _lastPropId = null!;
 	private float _lastPropRemaining = -1f;
 
 	private enum SelectionType { None, Prop, Empty, Single, Multi }
 	private SelectionType _lastSelectionType = SelectionType.None;
 
-	private readonly string[] _lastUnitStatuses;
+	private readonly string?[] _lastUnitStatuses;
 
-	public event Action<int> UnitSelectionButtonClicked;
+	public event Action<int>? UnitSelectionButtonClicked;
 
 	public PortraitPanel(PanelContainer portraitFrame, PanelContainer selectionFrame,
 		HBoxContainer unitsContainer, List<Button> unitButtons, HBoxContainer statsContainer,
 		UnitStatsPanel unitStatsPanel,
 		VBoxContainer productionBox, Label productionTitle, ProgressBar productionProgress,
 		Label productionQueueLabel, HBoxContainer queueSlotsContainer, Label armyCompositionLabel,
-		Label unitNameLabel, TextureRect portraitTexture)
+		Label unitNameLabel, TextureRect? portraitTexture)
 	{
 		_portraitFrame = portraitFrame;
 		_selectionFrame = selectionFrame;
@@ -84,7 +84,7 @@ public class PortraitPanel
 		_healthBarFillStyles = new StyleBoxFlat[btnCount];
 		_unitButtonHpBars = new ProgressBar[btnCount];
 		_unitButtonStatusLabels = new Label[btnCount];
-		_lastUnitStatuses = new string[btnCount];
+		_lastUnitStatuses = new string?[btnCount];
 
 		for (int i = 0; i < btnCount; i++)
 		{
@@ -94,28 +94,10 @@ public class PortraitPanel
 			_unitButtonHpBars[i] = _unitButtons[i].GetNodeOrNull<ProgressBar>("HealthBar");
 			_unitButtonStatusLabels[i] = _unitButtons[i].GetNodeOrNull<Label>("StatusIcon");
 
-			_buttonStylesFocused3[i] = new StyleBoxFlat
-			{
-				BgColor = new Color(0, 0, 0, 0),
-				BorderColor = new Color(0.95f, 0.82f, 0.55f, 1.0f)
-			};
-			_buttonStylesFocused3[i].SetBorderWidthAll(3);
-
-			_buttonStylesFocused2[i] = new StyleBoxFlat
-			{
-				BgColor = new Color(0, 0, 0, 0),
-				BorderColor = new Color(0.95f, 0.82f, 0.55f, 1.0f)
-			};
-			_buttonStylesFocused2[i].SetBorderWidthAll(2);
-
-			_buttonStylesSelected3[i] = new StyleBoxFlat
-			{
-				BgColor = new Color(0, 0, 0, 0),
-				BorderColor = new Color(0.1f, 0.8f, 0.2f, 0.8f)
-			};
-			_buttonStylesSelected3[i].SetBorderWidthAll(3);
-
-			_healthBarFillStyles[i] = new StyleBoxFlat();
+			_buttonStylesFocused3[i] = UIStyle.CreateBorderPlate(new Color(0.95f, 0.82f, 0.55f, 1.0f), 3);
+			_buttonStylesFocused2[i] = UIStyle.CreateBorderPlate(new Color(0.95f, 0.82f, 0.55f, 1.0f), 2);
+			_buttonStylesSelected3[i] = UIStyle.CreateBorderPlate(new Color(0.1f, 0.8f, 0.2f, 0.8f), 3);
+			_healthBarFillStyles[i] = UIStyle.CreateUnitHealthFill();
 		}
 
 		if (_portraitTexture != null)
@@ -143,8 +125,10 @@ public class PortraitPanel
 
 	private void InvokeSelection()
 	{
-		int idx = GameContext.Host.CycleSelectionIndex;
-		bool isValidIdx = idx >= 0 && idx < GameContext.Host.SelectedUnits.Count;
+		if (GameContext.Host is not { } host) return;
+
+		int idx = host.CycleSelectionIndex;
+		bool isValidIdx = idx >= 0 && idx < host.SelectedUnits.Count;
 		UnitSelectionButtonClicked?.Invoke(isValidIdx ? idx : 0);
 	}
 
@@ -185,10 +169,11 @@ public class PortraitPanel
 
 	private void UpdatePropSelection(InGameHUDViewModel viewModel)
 	{
+		if (viewModel.SelectedProp is not { } prop) return;
+
 		_statsContainer.Visible = true;
 		_armyCompositionLabel?.Hide();
 
-		var prop = viewModel.SelectedProp;
 		float remainingAmount = GetPropRemainingAmount(prop);
 
 		bool propChanged = _lastSelectionType != SelectionType.Prop || prop.Entity != _lastPropEntity || prop.PropId != _lastPropId || Math.Abs(remainingAmount - _lastPropRemaining) > 0.01f;
@@ -231,7 +216,8 @@ public class PortraitPanel
 	private float GetPropRemainingAmount(Prop3D selectedProp)
 	{
 		float remainingAmount = 0f;
-		var ecsWorld = GameContext.World;
+		if (GameContext.World is not { } ecsWorld) return remainingAmount;
+
 		var propEntity = selectedProp.Entity;
 		if (ecsWorld.IsAlive(propEntity) && ecsWorld.Has<ResourceNode>(propEntity))
 		{
@@ -379,7 +365,7 @@ public class PortraitPanel
 		int focusedIdx = viewModel.SelectedUnits.Count > 0
 			? (viewModel.CycleSelectionIndex < viewModel.SelectedUnits.Count ? viewModel.CycleSelectionIndex : 0)
 			: -1;
-		string activeUnitId = focusedIdx >= 0 ? viewModel.SelectedUnits[focusedIdx].UnitId : null;
+		string? activeUnitId = focusedIdx >= 0 ? viewModel.SelectedUnits[focusedIdx].UnitId : null;
 
 		for (int i = 0; i < _unitButtons.Count; i++)
 		{
@@ -416,7 +402,7 @@ public class PortraitPanel
 		_armyCompositionLabel.Show();
 	}
 
-	private void UpdateMultiSelectionUnitButton(int index, InGameHUDViewModel viewModel, string activeUnitId)
+	private void UpdateMultiSelectionUnitButton(int index, InGameHUDViewModel viewModel, string? activeUnitId)
 	{
 		var btn = _unitButtons[index];
 		var hpBar = _unitButtonHpBars[index];
@@ -453,7 +439,7 @@ public class PortraitPanel
 	{
 		if (hpBar == null) return;
 
-		if (GameContext.Host != null && GameContext.World.IsAlive(uInfo.Entity))
+		if (GameContext.Host != null && GameContext.World is { } world && world.IsAlive(uInfo.Entity))
 		{
 			hpBar.Visible = true;
 			hpBar.MaxValue = uInfo.MaxHealth;
@@ -496,7 +482,7 @@ public class PortraitPanel
 			}
 
 			var uInfo = viewModel.SelectedUnits[i];
-			if (!GameContext.World.IsAlive(uInfo.Entity))
+			if (GameContext.World is not { } world || !world.IsAlive(uInfo.Entity))
 			{
 				if (_lastUnitStatuses[i] != null)
 				{
@@ -506,7 +492,7 @@ public class PortraitPanel
 				continue;
 			}
 
-			string status = GetUnitStatus(uInfo.Entity);
+			string status = GetUnitStatus(world, uInfo.Entity);
 			if (status != _lastUnitStatuses[i])
 			{
 				_lastUnitStatuses[i] = status;
@@ -516,9 +502,8 @@ public class PortraitPanel
 		}
 	}
 
-	private string GetUnitStatus(Entity entity)
+	private static string GetUnitStatus(EcsWorld world, Entity entity)
 	{
-		var world = GameContext.World;
 		if (world.Has<HoldPosition>(entity)) return "H";
 		if (world.Has<Patrol>(entity)) return "P";
 		if (world.Has<AttackMove>(entity)) return "A";
@@ -578,11 +563,7 @@ public class PortraitPanel
 		slot.MouseFilter = Control.MouseFilterEnum.Stop;
 		slot.TooltipText = $"{unitDisplayName}\n" + TranslationServer.Translate("Click to cancel & refund");
 
-		var border = new StyleBoxFlat();
-		border.BgColor = new Color(0, 0, 0, 0.4f);
-		border.BorderColor = UIStyle.ColorBronze;
-		border.SetBorderWidthAll(1);
-		slot.AddThemeStyleboxOverride("panel", border);
+		slot.AddThemeStyleboxOverride("panel", UIStyle.CreateBorderPlate(UIStyle.ColorBronze, 1, new Color(0, 0, 0, 0.4f)));
 
 		return slot;
 	}
@@ -612,11 +593,7 @@ public class PortraitPanel
 		btnCancel.OffsetRight = 2;
 		btnCancel.OffsetTop = -2;
 
-		var styleEmpty = new StyleBoxEmpty();
-		btnCancel.AddThemeStyleboxOverride("normal", styleEmpty);
-		btnCancel.AddThemeStyleboxOverride("hover", styleEmpty);
-		btnCancel.AddThemeStyleboxOverride("pressed", styleEmpty);
-		btnCancel.AddThemeStyleboxOverride("focus", styleEmpty);
+		UIStyle.ApplyPlainButtonStates(btnCancel);
 
 		return btnCancel;
 	}
@@ -625,7 +602,7 @@ public class PortraitPanel
 	{
 		if (e is not InputEventMouseButton mouseEvent || !mouseEvent.Pressed) return;
 		if (mouseEvent.ButtonIndex != MouseButton.Left && mouseEvent.ButtonIndex != MouseButton.Right) return;
-		if (GameContext.Host == null || !GameContext.World.IsAlive(producerEntity)) return;
+		if (GameContext.Host == null || GameContext.World is not { } world || !world.IsAlive(producerEntity)) return;
 
 		GameContext.Host.CancelQueuedUnitAt(producerEntity, index);
 	}

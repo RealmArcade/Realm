@@ -37,7 +37,10 @@ public enum LobbyCommandKind : byte
 
 	ReportMapProgress = 15,
 
-	SetComputerDifficulty = 16
+	SetComputerDifficulty = 16,
+
+	/// <summary>Sets one of the parameters the host configures for the match, in <see cref="LobbyCommand.Option" />.</summary>
+	SetMatchOption = 17
 }
 
 /// <summary>
@@ -165,6 +168,9 @@ public partial struct LobbyStateMessage
 	public bool CountdownActive;
 	public int CountdownRemainingSeconds;
 
+	/// <summary>The parameters the host configured for the match, which every seat reads to show them.</summary>
+	public Realm.Shared.Simulation.MatchOptionValue[] Options;
+
 	public long Revision;
 }
 
@@ -192,6 +198,14 @@ public partial struct LobbyCommand
 	public int Port;
 
 	public int Progress;
+
+	/// <summary>The <see cref="Realm.Ecs.MatchOption" /> a <see cref="LobbyCommandKind.SetMatchOption" /> sets.</summary>
+	public int Option;
+
+	/// <summary>
+	///     The value the option is set to, where zero returns the option to the map's own default.
+	/// </summary>
+	public int OptionValue;
 }
 
 [MemoryPackable]

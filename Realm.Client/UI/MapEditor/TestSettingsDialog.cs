@@ -11,9 +11,9 @@ public partial class TestSettingsDialog : FloatingDialogBase
 {
 	public TestSettingsDialog() { }
 
-	private SpinBox _numAiPlayers;
-	private CheckBox _chkRandomizeSlots;
-	private SpinBox _numRandomSeed;
+	private SpinBox _numAiPlayers = null!;
+	private CheckBox _chkRandomizeSlots = null!;
+	private SpinBox _numRandomSeed = null!;
 
 	public TestSettingsDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Test Settings"), new Vector2(340, 260))
@@ -41,9 +41,7 @@ public partial class TestSettingsDialog : FloatingDialogBase
 
 		AddSectionHeader(contentVBox, TranslationServer.Translate("TEST SETTINGS"), UIStyle.ColorGold);
 
-		var grid = new GridContainer();
-		grid.Name = "Grid_GridContainer";
-		grid.Columns = 2;
+		var grid = UIStyle.CreateGrid(2);
 		grid.AddThemeConstantOverride("h_separation", 12);
 		grid.AddThemeConstantOverride("v_separation", 8);
 		grid.SizeFlagsHorizontal = SizeFlags.ExpandFill;

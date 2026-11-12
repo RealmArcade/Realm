@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Realm.Ecs;
@@ -16,32 +16,32 @@ namespace Realm.Client.Services;
 
 public class WorldInitService
 {
-	private void AddOrSet<T>(Entity entity, T component) where T : unmanaged
+	private static void AddOrSet<T>(EcsWorld world, Entity entity, T component) where T : unmanaged
 	{
-		GameContext.World.SetOrAdd(entity, component);
+		world.SetOrAdd(entity, component);
 	}
 
-	private Entity GetOrCreateWorldEntity()
+	private static Entity GetOrCreateWorldEntity(EcsWorld world)
 	{
 		Entity worldEntity = Entity.Null;
 		var worldQuery = QueryCache.AllTerrainStateQuery;
-		GameContext.World.Query(in worldQuery, entity => worldEntity = entity);
+		world.Query(in worldQuery, entity => worldEntity = entity);
 
 		if (worldEntity == Entity.Null)
 		{
-			worldEntity = GameContext.World.Create();
+			worldEntity = world.Create();
 		}
 
 		return worldEntity;
 	}
 
-	private void InitializeCommonWorldComponents(Entity worldEntity)
+	private static void InitializeCommonWorldComponents(EcsWorld world, Entity worldEntity)
 	{
 		GameContext.Host?.LoadModelYOffsetsFromMetadataJson();
 
-		AddOrSet(worldEntity, new WorldState(0f, 0, 0f, true));
-		AddOrSet(worldEntity, new ReplayState(0, 500f, 400f, 200f));
-		AddOrSet(worldEntity, new NetworkState(1, 0f, 0, -1, -1, false, 0, 1));
+		AddOrSet(world, worldEntity, new WorldState(0f, 0, 0f, true));
+		AddOrSet(world, worldEntity, new ReplayState(0, 500f, 400f, 200f));
+		AddOrSet(world, worldEntity, new NetworkState(1, 0f, 0, -1, -1, false, 0, 1));
 		var mappingState = new NetworkMappingState(new(), new(), new());
 		if (GameContext.Simulation.PlayerResourceService.GoldResourceId == default)
 		{
@@ -54,27 +54,27 @@ public class WorldInitService
 
 		for (int i = 0; i < 25; i++)
 		{
-			var playerEntity = GameContext.World.Create();
-			GameContext.World.Add(playerEntity, new Player());
-			GameContext.World.Add(playerEntity, new UnitOwnerPlayer(i));
+			var playerEntity = world.Create();
+			world.Add(playerEntity, new Player());
+			world.Add(playerEntity, new UnitOwnerPlayer(i));
 			string playerName = i == 0
 				? "Neutral"
 				: i == 1
 					? GameContext.Lobby?.PlayerDisplayName ?? Godot.TranslationServer.Translate("Guest")
 					: $"Player {i}";
-			GameContext.World.Add(playerEntity, new Name(playerName));
+			world.Add(playerEntity, new Name(playerName));
 			var resourcesDict = new Dictionary<ResourceId, int>
 			{
 				{ GameContext.Simulation.PlayerResourceService.GoldResourceId, 0 },
 				{ GameContext.Simulation.PlayerResourceService.WoodResourceId, 0 },
 				{ GameContext.Simulation.PlayerResourceService.StoneResourceId, 0 }
 			};
-			GameContext.World.Add(playerEntity, new PlayerResources(resourcesDict));
-			GameContext.World.Add(playerEntity, new PlayerPopulation(0, 0));
-			GameContext.World.Add(playerEntity, new SpellCooldowns(null));
-			GameContext.World.Add(playerEntity, new PlayerUpgrades(false, false, false));
-			GameContext.World.Add(playerEntity, new PlayerTeam(defaultPlayers[i].Team, defaultPlayers[i].TeamNameStringId));
-			GameContext.World.GetBuffer<ScriptPlayer>().Set(i, in defaultPlayers[i]);
+			world.Add(playerEntity, new PlayerResources(resourcesDict));
+			world.Add(playerEntity, new PlayerPopulation(0, 0));
+			world.Add(playerEntity, new SpellCooldowns(null));
+			world.Add(playerEntity, new PlayerUpgrades(false, false, false));
+			world.Add(playerEntity, new PlayerTeam(defaultPlayers[i].Team, defaultPlayers[i].TeamNameStringId));
+			world.GetBuffer<ScriptPlayer>().Set(i, in defaultPlayers[i]);
 			mappingState.PlayerEntities[i] = playerEntity;
 		}
 
@@ -82,15 +82,15 @@ public class WorldInitService
 		mappingState.PeerIdToPlayerEntityMap[1] = mappingState.PlayerEntities[1];
 		mappingState.PeerIdToPlayerEntityMap[-1] = mappingState.PlayerEntities[2];
 
-		AddOrSet(worldEntity, mappingState);
-		if (!GameContext.World.Has<EditorState>(worldEntity))
+		AddOrSet(world, worldEntity, mappingState);
+		if (!world.Has<EditorState>(worldEntity))
 		{
-			GameContext.World.Add(worldEntity, new EditorState(true, 3.0f, -95.0f, 95.0f, -95.0f, 125.0f, "", false));
+			world.Add(worldEntity, new EditorState(true, 3.0f, -95.0f, 95.0f, -95.0f, 125.0f, "", false));
 		}
 
-		AddOrSet(worldEntity, new InputState(0, null, null, null, false));
-		AddOrSet(worldEntity, new VFXQueue(null));
-		AddOrSet(worldEntity, new CameraState
+		AddOrSet(world, worldEntity, new InputState(0, null, null, null, false));
+		AddOrSet(world, worldEntity, new VFXQueue(null));
+		AddOrSet(world, worldEntity, new CameraState
 		{
 			MoveSpeed = 35.0f,
 			ZoomSpeed = 10.0f,
@@ -117,79 +117,81 @@ public class WorldInitService
 			PitchSwing = 0.0f
 		});
 
-		if (GameContext.World.Has<ShroudState>(worldEntity))
+		if (world.Has<ShroudState>(worldEntity))
 		{
-			ShroudGridRegistry.Release(GameContext.World.Get<ShroudState>(worldEntity).GridHandle);
+			ShroudGridRegistry.Release(world.Get<ShroudState>(worldEntity).GridHandle);
 		}
 
-		AddOrSet(worldEntity, new ShroudState());
-		AddOrSet(worldEntity, new WeatherState("clear", 0f));
-		AddOrSet(worldEntity, new SpectatorPerspective(-1));
-		AddOrSet(worldEntity, new CountdownState(false, 0f, ""));
-		AddOrSet(worldEntity, new LeaderboardState(new LeaderboardBoards()));
-		AddOrSet(worldEntity, new ScriptZonesState(null));
+		AddOrSet(world, worldEntity, new ShroudState());
+		AddOrSet(world, worldEntity, new WeatherState("clear", 0f));
+		AddOrSet(world, worldEntity, new SpectatorPerspective(-1));
+		AddOrSet(world, worldEntity, new CountdownState(false, 0f, ""));
+		AddOrSet(world, worldEntity, new LeaderboardState(new LeaderboardBoards()));
+		AddOrSet(world, worldEntity, new ScriptZonesState(null));
 
-		AddOrSet(worldEntity, new ScriptPlayersState(defaultPlayers));
-		AddOrSet(worldEntity, new CombatAlertState(0f));
-		AddOrSet(worldEntity, new PlayerRelationshipMatrix());
+		AddOrSet(world, worldEntity, new ScriptPlayersState(defaultPlayers));
+		AddOrSet(world, worldEntity, new CombatAlertState(0f));
+		AddOrSet(world, worldEntity, new PlayerRelationshipMatrix());
 		GameContext.SimulationService?.RestartRelationshipDerivation();
 		GameContext.SimulationService?.RecalculatePlayerRelationships();
 	}
 
 	private static ScriptPlayer[] CreateDefaultPlayers() => MatchRoster.CreateDefaultPlayers();
 
-	private void UpdateTerrainState(
+	private static void UpdateTerrainState(
+		EcsWorld world,
 		Entity worldEntity,
 		int width,
 		int depth,
 		float quadSize,
 		float cellSize,
-		TerrainCell[,] cells,
-		int[,] pathingCodes,
-		DtNavMesh navMesh,
-		DtNavMeshQuery navMeshQuery)
+		TerrainCell[,]? cells,
+		int[,]? pathingCodes,
+		DtNavMesh? navMesh,
+		DtNavMeshQuery? navMeshQuery)
 	{
-		if (GameContext.World.Has<TerrainState>(worldEntity))
+		if (world.Has<TerrainState>(worldEntity))
 		{
-			ref var existing = ref GameContext.World.Get<TerrainState>(worldEntity);
+			ref var existing = ref world.Get<TerrainState>(worldEntity);
 			if (cells != null) existing.Cells = cells;
 			if (pathingCodes != null) existing.PathingCodes = pathingCodes;
 			if (navMesh != null) existing.NavMesh = navMesh;
 			if (navMeshQuery != null) existing.NavMeshQuery = navMeshQuery;
-			GameContext.World.Set(worldEntity, existing);
+			world.Set(worldEntity, existing);
 		}
 		else
 		{
-			GameContext.World.Add(worldEntity, new TerrainState(
+			world.Add(worldEntity, new TerrainState(
 				width, depth, quadSize, cellSize,
 				cells, pathingCodes, navMesh, navMeshQuery
 			));
 		}
 	}
 
-	private void UpdateTerrainState(
+	private static void UpdateTerrainState(
+		EcsWorld world,
 		Entity worldEntity,
 		int width,
 		int depth,
 		float quadSize,
 		float cellSize,
-		float[,] heights,
-		int[,] pathingCodes,
-		DtNavMesh navMesh,
-		DtNavMeshQuery navMeshQuery)
+		float[,]? heights,
+		int[,]? pathingCodes,
+		DtNavMesh? navMesh,
+		DtNavMeshQuery? navMeshQuery)
 	{
-		if (GameContext.World.Has<TerrainState>(worldEntity))
+		if (world.Has<TerrainState>(worldEntity))
 		{
-			ref var existing = ref GameContext.World.Get<TerrainState>(worldEntity);
+			ref var existing = ref world.Get<TerrainState>(worldEntity);
 			if (heights != null) existing.SetHeights(heights);
 			if (pathingCodes != null) existing.PathingCodes = pathingCodes;
 			if (navMesh != null) existing.NavMesh = navMesh;
 			if (navMeshQuery != null) existing.NavMeshQuery = navMeshQuery;
-			GameContext.World.Set(worldEntity, existing);
+			world.Set(worldEntity, existing);
 		}
-		else
+		else if (heights != null)
 		{
-			GameContext.World.Add(worldEntity, new TerrainState(
+			world.Add(worldEntity, new TerrainState(
 				width, depth, quadSize, cellSize,
 				heights, pathingCodes, navMesh, navMeshQuery
 			));
@@ -201,14 +203,16 @@ public class WorldInitService
 		int depth,
 		float quadSize,
 		float cellSize,
-		TerrainCell[,] cells,
-		int[,] pathingCodes,
-		DtNavMesh navMesh,
-		DtNavMeshQuery navMeshQuery)
+		TerrainCell[,]? cells,
+		int[,]? pathingCodes,
+		DtNavMesh? navMesh,
+		DtNavMeshQuery? navMeshQuery)
 	{
-		Entity worldEntity = GetOrCreateWorldEntity();
-		InitializeCommonWorldComponents(worldEntity);
-		UpdateTerrainState(worldEntity, width, depth, quadSize, cellSize, cells, pathingCodes, navMesh, navMeshQuery);
+		if (GameContext.World is not { } world) return Entity.Null;
+
+		Entity worldEntity = GetOrCreateWorldEntity(world);
+		InitializeCommonWorldComponents(world, worldEntity);
+		UpdateTerrainState(world, worldEntity, width, depth, quadSize, cellSize, cells, pathingCodes, navMesh, navMeshQuery);
 		return worldEntity;
 	}
 
@@ -217,14 +221,16 @@ public class WorldInitService
 		int depth,
 		float quadSize,
 		float cellSize,
-		float[,] heights,
-		int[,] pathingCodes,
-		DtNavMesh navMesh,
-		DtNavMeshQuery navMeshQuery)
+		float[,]? heights,
+		int[,]? pathingCodes,
+		DtNavMesh? navMesh,
+		DtNavMeshQuery? navMeshQuery)
 	{
-		Entity worldEntity = GetOrCreateWorldEntity();
-		InitializeCommonWorldComponents(worldEntity);
-		UpdateTerrainState(worldEntity, width, depth, quadSize, cellSize, heights, pathingCodes, navMesh, navMeshQuery);
+		if (GameContext.World is not { } world) return Entity.Null;
+
+		Entity worldEntity = GetOrCreateWorldEntity(world);
+		InitializeCommonWorldComponents(world, worldEntity);
+		UpdateTerrainState(world, worldEntity, width, depth, quadSize, cellSize, heights, pathingCodes, navMesh, navMeshQuery);
 		return worldEntity;
 	}
 }

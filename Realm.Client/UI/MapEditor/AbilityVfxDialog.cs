@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -16,28 +16,28 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 {
 	public AbilityVfxDialog() { }
 
-	private ProceduralVfxInstance3D _vfxInstance;
-	private MeshInstance3D _aoeRingMesh;
-	private MeshInstance3D _aoeDiskMesh;
-	private MeshInstance3D _groundGrid;
-	private AudioStreamPlayer _sfxPlayer;
+	private ProceduralVfxInstance3D? _vfxInstance;
+	private MeshInstance3D _aoeRingMesh = null!;
+	private MeshInstance3D _aoeDiskMesh = null!;
+	private MeshInstance3D _groundGrid = null!;
+	private AudioStreamPlayer? _sfxPlayer;
 
-	private TextureRect _iconPreviewRect;
-	private LineEdit _txtIconPath;
-	private Action<string> _setIconPathValue;
+	private TextureRect _iconPreviewRect = null!;
+	private LineEdit _txtIconPath = null!;
+	private Action<string> _setIconPathValue = null!;
 
-	private LineEdit _txtVisualEffect;
-	private Action<string> _setVisualEffectValue;
-	private HSlider _sldAoeRadius;
-	private Label _lblAoeRadiusVal;
-	private LineEdit _txtCastSound;
-	private Action<string> _setCastSoundValue;
+	private LineEdit _txtVisualEffect = null!;
+	private Action<string> _setVisualEffectValue = null!;
+	private HSlider _sldAoeRadius = null!;
+	private Label _lblAoeRadiusVal = null!;
+	private LineEdit _txtCastSound = null!;
+	private Action<string> _setCastSoundValue = null!;
 
 	private string _abilityId = "";
 	private string _slug = "";
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
-	private LineEdit _txtName;
+	private Label _lblObjectTypePrefix = null!;
+	private LineEdit _txtSlug = null!;
+	private LineEdit _txtName = null!;
 	private bool _isUpdatingUI = false;
 	private string _abilityName = "";
 	private string _initialVisualEffect = "";
@@ -52,12 +52,12 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 	private string _currentIconPath = "";
 	private float _currentAoeRadius = 4.0f;
 	private float _playbackSpeed = 1.0f;
-	private Action<JsonObject> _onApplied;
+	private Action<JsonObject>? _onApplied;
 
 	public AbilityVfxDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Ability VFX & Audio Studio"), new Vector2(500, 720))
 	{
-		_sfxPlayer = new AudioStreamPlayer { Name = "AbilityPreviewSfx", Bus = AudioService.SfxBusName };
+		_sfxPlayer = new AudioStreamPlayer { Name = "AbilityPreviewSfx", Bus = AudioService.PreviewBusName };
 		AddChild(_sfxPlayer);
 
 		DefaultDistance = 8.0f;
@@ -70,187 +70,6 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		TargetPosition = DefaultTargetPosition;
 
 		BuildControls();
-	}
-
-	private void BuildControls()
-	{
-		Add3DPreviewViewport(BodyContainer, new Vector2(480, 230));
-
-		Setup3DEnvironment();
-
-		var topControlsVBox = new VBoxContainer();
-		topControlsVBox.Name = "TopControlsVBox_VBoxContainer";
-		topControlsVBox.AddThemeConstantOverride("separation", 6);
-		BodyContainer.AddChild(topControlsVBox);
-
-		var presetRow = AddCameraPresetToolbar(topControlsVBox, includeBack: false);
-
-		var spacer = new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		presetRow.AddChild(spacer);
-
-		AddButton(presetRow, "🔥 " + TranslationServer.Translate("Cast Test"), () => TriggerCastTest(), "Simulate casting ability VFX & sound", 10, new Vector2(90, 22));
-
-		var playbackRow = new HBoxContainer();
-		playbackRow.Name = "PlaybackRow_HBoxContainer";
-		playbackRow.AddThemeConstantOverride("separation", 6);
-
-		AddButton(playbackRow, "▶ " + TranslationServer.Translate("Play"), () => PlayVfxAnimation(), "Play VFX", 10, new Vector2(50, 22));
-		AddButton(playbackRow, "⏸ " + TranslationServer.Translate("Pause"), () => PauseVfxAnimation(), "Pause VFX", 10, new Vector2(50, 22));
-		AddButton(playbackRow, "⏹ " + TranslationServer.Translate("Stop"), () => StopVfxAnimation(), "Stop VFX", 10, new Vector2(50, 22));
-
-		var lblSpeed = new Label();
-		lblSpeed.Name = "LblSpeed_Label";
-		lblSpeed.Text = TranslationServer.Translate("Speed:");
-		lblSpeed.AddThemeFontSizeOverride("font_size", 10);
-		lblSpeed.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		playbackRow.AddChild(lblSpeed);
-
-		var sldSpeed = new HSlider();
-		sldSpeed.Name = "SldSpeed_HSlider";
-		sldSpeed.MinValue = 0.25;
-		sldSpeed.MaxValue = 2.50;
-		sldSpeed.Step = 0.05;
-		sldSpeed.Value = 1.0;
-		sldSpeed.CustomMinimumSize = new Vector2(90, 0);
-		sldSpeed.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		sldSpeed.ValueChanged += (val) =>
-		{
-			_playbackSpeed = (float)val;
-			if (_vfxInstance != null && GodotObject.IsInstanceValid(_vfxInstance))
-			{
-				_vfxInstance.SetSpeedScale(_playbackSpeed);
-			}
-		};
-		playbackRow.AddChild(sldSpeed);
-
-		topControlsVBox.AddChild(playbackRow);
-
-		var scrollBody = CreateScrollBody(340);
-		var configVBox = new VBoxContainer();
-		configVBox.Name = "ConfigVBox_VBoxContainer";
-		configVBox.AddThemeConstantOverride("separation", 10);
-		configVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		scrollBody.AddChild(configVBox);
-
-		AddSectionHeader(configVBox, "🆔 " + TranslationServer.Translate("IDENTITY"), new Color(0.95f, 0.8f, 0.4f));
-
-		var rowId = BuildIdentityRow(configVBox, "ability/", out _lblObjectTypePrefix);
-
-		_txtSlug = new LineEdit();
-		_txtSlug.Name = "TxtSlug_LineEdit";
-		_txtSlug.PlaceholderText = TranslationServer.Translate("ability_slug");
-		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
-		_txtSlug.TextChanged += (val) =>
-		{
-			if (_isUpdatingUI) return;
-			_slug = TemplateIDHelper.ToSnakeCase(val);
-			_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
-		};
-		rowId.AddChild(_txtSlug);
-		
-
-		_txtName = AddTextInput(
-			configVBox,
-			TranslationServer.Translate("Display Name:"),
-			_abilityName,
-			(val) =>
-			{
-				if (_isUpdatingUI) return;
-				_abilityName = val ?? "";
-			},
-			TranslationServer.Translate("Ability display name..."),
-			140f
-		);
-
-		AddSectionHeader(configVBox, "🎨 " + TranslationServer.Translate("ABILITY ICON"), new Color(0.95f, 0.8f, 0.4f));
-
-		var iconRow = new HBoxContainer();
-		iconRow.Name = "IconRow_HBoxContainer";
-		iconRow.AddThemeConstantOverride("separation", 8);
-
-		var iconPanel = new PanelContainer();
-		iconPanel.Name = "IconPanel_PanelContainer";
-		iconPanel.CustomMinimumSize = new Vector2(48, 48);
-		iconPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-
-		_iconPreviewRect = new TextureRect();
-		_iconPreviewRect.Name = "IconPreviewRect_TextureRect";
-		_iconPreviewRect.CustomMinimumSize = new Vector2(44, 44);
-		_iconPreviewRect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-		_iconPreviewRect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-		iconPanel.AddChild(_iconPreviewRect);
-		iconRow.AddChild(iconPanel);
-
-		var iconDropdownVBox = new VBoxContainer();
-		iconDropdownVBox.Name = "IconDropdownVBox_VBoxContainer";
-		iconDropdownVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-		(_txtIconPath, _setIconPathValue) = AddAssetFilterDropdown(
-			iconDropdownVBox,
-			TranslationServer.Translate("Icon Texture:"),
-			_currentIconPath,
-			(all) => ScanAvailableAssets("icons", all),
-			(val) =>
-			{
-				_currentIconPath = val ?? string.Empty;
-				UpdateIconPreview(_currentIconPath);
-			},
-			TranslationServer.Translate("Select or search icon from metadata..."),
-			100f
-		);
-
-		iconRow.AddChild(iconDropdownVBox);
-		configVBox.AddChild(iconRow);
-
-		AddSectionHeader(configVBox, "✨ " + TranslationServer.Translate("VISUAL EFFECT (VFX)"), new Color(0.35f, 0.75f, 0.9f));
-
-		(_txtVisualEffect, _setVisualEffectValue) = AddAssetFilterDropdown(
-			configVBox,
-			TranslationServer.Translate("Visual Effect (VFX):"),
-			_currentVisualEffect,
-			(all) => ScanAvailableAssets("vfx", all),
-			(val) =>
-			{
-				_currentVisualEffect = val ?? string.Empty;
-				ReloadVfx();
-			},
-			TranslationServer.Translate("Select or search VFX preset, custom VFX, or texture..."),
-			140f
-		);
-
-
-		AddSectionHeader(configVBox, "🎯 " + TranslationServer.Translate("AREA OF EFFECT (AOE)"), new Color(0.4f, 0.85f, 0.5f));
-
-		(_sldAoeRadius, _lblAoeRadiusVal) = AddSlider(
-			configVBox,
-			TranslationServer.Translate("AoE Radius:"),
-			0.0f,
-			20.0f,
-			0.25f,
-			_currentAoeRadius,
-			(val) =>
-			{
-				_currentAoeRadius = val;
-				UpdateAoEIndicator(_currentAoeRadius);
-			},
-			"0.00m",
-			140f
-		);
-
-		AddSectionHeader(configVBox, "🔊 " + TranslationServer.Translate("AUDIO & CAST SOUND"), new Color(0.9f, 0.6f, 0.35f));
-
-		(_txtCastSound, _setCastSoundValue) = AddAssetFilterDropdown(
-			configVBox,
-			TranslationServer.Translate("Cast Sound:"),
-			_currentCastSound,
-			(all) => ScanAvailableAssets("audio", all),
-			(val) => { _currentCastSound = val ?? string.Empty; },
-			TranslationServer.Translate("Select or search audio event..."),
-			140f,
-			false,
-			(soundVal) => PlaySoundFile(soundVal)
-		);
 	}
 
 	private void Setup3DEnvironment()
@@ -452,223 +271,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		}
 	}
 
-	private void PlaySoundFile(string soundPath)
-	{
-		if (string.IsNullOrWhiteSpace(soundPath) || _sfxPlayer == null) return;
-
-		try
-		{
-			if (TryPlayResPath(soundPath)) return;
-
-			AudioStream stream = TryLoadSoundFromWorkspace(soundPath) ?? TryLoadSoundFromResCandidates(soundPath);
-
-			if (stream != null)
-			{
-				_sfxPlayer.Stream = stream;
-				_sfxPlayer.Play();
-			}
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[AbilityVfxDialog] PlaySoundFile error: {ex.Message}");
-		}
-	}
-
-	private bool TryPlayResPath(string soundPath)
-	{
-		if (!soundPath.StartsWith("res://") || !ResourceLoader.Exists(soundPath)) return false;
-
-		_sfxPlayer.Stream = GD.Load<AudioStream>(soundPath);
-		_sfxPlayer.Play();
-		return true;
-	}
-
-	private AudioStream TryLoadSoundFromWorkspace(string soundPath)
-	{
-		string wsPath = GameContext.EditorService._editingDirectory;
-		string cleanPath = soundPath.Trim().TrimStart('/', '\\').Replace('\\', '/');
-		string fileName = Path.GetFileName(cleanPath);
-
-		var candidatePaths = new[]
-		{
-			soundPath,
-			Path.Combine(wsPath, cleanPath),
-			Path.Combine(wsPath, "Assets", cleanPath),
-			Path.Combine(wsPath, "Assets", "audio", "sfx", fileName),
-			Path.Combine(wsPath, "Assets", "audio", "music", fileName),
-			Path.Combine(wsPath, "Assets", "audio", fileName),
-			Path.Combine(wsPath, "Assets", "sounds", fileName),
-		};
-
-		foreach (var candidate in candidatePaths)
-		{
-			if (string.IsNullOrWhiteSpace(candidate) || !File.Exists(candidate)) continue;
-
-			AudioStream stream = LoadAudioStreamFromFile(candidate);
-			if (stream != null) return stream;
-		}
-
-		return null;
-	}
-
-	private AudioStream LoadAudioStreamFromFile(string candidate)
-	{
-		if (candidate.EndsWith(".raud", StringComparison.OrdinalIgnoreCase))
-		{
-			byte[] raudBytes = File.ReadAllBytes(candidate);
-			byte[]? oggBytes = RaudFile.GetTrack(raudBytes, 0);
-			if (oggBytes != null && oggBytes.Length > 0)
-			{
-				return AudioStreamOggVorbis.LoadFromBuffer(oggBytes);
-			}
-
-			return null;
-		}
-
-		if (candidate.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase))
-		{
-			return AudioStreamOggVorbis.LoadFromFile(candidate);
-		}
-
-		return GD.Load<AudioStream>(candidate);
-	}
-
-	private AudioStream TryLoadSoundFromResCandidates(string soundPath)
-	{
-		string cleanPath = soundPath.Trim().TrimStart('/', '\\').Replace('\\', '/');
-		string fileName = Path.GetFileName(cleanPath);
-
-		var resCandidates = new[]
-		{
-			$"res://Assets/audio/sfx/{fileName}",
-			$"res://Assets/audio/music/{fileName}",
-			$"res://Assets/audio/{fileName}",
-			$"res://Assets/sounds/{fileName}",
-			$"res://{cleanPath}"
-		};
-
-		foreach (var resPath in resCandidates)
-		{
-			if (ResourceLoader.Exists(resPath))
-			{
-				var stream = GD.Load<AudioStream>(resPath);
-				if (stream != null) return stream;
-			}
-		}
-
-		return null;
-	}
-
-	private Texture2D ResolveTexture(string path)
-	{
-		if (string.IsNullOrWhiteSpace(path)) return null;
-
-		try
-		{
-			if (path.StartsWith("res://") && ResourceLoader.Exists(path))
-			{
-				return TrimmedTextureLoader.LoadTrimmedTexture(path);
-			}
-
-			Texture2D tex = TryLoadTextureFromWorkspace(path) ?? TryLoadTextureFromResCandidates(path);
-			return tex;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[AbilityVfxDialog] ResolveTexture error: {ex.Message}");
-		}
-
-		return null;
-	}
-
-	private Texture2D TryLoadTextureFromWorkspace(string path)
-	{
-		string wsPath = GameContext.EditorService._editingDirectory;
-		string cleanPath = path.Trim().TrimStart('/', '\\').Replace('\\', '/');
-		string fileName = Path.GetFileName(cleanPath);
-
-		var candidatePaths = new[]
-		{
-			path,
-			Path.Combine(wsPath, cleanPath),
-			Path.Combine(wsPath, "Assets", cleanPath),
-			Path.Combine(wsPath, "Assets", "vfx", fileName),
-			Path.Combine(wsPath, "Assets", "icons", fileName),
-			Path.Combine(wsPath, "Assets", "decals", fileName),
-			Path.Combine(wsPath, "Assets", "textures", fileName),
-			Path.Combine(wsPath, "Assets", "ribbons", fileName),
-			Path.Combine(wsPath, "Assets", "noise", fileName),
-			Path.Combine(wsPath, "Assets", "skyboxes", fileName),
-			Path.Combine(wsPath, "Assets", "UI", fileName),
-		};
-
-		foreach (var candidate in candidatePaths)
-		{
-			if (string.IsNullOrWhiteSpace(candidate) || !File.Exists(candidate)) continue;
-
-			Texture2D tex = LoadTextureFromFile(candidate);
-			if (tex != null) return tex;
-		}
-
-		return null;
-	}
-
-	private Texture2D LoadTextureFromFile(string candidate)
-	{
-		Image img = null;
-		if (candidate.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))
-		{
-			byte[] rtexBytes = File.ReadAllBytes(candidate);
-			byte[]? webpBytes = RtexFile.GetLayer(rtexBytes, 0);
-			if (webpBytes != null && webpBytes.Length > 0)
-			{
-				img = Image.CreateEmpty(1, 1, false, Image.Format.Rgba8);
-				if (img.LoadWebpFromBuffer(webpBytes) != Error.Ok)
-				{
-					img.LoadPngFromBuffer(webpBytes);
-				}
-			}
-		}
-		else
-		{
-			img = Image.LoadFromFile(candidate);
-		}
-
-		if (img != null)
-		{
-			return ImageTexture.CreateFromImage(img);
-		}
-
-		return null;
-	}
-
-	private Texture2D TryLoadTextureFromResCandidates(string path)
-	{
-		string cleanPath = path.Trim().TrimStart('/', '\\').Replace('\\', '/');
-		string fileName = Path.GetFileName(cleanPath);
-
-		var resCandidates = new[]
-		{
-			$"res://Assets/vfx/{fileName}",
-			$"res://Assets/icons/{fileName}",
-			$"res://Assets/decals/{fileName}",
-			$"res://Assets/textures/{fileName}",
-			$"res://Assets/UI/{fileName}",
-			$"res://{cleanPath}"
-		};
-
-		foreach (var resPath in resCandidates)
-		{
-			if (ResourceLoader.Exists(resPath))
-			{
-				return TrimmedTextureLoader.LoadTrimmedTexture(resPath);
-			}
-		}
-
-		return null;
-	}
-
-	public void OpenForAbility(string abilityId, JsonObject abilityData, Action<JsonObject> onApplied = null)
+	public void OpenForAbility(string abilityId, JsonObject? abilityData, Action<JsonObject>? onApplied = null)
 	{
 		string effectiveId = GetEffectiveAbilityId(abilityId, abilityData);
 
@@ -721,7 +324,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		ReloadVfx();
 	}
 
-	private string GetEffectiveAbilityId(string fallbackId, JsonObject abilityData)
+	private string GetEffectiveAbilityId(string fallbackId, JsonObject? abilityData)
 	{
 		if (abilityData != null && abilityData.TryGetPropertyValue("TemplateID", out var tidNode) && !string.IsNullOrWhiteSpace(tidNode?.ToString()))
 		{
@@ -736,7 +339,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 		return fallbackId;
 	}
 
-	private void ParseAbilityData(JsonObject abilityData)
+	private void ParseAbilityData(JsonObject? abilityData)
 	{
 		if (abilityData == null)
 		{
@@ -817,9 +420,7 @@ public partial class AbilityVfxDialog : FloatingPreview3DDialogBase
 
 	protected override void OnApply()
 	{
-		string finalSlug = !string.IsNullOrWhiteSpace(_txtSlug?.Text) ? TemplateIDHelper.ToSnakeCase(_txtSlug.Text) : _slug;
-		if (string.IsNullOrWhiteSpace(finalSlug)) finalSlug = _slug;
-		_slug = finalSlug;
+		_slug = TemplateIDHelper.ResolveSlug(_txtSlug?.Text, _slug);
 		_abilityId = TemplateIDHelper.NormalizeTemplateID("ability", _slug);
 		if (_txtName != null)
 		{

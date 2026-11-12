@@ -28,7 +28,7 @@ public partial class ReplicationContractTests
 		"TargetIntel", "Ability", "HasAbilities",
 		"AutoCastState", "CastTarget",
 		"Velocity",
-		"LatestDescription", "RenderPosition", "PathingFlags",
+		"LatestDescription", "RenderPosition", "TraversableTerrain",
 		"WaypointBuffer",
 		"Gatherer", "ResourceCost",
 		"Food", "Gold",
@@ -143,7 +143,7 @@ public partial class ReplicationContractTests
 
 		foreach (var (name, coverage) in RpcChannelFieldCoverage)
 		{
-			if (!componentTypes.TryGetValue(name, out Type componentType))
+			if (!componentTypes.TryGetValue(name, out Type? componentType))
 			{
 				problems.Add($"{name}: component type was not found");
 				continue;
@@ -180,7 +180,7 @@ public partial class ReplicationContractTests
 		var ids = new Dictionary<int, string>();
 		foreach (var codec in ReplicatedComponents.All)
 		{
-			if (ids.TryGetValue(codec.ComponentTypeId, out string existing))
+			if (ids.TryGetValue(codec.ComponentTypeId, out string? existing))
 			{
 				throw new InvalidOperationException($"Component type id {codec.ComponentTypeId} is registered by both {existing} and {codec.ComponentName}.");
 			}

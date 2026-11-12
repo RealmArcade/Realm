@@ -14,16 +14,16 @@ public partial class SteamFriendsDialog : Control
 
 	private readonly HashSet<ulong> _selectedSteamIds = new HashSet<ulong>();
 
-	private ColorRect _dismissOverlay;
-	private PanelContainer _panel;
-	private Label _setupLabel;
-	private Label _steamUnavailableLabel;
-	private Label _emptyLabel;
-	private ScrollContainer _friendScroll;
-	private VBoxContainer _friendList;
-	private Label _feedbackLabel;
-	private Button _sendButton;
-	private Button _closeButton;
+	private ColorRect _dismissOverlay = null!;
+	private PanelContainer _panel = null!;
+	private Label _setupLabel = null!;
+	private Label _steamUnavailableLabel = null!;
+	private Label _emptyLabel = null!;
+	private ScrollContainer _friendScroll = null!;
+	private VBoxContainer _friendList = null!;
+	private Label _feedbackLabel = null!;
+	private Button _sendButton = null!;
+	private Button _closeButton = null!;
 	private bool _built;
 	private string _gameLobbyId = string.Empty;
 	private int _maximumMembers = 2;
@@ -73,12 +73,22 @@ public partial class SteamFriendsDialog : Control
 		PrepareInviteLobbyAsync();
 	}
 
+	// Both are fire-and-forget by design: one waits for Steam to hand over the friend names, the other asks Steam to
+	// prepare an invite lobby. Neither had a catch, so a fault in either was unobserved — the second one visibly, since
+	// it disables the send button before awaiting and never re-enables it when the await throws.
 	private async void RefreshFriendsOnceNamesArriveAsync()
 	{
-		await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
-		if (!GodotObject.IsInstanceValid(this) || !Visible) return;
+		try
+		{
+			await ToSignal(GetTree().CreateTimer(1.5f), SceneTreeTimer.SignalName.Timeout);
+			if (!GodotObject.IsInstanceValid(this) || !Visible) return;
 
-		PopulateFriends();
+			PopulateFriends();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[SteamFriendsDialog] Refreshing the friend list failed: {exception}");
+		}
 	}
 
 	public void Close()
@@ -91,16 +101,9 @@ public partial class SteamFriendsDialog : Control
 		if (_built) return;
 		_built = true;
 
-		Name = "SteamFriendsDialog";
-		Visible = false;
-		MouseFilter = MouseFilterEnum.Stop;
-		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		UIStyle.ConfigurePopoverRoot(this, "SteamFriendsDialog");
 
-		_dismissOverlay = new ColorRect();
-		_dismissOverlay.Name = "DismissOverlay_ColorRect";
-		_dismissOverlay.Color = new Color(0.0f, 0.0f, 0.0f, 0.55f);
-		_dismissOverlay.MouseFilter = MouseFilterEnum.Stop;
-		_dismissOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		_dismissOverlay = UIStyle.CreateDismissOverlay(0.55f);
 		_dismissOverlay.GuiInput += OnDismissOverlayInput;
 		AddChild(_dismissOverlay);
 
@@ -207,11 +210,8 @@ public partial class SteamFriendsDialog : Control
 		_sendButton.CustomMinimumSize = new Vector2(220, 44);
 		_sendButton.FocusMode = FocusModeEnum.None;
 		_sendButton.AddThemeFontSizeOverride("font_size", 14);
-		_sendButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_sendButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_sendButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_sendButton);
 		_sendButton.AddThemeStyleboxOverride("disabled", UIStyle.CreateButtonNormal());
-		_sendButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		_sendButton.Pressed += OnSendInvitesPressed;
 		_sendButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		buttons.AddChild(_sendButton);
@@ -223,10 +223,7 @@ public partial class SteamFriendsDialog : Control
 		_closeButton.CustomMinimumSize = new Vector2(160, 44);
 		_closeButton.FocusMode = FocusModeEnum.None;
 		_closeButton.AddThemeFontSizeOverride("font_size", 14);
-		_closeButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		_closeButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		_closeButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		_closeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_closeButton);
 		_closeButton.Pressed += Close;
 		_closeButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		buttons.AddChild(_closeButton);
@@ -315,15 +312,22 @@ public partial class SteamFriendsDialog : Control
 
 	private async void PrepareInviteLobbyAsync()
 	{
-		_setupLabel.Text = TranslationServer.Translate("Preparing the invite...");
-		_sendButton.Disabled = true;
-		_feedbackLabel.Text = string.Empty;
+		try
+		{
+			_setupLabel.Text = TranslationServer.Translate("Preparing the invite...");
+			_sendButton.Disabled = true;
+			_feedbackLabel.Text = string.Empty;
 
-		bool prepared = await GameContext.Steam.OpenInviteLobbyAsync(_gameLobbyId, _maximumMembers);
-		if (!GodotObject.IsInstanceValid(this)) return;
+			bool prepared = await GameContext.Steam.OpenInviteLobbyAsync(_gameLobbyId, _maximumMembers);
+			if (!GodotObject.IsInstanceValid(this)) return;
 
-		_setupLabel.Text = prepared ? string.Empty : TranslationServer.Translate("Steam could not prepare an invite. Close this window and try again.");
-		_sendButton.Disabled = !prepared;
+			_setupLabel.Text = prepared ? string.Empty : TranslationServer.Translate("Steam could not prepare an invite. Close this window and try again.");
+			_sendButton.Disabled = !prepared;
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[SteamFriendsDialog] Preparing the invite lobby failed: {exception}");
+		}
 	}
 
 	private void OnSendInvitesPressed()

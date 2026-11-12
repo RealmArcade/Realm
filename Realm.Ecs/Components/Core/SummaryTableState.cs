@@ -37,13 +37,13 @@ namespace Realm.Ecs.Components.Core
 
 		public string[] Headers
 		{
-			get => ColdPayloadRegistry<string[]>.Get(HeadersHandle);
+			get => ColdPayloadRegistry<string[]>.Get(HeadersHandle)!;
 			set => HeadersHandle = ColdPayloadRegistry<string[]>.Register(value);
 		}
 
 		public Dictionary<string, string[]> Rows
 		{
-			get => ColdPayloadRegistry<Dictionary<string, string[]>>.Get(RowsHandle);
+			get => ColdPayloadRegistry<Dictionary<string, string[]>>.Get(RowsHandle)!;
 			set => RowsHandle = ColdPayloadRegistry<Dictionary<string, string[]>>.Register(value);
 		}
 	}

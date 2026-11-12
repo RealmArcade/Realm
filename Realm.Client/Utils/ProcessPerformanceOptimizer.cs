@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Godot;
 using Environment = System.Environment;
+using Realm.Client.Services;
 
 namespace Realm.Client.Utils;
 
@@ -179,8 +180,11 @@ public static class ProcessPerformanceOptimizer
 						EfficiencyCoreAffinityMask = eCoreMask;
 					}
 
-					var process = Process.GetCurrentProcess();
-					process.ProcessorAffinity = new IntPtr(pCoreMask);
+					if (OperatingSystem.IsWindows())
+					{
+						var process = Process.GetCurrentProcess();
+						process.ProcessorAffinity = new IntPtr(pCoreMask);
+					}
 					Log($"[Performance] Hybrid CPU detected ({Environment.ProcessorCount} logical threads). " +
 					    $"P-Core Mask: 0x{pCoreMask:X}, E-Core Mask: 0x{EfficiencyCoreAffinityMask:X}. " +
 					    $"Process affinity successfully pinned to Performance cores.");
@@ -206,11 +210,11 @@ public static class ProcessPerformanceOptimizer
 	{
 		try
 		{
-			GD.Print(message);
+			GameLog.LogToConsole(message);
 		}
 		catch
 		{
-			Console.WriteLine(message);
+			GameLog.LogToConsole(message);
 		}
 	}
 }

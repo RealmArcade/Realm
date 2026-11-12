@@ -13,10 +13,10 @@ public partial class ColorPickerPopover : Control
 	private const int SwatchColumns = 6;
 	private const float SwatchSeparation = 6.0f;
 
-	private ColorRect _dismissOverlay;
-	private PanelContainer _panel;
-	private GridContainer _swatchGrid;
-	private Label _emptyLabel;
+	private ColorRect _dismissOverlay = null!;
+	private PanelContainer _panel = null!;
+	private GridContainer _swatchGrid = null!;
+	private Label _emptyLabel = null!;
 	private Action<int>? _onSelected;
 
 	public override void _Ready()
@@ -28,16 +28,9 @@ public partial class ColorPickerPopover : Control
 	{
 		if (_panel != null) return;
 
-		Name = "ColorPickerPopover";
-		Visible = false;
-		MouseFilter = MouseFilterEnum.Stop;
-		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		UIStyle.ConfigurePopoverRoot(this, "ColorPickerPopover");
 
-		_dismissOverlay = new ColorRect();
-		_dismissOverlay.Name = "DismissOverlay_ColorRect";
-		_dismissOverlay.Color = new Color(0.0f, 0.0f, 0.0f, 0.45f);
-		_dismissOverlay.MouseFilter = MouseFilterEnum.Stop;
-		_dismissOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		_dismissOverlay = UIStyle.CreateDismissOverlay(0.45f);
 		_dismissOverlay.GuiInput += OnDismissOverlayInput;
 		AddChild(_dismissOverlay);
 
@@ -125,11 +118,7 @@ public partial class ColorPickerPopover : Control
 		swatch.CustomMinimumSize = new Vector2(SwatchSize, SwatchSize);
 		swatch.FocusMode = FocusModeEnum.None;
 
-		var style = CreateSwatchStyle(PlayerColorConfig.GetColor(paletteIndex), isSelected);
-		swatch.AddThemeStyleboxOverride("normal", style);
-		swatch.AddThemeStyleboxOverride("hover", CreateSwatchStyle(PlayerColorConfig.GetColor(paletteIndex), true));
-		swatch.AddThemeStyleboxOverride("pressed", CreateSwatchStyle(PlayerColorConfig.GetColor(paletteIndex), true));
-		swatch.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyPaletteSwatch(swatch, PlayerColorConfig.GetColor(paletteIndex), isSelected);
 
 		swatch.Pressed += () =>
 		{
@@ -139,16 +128,6 @@ public partial class ColorPickerPopover : Control
 		swatch.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		return swatch;
-	}
-
-	private static StyleBoxFlat CreateSwatchStyle(Color color, bool highlighted)
-	{
-		var style = new StyleBoxFlat();
-		style.BgColor = color;
-		style.BorderColor = highlighted ? UIStyle.ColorGold : new Color(0.35f, 0.35f, 0.4f);
-		style.SetBorderWidthAll(highlighted ? 3 : 1);
-		style.SetCornerRadiusAll(4);
-		return style;
 	}
 
 	private void PositionPanelNear(Control? anchor)

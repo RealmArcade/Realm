@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Godot;
@@ -17,24 +17,24 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 {
 	public ProceduralAnimationStudioDialog() { }
 
-	private Node3D _simRoot;
-	private Node3D _currentModelRoot;
+	private Node3D _simRoot = null!;
+	private Node3D _currentModelRoot = null!;
 
-	private LineEdit _txtAnimId;
-	private LineEdit _txtAnimName;
-	private OptionButton _optPreset;
-	private OptionButton _optTemplatePicker;
-	private OptionButton _optMotionType;
-	private OptionButton _optMaskMode;
+	private LineEdit _txtAnimId = null!;
+	private LineEdit _txtAnimName = null!;
+	private OptionButton _optPreset = null!;
+	private OptionButton _optTemplatePicker = null!;
+	private OptionButton _optMotionType = null!;
+	private OptionButton _optMaskMode = null!;
 
-	private HSlider _sldMaskMin;
-	private Label _lblMaskMin;
-	private HSlider _sldMaskMax;
-	private Label _lblMaskMax;
-	private HSlider _sldMaskPower;
-	private Label _lblMaskPower;
-	private CheckBox _chkMaskInvert;
-	private CheckBox _chkShowHeatmap;
+	private HSlider _sldMaskMin = null!;
+	private Label _lblMaskMin = null!;
+	private HSlider _sldMaskMax = null!;
+	private Label _lblMaskMax = null!;
+	private HSlider _sldMaskPower = null!;
+	private Label _lblMaskPower = null!;
+	private CheckBox _chkMaskInvert = null!;
+	private CheckBox _chkShowHeatmap = null!;
 
 	private readonly HSlider[] _sldRegionMin = new HSlider[3];
 	private readonly Label[] _lblRegionMin = new Label[3];
@@ -43,45 +43,45 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private static readonly string[] _regionAxisNames = { "X", "Y", "Z" };
 	private const float RegionAutoDetectCreaseAngleDegrees = 50.0f;
 
-	private Button _btnRegionAutoDetect;
-	private Label _lblRegionAutoDetectStatus;
+	private Button _btnRegionAutoDetect = null!;
+	private Label _lblRegionAutoDetectStatus = null!;
 	private bool _isRegionAutoDetectActive;
 
-	private HSlider _sldSwayFrequency;
-	private Label _lblSwayFrequency;
-	private HSlider _sldSwayAmplitude;
-	private Label _lblSwayAmplitude;
-	private HSlider _sldFlutterFrequency;
-	private Label _lblFlutterFrequency;
-	private HSlider _sldFlutterAmplitude;
-	private Label _lblFlutterAmplitude;
-	private HSlider _sldWindInfluence;
-	private Label _lblWindInfluence;
-	private HSlider _sldVelocityDragInfluence;
-	private Label _lblVelocityDragInfluence;
-	private HSlider _sldWaveTurbulence;
-	private Label _lblWaveTurbulence;
+	private HSlider _sldSwayFrequency = null!;
+	private Label _lblSwayFrequency = null!;
+	private HSlider _sldSwayAmplitude = null!;
+	private Label _lblSwayAmplitude = null!;
+	private HSlider _sldFlutterFrequency = null!;
+	private Label _lblFlutterFrequency = null!;
+	private HSlider _sldFlutterAmplitude = null!;
+	private Label _lblFlutterAmplitude = null!;
+	private HSlider _sldWindInfluence = null!;
+	private Label _lblWindInfluence = null!;
+	private HSlider _sldVelocityDragInfluence = null!;
+	private Label _lblVelocityDragInfluence = null!;
+	private HSlider _sldWaveTurbulence = null!;
+	private Label _lblWaveTurbulence = null!;
 
-	private HSlider _sldImpulseAmplitude;
-	private Label _lblImpulseAmplitude;
-	private HSlider _sldImpulseFrequency;
-	private Label _lblImpulseFrequency;
-	private HSlider _sldImpulseDecay;
-	private Label _lblImpulseDecay;
-	private HSlider _sldImpulseDuration;
-	private Label _lblImpulseDuration;
+	private HSlider _sldImpulseAmplitude = null!;
+	private Label _lblImpulseAmplitude = null!;
+	private HSlider _sldImpulseFrequency = null!;
+	private Label _lblImpulseFrequency = null!;
+	private HSlider _sldImpulseDecay = null!;
+	private Label _lblImpulseDecay = null!;
+	private HSlider _sldImpulseDuration = null!;
+	private Label _lblImpulseDuration = null!;
 
-	private HSlider _sldSimVelocity;
-	private Label _lblSimVelocity;
+	private HSlider _sldSimVelocity = null!;
+	private Label _lblSimVelocity = null!;
 
-	private Label _lblRegionResolution;
-	private LineEdit _txtRegionName;
-	private HSlider _sldRegionLowerEdge;
-	private Label _lblRegionLowerEdge;
-	private HSlider _sldRegionUpperEdge;
-	private Label _lblRegionUpperEdge;
-	private HSlider _sldRegionFeather;
-	private Label _lblRegionFeather;
+	private Label _lblRegionResolution = null!;
+	private LineEdit _txtRegionName = null!;
+	private HSlider _sldRegionLowerEdge = null!;
+	private Label _lblRegionLowerEdge = null!;
+	private HSlider _sldRegionUpperEdge = null!;
+	private Label _lblRegionUpperEdge = null!;
+	private HSlider _sldRegionFeather = null!;
+	private Label _lblRegionFeather = null!;
 	private bool _suppressRegionSync;
 
 	private ProceduralAnimationConfig _config = new();
@@ -93,276 +93,12 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 	private float _impulseTime = 0.0f;
 	private float _simVelocityX = 0.0f;
 
-	private Action<ProceduralAnimationConfig> _onSaved;
+	private Action<ProceduralAnimationConfig>? _onSaved;
 
 	public ProceduralAnimationStudioDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Procedural Animation & Sway Studio"), new Vector2(560, 780))
 	{
 		BuildControls();
-	}
-
-	private void BuildControls()
-	{
-		var previewContainer = new PanelContainer();
-		previewContainer.Name = "PreviewContainer_PanelContainer";
-		previewContainer.CustomMinimumSize = new Vector2(0, 220);
-		previewContainer.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-		BodyContainer.AddChild(previewContainer);
-
-		Add3DPreviewViewport(previewContainer, new Vector2(0, 220));
-
-		Setup3DEnvironment();
-
-		AddCameraPresetToolbar(BodyContainer, includeBack: true, includeLightingToggle: true);
-
-		var templateRow = new HBoxContainer();
-		templateRow.Name = "TemplateRow_HBoxContainer";
-		templateRow.AddThemeConstantOverride("separation", 6);
-
-		var lblTemplate = new Label();
-		lblTemplate.Name = "LblTemplate_Label";
-		lblTemplate.Text = TranslationServer.Translate("Template:");
-		lblTemplate.AddThemeFontSizeOverride("font_size", 11);
-		lblTemplate.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		templateRow.AddChild(lblTemplate);
-
-		_optTemplatePicker = new OptionButton();
-		_optTemplatePicker.Name = "OptTemplatePicker_OptionButton";
-		_optTemplatePicker.AddThemeFontSizeOverride("font_size", 11);
-		_optTemplatePicker.CustomMinimumSize = new Vector2(160, 24);
-		_optTemplatePicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_optTemplatePicker.ItemSelected += (idx) =>
-		{
-			if (idx >= 0 && idx < _availableTemplates.Count)
-			{
-				_selectedTemplateKey = _availableTemplates[(int)idx].Id;
-				LoadPreviewTemplate(_availableTemplates[(int)idx]);
-			}
-		};
-		templateRow.AddChild(_optTemplatePicker);
-
-		BodyContainer.AddChild(templateRow);
-
-		var playRow = new HBoxContainer();
-		playRow.Name = "PlayRow_HBoxContainer";
-		playRow.AddThemeConstantOverride("separation", 6);
-
-		AddButton(playRow, "💥 " + TranslationServer.Translate("Trigger Shake Impulse"), () => TriggerTestImpulse(), "Trigger Hit / Harvest Shake Impulse", 10, new Vector2(140, 24));
-
-		_chkShowHeatmap = new CheckBox();
-		_chkShowHeatmap.Name = "ChkShowHeatmap_CheckBox";
-		_chkShowHeatmap.Text = TranslationServer.Translate("Show Heatmap Mask");
-		_chkShowHeatmap.ButtonPressed = false;
-		_chkShowHeatmap.AddThemeFontSizeOverride("font_size", 10);
-		_chkShowHeatmap.Toggled += (pressed) => UpdateShaderParameters();
-		playRow.AddChild(_chkShowHeatmap);
-
-		var lblVel = new Label();
-		lblVel.Name = "LblVel_Label";
-		lblVel.Text = TranslationServer.Translate("Sim Speed:");
-		lblVel.AddThemeFontSizeOverride("font_size", 10);
-		lblVel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		playRow.AddChild(lblVel);
-
-		_sldSimVelocity = new HSlider();
-		_sldSimVelocity.Name = "SldSimVelocity_HSlider";
-		_sldSimVelocity.MinValue = 0.0;
-		_sldSimVelocity.MaxValue = 10.0;
-		_sldSimVelocity.Step = 0.2;
-		_sldSimVelocity.Value = 0.0;
-		_sldSimVelocity.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_sldSimVelocity.ValueChanged += (val) =>
-		{
-			_simVelocityX = (float)val;
-			if (_lblSimVelocity != null) _lblSimVelocity.Text = $"{val:F1} m/s";
-			UpdateShaderParameters();
-		};
-		playRow.AddChild(_sldSimVelocity);
-
-		_lblSimVelocity = new Label();
-		_lblSimVelocity.Name = "LblSimVelocity_Label";
-		_lblSimVelocity.Text = "0.0 m/s";
-		_lblSimVelocity.CustomMinimumSize = new Vector2(40, 0);
-		_lblSimVelocity.AddThemeFontSizeOverride("font_size", 10);
-		playRow.AddChild(_lblSimVelocity);
-
-		BodyContainer.AddChild(playRow);
-
-		var scroll = new ScrollContainer();
-		scroll.Name = "Scroll_ScrollContainer";
-		scroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		scroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-
-		var configVBox = new VBoxContainer();
-		configVBox.Name = "ConfigVBox_VBoxContainer";
-		configVBox.AddThemeConstantOverride("separation", 6);
-		configVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		scroll.AddChild(configVBox);
-		BodyContainer.AddChild(scroll);
-
-		var presetRow = new HBoxContainer();
-		presetRow.Name = "PresetRow_HBoxContainer";
-		presetRow.AddThemeConstantOverride("separation", 6);
-
-		var lblPreset = new Label();
-		lblPreset.Name = "LblPreset_Label";
-		lblPreset.Text = TranslationServer.Translate("Template Preset:");
-		lblPreset.AddThemeFontSizeOverride("font_size", 11);
-		lblPreset.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		presetRow.AddChild(lblPreset);
-
-		_optPreset = new OptionButton();
-		_optPreset.Name = "OptPreset_OptionButton";
-		_optPreset.AddThemeFontSizeOverride("font_size", 11);
-		_optPreset.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		PopulatePresetList();
-		_optPreset.ItemSelected += (idx) =>
-		{
-			if (idx < 0 || idx >= _optPreset.ItemCount) return;
-			string key = _optPreset.GetItemMetadata((int)idx).AsString();
-			var def = ProceduralAnimationManager.GetConfig(key);
-			if (def != null)
-			{
-				string oldId = _config.Id;
-				_config = def.Clone();
-				_config.Id = oldId;
-				SyncControlsFromConfig();
-				UpdateShaderParameters();
-			}
-		};
-		presetRow.AddChild(_optPreset);
-		configVBox.AddChild(presetRow);
-
-		_txtAnimId = AddTextInput(configVBox, TranslationServer.Translate("Profile ID:"), _config.Id, (val) => { _config.Id = val.Trim().ToLowerInvariant().Replace(" ", "_"); }, "", 150f);
-
-		_txtAnimName = AddTextInput(configVBox, TranslationServer.Translate("Display Name:"), _config.Name, (val) => { _config.Name = val; }, "", 150f);
-
-		AddButton(configVBox, "🎲 " + TranslationServer.Translate("Randomize Sway & Flutter"), () => RandomizeParameters(), "Randomize motion parameters", 11, new Vector2(0, 26));
-
-		string[] motionTypes = new[]
-		{
-			TranslationServer.Translate("Cloth / Cape Sway").ToString(),
-			TranslationServer.Translate("Foliage / Tree Wind").ToString(),
-			TranslationServer.Translate("Creature Wing Flap").ToString(),
-			TranslationServer.Translate("Transient Hit Shake").ToString()
-		};
-
-		_optMotionType = AddOptionDropdown(configVBox, TranslationServer.Translate("Motion Dynamics:"), motionTypes, (int)_config.MotionType - 1, (idx) =>
-		{
-			_config.MotionType = (ProceduralMotionType)(idx + 1);
-			UpdateShaderParameters();
-		}, 150f);
-
-		AddSectionHeader(configVBox, "📐 " + TranslationServer.Translate("SPATIAL MESH DETECTION MASK"), new Color(0.85f, 0.65f, 0.35f));
-
-		string[] maskModes = new[]
-		{
-			TranslationServer.Translate("0: Height Gradient (Y-Axis)").ToString(),
-			TranslationServer.Translate("1: Radial Distance (Center Axis)").ToString(),
-			TranslationServer.Translate("2: Normal Incline (Facing Direction)").ToString(),
-			TranslationServer.Translate("3: Region Box (Explicit Part Volume)").ToString()
-		};
-
-		_optMaskMode = AddOptionDropdown(configVBox, TranslationServer.Translate("Mask Method:"), maskModes, (int)_config.MaskMode, (idx) =>
-		{
-			_config.MaskMode = (SpatialMaskMode)idx;
-			UpdateShaderParameters();
-		}, 150f);
-
-		(_sldMaskMin, _lblMaskMin) = AddSlider(configVBox, TranslationServer.Translate("Mask Lower Bound:"), -5.0f, 10.0f, 0.05f, _config.MaskMin, (val) =>
-		{
-			_config.MaskMin = val;
-			UpdateShaderParameters();
-		}, "0.00", 150f);
-
-		(_sldMaskMax, _lblMaskMax) = AddSlider(configVBox, TranslationServer.Translate("Mask Upper Bound:"), -5.0f, 15.0f, 0.05f, _config.MaskMax, (val) =>
-		{
-			_config.MaskMax = val;
-			UpdateShaderParameters();
-		}, "0.00", 150f);
-
-		(_sldMaskPower, _lblMaskPower) = AddSlider(configVBox, TranslationServer.Translate("Falloff Curve (Power):"), 0.1f, 5.0f, 0.1f, _config.MaskPower, (val) =>
-		{
-			_config.MaskPower = val;
-			UpdateShaderParameters();
-		}, "0.0", 150f);
-
-		_chkMaskInvert = AddCheckBox(configVBox, TranslationServer.Translate("Invert Mask Weight (Bottom / Center Heaviest)"), _config.MaskInvert, (pressed) =>
-		{
-			_config.MaskInvert = pressed;
-			UpdateShaderParameters();
-		});
-
-		BuildRegionBoxControls(configVBox);
-
-		BuildSwayRegionControls(configVBox);
-
-		AddSectionHeader(configVBox, "🌊 " + TranslationServer.Translate("SWAY & WIND MOTION DYNAMICS"), new Color(0.35f, 0.75f, 0.85f));
-
-		(_sldSwayFrequency, _lblSwayFrequency) = AddSlider(configVBox, TranslationServer.Translate("Sway Frequency (Hz):"), 0.0f, 10.0f, 0.1f, _config.SwayFrequency, (val) =>
-		{
-			_config.SwayFrequency = val;
-			UpdateShaderParameters();
-		}, "0.0 Hz", 150f);
-
-		(_sldSwayAmplitude, _lblSwayAmplitude) = AddSlider(configVBox, TranslationServer.Translate("Sway Displacement (m):"), 0.0f, 1.0f, 0.02f, _config.SwayAmplitude, (val) =>
-		{
-			_config.SwayAmplitude = val;
-			UpdateShaderParameters();
-		}, "0.00 m", 150f);
-
-		(_sldFlutterFrequency, _lblFlutterFrequency) = AddSlider(configVBox, TranslationServer.Translate("Flutter Frequency (Hz):"), 0.0f, 20.0f, 0.2f, _config.FlutterFrequency, (val) =>
-		{
-			_config.FlutterFrequency = val;
-			UpdateShaderParameters();
-		}, "0.0 Hz", 150f);
-
-		(_sldFlutterAmplitude, _lblFlutterAmplitude) = AddSlider(configVBox, TranslationServer.Translate("Flutter Displacement (m):"), 0.0f, 0.2f, 0.005f, _config.FlutterAmplitude, (val) =>
-		{
-			_config.FlutterAmplitude = val;
-			UpdateShaderParameters();
-		}, "0.000 m", 150f);
-
-		(_sldWindInfluence, _lblWindInfluence) = AddSlider(configVBox, TranslationServer.Translate("Wind Response Multiplier:"), 0.0f, 3.0f, 0.05f, _config.WindInfluence, (val) =>
-		{
-			_config.WindInfluence = val;
-			UpdateShaderParameters();
-		}, "0.00", 150f);
-
-		(_sldVelocityDragInfluence, _lblVelocityDragInfluence) = AddSlider(configVBox, TranslationServer.Translate("Velocity Drag Lag:"), 0.0f, 3.0f, 0.05f, _config.VelocityDragInfluence, (val) =>
-		{
-			_config.VelocityDragInfluence = val;
-			UpdateShaderParameters();
-		}, "0.00", 150f);
-
-		(_sldWaveTurbulence, _lblWaveTurbulence) = AddSlider(configVBox, TranslationServer.Translate("Wave Turbulence:"), 0.0f, 2.0f, 0.05f, _config.WaveTurbulence, (val) =>
-		{
-			_config.WaveTurbulence = val;
-			UpdateShaderParameters();
-		}, "0.00", 150f);
-
-		AddSectionHeader(configVBox, "⚡ " + TranslationServer.Translate("TRANSIENT HIT / HARVEST SHAKE"), new Color(0.95f, 0.45f, 0.25f));
-
-		(_sldImpulseAmplitude, _lblImpulseAmplitude) = AddSlider(configVBox, TranslationServer.Translate("Impact Shake Amplitude (m):"), 0.0f, 1.0f, 0.02f, _config.ImpulseAmplitude, (val) =>
-		{
-			_config.ImpulseAmplitude = val;
-			UpdateShaderParameters();
-		}, "0.00 m", 150f);
-
-		(_sldImpulseFrequency, _lblImpulseFrequency) = AddSlider(configVBox, TranslationServer.Translate("Shake Oscillation (Hz):"), 1.0f, 30.0f, 0.5f, _config.ImpulseFrequency, (val) =>
-		{
-			_config.ImpulseFrequency = val;
-			UpdateShaderParameters();
-		}, "0.0 Hz", 150f);
-
-		(_sldImpulseDecay, _lblImpulseDecay) = AddSlider(configVBox, TranslationServer.Translate("Damping Decay Rate:"), 0.5f, 10.0f, 0.2f, _config.ImpulseDecay, (val) =>
-		{
-			_config.ImpulseDecay = val;
-			UpdateShaderParameters();
-		}, "0.0", 150f);
-
-		(_sldImpulseDuration, _lblImpulseDuration) = AddSlider(configVBox, TranslationServer.Translate("Impulse Duration (s):"), 0.1f, 2.0f, 0.05f, _config.ImpulseDuration, (val) => { _config.ImpulseDuration = val; }, "0.00 s", 150f);
 	}
 
 	public override void _Process(double delta)
@@ -403,7 +139,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		}
 	}
 
-	public void OpenForConfig(ProceduralAnimationConfig config, Action<ProceduralAnimationConfig> onSaved = null, string previewModelKey = null)
+	public void OpenForConfig(ProceduralAnimationConfig? config, Action<ProceduralAnimationConfig>? onSaved = null, string? previewModelKey = null)
 	{
 		_onSaved = onSaved;
 		if (!string.IsNullOrWhiteSpace(previewModelKey))
@@ -421,7 +157,7 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		OpenDialog();
 	}
 
-	private void InitializeConfig(ProceduralAnimationConfig config)
+	private void InitializeConfig(ProceduralAnimationConfig? config)
 	{
 		if (config != null && !string.IsNullOrWhiteSpace(config.Id))
 		{
@@ -448,173 +184,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 				_optPreset.Selected = i;
 				return;
 			}
-		}
-	}
-
-	private void SelectInitialTemplate()
-	{
-		if (_optTemplatePicker != null && _optTemplatePicker.Selected >= 0 && _optTemplatePicker.Selected < _availableTemplates.Count)
-		{
-			LoadPreviewTemplate(_availableTemplates[_optTemplatePicker.Selected]);
-			return;
-		}
-
-		if (_availableTemplates.Count > 0)
-		{
-			LoadPreviewTemplate(_availableTemplates[0]);
-		}
-	}
-
-	private void PopulateTemplateList()
-	{
-		_availableTemplates.Clear();
-		if (_optTemplatePicker == null) return;
-		_optTemplatePicker.Clear();
-
-		var existingIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-
-		LoadMetadataTemplates(wsPath, existingIds);
-		LoadGameHostRegistryTemplates(existingIds);
-		LoadMapAssetsTemplates(wsPath, existingIds);
-		AddSampleTemplates();
-
-		PopulateTemplatePickerAndSelect();
-	}
-
-	private void AddTemplateIfNotExists(string id, string name, string category, string modelPath, string visualMode, HashSet<string> existingIds)
-	{
-		if (string.IsNullOrEmpty(id) || !existingIds.Add(id)) return;
-
-		string actualVisualMode = !string.IsNullOrEmpty(visualMode) ? visualMode : (modelPath?.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) == true ? "GroundPlane" : "Mesh");
-		_availableTemplates.Add(new TemplateItemInfo
-		{
-			Id = id,
-			DisplayName = !string.IsNullOrEmpty(name) ? name : id,
-			Category = category,
-			ModelPath = modelPath ?? "",
-			VisualMode = actualVisualMode
-		});
-	}
-
-	private void LoadMetadataTemplates(string wsPath, HashSet<string> existingIds)
-	{
-		if (!GameContext.MetadataService.TryLoadMetadata(wsPath, out var meta) || meta?.Templates == null) return;
-
-		AddMetadataTemplates(meta.Templates.Units, "Unit", existingIds, u => u.TemplateID, u => u.Name, u => u.ModelPath, u => u.VisualMode);
-		AddMetadataTemplates(meta.Templates.Buildings, "Building", existingIds, b => b.TemplateID, b => b.Name, b => b.ModelPath, b => b.VisualMode);
-		AddMetadataTemplates(meta.Templates.Resources, "Resource", existingIds, r => r.TemplateID, r => r.Name, r => r.ModelPath, r => r.VisualMode);
-		AddMetadataTemplates(meta.Templates.Props, "Prop", existingIds, p => p.TemplateID, p => p.Name, p => p.ModelPath, p => p.VisualMode);
-	}
-
-	private void AddMetadataTemplates<T>(IEnumerable<T> items, string category, HashSet<string> existingIds, Func<T, string> getId, Func<T, string> getName, Func<T, string> getModelPath, Func<T, string> getVisualMode)
-	{
-		if (items == null) return;
-
-		foreach (var item in items)
-			AddTemplateIfNotExists(getId(item), getName(item), category, getModelPath(item), getVisualMode(item), existingIds);
-	}
-
-	private void LoadGameHostRegistryTemplates(HashSet<string> existingIds)
-	{
-		if (GameHost.UnitRegistry != null)
-			foreach (var kvp in GameHost.UnitRegistry)
-				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Unit", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
-
-		if (GameHost.BuildingRegistry != null)
-			foreach (var kvp in GameHost.BuildingRegistry)
-				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Building", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
-
-		if (GameHost.ResourceRegistry != null)
-			foreach (var kvp in GameHost.ResourceRegistry)
-				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Resource", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
-
-		if (GameHost.PropRegistry != null)
-			foreach (var kvp in GameHost.PropRegistry)
-				AddTemplateIfNotExists(kvp.Key.ToString(), kvp.Value.Name, "Prop", kvp.Value.ModelPath, kvp.Value.VisualMode, existingIds);
-	}
-
-	private void LoadMapAssetsTemplates(string wsPath, HashSet<string> existingIds)
-	{
-		try
-		{
-			var assets = MapAssetHelper.LoadAssets(wsPath);
-			if (assets == null) return;
-
-			foreach (var groupKvp in assets.GetAllCategories())
-			{
-				ProcessAssetGroup(groupKvp.Key, groupKvp.Value, existingIds);
-			}
-		}
-		catch
-		{
-		}
-	}
-
-	private void ProcessAssetGroup(string groupName, Dictionary<string, string> subDict, HashSet<string> existingIds)
-	{
-		if (subDict == null) return;
-		string category = groupName switch
-		{
-			"Character" or "units" or "characters" => "Unit",
-			"Building" or "buildings" => "Building",
-			"Resource" or "resources" => "Resource",
-			_ => "Prop"
-		};
-
-		foreach (var itemKvp in subDict)
-		{
-			string fn = itemKvp.Key;
-			if (string.IsNullOrEmpty(fn) || (!fn.EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase) && !fn.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase))) continue;
-
-			string id = Path.GetFileName(fn);
-			AddTemplateIfNotExists(id, id, category, fn, null, existingIds);
-		}
-	}
-
-	private void AddSampleTemplates()
-	{
-		_availableTemplates.Add(new TemplateItemInfo
-		{
-			Id = "(Sample Tree Cylinder)",
-			DisplayName = "(Sample Tree Cylinder)",
-			Category = "Sample",
-			ModelPath = "",
-			VisualMode = "Mesh"
-		});
-		_availableTemplates.Add(new TemplateItemInfo
-		{
-			Id = "(Sample Unit Capsule)",
-			DisplayName = "(Sample Unit Capsule)",
-			Category = "Sample",
-			ModelPath = "",
-			VisualMode = "Mesh"
-		});
-	}
-
-	private void PopulateTemplatePickerAndSelect()
-	{
-		int selectedIdx = FindSelectedTemplateIndex();
-
-		for (int i = 0; i < _availableTemplates.Count; i++)
-		{
-			var t = _availableTemplates[i];
-			string label = !string.IsNullOrEmpty(t.DisplayName) && !string.Equals(t.DisplayName, t.Id, StringComparison.OrdinalIgnoreCase)
-				? $"[{t.Category}] {t.DisplayName} ({t.Id})"
-				: $"[{t.Category}] {t.Id}";
-			t.FormattedLabel = label;
-			_optTemplatePicker.AddItem(label, i);
-		}
-
-		if (selectedIdx >= 0 && selectedIdx < _availableTemplates.Count)
-		{
-			_selectedTemplateKey = _availableTemplates[selectedIdx].Id;
-			_optTemplatePicker.Selected = selectedIdx;
-		}
-		else if (_availableTemplates.Count > 0)
-		{
-			_selectedTemplateKey = _availableTemplates[0].Id;
-			_optTemplatePicker.Selected = 0;
 		}
 	}
 
@@ -1026,232 +595,6 @@ public partial class ProceduralAnimationStudioDialog : FloatingPreview3DDialogBa
 		}
 
 		UpdateRegionResolutionLabel();
-	}
-
-	private void Setup3DEnvironment()
-	{
-		_simRoot = new Node3D();
-		_simRoot.Name = "SimRoot";
-		PreviewSubViewport.AddChild(_simRoot);
-
-		_currentModelRoot = new Node3D();
-		_currentModelRoot.Name = "ModelRoot";
-		_simRoot.AddChild(_currentModelRoot);
-
-		UpdateCameraTransform();
-	}
-
-	private void LoadPreviewTemplate(TemplateItemInfo template)
-	{
-		if (_currentModelRoot == null) return;
-		ClearCurrentModelRoot();
-
-		if (template == null) return;
-
-		if (template.Id.StartsWith("(") || template.Category.Equals("Sample", StringComparison.OrdinalIgnoreCase))
-		{
-			LoadSampleTemplate(template);
-			return;
-		}
-
-		Node3D loadedNode3D = LoadTemplateModel(template);
-
-		if (loadedNode3D != null)
-		{
-			SetupLoadedModel(loadedNode3D, template);
-		}
-
-		UpdateRegionControls();
-		UpdateShaderParameters();
-	}
-
-	private void ClearCurrentModelRoot()
-	{
-		foreach (Node child in _currentModelRoot.GetChildren())
-		{
-			_currentModelRoot.RemoveChild(child);
-			child.QueueFree();
-		}
-	}
-
-	private void LoadSampleTemplate(TemplateItemInfo template)
-	{
-		var meshInst = new MeshInstance3D();
-		meshInst.Name = "MeshInst_MeshInstance3D";
-		if (template.Id.Contains("Capsule"))
-		{
-			meshInst.Mesh = new CapsuleMesh { Radius = 0.5f, Height = 1.8f };
-			meshInst.Position = new Vector3(0, 0.9f, 0);
-		}
-		else
-		{
-			meshInst.Mesh = new CylinderMesh { TopRadius = 0.4f, BottomRadius = 0.6f, Height = 3.0f };
-			meshInst.Position = new Vector3(0, 1.5f, 0);
-		}
-
-		var mat = new StandardMaterial3D { AlbedoColor = new Color(0.35f, 0.65f, 0.45f) };
-		meshInst.MaterialOverride = mat;
-		_currentModelRoot.AddChild(meshInst);
-		ModelShaderManager.RefreshShaderMaterialsForNode(_currentModelRoot, false);
-		CenterAndFrameNode(_currentModelRoot);
-		UpdateShaderParameters();
-	}
-
-	private Node3D LoadTemplateModel(TemplateItemInfo template)
-	{
-		string assetPath = !string.IsNullOrEmpty(template.ModelPath) ? template.ModelPath : template.Id;
-		string visualMode = !string.IsNullOrEmpty(template.VisualMode) ? template.VisualMode : (assetPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? "GroundPlane" : "Mesh");
-
-		bool is2DTexture = string.Equals(visualMode, "GroundPlane", StringComparison.OrdinalIgnoreCase) ||
-		                   string.Equals(visualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase) ||
-		                   assetPath.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ||
-		                   assetPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
-		                   assetPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase);
-
-		if (is2DTexture)
-		{
-			return Load2DTextureModel(assetPath, visualMode);
-		}
-
-		return Load3DModel(assetPath);
-	}
-
-	private Node3D Load2DTextureModel(string assetPath, string visualMode)
-	{
-		Node3D loadedNode3D = null;
-		var loaded = ModelCache.GetModel(assetPath);
-		if (loaded is Node3D n)
-		{
-			loadedNode3D = n;
-		}
-		else
-		{
-			loaded?.QueueFree();
-			string resolved = ModelCache.ResolveModelPath(assetPath);
-			if (!string.IsNullOrEmpty(resolved))
-			{
-				loaded = ModelCache.GetModel(resolved);
-				if (loaded is Node3D nResolved)
-				{
-					loadedNode3D = nResolved;
-				}
-				else
-				{
-					loaded?.QueueFree();
-				}
-			}
-		}
-
-		if (loadedNode3D != null && string.Equals(visualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase))
-		{
-			loadedNode3D.RotationDegrees = new Vector3(45f, 0f, 0f);
-		}
-
-		return loadedNode3D;
-	}
-
-	private Node3D Load3DModel(string assetPath)
-	{
-		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-		string resolvedDiskPath = ResolveDiskPath(wsPath, assetPath);
-
-		Node3D loadedNode3D = null;
-		if (resolvedDiskPath != null && File.Exists(resolvedDiskPath))
-		{
-			loadedNode3D = LoadFromDiskPath(resolvedDiskPath, assetPath);
-		}
-		else if (!string.IsNullOrEmpty(assetPath))
-		{
-			var loaded = ModelCache.GetModel(assetPath);
-			if (loaded is Node3D n)
-			{
-				loadedNode3D = n;
-			}
-			else
-			{
-				loaded?.QueueFree();
-			}
-		}
-
-		if (loadedNode3D != null)
-		{
-			AnimationRetargetingService.TryApplyRiggedIdlePose(loadedNode3D, resolvedDiskPath ?? assetPath);
-		}
-
-		return loadedNode3D;
-	}
-
-	private string ResolveDiskPath(string wsPath, string assetPath)
-	{
-		foreach (var sub in new[] { "props", "units", "buildings", "resources", "characters", "items", "projectiles", "attachments" })
-		{
-			string p = Path.Combine(wsPath, "Assets", "models", sub, assetPath);
-			if (File.Exists(p)) return p;
-			p = Path.Combine("MapTemplate", "Assets", "models", sub, assetPath);
-			if (File.Exists(p)) return p;
-		}
-
-		string modelsDir = Path.Combine(wsPath, "Assets", "models");
-		if (Directory.Exists(modelsDir))
-		{
-			var files = Directory.GetFiles(modelsDir, assetPath, SearchOption.AllDirectories);
-			if (files.Length > 0 && files[0].EndsWith(".rmesh", StringComparison.OrdinalIgnoreCase))
-			{
-				return files[0];
-			}
-		}
-
-		return null;
-	}
-
-	private Node3D LoadFromDiskPath(string resolvedDiskPath, string assetPath)
-	{
-		var loaded = ModelCache.GetModel(resolvedDiskPath) ?? ModelCache.GetModel(assetPath);
-		if (loaded is Node3D n) return n;
-		if (loaded != null) loaded.QueueFree();
-
-		var gltfDoc = new GltfDocument();
-		var gltfState = new GltfState();
-		byte[] rmeshBytes = File.ReadAllBytes(resolvedDiskPath);
-		byte[] glbBytes = RmeshFile.GetGlbBytes(rmeshBytes) ?? rmeshBytes;
-		if (gltfDoc.AppendFromBuffer(glbBytes, "", gltfState) == Error.Ok)
-		{
-			var node = gltfDoc.GenerateScene(gltfState);
-			if (node is Node3D n3d) return n3d;
-			if (node != null) node.QueueFree();
-		}
-
-		return null;
-	}
-
-	private void SetupLoadedModel(Node3D loadedNode3D, TemplateItemInfo template)
-	{
-		_currentModelRoot.AddChild(loadedNode3D);
-		ModelShaderManager.RefreshShaderMaterialsForNode(loadedNode3D, false);
-
-		if (GameContext.Host != null && !string.IsNullOrEmpty(template.Id))
-		{
-			float scale = GameContext.Host.GetModelScale(template.Id);
-			if (scale > 0.01f)
-			{
-				loadedNode3D.Scale = new Vector3(scale, scale, scale);
-			}
-
-			float yOffset = GameContext.Host.GetModelYOffset(template.Id);
-			loadedNode3D.Position = new Vector3(0, yOffset, 0);
-		}
-
-		CenterAndFrameNode(loadedNode3D);
-	}
-
-	private void CenterAndFrameNode(Node3D targetNode)
-	{
-		var aabb = SpawnDeathShaderManager.CalculateNodeAabb(targetNode);
-		TargetPosition = aabb.Position + aabb.Size * 0.5f;
-		float maxDim = Mathf.Max(aabb.Size.X, Mathf.Max(aabb.Size.Y, aabb.Size.Z));
-		CameraDistance = Mathf.Clamp(maxDim * 2.2f, 2.0f, 30.0f);
-		DefaultDistance = CameraDistance;
-		UpdateCameraTransform();
 	}
 
 	protected override void OnApply()

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
@@ -54,10 +54,6 @@ public class CombatService
 		{
 			health.CurrentHp = 0;
 			world.Add<Dead>(defender);
-			if (world.Has<Name>(defender))
-			{
-				Console.WriteLine($"{world.Get<Name>(defender).Value} has been slain!");
-			}
 		}
 
 		world.Set(defender, health);

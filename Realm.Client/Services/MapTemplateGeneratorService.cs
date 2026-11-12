@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -123,8 +123,9 @@ public static partial class MapTemplateGeneratorService
 			{
 				metadata = Realm.Shared.Services.MapFileService.LoadMetadata(metadataPath);
 			}
-			catch
+			catch (Exception ex)
 			{
+				GameLog.LogError($"could not read {metadataPath}, so template metadata is regenerated from defaults: {ex.GetType().Name}: {ex.Message}");
 			}
 		}
 
@@ -148,7 +149,7 @@ public static partial class MapTemplateGeneratorService
 		}
 		catch (Exception ex)
 		{
-			Godot.GD.PrintErr($"[MapTemplateGeneratorService] Failed to write MapTemplates.g.cs to {targetFilePath}: {ex.Message}");
+			GameLog.LogError($"[MapTemplateGeneratorService] Failed to write MapTemplates.g.cs to {targetFilePath}: {ex.Message}");
 		}
 	}
 
@@ -170,7 +171,7 @@ public static partial class MapTemplateGeneratorService
 			}
 			catch (Exception exception)
 			{
-				Godot.GD.PrintErr($"[MapTemplateGeneratorService] Failed to delete legacy WasmEntryPoint.cs in {workspacePath}: {exception.Message}");
+				GameLog.LogError($"[MapTemplateGeneratorService] Failed to delete legacy WasmEntryPoint.cs in {workspacePath}: {exception.Message}");
 			}
 		}
 
@@ -201,7 +202,7 @@ public static partial class MapTemplateGeneratorService
 		}
 		catch (Exception exception)
 		{
-			Godot.GD.PrintErr($"[MapTemplateGeneratorService] Failed to write WasmEntryPoint.g.cs to {targetFilePath}: {exception.Message}");
+			GameLog.LogError($"[MapTemplateGeneratorService] Failed to write WasmEntryPoint.g.cs to {targetFilePath}: {exception.Message}");
 		}
 	}
 }

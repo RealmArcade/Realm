@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -83,7 +83,7 @@ public class MapDistributionClient
 
 		if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingDownloads())
 		{
-			GD.PrintErr("[MapDistributionClient] Download aborted: Insufficient disk space on target storage drive (< 1% free).");
+			GameLog.LogError("[MapDistributionClient] Download aborted: Insufficient disk space on target storage drive (< 1% free).");
 			return false;
 		}
 
@@ -160,6 +160,7 @@ public class MapDistributionClient
 			string localMapDir = GetManifestLocalDirectory(mapId, manifest);
 			string localManifestPath = Path.Combine(localMapDir, "manifest.json");
 
+			MapReferenceResolver.ClearReadOnlyRecursive(localMapDir);
 			await File.WriteAllTextAsync(localManifestPath, manifest.ToJson(), effectiveToken);
 
 			var seeders = await distClient.GetActiveSeedersAsync(effectiveToken);
@@ -184,12 +185,14 @@ public class MapDistributionClient
 
 			MapAssetManager.ExtractManifestFiles(manifest, localMapDir, isP2P: false);
 			GameContext.AssetIndexService.RegisterManifest(manifest, localManifestPath, isP2P: false);
+			MapReferenceResolver.SetReadOnlyRecursive(localMapDir);
+
 			HandleProgress(1.0f);
 			return true;
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapDistributionClient] HTTP server download error from {serverUrl}: {ex.Message}");
+			GameLog.LogError($"[MapDistributionClient] HTTP server download error from {serverUrl}: {ex.Message}");
 			return false;
 		}
 	}
@@ -238,7 +241,7 @@ public class MapDistributionClient
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"[MapDistributionClient] Seeder query error: {ex.Message}");
+			GameLog.LogError($"[MapDistributionClient] Seeder query error: {ex.Message}");
 		}
 
 		return candidateSeeders;

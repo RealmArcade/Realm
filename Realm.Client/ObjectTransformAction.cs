@@ -121,8 +121,7 @@ public class ObjectTransformAction : IEditorAction
 
 	private static void WriteEcsTransform(Entity entity, Vector3 pos, Vector3 rot, Vector3 scale, bool writeScale)
 	{
-		GameHost tempQualifier = GameContext.Host;
-		var ecsWorld = (tempQualifier != null ? GameContext.World : null);
+		EcsWorld? ecsWorld = GameContext.Host != null ? GameContext.World : null;
 		if (ecsWorld == null || entity == Entity.Null || !ecsWorld.IsAlive(entity))
 			return;
 

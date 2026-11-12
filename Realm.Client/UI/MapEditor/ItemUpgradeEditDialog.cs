@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -32,20 +32,20 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 	private string? _initialTemplateJson = null;
 	private bool _templateExistedInitially = false;
 
-	private Action<string, string> _onAppliedCallback;
+	private Action<string, string>? _onAppliedCallback;
 
-	private Label _lblObjectTypePrefix;
-	private LineEdit _txtSlug;
-	private Label _lblSlugValidation;
-	private LineEdit _txtName;
-	private LineEdit _txtIconPath;
-	private Action<string> _setIconPathValue;
-	private LineEdit _txtTooltip;
-	private VBoxContainer _previewContainer;
-	private VBoxContainer _grantedCapabilitiesSection;
-	private VBoxContainer _vboxGrantedWeapons;
-	private VBoxContainer _vboxGrantedAbilities;
-	private VBoxContainer _vboxGrantedUpgrades;
+	private Label _lblObjectTypePrefix = null!;
+	private LineEdit _txtSlug = null!;
+	private Label _lblSlugValidation = null!;
+	private LineEdit _txtName = null!;
+	private LineEdit _txtIconPath = null!;
+	private Action<string> _setIconPathValue = null!;
+	private LineEdit _txtTooltip = null!;
+	private VBoxContainer _previewContainer = null!;
+	private VBoxContainer _grantedCapabilitiesSection = null!;
+	private VBoxContainer _vboxGrantedWeapons = null!;
+	private VBoxContainer _vboxGrantedAbilities = null!;
+	private VBoxContainer _vboxGrantedUpgrades = null!;
 
 	public ItemUpgradeEditDialog(MapEditorHUD hud)
 		: base(hud, TranslationServer.Translate("Edit Item / Upgrade"), new Vector2(480, 480))
@@ -58,10 +58,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		AddDescription(BodyContainer, TranslationServer.Translate("Modify metadata, icon asset, and rich formatted tooltip for this item or upgrade template."));
 
 		var scrollBody = CreateScrollBody(400);
-		var contentVBox = new VBoxContainer();
-		contentVBox.Name = "ContentVBox_VBoxContainer";
-		contentVBox.AddThemeConstantOverride("separation", 10);
-		contentVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		var contentVBox = CreateExpandingContentColumn();
 		scrollBody.AddChild(contentVBox);
 
 		AddSectionHeader(contentVBox, "🆔 " + TranslationServer.Translate("IDENTITY & ICON"), new Color(0.95f, 0.8f, 0.4f));
@@ -84,11 +81,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		_lblObjectTypePrefix.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		idRow.AddChild(_lblObjectTypePrefix);
 
-		_txtSlug = new LineEdit();
-		_txtSlug.Name = "TxtSlug_LineEdit";
-		_txtSlug.PlaceholderText = TranslationServer.Translate("snake_case_slug");
-		_txtSlug.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_txtSlug.AddThemeFontSizeOverride("font_size", 11);
+		_txtSlug = CreateSlugField("snake_case_slug");
 		_txtSlug.TextChanged += (val) =>
 		{
 			_slug = TemplateIDHelper.ToSnakeCase(val);
@@ -238,9 +231,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		for (int i = 0; i < _grantedWeapons.Count; i++)
 		{
 			int index = i;
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			row.AddThemeConstantOverride("separation", 6);
+			var row = UIStyle.CreateRowContainer();
 
 			var txt = new LineEdit();
 			txt.Name = "Txt_LineEdit";
@@ -278,9 +269,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		for (int i = 0; i < _grantedAbilities.Count; i++)
 		{
 			int index = i;
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			row.AddThemeConstantOverride("separation", 6);
+			var row = UIStyle.CreateRowContainer();
 
 			var txt = new LineEdit();
 			txt.Name = "Txt_LineEdit";
@@ -318,9 +307,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		for (int i = 0; i < _grantedUpgrades.Count; i++)
 		{
 			int index = i;
-			var row = new HBoxContainer();
-			row.Name = "Row_HBoxContainer";
-			row.AddThemeConstantOverride("separation", 6);
+			var row = UIStyle.CreateRowContainer();
 
 			var txt = new LineEdit();
 			txt.Name = "Txt_LineEdit";
@@ -374,7 +361,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 			child.QueueFree();
 		}
 
-		Control tooltipWidget = RichTooltip.Create(_tooltip);
+		Control tooltipWidget = RichTooltip.Create(_tooltip, useStonePanel: false);
 		_previewContainer.AddChild(tooltipWidget);
 	}
 
@@ -451,7 +438,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		return false;
 	}
 
-	public void OpenForObject(string category, string templateId, Action<string, string> onApplied = null)
+	public void OpenForObject(string category, string templateId, Action<string, string>? onApplied = null)
 	{
 		InitializeState(category, templateId, onApplied);
 		LoadMetadataProperties();
@@ -510,7 +497,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		}
 	}
 
-	private void InitializeState(string category, string templateId, Action<string, string> onApplied)
+	private void InitializeState(string category, string templateId, Action<string, string>? onApplied)
 	{
 		_category = (category ?? "items").ToLowerInvariant();
 		_objectType = _category == "upgrades" ? "upgrade" : "item";
@@ -586,7 +573,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 		_grantedUpgrades = i.GrantedUpgrades != null ? new List<string>(i.GrantedUpgrades) : new List<string>();
 	}
 
-	private string FormatIconPath(string path)
+	private string FormatIconPath(string? path)
 	{
 		if (string.IsNullOrEmpty(path)) return "";
 		return path.EndsWith(".rtex", StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(path) : $"{Path.GetFileName(path)}.rtex";
@@ -598,7 +585,7 @@ public partial class ItemUpgradeEditDialog : FloatingDialogBase
 			return;
 
 		var candidates = ScanIconRtexAssets(true);
-		string candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
+		string? candidateMatch = candidates.FirstOrDefault(c => string.Equals(c, $"{_slug}.rtex", StringComparison.OrdinalIgnoreCase))
 		                        ?? candidates.FirstOrDefault(c => string.Equals(Path.GetFileNameWithoutExtension(c), _slug, StringComparison.OrdinalIgnoreCase));
 
 		if (!string.IsNullOrEmpty(candidateMatch))

@@ -529,7 +529,7 @@ public static class ContentIdStore
 		Volatile.Write(ref _textView, new TextTableView(entries, published.Count + 1));
 	}
 
-	private sealed class TextTableView
+	private class TextTableView
 	{
 		public TextTableView((int Id, string Text)[] entries, int count)
 		{
@@ -566,6 +566,11 @@ public static class ContentIdStore
 		}
 	}
 
+	/// <summary>
+	///     One row of the content identifier table: the identifier, the kind tag that says how to read it, and either the
+	///     text or the payload bytes it stands for. Entries are immutable once stored, which is what lets readers look one
+	///     up without taking the registration lock.
+	/// </summary>
 	private readonly struct ContentIdEntry
 	{
 		public ContentIdEntry(int id, byte kind, string text, byte[]? bytes = null)

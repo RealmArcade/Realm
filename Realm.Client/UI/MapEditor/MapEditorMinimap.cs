@@ -12,7 +12,6 @@ namespace Realm.Client.UI.MapEditor;
 public class MapEditorMinimap
 {
 	public const string ThumbnailFileName = "thumbnail.webp";
-	public const string LegacyThumbnailFileName = "thumbnail.png";
 	private const int ThumbnailSize = 512;
 	private const int ThumbnailWebpQuality = 90;
 
@@ -123,7 +122,7 @@ public class MapEditorMinimap
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to dynamically capture terrain minimap: {ex.Message}");
+			GameLog.LogError($"Failed to dynamically capture terrain minimap: {ex.Message}");
 		}
 		finally
 		{
@@ -167,7 +166,7 @@ public class MapEditorMinimap
 		}
 		catch (Exception ex)
 		{
-			GD.PrintErr($"Failed to capture minimap thumbnail: {ex.Message}");
+			GameLog.LogError($"Failed to capture minimap thumbnail: {ex.Message}");
 		}
 
 		return false;
@@ -191,12 +190,6 @@ public class MapEditorMinimap
 		byte[] encodedThumbnail = TextureConverter.EncodeWebp(bitmap, lossless: false, quality: ThumbnailWebpQuality);
 		string destinationWebpPath = Path.Combine(workspacePath, ThumbnailFileName);
 		File.WriteAllBytes(destinationWebpPath, encodedThumbnail);
-
-		string stalePngPath = Path.Combine(workspacePath, LegacyThumbnailFileName);
-		if (File.Exists(stalePngPath))
-		{
-			File.Delete(stalePngPath);
-		}
 
 		return true;
 	}

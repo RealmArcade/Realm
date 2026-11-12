@@ -18,20 +18,21 @@ public partial class AssetGridDialogBase : FloatingDialogBase
 	protected float GridPadding = 15.0f;
 
 	protected readonly List<AssetGridCell> _cellPool = new();
-	protected Control _virtualGridContent;
-	protected ScrollContainer _scrollContainer;
+	protected Control _virtualGridContent = null!;
+	protected ScrollContainer _scrollContainer = null!;
 
 	protected void EnsureCellPoolCapacity(int requiredCapacity)
 	{
 		while (_cellPool.Count < requiredCapacity)
 		{
 			var newCell = new AssetGridCell();
+			newCell.Name = "GridCell_AssetGridCell";
 			_cellPool.Add(newCell);
 			if (_virtualGridContent != null) _virtualGridContent.AddChild(newCell);
 		}
 	}
 
-	protected void BindVisibleGridCells(int startIndex, int visibleCount, int columns, List<IndexedAsset> matchingAssets, IndexedAsset selectedAsset, Action<IndexedAsset, bool> onCellClicked)
+	protected void BindVisibleGridCells(int startIndex, int visibleCount, int columns, List<IndexedAsset> matchingAssets, IndexedAsset? selectedAsset, Action<IndexedAsset, bool> onCellClicked)
 	{
 		BindVisibleGridCells(
 			startIndex,

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading.Tasks;
 using Godot;
@@ -25,30 +25,30 @@ public partial class UIManager : Control
 		Realm.Client.Services.GameContext.EnsureServices();
 	}
 
-	[Export] public PackedScene MainMenuScene;
-	[Export] public PackedScene LobbyBrowserScene;
-	[Export] public PackedScene LobbyRoomScene;
-	[Export] public PackedScene SettingsScene;
-	[Export] public PackedScene InGameHUDScene;
-	[Export] public PackedScene GameOverScene;
-	[Export] public PackedScene MapDiscoveryScene;
-	[Export] public PackedScene MapDetailsScene;
-	[Export] public PackedScene MapEditorHUDScene;
-	[Export] public PackedScene ReplayListScene;
-	[Export] public PackedScene LobbyCreateScene;
-	[Export] public PackedScene StorageScene;
+	[Export] public PackedScene MainMenuScene = null!;
+	[Export] public PackedScene LobbyBrowserScene = null!;
+	[Export] public PackedScene LobbyRoomScene = null!;
+	[Export] public PackedScene SettingsScene = null!;
+	[Export] public PackedScene InGameHUDScene = null!;
+	[Export] public PackedScene GameOverScene = null!;
+	[Export] public PackedScene MapDiscoveryScene = null!;
+	[Export] public PackedScene MapDetailsScene = null!;
+	[Export] public PackedScene MapEditorHUDScene = null!;
+	[Export] public PackedScene ReplayListScene = null!;
+	[Export] public PackedScene LobbyCreateScene = null!;
+	[Export] public PackedScene StorageScene = null!;
 
-	private Control _currentScreen;
-	private ColorRect _fadeOverlay;
-	private AnimationPlayer _fadeAnim;
-	private Label _watermark;
+	private Control? _currentScreen;
+	private ColorRect _fadeOverlay = null!;
+	private AnimationPlayer _fadeAnim = null!;
+	private Label _watermark = null!;
 	private GameScreen _targetScreen;
 	private bool _isVictory = true;
 	private bool _transitionInProgress = false;
 	private GameScreen? _queuedScreen;
 	private bool _queuedIsVictory;
 
-	private MapData _selectedMapData;
+	private MapData _selectedMapData = null!;
 
 	/// <summary>
 	///     Whether the first screen has been built. A screen named before this point races the startup transition that shows
@@ -62,21 +62,52 @@ public partial class UIManager : Control
 		TransitionTo(GameScreen.MapDetails);
 	}
 
-	private AudioStreamPlayer _musicPlayer;
-	private AudioStreamPlayer _sfxPlayer;
+	private AudioStreamPlayer _musicPlayer = null!;
+	private AudioStreamPlayer _sfxPlayer = null!;
+	private string[] _musicPlaylist = System.Array.Empty<string>();
+	private int _musicPlaylistIndex;
+
+	private static readonly string[] MenuMusicPlaylist = { "res://Assets/Audio/Music/enchanted_realm.ogg" };
+	private static readonly string[] BattleMusicPlaylist = { "res://Assets/Audio/Music/battle_anthem.ogg" };
 
 	public override void _ExitTree()
 	{
 		GameContext.UnregisterUserInterface(this);
 	}
 
-	public override async void _Ready()
+	/// <summary>
+	///     Godot calls a void override, so the awaited startup work lives in <see cref="ReadyAsync" />. An async void
+	///     override had no catcher at all: a fault in the startup settings left the manager never transitioning to a
+	///     screen, with an empty window and nothing logged.
+	/// </summary>
+	public override void _Ready()
+	{
+		_ = ObserveReadyAsync();
+	}
+
+	/// <summary>
+	///     Runs <see cref="ReadyAsync" /> and logs whatever it throws, so the discarded task above cannot fault.
+	/// </summary>
+	private async Task ObserveReadyAsync()
+	{
+		try
+		{
+			await ReadyAsync();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[UIManager] Startup failed: {exception}");
+		}
+	}
+
+	private async Task ReadyAsync()
 	{
 		GameContext.RegisterUserInterface(this);
 		MouseFilter = MouseFilterEnum.Ignore;
 
 
 		_musicPlayer = new AudioStreamPlayer { Name = "MusicPlayer", Bus = AudioService.MusicBusName };
+		_musicPlayer.Finished += OnMusicTrackFinished;
 		AddChild(_musicPlayer);
 
 		_sfxPlayer = new AudioStreamPlayer { Name = "SfxPlayer", Bus = AudioService.SfxBusName };
@@ -144,10 +175,10 @@ public partial class UIManager : Control
 			else if (GameContext.SessionState.IsTestMode && MapEditorHUD.HasUnsavedChangesStatic())
 			{
 				ShowConfirmationDialog(
-					"You haven't saved yet",
+					TranslationServer.Translate("You haven't saved yet"),
 					onConfirm: () => GetTree().Quit(),
-					confirmText: "Quit",
-					cancelText: "Stay"
+					confirmText: TranslationServer.Translate("Quit"),
+					cancelText: TranslationServer.Translate("Stay")
 				);
 			}
 			else
@@ -318,312 +349,6 @@ public partial class UIManager : Control
 		_fadeOverlay.Color = new Color(0, 0, 0, 0);
 	}
 
-	public void TransitionTo(GameScreen screen, bool isVictory = true)
-	{
-		if (screen == GameScreen.GameOver && (_targetScreen == GameScreen.GameOver || _currentScreen is GameOver))
-		{
-			return;
-		}
-
-		_targetScreen = screen;
-		_isVictory = isVictory;
-
-		HandlePreTransitionState(screen);
-
-		if (_transitionInProgress)
-		{
-			_queuedScreen = screen;
-			_queuedIsVictory = isVictory;
-			return;
-		}
-
-		_transitionInProgress = true;
-		_fadeOverlay.MouseFilter = MouseFilterEnum.Stop;
-		_fadeAnim.Play("fade_in");
-
-		PlayScreenMusic(screen, isVictory);
-
-		var timer = GetTree().CreateTimer(0.3f);
-		timer.Timeout += OnFadeInComplete;
-	}
-
-	private bool RequiresReplayReset(GameScreen screen)
-	{
-		return screen == GameScreen.GameOver ||
-		       screen == GameScreen.MainMenu ||
-		       screen == GameScreen.MapEditorHUD ||
-		       screen == GameScreen.LobbyBrowser ||
-		       screen == GameScreen.LobbyRoom ||
-		       screen == GameScreen.ReplayList;
-	}
-
-	private void HandlePreTransitionState(GameScreen screen)
-	{
-		if (screen == GameScreen.MapEditorHUD)
-		{
-			GameContext.FXService?.ClearProjectileTrails();
-		}
-
-		if (RequiresReplayReset(screen))
-		{
-			if (GameContext.ReplayPlayback.IsPlayingReplay)
-			{
-				GameContext.ReplayPlayback.StopReplay();
-				GameContext.Host?.ResetWorldAndState();
-			}
-
-			GameContext.Host?.StopRecording();
-		}
-	}
-
-	private bool IsEnchantedRealmMusicScreen(GameScreen screen)
-	{
-		return screen == GameScreen.MainMenu ||
-		       screen == GameScreen.LobbyBrowser ||
-		       screen == GameScreen.LobbyRoom ||
-		       screen == GameScreen.Settings ||
-		       screen == GameScreen.MapDiscovery ||
-		       screen == GameScreen.CreatorDiscovery ||
-		       screen == GameScreen.MapDetails ||
-		       screen == GameScreen.Storage;
-	}
-
-	private void PlayScreenMusic(GameScreen screen, bool isVictory)
-	{
-		if (IsEnchantedRealmMusicScreen(screen))
-		{
-			PlayMusic("res://Assets/Audio/Music/enchanted_realm.ogg");
-		}
-		else if (screen == GameScreen.InGameHUD)
-		{
-			PlayMusic("res://Assets/Audio/Music/battle_anthem.ogg");
-		}
-		else if (screen == GameScreen.GameOver)
-		{
-			StopMusic();
-			if (_sfxPlayer != null)
-			{
-				var soundFile = isVictory ? "res://Assets/Audio/UI/victory_theme_sting.ogg" : "res://Assets/Audio/UI/defeat_drone_low.ogg";
-				_sfxPlayer.Stream = GD.Load<AudioStream>(soundFile);
-				_sfxPlayer.Play();
-			}
-		}
-	}
-
-	public void PlayMusic(string path)
-	{
-		if (_musicPlayer != null)
-		{
-			if (_musicPlayer.Stream?.ResourcePath == path && _musicPlayer.Playing)
-				return;
-
-			var stream = GD.Load<AudioStream>(path);
-			if (stream != null)
-			{
-				_musicPlayer.Stream = stream;
-				_musicPlayer.Play();
-			}
-		}
-	}
-
-	public void StopMusic()
-	{
-		_musicPlayer?.Stop();
-	}
-
-	public void PlayClickSound()
-	{
-		if (_sfxPlayer != null)
-		{
-			var stream = GD.Load<AudioStream>("res://Assets/Audio/UI/click_confirm_heavy.ogg");
-			if (stream != null)
-			{
-				_sfxPlayer.Stream = stream;
-				_sfxPlayer.Play();
-			}
-		}
-	}
-
-	public void PlayHoverSound()
-	{
-		if (_sfxPlayer != null)
-		{
-			var stream = GD.Load<AudioStream>("res://Assets/Audio/UI/hover_highlight_sparkle.ogg");
-			if (stream != null)
-			{
-				_sfxPlayer.Stream = stream;
-				_sfxPlayer.Play();
-			}
-		}
-	}
-
-	public void PlayWarningSound()
-	{
-		if (_sfxPlayer != null)
-		{
-			var stream = GD.Load<AudioStream>("res://Assets/Audio/UI/alert_warning_buzz.ogg");
-			if (stream != null)
-			{
-				_sfxPlayer.Stream = stream;
-				_sfxPlayer.Play();
-			}
-		}
-	}
-
-	private void OnFadeInComplete()
-	{
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
-
-		ClearCurrentScreen();
-		InstantiateTargetScreen();
-
-		_fadeAnim.Play("fade_out");
-
-		var timer = GetTree().CreateTimer(0.3f);
-		timer.Timeout += OnFadeOutComplete;
-	}
-
-	private void ClearCurrentScreen()
-	{
-		if (_currentScreen == null) return;
-
-		if (GodotObject.IsInstanceValid(_currentScreen))
-		{
-			if (_currentScreen is MapEditorHUD)
-			{
-				GameContext.Host?.ExitMapEditorMode();
-			}
-
-			if (_currentScreen.GetParent() == this)
-			{
-				RemoveChild(_currentScreen);
-			}
-
-			_currentScreen.QueueFree();
-		}
-		_currentScreen = null;
-	}
-
-	private void InstantiateTargetScreen()
-	{
-		PackedScene targetScene = GetTargetScene(_targetScreen);
-
-		if (targetScene != null)
-		{
-			_currentScreen = targetScene.Instantiate<Control>();
-			AddChild(_currentScreen);
-
-			ConfigureReplayViewer();
-			ConfigureOverlays();
-			ConfigureScreenData();
-		}
-	}
-
-	private void ConfigureReplayViewer()
-	{
-		if (_targetScreen == GameScreen.InGameHUD && GameContext.ReplayPlayback.IsPlayingReplay)
-		{
-			GameContext.Host?.StopRecording();
-			var panelScene = GD.Load<PackedScene>("res://UI/ReplayViewerPanel.tscn");
-			if (panelScene != null)
-			{
-				var panel = panelScene.Instantiate<Control>();
-				_currentScreen.AddChild(panel);
-			}
-		}
-	}
-
-	private void ConfigureOverlays()
-	{
-		MoveChild(_fadeOverlay, GetChildCount() - 1);
-#if DEBUG
-		if (_watermark != null)
-		{
-			MoveChild(_watermark, GetChildCount() - 1);
-		}
-#endif
-	}
-
-	private void ConfigureScreenData()
-	{
-		if (_currentScreen is GameOver gameOver)
-		{
-			gameOver.SetStatus(_isVictory);
-			gameOver.ReportMatchResult();
-		}
-		else if (_currentScreen is MapDetails mapDetails)
-		{
-			mapDetails.SetMapData(_selectedMapData);
-		}
-	}
-
-	private PackedScene GetSceneOrLoad(PackedScene cachedScene, string path)
-	{
-		return cachedScene ?? GD.Load<PackedScene>(path);
-	}
-
-	private PackedScene GetLobbyOrMapScene(GameScreen screen)
-	{
-		return screen switch
-		{
-			GameScreen.LobbyBrowser => GetSceneOrLoad(LobbyBrowserScene, "res://UI/LobbyBrowser.tscn"),
-			GameScreen.LobbyCreate => GetSceneOrLoad(LobbyCreateScene, "res://UI/LobbyCreate.tscn"),
-			GameScreen.LobbyRoom => GetSceneOrLoad(LobbyRoomScene, "res://UI/LobbyRoom.tscn"),
-			GameScreen.MapDiscovery => GetSceneOrLoad(MapDiscoveryScene, "res://UI/MapDiscovery.tscn"),
-			GameScreen.MapDetails => GetSceneOrLoad(MapDetailsScene, "res://UI/MapDetails.tscn"),
-			_ => null
-		};
-	}
-
-	private PackedScene GetOtherScene(GameScreen screen)
-	{
-		return screen switch
-		{
-			GameScreen.Settings => GetSceneOrLoad(SettingsScene, "res://UI/SettingsMenu.tscn"),
-			GameScreen.InGameHUD => GetSceneOrLoad(InGameHUDScene, "res://UI/InGameHUD.tscn"),
-			GameScreen.GameOver => GetSceneOrLoad(GameOverScene, "res://UI/GameOver.tscn"),
-			GameScreen.CreatorDiscovery => GetSceneOrLoad(null, "res://UI/CreatorDiscovery.tscn"),
-			GameScreen.ReplayList => GetSceneOrLoad(ReplayListScene, "res://UI/ReplayListPanel.tscn"),
-			GameScreen.Storage => GetSceneOrLoad(StorageScene, "res://UI/StorageMenu.tscn"),
-			_ => null
-		};
-	}
-
-	private PackedScene GetTargetScene(GameScreen screen)
-	{
-		Input.MouseMode = Input.MouseModeEnum.Visible;
-
-		if (screen == GameScreen.MainMenu)
-		{
-			if (GameContext.Lobby != null) GameContext.Lobby.Disconnect();
-			return MainMenuScene ?? GD.Load<PackedScene>("res://UI/MainMenu.tscn");
-		}
-
-		if (screen == GameScreen.MapEditorHUD)
-		{
-			GameContext.Host?.StartMapEditorMode();
-			return MapEditorHUDScene ?? GD.Load<PackedScene>("res://UI/MapEditorHUD.tscn");
-		}
-
-		return GetLobbyOrMapScene(screen) ?? GetOtherScene(screen);
-	}
-
-	private void OnFadeOutComplete()
-	{
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
-
-		_fadeOverlay.MouseFilter = MouseFilterEnum.Ignore;
-		_transitionInProgress = false;
-		if (_queuedScreen.HasValue)
-		{
-			GameScreen next = _queuedScreen.Value;
-			bool vic = _queuedIsVictory;
-			_queuedScreen = null;
-			TransitionTo(next, vic);
-		}
-	}
-
-
 	public void OpenSettingsOverlay()
 	{
 		if (GameContext.IsSettingsMenuOpen) return;
@@ -639,12 +364,12 @@ public partial class UIManager : Control
 	}
 
 
-	public void ShowPopupMessage(string title, string message, Action onOkPressed = null)
+	public void ShowPopupMessage(string title, string message, Action? onOkPressed = null)
 	{
-		ShowConfirmationDialog(message, onOkPressed, confirmText: "OK", showCancel: false, titleOverride: title);
+		ShowConfirmationDialog(message, onOkPressed, confirmText: TranslationServer.Translate("OK"), showCancel: false, titleOverride: title);
 	}
 
-	public void ShowConfirmationDialog(string message, Action onConfirm, string confirmText = "YES", string cancelText = "NO", Action onCancel = null, bool showCancel = true, string titleOverride = null)
+	public void ShowConfirmationDialog(string message, Action? onConfirm, string confirmText = "YES", string cancelText = "NO", Action? onCancel = null, bool showCancel = true, string? titleOverride = null)
 	{
 		var overlay = new ColorRect();
 		overlay.Name = "ConfirmationOverlay";
@@ -659,8 +384,7 @@ public partial class UIManager : Control
 		panel.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		panel.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 
-		var center = new CenterContainer();
-		center.SetAnchorsPreset(LayoutPreset.FullRect);
+		var center = UIStyle.CreateCenteredOverlay();
 		overlay.AddChild(center);
 		center.AddChild(panel);
 
@@ -696,9 +420,7 @@ public partial class UIManager : Control
 		btnConfirm.Name = "BtnConfirm_Button";
 		btnConfirm.Set("icon_max_width", 0);
 		UIStyle.ApplyButtonText(btnConfirm, TranslationServer.Translate(confirmText), 13);
-		btnConfirm.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		btnConfirm.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		btnConfirm.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+		UIStyle.ApplyButtonStyleBoxes(btnConfirm);
 		btnConfirm.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		btnConfirm.Pressed += () =>
 		{
@@ -709,13 +431,9 @@ public partial class UIManager : Control
 
 		if (showCancel)
 		{
-			var btnCancel = new Button();
-			btnCancel.Name = "BtnCancel_Button";
-			btnCancel.Set("icon_max_width", 0);
+			var btnCancel = UIStyle.CreateBareButton("BtnCancel_Button");
 			UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate(cancelText), 13);
-			btnCancel.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-			btnCancel.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-			btnCancel.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
+			UIStyle.ApplyButtonStyleBoxes(btnCancel);
 			btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 			Action cancelAction = () =>
 			{
@@ -775,8 +493,7 @@ public partial class UIManager : Control
 		overlay.ZIndex = 1100;
 		AddChild(overlay);
 
-		var center = new CenterContainer();
-		center.SetAnchorsPreset(LayoutPreset.FullRect);
+		var center = UIStyle.CreateCenteredOverlay();
 		overlay.AddChild(center);
 
 		var panel = new PanelContainer();
@@ -804,12 +521,7 @@ public partial class UIManager : Control
 		fileNameLabel.AddThemeFontSizeOverride("font_size", 13);
 		vbox.AddChild(fileNameLabel);
 
-		progressBar = new ProgressBar();
-		progressBar.Name = "ProgressBar_ProgressBar";
-		progressBar.CustomMinimumSize = new Vector2(440, 22);
-		progressBar.MinValue = 0;
-		progressBar.MaxValue = 100;
-		progressBar.Value = 0;
+		progressBar = UIStyle.CreateProgressBar(440f, 22f);
 		vbox.AddChild(progressBar);
 
 		statusLabel = new Label();
@@ -875,7 +587,7 @@ public partial class UIManager : Control
 			ShowConfirmationDialog(
 				TranslationServer.Translate("Map imported successfully."),
 				() => { },
-				confirmText: "OK",
+				confirmText: TranslationServer.Translate("OK"),
 				showCancel: false
 			);
 		}
@@ -884,7 +596,7 @@ public partial class UIManager : Control
 			ShowConfirmationDialog(
 				string.Format(TranslationServer.Translate("Import failed: {0}"), result.Message),
 				() => { },
-				confirmText: "OK",
+				confirmText: TranslationServer.Translate("OK"),
 				showCancel: false
 			);
 		}

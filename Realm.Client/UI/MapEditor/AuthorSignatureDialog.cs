@@ -13,10 +13,10 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 {
 	public AuthorSignatureDialog() { }
 
-	private LineEdit _txtUsername;
-	private LineEdit _txtPublicKey;
-	private Label _lblKeyPath;
-	private Label _lblCopyStatus;
+	private LineEdit _txtUsername = null!;
+	private LineEdit _txtPublicKey = null!;
+	private Label _lblKeyPath = null!;
+	private Label _lblCopyStatus = null!;
 	private string _displayedKeyPath = string.Empty;
 
 	public AuthorSignatureDialog(MapEditorHUD hud)
@@ -60,15 +60,13 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 
 		var faFont = Hud?.GetFontAwesomeFont();
 
-		var secHeader = AddSectionHeader(BodyContainer, "\uf2c2 " + TranslationServer.Translate("IDENTITY DETAILS"), UIStyle.ColorGold);
+		var secHeader = AddSectionHeader(BodyContainer, UnicodeIcons.ID_CARD + " " + TranslationServer.Translate("IDENTITY DETAILS"), UIStyle.ColorGold);
 		if (faFont != null)
 		{
 			secHeader.AddThemeFontOverride("font", faFont);
 		}
 
-		var grid = new GridContainer();
-		grid.Name = "Grid_GridContainer";
-		grid.Columns = 2;
+		var grid = UIStyle.CreateGrid(2);
 		grid.AddThemeConstantOverride("h_separation", 10);
 		grid.AddThemeConstantOverride("v_separation", 4);
 		grid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -111,7 +109,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		_txtPublicKey.AddThemeFontSizeOverride("font_size", 10);
 		pubHBox.AddChild(_txtPublicKey);
 
-		var btnCopyPub = AddButton(pubHBox, "\uf0c5 " + TranslationServer.Translate("Copy"), () => CopyPublicKeyToClipboard(), "Copy public key to clipboard", 10, new Vector2(65, 22));
+		var btnCopyPub = AddButton(pubHBox, UnicodeIcons.COPY + " " + TranslationServer.Translate("Copy"), () => CopyPublicKeyToClipboard(), "Copy public key to clipboard", 10, new Vector2(65, 22));
 		grid.AddChild(pubHBox);
 
 		var lblPriv = new Label();
@@ -124,7 +122,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 
 		var lblPrivVal = new Label();
 		lblPrivVal.Name = "LblPrivVal_Label";
-		lblPrivVal.Text = "\uf023 " + TranslationServer.Translate("SECRET. DO NOT SHARE.");
+		lblPrivVal.Text = UnicodeIcons.LOCK + " " + TranslationServer.Translate("SECRET. DO NOT SHARE.");
 		lblPrivVal.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblPrivVal.AddThemeFontSizeOverride("font_size", 10);
 		lblPrivVal.AddThemeColorOverride("font_color", new Color(1.0f, 0.45f, 0.45f));
@@ -157,7 +155,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 		actionRow.AddThemeConstantOverride("separation", 10);
 		actionRow.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
-		var btnOpenFolder = AddButton(actionRow, "\uf07c " + TranslationServer.Translate("Open Folder"), () => OpenKeysFolderInExplorer(), "Open key folder in Windows Explorer for backup", 10, new Vector2(110, 24));
+		var btnOpenFolder = AddButton(actionRow, UnicodeIcons.FOLDER_OPEN + " " + TranslationServer.Translate("Open Folder"), () => OpenKeysFolderInExplorer(), "Open key folder in Windows Explorer for backup", 10, new Vector2(110, 24));
 
 		_lblCopyStatus = new Label();
 		_lblCopyStatus.Name = "LblCopyStatus_Label";
@@ -206,7 +204,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 			}
 			catch (Exception ex)
 			{
-				GD.PrintErr($"[AuthorSignatureDialog] Failed to open explorer.exe: {ex.Message}");
+				GameLog.LogError($"[AuthorSignatureDialog] Failed to open explorer.exe: {ex.Message}");
 			}
 		}
 

@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.Encodings.Web;
@@ -11,11 +12,12 @@ using Realm.Shared.Distribution;
 
 namespace Realm.Client.Services;
 
+using static MapTemplateDocument;
+
 public class MapTemplateImportService
 {
 	public const string ImportedFromMapProperty = "Attribution_ImportedFromMap";
 
-	private const string TemplatesRootKey = "Templates";
 
 	private static readonly (string SectionKey, string ObjectType)[] TemplateArraySections =
 	{
@@ -82,7 +84,6 @@ public class MapTemplateImportService
 		["PassiveStatusEffects"] = new[] { "StatusEffects" }
 	};
 
-	private static readonly string[] TemplateIdentityKeys = { "TemplateID", "AttachmentId", "VfxId", "Id" };
 
 	private static readonly HashSet<string> ReferencePropertyNames = new(StringComparer.OrdinalIgnoreCase)
 	{
@@ -132,24 +133,6 @@ public class MapTemplateImportService
 		".gdshader"
 	};
 
-	private static readonly JsonSerializerOptions MetadataWriteOptions = new()
-	{
-		WriteIndented = true,
-		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-	};
-
-	public static string? ResolveSourceMetadataPath(MapAssetImportSource source)
-	{
-		string sourceDirectory = GetSourceDirectory(source);
-		if (string.IsNullOrEmpty(sourceDirectory)) return null;
-
-		string metadataPath = Path.Combine(sourceDirectory, "metadata.json");
-		if (File.Exists(metadataPath)) return metadataPath;
-
-		return TryExtractManifestFile(source.ManifestFilePath, "metadata.json", sourceDirectory) && File.Exists(metadataPath)
-			? metadataPath
-			: null;
-	}
 
 	public IReadOnlyList<MapTemplateImportCandidate> EnumerateTemplates(MapAssetImportSource source, string destinationWorkspacePath)
 	{
@@ -193,7 +176,7 @@ public class MapTemplateImportService
 		JsonObject? destinationRoot = LoadDestinationMetadata(destinationWorkspacePath);
 		if (destinationRoot == null)
 		{
-			GD.PrintErr($"[MapTemplateImportService] Destination metadata.json is missing: {destinationMetadataPath}");
+			GameLog.LogError($"[MapTemplateImportService] Destination metadata.json is missing: {destinationMetadataPath}");
 			summary.FailedTemplates.AddRange(selectedTemplates.Select(candidate => $"{candidate.ObjectType}: {candidate.DisplayName}"));
 			return summary;
 		}
@@ -413,163 +396,19 @@ public class MapTemplateImportService
 		return lookup;
 	}
 
-	private static JsonObject? LoadSourceMetadata(MapAssetImportSource source)
-	{
-		string? metadataPath = ResolveSourceMetadataPath(source);
-		if (string.IsNullOrEmpty(metadataPath)) return null;
 
-		try
-		{
-			return JsonNode.Parse(File.ReadAllText(metadataPath)) as JsonObject;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MapTemplateImportService] Failed to read source metadata '{metadataPath}': {ex.Message}");
-			return null;
-		}
-	}
 
-	private static JsonObject? LoadDestinationMetadata(string destinationWorkspacePath)
-	{
-		string metadataPath = MetadataService.ResolveMetadataPath(destinationWorkspacePath);
-		if (!File.Exists(metadataPath)) return null;
 
-		try
-		{
-			return JsonNode.Parse(File.ReadAllText(metadataPath)) as JsonObject;
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MapTemplateImportService] Failed to read destination metadata '{metadataPath}': {ex.Message}");
-			return null;
-		}
-	}
 
-	private static void SaveDestinationMetadata(string metadataPath, JsonObject destinationRoot)
-	{
-		try
-		{
-			File.WriteAllText(metadataPath, destinationRoot.ToJsonString(MetadataWriteOptions));
-			EditorService.NoteInternalFileWrite(metadataPath);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MapTemplateImportService] Failed to save destination metadata '{metadataPath}': {ex.Message}");
-		}
-	}
 
-	private static void AddEntry(JsonObject destinationRoot, string sectionKey, bool isDictionary, string identity, JsonObject entry)
-	{
-		if (isDictionary)
-		{
-			GetOrCreateObject(destinationRoot, sectionKey)[identity] = entry;
-			return;
-		}
 
-		JsonObject templates = GetOrCreateObject(destinationRoot, TemplatesRootKey);
-		GetOrCreateArray(templates, sectionKey).Add(entry);
-	}
 
-	private static bool ContainsEntry(JsonObject root, string sectionKey, bool isDictionary, string identity)
-	{
-		if (isDictionary)
-		{
-			return root[sectionKey] is JsonObject dictionary && ContainsKeyIgnoreCase(dictionary, identity);
-		}
 
-		if (root[TemplatesRootKey] is not JsonObject templates) return false;
-		if (templates[sectionKey] is not JsonArray entries) return false;
 
-		foreach (var entry in entries)
-		{
-			if (entry is JsonObject entryObject && string.Equals(ReadIdentity(entryObject), identity, StringComparison.OrdinalIgnoreCase))
-			{
-				return true;
-			}
-		}
 
-		return false;
-	}
 
-	private static bool ContainsKeyIgnoreCase(JsonObject dictionary, string key)
-	{
-		foreach (var property in dictionary)
-		{
-			if (string.Equals(property.Key, key, StringComparison.OrdinalIgnoreCase)) return true;
-		}
 
-		return false;
-	}
 
-	private static JsonObject GetOrCreateObject(JsonObject parent, string key)
-	{
-		if (parent[key] is JsonObject existing) return existing;
-
-		var created = new JsonObject();
-		parent[key] = created;
-		return created;
-	}
-
-	private static JsonArray GetOrCreateArray(JsonObject parent, string key)
-	{
-		if (parent[key] is JsonArray existing) return existing;
-
-		var created = new JsonArray();
-		parent[key] = created;
-		return created;
-	}
-
-	private static string ReadIdentity(JsonObject entry)
-	{
-		foreach (string identityKey in TemplateIdentityKeys)
-		{
-			if (entry[identityKey] is JsonValue value && value.TryGetValue(out string? text) && !string.IsNullOrWhiteSpace(text))
-			{
-				return text.Trim();
-			}
-		}
-
-		return string.Empty;
-	}
-
-	private static string GetSlug(string identity)
-	{
-		int slashIndex = identity.LastIndexOf('/');
-		return slashIndex >= 0 ? identity.Substring(slashIndex + 1) : identity;
-	}
-
-	private static MapManifest LoadSourceManifest(string manifestFilePath)
-	{
-		try
-		{
-			return MapManifest.LoadFromFile(manifestFilePath);
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[MapTemplateImportService] Failed to read manifest '{manifestFilePath}': {ex.Message}");
-			return new MapManifest();
-		}
-	}
-
-	private static bool TryExtractManifestFile(string manifestFilePath, string relativePath, string destinationDirectory)
-	{
-		MapManifest manifest = LoadSourceManifest(manifestFilePath);
-		if (manifest.Files == null || !manifest.Files.TryGetValue(relativePath, out string? hash) || string.IsNullOrEmpty(hash)) return false;
-
-		return MapAssetManager.ExtractSingleAsset(relativePath, hash, destinationDirectory);
-	}
-
-	private static string GetSourceDirectory(MapAssetImportSource source)
-	{
-		return string.IsNullOrEmpty(source.ManifestFilePath)
-			? string.Empty
-			: Path.GetDirectoryName(source.ManifestFilePath) ?? string.Empty;
-	}
-
-	private static string NormalizeRelativePath(string relativePath)
-	{
-		return relativePath.Replace('\\', '/').TrimStart('/');
-	}
 
 	private class ImportContext
 	{
@@ -662,7 +501,7 @@ public class MapTemplateImportService
 
 		public List<TemplateEntry> Entries { get; } = new();
 
-		public bool TryGetEntryInSections(string[] sectionKeys, string value, out TemplateEntry entry)
+		public bool TryGetEntryInSections(string[] sectionKeys, string value, [NotNullWhen(true)] out TemplateEntry? entry)
 		{
 			string slug = GetSlug(value);
 
@@ -674,32 +513,32 @@ public class MapTemplateImportService
 				if (sectionEntries.TryGetValue(slug, out entry)) return true;
 			}
 
-			entry = null!;
+			entry = null;
 			return false;
 		}
 
-		public bool TryGetEntry(string sectionKey, bool isDictionary, string identity, out TemplateEntry entry)
+		public bool TryGetEntry(string sectionKey, bool isDictionary, string identity, [NotNullWhen(true)] out TemplateEntry? entry)
 		{
 			return _byLookup.TryGetValue(BuildLookupKey(sectionKey, isDictionary, identity), out entry);
 		}
 
-		public bool TryGetEntryByFullIdentity(string identity, out TemplateEntry entry)
+		public bool TryGetEntryByFullIdentity(string identity, [NotNullWhen(true)] out TemplateEntry? entry)
 		{
 			return _byFullIdentity.TryGetValue(identity, out entry);
 		}
 
-		public bool TryGetEntryBySlug(string slug, out TemplateEntry entry)
+		public bool TryGetEntryBySlug(string slug, [NotNullWhen(true)] out TemplateEntry? entry)
 		{
 			if (_ambiguousSlugs.Contains(slug))
 			{
-				entry = null!;
+				entry = null;
 				return false;
 			}
 
 			return _bySlug.TryGetValue(slug, out entry);
 		}
 
-		public bool TryGetEntryByDictionaryKey(string key, out TemplateEntry entry)
+		public bool TryGetEntryByDictionaryKey(string key, [NotNullWhen(true)] out TemplateEntry? entry)
 		{
 			return _byDictionaryKey.TryGetValue(key, out entry);
 		}

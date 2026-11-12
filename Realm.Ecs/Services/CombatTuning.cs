@@ -6,7 +6,7 @@ namespace Realm.Ecs.Services;
 ///     <c>CombatTuning</c> block, and anything the map leaves out keeps the default below, which
 ///     is the behaviour the engine had when these were compile-time constants.
 /// </summary>
-public sealed class CombatTuning
+public class CombatTuning
 {
 	/// <summary>The defaults every field falls back to. Never mutated.</summary>
 	public static CombatTuning Default { get; } = new();

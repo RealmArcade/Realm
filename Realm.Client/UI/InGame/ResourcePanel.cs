@@ -9,8 +9,8 @@ public class ResourcePanel
 	private Label _goldLabel;
 	private Label _woodLabel;
 	private Label _stoneLabel;
-	private Label _populationLabel;
-	private Label _clockLabel;
+	private Label _populationLabel = null!;
+	private Label _clockLabel = null!;
 
 	private int _lastGold = int.MinValue;
 	private int _lastWood = int.MinValue;

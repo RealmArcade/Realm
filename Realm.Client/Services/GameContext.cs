@@ -1,4 +1,4 @@
-using System.Runtime.Versioning;
+﻿using System.Runtime.Versioning;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.ReplaySystem;
@@ -157,6 +157,7 @@ namespace Realm.Client.Services
 		public static MetadataService MetadataService => GlobalScope.Get<MetadataService>();
 		public static MapUpgradeService MapUpgradeService => GlobalScope.Get<MapUpgradeService>();
 		public static MapStorageService MapStorageService => GlobalScope.Get<MapStorageService>();
+		public static MapReferenceService MapReferenceService => GlobalScope.Get<MapReferenceService>();
 		public static MapAssetImportService MapAssetImportService => GlobalScope.Get<MapAssetImportService>();
 		public static MapTemplateImportService MapTemplateImportService => GlobalScope.Get<MapTemplateImportService>();
 		public static MapCodeImportService MapCodeImportService => GlobalScope.Get<MapCodeImportService>();
@@ -230,7 +231,7 @@ namespace Realm.Client.Services
 			scope.RegisterCleanup<EnvironmentService>(static service => service.Cleanup());
 			scope.RegisterCleanup<EditorService>(static service =>
 			{
-				service.StopWorkspaceWatcher();
+				EditorWorkspaceWatcher.Stop();
 				service.ResetAllState();
 			});
 			scope.RegisterCleanup<MapGenerationService>(static service => service.DiscardRun());

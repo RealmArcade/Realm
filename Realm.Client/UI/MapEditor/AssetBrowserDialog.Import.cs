@@ -1,0 +1,124 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Godot;
+using Realm.Client.Services;
+using Realm.Shared.Audio;
+
+namespace Realm.Client.UI.MapEditor;
+
+public partial class AssetBrowserDialog
+{
+	public void OpenForImport(string titleText, IEnumerable<string> allowedExtensions, Action<string> onAssetSelected, bool requireRealmMetadata = false, string? requiredAssetType = null)
+	{
+		_onAssetSelectedCallback = onAssetSelected;
+		_onAssetSelectedWithPreferredNameCallback = null;
+		_onAssetsSelectedCallback = null;
+		_multiSelectEnabled = false;
+		_selectedAssetPaths.Clear();
+		_selectedAsset = null;
+		_txtSearch.Text = string.Empty;
+
+		if (_btnSelectAll != null) _btnSelectAll.Visible = false;
+		if (_btnClearSelection != null) _btnClearSelection.Visible = false;
+		if (_lblSelectionCount != null) _lblSelectionCount.Visible = false;
+		if (ApplyButton != null) ApplyButton.Text = TranslationServer.Translate("Select");
+
+		if (_chkHasPlayerColorMask != null)
+		{
+			_chkHasPlayerColorMask.ButtonPressed = false;
+		}
+
+		_requireRealmMetadata = requireRealmMetadata;
+		_selectedAssetTypeFilter = requiredAssetType;
+
+		TitleLabel.Text = string.IsNullOrWhiteSpace(titleText)
+			? TranslationServer.Translate("Asset Browser")
+			: TranslationServer.Translate(titleText);
+
+		if (!string.IsNullOrEmpty(titleText) && titleText.Contains("Minimap", StringComparison.OrdinalIgnoreCase))
+		{
+			CustomMinimumSize = new Vector2(800, 520);
+			SetUncompressedPanelTexture("res://Assets/UI/map_editor_publish.webp", 78, 38, 75, 75);
+			_gridPanel.CustomMinimumSize = new Vector2(0, 180);
+			if (TitleLabel?.GetParent() is MarginContainer titleMargin)
+			{
+				titleMargin.AddThemeConstantOverride("margin_top", -64);
+			}
+			if (CloseButton != null)
+			{
+				CloseButton.Visible = false;
+			}
+			if (FooterHBox?.GetParent() is MarginContainer footerMargin)
+			{
+				footerMargin.AddThemeConstantOverride("margin_bottom", 16);
+				footerMargin.AddThemeConstantOverride("margin_right", 8);
+			}
+		}
+		else
+		{
+			CustomMinimumSize = new Vector2(780, 640);
+			SetUncompressedPanelTexture("res://Assets/UI/map_editor_assets_importer.webp", 30, 45, 70, 70);
+			_gridPanel.CustomMinimumSize = new Vector2(0, 320);
+			if (TitleLabel?.GetParent() is MarginContainer titleMargin)
+			{
+				titleMargin.AddThemeConstantOverride("margin_top", -14);
+			}
+			if (CloseButton != null)
+			{
+				CloseButton.Visible = true;
+				if (CloseButton.GetParent() is MarginContainer closeMargin)
+				{
+					closeMargin.AddThemeConstantOverride("margin_top", -18);
+				}
+			}
+			if (FooterHBox?.GetParent() is MarginContainer footerMargin)
+			{
+				footerMargin.AddThemeConstantOverride("margin_bottom", 10);
+				footerMargin.AddThemeConstantOverride("margin_right", 0);
+			}
+		}
+
+		_allowedExtensions = (allowedExtensions ?? Array.Empty<string>())
+			.Select(e => e.Trim().ToLowerInvariant())
+			.Select(e => e.StartsWith(".") ? e : "." + e)
+			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+		if (_allowedExtensions.Contains(".rmesh"))
+		{
+			requireRealmMetadata = true;
+		}
+
+		_requireRealmMetadata = requireRealmMetadata;
+
+		if (_allowedExtensions.Count > 0)
+		{
+			_lblFilterExtensions.Text = $"{TranslationServer.Translate("Extensions")}: {string.Join(", ", _allowedExtensions)}";
+			_lblFilterExtensions.Visible = true;
+		}
+		else
+		{
+			_lblFilterExtensions.Visible = false;
+		}
+
+		if (!_hasAutoRescannedOnFirstOpen || GameContext.AssetIndexService.GetAssetCount() == 0)
+		{
+			_hasAutoRescannedOnFirstOpen = true;
+			GameContext.AssetIndexService.RescanAllDirectories();
+		}
+
+		OpenDialog();
+
+		RefreshFolderChips();
+		RefreshAssetTypeFilterOptions();
+		RefreshSearchResults();
+		UpdateSelectedAssetDisplay();
+
+		Callable.From(() =>
+		{
+			UpdateVirtualGridSize(_matchingAssets.Count);
+			UpdateVisibleGridCells();
+		}).CallDeferred();
+	}
+}

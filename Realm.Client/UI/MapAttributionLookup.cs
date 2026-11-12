@@ -5,6 +5,7 @@ using System.Linq;
 using Godot;
 using Realm.Client.Core;
 using Realm.Shared.Distribution;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI;
 
@@ -47,7 +48,7 @@ public static class MapAttributionLookup
 		}
 		catch (Exception exception)
 		{
-			GD.PrintErr($"[MapAttributionLookup] Failed to read attribution for '{mapTitle}': {exception.Message}");
+			GameLog.LogError($"[MapAttributionLookup] Failed to read attribution for '{mapTitle}': {exception.Message}");
 			return new List<string>();
 		}
 	}

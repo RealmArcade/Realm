@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
@@ -24,61 +25,61 @@ public partial class SettingsMenu : Control
 
 	[Export] public bool IsOverlay = false;
 
-	private Panel _bgPanel;
-	private Panel _mainFrame;
-	private PanelContainer _videoPanel;
-	private PanelContainer _audioPanel;
-	private PanelContainer _controlsPanel;
-	private PanelContainer _otherPanel;
+	private Panel _bgPanel = null!;
+	private Panel _mainFrame = null!;
+	private PanelContainer _videoPanel = null!;
+	private PanelContainer _audioPanel = null!;
+	private PanelContainer _controlsPanel = null!;
+	private PanelContainer _otherPanel = null!;
 
-	private Label _settingsTitle;
-	private Label _videoTitle;
-	private Label _audioTitle;
-	private Label _controlsTitle;
-	private Label _otherTitle;
+	private Label _settingsTitle = null!;
+	private Label _videoTitle = null!;
+	private Label _audioTitle = null!;
+	private Label _controlsTitle = null!;
+	private Label _otherTitle = null!;
 
-	private OptionButton _resolutionOpt;
-	private OptionButton _qualityOpt;
-	private CheckBox _shadowsChk;
-	private CheckBox _dayNightLightingChk;
-	private CheckBox _weatherEffectsChk;
-	private CheckBox _floatingCombatTextChk;
-	private OptionButton _windowModeOpt;
-	private OptionButton _vsyncOpt;
-	private HSlider _fpsLimitSlider;
-	private Label _fpsLimitValLabel;
-	private OptionButton _healthBarsOpt;
-	private OptionButton _languageOpt;
-	private CheckBox _displayFpsChk;
-	private CheckBox _displayPingChk;
-	private CheckBox _unitOutlineChk;
-	private CheckBox _recordReplaysChk;
-	private CheckBox _seedMapFilesChk;
+	private OptionButton _resolutionOpt = null!;
+	private OptionButton _qualityOpt = null!;
+	private CheckBox _shadowsChk = null!;
+	private CheckBox _dayNightLightingChk = null!;
+	private CheckBox _weatherEffectsChk = null!;
+	private CheckBox _floatingCombatTextChk = null!;
+	private OptionButton _windowModeOpt = null!;
+	private OptionButton _vsyncOpt = null!;
+	private HSlider _fpsLimitSlider = null!;
+	private Label _fpsLimitValLabel = null!;
+	private OptionButton _healthBarsOpt = null!;
+	private OptionButton _languageOpt = null!;
+	private CheckBox _displayFpsChk = null!;
+	private CheckBox _displayPingChk = null!;
+	private CheckBox _unitOutlineChk = null!;
+	private CheckBox _recordReplaysChk = null!;
+	private CheckBox _seedMapFilesChk = null!;
 
-	private HSlider _masterSlider;
-	private HSlider _musicSlider;
-	private HSlider _sfxSlider;
-	private HSlider _voiceSlider;
+	private HSlider _masterSlider = null!;
+	private HSlider _musicSlider = null!;
+	private HSlider _sfxSlider = null!;
+	private HSlider _voiceSlider = null!;
 
 	private CheckBox? _dopplerChk;
 	private CheckBox? _distanceMuffleChk;
 
-	private Label _masterValLabel;
-	private Label _musicValLabel;
-	private Label _sfxValLabel;
-	private Label _voiceValLabel;
+	private Label _masterValLabel = null!;
+	private Label _musicValLabel = null!;
+	private Label _sfxValLabel = null!;
+	private Label _voiceValLabel = null!;
 
-	private HSlider _scrollSpeedSlider;
-	private HSlider _mouseSensSlider;
-	private HSlider _hudScaleSlider;
+	private HSlider _scrollSpeedSlider = null!;
+	private HSlider _mouseSensSlider = null!;
+	private HSlider _hudScaleSlider = null!;
 
-	private Label _scrollValLabel;
-	private Label _sensValLabel;
-	private Label _hudScaleValLabel;
+	private Label _scrollValLabel = null!;
+	private Label _sensValLabel = null!;
+	private Label _hudScaleValLabel = null!;
 
-	private Button _applyBtn;
-	private Button _cancelBtn;
-	private Button _resetBtn;
+	private Button _applyBtn = null!;
+	private Button _cancelBtn = null!;
+	private Button _resetBtn = null!;
 
 	public override void _Ready()
 	{
@@ -172,293 +173,6 @@ public partial class SettingsMenu : Control
 		LoadCurrentSettings();
 	}
 
-	private void ApplyThemeStyles()
-	{
-		ApplyBackgroundStyle();
-		ApplyContainerStyles();
-		ApplyTitleStyles();
-		ApplyLabelStyles();
-		ApplySeparatorStyles();
-		ApplyCheckboxStyles();
-	}
-
-	private void ApplyBackgroundStyle()
-	{
-		if (_bgPanel == null) return;
-
-		_bgPanel.Visible = true;
-		Texture2D bgTexture = null;
-		string[] bgPaths = new string[]
-		{
-			"res://Assets/UI/options_bg.webp",
-			"res://Assets/UI/menu_background_with_frame.webp"
-		};
-
-		foreach (var path in bgPaths)
-		{
-			if (!ResourceLoader.Exists(path)) continue;
-			bgTexture = TrimmedTextureLoader.LoadTrimmedTexture(path);
-			if (bgTexture != null) break;
-		}
-
-		if (bgTexture != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = bgTexture;
-			_bgPanel.AddThemeStyleboxOverride("panel", style);
-			_bgPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-		}
-		else
-		{
-			_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		}
-
-		if (GetNodeOrNull<ColorRect>("OverlayBg") is ColorRect rect)
-		{
-			rect.Visible = false;
-		}
-	}
-
-	private void ApplyContainerStyles()
-	{
-		if (GetNodeOrNull<Panel>("CenterContainer/ShadowPanel") is Panel shadowPanel)
-		{
-			var shadowStyle = new StyleBoxFlat();
-			shadowStyle.BgColor = new Color(0, 0, 0, 0);
-			shadowStyle.ShadowColor = new Color(0, 0, 0, 0.7f);
-			shadowStyle.ShadowSize = 24;
-			shadowStyle.ShadowOffset = new Vector2(0, 14);
-			shadowStyle.CornerRadiusTopLeft = 25;
-			shadowStyle.CornerRadiusTopRight = 25;
-			shadowStyle.CornerRadiusBottomLeft = 25;
-			shadowStyle.CornerRadiusBottomRight = 25;
-			shadowPanel.AddThemeStyleboxOverride("panel", shadowStyle);
-		}
-
-		_mainFrame.AddThemeStyleboxOverride("panel", UIStyle.CreateLightStonePanel());
-		_videoPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-		_audioPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-		_controlsPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-		_otherPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateLightInnerPanel());
-
-		if (GetNodeOrNull<Panel>("CenterContainer/MainFrame/TitlePanel") is Panel titlePanel)
-		{
-			var titleStyle = new StyleBoxFlat();
-			titleStyle.BgColor = new Color(0.24f, 0.21f, 0.18f, 1.0f);
-			titleStyle.BorderColor = new Color(0.45f, 0.40f, 0.32f, 1.0f);
-			titleStyle.SetBorderWidthAll(3);
-			titleStyle.CornerRadiusTopLeft = 8;
-			titleStyle.CornerRadiusTopRight = 8;
-			titleStyle.CornerRadiusBottomLeft = 8;
-			titleStyle.CornerRadiusBottomRight = 8;
-
-			titleStyle.ShadowColor = new Color(0, 0, 0, 0.75f);
-			titleStyle.ShadowSize = 12;
-			titleStyle.ShadowOffset = new Vector2(0, 6);
-
-			titlePanel.AddThemeStyleboxOverride("panel", titleStyle);
-		}
-
-		if (GetNodeOrNull<Panel>("CenterContainer/MainFrame/TitlePanel/TitleInnerPanel") is Panel titleInnerPanel)
-		{
-			var innerStyle = new StyleBoxFlat();
-			innerStyle.BgColor = new Color(0.18f, 0.16f, 0.14f, 1.0f);
-			innerStyle.BorderColor = new Color(0.82f, 0.72f, 0.50f, 0.5f);
-			innerStyle.SetBorderWidthAll(1);
-			innerStyle.CornerRadiusTopLeft = 5;
-			innerStyle.CornerRadiusTopRight = 5;
-			innerStyle.CornerRadiusBottomLeft = 5;
-			innerStyle.CornerRadiusBottomRight = 5;
-
-			titleInnerPanel.AddThemeStyleboxOverride("panel", innerStyle);
-		}
-	}
-
-	private void ApplyTitleStyles()
-	{
-		_settingsTitle.Text = TranslationServer.Translate("GAME SETTINGS");
-		_settingsTitle.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-		_settingsTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_settingsTitle.AddThemeColorOverride("font_outline_color", new Color(0.08f, 0.07f, 0.06f));
-		_settingsTitle.AddThemeConstantOverride("outline_size", 4);
-		_settingsTitle.AddThemeColorOverride("font_shadow_color", new Color(0.0f, 0.0f, 0.0f, 0.7f));
-		_settingsTitle.AddThemeConstantOverride("shadow_offset_x", 1);
-		_settingsTitle.AddThemeConstantOverride("shadow_offset_y", 2);
-		_settingsTitle.AddThemeFontSizeOverride("font_size", 26);
-		_settingsTitle.HorizontalAlignment = HorizontalAlignment.Center;
-		_settingsTitle.VerticalAlignment = VerticalAlignment.Center;
-
-		var headerStyle = new StyleBoxFlat();
-		headerStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
-		headerStyle.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
-		headerStyle.SetBorderWidthAll(1);
-		headerStyle.CornerRadiusTopLeft = 4;
-		headerStyle.CornerRadiusTopRight = 4;
-		headerStyle.CornerRadiusBottomLeft = 4;
-		headerStyle.CornerRadiusBottomRight = 4;
-		headerStyle.ContentMarginLeft = 14;
-		headerStyle.ContentMarginRight = 14;
-		headerStyle.ContentMarginTop = 8;
-		headerStyle.ContentMarginBottom = 8;
-
-		if (GetNodeOrNull<PanelContainer>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/TitleBox") is PanelContainer videoHeader)
-			videoHeader.AddThemeStyleboxOverride("panel", headerStyle);
-
-		if (GetNodeOrNull<PanelContainer>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/TitleBox") is PanelContainer audioHeader)
-			audioHeader.AddThemeStyleboxOverride("panel", headerStyle);
-
-		if (GetNodeOrNull<PanelContainer>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/TitleBox") is PanelContainer controlsHeader)
-			controlsHeader.AddThemeStyleboxOverride("panel", headerStyle);
-
-		if (GetNodeOrNull<PanelContainer>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/TitleBox") is PanelContainer otherHeader)
-			otherHeader.AddThemeStyleboxOverride("panel", headerStyle);
-
-		_videoTitle.Text = TranslationServer.Translate("VIDEO");
-		_videoTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_videoTitle.AddThemeFontSizeOverride("font_size", 18);
-		_videoTitle.HorizontalAlignment = HorizontalAlignment.Left;
-		_videoTitle.VerticalAlignment = VerticalAlignment.Center;
-
-		_audioTitle.Text = TranslationServer.Translate("AUDIO");
-		_audioTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_audioTitle.AddThemeFontSizeOverride("font_size", 18);
-		_audioTitle.HorizontalAlignment = HorizontalAlignment.Left;
-		_audioTitle.VerticalAlignment = VerticalAlignment.Center;
-
-		_controlsTitle.Text = TranslationServer.Translate("CONTROLS");
-		_controlsTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_controlsTitle.AddThemeFontSizeOverride("font_size", 18);
-		_controlsTitle.HorizontalAlignment = HorizontalAlignment.Left;
-		_controlsTitle.VerticalAlignment = VerticalAlignment.Center;
-
-		_otherTitle.Text = TranslationServer.Translate("OTHER");
-		_otherTitle.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_otherTitle.AddThemeFontSizeOverride("font_size", 18);
-		_otherTitle.HorizontalAlignment = HorizontalAlignment.Left;
-		_otherTitle.VerticalAlignment = VerticalAlignment.Center;
-	}
-
-	private void ApplyLabelStyles()
-	{
-		string[] labelPaths =
-		{
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/ResRow/ResLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/QualRow/QualLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/ModeRow/ModeLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/VsyncRow/VsyncLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FpsRow/FpsLimitLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/HealthBarsRow/HealthBarsLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/LanguageRow/LanguageLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/MasterRow/MasterLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/MusicRow/MusicLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/SfxRow/SfxLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/VoiceRow/VoiceLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/ScrollRow/ScrollLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/SensRow/SensLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/HudScaleRow/HudScaleLabel"
-		};
-		foreach (var path in labelPaths)
-		{
-			var lbl = GetNode<Label>(path);
-			lbl.Text = TranslationServer.Translate(lbl.Text);
-			lbl.AddThemeColorOverride("font_color", new Color(0.82f, 0.80f, 0.75f));
-			lbl.AddThemeFontSizeOverride("font_size", 14);
-		}
-
-		string[] valLabelPaths =
-		{
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/FpsRow/FpsLimitValLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/MasterRow/MasterValLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/MusicRow/MusicValLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/SfxRow/SfxValLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/VoiceRow/VoiceValLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/ScrollRow/ScrollValLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/SensRow/SensValLabel",
-			"CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/HudScaleRow/HudScaleValLabel"
-		};
-		var valLabelStyle = new StyleBoxFlat();
-		valLabelStyle.BgColor = new Color(0.12f, 0.11f, 0.10f, 0.6f);
-		valLabelStyle.BorderColor = new Color(0.40f, 0.35f, 0.28f, 0.7f);
-		valLabelStyle.SetBorderWidthAll(1);
-		valLabelStyle.CornerRadiusTopLeft = 4;
-		valLabelStyle.CornerRadiusTopRight = 4;
-		valLabelStyle.CornerRadiusBottomLeft = 4;
-		valLabelStyle.CornerRadiusBottomRight = 4;
-		valLabelStyle.ContentMarginLeft = 6;
-		valLabelStyle.ContentMarginRight = 6;
-		valLabelStyle.ContentMarginTop = 2;
-		valLabelStyle.ContentMarginBottom = 2;
-
-		foreach (var path in valLabelPaths)
-		{
-			var lbl = GetNode<Label>(path);
-			lbl.AddThemeStyleboxOverride("normal", valLabelStyle);
-			lbl.AddThemeColorOverride("font_color", new Color(0.88f, 0.82f, 0.65f));
-			lbl.AddThemeFontSizeOverride("font_size", 14);
-			lbl.HorizontalAlignment = HorizontalAlignment.Center;
-			lbl.VerticalAlignment = VerticalAlignment.Center;
-			lbl.CustomMinimumSize = new Vector2(40, 24);
-		}
-
-		_fpsLimitValLabel.CustomMinimumSize = new Vector2(76, 24);
-	}
-
-	private void ApplySeparatorStyles()
-	{
-		var sepStyle = new StyleBoxFlat();
-		sepStyle.BgColor = new Color(0.42f, 0.38f, 0.33f, 0.6f);
-		sepStyle.ContentMarginTop = 1;
-		sepStyle.ContentMarginBottom = 1;
-
-		var separators = new[]
-		{
-			GetNode<HSeparator>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/Separator"),
-			GetNode<HSeparator>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/AudioPanel/VBox/Separator"),
-			GetNode<HSeparator>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/Separator"),
-			GetNode<HSeparator>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Separator")
-		};
-		foreach (var sep in separators)
-		{
-			sep.AddThemeStyleboxOverride("separator", sepStyle);
-		}
-	}
-
-	private void ApplyCheckboxStyles()
-	{
-		UIStyle.ApplyCheckboxStyle(_shadowsChk);
-		_shadowsChk.Text = LocalizationManager.Translate(_shadowsChk.Text);
-		UIStyle.ApplyCheckboxStyle(_dayNightLightingChk);
-		_dayNightLightingChk.Text = LocalizationManager.Translate(_dayNightLightingChk.Text);
-		UIStyle.ApplyCheckboxStyle(_weatherEffectsChk);
-		_weatherEffectsChk.Text = LocalizationManager.Translate(_weatherEffectsChk.Text);
-		UIStyle.ApplyCheckboxStyle(_floatingCombatTextChk);
-		_floatingCombatTextChk.Text = LocalizationManager.Translate("Floating Combat Text");
-		UIStyle.ApplyCheckboxStyle(_displayFpsChk);
-		_displayFpsChk.Text = LocalizationManager.Translate("Display FPS");
-		UIStyle.ApplyCheckboxStyle(_displayPingChk);
-		_displayPingChk.Text = TranslationServer.Translate(_displayPingChk.Text);
-		UIStyle.ApplyCheckboxStyle(_unitOutlineChk);
-		_unitOutlineChk.Text = TranslationServer.Translate(_unitOutlineChk.Text);
-		_unitOutlineChk.TooltipText = TranslationServer.Translate(_unitOutlineChk.TooltipText);
-		UIStyle.ApplyCheckboxStyle(_recordReplaysChk);
-		_recordReplaysChk.Text = LocalizationManager.Translate("Record replays");
-		UIStyle.ApplyCheckboxStyle(_seedMapFilesChk);
-		_seedMapFilesChk.Text = LocalizationManager.Translate("Seed map files to other players");
-		_seedMapFilesChk.TooltipText = LocalizationManager.Translate("Volunteers a tiny portion of your internet to help players download maps, reducing server costs. Uncheck this if you have a capped internet data plan or a very slow connection");
-
-		if (_dopplerChk != null)
-		{
-			UIStyle.ApplyCheckboxStyle(_dopplerChk);
-			_dopplerChk.Text = TranslationServer.Translate(_dopplerChk.Text);
-		}
-
-		if (_distanceMuffleChk != null)
-		{
-			UIStyle.ApplyCheckboxStyle(_distanceMuffleChk);
-			_distanceMuffleChk.Text = TranslationServer.Translate(_distanceMuffleChk.Text);
-		}
-	}
-
 	private void PopulateDropdowns()
 	{
 		PopulateResolutionDropdown();
@@ -479,14 +193,18 @@ public partial class SettingsMenu : Control
 	private void PopulateResolutionDropdown()
 	{
 		_resolutionOpt.Clear();
-		if (GameSettings.Resolutions == null || GameSettings.Resolutions.Count == 0)
+		List<Vector2I>? resolutions = GameSettings.Resolutions;
+		if (resolutions == null || resolutions.Count == 0)
 		{
 			GameSettings.InitializeResolutions();
+			resolutions = GameSettings.Resolutions;
 		}
 
-		for (int i = 0; i < GameSettings.Resolutions.Count; i++)
+		if (resolutions == null) return;
+
+		for (int i = 0; i < resolutions.Count; i++)
 		{
-			var res = GameSettings.Resolutions[i];
+			var res = resolutions[i];
 			_resolutionOpt.AddItem($"{res.X} x {res.Y}", i);
 		}
 	}
@@ -565,35 +283,35 @@ public partial class SettingsMenu : Control
 
 	private void SetupCheckboxEvents()
 	{
-		_shadowsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_shadowsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_dayNightLightingChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_dayNightLightingChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_weatherEffectsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_weatherEffectsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_floatingCombatTextChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_floatingCombatTextChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_displayFpsChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_displayFpsChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_displayPingChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_displayPingChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_unitOutlineChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_unitOutlineChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_recordReplaysChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_recordReplaysChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		_seedMapFilesChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-		_seedMapFilesChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+		_shadowsChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_shadowsChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_dayNightLightingChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_dayNightLightingChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_weatherEffectsChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_weatherEffectsChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_floatingCombatTextChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_floatingCombatTextChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_displayFpsChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_displayFpsChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_displayPingChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_displayPingChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_unitOutlineChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_unitOutlineChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_recordReplaysChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_recordReplaysChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_seedMapFilesChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_seedMapFilesChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		if (_dopplerChk != null)
 		{
-			_dopplerChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-			_dopplerChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+			_dopplerChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+			_dopplerChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		}
 
 		if (_distanceMuffleChk != null)
 		{
-			_distanceMuffleChk.Pressed += () => GameContext.UserInterface.PlayClickSound();
-			_distanceMuffleChk.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+			_distanceMuffleChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+			_distanceMuffleChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		}
 	}
 
@@ -631,36 +349,16 @@ public partial class SettingsMenu : Control
 		foreach (var opt in dropdowns)
 		{
 			opt.Flat = false;
-			opt.AddThemeStyleboxOverride("normal", UIStyle.CreateLightDropdownNormal());
-			opt.AddThemeStyleboxOverride("hover", UIStyle.CreateLightDropdownHover());
-			opt.AddThemeStyleboxOverride("pressed", UIStyle.CreateLightDropdownPressed());
-			opt.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+			UIStyle.ApplyLightDropdown(opt);
 
 			opt.AddThemeColorOverride("font_color", new Color(0.9f, 0.85f, 0.75f));
 			opt.AddThemeColorOverride("font_hover_color", new Color(1.0f, 0.95f, 0.8f));
 			opt.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 			opt.AddThemeFontSizeOverride("font_size", 14);
 
-			opt.ItemSelected += (idx) => GameContext.UserInterface.PlayClickSound();
-			opt.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
+			opt.ItemSelected += (idx) => GameContext.UserInterface?.PlayClickSound();
+			opt.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		}
-	}
-
-	private void OnWindowModeSelected(long idx)
-	{
-		var mode = (WindowMode)idx;
-		bool isWindowed = mode == WindowMode.Windowed;
-		_resolutionOpt.Disabled = !isWindowed;
-
-		if (GameSettings.Resolutions == null || GameSettings.Resolutions.Count == 0) return;
-
-		if (!isWindowed)
-		{
-			_resolutionOpt.Select(0);
-			return;
-		}
-
-		_resolutionOpt.Select(Math.Clamp(GameSettings.ResolutionIdx, 0, GameSettings.Resolutions.Count - 1));
 	}
 
 	private void SetupSliders()
@@ -688,47 +386,42 @@ public partial class SettingsMenu : Control
 
 		var sliders = new[] { _masterSlider, _musicSlider, _sfxSlider, _voiceSlider, _scrollSpeedSlider, _mouseSensSlider, _hudScaleSlider, _fpsLimitSlider };
 
-		var trackStyle = UIStyle.CreateLightSliderTrack();
-		var fillStyle = UIStyle.CreateLightSliderFill();
-
 		var grabberTex = UIStyle.CreateSquareStoneGrabberTexture(false);
 		var grabberHiTex = UIStyle.CreateSquareStoneGrabberTexture(true);
 
 		foreach (var s in sliders)
 		{
-			s.AddThemeStyleboxOverride("slider", trackStyle);
-			s.AddThemeStyleboxOverride("grabber_area", fillStyle);
-			s.AddThemeStyleboxOverride("grabber_area_highlight", fillStyle);
+			UIStyle.ApplyLightSlider(s);
 			s.AddThemeIconOverride("grabber", grabberTex);
 			s.AddThemeIconOverride("grabber_highlight", grabberHiTex);
 
-			s.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-			s.DragEnded += (valChanged) => GameContext.UserInterface.PlayClickSound();
+			s.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+			s.DragEnded += (valChanged) => GameContext.UserInterface?.PlayClickSound();
 		}
 
 		_masterSlider.ValueChanged += (val) =>
 		{
 			GameSettings.MasterVolume = (float)val;
 			_masterValLabel.Text = val.ToString("0");
-			GameContext.UserInterface.UpdateAudioVolumes();
+			GameContext.UserInterface?.UpdateAudioVolumes();
 		};
 		_musicSlider.ValueChanged += (val) =>
 		{
 			GameSettings.MusicVolume = (float)val;
 			_musicValLabel.Text = val.ToString("0");
-			GameContext.UserInterface.UpdateAudioVolumes();
+			GameContext.UserInterface?.UpdateAudioVolumes();
 		};
 		_sfxSlider.ValueChanged += (val) =>
 		{
 			GameSettings.SfxVolume = (float)val;
 			_sfxValLabel.Text = val.ToString("0");
-			GameContext.UserInterface.UpdateAudioVolumes();
+			GameContext.UserInterface?.UpdateAudioVolumes();
 		};
 		_voiceSlider.ValueChanged += (val) =>
 		{
 			GameSettings.VoiceVolume = (float)val;
 			_voiceValLabel.Text = val.ToString("0");
-			GameContext.UserInterface.UpdateAudioVolumes();
+			GameContext.UserInterface?.UpdateAudioVolumes();
 		};
 		_scrollSpeedSlider.ValueChanged += (val) =>
 		{
@@ -751,7 +444,7 @@ public partial class SettingsMenu : Control
 		};
 		_fpsLimitSlider.DragEnded += (valueChanged) =>
 		{
-			int snappedFpsLimit = NormalizeFpsLimit((int)_fpsLimitSlider.Value);
+			int snappedFpsLimit = GameSettings.NormalizeFpsLimit((int)_fpsLimitSlider.Value);
 			if ((int)_fpsLimitSlider.Value != snappedFpsLimit)
 			{
 				_fpsLimitSlider.Value = snappedFpsLimit;
@@ -759,15 +452,9 @@ public partial class SettingsMenu : Control
 		};
 	}
 
-	private static int NormalizeFpsLimit(int fpsLimit)
-	{
-		if (fpsLimit <= 0) return 0;
-		return Math.Clamp(fpsLimit, GameSettings.MinFpsLimit, GameSettings.MaxFpsLimit);
-	}
-
 	private static string FormatFpsLimitValue(int fpsLimit)
 	{
-		int normalizedFpsLimit = NormalizeFpsLimit(fpsLimit);
+		int normalizedFpsLimit = GameSettings.NormalizeFpsLimit(fpsLimit);
 		return normalizedFpsLimit <= 0 ? TranslationServer.Translate("Unlimited") : normalizedFpsLimit.ToString();
 	}
 
@@ -798,14 +485,11 @@ public partial class SettingsMenu : Control
 		rightLbl.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		rightLbl.AddThemeFontSizeOverride("font_size", 14);
 
-		btn.AddThemeStyleboxOverride("normal", UIStyle.CreateLightButtonNormal());
-		btn.AddThemeStyleboxOverride("hover", UIStyle.CreateLightButtonHover());
-		btn.AddThemeStyleboxOverride("pressed", UIStyle.CreateLightButtonPressed());
-		btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		UIStyle.ApplyLightButton(btn);
 
 		btn.MouseEntered += () =>
 		{
-			GameContext.UserInterface.PlayHoverSound();
+			GameContext.UserInterface?.PlayHoverSound();
 			textLbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		};
 		btn.MouseExited += () => { textLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull); };
@@ -814,7 +498,7 @@ public partial class SettingsMenu : Control
 
 		btn.Pressed += () =>
 		{
-			GameContext.UserInterface.PlayClickSound();
+			GameContext.UserInterface?.PlayClickSound();
 			onClick?.Invoke();
 		};
 	}
@@ -840,7 +524,7 @@ public partial class SettingsMenu : Control
 		_windowModeOpt.Select((int)GameSettings.WindowModeIdx);
 		_vsyncOpt.Select(GameSettings.Vsync ? 0 : 1);
 
-		int fpsLimit = NormalizeFpsLimit(GameSettings.FpsLimit);
+		int fpsLimit = GameSettings.NormalizeFpsLimit(GameSettings.FpsLimit);
 		_fpsLimitSlider.Value = fpsLimit;
 		_fpsLimitValLabel.Text = FormatFpsLimitValue(fpsLimit);
 
@@ -911,7 +595,7 @@ public partial class SettingsMenu : Control
 
 			GameSettings.Save();
 			GameSettings.ApplyGraphicsSettings(this);
-			GameContext.UserInterface.UpdateAudioVolumes();
+			GameContext.UserInterface?.UpdateAudioVolumes();
 
 			if (GameContext.InGameHud != null)
 			{
@@ -924,8 +608,15 @@ public partial class SettingsMenu : Control
 				GameContext.MapEditorHud.UpdateFPSVisibility();
 			}
 
-			GD.Print("Settings Applied successfully!");
+			GameLog.LogToConsole("Settings Applied successfully!");
 			CloseOrTransition();
+		}
+		catch (Exception exception)
+		{
+			// The apply button is re-enabled by the finally, but without this catch a fault left the settings half
+			// applied with no log line at all, which reads exactly like the menu having done nothing.
+			GameLog.LogError($"[SettingsMenu] Applying settings failed: {exception}");
+			return;
 		}
 		finally
 		{
@@ -971,7 +662,7 @@ public partial class SettingsMenu : Control
 		GameSettings.WeatherEffectsEnabled = _weatherEffectsChk.ButtonPressed;
 		GameSettings.FloatingCombatText = _floatingCombatTextChk.ButtonPressed;
 
-		GameSettings.FpsLimit = NormalizeFpsLimit((int)_fpsLimitSlider.Value);
+		GameSettings.FpsLimit = GameSettings.NormalizeFpsLimit((int)_fpsLimitSlider.Value);
 	}
 
 	private void SaveGameplaySettings()
@@ -997,7 +688,7 @@ public partial class SettingsMenu : Control
 	public void CancelSettings()
 	{
 		GameSettings.Load();
-		GameContext.UserInterface.UpdateAudioVolumes();
+		GameContext.UserInterface?.UpdateAudioVolumes();
 		if (GameContext.InGameHud != null)
 		{
 			GameContext.InGameHud.UpdateFPSVisibility();
@@ -1019,7 +710,7 @@ public partial class SettingsMenu : Control
 		}
 		else
 		{
-			GameContext.UserInterface.TransitionTo(GameScreen.MainMenu);
+			GameContext.UserInterface?.TransitionTo(GameScreen.MainMenu);
 		}
 	}
 
@@ -1037,7 +728,7 @@ public partial class SettingsMenu : Control
 			GameContext.MapEditorHud.UpdateFPSVisibility();
 		}
 
-		GD.Print("Settings reset to defaults.");
+		GameLog.LogToConsole("Settings reset to defaults.");
 	}
 
 	public override void _ExitTree()

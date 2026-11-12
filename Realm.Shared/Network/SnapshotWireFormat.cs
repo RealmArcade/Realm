@@ -93,7 +93,7 @@ public static class SnapshotWireFormat
 	///     description that reuses the scratch buffer. One allocation per peer per tick is the price of that lifetime, and the
 	///     serialized buffer beside it is not allocated at all.
 	/// </summary>
-	internal static byte[] EncodeWith(Compressor compressor, ref byte[]? compressionBuffer, ReadOnlySpan<byte> serialized)
+	public static byte[] EncodeWith(Compressor compressor, ref byte[]? compressionBuffer, ReadOnlySpan<byte> serialized)
 	{
 		int bound = Compressor.GetCompressBound(serialized.Length);
 		byte[] buffer = compressionBuffer ??= new byte[bound];
@@ -112,7 +112,7 @@ public static class SnapshotWireFormat
 	///     hand the allocator a new buffer of the frame's own size for each of them. A baseline is over a hundred kilobytes,
 	///     which is a large-object allocation every time one arrives.
 	/// </summary>
-	internal static ReadOnlySpan<byte> DecodeWith(Decompressor decompressor, byte[] frame, ref byte[] serializedBuffer)
+	public static ReadOnlySpan<byte> DecodeWith(Decompressor decompressor, byte[] frame, ref byte[] serializedBuffer)
 	{
 		if (frame.Length == 0) return ReadOnlySpan<byte>.Empty;
 
@@ -128,7 +128,7 @@ public static class SnapshotWireFormat
 		return serializedBuffer.AsSpan(0, serializedLength);
 	}
 
-	internal static byte[] DecodeWith(Decompressor decompressor, byte[] frame)
+	public static byte[] DecodeWith(Decompressor decompressor, byte[] frame)
 	{
 		if (frame.Length == 0) return frame;
 

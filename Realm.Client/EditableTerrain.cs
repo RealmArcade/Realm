@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
@@ -22,7 +22,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		var result = TextureConverter.ProcessAndSaveTerrainTexture(globalInput, globalOutput);
 		if (!result.Success)
 		{
-			GD.PrintErr($"Failed to process terrain texture '{rawPngPath}': {result.ErrorMessage}");
+			GameLog.LogError($"Failed to process terrain texture '{rawPngPath}': {result.ErrorMessage}");
 			throw new InvalidOperationException($"Failed to process terrain texture: {result.ErrorMessage}");
 		}
 	}
@@ -90,7 +90,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		return true;
 	}
 
-		private void InitializeNewTerrainArrays(int newWidth, int newDepth, out TerrainCell[,] newCells, out int[,] newPathing, out TerrainSplatWeights[,] newSplatMap, out TerrainSplatWeights[,] newCliffSplatMap)
+		private void InitializeNewTerrainArrays(int newWidth, int newDepth, out TerrainCell[,] newCells, out int[,] newPathing, out TerrainSplatWeights[,] newSplatMap, out TerrainSplatWeights[,]? newCliffSplatMap)
 		{
 			newCells = new TerrainCell[newWidth, newDepth];
 			newPathing = new int[newWidth, newDepth];
@@ -98,7 +98,7 @@ public partial class EditableTerrain : RuntimeTerrain
 			newCliffSplatMap = CliffSplatMap != null ? new TerrainSplatWeights[newWidth + 1, newDepth + 1] : null;
 		}
 
-	private bool TryGetScaledTerrainArrays(int newWidth, int newDepth, out int finalWidth, out int finalDepth, out int oldWidth, out int oldDepth, out TerrainCell[,] oldCells, out int[,] oldPathing, out TerrainSplatWeights[,] oldSplatMap, out TerrainSplatWeights[,] oldCliffSplatMap, out TerrainCell[,] newCells, out int[,] newPathing, out TerrainSplatWeights[,] newSplatMap, out TerrainSplatWeights[,] newCliffSplatMap, out TerrainState state)
+	private bool TryGetScaledTerrainArrays(int newWidth, int newDepth, out int finalWidth, out int finalDepth, out int oldWidth, out int oldDepth, out TerrainCell[,] oldCells, out int[,]? oldPathing, out TerrainSplatWeights[,] oldSplatMap, out TerrainSplatWeights[,]? oldCliffSplatMap, out TerrainCell[,] newCells, out int[,] newPathing, out TerrainSplatWeights[,] newSplatMap, out TerrainSplatWeights[,]? newCliffSplatMap, out TerrainState state)
 	{
 		finalWidth = 0; finalDepth = 0; oldWidth = 0; oldDepth = 0;
 		oldCells = null!; oldPathing = null!; oldSplatMap = null!; oldCliffSplatMap = null!;
@@ -147,7 +147,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		}
 	}
 
-	private bool RemapSplatArray(TerrainSplatWeights[,] splatArray, IReadOnlyDictionary<int, int> remap)
+	private bool RemapSplatArray(TerrainSplatWeights[,]? splatArray, IReadOnlyDictionary<int, int> remap)
 	{
 		if (splatArray == null) return false;
 
@@ -210,7 +210,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		return newGridHeights;
 	}
 
-	private void PopulateScaledCellsAndPathing(int newWidth, int newDepth, int oldWidth, int oldDepth, float[,] newGridHeights, int[,] oldPathing, TerrainCell[,] newCells, int[,] newPathing)
+	private void PopulateScaledCellsAndPathing(int newWidth, int newDepth, int oldWidth, int oldDepth, float[,] newGridHeights, int[,]? oldPathing, TerrainCell[,] newCells, int[,] newPathing)
 	{
 		for (int z = 0; z < newDepth; z++)
 		{
@@ -238,7 +238,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		}
 	}
 
-	private void PopulateScaledSplatMaps(int newWidth, int newDepth, TerrainSplatWeights[,] oldSplatMap, TerrainSplatWeights[,] newSplatMap, int defaultIndex)
+	private void PopulateScaledSplatMaps(int newWidth, int newDepth, TerrainSplatWeights[,]? oldSplatMap, TerrainSplatWeights[,] newSplatMap, int defaultIndex)
 	{
 		for (int z = 0; z <= newDepth; z++)
 		{
@@ -258,7 +258,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		}
 	}
 
-	private void PopulateResizedCellsAndPathing(int newWidth, int newDepth, int oldWidth, int oldDepth, int offsetX, int offsetZ, TerrainCell[,] oldCells, int[,] oldPathing, TerrainCell[,] newCells, int[,] newPathing)
+	private void PopulateResizedCellsAndPathing(int newWidth, int newDepth, int oldWidth, int oldDepth, int offsetX, int offsetZ, TerrainCell[,]? oldCells, int[,]? oldPathing, TerrainCell[,] newCells, int[,] newPathing)
 	{
 		for (int z = 0; z < newDepth; z++)
 		{
@@ -291,7 +291,7 @@ public partial class EditableTerrain : RuntimeTerrain
 		return x >= 0 && x < width && z >= 0 && z < depth;
 	}
 
-	private void PopulateResizedSplatMap(int newWidth, int newDepth, int offsetX, int offsetZ, TerrainSplatWeights[,] oldSplatMap, TerrainSplatWeights[,] newSplatMap, int defaultSolidIndex)
+	private void PopulateResizedSplatMap(int newWidth, int newDepth, int offsetX, int offsetZ, TerrainSplatWeights[,]? oldSplatMap, TerrainSplatWeights[,] newSplatMap, int defaultSolidIndex)
 	{
 		for (int z = 0; z <= newDepth; z++)
 		{
@@ -340,23 +340,22 @@ public partial class EditableTerrain : RuntimeTerrain
 		return true;
 	}
 
-	private void ApplySnapshotData(int newWidth, int newDepth, float quadSize, TerrainCell[,] calculatedCells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap)
+	private void ApplySnapshotData(int newWidth, int newDepth, float quadSize, TerrainCell[,]? calculatedCells, int[,]? pathingCodes, TerrainSplatWeights[,]? splatMap, TerrainSplatWeights[,]? cliffSplatMap)
 	{
 		int[,] clonedPathing = pathingCodes != null ? (int[,])pathingCodes.Clone() : new int[newWidth, newDepth];
 		TerrainSplatWeights[,] clonedSplatMap = splatMap != null ? (TerrainSplatWeights[,])splatMap.Clone() : new TerrainSplatWeights[newWidth + 1, newDepth + 1];
-		TerrainSplatWeights[,] clonedCliffSplatMap = cliffSplatMap != null ? (TerrainSplatWeights[,])cliffSplatMap.Clone() : null;
+		TerrainCell[,] clonedCells = calculatedCells != null ? (TerrainCell[,])calculatedCells.Clone() : new TerrainCell[newWidth, newDepth];
+		TerrainSplatWeights[,]? clonedCliffSplatMap = cliffSplatMap != null ? (TerrainSplatWeights[,])cliffSplatMap.Clone() : null;
 
-		ApplyNewTerrainState(newWidth, newDepth, quadSize, calculatedCells, clonedPathing, clonedSplatMap, clonedCliffSplatMap);
+		ApplyNewTerrainState(newWidth, newDepth, quadSize, clonedCells, clonedPathing, clonedSplatMap, clonedCliffSplatMap);
 		UpdateWaterTransform();
 	}
 
-	private void ApplyNewTerrainState(int newWidth, int newDepth, float quadSize, TerrainCell[,] newCells, int[,] newPathing, TerrainSplatWeights[,] newSplatMap, TerrainSplatWeights[,] newCliffSplatMap)
+	private void ApplyNewTerrainState(int newWidth, int newDepth, float quadSize, TerrainCell[,] newCells, int[,] newPathing, TerrainSplatWeights[,] newSplatMap, TerrainSplatWeights[,]? newCliffSplatMap)
 	{
-		ref var state = ref GameContext.World.Get<TerrainState>(GameContext.Simulation.WorldEntity);
-		GameContext.World.Set(GameContext.Simulation.WorldEntity, new TerrainState(
-			newWidth, newDepth, quadSize, state.CellSize,
-			newCells, newPathing, state.NavMesh, state.NavMeshQuery
-		));
+		if (GameContext.World == null) return;
+
+		TerrainStateStore.ReplaceGrid(newWidth, newDepth, quadSize, newCells, newPathing);
 
 		_localCells = newCells;
 		_localPathingCodes = newPathing;
@@ -372,14 +371,14 @@ public partial class EditableTerrain : RuntimeTerrain
 		UpdateMeshAndPhysics();
 	}
 
-	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,] cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
+	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, TerrainCell[,]? cells, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
 	{
 		if (!ValidateAndClampDimensions(ref newWidth, ref newDepth)) return;
 		TerrainCell[,] clonedCells = cells != null ? (TerrainCell[,])cells.Clone() : new TerrainCell[newWidth, newDepth];
 		ApplySnapshotData(newWidth, newDepth, quadSize, clonedCells, pathingCodes, splatMap, cliffSplatMap);
 	}
 
-	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,] cliffSplatMap = null)
+	public override void RestoreTerrainFromSnapshot(int newWidth, int newDepth, float quadSize, float[,] heights, int[,] pathingCodes, TerrainSplatWeights[,] splatMap, TerrainSplatWeights[,]? cliffSplatMap = null)
 	{
 		if (!ValidateAndClampDimensions(ref newWidth, ref newDepth)) return;
 		float[,] clonedSource = (float[,])heights.Clone();

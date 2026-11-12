@@ -19,7 +19,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		string Title { get; }
 		string Description { get; }
 		string Icon { get; }
-		Control CreateConfigurationControl();
+		Control? CreateConfigurationControl();
 		Task ExecuteAsync(IProgress<(double Progress, string Status)> progress);
 	}
 
@@ -30,7 +30,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		public string Description => TranslationServer.Translate("Scans the active map's metadata templates and queries the local Content Addressable Storage (CAS) asset index to randomly assign matching models, textures, animations, and audio clips to templates with missing asset references.");
 		public string Icon => UnicodeIcons.DICE;
 
-		private CheckBox _chkOnlyFillEmpty;
+		private CheckBox _chkOnlyFillEmpty = null!;
 
 		public Control CreateConfigurationControl()
 		{
@@ -80,7 +80,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		public string Description => TranslationServer.Translate("Removes manifest.json entries for asset files that no longer exist and for assets that are not referenced by any template in metadata.json.");
 		public string Icon => UnicodeIcons.TRASH;
 
-		public Control CreateConfigurationControl()
+		public Control? CreateConfigurationControl()
 		{
 			return null;
 		}
@@ -158,15 +158,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		{
 			var row = new PanelContainer();
 			row.Name = "SuggestionRow_PanelContainer";
-			var rowStyle = new StyleBoxFlat
-			{
-				BgColor = new Color(0.16f, 0.17f, 0.22f, 0.9f),
-				CornerRadiusTopLeft = 4,
-				CornerRadiusTopRight = 4,
-				CornerRadiusBottomLeft = 4,
-				CornerRadiusBottomRight = 4
-			};
-			row.AddThemeStyleboxOverride("panel", rowStyle);
+			row.AddThemeStyleboxOverride("panel", UIStyle.CreateFlatFillPlate(new Color(0.16f, 0.17f, 0.22f, 0.9f)));
 
 			var rowHBox = new HBoxContainer();
 			rowHBox.Name = "SuggestionRowHBox_HBoxContainer";
@@ -231,17 +223,17 @@ public partial class UtilitiesDialog : FloatingDialogBase
 	}
 
 	private readonly List<IUtilityOperation> _operations = new();
-	private IUtilityOperation _selectedOperation;
+	private IUtilityOperation _selectedOperation = null!;
 
-	private VBoxContainer _sidebarVBox;
-	private Label _lblDetailTitle;
-	private Label _lblDetailDescription;
-	private VBoxContainer _configContainer;
-	private VBoxContainer _progressContainer;
-	private Label _lblProgressStatus;
-	private ProgressBar _progressBar;
-	private Button _btnRunUtility;
-	private Button _btnCloseFooter;
+	private VBoxContainer _sidebarVBox = null!;
+	private Label _lblDetailTitle = null!;
+	private Label _lblDetailDescription = null!;
+	private VBoxContainer _configContainer = null!;
+	private VBoxContainer _progressContainer = null!;
+	private Label _lblProgressStatus = null!;
+	private ProgressBar _progressBar = null!;
+	private Button _btnRunUtility = null!;
+	private Button _btnCloseFooter = null!;
 	private readonly List<Button> _operationButtons = new();
 	private bool _isRunning = false;
 
@@ -341,19 +333,8 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		var disclaimerPanel = new PanelContainer();
 		disclaimerPanel.Name = "DisclaimerPanel_PanelContainer";
 		disclaimerPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		var disclaimerStyle = new StyleBoxFlat();
-		disclaimerStyle.BgColor = new Color(0.28f, 0.16f, 0.08f, 0.85f);
-		disclaimerStyle.BorderColor = new Color(0.85f, 0.55f, 0.2f, 0.95f);
-		disclaimerStyle.SetBorderWidthAll(1);
-		disclaimerStyle.CornerRadiusTopLeft = 4;
-		disclaimerStyle.CornerRadiusTopRight = 4;
-		disclaimerStyle.CornerRadiusBottomLeft = 4;
-		disclaimerStyle.CornerRadiusBottomRight = 4;
-		disclaimerStyle.ContentMarginLeft = 12;
-		disclaimerStyle.ContentMarginRight = 12;
-		disclaimerStyle.ContentMarginTop = 8;
-		disclaimerStyle.ContentMarginBottom = 8;
-		disclaimerPanel.AddThemeStyleboxOverride("panel", disclaimerStyle);
+		disclaimerPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateCardPlate(
+			new Color(0.28f, 0.16f, 0.08f, 0.85f), new Color(0.85f, 0.55f, 0.2f, 0.95f), 1, 4, 12, 12, 8, 8));
 
 		var disclaimerHBox = new HBoxContainer();
 		disclaimerHBox.Name = "DisclaimerHBox_HBoxContainer";
@@ -396,12 +377,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		_lblProgressStatus.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		_progressContainer.AddChild(_lblProgressStatus);
 
-		_progressBar = new ProgressBar();
-		_progressBar.Name = "ProgressBar_ProgressBar";
-		_progressBar.CustomMinimumSize = new Vector2(0, 22);
-		_progressBar.MinValue = 0;
-		_progressBar.MaxValue = 100;
-		_progressBar.Value = 0;
+		_progressBar = UIStyle.CreateProgressBar(0f, 22f);
 		_progressBar.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_progressContainer.AddChild(_progressBar);
 
@@ -447,9 +423,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		for (int i = 0; i < _operations.Count; i++)
 		{
 			var op = _operations[i];
-			var btn = new Button();
-			btn.Name = "Btn_Button";
-			btn.Set("icon_max_width", 0);
+			var btn = CreateDialogButton();
 			btn.Text = $"{op.Icon} {op.Title}";
 			btn.Alignment = HorizontalAlignment.Left;
 			btn.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -542,6 +516,13 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		try
 		{
 			await _selectedOperation.ExecuteAsync(progressReporter);
+		}
+		catch (Exception exception)
+		{
+			// The finally still has to run, and a failed utility must not report completion, so the fault is logged here
+			// and the method returns through the finally instead of escaping this async void unobserved.
+			GameLog.LogError($"[UtilitiesDialog] The '{opName}' utility failed: {exception}");
+			return;
 		}
 		finally
 		{

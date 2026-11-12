@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
@@ -11,7 +12,7 @@ namespace Realm.Client.Services;
 
 public class ClientRpcService
 {
-	private static bool TryResolveLocalPlayer(int playerIndex, out GameHost host)
+	private static bool TryResolveLocalPlayer(int playerIndex, [NotNullWhen(true)] out GameHost? host)
 	{
 		host = GameContext.Host;
 		if (host == null || !GodotObject.IsInstanceValid(host))
@@ -125,7 +126,7 @@ public class ClientRpcService
 		if (host == null || !GodotObject.IsInstanceValid(host))
 			return;
 
-		GD.Print($"[MAP BROADCAST] {message}");
+		GameLog.LogToConsole($"[MAP BROADCAST] {message}");
 		BroadcastFeedbackText(message, new Vector3(0.9f, 0.9f, 0.9f));
 		GameContext.NetworkService?.BroadcastMessageDomainLogic(message);
 	}
@@ -225,7 +226,7 @@ public class ClientRpcService
 		if (host == null || !GodotObject.IsInstanceValid(host))
 			return;
 
-		GD.Print("[GameHost] Victory triggered by map script!");
+		GameLog.LogToConsole("[GameHost] Victory triggered by map script!");
 		GameContext.SimulationService?.TriggerVictoryDomain();
 		Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, true)).CallDeferred();
 	}
@@ -236,7 +237,7 @@ public class ClientRpcService
 		if (host == null || !GodotObject.IsInstanceValid(host))
 			return;
 
-		GD.Print("[GameHost] Defeat triggered by map script!");
+		GameLog.LogToConsole("[GameHost] Defeat triggered by map script!");
 		GameContext.SimulationService?.TriggerDefeatDomain();
 		Callable.From(() => GameContext.UserInterface?.TransitionTo(GameScreen.GameOver, false)).CallDeferred();
 	}

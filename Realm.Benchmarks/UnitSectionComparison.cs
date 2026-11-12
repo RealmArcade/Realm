@@ -1,6 +1,6 @@
 namespace Realm.Benchmarks;
 
-public sealed record UnitSectionComparison(
+public record UnitSectionComparison(
 	double Units,
 	double RecordSerializedBytes,
 	double RecordFrameBytes,

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -33,7 +33,7 @@ public class MapEditorUxTests
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1500);
 
-		GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
+		GameContext.UserInterface?.TransitionTo(GameScreen.MapEditorHUD);
 		await runner.AwaitMillis(2500);
 
 		var hud = GameContext.MapEditorHud;
@@ -82,7 +82,7 @@ public class MapEditorUxTests
 		ISceneRunner runner = ISceneRunner.Load("res://GameHost.tscn");
 		await runner.AwaitMillis(1500);
 
-		GameContext.UserInterface.TransitionTo(GameScreen.MapEditorHUD);
+		GameContext.UserInterface?.TransitionTo(GameScreen.MapEditorHUD);
 		await runner.AwaitMillis(2500);
 
 		var gameHost = GameContext.Host;
@@ -94,51 +94,52 @@ public class MapEditorUxTests
 		int deepMossIndex = 1;
 		int lavaVeinIndex = 3;
 
-		var displayNames = Enumerable.ToList(GameContext.EditorService.SwatchDisplayNames);
+		var displayNames = Enumerable.ToList(GameContext.EditorService.Swatches.DisplayNames);
 		for (int i = 0; i < displayNames.Count; i++)
 		{
 			if (displayNames[i].Equals("Deep Moss", StringComparison.OrdinalIgnoreCase)) deepMossIndex = i;
 			if (displayNames[i].Equals("Lava Vein", StringComparison.OrdinalIgnoreCase)) lavaVeinIndex = i;
 		}
 
-		GameContext.EditorService.EditorPaintTextureIndex = deepMossIndex;
-		GameContext.EditorService.EditorCliffPaintTextureIndex = lavaVeinIndex;
+		GameContext.EditorService.Tools.PaintTextureIndex = deepMossIndex;
+		GameContext.EditorService.Tools.CliffPaintTextureIndex = lavaVeinIndex;
 
-		GameContext.Host.ActiveEditorTool = EditorTool.Raise;
-		GameContext.Host.EditorBlockMode = true;
-		GameContext.Host.EditorBlockLevelHeight = 8.0f;
-		GameContext.Host.EditorBrushRadius = 14.0f;
-		GameContext.Host.EditorBrushIsSquare = true;
+		gameHost!.ActiveEditorTool = EditorTool.Raise;
+		gameHost!.EditorBlockMode = true;
+		gameHost!.EditorBlockLevelHeight = 8.0f;
+		gameHost!.EditorBrushRadius = 14.0f;
+		gameHost!.EditorBrushIsSquare = true;
 
 		var editorService = GameContext.EditorService;
-		editorService.SetTerrainSplatMap(GameContext.Host.GroundTerrain.SplatMap);
+		editorService.Surface.AttachSplatMaps(gameHost!.RequireGroundTerrain().SplatMap);
 
 		Vector3 raiseCenter = new Vector3(0.0f, 0.0f, -10.0f);
 
-		editorService.BeginTerrainDraw(
+		var terrain = gameHost!.RequireGroundTerrain();
+		editorService.TerrainEdit.BeginDraw(
 			raiseCenter,
-			GameContext.Host.ActiveEditorTool,
-			GameContext.Host.EditorBlockMode,
-			GameContext.Host.EditorBlockLevelHeight,
-			GameContext.Host.GroundTerrain.Heights,
-			GameContext.Host.GroundTerrain.SplatMap,
-			GameContext.Host.GroundTerrain.PathingCodes);
+			gameHost!.ActiveEditorTool,
+			gameHost!.EditorBlockMode,
+			gameHost!.EditorBlockLevelHeight,
+			terrain.Heights,
+			terrain.SplatMap,
+			terrain.PathingCodes);
 
-		var res = editorService.ApplyContinuousTerrainEditing(
+		var res = editorService.TerrainEdit.Apply(
 			raiseCenter, 1.0f,
-			GameContext.Host.ActiveEditorTool,
-			GameContext.Host.EditorBrushRadius, GameContext.Host.EditorBrushStrength,
-			GameContext.Host.EditorBrushIsSquare,
-			GameContext.Host.EditorBlockMode, GameContext.Host.EditorBlockLevelHeight,
-			GameContext.EditorService.EditorPaintTextureIndex, GameContext.EditorService.EditorCliffPaintTextureIndex,
+			gameHost!.ActiveEditorTool,
+			gameHost!.EditorBrushRadius, gameHost!.EditorBrushStrength,
+			gameHost!.EditorBrushIsSquare,
+			gameHost!.EditorBlockMode, gameHost!.EditorBlockLevelHeight,
+			GameContext.EditorService.Tools.PaintTextureIndex, GameContext.EditorService.Tools.CliffPaintTextureIndex,
 			0, true, true);
 
-		editorService.EndTerrainDraw(GameContext.Host.GroundTerrain.Heights, GameContext.Host.GroundTerrain.SplatMap, GameContext.Host.GroundTerrain.PathingCodes);
+		editorService.TerrainEdit.EndDraw(terrain.Heights, terrain.SplatMap, terrain.PathingCodes);
 
-		GameContext.Host.GroundTerrain.UpdateMeshAndPhysics(true, true);
+		terrain.UpdateMeshAndPhysics(true, true);
 		await runner.AwaitMillis(1000);
 
-		var camera = GameContext.Host.MainCamera;
+		var camera = gameHost!.MainCamera;
 		if (camera != null)
 		{
 			camera.Position = new Vector3(0.0f, 14.0f, 18.0f);
@@ -147,7 +148,7 @@ public class MapEditorUxTests
 
 		await runner.AwaitMillis(1000);
 
-		Image image = runner.Scene().GetViewport().GetTexture().GetImage();
+		Image image = SceneRunnerCapture.CaptureViewportImage(runner);
 
 		string tempDir = @"C:\temp\realm_screenshots";
 		Directory.CreateDirectory(tempDir);
