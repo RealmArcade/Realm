@@ -24,7 +24,8 @@ public sealed record ToolAccordionHooks(
 	Action DeleteSelectedObjectRequested,
 	Action<string> ShowFeedback,
 	Action RefreshCoordinateList,
-	Action<string> OpenInstanceManager);
+	Action<string> OpenInstanceManager,
+	Action OpenSpawnAnchors);
 
 /// <summary>
 /// The tool accordion in the editor's right panel: the per-module card grids (terrain, texture, pathing, objects,
@@ -70,8 +71,7 @@ public sealed class ToolAccordionPanel
 	public LineEdit CoordinateNameInput { get; private set; } = null!;
 	public Button CommitCoordinateButton { get; private set; } = null!;
 	public Button ViewCoordinatesButton { get; private set; } = null!;
-	public OptionButton SpawnAnchorPlayerOption { get; private set; } = null!;
-	public Button CommitSpawnAnchorButton { get; private set; } = null!;
+	public Button OpenSpawnAnchorsButton { get; private set; } = null!;
 
 	public void Build(ToolAccordionHooks hooks)
 	{
@@ -197,30 +197,14 @@ public sealed class ToolAccordionPanel
 		ViewCoordinatesButton = hooks.Owner.GetNode<Button>(ContentPath + "/PanelCoordinatesVBox/BtnViewCoordinates");
 		hooks.SetupOptionButton(ViewCoordinatesButton, $"{UnicodeIcons.LIST} View Existing Coordinates", () => hooks.OpenInstanceManager("Coordinates"), 11, "Open instance manager to view and locate existing defined coordinates");
 
-		SpawnAnchorPlayerOption = hooks.Owner.GetNode<OptionButton>(ContentPath + "/PanelCoordinatesVBox/SpawnAnchorRow/OptSpawnAnchorPlayer");
-		for (int slot = 1; slot <= EcsWorld.MAX_PLAYERS; slot++)
-		{
-			SpawnAnchorPlayerOption.AddItem(string.Format(TranslationServer.Translate("Slot {0}"), slot), slot);
-		}
+		Label spawnAnchorsTitle = hooks.Owner.GetNode<Label>(ContentPath + "/PanelCoordinatesVBox/LblSpawnAnchorTitle");
+		spawnAnchorsTitle.Text = TranslationServer.Translate("SPAWN ANCHORS");
 
-		CommitSpawnAnchorButton = hooks.Owner.GetNode<Button>(ContentPath + "/PanelCoordinatesVBox/BtnCommitSpawnAnchor");
-		hooks.SetupButton(CommitSpawnAnchorButton, $"{UnicodeIcons.PIN} SEAT AREA", null, 11, "Seat the drawn area's centre as the spawn anchor of the selected player slot");
-		CommitSpawnAnchorButton.Pressed += () =>
-		{
-			int slot = (int)SpawnAnchorPlayerOption.GetItemId(SpawnAnchorPlayerOption.Selected);
-			var result = GameContext.IEditorAPI?.CommitSpawnAnchor(slot,
-				GameContext.EditorService.Tools.PendingCoordinateMinX, GameContext.EditorService.Tools.PendingCoordinateMinZ,
-				GameContext.EditorService.Tools.PendingCoordinateMaxX, GameContext.EditorService.Tools.PendingCoordinateMaxZ);
+		Label spawnAnchorsInstructions = hooks.Owner.GetNode<Label>(ContentPath + "/PanelCoordinatesVBox/LblSpawnAnchorInstructions");
+		spawnAnchorsInstructions.Text = TranslationServer.Translate("Seat each player in a coordinate. A match starts that player somewhere inside it.");
 
-			if (result == null || !result.Value.Success)
-			{
-				hooks.ShowFeedback(result?.Error ?? TranslationServer.Translate("Draw an area with the coordinate tool first."));
-				return;
-			}
-
-			hooks.RefreshCoordinateList();
-			hooks.ShowFeedback(string.Format(TranslationServer.Translate("Slot {0} now starts at the drawn area."), slot));
-		};
+		OpenSpawnAnchorsButton = hooks.Owner.GetNode<Button>(ContentPath + "/PanelCoordinatesVBox/BtnOpenSpawnAnchors");
+		hooks.SetupButton(OpenSpawnAnchorsButton, $"{UnicodeIcons.PIN} SPAWN ANCHORS", () => hooks.OpenSpawnAnchors(), 11, "Seat players in the coordinates they begin a match inside");
 	}
 
 	/// <summary>

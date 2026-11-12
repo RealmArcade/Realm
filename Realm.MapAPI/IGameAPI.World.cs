@@ -141,8 +141,8 @@ public partial interface IGameAPI
 
 	/// <summary>
 	/// Gets how many player starting points the map instance the match is playing declares.
-	/// A spawn anchor joins a player slot to a point on the board, and it is authored with the board's terrain instead
-	/// of in a script, so one ruleset can be played on any board that seats its players. A map that declares none
+	/// A spawn anchor joins a player slot to a named coordinate of the board, and it is authored with the board's terrain
+	/// instead of in a script, so one ruleset can be played on any board that seats its players. A map that declares none
 	/// answers zero, which is how a script tells a board meant for it apart from one it was pointed at by mistake.
 	/// </summary>
 	/// <returns>The number of spawn anchors the loaded map declares.</returns>
@@ -150,12 +150,14 @@ public partial interface IGameAPI
 
 	/// <summary>
 	/// Gets where the map instance places the starting point of one player slot.
-	/// The point is snapped to the ground of the loaded terrain, so it is a position a starting building can be placed
-	/// at and a camera can be moved to without the script reading a height field itself. A slot the map declares no
-	/// anchor for answers <see cref="Vector3.Zero"/>.
+	/// The anchor is the coordinate the board seats that slot inside, and the point is picked within it when the match
+	/// begins, so two players assigned the same ground do not stand on the identical step. The point is snapped to the
+	/// ground of the loaded terrain, so it is a position a starting building can be placed at and a camera can be moved to
+	/// without the script reading a height field itself. A slot the map declares no usable anchor for is seated anywhere on
+	/// the board, so this never answers a point a match cannot use.
 	/// </summary>
 	/// <param name="playerSlot">The one-based player slot the lobby seats a player in, as the map's own slot numbering states it.</param>
-	/// <returns>The ground position of that slot's anchor, or <see cref="Vector3.Zero"/> when the map declares none for it.</returns>
+	/// <returns>The ground position of that slot's anchor, or a point anywhere on the board when the map declares none for it.</returns>
 	Vector3 GetSpawnAnchor(int playerSlot);
 
 	/// <summary>

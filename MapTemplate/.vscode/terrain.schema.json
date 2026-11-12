@@ -766,11 +766,8 @@
           "Player": {
             "type": "integer"
           },
-          "PosX": {
-            "type": "number"
-          },
-          "PosZ": {
-            "type": "number"
+          "CoordinateName": {
+            "type": "string"
           }
         }
       }

@@ -1976,22 +1976,14 @@
             <param name="value">Row value text.</param>
             <param name="color">Optional RGB tint for the label text.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItem(System.String,System.Numerics.Vector3,System.Int32,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItem(System.String,System.Numerics.Vector2,System.Int32,System.Single)">
             <summary>
-            Spawns a pickup loot item at the specified 3D world space coordinates.
+            Spawns a pickup loot item at a point on the ground, the way <see cref="M:Realm.MapAPI.IGameAPI.SpawnUnitForPlayer(System.String,System.Numerics.Vector2,System.Int32,System.Boolean,System.Boolean)" /> does:
+            the point states where on the board the item lies and the engine reads the terrain's height there, so a map never
+            has to sample the height field to drop something that lands on the ground.
             </summary>
             <param name="itemTypeId">The identifier of the item type from the item registry.</param>
-            <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
-            <param name="charges">The initial charge count or stacked quantity for the item.</param>
-            <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
-            <returns>The spawned loot item identifier.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItemAtLocation(System.String,System.Numerics.Vector3,System.Int32,System.Single)">
-            <summary>
-            Spawns a pickup loot item at the specified 3D world space coordinates.
-            </summary>
-            <param name="itemTypeId">The identifier of the item type from the item registry.</param>
-            <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+            <param name="position">The ground position in 2D board space (X, Z); the height comes from the terrain.</param>
             <param name="charges">The initial charge count or stacked quantity for the item.</param>
             <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
             <returns>The spawned loot item identifier.</returns>
@@ -3321,8 +3313,8 @@
         <member name="M:Realm.MapAPI.IGameAPI.GetSpawnAnchorCount">
             <summary>
             Gets how many player starting points the map instance the match is playing declares.
-            A spawn anchor joins a player slot to a point on the board, and it is authored with the board's terrain instead
-            of in a script, so one ruleset can be played on any board that seats its players. A map that declares none
+            A spawn anchor joins a player slot to a named coordinate of the board, and it is authored with the board's terrain
+            instead of in a script, so one ruleset can be played on any board that seats its players. A map that declares none
             answers zero, which is how a script tells a board meant for it apart from one it was pointed at by mistake.
             </summary>
             <returns>The number of spawn anchors the loaded map declares.</returns>
@@ -3330,12 +3322,14 @@
         <member name="M:Realm.MapAPI.IGameAPI.GetSpawnAnchor(System.Int32)">
             <summary>
             Gets where the map instance places the starting point of one player slot.
-            The point is snapped to the ground of the loaded terrain, so it is a position a starting building can be placed
-            at and a camera can be moved to without the script reading a height field itself. A slot the map declares no
-            anchor for answers <see cref="P:System.Numerics.Vector3.Zero"/>.
+            The anchor is the coordinate the board seats that slot inside, and the point is picked within it when the match
+            begins, so two players assigned the same ground do not stand on the identical step. The point is snapped to the
+            ground of the loaded terrain, so it is a position a starting building can be placed at and a camera can be moved to
+            without the script reading a height field itself. A slot the map declares no usable anchor for is seated anywhere on
+            the board, so this never answers a point a match cannot use.
             </summary>
             <param name="playerSlot">The one-based player slot the lobby seats a player in, as the map's own slot numbering states it.</param>
-            <returns>The ground position of that slot's anchor, or <see cref="P:System.Numerics.Vector3.Zero"/> when the map declares none for it.</returns>
+            <returns>The ground position of that slot's anchor, or a point anywhere on the board when the map declares none for it.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitConstructionProgress(Realm.Ecs.UnitId)">
             <summary>

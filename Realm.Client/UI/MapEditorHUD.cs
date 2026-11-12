@@ -131,6 +131,7 @@ public partial class MapEditorHUD : Control
 	private CompositeMapDialog _compositeMapDialog { get; set; } = null!;
 	private TemplateManagerDialog _templateManagerDialog { get; set; } = null!;
 	private InstanceManagerDialog _instanceManagerDialog { get; set; } = null!;
+	private SpawnAnchorDialog? _spawnAnchorDialog;
 	private AssetBrowserDialog _assetBrowserDialog { get; set; } = null!;
 	private NoiseTextureDialog _noiseTextureDialog { get; set; } = null!;
 	private ConvertGlbDialog _convertGlbDialog { get; set; } = null!;

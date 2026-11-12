@@ -96,12 +96,17 @@ internal static class MeleeTestMaps
 		  ],
 		  "Decals": [],
 		  "Vfx": [],
-		  "Coordinates": [],
+		  "Coordinates": [
+		    { "Name": "seat_1", "MinX": -78, "MinZ": -78, "MaxX": -38, "MaxZ": -38 },
+		    { "Name": "seat_2", "MinX": 38, "MinZ": -78, "MaxX": 78, "MaxZ": -38 },
+		    { "Name": "seat_3", "MinX": -78, "MinZ": 72, "MaxX": -38, "MaxZ": 112 },
+		    { "Name": "seat_4", "MinX": 38, "MinZ": 72, "MaxX": 78, "MaxZ": 112 }
+		  ],
 		  "SpawnAnchors": [
-		    { "Player": 1, "PosX": -58, "PosZ": -58 },
-		    { "Player": 2, "PosX": 58, "PosZ": -58 },
-		    { "Player": 3, "PosX": -58, "PosZ": 92 },
-		    { "Player": 4, "PosX": 58, "PosZ": 92 }
+		    { "Player": 1, "CoordinateName": "seat_1" },
+		    { "Player": 2, "CoordinateName": "seat_2" },
+		    { "Player": 3, "CoordinateName": "seat_3" },
+		    { "Player": 4, "CoordinateName": "seat_4" }
 		  ]
 		}
 		""";

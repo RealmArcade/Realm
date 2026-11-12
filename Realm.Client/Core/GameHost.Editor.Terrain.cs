@@ -561,30 +561,25 @@ namespace Realm.Client.Core
 		}
 
 		/// <summary>
-		///     Seats a player slot on the area the coordinate tool drew. An anchor is a point, which is what the centre of
-		///     that drawn box becomes, and it is stored beside the coordinates in the same terrain file.
+		///     Seats a player in one of the board's authored coordinates, which is the region that player's match begins
+		///     inside. The anchor is stored beside the coordinates in the same terrain file, and passing an empty coordinate
+		///     name takes the player's anchor away.
 		/// </summary>
-		/// <param name="player">The player slot the anchor seats.</param>
-		/// <param name="minX">The x of the corner the coordinate box was started from.</param>
-		/// <param name="minZ">The z of the corner the coordinate box was started from.</param>
-		/// <param name="maxX">The x of the corner the coordinate box was dragged to.</param>
-		/// <param name="maxZ">The z of the corner the coordinate box was dragged to.</param>
-		public EditorOperationResult CommitSpawnAnchorExternal(int player, int minX, int minZ, int maxX, int maxZ)
+		/// <param name="player">The player the anchor seats.</param>
+		/// <param name="coordinateName">The authored coordinate the player begins inside, or empty to clear the anchor.</param>
+		public EditorOperationResult CommitSpawnAnchorExternal(int player, string coordinateName)
 		{
 			if (GroundTerrain == null) return EditorOperationResult.Failed("No map is open in the editor.");
-			if (player < 1 || player > EcsWorld.MAX_PLAYERS) return EditorOperationResult.Failed($"Slot {player} is outside the slots a match can hold.");
+			if (player < 0 || player >= EcsWorld.MAX_PLAYERS) return EditorOperationResult.Failed($"Player {player} is outside the players a match can hold.");
 
-			float quadSize = GroundTerrain.QuadSize;
-			float worldCentreX = ((minX + maxX) / 2.0f - GroundTerrain.Width / 2.0f) * quadSize;
-			float worldCentreZ = ((minZ + maxZ) / 2.0f - GroundTerrain.Depth / 2.0f) * quadSize;
+			string safeName = coordinateName?.Trim() ?? string.Empty;
+			if (safeName.Length > 0 && FindCoordinate(safeName) == null)
+				return EditorOperationResult.Failed($"No coordinate named '{safeName}' is authored on this board.");
 
-			float worldLimitX = GroundTerrain.Width / 2.0f * quadSize;
-			float worldLimitZ = GroundTerrain.Depth / 2.0f * quadSize;
-			if (worldCentreX < -worldLimitX || worldCentreX > worldLimitX || worldCentreZ < -worldLimitZ || worldCentreZ > worldLimitZ)
-				return EditorOperationResult.Failed("The drawn area lies outside the terrain.");
+			if (safeName.Length == 0) return DeleteSpawnAnchorExternal(player);
 
 			var oldAnchors = new List<EditorSpawnAnchor>(GameContext.EditorService.EditorSpawnAnchors);
-			var anchor = new EditorSpawnAnchor { Player = player, PositionX = worldCentreX, PositionZ = worldCentreZ };
+			var anchor = new EditorSpawnAnchor { Player = player, CoordinateName = safeName };
 
 			bool moved = false;
 			for (int index = 0; index < GameContext.EditorService.EditorSpawnAnchors.Count; index++)
@@ -609,16 +604,16 @@ namespace Realm.Client.Core
 		}
 
 		/// <summary>
-		///     Removes the spawn anchor of a player slot, so that slot is not seated on this board.
+		///     Removes the spawn anchor of a player, so that player is no longer seated in a coordinate of this board.
 		/// </summary>
-		/// <param name="player">The player slot whose anchor is removed.</param>
+		/// <param name="player">The player whose anchor is removed.</param>
 		public EditorOperationResult DeleteSpawnAnchorExternal(int player)
 		{
 			if (GroundTerrain == null) return EditorOperationResult.Failed("No map is open in the editor.");
 
 			var oldAnchors = new List<EditorSpawnAnchor>(GameContext.EditorService.EditorSpawnAnchors);
 			int removed = GameContext.EditorService.EditorSpawnAnchors.RemoveAll(anchor => anchor.Player == player);
-			if (removed == 0) return EditorOperationResult.Failed($"No spawn anchor is placed for slot {player}.");
+			if (removed == 0) return EditorOperationResult.Failed($"No spawn anchor is placed for player {player}.");
 
 			RebuildAllSpawnAnchorMeshes();
 
@@ -630,23 +625,26 @@ namespace Realm.Client.Core
 		}
 
 		/// <summary>
-		///     Focuses the camera on the spawn anchor of a player slot.
+		///     Focuses the camera on the coordinate a player's spawn anchor seats them in.
 		/// </summary>
-		/// <param name="player">The player slot whose anchor is focused.</param>
+		/// <param name="player">The player whose anchor is focused.</param>
 		public EditorOperationResult SelectSpawnAnchorExternal(int player)
 		{
 			EditorSpawnAnchor? anchor = GameContext.EditorService.FindSpawnAnchor(player);
-			if (!anchor.HasValue) return EditorOperationResult.Failed($"No spawn anchor is placed for slot {player}.");
+			if (!anchor.HasValue) return EditorOperationResult.Failed($"No spawn anchor is placed for player {player}.");
+			if (string.IsNullOrEmpty(anchor.Value.CoordinateName)) return EditorOperationResult.Failed($"The spawn anchor for player {player} names no coordinate.");
 
-			MainCamera?.FocusOnPosition(new Vector3(anchor.Value.PositionX, 0f, anchor.Value.PositionZ));
-			GameContext.MapEditorHud?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Focused on the spawn anchor for slot {0}"), player));
+			SelectCoordinateExternal(anchor.Value.CoordinateName);
+			GameContext.MapEditorHud?.ShowFeedbackExternal(string.Format(TranslationServer.Translate("Focused on the spawn anchor for player {0}"), player));
 
 			return EditorOperationResult.Succeeded();
 		}
 
 		/// <summary>
-		///     Draws a marker at every authored seat anchor, tinted with the colour that slot plays as, so the board's seats
-		///     are visible on the terrain the same way its coordinates are.
+		///     Draws a marker in the centre of the coordinate each seat is assigned to, tinted with the colour that seat plays
+		///     as, so the board's seats are visible on the terrain the same way its coordinates are. An anchor naming no
+		///     coordinate, or one this board does not author, draws nothing: where that seat would begin is only decided when
+		///     a match starts.
 		/// </summary>
 		public void RebuildAllSpawnAnchorMeshes()
 		{
@@ -664,12 +662,19 @@ namespace Realm.Client.Core
 
 			foreach (var anchor in GameContext.EditorService.EditorSpawnAnchors)
 			{
+				if (string.IsNullOrEmpty(anchor.CoordinateName)) continue;
+
+				EditorCoordinate? coordinate = FindCoordinate(anchor.CoordinateName);
+				if (!coordinate.HasValue) continue;
+
+				float centreX = (coordinate.Value.MinX + coordinate.Value.MaxX) * 0.5f;
+				float centreZ = (coordinate.Value.MinZ + coordinate.Value.MaxZ) * 0.5f;
 				Color tint = PlayerColorConfig.GetColor(anchor.Player);
 
 				var disc = new MeshInstance3D();
 				disc.Name = $"SpawnAnchor_{anchor.Player}";
 				disc.Mesh = new CylinderMesh { TopRadius = 1.6f, BottomRadius = 1.6f, Height = 0.15f, RadialSegments = 24 };
-				disc.Position = new Vector3(anchor.PositionX, GetTerrainHeightAt(new Vector3(anchor.PositionX, 0f, anchor.PositionZ)) + 0.1f, anchor.PositionZ);
+				disc.Position = new Vector3(centreX, GetTerrainHeightAt(new Vector3(centreX, 0f, centreZ)) + 0.1f, centreZ);
 				disc.MaterialOverride = CreateUnshadedAnchorMaterial(new Color(tint.R, tint.G, tint.B, 0.55f));
 				AddChild(disc);
 				_spawnAnchorMeshes.Add(disc);
@@ -677,7 +682,7 @@ namespace Realm.Client.Core
 				var pole = new MeshInstance3D();
 				pole.Name = $"SpawnAnchorPole_{anchor.Player}";
 				pole.Mesh = new CylinderMesh { TopRadius = 0.12f, BottomRadius = 0.12f, Height = 3.5f, RadialSegments = 8 };
-				pole.Position = new Vector3(anchor.PositionX, disc.Position.Y + 1.75f, anchor.PositionZ);
+				pole.Position = new Vector3(centreX, disc.Position.Y + 1.75f, centreZ);
 				pole.MaterialOverride = CreateUnshadedAnchorMaterial(tint);
 				AddChild(pole);
 				_spawnAnchorMeshes.Add(pole);

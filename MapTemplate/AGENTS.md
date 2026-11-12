@@ -51,9 +51,9 @@ The primary map configuration file. Schema at `.vscode/metadata.schema.json`
 Tracks map asset registrations Schema at `.vscode/manifest.schema.json`.
 
 ### terrain.json
-Defines the terrain layout: prop/unit/decal placements, map dimensions (`Width`, `Depth`), camera bounds, `Coordinates` (named map regions), `SpawnAnchors` (the point each player slot starts at), and skybox path. Schema at `.vscode/terrain.schema.json`.
+Defines the terrain layout: prop/unit/decal placements, map dimensions (`Width`, `Depth`), camera bounds, `Coordinates` (named map regions), `SpawnAnchors` (the coordinate each player slot starts inside), and skybox path. Schema at `.vscode/terrain.schema.json`.
 
-`SpawnAnchors` is how the map states where its seats begin, so a ruleset that has to place a starting building reads the point from the board with `IGameAPI.GetSpawnAnchor(slot)` instead of carrying coordinates of its own. The editor does not author anchors yet; a save keeps the ones the file already declares.
+`SpawnAnchors` is how the map states where its seats begin, so a ruleset that has to place a starting building asks the board with `IGameAPI.GetSpawnAnchor(slot)` instead of carrying coordinates of its own. An anchor names a coordinate the map already declares, and the position is drawn at random inside that coordinate each time the match starts, so no two matches open on the same spot. A slot with no anchor assigned can start anywhere inside the board's playable bounds. The editor authors both ends in the Spawn Anchors dialog, opened from the spawn anchors button in the Coordinates tool: one row per player slot, the coordinate to start inside, and a locate button that centres the camera on that coordinate. The dialog draws the anchor model at the centre of each assigned coordinate and nowhere when a slot has no coordinate.
 
 ## Localization
 

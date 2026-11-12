@@ -710,11 +710,11 @@ public partial class EditorService : IEditorAPI
 		GameContext.Host?.SelectCoordinateExternal(name);
 	}
 
-	public EditorOperationResult CommitSpawnAnchor(int player, int minCellX, int minCellZ, int maxCellX, int maxCellZ)
+	public EditorOperationResult CommitSpawnAnchor(int player, string coordinateName)
 	{
 		if (GameContext.Host == null) return EditorOperationResult.Failed("No map is open in the editor.");
 
-		return GameContext.Host.CommitSpawnAnchorExternal(player, minCellX, minCellZ, maxCellX, maxCellZ);
+		return GameContext.Host.CommitSpawnAnchorExternal(player, coordinateName);
 	}
 
 	public EditorOperationResult DeleteSpawnAnchor(int player)
@@ -944,7 +944,7 @@ public partial class EditorService : IEditorAPI
 
 		var loadedAnchors = GameContext.SaveLoadService.GetLastLoadedSpawnAnchors();
 		EditorSpawnAnchors.Clear();
-		EditorSpawnAnchors.AddRange(loadedAnchors.Select(r => new EditorSpawnAnchor { Player = r.Player, PositionX = r.PosX, PositionZ = r.PosZ }));
+		EditorSpawnAnchors.AddRange(loadedAnchors.Select(r => new EditorSpawnAnchor { Player = r.Player, CoordinateName = r.CoordinateName ?? string.Empty }));
 	}
 
 	public EditorSpawnAnchor? FindSpawnAnchor(int player)

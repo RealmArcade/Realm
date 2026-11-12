@@ -317,7 +317,7 @@ public class SaveLoadService
 		for (int index = 0; index < anchors.Count; index++)
 		{
 			EditorSpawnAnchor anchor = anchors[index];
-			saved.Add(new SpawnAnchorSaveData { Player = anchor.Player, PosX = anchor.PositionX, PosZ = anchor.PositionZ });
+			saved.Add(new SpawnAnchorSaveData { Player = anchor.Player, CoordinateName = anchor.CoordinateName ?? string.Empty });
 		}
 
 		return saved;

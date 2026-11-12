@@ -459,8 +459,10 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 		foreach (var anchor in anchors)
 		{
-			string displayTitle = string.Format(TranslationServer.Translate("Slot {0}"), anchor.Player);
-			string posText = $"({anchor.PositionX:F0}, {anchor.PositionZ:F0})";
+			string displayTitle = PlayerColorConfig.GetPaletteLabel(anchor.Player);
+			string posText = string.IsNullOrEmpty(anchor.CoordinateName)
+				? TranslationServer.Translate("(unassigned)")
+				: anchor.CoordinateName;
 			result.Add((displayTitle, "Spawn Anchors", null, posText, null, anchor.Player));
 		}
 	}

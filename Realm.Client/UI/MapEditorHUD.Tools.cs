@@ -422,7 +422,7 @@ namespace Realm.Client.UI
 			_toolPanel.Build(new ToolAccordionHooks(
 				this, StyleAccordionHeader, SetupAccordion, SetupButton, SetupOptionButton, (tool, btn) => TriggerToolSelection(tool, btn),
 				GetFontAwesomeFont, () => _entityPaletteController?.TriggerAddObjectMode(), DeleteSelectedObjectAction,
-				ShowFeedback, RefreshCoordinateListExternal, OpenInstanceManagerDialog));
+				ShowFeedback, RefreshCoordinateListExternal, OpenInstanceManagerDialog, OpenSpawnAnchorDialog));
 		}
 
 

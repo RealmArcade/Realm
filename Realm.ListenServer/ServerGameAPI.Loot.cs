@@ -11,9 +11,12 @@ public partial class ServerGameAPI
 	private readonly LootItemId[] _lootBuffer = new LootItemId[LootBufferCapacity];
 	private const int LootBufferCapacity = 4096;
 
-	public LootItemId SpawnLootItem(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f)
+	public LootItemId SpawnLootItem(string itemTypeId, Vector2 position, int charges = 1, float lifetime = 0f)
 	{
-		LootItemId lootItemId = Loot.Spawn(itemTypeId, position, charges, lifetime);
+		Vector3 groundPoint = new(position.X, 0f, position.Y);
+		var placed = new Vector3(groundPoint.X, ReadTerrainHeight(groundPoint), groundPoint.Z);
+
+		LootItemId lootItemId = Loot.Spawn(itemTypeId, placed, charges, lifetime);
 		if (lootItemId.IsValid) _log.Write($"dropped '{itemTypeId}' x{Math.Max(1, charges)} as loot {lootItemId.Value}");
 
 		return lootItemId;
