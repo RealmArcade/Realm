@@ -86,7 +86,6 @@ public class UnitStatsPanel
 	private readonly StatRow _experienceRow;
 	private readonly StatRow _levelRow;
 	private readonly StatRow _attackDamageRow;
-	private readonly StatRow _damagePerSecondRow;
 	private readonly StatRow _attackRangeRow;
 	private readonly StatRow _attackSpeedRow;
 	private readonly StatRow _moveSpeedRow;
@@ -203,7 +202,6 @@ public class UnitStatsPanel
 		_levelRow = AddStatRow(UnicodeIcons.STAIRS, "Level", "Level this unit has reached.");
 
 		_attackDamageRow = AddStatRow(UnicodeIcons.BURST, "Attack Damage", "Damage this unit deals with one attack, including the bonus from its Strength.");
-		_damagePerSecondRow = AddStatRow(UnicodeIcons.EXPLOSION, "Damage Per Second", "Damage this unit deals per second while attacking continuously.");
 		_attackRangeRow = AddStatRow(UnicodeIcons.CROSSHAIRS, "Attack Range", "Distance at which this unit can attack.");
 		_attackSpeedRow = AddStatRow(UnicodeIcons.GAUGE, "Attack Speed", "Attacks this unit makes per second, including the haste from its Agility.");
 		_moveSpeedRow = AddStatRow(UnicodeIcons.SHOE_PRINTS, "Move Speed", "Distance this unit covers per second.");
@@ -220,16 +218,14 @@ public class UnitStatsPanel
 		_evasionRow = AddStatRow(UnicodeIcons.FEATHER_POINTED, "Evasion", "Chance to avoid an incoming attack entirely.");
 		_tenacityRow = AddStatRow(UnicodeIcons.SHIELD_HEART, "Tenacity", "Share of an incoming crowd-control effect's duration that is resisted.");
 
+		RegisterCategory(UnicodeIcons.STAR, "General",
+			_levelRow, _experienceRow, _lifeStealRow, _cooldownReductionRow, _moveSpeedRow, _damageTypeRow);
 		RegisterCategory(UnicodeIcons.HAND_FIST, "Attributes",
 			_strengthRow, _agilityRow, _vitalityRow, _intelligenceRow, _wisdomRow, _fortuneRow);
 		RegisterCategory(UnicodeIcons.BURST, "Offense",
-			_attackDamageRow, _damagePerSecondRow, _attackRangeRow, _attackSpeedRow, _criticalHitRow, _damageTypeRow, _armorPenetrationRow);
-		RegisterCategory(UnicodeIcons.WAND_MAGIC, "Magic",
-			_spellPowerRow, _magicPenetrationRow, _cooldownReductionRow);
+			_attackDamageRow, _attackRangeRow, _attackSpeedRow, _criticalHitRow, _armorPenetrationRow, _spellPowerRow, _magicPenetrationRow);
 		RegisterCategory(UnicodeIcons.SHIELD, "Defense",
-			_armorRow, _magicResistanceRow, _evasionRow, _tenacityRow, _lifeStealRow);
-		RegisterCategory(UnicodeIcons.SHOE_PRINTS, "Mobility", _moveSpeedRow);
-		RegisterCategory(UnicodeIcons.STAR, "Progression", _levelRow, _experienceRow);
+			_armorRow, _magicResistanceRow, _evasionRow, _tenacityRow);
 
 		_footer = new VBoxContainer();
 		_footer.Name = "UnitStatsFooter_VBoxContainer";
@@ -340,7 +336,6 @@ public class UnitStatsPanel
 		float attackDelay = ReadStat(stats, AttackDelayStat);
 		float attacksPerSecond = attackDelay > 0f ? 1f / attackDelay : 0f;
 		_attackSpeedRow.SetValue(FormatAmount(attacksPerSecond));
-		_damagePerSecondRow.SetValue(FormatAmount(attackDamage * attacksPerSecond));
 		_attackRangeRow.SetValue(FormatAmount(attack.Range));
 
 		ApplyRowVisibility(hasExperience, hasLevel, hasAttack);
@@ -851,7 +846,6 @@ public class UnitStatsPanel
 	{
 		_experienceRow.Root.Visible = hasExperience;
 		_levelRow.Root.Visible = hasLevel;
-		_damagePerSecondRow.Root.Visible = hasAttack;
 		_attackRangeRow.Root.Visible = hasAttack;
 
 		for (int index = 0; index < _categories.Count; index++)
