@@ -68,6 +68,7 @@ public class UnitStatsPanel
 	private static readonly StatId FlatMagicPenetrationStat = new(CombatStatType.FlatMagicPenetration);
 	private static readonly StatId PercentMagicPenetrationStat = new(CombatStatType.PercentMagicPenetration);
 	private static readonly StatId AttackDelayStat = new(StatKeys.AttackDelay);
+	private static readonly StatId BountyMultiplierStat = new(StatKeys.BountyMultiplier);
 
 	private readonly VBoxContainer _root;
 	private readonly Label _messageLabel;
@@ -89,6 +90,8 @@ public class UnitStatsPanel
 	private readonly StatRow _fortuneRow;
 	private readonly StatRow _experienceRow;
 	private readonly StatRow _levelRow;
+	private readonly StatRow _goldBountyRow;
+	private readonly StatRow _experienceBountyRow;
 	private readonly StatRow _attackDamageRow;
 	private readonly StatRow _attackRangeRow;
 	private readonly StatRow _attackSpeedRow;
@@ -207,6 +210,10 @@ public class UnitStatsPanel
 
 		_experienceRow = AddStatRow(UnicodeIcons.STAR, "Experience", "Experience this unit has accumulated toward its next level.");
 		_levelRow = AddStatRow(UnicodeIcons.STAIRS, "Level", "Level this unit has reached.");
+		_goldBountyRow = AddStatRow(UnicodeIcons.COINS, TranslationServer.Translate("Gold Bounty"),
+			TranslationServer.Translate("Gold this unit pays to whoever lands the killing blow, scaled by its level."));
+		_experienceBountyRow = AddStatRow(UnicodeIcons.TROPHY, TranslationServer.Translate("Experience Bounty"),
+			TranslationServer.Translate("Experience this unit pays toward the killer's hero, scaled by its level."));
 
 		_attackDamageRow = AddStatRow(UnicodeIcons.BURST, "Attack Damage", "Damage this unit deals with one attack, including the bonus from its Strength.");
 		_attackRangeRow = AddStatRow(UnicodeIcons.CROSSHAIRS, "Attack Range", "Distance at which this unit can attack.");
@@ -226,7 +233,7 @@ public class UnitStatsPanel
 		_tenacityRow = AddStatRow(UnicodeIcons.SHIELD_HEART, "Tenacity", "Share of an incoming crowd-control effect's duration that is resisted.");
 
 		RegisterCategory(UnicodeIcons.STAR, "General",
-			_levelRow, _experienceRow, _lifeStealRow, _cooldownReductionRow, _moveSpeedRow, _damageTypeRow);
+			_levelRow, _experienceRow, _goldBountyRow, _experienceBountyRow, _lifeStealRow, _cooldownReductionRow, _moveSpeedRow, _damageTypeRow);
 		RegisterCategory(UnicodeIcons.HAND_FIST, "Attributes",
 			_strengthRow, _agilityRow, _vitalityRow, _intelligenceRow, _wisdomRow, _fortuneRow);
 		RegisterCategory(UnicodeIcons.BURST, "Offense",
@@ -389,6 +396,19 @@ public class UnitStatsPanel
 		_experienceRow.SetValue(FormatExperience(experience.Current, level.Value, experiencePerLevel, hasLevel));
 		_levelRow.SetValue(level.Value.ToString(CultureInfo.InvariantCulture));
 
+		// A bounty is the template's own number raised by the unit's level, which is what the match pays when the unit
+		// dies: the multiplier is the one the authority published in its stats, so the panel states the price of the
+		// fight rather than the flat figure the template was authored with.
+		float bountyMultiplier = ReadStat(stats, BountyMultiplierStat);
+		if (bountyMultiplier <= 0f) bountyMultiplier = 1f;
+
+		bool statesBounty = info.Player <= 0;
+		float goldBounty = statesBounty ? MathF.Round((metadata != null ? metadata.GoldBounty : 0f) * bountyMultiplier) : 0f;
+		float experienceBounty = statesBounty ? (metadata != null ? metadata.XpBounty : 0f) * bountyMultiplier : 0f;
+
+		_goldBountyRow.SetValue(FormatBounty(goldBounty));
+		_experienceBountyRow.SetValue(FormatAmount(experienceBounty));
+
 		float attackDamage = ReadStat(stats, AttackStat);
 		_attackDamageRow.SetValue(FormatAmount(attackDamage));
 
@@ -397,7 +417,7 @@ public class UnitStatsPanel
 		_attackSpeedRow.SetValue(FormatAmount(attacksPerSecond));
 		_attackRangeRow.SetValue(FormatAmount(attack.Range));
 
-		ApplyRowVisibility(hasExperience, hasLevel, hasAttack);
+		ApplyRowVisibility(hasExperience, hasLevel, hasAttack, goldBounty > 0f, experienceBounty > 0f);
 
 		_moveSpeedRow.SetValue(FormatAmount(ReadStat(stats, MovementSpeedStat)));
 		_armorRow.SetValue(FormatAmount(ReadStat(stats, ArmorStat)));
@@ -635,6 +655,11 @@ public class UnitStatsPanel
 	private static float ReadStat(in Stats stats, StatId statId)
 	{
 		return stats.TryGetValue(statId, out float value) ? value : 0f;
+	}
+
+	private static string FormatBounty(float value)
+	{
+		return MathF.Round(value).ToString("0", CultureInfo.InvariantCulture);
 	}
 
 	private static string FormatAmount(float value)
@@ -901,11 +926,13 @@ public class UnitStatsPanel
 		_popupAttachedRows.Clear();
 	}
 
-	private void ApplyRowVisibility(bool hasExperience, bool hasLevel, bool hasAttack)
+	private void ApplyRowVisibility(bool hasExperience, bool hasLevel, bool hasAttack, bool hasGoldBounty, bool hasExperienceBounty)
 	{
 		_experienceRow.Root.Visible = hasExperience;
 		_levelRow.Root.Visible = hasLevel;
 		_attackRangeRow.Root.Visible = hasAttack;
+		_goldBountyRow.Root.Visible = hasGoldBounty;
+		_experienceBountyRow.Root.Visible = hasExperienceBounty;
 
 		for (int index = 0; index < _categories.Count; index++)
 		{
