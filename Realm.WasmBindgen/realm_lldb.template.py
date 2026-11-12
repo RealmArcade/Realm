@@ -1,4 +1,5 @@
 import lldb
+import re
 import struct
 
 # {{OFFSETS}}
@@ -702,6 +703,210 @@ def realm_export(debugger, command, result, internal_dict):
     else:
         result.AppendMessage(content)
 
+HOST_FRAME_REGEX = re.compile(r"(__wasm|wasmtime|cabi_|[rR]hp|System\.|System_|System_Private_CoreLib|S_P_CoreLib_|Internal\.|GameClientWorld|Realm\.MapAPI\.|Realm_MapAPI_|Realm\.Ecs\.|Realm_Ecs_|Microsoft\.|GameAPI_WasmModule|.*_WasmModule|wasmImport|wasm_import|__import|dotnet_|mono_|wasi_|env\.)")
+
+_STEP_UNTIL_USER = False
+_STEP_RETRIES = 0
+_STEP_HOOK_INSTALLED = False
+_STOP_ON_WASM_TRAPS = False
+
+def is_user_frame(frame):
+    if not frame or not frame.IsValid():
+        return False
+
+    function_name = frame.GetFunctionName() or ""
+    if HOST_FRAME_REGEX.search(function_name):
+        return False
+
+    line_entry = frame.GetLineEntry()
+    if line_entry and line_entry.IsValid():
+        file_spec = line_entry.GetFileSpec()
+        path = file_spec.fullpath if file_spec and file_spec.IsValid() else ""
+        if path:
+            normalized = path.replace("\\", "/")
+            if HOST_FRAME_REGEX.search(normalized):
+                return False
+            if normalized.endswith(".cs"):
+                return True
+
+    return bool(function_name) and not HOST_FRAME_REGEX.search(function_name)
+
+def format_frame(frame):
+    if not frame or not frame.IsValid():
+        return "<no frame>"
+
+    function_name = frame.GetFunctionName() or "<unknown>"
+    line_entry = frame.GetLineEntry()
+    if line_entry and line_entry.IsValid():
+        file_spec = line_entry.GetFileSpec()
+        path = file_spec.fullpath if file_spec and file_spec.IsValid() else ""
+        line = line_entry.GetLine()
+        if path:
+            return f"{function_name} at {path}:{line}"
+
+    return function_name
+
+class RealmStepStopHook:
+    def handle_stop(self, exe_ctx, stream):
+        global _STEP_UNTIL_USER, _STEP_RETRIES
+        if not _STEP_UNTIL_USER:
+            return
+
+        frame = exe_ctx.GetFrame()
+        if is_user_frame(frame):
+            _STEP_UNTIL_USER = False
+            _STEP_RETRIES = 0
+            stream.Print(f"realm_step: {format_frame(frame)}\n")
+            return
+
+        _STEP_RETRIES += 1
+        if _STEP_RETRIES > 20:
+            _STEP_UNTIL_USER = False
+            _STEP_RETRIES = 0
+            stream.Print("realm_step: gave up after 20 host frames\n")
+            return
+
+        thread = exe_ctx.GetThread()
+        if thread and thread.IsValid():
+            thread.StepOver()
+
+def install_step_hook(debugger):
+    global _STEP_HOOK_INSTALLED
+    if _STEP_HOOK_INSTALLED:
+        return
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        return
+    debugger.HandleCommand("target stop-hook add -P realm_lldb.RealmStepStopHook")
+    _STEP_HOOK_INSTALLED = True
+
+def realm_step(debugger, command, result, internal_dict):
+    global _STEP_UNTIL_USER, _STEP_RETRIES
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        result.SetError("no target is selected")
+        return
+
+    thread = target.GetProcess().GetSelectedThread()
+    if not thread or not thread.IsValid():
+        result.SetError("no thread is selected")
+        return
+
+    install_step_hook(debugger)
+    _STEP_UNTIL_USER = True
+    _STEP_RETRIES = 0
+    thread.StepOver()
+
+def realm_reload(debugger, command, result, internal_dict):
+    import importlib
+    import os
+    import sys
+
+    module = sys.modules.get("realm_lldb")
+    if module is None:
+        result.SetError("realm_lldb is not loaded")
+        return
+
+    path = getattr(module, "__file__", "")
+    if not path or not os.path.exists(path):
+        result.SetError("realm_lldb.py path is unknown")
+        return
+
+    importlib.reload(module)
+    module.__lldb_init_module(debugger, {})
+    result.AppendMessage(f"realm_reload: reloaded {path}")
+
+def find_authority_pid():
+    import csv
+    import io
+    import subprocess
+    import sys
+
+    pid_path = find_workspace_file("authority.pid")
+    if pid_path:
+        try:
+            with open(pid_path, "r") as pid_file:
+                text = pid_file.read().strip()
+            if text.isdigit():
+                return int(text)
+        except Exception:
+            pass
+
+    try:
+        if sys.platform.startswith("win"):
+            output = subprocess.check_output(
+                ["tasklist", "/FI", "IMAGENAME eq Realm.ListenServerHost.exe", "/FO", "CSV", "/NH"],
+                text=True,
+                stderr=subprocess.DEVNULL)
+            for row in csv.reader(io.StringIO(output)):
+                if row and row[0].lower().startswith("realm.listenserverhost") and len(row) > 1 and row[1].isdigit():
+                    return int(row[1])
+        else:
+            output = subprocess.check_output(["pgrep", "-f", "Realm.ListenServerHost"], text=True, stderr=subprocess.DEVNULL)
+            for line in output.splitlines():
+                if line.strip().isdigit():
+                    return int(line.strip())
+    except Exception:
+        pass
+
+    return None
+
+def realm_attach(debugger, command, result, internal_dict):
+    pid = command.strip()
+    if pid and not pid.isdigit():
+        result.SetError("usage: realm_attach [pid]")
+        return
+
+    if not pid:
+        found = find_authority_pid()
+        if found is None:
+            result.SetError("authority.pid was not found and no Realm.ListenServerHost process was found.")
+            return
+        pid = str(found)
+
+    result.AppendMessage(f"realm_attach: attaching to {pid}")
+    debugger.HandleCommand(f"process attach --pid {pid}")
+
+def realm_where(debugger, command, result, internal_dict):
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        result.SetError("no target is selected")
+        return
+
+    thread = target.GetProcess().GetSelectedThread()
+    if not thread or not thread.IsValid():
+        result.SetError("no thread is selected")
+        return
+
+    for index in range(thread.GetNumFrames()):
+        frame = thread.GetFrameAtIndex(index)
+        if is_user_frame(frame):
+            result.AppendMessage(f"realm_where: {format_frame(frame)}")
+            return
+
+    result.AppendMessage(f"realm_where: no user map-script frame found; current frame is {format_frame(thread.GetSelectedFrame())}")
+
+def realm_exception(debugger, command, result, internal_dict):
+    global _STOP_ON_WASM_TRAPS
+    argument = command.strip().lower()
+    if argument not in ("", "on", "off", "status"):
+        result.SetError("usage: realm_exception [on|off|status]")
+        return
+
+    if argument == "status":
+        result.AppendMessage(f"realm_exception: stopping on WASM traps is {'on' if _STOP_ON_WASM_TRAPS else 'off'}")
+        return
+
+    if argument == "on":
+        _STOP_ON_WASM_TRAPS = True
+    elif argument == "off":
+        _STOP_ON_WASM_TRAPS = False
+    else:
+        _STOP_ON_WASM_TRAPS = not _STOP_ON_WASM_TRAPS
+
+    debugger.HandleCommand(f"process handle SIGTRAP -s {'true' if _STOP_ON_WASM_TRAPS else 'false'} -n false -p false")
+    result.AppendMessage(f"realm_exception: stopping on WASM traps is {'on' if _STOP_ON_WASM_TRAPS else 'off'}")
+
 class RealmHandleSyntheticProvider:
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
@@ -784,37 +989,6 @@ def RealmHandleSummaryProvider(valobj, internal_dict):
         return f"{label} {value} [{', '.join(parts)}]"
     return f"{label} {value}"
 
-def realm_attach(debugger, command, result, internal_dict):
-    import os
-    pid = None
-    search_dirs = [os.getcwd()]
-    target = debugger.GetSelectedTarget()
-    if target and target.IsValid():
-        exe = target.GetExecutable()
-        if exe and exe.IsValid():
-            search_dirs.append(exe.GetDirectory())
-    if "__file__" in globals():
-        search_dirs.append(os.path.dirname(__file__))
-
-    for d in search_dirs:
-        if not d:
-            continue
-        pid_file = os.path.join(d, "authority.pid")
-        if os.path.exists(pid_file):
-            try:
-                with open(pid_file, "r") as f:
-                    val = f.read().strip()
-                if val and val.isdigit():
-                    pid = val
-                    break
-            except Exception:
-                pass
-
-    if pid:
-        debugger.HandleCommand(f"process attach --pid {pid}")
-    else:
-        result.SetError("authority.pid was not found in the workspace.")
-
 def realm_load_modules(debugger, command, result, internal_dict):
     import os, glob
     target = debugger.GetSelectedTarget()
@@ -881,4 +1055,8 @@ def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand("command script add -f realm_lldb.realm_watch realm_watch")
     debugger.HandleCommand("command script add -f realm_lldb.realm_plot realm_plot")
     debugger.HandleCommand("command script add -f realm_lldb.realm_export realm_export")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_step realm_step")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_reload realm_reload")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_where realm_where")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_exception realm_exception")
     debugger.HandleCommand(f"type category enable {category}")

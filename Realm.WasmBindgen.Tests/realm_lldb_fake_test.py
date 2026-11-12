@@ -188,9 +188,35 @@ class FakeDebugger:
         self.commands.append(command)
 
 
+class FakeFileSpec:
+    def __init__(self, path):
+        self.fullpath = path
+
+    def IsValid(self):
+        return bool(self.fullpath)
+
+
+class FakeLineEntry:
+    def __init__(self, path, line):
+        self.path = path
+        self.line = line
+
+    def IsValid(self):
+        return bool(self.path)
+
+    def GetFileSpec(self):
+        return FakeFileSpec(self.path)
+
+    def GetLine(self):
+        return self.line
+
+
 class FakeFrame:
-    def __init__(self, values):
+    def __init__(self, values, function_name="", path="", line=0):
         self.values = values
+        self.function_name = function_name
+        self.path = path
+        self.line = line
 
     def IsValid(self):
         return True
@@ -198,16 +224,39 @@ class FakeFrame:
     def EvaluateExpression(self, expression):
         return self.values.get(expression, FakeValue(None, expression, "int", 0, valid=False))
 
+    def GetFunctionName(self):
+        return self.function_name
+
+    def GetLineEntry(self):
+        return FakeLineEntry(self.path, self.line)
+
+    def GetValue(self):
+        return "value"
+
+    def GetSummary(self):
+        return "summary"
+
 
 class FakeThread:
     def __init__(self, frame):
         self.frame = frame
+        self.frames = [frame]
+        self.stepped = False
 
     def IsValid(self):
         return True
 
     def GetSelectedFrame(self):
         return self.frame
+
+    def GetNumFrames(self):
+        return len(self.frames)
+
+    def GetFrameAtIndex(self, index):
+        return self.frames[index]
+
+    def StepOver(self):
+        self.stepped = True
 
 
 class FakeSBData:
@@ -422,6 +471,39 @@ def main():
         export_content = export_file.read()
     expect("watch,index,value" in export_content, "realm_export did not write the CSV header")
     os.remove(export_path)
+
+    user_frame = FakeFrame({}, function_name="Realm.Maps.MapScript.Update", path="D:/maps/MapScript.cs", line=42)
+    host_frame = FakeFrame({}, function_name="Realm.MapAPI.GameAPI_WasmModule.get_PlayerCount", path="D:/realm/Realm.MapAPI/GameAPI.cs", line=10)
+    expect(module.is_user_frame(user_frame) is True, "a map-script frame was not recognized as user code")
+    expect(module.is_user_frame(host_frame) is False, "a host frame was recognized as user code")
+
+    where_thread = FakeThread(user_frame)
+    where_thread.frames = [host_frame, user_frame]
+    where_process = FakeProcess(MEMORY)
+    where_process.thread = where_thread
+    where_target = FakeTarget(where_process)
+    where_result = FakeResult()
+    module.realm_where(FakeDebugger(where_target), "", where_result, {})
+    where_output = chr(10).join(where_result.messages)
+    expect("MapScript.cs:42" in where_output, "realm_where did not find the user frame")
+
+    exception_debugger = FakeDebugger(where_target)
+    exception_result = FakeResult()
+    module.realm_exception(exception_debugger, "on", exception_result, {})
+    expect(any("process handle SIGTRAP" in command for command in exception_debugger.commands), "realm_exception did not change SIGTRAP handling")
+
+    attach_debugger = FakeDebugger(where_target)
+    attach_result = FakeResult()
+    module.realm_attach(attach_debugger, "1234", attach_result, {})
+    expect(any("process attach --pid 1234" in command for command in attach_debugger.commands), "realm_attach did not attach to the explicit pid")
+
+    step_thread = FakeThread(user_frame)
+    step_process = FakeProcess(MEMORY)
+    step_process.thread = step_thread
+    step_target = FakeTarget(step_process)
+    step_result = FakeResult()
+    module.realm_step(FakeDebugger(step_target), "", step_result, {})
+    expect(step_thread.stepped, "realm_step did not issue a step-over")
 
     print("OK")
     return 0

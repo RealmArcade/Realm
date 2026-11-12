@@ -137,6 +137,11 @@ public class WasmDebuggerIntegrationTests
 		Assert.That(script, Does.Contain("def realm_watch"));
 		Assert.That(script, Does.Contain("def realm_plot"));
 		Assert.That(script, Does.Contain("def realm_export"));
+		Assert.That(script, Does.Contain("def realm_step"));
+		Assert.That(script, Does.Contain("def realm_reload"));
+		Assert.That(script, Does.Contain("def realm_where"));
+		Assert.That(script, Does.Contain("def realm_exception"));
+		Assert.That(script, Does.Contain("def find_authority_pid"));
 	}
 
 	[Test]
