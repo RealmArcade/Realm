@@ -265,6 +265,22 @@ All soldiers are produced automatically from their building's mana; no player tr
 | Standard Bearer | Signal Post | Flank | Standard | 240 | 3 | 10 | 1.8 | 1.5 | 4.9 | physical | 6 gold, 5 XP |
 | Warder | Vigil Bastion | Front | Standard | 380 | 5 | 12 | 1.7 | 1.6 | 4.4 | physical | 8 gold, 6 XP |
 
+Per-level growth. A soldier stands at its owner's hero level, and each type's `LevelGrowth` follows the same rule the heroes' do: its own curve rather than one shared one, weighted to the attribute its role leans on, so a level raises a Shieldbearer's body and a Bowman's hands instead of raising all nine identically.
+
+| Soldier | Strength | Agility | Vitality | Intelligence | Wisdom | Fortune |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Shieldbearer | 1.4 | 0.6 | 3 | 0.2 | 0 | 0 |
+| Axeman | 1.8 | 0.9 | 2.2 | 0.2 | 0 | 0 |
+| Spear Militia | 1.5 | 1 | 2.4 | 0.3 | 0 | 0 |
+| Bowman | 1 | 1.4 | 1.8 | 0.3 | 0 | 0.2 |
+| Slinger | 0.9 | 1.6 | 1.6 | 0.2 | 0 | 0.3 |
+| Bolt Thrower | 2.2 | 0.4 | 2.2 | 0.2 | 0 | 0 |
+| Mender | 0.5 | 0.8 | 2 | 1.4 | 0.4 | 0 |
+| Standard Bearer | 0.8 | 0.9 | 2.2 | 0.9 | 0.3 | 0.1 |
+| Warder | 1.2 | 0.7 | 2.8 | 0.6 | 0 | 0 |
+
+The Front three grow into their line: the Shieldbearer and the Warder take the most health per level, the Spear Militia trades a little of that for reach and damage. The Axeman's levels are the most damage of the melee set, which is what its building already sells. The Bolt Thrower's levels are almost all Strength, so its slow wind-up keeps getting heavier rather than faster. The three ranged support types grow the least body and the most of what their job needs: Agility and a little Fortune for the Bowman and Slinger, Intelligence for the Mender's healing and the Standard Bearer's aura. Every curve is within a level's worth of the others in total, so no type outscales the package it arrives in.
+
 Soldier notes:
 
 - Every soldier bounty pays gold and experience, never wood. Hero and building bounties are larger than soldier bounties; neutral bounties scale with monster level.
