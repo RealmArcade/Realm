@@ -241,6 +241,14 @@ public partial class GameHost
 		}
 
 		int index = GameContext.InputService.CycleSelectionFocus(GameContext.Simulation.WorldEntity, unitIds, reverse);
+		FocusSelectionUnit(index);
+	}
+
+	private void FocusSelectionUnit(int index)
+	{
+		if (index < 0 || index >= SelectedUnits.Count) return;
+
+		CycleSelectionIndex = index;
 		var focusUnit = SelectedUnits[index];
 
 		var camera = GetViewport().GetCamera3D();
@@ -276,50 +284,105 @@ public partial class GameHost
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
+	private enum SelectionRecallKind : byte
+	{
+		Idle,
+		Army
+	}
+
+	private struct SelectionRecallMemory
+	{
+		public ulong Signature;
+		public bool HasSelection;
+		public bool HasFocused;
+	}
+
+	private SelectionRecallMemory _idleSelectionRecall;
+	private SelectionRecallMemory _armySelectionRecall;
+
 	public void SelectAllIdleUnits()
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		ClearSelection();
 		var entities = GameContext.InputService.GetIdleUnitEntities(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex));
-		int selectedCount = 0;
-		foreach (var ent in entities)
-		{
-			var unit = AllUnits.Find(u => u.Entity == ent);
-			if (unit != null)
-			{
-				SelectUnit(unit);
-				selectedCount++;
-			}
-		}
-
-		GameContext.InGameHud?.RefreshUI(SelectedUnits);
-		if (GameContext.InGameHud != null)
-		{
-			Hud.ShowFeedbackText($"Selected {selectedCount} Idle Units", new Color(0.5f, 1.0f, 0.5f));
-		}
+		SelectAllRecalledUnits(SelectionRecallKind.Idle, entities);
 	}
 
 	public void SelectAllMilitaryUnits()
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		ClearSelection();
 		var entities = GameContext.InputService.GetMilitaryUnitEntities(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex));
+		SelectAllRecalledUnits(SelectionRecallKind.Army, entities);
+	}
+
+	private void SelectAllRecalledUnits(SelectionRecallKind kind, List<Entity> entities)
+	{
+		int previousFocusIndex = CycleSelectionIndex;
+		ref SelectionRecallMemory recall = ref _idleSelectionRecall;
+		if (kind == SelectionRecallKind.Army) recall = ref _armySelectionRecall;
+
+		ClearSelection();
 		int selectedCount = 0;
 		foreach (var ent in entities)
 		{
 			var unit = AllUnits.Find(u => u.Entity == ent);
-			if (unit != null)
-			{
-				SelectUnit(unit);
-				selectedCount++;
-			}
+			if (unit == null) continue;
+
+			SelectUnit(unit);
+			selectedCount++;
 		}
 
+		ulong signature = ComputeSelectionSignature(SelectedUnits);
+		bool sameSelection = recall.HasSelection && recall.Signature == signature;
+		bool shouldFocusFirst = recall.HasSelection && (!sameSelection || !recall.HasFocused);
+		bool shouldCycle = recall.HasSelection && sameSelection && recall.HasFocused;
+
+		recall.Signature = signature;
+		recall.HasSelection = true;
+		recall.HasFocused = selectedCount > 0 && (shouldFocusFirst || shouldCycle);
+
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
-		if (GameContext.InGameHud != null)
+
+		if (selectedCount == 0)
 		{
-			Hud.ShowFeedbackText($"Selected All Army ({selectedCount} Units)", new Color(0.5f, 1.0f, 0.5f));
+			string emptyMessage = kind == SelectionRecallKind.Idle
+				? "Selected 0 Idle Units"
+				: "Selected All Army (0 Units)";
+			GameContext.InGameHud?.ShowFeedbackText(emptyMessage, new Color(0.5f, 1.0f, 0.5f));
+			return;
 		}
+
+		if (shouldFocusFirst || shouldCycle)
+		{
+			if (shouldCycle && selectedCount > 1)
+			{
+				CycleSelectionIndex = Math.Clamp(previousFocusIndex, 0, selectedCount - 1);
+				CycleSelectionFocus();
+				return;
+			}
+
+			FocusSelectionUnit(0);
+			return;
+		}
+
+		string selectedMessage = kind == SelectionRecallKind.Idle
+			? $"Selected {selectedCount} Idle Units"
+			: $"Selected All Army ({selectedCount} Units)";
+		GameContext.InGameHud?.ShowFeedbackText(selectedMessage, new Color(0.5f, 1.0f, 0.5f));
+	}
+
+	private static ulong ComputeSelectionSignature(List<Unit3D> units)
+	{
+		const ulong offset = 14695981039346656037UL;
+		const ulong prime = 1099511628211UL;
+		ulong signature = offset;
+		for (int index = 0; index < units.Count; index++)
+		{
+			signature ^= (ulong)units[index].Entity.Id;
+			signature *= prime;
+		}
+
+		signature ^= (ulong)units.Count;
+		return signature;
 	}
 
 	private void PerformDoubleClickSelection(Vector2 clickPos)
