@@ -12,23 +12,25 @@ public partial class CombatAndDamageService
 {
 	/// <summary>
 	///     Lands one gathering hit on a node: the worker's own attack, critical strike and penetration meet the node's
-	///     resistances, and what survives that mitigation is taken off the node's health, which is its remaining resource.
+	///     resistances, what survives that mitigation is turned into pieces of the node's item by the node's own yield,
+	///     and those pieces are taken off the node's health, which is its remaining resource.
 	/// </summary>
 	/// <remarks>
-	///     A point of the node's health is one resource piece, so only whole points are ever taken. The fraction a hit
+	///     A point of the node's health is one resource piece, so only whole pieces are ever taken. The fraction a hit
 	///     leaves over waits in <paramref name="damageBank" /> and is joined by the next hit, which keeps what the node
-	///     lost exactly equal to what the worker carries however small each hit's damage is.
+	///     lost exactly equal to what the worker carries however small each hit's damage is. The pieces the worker cannot
+	///     carry stay on the node: a hit is never allowed to take more than there is room to carry home.
 	/// </remarks>
 	/// <param name="worker">The unit taking the resource.</param>
 	/// <param name="node">The gatherable node being worked.</param>
-	/// <param name="damageBank">The fraction of a point of damage the worker's previous hit left over.</param>
-	/// <param name="maximumPoints">The greatest number of whole points the hit may take, which is the room left in the worker's inventory.</param>
-	/// <returns>The whole points of health the node lost, or zero when the hit yields no whole point yet.</returns>
-	public float HarvestFromNode(Entity worker, Entity node, ref float damageBank, int maximumPoints)
+	/// <param name="damageBank">The fraction of a piece the worker's previous hit left over.</param>
+	/// <param name="maximumPieces">The greatest number of pieces the hit may take, which is the room left in the worker's inventory.</param>
+	/// <returns>The whole pieces of the node's resource the hit yielded, or zero when the hit yields no whole piece yet.</returns>
+	public float HarvestFromNode(Entity worker, Entity node, ref float damageBank, int maximumPieces)
 	{
-		if (maximumPoints <= 0) return 0f;
+		if (maximumPieces <= 0) return 0f;
 		if (!_context.World.IsAlive(worker) || !_context.World.IsAlive(node)) return 0f;
-		if (!_context.World.Has<Harvestable>(node) || !_context.World.Has<Health>(node)) return 0f;
+		if (!_context.World.TryGet<Harvestable>(node, out Harvestable harvestable) || !_context.World.Has<Health>(node)) return 0f;
 		if (_context.World.Has<Dead>(node)) return 0f;
 
 		float baseDamage = _context.StatService != null
@@ -75,8 +77,8 @@ public partial class CombatAndDamageService
 
 		ref Health health = ref _context.World.Get<Health>(node);
 
-		damageBank += finalDamage;
-		float wholePoints = MathF.Min(MathF.Floor(damageBank), MathF.Min(maximumPoints, MathF.Floor(health.Current)));
+		damageBank += finalDamage * harvestable.YieldPerDamage;
+		float wholePoints = MathF.Min(MathF.Floor(damageBank), MathF.Min(maximumPieces, MathF.Floor(health.Current)));
 		if (wholePoints <= 0f) return 0f;
 
 		damageBank -= wholePoints;

@@ -46,6 +46,8 @@ public partial class AuthoritativeSnapshotBuilder
 			entries.Add(new CatalogEntry { Channel = "resource_node_type", Key = nodeType.Key, Value = nodeType.Value });
 		}
 
+		entries.Add(new CatalogEntry { Channel = "inventory_slots", Key = "unit", Number = _rules.InventorySlotLimit });
+
 		entries.Add(new CatalogEntry { Channel = "unit_bar", Key = "health", Number = _rules.UnitHealthBarEnabled ? 1f : 0f });
 		entries.Add(new CatalogEntry { Channel = "unit_bar", Key = "mana", Number = _rules.UnitManaBarEnabled ? 1f : 0f });
 		entries.Add(new CatalogEntry { Channel = "unit_bar", Key = "level", Number = _rules.UnitLevelBadgeEnabled ? 1f : 0f });

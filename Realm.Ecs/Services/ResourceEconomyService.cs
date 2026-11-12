@@ -358,11 +358,15 @@ public class ResourceEconomyService
 
 		var newState = gather;
 		bool harvestsByDamage = _context.World.TryGet<Harvestable>(targetNode, out Harvestable harvestable);
+		int slotLimit = _context.MapRules.InventorySlotLimit;
 
 		if (harvestsByDamage)
 		{
+			int maxStacks = MaxStacksOf(harvestable.ItemId);
 			newState.ItemStringId = harvestable.ItemStringId;
 			newState.SwingSeconds = _context.CombatDamageService.GetGatherInterval(entity);
+			newState.MaxCapacity = slotLimit * maxStacks;
+			newState.CarriedAmount = CarriedPieces(entity, harvestable.ItemId);
 		}
 		else
 		{
@@ -382,9 +386,9 @@ public class ResourceEconomyService
 			if (harvestsByDamage)
 			{
 				string itemId = harvestable.ItemId;
-				int maxStacks = ItemMaxStacksProvider != null ? ItemMaxStacksProvider(itemId) : 1;
+				int maxStacks = MaxStacksOf(itemId);
 				int room = _context.World.Has<Inventory>(entity)
-					? _context.World.Get<Inventory>(entity).AvailableRoom(itemId, maxStacks)
+					? _context.World.Get<Inventory>(entity).AvailableRoom(itemId, maxStacks, slotLimit)
 					: 0;
 				if (room <= 0) break;
 
@@ -392,11 +396,12 @@ public class ResourceEconomyService
 				newState.SwingProgress -= newState.SwingSeconds;
 				if (dealt <= 0f) continue;
 
-				int pieces = Math.Min((int)MathF.Floor(dealt * harvestable.YieldPerDamage), room);
+				int pieces = Math.Min((int)MathF.Floor(dealt), room);
 				if (pieces <= 0) continue;
 
 				ref var inventory = ref _context.World.Get<Inventory>(entity);
-				inventory.AddItem(itemId, pieces, maxStacks);
+				inventory.AddItem(itemId, pieces, maxStacks, slotLimit);
+				newState.CarriedAmount = inventory.GetItemCount(itemId);
 				harvestedAnything = true;
 			}
 			else
@@ -422,7 +427,7 @@ public class ResourceEconomyService
 		if (remaining <= 0f) OnPropDepleted?.Invoke(targetNode);
 
 		bool handsFull = harvestsByDamage
-			? !CanHoldMore(entity, harvestable.ItemId, ItemMaxStacksProvider != null ? ItemMaxStacksProvider(harvestable.ItemId) : 1)
+			? !CanHoldMore(entity, harvestable.ItemId, MaxStacksOf(harvestable.ItemId), slotLimit)
 			: newState.CarriedAmount > 0f && newState.MaxCapacity - newState.CarriedAmount < newState.SwingAmount;
 
 		if (handsFull || remaining <= 0f)
@@ -438,11 +443,21 @@ public class ResourceEconomyService
 		}
 	}
 
-	private bool CanHoldMore(Entity entity, string itemId, int maxStacks)
+	private int MaxStacksOf(string itemId)
+	{
+		return ItemMaxStacksProvider != null ? ItemMaxStacksProvider(itemId) : 1;
+	}
+
+	private int CarriedPieces(Entity entity, string itemId)
+	{
+		return _context.World.Has<Inventory>(entity) ? _context.World.Get<Inventory>(entity).GetItemCount(itemId) : 0;
+	}
+
+	private bool CanHoldMore(Entity entity, string itemId, int maxStacks, int slotLimit)
 	{
 		if (!_context.World.Has<Inventory>(entity)) return false;
 
-		return _context.World.Get<Inventory>(entity).AvailableRoom(itemId, maxStacks) > 0;
+		return _context.World.Get<Inventory>(entity).AvailableRoom(itemId, maxStacks, slotLimit) > 0;
 	}
 
 	private void FindNearestDropoff(Vector3 currentPos, PlayerEntity wOwner, out Entity nearestDropoff, out Vector3 nearestDropoffPos, out float dropoffRadius)

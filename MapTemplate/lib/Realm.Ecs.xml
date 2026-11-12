@@ -592,21 +592,25 @@
             Holds the items a unit carries together with the number of charges left for each, in the order they were picked up.
             </summary>
         </member>
-        <member name="M:Realm.Ecs.Components.Core.Inventory.AvailableRoom(System.String,System.Int32)">
+        <member name="M:Realm.Ecs.Components.Core.Inventory.AvailableRoom(System.String,System.Int32,System.Int32)">
             <summary>
-                Answers how many more of an item the inventory could take when each slot holds at most the stated number.
+                Answers how many more of an item the inventory could take when the match grants it the stated number of slots
+                and each slot holds at most the stated number.
             </summary>
             <param name="itemId">The item definition identifier.</param>
             <param name="maxStacks">The greatest number one slot may hold.</param>
+            <param name="slotLimit">The number of slots the unit may fill, which is the match's rule rather than the storage size.</param>
             <returns>The number of pieces that would fit, never negative.</returns>
         </member>
-        <member name="M:Realm.Ecs.Components.Core.Inventory.AddItem(System.String,System.Int32,System.Int32)">
+        <member name="M:Realm.Ecs.Components.Core.Inventory.AddItem(System.String,System.Int32,System.Int32,System.Int32)">
             <summary>
-                Adds an item, filling each slot only up to the stated stack limit and opening further slots for the overflow.
+                Adds an item, filling each slot only up to the stated stack limit and opening further slots for the overflow
+                until the unit's granted slots are used up.
             </summary>
             <param name="itemId">The item definition identifier.</param>
             <param name="count">The number of pieces to add; values below one are treated as one.</param>
             <param name="maxStacks">The greatest number one slot may hold.</param>
+            <param name="slotLimit">The number of slots the unit may fill, which is the match's rule rather than the storage size.</param>
             <returns>True when every requested piece was added; otherwise false.</returns>
         </member>
         <member name="T:Realm.Ecs.Components.Core.InventorySlot">
@@ -1059,8 +1063,8 @@
         </member>
         <member name="T:Realm.Ecs.Components.Resources.Harvestable">
             <summary>
-                Marks a node whose health is its remaining resource, and states which item each point of damage taken from it puts
-                into the attacker's inventory.
+                Marks a node whose health is its remaining resource, states which item a piece of it is, and states how many
+                pieces one point of post-mitigation damage is worth.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Components.Resources.PlayerResources">
@@ -1862,18 +1866,20 @@
         <member name="M:Realm.Ecs.Services.CombatAndDamageService.HarvestFromNode(Realm.Ecs.Entity,Realm.Ecs.Entity,System.Single@,System.Int32)">
             <summary>
                 Lands one gathering hit on a node: the worker's own attack, critical strike and penetration meet the node's
-                resistances, and what survives that mitigation is taken off the node's health, which is its remaining resource.
+                resistances, what survives that mitigation is turned into pieces of the node's item by the node's own yield,
+                and those pieces are taken off the node's health, which is its remaining resource.
             </summary>
             <remarks>
-                A point of the node's health is one resource piece, so only whole points are ever taken. The fraction a hit
+                A point of the node's health is one resource piece, so only whole pieces are ever taken. The fraction a hit
                 leaves over waits in <paramref name="damageBank" /> and is joined by the next hit, which keeps what the node
-                lost exactly equal to what the worker carries however small each hit's damage is.
+                lost exactly equal to what the worker carries however small each hit's damage is. The pieces the worker cannot
+                carry stay on the node: a hit is never allowed to take more than there is room to carry home.
             </remarks>
             <param name="worker">The unit taking the resource.</param>
             <param name="node">The gatherable node being worked.</param>
-            <param name="damageBank">The fraction of a point of damage the worker's previous hit left over.</param>
-            <param name="maximumPoints">The greatest number of whole points the hit may take, which is the room left in the worker's inventory.</param>
-            <returns>The whole points of health the node lost, or zero when the hit yields no whole point yet.</returns>
+            <param name="damageBank">The fraction of a piece the worker's previous hit left over.</param>
+            <param name="maximumPieces">The greatest number of pieces the hit may take, which is the room left in the worker's inventory.</param>
+            <returns>The whole pieces of the node's resource the hit yielded, or zero when the hit yields no whole piece yet.</returns>
         </member>
         <member name="M:Realm.Ecs.Services.CombatAndDamageService.GetGatherInterval(Realm.Ecs.Entity)">
             <summary>
@@ -2084,11 +2090,14 @@
         </member>
         <member name="T:Realm.Ecs.Services.MapRulesCatalog">
             <summary>
-                The harvesting and placement rules a match runs under, as the map's scripts declared them: which definition
-                yields which resource, which buildings accept a delivery, which units may carry one, which building is a
-                player's primary, and how much room a placement takes. The rules belong to the match, so the client reads the
-                same answers the authority acts on instead of holding a second copy that can drift.
+                The harvesting, placement and carry rules a match runs under, as the map declared them: which definition yields
+                which resource, which buildings accept a delivery, which units may carry one, which building is a player's
+                primary, how many inventory slots a unit may fill, and how much room a placement takes. The rules belong to the
+                match, so the client reads the same answers the authority acts on instead of holding a second copy that can drift.
             </summary>
+        </member>
+        <member name="F:Realm.Ecs.Services.MapRulesCatalog.DefaultInventorySlotLimit">
+            <summary>The slot count a match uses when its map states none, which is the number of relics a hero may hold.</summary>
         </member>
         <member name="P:Realm.Ecs.Services.MapRulesCatalog.BuildOptionsProvider">
             <summary>
@@ -2105,6 +2114,13 @@
                 so a map that hands out its own resources pays exactly what its own script pays.
             </summary>
         </member>
+        <member name="P:Realm.Ecs.Services.MapRulesCatalog.InventorySlotLimit">
+            <summary>
+                The number of inventory slots a unit may fill. Relics and other equipment take slots the same way a gathered
+                piece does, so a unit carrying relics has that many fewer slots left for a resource. It is six unless a map
+                says otherwise, which is the number of relics a hero may hold.
+            </summary>
+        </member>
         <member name="P:Realm.Ecs.Services.MapRulesCatalog.UnitHealthBarEnabled">
             <summary>
                 Whether the match draws each unit's health bar, which is the top bar of its overhead plate. It is on unless
@@ -2119,6 +2135,13 @@
         </member>
         <member name="P:Realm.Ecs.Services.MapRulesCatalog.UnitLevelBadgeEnabled">
             <summary>Whether the match draws the overhead badge a script gives a unit, which sits left of the bars. It is off by default.</summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.MapRulesCatalog.SetInventorySlotLimit(System.Int32)">
+            <summary>
+                States how many inventory slots a unit may fill, which is the map's rule rather than a property of the item
+                or of the unit.
+            </summary>
+            <param name="slots">The number of slots every unit of the match may use, clamped to the storage the inventory holds.</param>
         </member>
         <member name="M:Realm.Ecs.Services.MapRulesCatalog.SetUnitBarVisibility(System.Boolean,System.Boolean,System.Boolean)">
             <summary>

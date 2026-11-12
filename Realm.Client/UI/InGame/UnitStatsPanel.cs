@@ -298,15 +298,13 @@ public class UnitStatsPanel
 
 		world.TryGet(entity, out Health health);
 		world.TryGet(entity, out Resistances resistances);
-		ResourceNode node = world.Get<ResourceNode>(entity);
 
 		string type = GameContext.RegistryService.GetResourceTypeForNode(propId) ?? string.Empty;
 		string label = string.IsNullOrEmpty(type) ? propId : type.ToUpperInvariant();
 		_messageLabel.Text = $"{label}\n"
-		                     + $"{TranslationServer.Translate("Health")}: {health.Current:F0} / {health.Max:F0}\n"
+		                     + $"{TranslationServer.Translate("Resources")}: {health.Current:F0} / {health.Max:F0}\n"
 		                     + $"{TranslationServer.Translate("Armor")}: {resistances.Physical:F0}   "
-		                     + $"{TranslationServer.Translate("Magic Resistance")}: {resistances.Magic:F0}\n"
-		                     + $"{TranslationServer.Translate("REMAINING")}: {node.Amount:F0}";
+		                     + $"{TranslationServer.Translate("Magic Resistance")}: {resistances.Magic:F0}";
 		_messageLabel.Visible = true;
 		_content.Visible = false;
 		HideCategoryPopup();

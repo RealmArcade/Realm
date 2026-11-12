@@ -559,6 +559,65 @@ public class BuildTaskCodec : INormalizingComponentCodec
 	}
 }
 
+public class GathererCodec : INormalizingComponentCodec
+{
+	public int ComponentTypeId => ComponentType<Gatherer>.Id;
+	public string ComponentName => nameof(Gatherer);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => 24;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Gatherer>(entity)) return false;
+
+		ref var gather = ref world.Get<Gatherer>(entity);
+		int targetEntityId = gather.TargetEntity.Id;
+		MemoryMarshal.Write(destination.Slice(0, sizeof(int)), in targetEntityId);
+		MemoryMarshal.Write(destination.Slice(4, sizeof(int)), in gather.ResourceTypeStringId);
+		MemoryMarshal.Write(destination.Slice(8, sizeof(int)), in gather.ItemStringId);
+		BitConverter.TryWriteBytes(destination.Slice(12, 4), gather.CarriedAmount);
+		BitConverter.TryWriteBytes(destination.Slice(16, 4), gather.MaxCapacity);
+		destination[20] = gather.ReturningToBaseByte;
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+
+		int targetEntityId = MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+		var gather = new Gatherer
+		{
+			TargetEntity = ReplicatedEntityReferences.Resolve(new Entity(targetEntityId)),
+			ResourceTypeStringId = MemoryMarshal.Read<int>(source.Slice(4, sizeof(int))),
+			ItemStringId = MemoryMarshal.Read<int>(source.Slice(8, sizeof(int))),
+			CarriedAmount = BitConverter.ToSingle(source.Slice(12, 4)),
+			MaxCapacity = BitConverter.ToSingle(source.Slice(16, 4)),
+			ReturningToBase = source[20] != 0
+		};
+		world.SetOrAdd(entity, in gather);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Gatherer>(entity)) return;
+		world.Remove<Gatherer>(entity);
+	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+	}
+
+	public void Repoint(EcsWorld world, Entity entity, Entity reference)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Gatherer>(entity)) return;
+
+		ref var held = ref world.Get<Gatherer>(entity);
+		held.TargetEntity = reference;
+	}
+}
+
 public class FollowCodec : INormalizingComponentCodec
 {
 	public int ComponentTypeId => ComponentType<Follow>.Id;
@@ -741,6 +800,7 @@ public static class ReplicatedComponents
 		Register(new CooldownsCodec());
 		Register(new ReplicatedComponentCodec<ConstructionState>(ReplicatedScope.Unit));
 		Register(new BuildTaskCodec());
+		Register(new GathererCodec());
 		Register(new ReplicatedComponentCodec<BuildQueue>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<MoveTo>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<AttackMove>(ReplicatedScope.Unit));

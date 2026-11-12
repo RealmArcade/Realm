@@ -5,8 +5,8 @@ using Realm.Ecs.Common;
 namespace Realm.Ecs.Components.Resources;
 
 /// <summary>
-///     Marks a node whose health is its remaining resource, and states which item each point of damage taken from it puts
-///     into the attacker's inventory.
+///     Marks a node whose health is its remaining resource, states which item a piece of it is, and states how many
+///     pieces one point of post-mitigation damage is worth.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct Harvestable

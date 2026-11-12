@@ -1,16 +1,20 @@
 using System;
 using System.Collections.Generic;
+using Realm.Ecs.Components.Core;
 
 namespace Realm.Ecs.Services;
 
 /// <summary>
-///     The harvesting and placement rules a match runs under, as the map's scripts declared them: which definition
-///     yields which resource, which buildings accept a delivery, which units may carry one, which building is a
-///     player's primary, and how much room a placement takes. The rules belong to the match, so the client reads the
-///     same answers the authority acts on instead of holding a second copy that can drift.
+///     The harvesting, placement and carry rules a match runs under, as the map declared them: which definition yields
+///     which resource, which buildings accept a delivery, which units may carry one, which building is a player's
+///     primary, how many inventory slots a unit may fill, and how much room a placement takes. The rules belong to the
+///     match, so the client reads the same answers the authority acts on instead of holding a second copy that can drift.
 /// </summary>
 public class MapRulesCatalog
 {
+	/// <summary>The slot count a match uses when its map states none, which is the number of relics a hero may hold.</summary>
+	public const int DefaultInventorySlotLimit = 6;
+
 	private const float DefaultPlacementRadius = 1.2f;
 
 	private readonly List<(string DefinitionKey, float Radius)> _placementRadiusRules = new();
@@ -19,6 +23,7 @@ public class MapRulesCatalog
 	private readonly List<string> _primaryBuildingIds = new();
 	private readonly Dictionary<string, string> _resourceTypeByNodeId = new(StringComparer.OrdinalIgnoreCase);
 	private bool _passiveResourceIncomeEnabled;
+	private int _inventorySlotLimit = DefaultInventorySlotLimit;
 	private bool _unitHealthBarEnabled = true;
 	private bool _unitManaBarEnabled;
 	private bool _unitLevelBadgeEnabled;
@@ -45,6 +50,13 @@ public class MapRulesCatalog
 	public bool PassiveResourceIncomeEnabled => _passiveResourceIncomeEnabled;
 
 	/// <summary>
+	///     The number of inventory slots a unit may fill. Relics and other equipment take slots the same way a gathered
+	///     piece does, so a unit carrying relics has that many fewer slots left for a resource. It is six unless a map
+	///     says otherwise, which is the number of relics a hero may hold.
+	/// </summary>
+	public int InventorySlotLimit => _inventorySlotLimit;
+
+	/// <summary>
 	///     Whether the match draws each unit's health bar, which is the top bar of its overhead plate. It is on unless
 	///     a map says otherwise.
 	/// </summary>
@@ -62,6 +74,16 @@ public class MapRulesCatalog
 	public void EnablePassiveResourceIncome()
 	{
 		_passiveResourceIncomeEnabled = true;
+	}
+
+	/// <summary>
+	///     States how many inventory slots a unit may fill, which is the map's rule rather than a property of the item
+	///     or of the unit.
+	/// </summary>
+	/// <param name="slots">The number of slots every unit of the match may use, clamped to the storage the inventory holds.</param>
+	public void SetInventorySlotLimit(int slots)
+	{
+		_inventorySlotLimit = Math.Clamp(slots, 0, InventorySlotArray.Capacity);
 	}
 
 	/// <summary>
@@ -202,6 +224,9 @@ public class MapRulesCatalog
 				break;
 			case "resource_node_type":
 				if (!_resourceTypeByNodeId.ContainsKey(key)) _resourceTypeByNodeId[key] = value;
+				break;
+			case "inventory_slots":
+				SetInventorySlotLimit((int)number);
 				break;
 			case "unit_bar":
 				switch (key)

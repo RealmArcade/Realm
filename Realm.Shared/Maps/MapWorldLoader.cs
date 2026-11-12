@@ -97,7 +97,7 @@ public static class MapWorldLoader
 		{
 			MapCombatTuning.Apply(simulation, metadata, loaded.Warnings);
 			catalog.BindTo(simulation.MapRules);
-			ApplyUnitBarVisibility(simulation.MapRules, metadata.MapProperties);
+			ApplyMapRules(simulation.MapRules, metadata.MapProperties);
 
 			DetermineGridSize(metadata, saveData, out int width, out int depth);
 			loaded.Width = width;
@@ -132,12 +132,20 @@ public static class MapWorldLoader
 		SpawnPlacedUnits(loaded);
 	}
 
-	private static void ApplyUnitBarVisibility(MapRulesCatalog rules, MapInfoMetadata? properties)
+	/// <summary>
+	///     States the rules a match runs under from the declarations the map itself carries, so both processes hold the
+	///     same answers without either holding a second copy that can drift.
+	/// </summary>
+	/// <param name="rules">The rules catalog of this process's match.</param>
+	/// <param name="properties">The map's own properties, or null when the map states none.</param>
+	public static void ApplyMapRules(MapRulesCatalog rules, MapInfoMetadata? properties)
 	{
 		rules.SetUnitBarVisibility(
 			properties?.ShowUnitHealthBar ?? true,
 			properties?.ShowUnitManaBar ?? false,
 			properties?.ShowUnitLevel ?? false);
+
+		rules.SetInventorySlotLimit(properties?.InventorySlots ?? MapRulesCatalog.DefaultInventorySlotLimit);
 	}
 
 	public static void DetermineGridSize(MapMetadata? metadata, MapSaveData? saveData, out int width, out int depth)

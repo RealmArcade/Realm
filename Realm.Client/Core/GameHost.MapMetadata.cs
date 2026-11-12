@@ -205,6 +205,11 @@ public partial class GameHost
 			GD.PushWarning(combatTuningWarnings[index]);
 		}
 
+		// The plate a unit draws and the slots it may fill are the match's rules rather than a screen preference, so this
+		// process states them from the same map the authority states them from: a screen that skipped this drew no mana
+		// bar, no level badge and the wrong carry capacity until the authority's own catalog reached it.
+		MapWorldLoader.ApplyMapRules(GameContext.Simulation.MapRules, metadata.MapProperties);
+
 		UnitRegistry.Clear();
 		BuildingRegistry.Clear();
 		PropRegistry.Clear();

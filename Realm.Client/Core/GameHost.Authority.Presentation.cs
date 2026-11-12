@@ -250,6 +250,10 @@ public partial class GameHost
 				PresentResourceNodeDepleted(message);
 				break;
 
+			case PresentationKind.ResourceNodeAmountChanged:
+				PresentResourceNodeAmount(message);
+				break;
+
 			case PresentationKind.PlayerAbilityRegistered:
 			case PresentationKind.AbilityRegistered:
 				ClientRegisterAbility(message.Key, message.Text, message.Text2, message.Text3, message.Flag);

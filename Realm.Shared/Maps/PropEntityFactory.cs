@@ -89,7 +89,7 @@ public static class PropEntityFactory
 
 		string resourceType = string.IsNullOrEmpty(metadata.ResourceType) ? string.Empty : metadata.ResourceType;
 		string itemId = string.IsNullOrEmpty(metadata.ItemTemplateId) ? string.Empty : metadata.ItemTemplateId;
-		if (resourceType.Length > 0 && itemId.Length > 0) world.Add(entity, new Harvestable(resourceType, itemId));
+		if (resourceType.Length > 0 && itemId.Length > 0) world.Add(entity, new Harvestable(resourceType, itemId, metadata.YieldPerDamage));
 	}
 
 	private static ResourceMetadata? FindResource(DefinitionCatalog catalog, string propId, string? cleanId)

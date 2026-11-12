@@ -58,19 +58,22 @@ public struct Inventory
 	}
 
 	/// <summary>
-	///     Answers how many more of an item the inventory could take when each slot holds at most the stated number.
+	///     Answers how many more of an item the inventory could take when the match grants it the stated number of slots
+	///     and each slot holds at most the stated number.
 	/// </summary>
 	/// <param name="itemId">The item definition identifier.</param>
 	/// <param name="maxStacks">The greatest number one slot may hold.</param>
+	/// <param name="slotLimit">The number of slots the unit may fill, which is the match's rule rather than the storage size.</param>
 	/// <returns>The number of pieces that would fit, never negative.</returns>
-	public int AvailableRoom(string? itemId, int maxStacks)
+	public int AvailableRoom(string? itemId, int maxStacks, int slotLimit)
 	{
 		if (string.IsNullOrEmpty(itemId)) return 0;
 
 		int limit = Math.Max(1, maxStacks);
-		int room = (InventorySlotArray.Capacity - Count) * limit;
+		int usableSlots = Math.Clamp(slotLimit, 0, InventorySlotArray.Capacity);
+		int room = Math.Max(0, usableSlots - Count) * limit;
 
-		for (int index = 0; index < Count; index++)
+		for (int index = 0; index < Count && index < usableSlots; index++)
 		{
 			string knownItemId = StringRegistry.Get(Slots[index].ItemStringId);
 			if (!string.Equals(knownItemId, itemId, StringComparison.OrdinalIgnoreCase)) continue;
@@ -117,26 +120,29 @@ public struct Inventory
 
 	public bool AddItem(string? itemId, int count = 1)
 	{
-		return AddItem(itemId, count, int.MaxValue);
+		return AddItem(itemId, count, int.MaxValue, InventorySlotArray.Capacity);
 	}
 
 	/// <summary>
-	///     Adds an item, filling each slot only up to the stated stack limit and opening further slots for the overflow.
+	///     Adds an item, filling each slot only up to the stated stack limit and opening further slots for the overflow
+	///     until the unit's granted slots are used up.
 	/// </summary>
 	/// <param name="itemId">The item definition identifier.</param>
 	/// <param name="count">The number of pieces to add; values below one are treated as one.</param>
 	/// <param name="maxStacks">The greatest number one slot may hold.</param>
+	/// <param name="slotLimit">The number of slots the unit may fill, which is the match's rule rather than the storage size.</param>
 	/// <returns>True when every requested piece was added; otherwise false.</returns>
-	public bool AddItem(string? itemId, int count, int maxStacks)
+	public bool AddItem(string? itemId, int count, int maxStacks, int slotLimit)
 	{
 		if (string.IsNullOrEmpty(itemId)) return false;
 
 		int limit = Math.Max(1, maxStacks);
+		int usableSlots = Math.Clamp(slotLimit, 0, InventorySlotArray.Capacity);
 		int remaining = Math.Max(1, count);
 		int itemStringId = StringRegistry.GetOrAdd(itemId);
 		if (itemStringId == 0) return false;
 
-		for (int index = 0; index < Count && remaining > 0; index++)
+		for (int index = 0; index < Count && index < usableSlots && remaining > 0; index++)
 		{
 			if (Slots[index].ItemStringId != itemStringId) continue;
 
@@ -148,7 +154,7 @@ public struct Inventory
 			remaining -= moved;
 		}
 
-		while (remaining > 0 && Count < InventorySlotArray.Capacity)
+		while (remaining > 0 && Count < usableSlots)
 		{
 			int moved = Math.Min(limit, remaining);
 			Slots[Count] = new InventorySlot { ItemStringId = itemStringId, Count = moved };

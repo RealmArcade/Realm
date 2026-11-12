@@ -11,8 +11,6 @@ namespace Realm.Shared.Simulation;
 
 public class ItemGrantService
 {
-	public const int CarriedItemLimit = 6;
-
 	private readonly SimulationContext _context;
 	private readonly DefinitionCatalog _catalog;
 
@@ -33,15 +31,15 @@ public class ItemGrantService
 		ItemMetadata? item = _catalog.FindItem(itemId);
 		if (item != null && !string.IsNullOrEmpty(item.ResourceType))
 		{
-			return inventory.AvailableRoom(itemId, StackLimitOf(item)) > 0;
+			return inventory.AvailableRoom(itemId, StackLimitOf(item), SlotLimit) > 0;
 		}
 
-		return CountEquippedKinds(ref inventory) < CarriedItemLimit || inventory.HasItem(itemId);
+		return CountEquippedKinds(ref inventory) < SlotLimit || inventory.HasItem(itemId);
 	}
 
 	/// <summary>
-	///     Counts the distinct equipped items a unit carries, leaving the resource pieces a worker hauls out of the
-	///     equipment limit so gathering never locks a hero out of its relic slots.
+	///     Counts the distinct equipped items a unit carries, ignoring the resource pieces a worker hauls: those take
+	///     slots in their own right, and a carried resource is not an equipment choice.
 	/// </summary>
 	/// <param name="inventory">The inventory being read.</param>
 	/// <returns>The number of carried item kinds that are not resources.</returns>
@@ -62,6 +60,9 @@ public class ItemGrantService
 		return kinds;
 	}
 
+	/// <summary>The number of inventory slots the match grants a unit, which equipment and resources share.</summary>
+	private int SlotLimit => _context.MapRules.InventorySlotLimit;
+
 	private static int StackLimitOf(ItemMetadata item)
 	{
 		return item.MaxStacks > 0 ? item.MaxStacks : 1;
@@ -78,7 +79,7 @@ public class ItemGrantService
 		int limit = metadata != null ? StackLimitOf(metadata) : 1;
 		int added = Math.Max(1, charges);
 		ref Inventory inventory = ref World.Get<Inventory>(entity);
-		if (!inventory.AddItem(itemId, added, limit)) return false;
+		if (!inventory.AddItem(itemId, added, limit, SlotLimit)) return false;
 
 		ApplyGrants(entity, itemId);
 		return true;

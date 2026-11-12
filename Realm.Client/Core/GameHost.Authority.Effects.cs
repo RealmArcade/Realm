@@ -198,9 +198,49 @@ public partial class GameHost
 	/// <param name="message">The authority's depletion message.</param>
 	private void PresentResourceNodeDepleted(PresentationMessage message)
 	{
-		var point = message.Position.ToNumerics();
-		Entity node = Entity.Null;
-		string propId = string.Empty;
+		if (!TryFindResourceNodeNear(message.Position.ToNumerics(), out Entity node)) return;
+		if (!World.TryGet(node, out PropIdentity identity)) return;
+
+		RemoveResourceNodeFromBoard(node, identity.PropId);
+	}
+
+	/// <summary>
+	///     Keeps a placed node's remaining capacity as current as the authority's. A node is board content each process
+	///     loads for itself, so the authority states what is left by the point the node stands at rather than by an entity
+	///     id the two processes do not share.
+	/// </summary>
+	/// <param name="message">The authority's statement of a node's remaining capacity.</param>
+	private void PresentResourceNodeAmount(PresentationMessage message)
+	{
+		if (!TryFindResourceNodeNear(message.Position.ToNumerics(), out Entity node)) return;
+
+		float amount = MathF.Max(0f, message.Value);
+
+		if (World.TryGet(node, out Health health))
+		{
+			health.Current = MathF.Min(amount, health.Max);
+			World.Set(node, health);
+		}
+
+		if (World.TryGet(node, out ResourceNode resourceNode))
+		{
+			resourceNode.Amount = amount;
+			World.Set(node, resourceNode);
+		}
+
+		if (SelectedResourceNodeEntity == node) GameContext.InGameHud?.RefreshUI(SelectedUnits);
+	}
+
+	/// <summary>
+	///     Finds the placed node a message names. Both processes load the board's props for themselves, so the node is
+	///     named by the point it stands at and the nearest node to that point is the one meant.
+	/// </summary>
+	/// <param name="point">The point the message names.</param>
+	/// <param name="node">The node that stands nearest that point, when one is close enough to be it.</param>
+	/// <returns>True when a node was found.</returns>
+	private bool TryFindResourceNodeNear(System.Numerics.Vector3 point, out Entity node)
+	{
+		Entity found = Entity.Null;
 		float closestDistance = 2.5f;
 
 		var query = QueryCache.AllPositionAndResourceNodeAndPropIdentityQuery;
@@ -210,12 +250,11 @@ public partial class GameHost
 			if (distance >= closestDistance) return;
 
 			closestDistance = distance;
-			node = entity;
-			propId = identity.PropId;
+			found = entity;
 		});
 
-		if (node == Entity.Null) return;
-		RemoveResourceNodeFromBoard(node, propId);
+		node = found;
+		return node != Entity.Null;
 	}
 
 	private void RemoveResourceNodeFromBoard(Entity node, string propId)
