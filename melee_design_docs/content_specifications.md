@@ -89,7 +89,7 @@ This draft does not pretend those gaps are small. It specifies the content so th
 | Building supply | 8 locations per player; each constructed building costs 1 |
 | Starting resources | 200 gold, 100 wood |
 | Starting army | None. Every soldier comes from automatic production |
-| Hero level cap | 6; levels grant raw stats only. Relics cost 100 gold at the Nexus |
+| Hero level cap | Not specified; levels grant raw stats only. A ruleset that wants a ceiling states it in metadata (`MaxLevel`). Relics cost 100 gold at the Nexus |
 | Nexus health | 6000, armor 15, no attack, Bulwark 1.0 |
 | Hero revival timer | 12 s, plus 3 s per prior death, capped at 45 s |
 | Match target | 20–30 minutes |
@@ -130,13 +130,13 @@ Vale is the entry point into the game. Her kit has one decision that matters: wh
 
 Unbroken is a flat player-wide effect, like a relic; it does not scale with level.
 
-Ability growth. The ability scaling fields drive these values from the hero's Intelligence attribute, so they rise automatically with level. The table states intended outcomes early, mid, and late in the six-level curve; it is not a formula to reverse-engineer.
+Ability growth. The ability scaling fields drive these values from the hero's Intelligence attribute, so they rise automatically with level. The table states intended outcomes early, mid, and late in the hero's level curve; it is not a formula to reverse-engineer.
 
 | Hero level | Grounding Shout damage | Hold Fast duration | Shield Bash stun | Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | 1 | 60 | 3 s | 1.25 s | Baseline |
 | 3 | 90 | 3.5 s | 1.4 s | Mid match |
-| 6 | 120 | 4 s | 1.55 s | Level cap |
+| 6 | 120 | 4 s | 1.55 s | Late match |
 
 Co-op level: **The Last Gate**. Teaches army positioning, holding a damaged building line, and the repair loop. Lore hook: the last gatekeeper of a wall that no longer has an army behind it.
 
@@ -186,7 +186,7 @@ Ability growth. The ability scaling fields drive `Requisition` from the hero's F
 | :--- | :--- | :--- |
 | 1 | 30% | Baseline |
 | 3 | 40% | Mid match |
-| 6 | 50% | Level cap |
+| 6 | 50% | Late match |
 
 Standing Ledger and Emergency Levy are flat effects; their value comes from capacity and timing rather than level scaling. The three actives chain: Requisition finishes a building, Emergency Levy fills its mana, and Forced March moves the new soldiers to the fight.
 
