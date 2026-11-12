@@ -89,12 +89,21 @@ public partial class CommandPanel
 		return HotkeySpec.None;
 	}
 
-	private Action GetAbilityCallback(string abilityId, bool isInstant, bool isPassive)
+	private Action GetAbilityCallback(string abilityId, AbilityDefinition? abilityDef)
 	{
+		// A card that places a template arms the standard construction placement, so the player picks the ground from the
+		// silhouette of what is going there rather than from a targeting cross-hair. Nothing is cast, and no worker is
+		// named: the player's own order raises the template.
+		if (!string.IsNullOrWhiteSpace(abilityDef?.PlacementTemplateId))
+		{
+			string placementTemplateId = abilityDef.PlacementTemplateId;
+			return () => GameContext.Host?.EnterBuildingPlacement(placementTemplateId, needsBuilder: false);
+		}
+
 		// A passive card is a description with an icon: there is no cast to start, so pressing it is deliberately inert
 		// rather than entering targeting or being greyed out like an unaffordable active.
-		if (isPassive) return static () => { };
-		if (isInstant) return () => GameContext.Host?.CastInstantAbility(abilityId);
+		if (abilityDef?.IsPassive ?? false) return static () => { };
+		if (abilityDef?.IsInstant ?? false) return () => GameContext.Host?.CastInstantAbility(abilityId);
 		return () => GameContext.Host?.EnterSpellTargeting(abilityId);
 	}
 

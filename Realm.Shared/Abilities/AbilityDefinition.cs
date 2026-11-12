@@ -44,5 +44,10 @@ public class AbilityDefinition
 	///     through <c>OnSpellImpact</c>.
 	/// </summary>
 	public string? ProjectileId { get; set; }
+
+	/// <summary>
+	///     The template this card places with the standard construction placement, or null when the card is a cast.
+	/// </summary>
+	public string? PlacementTemplateId { get; set; }
 	public string? CastSound { get; set; }
 }

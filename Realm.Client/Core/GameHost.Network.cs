@@ -272,7 +272,7 @@ public partial class GameHost
 		}
 	}
 
-	private void SubmitRemoteCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
+	private void SubmitRemoteCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString, bool allowsNoUnits = false)
 	{
 		for (int index = unitIds.Count - 1; index >= 0; index--)
 		{
@@ -281,7 +281,9 @@ public partial class GameHost
 			unitIds.RemoveAt(index);
 		}
 
-		if (unitIds.Count == 0) return;
+		// A placement the player makes raises its template itself, so it names no unit and is still an order: every other
+		// command that arrives without one asks the match to move nothing.
+		if (unitIds.Count == 0 && !allowsNoUnits) return;
 
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);

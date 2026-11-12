@@ -651,6 +651,7 @@ public class RegistryService
 				AreaOfEffectRadius = meta.AreaOfEffectRadius,
 				VisualEffect = meta.VisualEffect,
 				CastSound = meta.CastSound,
+				PlacementTemplateId = meta.PlacementTemplateId,
 				GridX = meta.GridX,
 				GridY = meta.GridY,
 				Hotkey = meta.Hotkey ?? ""

@@ -1425,6 +1425,12 @@
                   "null"
                 ]
               },
+              "PlacementTemplateId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "AutoCast": {
                 "type": [
                   "object",
