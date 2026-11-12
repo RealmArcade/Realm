@@ -859,6 +859,9 @@ public partial class MultiplayerSimulationHarness : Node
 			Check("the building shows its production box", buildingProductionBox is Control { Visible: true }, buildingProductionBox?.Name ?? "missing");
 			Node? buildingProductionTitle = hud.FindChild("ProductionTitle_Label", true, false);
 			Check("the production box names what the building is doing", buildingProductionTitle is Label productionLabel && productionLabel.Text.Length > 0, (buildingProductionTitle as Label)?.Text ?? "missing");
+			Check("the production box states the mana pool and the clock it returns on",
+				buildingProductionTitle is Label manaLabel && manaLabel.Text.Contains("MANA:", StringComparison.Ordinal) && manaLabel.Text.Contains("/s)", StringComparison.Ordinal),
+				(buildingProductionTitle as Label)?.Text ?? "missing");
 			FocusCamera(productionBuilding.GlobalPosition);
 			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 			Check("the drafted building stands on screen", IsOnScreen(productionBuilding.GlobalPosition), $"building {productionBuilding.GlobalPosition} camera {ActiveCamera()?.Position}");

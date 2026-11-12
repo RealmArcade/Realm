@@ -252,12 +252,13 @@ public partial class InGameHUDViewModel
 				}
 			}
 		}
-		else if (!info.IsEnemy && world.Has<Building>(u.Entity) && world.TryGet(u.Entity, out Mana mana) && mana.Max > 0f)
+		else if (world.Has<Building>(u.Entity) && world.TryGet(u.Entity, out Mana mana) && mana.Max > 0f)
 		{
 			// A building that fields what its mana pays for instead of training on a timer has no queue to read, but it
 			// still produces: what a player needs to see is the pool its auto-cast draws from and how fast it returns.
+			// The reading is inspection, not ownership, so an opponent's building shows the same pool.
 			info.HasProduction = true;
-			info.ProductionTitle = string.Format(TranslationServer.Translate("MANA: {0} / {1}"), (int)mana.Current, (int)mana.Max);
+			info.ProductionTitle = string.Format(TranslationServer.Translate("MANA: {0} / {1} (+{2}/s)"), (int)mana.Current, (int)mana.Max, mana.ManaRegen);
 			info.ProductionProgress = mana.Current;
 			info.ProductionMaxProgress = mana.Max;
 			if (info.ProductionQueue.Count > 0)

@@ -223,21 +223,21 @@ Rules:
 The draft is expressed through building construction, so that the decision and its commitment are the same act.
 
 1. **Accumulate the cost.** The player gathers 100 wood.
-2. **Begin construction.** The player starts a construction action. The building site appears as an unidentified silhouette. The hero continues construction, equivalent to repairing the building from 0 to 100% health.
-3. **Draw up to three options.** Up to three buildings still in the shared deck and not already owned by the player are drawn and reserved for this player; if the lobby allows duplicates, owned buildings are eligible up to the configured limit. Fewer than three is correct when fewer exist.
-4. **Choose one.** All drawn options are revealed immediately and the player selects one. The others return to the shared deck.
-5. **Complete construction.** The selected option stays locked but is not finalized until construction finishes. Construction time is the decision window; no separate draft timer exists.
-6. **Establish the building.** On completion the selected option becomes the player's building at that location.
-7. **Undrafted building.** Completion stays stuck at 99% and the building does not visually transform or start functioning until a draft choice is locked.
+2. **Begin construction.** The player casts Begin Construction on buildable ground. The 100 wood is charged and a blueprint marks the site; no building exists yet, and the hero's own grid stops offering Begin Construction while a draw is open.
+3. **Draw up to three options.** Up to three buildings still in the shared deck and not already owned by the player are drawn and reserved for this player, and the blueprint's command grid shows exactly those packages; if the lobby allows duplicates, owned buildings are eligible up to the configured limit. Fewer than three is correct when fewer exist.
+4. **Choose one.** The drawn options are visible immediately and the player casts one from the blueprint. That building leaves the deck, the blueprint gives way to the site as an unidentified silhouette, and the others return to the shared deck.
+5. **Raise the site.** The site is invulnerable and not operational. It rises only while the hero is ordered to work at it, equivalent to repairing the building from 0 to 100% health at the package's construction time, and an order for somewhere else stops the work where it stands. Construction time is the decision window that began with the draw; no separate draft timer exists.
+6. **Establish the building.** On completion the site becomes the player's building at that location, becomes attackable, and begins its production.
+7. **No undrafted completion.** A site exists only once an option is locked, so construction can never finish without a chosen package. A draw left unanswered leaves its blueprint and its reserved wood until the player answers it or abandons it.
 
 Consequences of this structure:
 
 - The chosen option is committed before construction completes, so a player cannot wait to see how the battlefield develops before finalizing.
 - Drawing reserves options rather than consuming them; only the selected building leaves the deck.
 - The next construction draws a fresh set. A previous draw is never reused.
-- Construction time doubles as the draft decision window.
+- The decision window is the open draw itself: the choice is made before any construction time is spent, and the construction that follows measures the commitment the player already made.
 - If construction is canceled before a choice is locked, its reserved options return to the deck and its 100 wood is refunded. No building is created and no draft is spent.
-- If construction is canceled after a choice is locked, the selected building returns to the deck, its 100 wood is refunded, no building supply is consumed, and no building is created.
+- Once a choice is locked the construction is committed: the wood is not refunded, the package does not return to the deck, and the site waits invulnerable until a hero raises it. Abandoning is offered only while the draw is open.
 - If no option exists to offer, the construction is canceled before a draw and its 100 wood is refunded.
 
 ### 6.4 Draft Competition
@@ -447,13 +447,13 @@ Rules:
 - Competitive balance assumes full vision and full information. Shroud is an optional lobby mode (section 14); the standard rules and the balance model assume it is off. Shroud is the tactical hiding of knowledge, not the environmental fog that a weather preset draws, and the rules only ever refer to the former.
 - Scouting is optional flavor rather than a strategically mandatory activity.
 - Strategic advantage comes from making better decisions with visible information, not from hidden army compositions.
-- Building draft reservation is visible. Before a choice is locked, an opponent who inspects the hero holding the open draft can see the three building options reserved for that player, stated as inspector readings on that hero. Once the choice is locked, the readings clear, the unchosen options return to the deck and the site reveals only the locked option, even while construction continues.
+- Building draft reservation is visible. Before a choice is locked, the three reserved options are stated on the blueprint's command grid, so the reservation is read the same way any other unit's cards are read and an opponent can act on it. Once the choice is locked, the grid empties, the unchosen options return to the deck and the site reveals only the locked option, even while construction continues.
 - A player may act on that information, for example by delaying their own construction when a desired option is reserved by an opponent and may return to the deck.
 - Counter information is exhaustive: clicking any unit, allied or enemy, shows its stats, targeting rule, formation, and active buffs. Selecting a unit the player does not own hides or disables the command card.
-- The readings the ruleset keeps itself are published as inspector readings on the unit rather than left in the map script, so every player reads the same values: a soldier-granting building states the soldier it unlocks, its current and maximum mana, its regeneration, its auto-cast cooldowns, its worker profile and buffs, and the soldiers it maintains against its capacity.
+- The readings the ruleset keeps itself reach every player through the unit's own panel: a soldier-granting building states the soldier it unlocks on its production cards, its current and maximum mana and its regeneration on its production box, both auto-cast cooldowns on those cards, the worker profile and buffs on its worker crew, and the soldiers it maintains against its capacity through those same readings.
 - Clicking a completed building, allied or enemy, shows its current health. A non-Nexus building also shows the soldier type it unlocks, its capacity contribution, current and maximum mana and regeneration, both auto-cast cooldowns, its active production queue, the worker capacity and buffs it provides, and the workers it currently maintains. Completed buildings have no command card: your own Nexus opens the relic vendor, and every other completed building is inspection-only.
 - Clicking a resource node, allied or enemy, shows its remaining capacity, health, and resistances; it never opens a command card.
-- The player's stat sheet groups readings into General, Attributes, Offense and Defense. General holds progression and economy readings (life steal, cooldown reduction, movement speed, damage type), Attributes holds the six core attributes, Offense holds attack, penetration, critical hit and spell power, and Defense holds armor, magic resistance, evasion and tenacity.
+- The player's stat sheet groups readings into General, Attributes, Offense and Defense, in that order. General holds progression and economy readings (level, experience, life steal, cooldown reduction, movement speed, damage type), Attributes holds the six core attributes, Offense holds attack damage, attack range, attack speed, critical hit, armor and magic penetration and spell power, and Defense holds armor, magic resistance, evasion and tenacity.
 
 ### 10.4 Instructions Menu
 
@@ -600,7 +600,6 @@ The following are intentionally outside this document or are not yet specified s
 - Exact resource-node capacities, resistances, worker travel speed, worker capacity and cooldown values, and regrowth values.
 - Detailed nexus attack and defense rules.
 - Match length, pacing, and multi-team victory resolution beyond the ranking rule.
-- Behaviour when construction reaches completion while a draw has been offered but no option has been locked.
 
 ## 17. Design Boundary
 
