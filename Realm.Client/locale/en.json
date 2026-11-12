@@ -2312,7 +2312,7 @@
   "Tint with player color": "Tint with player color",
   "Tints ground-level glows with the owning player's color instead of the authored effect colors": "Tints ground-level glows with the owning player's color instead of the authored effect colors",
   "Toggle Add/Delete Controls": "Toggle Add/Delete Controls",
-  "Toggle Camera Zoom (Near / Mid / Far) [Z]": "Toggle Camera Zoom (Near / Mid / Far) [Z]",
+  "Toggle Camera Zoom (Near / Mid / Far)": "Toggle Camera Zoom (Near / Mid / Far)",
   "Toggle Debug JSON View": "Toggle Debug JSON View",
   "Toggle Embedded VSCode JSON / Script editor": "Toggle Embedded VSCode JSON / Script editor",
   "Toggle Free Camera": "Toggle Free Camera",

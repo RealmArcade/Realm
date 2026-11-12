@@ -51,7 +51,7 @@ public sealed class MinimapControlsPanel
 		var slotsContainer = hooks.Owner.GetNode<Control>("BottomConsole/HBox");
 		slotsContainer.AddChild(Root);
 
-		Add(hooks, "BtnZoom_Button", UnicodeIcons.ZOOM_IN, "Toggle Camera Zoom (Near / Mid / Far) [Z]",
+		Add(hooks, "BtnZoom_Button", UnicodeIcons.ZOOM_IN, "Toggle Camera Zoom (Near / Mid / Far)",
 			() => GameContext.Host?.CycleCameraZoom());
 
 		Add(hooks, "BtnToggleTerrain_Button", UnicodeIcons.MAP_IMAGE, "Toggle Terrain Overlay (Radar Mode) [F4]",
