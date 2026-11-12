@@ -605,7 +605,7 @@ public class GathererCodec : INormalizingComponentCodec
 	public int ComponentTypeId => ComponentType<Gatherer>.Id;
 	public string ComponentName => nameof(Gatherer);
 	public ReplicatedScope Scope => ReplicatedScope.Unit;
-	public int SizeInBytes => 24;
+	public int SizeInBytes => 16;
 
 	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
 	{
@@ -616,9 +616,10 @@ public class GathererCodec : INormalizingComponentCodec
 		MemoryMarshal.Write(destination.Slice(0, sizeof(int)), in targetEntityId);
 		MemoryMarshal.Write(destination.Slice(4, sizeof(int)), in gather.ResourceTypeStringId);
 		MemoryMarshal.Write(destination.Slice(8, sizeof(int)), in gather.ItemStringId);
-		BitConverter.TryWriteBytes(destination.Slice(12, 4), gather.CarriedAmount);
-		BitConverter.TryWriteBytes(destination.Slice(16, 4), gather.MaxCapacity);
-		destination[20] = gather.ReturningToBaseByte;
+		destination[12] = gather.ReturningToBaseByte;
+		destination[13] = 0;
+		destination[14] = 0;
+		destination[15] = 0;
 		return true;
 	}
 
@@ -632,9 +633,7 @@ public class GathererCodec : INormalizingComponentCodec
 			TargetEntity = ReplicatedEntityReferences.Resolve(new Entity(targetEntityId)),
 			ResourceTypeStringId = MemoryMarshal.Read<int>(source.Slice(4, sizeof(int))),
 			ItemStringId = MemoryMarshal.Read<int>(source.Slice(8, sizeof(int))),
-			CarriedAmount = BitConverter.ToSingle(source.Slice(12, 4)),
-			MaxCapacity = BitConverter.ToSingle(source.Slice(16, 4)),
-			ReturningToBase = source[20] != 0
+			ReturningToBase = source[12] != 0
 		};
 		world.SetOrAdd(entity, in gather);
 	}

@@ -182,19 +182,17 @@ public partial interface IGameAPI
 	void SetUnitPlayerOrdersLocked(UnitId unit, bool value);
 
 	/// <summary>
-	/// States how much one gathering swing takes from a node and how long that swing lasts.
+	/// States how long one gathering swing lasts, which is the cadence a worker works a node at.
 	/// </summary>
 	/// <remarks>
-	/// A gather order sets the worker going; this states what a swing is worth. The amount is taken from the node and
-	/// carried back to a dropoff one swing at a time, so a player is paid exactly what its nodes lost and the trip's
-	/// length is what decides the real rate: a near node is worked more often than a far one at the same swing value.
-	/// Leaving the amount at zero makes the worker take whatever the node advertises as its harvest rate, and leaving the
-	/// seconds at zero makes one swing take a second. The call does nothing for a unit that is not gathering.
+	/// A gather order sets the worker going; this states how long each of its swings takes. What a swing takes from the
+	/// node is decided by the node's yield and the worker's own attack, so a map overrides the rhythm rather than the
+	/// amount, and leaving the seconds at zero falls back to the unit's attack interval. The call does nothing for a unit
+	/// that is not gathering.
 	/// </remarks>
 	/// <param name="unit">The gathering unit.</param>
-	/// <param name="swingAmount">The amount one swing takes from the node, or zero to use the node's own harvest rate.</param>
-	/// <param name="swingSeconds">The seconds one swing lasts, or zero for one second.</param>
-	void SetUnitGatherSwing(UnitId unit, float swingAmount, float swingSeconds);
+	/// <param name="swingSeconds">The seconds one swing lasts, or zero to swing at the unit's own attack interval.</param>
+	void SetUnitGatherInterval(UnitId unit, float swingSeconds);
 
 	/// <summary>
 	/// States the share of each delivered swing the map keeps, so a ruleset can tax a worker's income.

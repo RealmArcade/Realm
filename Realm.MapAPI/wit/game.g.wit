@@ -220,7 +220,7 @@ interface game-api {
     set-unit-experience: func(unit-id: s32, value: f32);
     set-unit-facing: func(unit-id: s32, facing-radians: f32);
     set-unit-frozen: func(unit-id: s32, value: bool);
-    set-unit-gather-swing: func(unit-id: s32, swing-amount: f32, swing-seconds: f32);
+    set-unit-gather-interval: func(unit-id: s32, swing-seconds: f32);
     set-unit-gather-tax-rate: func(unit-id: s32, tax-rate: f32);
     set-unit-hand-attachment: func(unit-id: s32, hand: string, attachment-id: string);
     set-unit-health: func(unit-id: s32, value: f32);

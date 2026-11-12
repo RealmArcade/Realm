@@ -196,7 +196,7 @@ public partial class InGameHUDViewModel
 	private string? GetBaseStateText(EcsWorld world, Unit3D u)
 	{
 		if (world.Has<Gatherer>(u.Entity))
-			return GetGathererStateText(world.Get<Gatherer>(u.Entity));
+			return GetGathererStateText(world, u.Entity, world.Get<Gatherer>(u.Entity));
 
 		if (world.Has<BuildTask>(u.Entity))
 			return GetBuildTaskStateText(world.Get<BuildTask>(u.Entity));
@@ -204,12 +204,31 @@ public partial class InGameHUDViewModel
 		return null;
 	}
 
-	private string GetGathererStateText(Gatherer gather)
+	private string GetGathererStateText(EcsWorld world, Entity entity, Gatherer gather)
 	{
 		string cachedDelivering = TranslationServer.Translate("DELIVERING");
 		string cachedHarvesting = TranslationServer.Translate("HARVESTING");
 		string stateLabel = gather.ReturningToBase ? "● " + cachedDelivering : "● " + cachedHarvesting;
-		return $"{stateLabel} ({gather.CarriedAmount:F0} / {gather.MaxCapacity:F0} {TranslationServer.Translate(gather.ResourceType.ToUpper())})";
+		string resource = TranslationServer.Translate(gather.ResourceType.ToUpper());
+		int carried = CarriedPiecesOf(world, entity, gather.ItemStringId);
+
+		return carried > 0 ? $"{stateLabel} ({carried} {resource})" : $"{stateLabel} ({resource})";
+	}
+
+	/// <summary>
+	///     Counts the pieces of the gathered item the unit is actually holding, so the state line reads the inventory
+	///     rather than a carried total the gathering state keeps of its own.
+	/// </summary>
+	/// <param name="world">The world the unit belongs to.</param>
+	/// <param name="entity">The unit whose inventory is read.</param>
+	/// <param name="itemStringId">The item the node yields, or zero when the unit has not worked one yet.</param>
+	/// <returns>The pieces of that item across every slot, or zero when it carries none.</returns>
+	private static int CarriedPiecesOf(EcsWorld world, Entity entity, int itemStringId)
+	{
+		if (itemStringId == 0) return 0;
+		if (!world.Has<Inventory>(entity)) return 0;
+
+		return world.Get<Inventory>(entity).GetItemCount(StringRegistry.Get(itemStringId));
 	}
 
 	private string GetBuildTaskStateText(BuildTask bt)

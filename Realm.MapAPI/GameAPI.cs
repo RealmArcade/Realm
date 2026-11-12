@@ -89,7 +89,7 @@ public static class GameAPI
 		public void SetUnitPlayerOrdersLocked(UnitId unit, bool value) => gameApi.SetUnitPlayerOrdersLocked(unit, value);
 
 		/// <summary>States what one gathering swing takes from a node and how long the swing lasts.</summary>
-		public void SetUnitGatherSwing(UnitId unit, float swingAmount, float swingSeconds) => gameApi.SetUnitGatherSwing(unit, swingAmount, swingSeconds);
+		public void SetUnitGatherInterval(UnitId unit, float swingSeconds) => gameApi.SetUnitGatherInterval(unit, swingSeconds);
 
 		/// <summary>States the share of each delivered swing the map keeps.</summary>
 		public void SetUnitGatherTaxRate(UnitId unit, float taxRate) => gameApi.SetUnitGatherTaxRate(unit, taxRate);

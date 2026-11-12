@@ -587,19 +587,13 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 
 	public void SetUnitPlayerOrdersLocked(UnitId unit, bool value) => SetUnitFlag<PlayerOrdersLocked>(unit, value);
 
-	public void SetUnitGatherSwing(UnitId unit, float swingAmount, float swingSeconds)
+	public void SetUnitGatherInterval(UnitId unit, float swingSeconds)
 	{
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return;
 		if (!_context.World.TryGet<Gatherer>(entity, out Gatherer gather)) return;
 
-		gather.SwingAmount = MathF.Max(0f, swingAmount);
 		gather.SwingSeconds = MathF.Max(0f, swingSeconds);
-
-		// A worker has to be able to hold two of its own swings, or a building that advertises more than a generic hand
-		// holds could never be paid at all.
-		if (gather.SwingAmount > 0f) gather.MaxCapacity = MathF.Max(gather.MaxCapacity, gather.SwingAmount * 2f);
-
 		_context.World.Set(entity, gather);
 	}
 

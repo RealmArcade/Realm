@@ -460,18 +460,6 @@ internal sealed class MeleeMatch : IDisposable
 		World.Set(new Entity(prop.Value), new Position(position));
 	}
 
-	public float TotalCarriedAmount(int slot)
-	{
-		float total = 0f;
-		foreach (UnitId unit in Owned(slot))
-		{
-			if (!IsAlive(unit)) continue;
-			if (TryGet(unit, out Gatherer gatherer)) total += gatherer.CarriedAmount;
-		}
-
-		return total;
-	}
-
 	/// <summary>
 	///     Adds up one item across every unit of a seat, which is what its workers are holding but have not delivered.
 	/// </summary>
