@@ -306,11 +306,6 @@ public class InputService
 
 	public Vector3? FindNearestFreePosition(Vector3 startPos, float checkRadius, float maxSearchDist = 20.0f, float terrainQuadSize = 2.0f, int terrainWidth = 256, int terrainDepth = 256) => PlacementQueries.FindNearestFreePosition(startPos, checkRadius, maxSearchDist, terrainQuadSize, terrainWidth, terrainDepth);
 
-	public bool TryExecuteSpellCast(Entity playerEntity, string spellId, out float cooldownMax)
-	{
-		return TryExecuteSpellCast(playerEntity, Entity.Null, spellId, out cooldownMax);
-	}
-
 	private bool ConsumeManaIfSufficient(Entity entity, string spellId)
 	{
 		if (!World.Has<Mana>(entity)) return true;
@@ -348,7 +343,7 @@ public class InputService
 		return true;
 	}
 
-	public bool TryExecuteSpellCast(Entity playerEntity, Entity casterEntity, string spellId, out float cooldownMax)
+	public bool TryExecuteSpellCast(Entity casterEntity, string spellId, out float cooldownMax)
 	{
 		cooldownMax = 10.0f;
 		if (GameContext.Host != null)
@@ -360,19 +355,11 @@ public class InputService
 			}
 		}
 
-		if (casterEntity != Entity.Null && World.IsAlive(casterEntity))
-		{
-			if (!ConsumeManaIfSufficient(casterEntity, spellId)) return false;
+		if (casterEntity == Entity.Null || !World.IsAlive(casterEntity)) return true;
 
-			if (!TryApplyCooldown(casterEntity, spellId, cooldownMax)) return false;
-		}
+		if (!ConsumeManaIfSufficient(casterEntity, spellId)) return false;
 
-		if (World.IsAlive(playerEntity))
-		{
-			if (!TryApplyCooldown(playerEntity, spellId, cooldownMax)) return false;
-		}
-
-		return true;
+		return TryApplyCooldown(casterEntity, spellId, cooldownMax);
 	}
 
 	public bool BuyItem(string itemId, Entity playerEntity, Vector3 shopPosition, Entity selectedUnitEntity, out Entity targetUnitEntity)
@@ -779,18 +766,6 @@ public class InputService
 		if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
 		ref var state = ref World.Get<InputState>(worldEntity);
 		state.CycleSelectionIndex = selectedCount > 0 ? Math.Clamp(value, 0, selectedCount - 1) : 0;
-	}
-
-	public float GetSpellCooldown(Entity playerEntity, string spellId)
-	{
-		if (playerEntity == Entity.Null || !World.IsAlive(playerEntity)) return 0f;
-		if (World.Has<SpellCooldowns>(playerEntity))
-		{
-			var spellCooldowns = World.Get<SpellCooldowns>(playerEntity);
-			if (spellCooldowns.TryGetValue(spellId, out float remaining)) return remaining;
-		}
-
-		return 0f;
 	}
 
 	public void ApplySpellEffect(AbilityDefinition def, Vector3 simPos, Entity target)

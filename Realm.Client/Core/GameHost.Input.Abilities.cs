@@ -115,9 +115,9 @@ public partial class GameHost
 
 		// Affordability and cooldown are settled before the script hears about the cast, matching the authoritative server
 		// path. Raising OnSpellCast first let a refused cast still run its map-side effects and left a cooldown behind.
-		if (IsSpellOnCooldown(spellId, def)) return;
+		if (IsSpellOnCooldown(spellId, def, casterEntity)) return;
 
-		if (!GameContext.InputService.TryExecuteSpellCast(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), casterEntity, spellId, out float maxCd))
+		if (!GameContext.InputService.TryExecuteSpellCast(casterEntity, spellId, out float maxCd))
 		{
 			ShowInsufficientManaFeedback(spellId, def);
 			return;
@@ -142,9 +142,11 @@ public partial class GameHost
 		GameContext.InGameHud?.ShowFeedbackText($"{displayName} requires {(int)cost} mana", new Color(0.9f, 0.4f, 0.1f));
 	}
 
-	private bool IsSpellOnCooldown(string spellId, AbilityDefinition? def)
+	private bool IsSpellOnCooldown(string spellId, AbilityDefinition? def, Entity casterEntity)
 	{
-		float cd = GameContext.InputService.GetSpellCooldown(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), spellId);
+		float cd = casterEntity != Entity.Null && World.IsAlive(casterEntity)
+			? UnitOrderService.GetAbilityCooldownRemaining(World, casterEntity, spellId)
+			: 0f;
 		if (cd <= 0f) return false;
 
 		string displayName = def?.DisplayName ?? spellId;
