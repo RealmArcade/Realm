@@ -140,7 +140,6 @@ public partial class MultiplayerSimulationHarness : Node
 				if (!GodotObject.IsInstanceValid(unit)) continue;
 				if (unit.Player != 1) continue;
 				if (!unit.TemplateID.StartsWith("unit/", StringComparison.OrdinalIgnoreCase)) continue;
-				if (unit.TemplateID.StartsWith("unit/blueprint", StringComparison.OrdinalIgnoreCase)) continue;
 				if (unit.TemplateID.StartsWith("unit/worker", StringComparison.OrdinalIgnoreCase)) continue;
 				return unit;
 			}
@@ -422,7 +421,7 @@ public partial class MultiplayerSimulationHarness : Node
 			bool answeredByKey = beginKey != '\0' && hud.HandleCommandCardHotkey(ParseHotkey(beginKey.ToString()), (KeyModifierMask)0);
 			Check("begin construction answers the key its slot names", answeredByKey, beginTooltip);
 			await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
-			Check("begin construction arms the site placement", currentHost.ActiveBuildingPlacementType == "unit/blueprint", currentHost.ActiveBuildingPlacementType ?? "none");
+			Check("begin construction arms the site placement", currentHost.ActiveBuildingPlacementType == "building/construction_site", currentHost.ActiveBuildingPlacementType ?? "none");
 
 			PlaceActiveBuilding(currentHost, hero.GlobalPosition + new Vector3(2f, 0f, 2f));
 			await ToSignal(GetTree().CreateTimer(1.2f), SceneTreeTimer.SignalName.Timeout);
@@ -431,18 +430,18 @@ public partial class MultiplayerSimulationHarness : Node
 			string draftFeedback = ReadFeedback(hud);
 			Check("the draw announces its offers", draftFeedback.Contains("offered", StringComparison.OrdinalIgnoreCase), draftFeedback);
 
-			// The offers belong to the blueprint that was marked on the ground, not to the hero that cast the draw. A
-			// player who never selects the site sees no packages, which is what separates the two grids.
-			Unit3D? blueprint = FindUnit(currentHost, "unit/blueprint", 1);
-			Check("the draw stands on the board as a blueprint", blueprint != null);
+			// The offers belong to the unidentified site that stands where the placement put it, not to the hero that pressed
+			// the card. A player who never selects the site sees no packages, which is what separates the two grids.
+			Unit3D? site = FindUnit(currentHost, "building/construction_site", 1);
+			Check("the draw stands on the board as an unidentified site", site != null);
 			Check("the hero does not list the drawn packages", FindDraftOffers().Count == 0, $"hero cards={FindDraftOffers().Count}");
-			if (blueprint != null)
+			if (site != null)
 			{
-				currentHost.SelectUnitInternal(new UnitId(blueprint.Entity.Id));
+				currentHost.SelectUnitInternal(new UnitId(site.Entity.Id));
 				await ToSignal(GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
 
 				List<Button> draftOptions = FindDraftOffers();
-				Check("all three drawn packages are on the blueprint's grid", draftOptions.Count == 3, $"cards={draftOptions.Count}");
+				Check("all three drawn packages are on the site's grid", draftOptions.Count == 3, $"cards={draftOptions.Count}");
 
 				// A package states the worker crew it raises and the buffs it gives them instead of an invented income
 				// rate, so what the draw tooltip says has to reach the card the player hovers.
@@ -477,7 +476,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 				// Abandoning is the only way back out of a draw, so it is played before anything is locked: the reserved
 				// wood has to return, the begin card has to come back and the offers have to leave both grids.
-				currentHost.SelectUnitInternal(new UnitId(blueprint.Entity.Id));
+				currentHost.SelectUnitInternal(new UnitId(site.Entity.Id));
 				await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 				Button? abandonButton = FindCommandButton(hud, "Abandon Construction");
 				Check("the drawn card offers the abandon command", abandonButton != null);
@@ -496,7 +495,7 @@ public partial class MultiplayerSimulationHarness : Node
 				Check("abandoning the draw returns its wood", hud.Wood >= woodBefore - 1f, $"wood {hud.Wood:0.##} expected {woodBefore:0.##}");
 				string abandonFeedback = ReadFeedback(hud);
 				Check("abandoning the draw announces the refund", abandonFeedback.Contains("returned", StringComparison.OrdinalIgnoreCase), abandonFeedback);
-				Check("abandoning the draw clears its blueprint", FindUnit(currentHost, "unit/blueprint", 1) == null);
+				Check("abandoning the draw clears its site", FindUnit(currentHost, "building/construction_site", 1) == null);
 
 				currentHost.SelectUnitInternal(new UnitId(hero.Entity.Id));
 				await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
@@ -520,16 +519,16 @@ public partial class MultiplayerSimulationHarness : Node
 			{
 				reopenButton.EmitSignal(Button.SignalName.Pressed);
 				await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
-				Check("the second draw arms the site placement", currentHost.ActiveBuildingPlacementType == "unit/blueprint", currentHost.ActiveBuildingPlacementType ?? "none");
+				Check("the second draw arms the site placement", currentHost.ActiveBuildingPlacementType == "building/construction_site", currentHost.ActiveBuildingPlacementType ?? "none");
 
 				PlaceActiveBuilding(currentHost, hero.GlobalPosition + new Vector3(2f, 0f, 2f));
 				await ToSignal(GetTree().CreateTimer(1.2f), SceneTreeTimer.SignalName.Timeout);
 				Check("the second draw reserves 100 wood", hud.Wood <= woodBefore - 90f, $"{woodBefore:0.##} -> {hud.Wood:0.##}");
-				Unit3D? secondBlueprint = FindUnit(currentHost, "unit/blueprint", 1);
-				Check("the second draw stands on the board", secondBlueprint != null);
-				if (secondBlueprint != null)
+				Unit3D? secondSite = FindUnit(currentHost, "building/construction_site", 1);
+				Check("the second draw stands on the board", secondSite != null);
+				if (secondSite != null)
 				{
-					currentHost.SelectUnitInternal(new UnitId(secondBlueprint.Entity.Id));
+					currentHost.SelectUnitInternal(new UnitId(secondSite.Entity.Id));
 					await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
 					Check("the second draw offers three packages", FindDraftOffers().Count == 3, $"cards={FindDraftOffers().Count}");
 				}
@@ -542,7 +541,7 @@ public partial class MultiplayerSimulationHarness : Node
 				await ToSignal(GetTree().CreateTimer(1.0f), SceneTreeTimer.SignalName.Timeout);
 
 				Check("dying with a draw open returns its wood", hud.Wood >= woodBefore - 1f, $"wood {hud.Wood:0.##} expected {woodBefore:0.##}");
-				Check("dying with a draw open withdraws the offers", FindUnit(currentHost, "unit/blueprint", 1) == null);
+				Check("dying with a draw open withdraws the offers", FindUnit(currentHost, "building/construction_site", 1) == null);
 				Check("a fallen hero offers no construction draw", FindCommandButton(hud, "Begin Construction") == null);
 
 				hero = await WaitForRevivalAsync();
@@ -565,18 +564,18 @@ public partial class MultiplayerSimulationHarness : Node
 			{
 				finalDrawButton.EmitSignal(Button.SignalName.Pressed);
 				await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
-				Check("the final draw arms the site placement", currentHost.ActiveBuildingPlacementType == "unit/blueprint", currentHost.ActiveBuildingPlacementType ?? "none");
+				Check("the final draw arms the site placement", currentHost.ActiveBuildingPlacementType == "building/construction_site", currentHost.ActiveBuildingPlacementType ?? "none");
 
 				PlaceActiveBuilding(currentHost, hero.GlobalPosition + new Vector3(2f, 0f, 2f));
 				await ToSignal(GetTree().CreateTimer(1.2f), SceneTreeTimer.SignalName.Timeout);
 				Check("the final draw reserves 100 wood", hud.Wood <= woodBefore - 90f, $"{woodBefore:0.##} -> {hud.Wood:0.##}");
 			}
 
-			Unit3D? finalBlueprint = FindUnit(currentHost, "unit/blueprint", 1);
-			Check("the final draw stands on the board", finalBlueprint != null);
-			if (finalBlueprint != null)
+			Unit3D? finalSite = FindUnit(currentHost, "building/construction_site", 1);
+			Check("the final draw stands on the board", finalSite != null);
+			if (finalSite != null)
 			{
-				currentHost.SelectUnitInternal(new UnitId(finalBlueprint.Entity.Id));
+				currentHost.SelectUnitInternal(new UnitId(finalSite.Entity.Id));
 				await ToSignal(GetTree().CreateTimer(0.5f), SceneTreeTimer.SignalName.Timeout);
 				List<Button> draftOptions = FindDraftOffers();
 				Check("the final draw offers three packages", draftOptions.Count == 3, $"cards={draftOptions.Count}");
@@ -615,9 +614,9 @@ public partial class MultiplayerSimulationHarness : Node
 					}
 
 					int buildingsAfter = CountPlayerBuildings(currentHost, 1);
-					Check("locking a draft starts its site", buildingsAfter == buildingsBefore + 1, $"buildings {buildingsBefore} -> {buildingsAfter}");
+					Check("locking a draft turns its site into the building instead of raising a second one", buildingsAfter == buildingsBefore, $"buildings {buildingsBefore} -> {buildingsAfter}");
 					Check("the site announces construction", siteAnnounced, siteFeedback);
-					Check("locking the draw answers its blueprint", FindUnit(currentHost, "unit/blueprint", 1) == null);
+					Check("locking the draw answers its site", FindUnit(currentHost, "building/construction_site", 1) == null);
 					Note($"drafted card='{draftedCard}'");
 				}
 			}
