@@ -9,6 +9,12 @@ namespace Realm.Shared.Distribution;
 
 public class MapManifest
 {
+	private static readonly string[] GeneratedWorkspaceFileNames =
+	{
+		"MapTemplates.g.cs",
+		"WasmEntryPoint.g.cs"
+	};
+
 	private Dictionary<string, string> _files = new(StringComparer.OrdinalIgnoreCase);
 	private HashSet<string>? _fileNamesSet;
 
@@ -539,7 +545,16 @@ public class MapManifest
 		if (string.Equals(relativePath, MapMetadataMerger.MetadataPartialFileName, StringComparison.OrdinalIgnoreCase))
 			return true;
 
-		return string.Equals(Path.GetFileName(relativePath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
+		// Generated workspace code is written from the map's own merge on every workspace setup and is never taken from a
+		// referenced map, so hashing it would move the package pin whenever a workspace was rebuilt.
+		string fileName = Path.GetFileName(relativePath);
+		for (int index = 0; index < GeneratedWorkspaceFileNames.Length; index++)
+		{
+			if (string.Equals(fileName, GeneratedWorkspaceFileNames[index], StringComparison.OrdinalIgnoreCase))
+				return true;
+		}
+
+		return string.Equals(fileName, "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static bool IsIgnoredArchiveExtension(string relativePath)
