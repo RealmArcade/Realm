@@ -314,42 +314,6 @@ public partial interface IGameAPI
 	void SetUnitOverheadBadge(UnitId unit, int value, System.Numerics.Vector3 color);
 
 	/// <summary>
-	/// States the charges a unit keeps and how long it takes to regain one, which is how a map makes a building hold a
-	/// limited number of what it fields.
-	/// </summary>
-	/// <remarks>
-	/// The engine owns the count: it regains a charge every <paramref name="rechargeSeconds" /> on its own, so a map
-	/// states the parameters once and never advances the timer itself. The count is a component of the unit, read the
-	/// same way by the inspector, the overhead plate and the map, and replicated with the unit, so every screen states
-	/// the same number without the map publishing it.
-	/// <para>
-	/// Stating the parameters again keeps the count the unit holds, clamped to the new maximum, and keeps the recharge it
-	/// has already served, so a rule that raises the cap mid-match does not hand out charges and a rule that lowers the
-	/// recharge time is felt on the charge being regained. Calling it on a unit that carries no charges gives it a count
-	/// of zero, because the maximum stated here is what the charge is worth.
-	/// </para>
-	/// <para>
-	/// A maximum of zero removes the charges from the unit, which is how a map says the rule no longer applies to it.
-	/// </para>
-	/// </remarks>
-	/// <param name="unit">The unit identifier.</param>
-	/// <param name="maximumCharges">The greatest number of charges the unit may hold, or zero to hold none at all.</param>
-	/// <param name="rechargeSeconds">Seconds the unit takes to regain one charge, or zero to regain them at once.</param>
-	void SetUnitCharges(UnitId unit, int maximumCharges, float rechargeSeconds);
-
-	/// <summary>
-	/// Sets how many charges a unit holds right now, which is how a map spends or grants one.
-	/// </summary>
-	/// <remarks>
-	/// The count is clamped to what the unit states through <see cref="SetUnitCharges" />, and a unit that carries no
-	/// charges ignores the call because it has no count to set. Spending the last charge resets the recharge, because the
-	/// time served toward a charge the unit already held is not time served toward the next one.
-	/// </remarks>
-	/// <param name="unit">The unit identifier.</param>
-	/// <param name="charges">The number of charges the unit holds, which is clamped to the maximum it states.</param>
-	void SetUnitChargeCount(UnitId unit, int charges);
-
-	/// <summary>
 	/// States the multiplier the damage one player deals carries against another, which is how a rule makes a side of a
 	/// contest temporarily less effective without changing the units themselves.
 	/// </summary>

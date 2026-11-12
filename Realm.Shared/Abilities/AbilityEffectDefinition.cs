@@ -13,7 +13,8 @@ public enum AbilityEffectKind
 	Stun,
 	Summon,
 	Teleport,
-	Knockback
+	Knockback,
+	Gather
 }
 
 public enum AbilityEffectDelivery

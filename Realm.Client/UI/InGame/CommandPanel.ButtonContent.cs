@@ -132,6 +132,20 @@ public partial class CommandPanel
 		cdLabel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 		btn.AddChild(cdLabel);
 
+		if (GameContext.Host?.GetAbilityDefinition(item.AbilityId)?.AutoCastEnabled == true)
+		{
+			var marquee = new ColorRect
+			{
+				Name = AutoCastMarqueeName,
+				Color = Colors.White,
+				Visible = false,
+				MouseFilter = Control.MouseFilterEnum.Ignore,
+				Material = new ShaderMaterial { Shader = GetAutoCastMarqueeShader() }
+			};
+			marquee.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+			btn.AddChild(marquee);
+		}
+
 		if (item.ManaCost > 0f)
 		{
 			var manaLabel = new Label

@@ -21,7 +21,6 @@ public class MatchTick
 	private static readonly QueryDescription AttackQuery = QueryCache.AllAttackQuery;
 	private static readonly QueryDescription HealthQuery = QueryCache.AllHealthNoneDeadQuery;
 	private static readonly QueryDescription ManaQuery = QueryCache.AllManaAndManaRegenNoneDeadQuery;
-	private static readonly QueryDescription ChargesQuery = new QueryDescription().WithAll<UnitCharges>().WithNone<Dead, Dormant>();
 
 	private readonly SimulationContext _simulation;
 	private readonly EntityCallback<Buffs> _buffsDelegate;
@@ -34,7 +33,6 @@ public class MatchTick
 	private readonly EntityCallback<Attack> _attackDelegate;
 	private readonly EntityCallback<Health> _healthDelegate;
 	private readonly EntityCallback<Mana, ManaRegen> _manaDelegate;
-	private readonly EntityCallback<UnitCharges> _chargesDelegate;
 
 	private float _deltaSeconds;
 	private float _shroudTimer;
@@ -52,7 +50,6 @@ public class MatchTick
 		_attackDelegate = AdvanceAttackCooldown;
 		_healthDelegate = AdvanceHealthRegeneration;
 		_manaDelegate = AdvanceManaRegeneration;
-		_chargesDelegate = AdvanceUnitCharges;
 	}
 
 	public EcsWorld World => _simulation.World;
@@ -98,7 +95,6 @@ public class MatchTick
 		World.Query(in AttackQuery, _attackDelegate);
 		World.Query(in HealthQuery, _healthDelegate);
 		World.Query(in ManaQuery, _manaDelegate);
-		World.Query(in ChargesQuery, _chargesDelegate);
 	}
 
 	private void AdvanceMatchClock(float deltaSeconds)
@@ -215,6 +211,4 @@ public class MatchTick
 
 		mana.Current = MathF.Min(mana.Max, mana.Current + regen.PerSecond * _deltaSeconds);
 	}
-
-	private void AdvanceUnitCharges(Entity entity, ref UnitCharges charges) => charges.Advance(_deltaSeconds);
 }

@@ -269,6 +269,21 @@ public static class UnitOrderService
 		return 0f;
 	}
 
+	/// <summary>
+	///     The seconds a unit actually waits before it can use an ability again, after its own cooldown reduction. A
+	///     cooldown is authored as the full duration, so this is what every path that starts one writes and every path
+	///     that reads one compares against.
+	/// </summary>
+	public static float EffectiveAbilityCooldown(EcsWorld world, Entity entity, float cooldown)
+	{
+		if (cooldown <= 0f) return 0f;
+		if (!world.IsAlive(entity)) return cooldown;
+		if (!world.TryGet<Stats>(entity, out Stats stats)) return cooldown;
+		if (!stats.TryGetValue(new StatId(StatKeys.CooldownReduction), out float reduction)) return cooldown;
+
+		return cooldown * (1f - Math.Clamp(reduction, 0f, 1f));
+	}
+
 	/// <summary>Puts an ability on cooldown, in both cooldown tables the match advances.</summary>
 	public static void SetAbilityCooldown(EcsWorld world, Entity entity, string abilityId, float cooldown)
 	{

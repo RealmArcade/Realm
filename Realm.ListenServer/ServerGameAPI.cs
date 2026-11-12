@@ -45,6 +45,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		_bots = new ServerBots(_context, paths.MapName, paths.DataDirectory, log);
 		_bots.CustomActionExecuted = ForwardBotCustomAction;
 		_effects = new AbilityEffectRunner(_context, ArePlayersAllied, SpawnAbilitySummon);
+		_effects.GatherRequested = RequestGatherAround;
 		Items = items;
 		Loot = loot;
 		_countResourceNodes = CountResourceNodes;
@@ -457,42 +458,6 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 
 		_context.World.SetOrAdd(entity, new ModelScale(value));
 		_context.World.SetOrAdd(entity, new CollisionScale(value));
-	}
-
-	public void SetUnitCharges(UnitId unit, int maximumCharges, float rechargeSeconds)
-	{
-		Entity entity = ResolveUnit(unit);
-		if (entity == Entity.Null) return;
-
-		if (maximumCharges <= 0)
-		{
-			if (_context.World.Has<UnitCharges>(entity)) _context.World.Remove<UnitCharges>(entity);
-			return;
-		}
-
-		bool carriesCharges = _context.World.TryGet<UnitCharges>(entity, out UnitCharges existing);
-		int charges = carriesCharges ? Math.Clamp(existing.Charges, 0, maximumCharges) : 0;
-		float rechargeProgress = carriesCharges ? existing.RechargeProgress : 0f;
-
-		_context.World.SetOrAdd(entity, new UnitCharges(charges, maximumCharges, MathF.Max(0f, rechargeSeconds))
-		{
-			RechargeProgress = rechargeProgress
-		});
-	}
-
-	public void SetUnitChargeCount(UnitId unit, int charges)
-	{
-		Entity entity = ResolveUnit(unit);
-		if (entity == Entity.Null) return;
-		if (!_context.World.TryGet<UnitCharges>(entity, out UnitCharges existing)) return;
-
-		int clamped = Math.Clamp(charges, 0, existing.MaximumCharges);
-		if (clamped == existing.Charges) return;
-
-		existing.Charges = clamped;
-		if (clamped == 0) existing.RechargeProgress = 0f;
-
-		_context.World.Set(entity, existing);
 	}
 
 	public void SetPlayerDamageEffectiveness(int attackingPlayerIndex, int defendingPlayerIndex, float multiplier)

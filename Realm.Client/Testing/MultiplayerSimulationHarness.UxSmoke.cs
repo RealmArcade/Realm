@@ -157,16 +157,16 @@ public partial class MultiplayerSimulationHarness : Node
 			return strip.GetChild(index) is Control icon ? icon.TooltipText : string.Empty;
 		}
 
-		static bool ReadOverheadCharge(Unit3D? building, UnitHealthBarOverlay? overlay, out int badgeValue, out int chargeValue)
+		static bool ReadOverheadProduction(Unit3D? building, UnitHealthBarOverlay? overlay, out int badgeValue, out int availableProductions)
 		{
 			badgeValue = 0;
-			chargeValue = 0;
+			availableProductions = 0;
 			if (building == null || !GodotObject.IsInstanceValid(building)) return false;
 			if (overlay == null || !overlay.TryReadBadge(building.Entity, out badgeValue)) return false;
-			if (GameContext.World == null || !GameContext.World.TryGet(building.Entity, out UnitCharges unitCharges)) return false;
+			if (GameContext.World == null || !GameContext.World.TryGet(building.Entity, out Mana mana)) return false;
 
-			chargeValue = unitCharges.Charges;
-			return badgeValue == chargeValue;
+			availableProductions = (int)MathF.Floor(mana.Current / 100f);
+			return badgeValue == availableProductions;
 		}
 
 		static string MinimapRingDetail(MinimapOverlay? overlay, Unit3D? target)
@@ -730,10 +730,10 @@ public partial class MultiplayerSimulationHarness : Node
 			badgeAppeared = await WaitUntilAsync(
 				() => healthBars != null && healthBars.TryReadBadge(chargeBuilding.Entity, out int value) && value > 0, 60f);
 		}
-		Check("a soldier-granting building floats its charge count without a selection", badgeAppeared,
+		Check("a soldier-granting building floats its production count without a selection", badgeAppeared,
 			$"building={chargeBuilding?.UnitId ?? "missing"}");
-		Check("the floating charge count is the charge count the building holds",
-			ReadOverheadCharge(chargeBuilding, healthBars, out int badgeNow, out int chargesNow), $"badge={badgeNow} charges={chargesNow}");
+		Check("the floating production count matches the mana the building holds",
+			ReadOverheadProduction(chargeBuilding, healthBars, out int badgeNow, out int availableNow), $"badge={badgeNow} available={availableNow}");
 
 		Note("waiting for the drafted building to finish construction and raise its first soldier");
 		bool soldierArrived = await WaitUntilAsync(() => FindRaisedSoldier() != null, 55f);
@@ -743,9 +743,9 @@ public partial class MultiplayerSimulationHarness : Node
 		{
 			FocusCamera(chargeBuilding.GlobalPosition);
 			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
-			Check("the floating charge count follows the charge the soldier spent",
-				ReadOverheadCharge(chargeBuilding, healthBars, out int badgeAfterSpend, out int chargesAfterSpend),
-				$"badge={badgeAfterSpend} charges={chargesAfterSpend}");
+			Check("the floating production count follows the mana the soldier spent",
+				ReadOverheadProduction(chargeBuilding, healthBars, out int badgeAfterSpend, out int availableAfterSpend),
+				$"badge={badgeAfterSpend} available={availableAfterSpend}");
 		}
 
 		Unit3D? soldier = FindRaisedSoldier();

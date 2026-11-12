@@ -190,6 +190,60 @@ public partial class GameHost
 		}
 	}
 
+	/// <summary>
+	///     Turns one ability's auto-cast on or off for every selected unit that carries it. The authority owns the state,
+	///     so this is an order like any other: a match running in another process hears it as a command and the card's
+	///     marquee follows the replicated state rather than the click. The toggle reads the state of the first unit it can
+	///     act for, so a mixed selection is brought to the same state in one click.
+	/// </summary>
+	/// <param name="abilityId">The ability the selected units should auto-cast, or stop auto-casting.</param>
+	public void ToggleAbilityAutoCast(string abilityId)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (string.IsNullOrWhiteSpace(abilityId)) return;
+		if (SelectedUnits.Count == 0) return;
+
+		var localEntities = new List<Entity>();
+		var serverEntityIds = new List<int>();
+		bool active = false;
+		bool readState = false;
+
+		for (int index = 0; index < SelectedUnits.Count; index++)
+		{
+			Unit3D? unit = SelectedUnits[index];
+			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
+			if (!World.IsAlive(unit.Entity)) continue;
+			if (!GameContext.PerspectiveFilter.CanControl(unit.Player)) continue;
+			if (World.Has<PlayerOrdersLocked>(unit.Entity)) continue;
+
+			if (!readState)
+			{
+				active = !GameContext.SimulationService.IsAbilityAutoCast((UnitId)unit.Entity.Id, abilityId);
+				readState = true;
+			}
+
+			localEntities.Add(unit.Entity);
+			serverEntityIds.Add(GetServerEntityId(unit.Entity));
+		}
+
+		if (!readState || localEntities.Count == 0) return;
+
+		if ((_multiplayerActive && !Multiplayer.IsServer()) || GameContext.ServerSession != null)
+		{
+			SubmitRemoteCommand(active ? "autocast_on" : "autocast_off", serverEntityIds, Vector3.Zero, 0, abilityId);
+		}
+		else
+		{
+			for (int index = 0; index < localEntities.Count; index++)
+			{
+				GameContext.SimulationService.SetAbilityAutoCast((UnitId)localEntities[index].Id, abilityId, active);
+			}
+		}
+
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
+	}
+
 	public void BuyItem(string itemId, Entity buildingEntity)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;

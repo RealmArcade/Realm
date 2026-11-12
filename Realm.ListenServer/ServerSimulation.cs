@@ -172,6 +172,7 @@ public class ServerSimulation : IDisposable
 		_loot.Step(deltaSeconds);
 		_neutralRespawns.Step(deltaSeconds);
 		_script.Step(deltaSeconds);
+		_script.Api.StepAutoCast(deltaSeconds);
 		_script.Api.AdvanceTimers(deltaSeconds);
 		RecomputePopulationWhenDue();
 		RefreshNavMeshWhenObstaclesChange();

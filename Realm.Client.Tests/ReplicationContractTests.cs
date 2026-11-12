@@ -26,7 +26,7 @@ public partial class ReplicationContractTests
 		"VFXQueue", "VFXRequest", "ZoneBounds",
 		"Weapon", "Weapons",
 		"TargetIntel", "Ability", "HasAbilities",
-		"AutoCastState", "CastTarget",
+		"CastTarget",
 		"Velocity",
 		"LatestDescription", "RenderPosition", "TraversableTerrain",
 		"WaypointBuffer",

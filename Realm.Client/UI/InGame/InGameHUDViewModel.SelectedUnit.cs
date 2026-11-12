@@ -252,17 +252,14 @@ public partial class InGameHUDViewModel
 				}
 			}
 		}
-		else if (!info.IsEnemy && world.TryGet(u.Entity, out UnitCharges charges) && charges.MaximumCharges > 0)
+		else if (!info.IsEnemy && world.Has<Building>(u.Entity) && world.TryGet(u.Entity, out Mana mana) && mana.Max > 0f)
 		{
-			// A building that fields what it holds instead of training on a timer has no queue to read, but it still
-			// produces: what a player needs to see is how many it holds and how long the next one takes.
+			// A building that fields what its mana pays for instead of training on a timer has no queue to read, but it
+			// still produces: what a player needs to see is the pool its auto-cast draws from and how fast it returns.
 			info.HasProduction = true;
-			info.ProductionTitle = string.Format(TranslationServer.Translate("CHARGES: {0} / {1}"), charges.Charges, charges.MaximumCharges);
-			float partialCharge = charges.RechargeSeconds > 0f && charges.Charges < charges.MaximumCharges
-				? charges.RechargeProgress / charges.RechargeSeconds
-				: 0f;
-			info.ProductionProgress = charges.Charges + partialCharge;
-			info.ProductionMaxProgress = charges.MaximumCharges;
+			info.ProductionTitle = string.Format(TranslationServer.Translate("MANA: {0} / {1}"), (int)mana.Current, (int)mana.Max);
+			info.ProductionProgress = mana.Current;
+			info.ProductionMaxProgress = mana.Max;
 			if (info.ProductionQueue.Count > 0)
 			{
 				info.ProductionQueue.Clear();

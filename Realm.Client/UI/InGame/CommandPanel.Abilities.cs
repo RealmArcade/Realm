@@ -45,6 +45,13 @@ public partial class CommandPanel
 			? MapText.TranslateTemplate(abilityDef.TooltipTemplate)
 			: GetDefaultAbilityTooltip(abilityId);
 
+		// An ability the engine can auto-cast says so, because a right-click on the card is the only place that switch
+		// exists and nothing else on the card would tell a player it is there.
+		if (abilityDef?.AutoCastEnabled == true)
+		{
+			body = $"{body}\n\n" + TranslationServer.Translate("Right-click to toggle auto-cast.");
+		}
+
 		return UIHelper.PrependAbilityHeader(abilityId, abilityDef, body, manaCost, disabled);
 	}
 

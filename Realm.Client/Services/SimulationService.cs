@@ -770,6 +770,11 @@ public class SimulationService
 		_abilities.SetAbilityAutoCast(unit, abilityId, active);
 	}
 
+	public bool IsAbilityAutoCast(UnitId unit, string abilityId)
+	{
+		return _abilities.IsAbilityAutoCast(unit, abilityId);
+	}
+
 	public void EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
 		_abilities.EnableUnitAutoCombat(unit, enabled);

@@ -23,6 +23,12 @@ public class AbilityEffectRunner
 	private int _castingPlayerIndex;
 	private Entity _castingEntity;
 
+	/// <summary>
+	///     Raised with the caster, the point it aimed at and the radius to search, which is how a gather effect hands the
+	///     order to the authority that owns the resource nodes.
+	/// </summary>
+	public Action<Entity, Vector3, float>? GatherRequested { get; set; }
+
 	public AbilityEffectRunner(SimulationContext context, Func<int, int, bool> areAllied, Func<string, Vector3, int, UnitId> summon)
 	{
 		_context = context;
@@ -53,6 +59,12 @@ public class AbilityEffectRunner
 			if (effect.Kind == AbilityEffectKind.Summon)
 			{
 				if (casterAlive) ApplySummon(casterEntity, effect, targetPosition);
+				continue;
+			}
+
+			if (effect.Kind == AbilityEffectKind.Gather)
+			{
+				if (casterAlive) GatherRequested?.Invoke(casterEntity, targetPosition, MathF.Max(effect.Radius, 0.5f));
 				continue;
 			}
 

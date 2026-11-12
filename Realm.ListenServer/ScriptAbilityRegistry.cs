@@ -136,7 +136,7 @@ public class ScriptAbilityRegistry
 		definition.IconPath = metadata.IconPath ?? string.Empty;
 		definition.IsInstant = string.Equals(metadata.AbilityType, "instant_spell", StringComparison.OrdinalIgnoreCase);
 		definition.IsPassive = string.Equals(metadata.AbilityType, "passive", StringComparison.OrdinalIgnoreCase);
-		definition.AutoCastEnabled = metadata.AutoCast?.Enabled ?? true;
+		definition.AutoCastEnabled = metadata.AutoCast?.Enabled ?? false;
 		definition.AutoCastRequiresEnemy = metadata.AutoCast?.RequiresEnemyTarget ?? true;
 		definition.AutoCastAllyHealthPercentBelow = metadata.AutoCast?.AllyHealthPercentBelow ?? 1f;
 		definition.AutoCastManaReserve = metadata.AutoCast?.ManaReserve ?? 0f;

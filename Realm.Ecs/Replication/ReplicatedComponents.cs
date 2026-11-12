@@ -752,6 +752,7 @@ public static class ReplicatedComponents
 		Register(new LastAttackerCodec());
 		Register(new ReplicatedComponentCodec<CombatTargeting>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<AutoCombatState>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<Realm.Ecs.Components.Abilities.AutoCastState>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<CombatAlertState>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<UnitAttributes>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<UnitBaseStats>(ReplicatedScope.Unit));
@@ -790,7 +791,6 @@ public static class ReplicatedComponents
 		Register(new TagComponentCodec<AnimationsFrozen>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<OverheadBarsHidden>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<OverheadBadge>(ReplicatedScope.Unit));
-		Register(new ReplicatedComponentCodec<UnitCharges>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<SpellImmune>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<UnderConstruction>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<Dormant>(ReplicatedScope.Unit));

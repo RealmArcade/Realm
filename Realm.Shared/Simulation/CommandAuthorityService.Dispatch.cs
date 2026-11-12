@@ -27,6 +27,7 @@ public partial class CommandAuthorityService
 		if (DispatchTrainingCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
 		if (DispatchResearchCommand(peerId, cmd, ref rejectionReason)) return;
 		if (DispatchConsumableCommand(peerId, cmd, ref rejectionReason)) return;
+		if (DispatchAutoCastCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
 		DispatchCheatCommand(peerId, cmd, ref rejectionReason);
 	}
 

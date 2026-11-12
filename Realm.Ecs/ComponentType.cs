@@ -173,7 +173,6 @@ public static class ComponentTypeRegistry
 			typeof(AbsorbShield),
 			typeof(AttackSpeedStat),
 			typeof(OverheadBadge),
-			typeof(UnitCharges),
 			typeof(PlayerDamageEffectiveness),
 			typeof(PlayerOrdersLocked),
 			typeof(Dormant),
@@ -231,7 +230,6 @@ public static class ComponentTypeRegistry
 			(typeof(CommandsFrozen), ComponentIds.CommandsFrozen),
 			(typeof(AnimationsFrozen), ComponentIds.AnimationsFrozen),
 			(typeof(OverheadBarsHidden), ComponentIds.OverheadBarsHidden),
-			(typeof(UnitCharges), ComponentIds.UnitCharges),
 			(typeof(PlayerDamageEffectiveness), ComponentIds.PlayerDamageEffectiveness),
 			(typeof(PlayerOrdersLocked), ComponentIds.PlayerOrdersLocked)
 		};

@@ -75,6 +75,16 @@ public partial class CommandPanel
 
 	private const string BuildCommandAbilityId = "ability/build";
 
+	private const string AutoCastMarqueeName = "AutoCastMarquee";
+	private const string AutoCastMarqueeShaderPath = "res://Assets/shaders/ability_autocast_marquee.gdshader";
+	private static Shader? s_autoCastMarqueeShader;
+
+	private static Shader? GetAutoCastMarqueeShader()
+	{
+		s_autoCastMarqueeShader ??= GD.Load<Shader>(AutoCastMarqueeShaderPath);
+		return s_autoCastMarqueeShader;
+	}
+
 	private void ClearCommandGrid()
 	{
 		foreach (var btn in _dynamicBuildButtons)
@@ -140,6 +150,23 @@ public partial class CommandPanel
 
 		UpdateAbilityLabelsAndSweep(btn, manaCost, cdRemaining, maxCd);
 		UpdateAbilityButtonState(btn, item, currentMana, manaCost, cdRemaining);
+		UpdateAutoCastMarquee(btn, item);
+	}
+
+	/// <summary>
+	///     Shows the marching frame around the icon while the caster's own auto-cast slot is on. The state is the
+	///     replicated one, so the frame follows what the authority actually does rather than the last click this screen
+	///     made.
+	/// </summary>
+	private static void UpdateAutoCastMarquee(Button btn, CommandCardItem item)
+	{
+		var marquee = btn.GetNodeOrNull<ColorRect>(AutoCastMarqueeName);
+		if (marquee == null) return;
+
+		bool active = item.CasterEntity != Entity.Null
+			&& GameContext.SimulationService.IsAbilityAutoCast(new UnitId(item.CasterEntity.Id), item.AbilityId);
+
+		if (marquee.Visible != active) marquee.Visible = active;
 	}
 
 	private float GetMaxCooldown(CommandCardItem item, AbilityDefinition? abilityDef, float cdRemaining)
@@ -600,6 +627,11 @@ public partial class CommandPanel
 		if (!string.IsNullOrEmpty(item.AbilityId))
 		{
 			AddAbilityUIElements(btn, item);
+			if (GameContext.Host?.GetAbilityDefinition(item.AbilityId)?.AutoCastEnabled == true)
+			{
+				btn.RightClicked += () => GameContext.Host?.ToggleAbilityAutoCast(item.AbilityId);
+			}
+
 			UpdateAbilityButtonVisuals(btn, item);
 		}
 		else

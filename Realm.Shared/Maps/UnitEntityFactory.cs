@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Common;
+using Realm.Ecs.Components.Abilities;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
@@ -29,11 +30,12 @@ public static class UnitEntityFactory
 		UnitMetadata? metadata = catalog.FindUnitOrBuilding(templateId);
 		if (metadata == null) return Entity.Null;
 
-		return CreateFromMetadata(world, metadata, templateId, catalog.FindUnit(templateId) == null, position, rotationY, scale, owner, bypassPopulation);
+		return CreateFromMetadata(world, catalog, metadata, templateId, catalog.FindUnit(templateId) == null, position, rotationY, scale, owner, bypassPopulation);
 	}
 
-	public static Entity CreateFromMetadata(
+	private static Entity CreateFromMetadata(
 		EcsWorld world,
+		DefinitionCatalog catalog,
 		UnitMetadata metadata,
 		string templateId,
 		bool isBuilding,
@@ -87,6 +89,8 @@ public static class UnitEntityFactory
 		if (metadata.Abilities is { Length: > 0 })
 		{
 			world.SetOrAdd(entity, new AbilityState(metadata.Abilities));
+			uint autoCastSlots = BuildAutoCastSlots(catalog, metadata.Abilities);
+			if (autoCastSlots != 0) world.SetOrAdd(entity, new AutoCastState(true, autoCastSlots));
 		}
 
 		if (metadata.Strength != 0f || metadata.Agility != 0f || metadata.Vitality != 0f || metadata.Intelligence != 0f || metadata.Wisdom != 0f || metadata.Fortune != 0f)
@@ -114,6 +118,21 @@ public static class UnitEntityFactory
 		}
 
 		return entity;
+	}
+
+	private static uint BuildAutoCastSlots(DefinitionCatalog catalog, string[] abilities)
+	{
+		uint slots = 0;
+		int limit = Math.Min(abilities.Length, 32);
+		for (int index = 0; index < limit; index++)
+		{
+			AbilityMetadata? ability = catalog.FindAbility(abilities[index]);
+			if (ability?.AutoCast is not { Enabled: true }) continue;
+
+			slots |= 1u << index;
+		}
+
+		return slots;
 	}
 
 	public static bool BlocksMovement(UnitMetadata metadata)

@@ -795,55 +795,6 @@
                 Represents the upgrade level of a defensive tower structure.
             </summary>
         </member>
-        <member name="T:Realm.Ecs.Components.Core.UnitCharges">
-            <summary>
-                The charges a unit holds and regains over time, such as the soldiers a barracks keeps ready to field.
-            </summary>
-            <remarks>
-                The engine regains a charge on its own, so a map only states how many charges a unit keeps and how long one takes
-                to come back, and spends a charge when it fields what the charge was holding. Reading it from the world means every
-                screen states the same count without the map publishing it.
-            </remarks>
-        </member>
-        <member name="F:Realm.Ecs.Components.Core.UnitCharges.Charges">
-            <summary>Gets or sets the number of charges the unit holds right now.</summary>
-        </member>
-        <member name="F:Realm.Ecs.Components.Core.UnitCharges.MaximumCharges">
-            <summary>Gets or sets the greatest number of charges the unit may hold.</summary>
-        </member>
-        <member name="F:Realm.Ecs.Components.Core.UnitCharges.RechargeSeconds">
-            <summary>Gets or sets the seconds the unit takes to regain one charge.</summary>
-        </member>
-        <member name="F:Realm.Ecs.Components.Core.UnitCharges.RechargeProgress">
-            <summary>Gets or sets the seconds accumulated toward the charge being regained.</summary>
-        </member>
-        <member name="M:Realm.Ecs.Components.Core.UnitCharges.CanSpend(Realm.Ecs.Components.Core.UnitCharges@)">
-            <summary>
-                Answers whether the unit still has a charge it may spend, which is what a map asks before fielding what the
-                charge holds.
-            </summary>
-            <param name="charges">The charges the unit holds before the spend.</param>
-            <returns>True when the count may be lowered by one; otherwise false.</returns>
-        </member>
-        <member name="M:Realm.Ecs.Components.Core.UnitCharges.Spend">
-            <summary>
-                Lowers the count by one without going below zero, which spends the charge the unit held.
-            </summary>
-        </member>
-        <member name="M:Realm.Ecs.Components.Core.UnitCharges.Advance(System.Single)">
-            <summary>
-                Advances the recharge by the elapsed time, regaining whole charges as they become due. A unit that already
-                holds its greatest number keeps no partial charge, because the time it waits at full is not time served
-                toward the next one.
-            </summary>
-            <param name="deltaSeconds">The seconds this tick covers.</param>
-        </member>
-        <member name="M:Realm.Ecs.Components.Core.UnitCharges.RemainingSecondsToNextCharge">
-            <summary>
-                States how many seconds are left until the next charge arrives, or zero when the unit already holds all it may.
-            </summary>
-            <returns>The remaining seconds, never negative.</returns>
-        </member>
         <member name="T:Realm.Ecs.Components.Core.UnitOwnerPlayer">
             <summary>
             Associates an entity with its controlling player slot index.
@@ -2567,6 +2518,13 @@
         <member name="M:Realm.Ecs.Services.UnitOrderService.GetAbilityCooldownRemaining(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String)">
             <summary>How long a unit must wait before it can use an ability again.</summary>
         </member>
+        <member name="M:Realm.Ecs.Services.UnitOrderService.EffectiveAbilityCooldown(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.Single)">
+            <summary>
+                The seconds a unit actually waits before it can use an ability again, after its own cooldown reduction. A
+                cooldown is authored as the full duration, so this is what every path that starts one writes and every path
+                that reads one compares against.
+            </summary>
+        </member>
         <member name="M:Realm.Ecs.Services.UnitOrderService.SetAbilityCooldown(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.String,System.Single)">
             <summary>Puts an ability on cooldown, in both cooldown tables the match advances.</summary>
         </member>
@@ -2678,9 +2636,6 @@
         </member>
         <member name="F:Realm.Ecs.ComponentIds.OverheadBarsHidden">
             <summary>Overhead bars hidden tag component identifier.</summary>
-        </member>
-        <member name="F:Realm.Ecs.ComponentIds.UnitCharges">
-            <summary>Unit charges component identifier, holding the charges a unit keeps and the time to regain one.</summary>
         </member>
         <member name="F:Realm.Ecs.ComponentIds.PlayerDamageEffectiveness">
             <summary>Player damage effectiveness component identifier, holding the multiplier a seat's damage carries against each other seat.</summary>
@@ -3116,11 +3071,8 @@
         <member name="F:Realm.Ecs.EcsSharedMemory.PLAYER_ROSTER_SLOTS_OFFSET">
             <summary>Offset to the per-player roster slots, one for every player slot the lobby may seat.</summary>
         </member>
-        <member name="F:Realm.Ecs.EcsSharedMemory.UNIT_CHARGES_OFFSET">
-            <summary>Offset to the entity charges array, which is placed after the lobby's tables so adding it moved nothing.</summary>
-        </member>
         <member name="F:Realm.Ecs.EcsSharedMemory.PLAYER_DAMAGE_EFFECTIVENESS_OFFSET">
-            <summary>Offset to the per-player damage effectiveness tables, placed after the charges array.</summary>
+            <summary>Offset to the per-player damage effectiveness tables, placed after the lobby's tables.</summary>
         </member>
         <member name="F:Realm.Ecs.EcsSharedMemory.TOTAL_SIZE_BYTES">
             <summary>Total byte capacity of the contiguous shared memory block.</summary>
@@ -3216,9 +3168,6 @@
         </member>
         <member name="P:Realm.Ecs.EcsSharedMemory.PlayerPopulation">
             <summary>Gets the raw pointer to the player population limits array.</summary>
-        </member>
-        <member name="P:Realm.Ecs.EcsSharedMemory.UnitCharges">
-            <summary>Gets the raw pointer to the unit charges array.</summary>
         </member>
         <member name="P:Realm.Ecs.EcsSharedMemory.PlayerDamageEffectiveness">
             <summary>Gets the raw pointer to the per-player damage effectiveness tables.</summary>
@@ -4453,26 +4402,6 @@
         <member name="P:Realm.Ecs.UnitId.Experience">
             <summary>
             Gets or sets the experience points accumulated by the hero unit.
-            </summary>
-        </member>
-        <member name="P:Realm.Ecs.UnitId.Charges">
-            <summary>
-            Gets the number of charges the unit holds right now, which is zero when it holds none.
-            </summary>
-        </member>
-        <member name="P:Realm.Ecs.UnitId.MaximumCharges">
-            <summary>
-            Gets the greatest number of charges the unit may hold, which is zero when it holds none.
-            </summary>
-        </member>
-        <member name="P:Realm.Ecs.UnitId.ChargeRechargeSeconds">
-            <summary>
-            Gets the seconds the unit takes to regain one charge, which is zero when it holds none.
-            </summary>
-        </member>
-        <member name="P:Realm.Ecs.UnitId.ChargeRechargeRemainingSeconds">
-            <summary>
-            Gets the seconds left until the unit regains its next charge, which is zero when it already holds all it may.
             </summary>
         </member>
         <member name="P:Realm.Ecs.UnitId.Scale">

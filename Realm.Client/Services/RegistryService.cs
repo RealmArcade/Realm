@@ -637,7 +637,7 @@ public class RegistryService
 				IconPath = meta.IconPath ?? "",
 				IsInstant = string.Equals(meta.AbilityType, "instant_spell", StringComparison.OrdinalIgnoreCase),
 				IsPassive = string.Equals(meta.AbilityType, "passive", StringComparison.OrdinalIgnoreCase),
-				AutoCastEnabled = meta.AutoCast?.Enabled ?? true,
+				AutoCastEnabled = meta.AutoCast?.Enabled ?? false,
 				AutoCastRequiresEnemy = meta.AutoCast?.RequiresEnemyTarget ?? true,
 				AutoCastAllyHealthPercentBelow = meta.AutoCast?.AllyHealthPercentBelow ?? 1f,
 				AutoCastManaReserve = meta.AutoCast?.ManaReserve ?? 0f,

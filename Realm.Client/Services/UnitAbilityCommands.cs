@@ -31,35 +31,70 @@ public sealed class UnitAbilityCommands
 	public void SetAbilityAutoCast(UnitId unit, string abilityId, bool active)
 	{
 		var entity = _entityOf(unit);
-		if (entity != Entity.Null && SimulationService.World.IsAlive(entity))
+		if (entity == Entity.Null || !SimulationService.World.IsAlive(entity)) return;
+
+		int slotIdx = ResolveAutoCastSlot(unit, abilityId);
+		uint bit = (slotIdx >= 0 && slotIdx < 32) ? (1u << slotIdx) : 1u;
+		if (SimulationService.World.Has<AutoCastState>(entity))
 		{
-			var wrapper = _wrapperOf(unit);
-			string unitTypeId = wrapper?.UnitId ?? string.Empty;
-			var abilities = GameContext.RegistryService.GetUnitTypeAbilities(unitTypeId);
-			int slotIdx = -1;
-			for (int i = 0; i < abilities.Count; i++)
+			ref var ac = ref SimulationService.World.Get<AutoCastState>(entity);
+			if (active) ac.ActiveAbilityBitmask |= bit;
+			else ac.ActiveAbilityBitmask &= ~bit;
+			ac.Enabled = (ac.ActiveAbilityBitmask != 0);
+		}
+		else if (active)
+		{
+			SimulationService.World.Add(entity, new AutoCastState(true, bit));
+		}
+	}
+
+	/// <summary>
+	///     Whether one ability of a unit is currently on auto-cast, which is the state the card draws its marquee from.
+	///     The slot is read from the unit's own ability list, because that list is what the authority resolves the order
+	///     against.
+	/// </summary>
+	public bool IsAbilityAutoCast(UnitId unit, string abilityId)
+	{
+		var entity = _entityOf(unit);
+		if (entity == Entity.Null || !SimulationService.World.IsAlive(entity)) return false;
+		if (!SimulationService.World.TryGet<AutoCastState>(entity, out AutoCastState autoCast)) return false;
+
+		int slotIdx = ResolveAutoCastSlot(unit, abilityId);
+		if (slotIdx < 0 || slotIdx >= 32) return false;
+
+		return (autoCast.ActiveAbilityBitmask & (1u << slotIdx)) != 0;
+	}
+
+	private int ResolveAutoCastSlot(UnitId unit, string abilityId)
+	{
+		if (SimulationService.World.Has<AbilityState>(_entityOf(unit)))
+		{
+			ref var abilityState = ref SimulationService.World.Get<AbilityState>(_entityOf(unit));
+			for (int index = 0; index < abilityState.Count && index < 32; index++)
 			{
-				if (string.Equals(abilities[i], abilityId, StringComparison.OrdinalIgnoreCase) ||
-					string.Equals(Path.GetFileNameWithoutExtension(abilities[i]), Path.GetFileNameWithoutExtension(abilityId), StringComparison.OrdinalIgnoreCase))
+				string? candidate = abilityState.Get(index);
+				if (candidate == null) continue;
+				if (string.Equals(candidate, abilityId, StringComparison.OrdinalIgnoreCase) ||
+				    string.Equals(Path.GetFileNameWithoutExtension(candidate), Path.GetFileNameWithoutExtension(abilityId), StringComparison.OrdinalIgnoreCase))
 				{
-					slotIdx = i;
-					break;
+					return index;
 				}
 			}
+		}
 
-			uint bit = (slotIdx >= 0 && slotIdx < 32) ? (1u << slotIdx) : 1u;
-			if (SimulationService.World.Has<AutoCastState>(entity))
+		var wrapper = _wrapperOf(unit);
+		string unitTypeId = wrapper?.UnitId ?? string.Empty;
+		var abilities = GameContext.RegistryService.GetUnitTypeAbilities(unitTypeId);
+		for (int index = 0; index < abilities.Count; index++)
+		{
+			if (string.Equals(abilities[index], abilityId, StringComparison.OrdinalIgnoreCase) ||
+			    string.Equals(Path.GetFileNameWithoutExtension(abilities[index]), Path.GetFileNameWithoutExtension(abilityId), StringComparison.OrdinalIgnoreCase))
 			{
-				ref var ac = ref SimulationService.World.Get<AutoCastState>(entity);
-				if (active) ac.ActiveAbilityBitmask |= bit;
-				else ac.ActiveAbilityBitmask &= ~bit;
-				ac.Enabled = (ac.ActiveAbilityBitmask != 0);
-			}
-			else if (active)
-			{
-				SimulationService.World.Add(entity, new AutoCastState(true, bit));
+				return index;
 			}
 		}
+
+		return -1;
 	}
 
 	public void EnableUnitAutoCombat(UnitId unit, bool enabled)

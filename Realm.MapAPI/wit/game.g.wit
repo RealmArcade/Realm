@@ -210,8 +210,6 @@ interface game-api {
     set-unit-armor: func(unit-id: s32, value: f32);
     set-unit-attack-speed: func(unit-id: s32, value: f32);
     set-unit-bar-visibility: func(health-bar: bool, mana-bar: bool, level-badge: bool);
-    set-unit-charge-count: func(unit-id: s32, charges: s32);
-    set-unit-charges: func(unit-id: s32, maximum-charges: s32, recharge-seconds: f32);
     set-unit-color: func(unit-id: s32, color-x: f32, color-y: f32, color-z: f32);
     set-unit-commands-frozen: func(unit-id: s32, value: bool);
     set-unit-custom-data: func(unit-id: s32, key: string, value: string);

@@ -170,38 +170,6 @@ public readonly unsafe record struct UnitId(int Value)
 	}
 
 	/// <summary>
-	/// Gets the number of charges the unit holds right now, which is zero when it holds none.
-	/// </summary>
-	public int Charges
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<UnitCharges>(ComponentIds.UnitCharges, Value)->Charges : 0;
-	}
-
-	/// <summary>
-	/// Gets the greatest number of charges the unit may hold, which is zero when it holds none.
-	/// </summary>
-	public int MaximumCharges
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<UnitCharges>(ComponentIds.UnitCharges, Value)->MaximumCharges : 0;
-	}
-
-	/// <summary>
-	/// Gets the seconds the unit takes to regain one charge, which is zero when it holds none.
-	/// </summary>
-	public float ChargeRechargeSeconds
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<UnitCharges>(ComponentIds.UnitCharges, Value)->RechargeSeconds : 0f;
-	}
-
-	/// <summary>
-	/// Gets the seconds left until the unit regains its next charge, which is zero when it already holds all it may.
-	/// </summary>
-	public float ChargeRechargeRemainingSeconds
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<UnitCharges>(ComponentIds.UnitCharges, Value)->RemainingSecondsToNextCharge() : 0f;
-	}
-
-	/// <summary>
 	/// Gets or sets the visual scaling factor of the unit model.
 	/// </summary>
 	public float Scale
