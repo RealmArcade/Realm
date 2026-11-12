@@ -31,7 +31,7 @@ public partial class GameHost
 		if (World.Has<AttackTarget>(entity)) return "Attack";
 		if (World.Has<HealingTarget>(entity)) return "Spell_Cast";
 		if (IsEntityGathering(entity)) return "Labor";
-		if (World.Has<BuildTask>(entity)) return DetermineBuildTaskAnimation(entity, World.Get<BuildTask>(entity));
+		if (World.Has<BuildTask>(entity)) return "Labor";
 
 		return "Idle";
 	}
@@ -56,22 +56,6 @@ public partial class GameHost
 	private bool IsEntityGathering(Entity entity)
 	{
 		return World.Has<Gatherer>(entity) && !World.Get<Gatherer>(entity).ReturningToBase;
-	}
-
-	private string DetermineBuildTaskAnimation(Entity entity, BuildTask task)
-	{
-		var target = task.BuildingEntity;
-		if (!World.IsAlive(target) || !World.Has<Position>(target))
-			return "Labor";
-
-		var tPos = World.Get<Position>(target).Value;
-		var wPos = World.Has<Position>(entity) ? World.Get<Position>(entity).Value : Vector3.Zero;
-		if (Vector3.Distance(wPos, tPos) < 4.0f)
-		{
-			return "Labor";
-		}
-
-		return "Walk";
 	}
 
 }
