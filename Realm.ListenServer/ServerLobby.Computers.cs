@@ -32,7 +32,7 @@ public partial class ServerLobby
 			PeerId = -100 - _nextComputerNumber,
 			Slot = slot,
 			Name = $"AI Bot {_nextComputerNumber}",
-			Faction = Roster?.GetFactionName(0) ?? string.Empty,
+			Faction = LobbyLimits.RandomFactionName,
 			TeamName = ResolveJoinTeamName(),
 			ColorRgba = ResolveJoinColorRgba(slot),
 			IsComputer = true,
