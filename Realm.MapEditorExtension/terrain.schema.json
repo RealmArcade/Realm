@@ -115,6 +115,32 @@
         }
       }
     },
+    "Items": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "TemplateId": {
+            "type": "string"
+          },
+          "PosX": {
+            "type": "number"
+          },
+          "PosY": {
+            "type": "number"
+          },
+          "PosZ": {
+            "type": "number"
+          }
+        }
+      }
+    },
     "Vfx": {
       "type": [
         "array",

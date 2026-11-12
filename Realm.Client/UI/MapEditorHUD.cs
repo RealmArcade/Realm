@@ -308,7 +308,7 @@ public partial class MapEditorHUD : Control
 			EditorTool.PaintTexture or EditorTool.FloodFill => EditorModule.TextureDeco,
 			EditorTool.DrawCoordinate => EditorModule.Coordinates,
 			EditorTool.PaintPathing or EditorTool.FloodFillPathing => EditorModule.Pathing,
-			EditorTool.PlaceUnit or EditorTool.PlaceProp or EditorTool.PlacePropClump or EditorTool.PlaceDecal or EditorTool.DeleteObject or EditorTool.SelectMove => EditorModule.Objects,
+			EditorTool.PlaceUnit or EditorTool.PlaceProp or EditorTool.PlacePropClump or EditorTool.PlaceDecal or EditorTool.PlaceItem or EditorTool.DeleteObject or EditorTool.SelectMove => EditorModule.Objects,
 			EditorTool.SelectArea or EditorTool.PasteArea => EditorModule.Clipboard,
 			_ => _activeModule
 		};

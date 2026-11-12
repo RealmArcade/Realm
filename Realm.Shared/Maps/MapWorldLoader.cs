@@ -10,6 +10,7 @@ using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.Shared.Metadata;
 using Realm.Shared.Services;
+using Realm.Shared.Simulation;
 using Realm.Shared.Terrain;
 
 namespace Realm.Shared.Maps;
@@ -63,6 +64,8 @@ public static class MapWorldLoader
 	private const int GridSizeMultiple = 32;
 	private const float DefaultGridSize = 128f;
 
+	private const float PlacedLootGroundOffset = 0.1f;
+
 	public static LoadedMap Load(string mapFolderPath, IReadOnlyList<MatchRosterSeat>? roster = null)
 	{
 		LoadedMap loaded = LoadShell(mapFolderPath);
@@ -115,6 +118,7 @@ public static class MapWorldLoader
 			simulation.World.Add(worldEntity, terrain);
 
 			SpawnPlacedProps(loaded);
+			SpawnPlacedItems(loaded);
 			return loaded;
 		}
 		catch
@@ -372,4 +376,38 @@ public static class MapWorldLoader
 			loaded.PropCount++;
 		}
 	}
+
+	private static void SpawnPlacedItems(LoadedMap loaded)
+	{
+		EcsWorld world = loaded.World;
+		MapSaveData saveData = loaded.SaveData;
+
+		if (saveData.Items == null) return;
+
+		SimulationContext simulation = loaded.Simulation;
+		bool hasTerrain = loaded.WorldEntity != Entity.Null && world.IsAlive(loaded.WorldEntity) && world.Has<TerrainState>(loaded.WorldEntity);
+		TerrainState terrain = hasTerrain ? world.Get<TerrainState>(loaded.WorldEntity) : default;
+
+		for (int index = 0; index < saveData.Items.Count; index++)
+		{
+			ItemSaveData item = saveData.Items[index];
+			if (loaded.Catalog.FindItem(item.TemplateId) == null)
+			{
+				loaded.Warnings.Add($"The map places '{item.TemplateId}' but declares no such item template.");
+				continue;
+			}
+
+			var position = new Vector3(item.PosX, item.PosY, item.PosZ);
+			if (hasTerrain)
+			{
+				simulation.TerrainNavMeshService.GetHeightAndNormal(terrain, position.X, position.Z, out float groundHeight, out _);
+				position = new Vector3(position.X, groundHeight + PlacedLootGroundOffset, position.Z);
+			}
+
+			Entity entity = world.Create(new Position(position), new GroundLoot(0, item.TemplateId, 1, 0f, GroundLootService.DefaultPickupRadius, false, -1));
+			ref GroundLoot placed = ref world.Get<GroundLoot>(entity);
+			placed.UniqueId = entity.Id;
+		}
+	}
 }
+

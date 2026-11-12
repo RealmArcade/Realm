@@ -157,7 +157,8 @@ namespace Realm.Client.UI
 			                    tool == EditorTool.PlaceProp ||
 			                    tool == EditorTool.PlacePropClump ||
 			                    tool == EditorTool.PlaceDecal ||
-			                    tool == EditorTool.PlaceVfx);
+			                    tool == EditorTool.PlaceVfx ||
+			                    tool == EditorTool.PlaceItem);
 
 			bool categorySelectorVisible = _containerCategorySelector != null && isPlacement;
 			if (_containerCategorySelector != null) _containerCategorySelector.Visible = categorySelectorVisible;

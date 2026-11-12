@@ -25,7 +25,8 @@ namespace Realm.Client.Core
 			bool needsPreview = ActiveEditorTool == EditorTool.PlaceUnit ||
 			                    ActiveEditorTool == EditorTool.PlaceProp ||
 			                    ActiveEditorTool == EditorTool.PlaceDecal ||
-			                    ActiveEditorTool == EditorTool.PlaceVfx;
+			                    ActiveEditorTool == EditorTool.PlaceVfx ||
+			                    ActiveEditorTool == EditorTool.PlaceItem;
 
 			if (!needsPreview || string.IsNullOrWhiteSpace(ActivePlaceId))
 			{
@@ -71,6 +72,27 @@ namespace Realm.Client.Core
 			else if (ActiveEditorTool == EditorTool.PlaceProp) CreateOrUpdatePreviewProp(reqId);
 			else if (ActiveEditorTool == EditorTool.PlaceDecal) CreateOrUpdatePreviewDecal(reqId);
 			else if (ActiveEditorTool == EditorTool.PlaceVfx) CreateOrUpdatePreviewVfx(reqId);
+			else if (ActiveEditorTool == EditorTool.PlaceItem) CreateOrUpdatePreviewItem(reqId);
+		}
+
+		/// <summary>
+		///     Draws the drop an item placement would leave on the ground, as the same node the placement spawns, so the
+		///     silhouette the cursor carries is the object the map will hold rather than a generic marker.
+		/// </summary>
+		/// <param name="reqId">The item template the drop would hold.</param>
+		private void CreateOrUpdatePreviewItem(string reqId)
+		{
+			string? resolvedId = ResolveItemTemplateId(reqId);
+			if (resolvedId == null) return;
+
+			Color color = Realm.Client.Utils.PreviewHologram.PropColor();
+			var previewItem = new LootItem3D();
+			previewItem.Name = "PreviewItem_LootItem3D";
+			previewItem.Initialize(0, resolvedId, 1, 0f, Realm.Shared.Simulation.GroundLootService.DefaultPickupRadius, false, -1);
+			AddChild(previewItem);
+
+			MakeHologramRecursive(previewItem, color);
+			_editorPreviewNode = previewItem;
 		}
 
 		private void CreateOrUpdatePreviewUnit(string reqId, bool reqIsEnemy)

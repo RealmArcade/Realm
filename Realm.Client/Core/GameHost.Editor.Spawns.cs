@@ -14,6 +14,7 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
+using Realm.Shared.Simulation;
 
 namespace Realm.Client.Core;
 public partial class GameHost
@@ -116,6 +117,61 @@ public partial class GameHost
 		EntityToProp3D[entity] = prop;
 
 		return prop;
+	}
+
+	/// <summary>
+	///     Places an item on the ground as the map's terrain describes it, which is an object a unit can be sent to collect
+	///     rather than a prop. The item's own template states the model the drop is drawn with, so the placed node is the
+	///     same drop the authority spawns from the same entry.
+	/// </summary>
+	/// <param name="itemId">The item template the drop holds, by template id or bare name.</param>
+	/// <param name="position">Where on the ground the item lies.</param>
+	/// <returns>The placed drop, or null when the map declares no such item.</returns>
+	public LootItem3D? SpawnItemExternal(string itemId, Vector3 position)
+	{
+		if (string.IsNullOrWhiteSpace(itemId)) return null;
+
+		string? resolvedId = ResolveItemTemplateId(itemId);
+		if (resolvedId == null) return null;
+
+		var lootItem = new LootItem3D();
+		lootItem.Name = "PlacedItem_LootItem3D";
+		lootItem.Position = position;
+		lootItem.Initialize(0, resolvedId, 1, 0f, GroundLootService.DefaultPickupRadius, false, -1);
+
+		AddChild(lootItem);
+		AllLootItems.Add(lootItem);
+		return lootItem;
+	}
+
+	private string? ResolveItemTemplateId(string itemId)
+	{
+		if (ItemRegistry.ContainsKey(itemId)) return itemId;
+
+		string cleanId = Path.GetFileNameWithoutExtension(itemId);
+		if (!string.IsNullOrEmpty(cleanId) && ItemRegistry.ContainsKey(cleanId)) return cleanId;
+
+		LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory);
+		if (ItemRegistry.ContainsKey(itemId)) return itemId;
+		if (!string.IsNullOrEmpty(cleanId) && ItemRegistry.ContainsKey(cleanId)) return cleanId;
+
+		return null;
+	}
+
+	/// <summary>Removes every placed drop this screen drew, which is how a map load replaces the items the previous one held.</summary>
+	public void ClearPlacedLootItems()
+	{
+		for (int index = AllLootItems.Count - 1; index >= 0; index--)
+		{
+			LootItem3D lootItem = AllLootItems[index];
+			if (lootItem != null && GodotObject.IsInstanceValid(lootItem))
+			{
+				lootItem.IsDespawned = true;
+				lootItem.QueueFree();
+			}
+		}
+
+		AllLootItems.Clear();
 	}
 
 	private bool CheckIfInRegistry<T>(Dictionary<StringName, T> registry, string id, string cleanId)

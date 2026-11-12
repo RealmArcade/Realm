@@ -96,6 +96,7 @@ public partial class MapEditorHUD
 		return AnyOptionButtonPopupVisible(
 			_topToolbar.ModuleOption,
 			_topToolbar.TestSettingsOption,
+			_entityPaletteController?.OptCategory,
 			_entityPaletteController?.OptCategoryItems,
 			_optEyedropperMode,
 			_optPathingMode,

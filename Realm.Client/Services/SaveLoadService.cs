@@ -328,6 +328,7 @@ public class SaveLoadService
 		saveData.Units = GetUnitSaveData(directory);
 		saveData.Props = GetPropSaveData(directory);
 		saveData.Decals = GetDecalSaveData(validDecalEntities);
+		saveData.Items = GetItemSaveData(directory);
 		saveData.Vfx = GetVfxSaveData();
 	}
 
@@ -448,6 +449,33 @@ public class SaveLoadService
 		return decals;
 	}
 
+	private List<ItemSaveData> GetItemSaveData(string directory)
+	{
+		var items = new List<ItemSaveData>();
+		var lootItems = GameContext.Host?.AllLootItems;
+		if (lootItems == null) return items;
+
+		var savedPlacements = new HashSet<string>();
+		foreach (var lootItem in lootItems)
+		{
+			if (lootItem == null || !GodotObject.IsInstanceValid(lootItem) || lootItem.IsDespawned) continue;
+			if (!MapAssetSync.IsValidItemObjectId(lootItem.ItemTypeId, directory)) continue;
+
+			Godot.Vector3 position = lootItem.Position;
+			if (!savedPlacements.Add($"{lootItem.ItemTypeId}_{position.X:F3}_{position.Y:F3}_{position.Z:F3}")) continue;
+
+			items.Add(new ItemSaveData
+			{
+				TemplateId = lootItem.ItemTypeId,
+				PosX = position.X,
+				PosY = position.Y,
+				PosZ = position.Z
+			});
+		}
+
+		return items;
+	}
+
 	private List<VfxSaveData> GetVfxSaveData()
 	{
 		var vfxList = new List<VfxSaveData>();
@@ -559,6 +587,10 @@ public class SaveLoadService
 		var req3List = new List<Entity>();
 		World.Query(in req3, (Entity entity) => req3List.Add(entity));
 		foreach (var ent in req3List) World.Destroy(ent);
+
+		// A placed item is drawn as a drop node this screen owns rather than as a prop entity, so the nodes are what a new
+		// map has to replace. Loot the authority replicates reaches this screen afterwards and is not part of the file.
+		GameContext.Host?.ClearPlacedLootItems();
 	}
 
 	private void DetermineMapDimensions(string mapDir, MapSaveData saveData, out int width, out int depth)
@@ -739,6 +771,7 @@ public class SaveLoadService
 	private void SpawnEntitiesFromSaveData(MapSaveData saveData, string mapDir, bool unitsFromAuthority)
 	{
 		if (!unitsFromAuthority) SpawnUnits(saveData.Units, mapDir);
+		if (!unitsFromAuthority) SpawnItems(saveData.Items, mapDir);
 		SpawnProps(saveData.Props, mapDir);
 		SpawnDecals(saveData.Decals);
 		SpawnVfx(saveData.Vfx);
@@ -756,6 +789,21 @@ public class SaveLoadService
 			}
 
 			World.Add(World.Create(), new UnitSpawnRequest(u.TemplateId, new Vector3(u.PosX, u.PosY, u.PosZ), u.RotationY, u.Scale, u.Player));
+		}
+	}
+
+	private void SpawnItems(List<ItemSaveData>? items, string mapDir)
+	{
+		if (items == null) return;
+		foreach (var i in items)
+		{
+			if (!MapAssetSync.IsValidItemObjectId(i.TemplateId, mapDir))
+			{
+				GD.PushWarning($"[SaveLoadService] Ignored invalid item '{i.TemplateId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
+				continue;
+			}
+
+			GameContext.Host?.SpawnItemExternal(i.TemplateId, new Godot.Vector3(i.PosX, i.PosY, i.PosZ));
 		}
 	}
 

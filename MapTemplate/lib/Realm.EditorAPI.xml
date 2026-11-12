@@ -368,6 +368,17 @@
             <param name="scale">Uniform scale multiplier.</param>
             <returns>True when the prop was spawned; otherwise false.</returns>
         </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.PlaceItem(System.String,System.Single,System.Single,System.Single)">
+            <summary>
+            Places an item template on the ground as a drop a unit can be sent to collect. The item is saved in
+            terrain.json and spawned as ground loot when the map is played, so it is the map's item and not a prop.
+            </summary>
+            <param name="itemId">Item template id the drop holds.</param>
+            <param name="x">World X position.</param>
+            <param name="y">World Y position of the drop.</param>
+            <param name="z">World Z position.</param>
+            <returns>True when the drop was placed; otherwise false, which is what an unknown item template reports.</returns>
+        </member>
         <member name="M:Realm.EditorAPI.IEditorAPI.ResolvePropAssetIds(System.String[],System.Boolean)">
             <summary>
             Resolves prop and resource template ids whose id, display name or model path matches any keyword.

@@ -85,6 +85,17 @@ public static class EditorMappingOperations
 	}
 
 
+	public static bool PlaceItem(string itemId, float x, float y, float z)
+	{
+		if (string.IsNullOrWhiteSpace(itemId) || GameContext.Host == null)
+		{
+			return false;
+		}
+
+		return GameContext.Host.SpawnItemExternal(itemId, new Godot.Vector3(x, y, z)) != null;
+	}
+
+
 	public static List<string> ResolvePropAssetIds(string[] keywords, bool includeResources)
 	{
 		var matches = new List<string>();

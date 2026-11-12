@@ -197,6 +197,7 @@ namespace Realm.Client.Core
 			if (DeletePropExternal(node)) return;
 			if (DeleteDecalExternal(node)) return;
 			if (DeleteVfxExternal(node)) return;
+			if (DeleteItemExternal(node)) return;
 
 			if (_selectedEditorObject == node)
 			{
@@ -227,6 +228,20 @@ namespace Realm.Client.Core
 			}
 
 			return false;
+		}
+
+		private bool DeleteItemExternal(Node node)
+		{
+			var lootItem = (node as LootItem3D) ?? FindLootItemInParentChain(node);
+			if (lootItem == null || !GodotObject.IsInstanceValid(lootItem))
+			{
+				return false;
+			}
+
+			if (lootItem == _selectedEditorObject) SelectedEditorObject = null;
+			AllLootItems.Remove(lootItem);
+			DestroyPlacedLootItem(lootItem);
+			return true;
 		}
 
 		private bool DeletePropExternal(Node node)
@@ -355,6 +370,9 @@ namespace Realm.Client.Core
 			var vfxAction = TryDeleteVfxFromParent(collider);
 			if (vfxAction != null) return vfxAction;
 
+			var itemAction = TryDeleteItemFromParent(collider);
+			if (itemAction != null) return itemAction;
+
 			return null;
 		}
 
@@ -443,6 +461,32 @@ namespace Realm.Client.Core
 			return null;
 		}
 
+		private IEditorAction? TryDeleteItemFromParent(Node collider)
+		{
+			var lootItem = (collider as LootItem3D) ?? FindLootItemInParentChain(collider);
+			if (lootItem != null && GodotObject.IsInstanceValid(lootItem))
+			{
+				if (lootItem == _selectedEditorObject) SelectedEditorObject = null;
+				var action = new ObjectDeleteAction("item", lootItem.ItemTypeId, lootItem.Position, 0f, 1f, lootItem);
+				AllLootItems.Remove(lootItem);
+				DestroyPlacedLootItem(lootItem);
+				return action;
+			}
+
+			return null;
+		}
+
+		/// <summary>
+		///     Takes a placed drop off the ground. It owns no body of its own, so nothing outside this screen has a copy of
+		///     it that would have to be told: the node is the placement.
+		/// </summary>
+		/// <param name="lootItem">The drop to remove.</param>
+		private static void DestroyPlacedLootItem(LootItem3D lootItem)
+		{
+			lootItem.IsDespawned = true;
+			lootItem.QueueFree();
+		}
+
 		private IEditorAction? DeleteByProximitySearch(Vector3 hitPos)
 		{
 			var (closestUnit, closestUnitDist) = FindClosestUnitDistance(hitPos);
@@ -450,11 +494,12 @@ namespace Realm.Client.Core
 			var (closestStaticPropEntity, closestStaticPropId, closestStaticPropPos, closestStaticPropRotY, closestStaticPropScale, closestStaticPropDist) = FindClosestStaticPropDistance(hitPos);
 			var (closestDecal, closestDecalDist) = FindClosestDecalDistance(hitPos);
 			var (closestVfx, closestVfxDist) = FindClosestVfxDistance(hitPos);
+			var (closestItem, closestItemDist) = FindClosestItemDistance(hitPos);
 
-			float minDistance = Mathf.Min(closestUnitDist, Mathf.Min(closestPropDist, Mathf.Min(closestStaticPropDist, Mathf.Min(closestDecalDist, closestVfxDist))));
+			float minDistance = Mathf.Min(closestUnitDist, Mathf.Min(closestPropDist, Mathf.Min(closestStaticPropDist, Mathf.Min(closestDecalDist, Mathf.Min(closestVfxDist, closestItemDist)))));
 			if (minDistance >= 2.0f) return null;
 
-			var dynAction = TryExecuteDynamicProximityDelete(minDistance, closestUnit, closestUnitDist, closestProp, closestPropDist, closestDecal, closestDecalDist, closestVfx, closestVfxDist);
+			var dynAction = TryExecuteDynamicProximityDelete(minDistance, closestUnit, closestUnitDist, closestProp, closestPropDist, closestDecal, closestDecalDist, closestVfx, closestVfxDist, closestItem, closestItemDist);
 			if (dynAction != null) return dynAction;
 
 			if (closestStaticPropEntity != Entity.Null && minDistance == closestStaticPropDist)
@@ -463,7 +508,7 @@ namespace Realm.Client.Core
 			return null;
 		}
 
-		private IEditorAction? TryExecuteDynamicProximityDelete(float minDistance, Unit3D? closestUnit, float closestUnitDist, Prop3D? closestProp, float closestPropDist, Decal? closestDecal, float closestDecalDist, ProceduralVfxInstance3D? closestVfx, float closestVfxDist)
+		private IEditorAction? TryExecuteDynamicProximityDelete(float minDistance, Unit3D? closestUnit, float closestUnitDist, Prop3D? closestProp, float closestPropDist, Decal? closestDecal, float closestDecalDist, ProceduralVfxInstance3D? closestVfx, float closestVfxDist, LootItem3D? closestItem, float closestItemDist)
 		{
 			if (closestUnit != null && minDistance == closestUnitDist)
 				return ExecuteUnitProximityDelete(closestUnit);
@@ -473,6 +518,8 @@ namespace Realm.Client.Core
 				return ExecuteDecalProximityDelete(closestDecal);
 			if (closestVfx != null && minDistance == closestVfxDist)
 				return ExecuteVfxProximityDelete(closestVfx);
+			if (closestItem != null && minDistance == closestItemDist)
+				return ExecuteItemProximityDelete(closestItem);
 			return null;
 		}
 
@@ -568,6 +615,25 @@ namespace Realm.Client.Core
 			return (closestDecal, closestDist);
 		}
 
+		private (LootItem3D?, float) FindClosestItemDistance(Vector3 hitPos)
+		{
+			LootItem3D? closestItem = null;
+			float closestDist = 2.0f;
+			foreach (var lootItem in AllLootItems)
+			{
+				if (!GodotObject.IsInstanceValid(lootItem) || lootItem.IsDespawned) continue;
+
+				float d = lootItem.GlobalPosition.DistanceTo(hitPos);
+				if (d < closestDist)
+				{
+					closestDist = d;
+					closestItem = lootItem;
+				}
+			}
+
+			return (closestItem, closestDist);
+		}
+
 		private (ProceduralVfxInstance3D?, float) FindClosestVfxDistance(Vector3 hitPos)
 		{
 			ProceduralVfxInstance3D? closestVfx = null;
@@ -630,6 +696,15 @@ namespace Realm.Client.Core
 			AllDecals.Remove(closestDecal);
 			if (closestDecal is Decal3D d3 && World.IsAlive(d3.Entity)) World.Destroy(d3.Entity);
 			closestDecal.QueueFree();
+			return action;
+		}
+
+		private IEditorAction ExecuteItemProximityDelete(LootItem3D closestItem)
+		{
+			if (closestItem == _selectedEditorObject) SelectedEditorObject = null;
+			var action = new ObjectDeleteAction("item", closestItem.ItemTypeId, closestItem.Position, 0f, 1f, closestItem);
+			AllLootItems.Remove(closestItem);
+			DestroyPlacedLootItem(closestItem);
 			return action;
 		}
 

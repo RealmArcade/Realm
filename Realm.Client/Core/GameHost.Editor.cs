@@ -37,6 +37,10 @@ public partial class GameHost
 		{
 			return SpawnVfxExternalWithParams(objectId, position, rotationDegrees, Vector3.One * (scale <= 0f ? 1.0f : scale));
 		}
+		else if (objectType == "item")
+		{
+			return SpawnItemExternal(objectId, position);
+		}
 		return null;
 	}
 

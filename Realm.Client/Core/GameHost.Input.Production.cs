@@ -501,6 +501,7 @@ public partial class GameHost
 			       tool == EditorTool.PlaceProp ||
 			       tool == EditorTool.PlaceDecal ||
 			       tool == EditorTool.PlaceVfx ||
+			       tool == EditorTool.PlaceItem ||
 			       tool == EditorTool.PlacePropClump;
 		}
 

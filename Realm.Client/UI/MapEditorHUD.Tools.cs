@@ -273,7 +273,8 @@ namespace Realm.Client.UI
 
 				if (GameContext.SessionState.SavedActiveTool == EditorTool.PlaceUnit ||
 				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceProp ||
-				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceDecal)
+				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceDecal ||
+				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceItem)
 				{
 					_entityPaletteController?.SelectCategoryItemExternal(GameContext.SessionState.SavedEntityCategory, GameContext.SessionState.SavedActivePlaceId);
 				}

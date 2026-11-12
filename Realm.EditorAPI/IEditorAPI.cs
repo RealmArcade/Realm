@@ -178,6 +178,17 @@ public interface IEditorAPI
 	bool PlaceProp(string propId, float x, float y, float z, float rotationY, float scale);
 
 	/// <summary>
+	/// Places an item template on the ground as a drop a unit can be sent to collect. The item is saved in
+	/// terrain.json and spawned as ground loot when the map is played, so it is the map's item and not a prop.
+	/// </summary>
+	/// <param name="itemId">Item template id the drop holds.</param>
+	/// <param name="x">World X position.</param>
+	/// <param name="y">World Y position of the drop.</param>
+	/// <param name="z">World Z position.</param>
+	/// <returns>True when the drop was placed; otherwise false, which is what an unknown item template reports.</returns>
+	bool PlaceItem(string itemId, float x, float y, float z);
+
+	/// <summary>
 	/// Resolves prop and resource template ids whose id, display name or model path matches any keyword.
 	/// </summary>
 	/// <param name="keywords">Case-insensitive keywords to match, for example "tree" or "palm".</param>
