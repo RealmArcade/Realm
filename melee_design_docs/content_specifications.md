@@ -16,7 +16,7 @@ Content is authored as templates inside a map's `metadata.json`. This set uses t
 
 | Surface | Fields this draft uses |
 | :--- | :--- |
-| Unit | MaxHp, Damage, Range, Armor, Speed, AttackCooldown, ScanRadius, MovementType, CollisionCircle, SightRange, AcquisitionRange, GoldBounty, XpBounty, DamageType, Splash*, Crit*, HpRegen, MaxMana, ManaRegen, MagicResistance, attributes (Strength, Agility, Vitality, Intelligence, Wisdom, Fortune), LevelGrowth, IsHero, Abilities, Weapons, StartingItems, BuildOptions, ConstructionRange, ModelPath |
+| Unit | MaxHp, Damage, Range, Armor, Speed, AttackCooldown, ScanRadius, MovementType, CollisionCircle, SightRange, AcquisitionRange, GoldBounty, XpBounty, Level, DamageType, Splash*, Crit*, HpRegen, MaxMana, ManaRegen, MagicResistance, attributes (Strength, Agility, Vitality, Intelligence, Wisdom, Fortune), LevelGrowth, IsHero, Abilities, Weapons, StartingItems, BuildOptions, ConstructionRange, ModelPath |
 | Building | The unit fields plus PathingType, and a construction time through the build flow |
 | Ability | AbilityType, ManaCost, Cooldown, TargetRange, AreaOfEffectRadius, Effects, AutoCast, ProjectileId, GridX/GridY, Hotkey |
 | Ability effect | Kind (Damage, Heal, Shield, Buff, Debuff, Teleport, Knockback), Delivery (Single, Radius, Self, Cone, Line, Aura), Targets (Self, Allies, Enemies, All), Amount, Duration, DamageType, MaxTargets, Scaling (attribute, shape, coefficient, divisor, cap) |
@@ -31,7 +31,7 @@ Map packaging. A melee map uses the existing Asset Import system in a split form
 
 ### 1.2 Systems the Content Relies On
 
-- Heroes: `IsHero`, `LevelGrowth`, `ExperiencePerLevel`, `XpBounty`, and `LevelService` already apply per-level growth from a template.
+- Heroes: `IsHero`, `Level`, `LevelGrowth`, `ExperiencePerLevel`, `XpBounty`, and `LevelService` already apply per-level growth from a template. `Level` states the level a template's units stand at, so a camp monster is authored at its level like a hero is, and `LevelGrowth.BountyMultiplierPerLevel` raises the bounty a level pays while `LevelGrowth`'s attribute fields raise what a level is worth in combat.
 - Production: a building carries two auto-cast abilities, one for its soldier type and one for its worker crew. Both pay from the building's single mana pool and are gated by their own cooldowns, so the content never exposes a player training command.
 - Economy: Gold, Wood, and Stone exist as player resources. A gatherable node is an entity with `Health` and `Harvestable`: its health is its capacity, its `YieldPerDamage` turns post-mitigation damage into pieces of its item, and each piece removes one point of that health. Workers carry those pieces as stacked inventory items in the six slots the map grants, spending them at a drop-off. Passive timer income is not used by this content.
 - Construction: `ConstructionState`, the `UnderConstruction` tag, `Invulnerable`, `BuildTask`, and `ConstructionRange` already exist.

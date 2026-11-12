@@ -1,7 +1,9 @@
 using System;
 using Realm.Ecs;
+using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
@@ -12,7 +14,8 @@ namespace Realm.ListenServer;
 ///     Pays the authored bounty of every unit that dies to a player's kill: gold to the killer's team and experience to
 ///     the killer's hero, which is the unit whose level every soldier of that player follows. A bounty is read from the
 ///     victim's own template, so any map that states GoldBounty or XpBounty on a unit gets paid for every one of them
-///     without a rule written for a particular unit.
+///     without a rule written for a particular unit. What a unit pays is then multiplied by its own bounty multiplier,
+///     which is how a level's bounty growth makes a monster worth more than the flat number its template states.
 /// </summary>
 public class MatchBountyService
 {
@@ -53,10 +56,26 @@ public class MatchBountyService
 
 		UnitMetadata? metadata = _map.Catalog.FindUnitOrBuilding(definitionId.Value);
 		if (metadata == null) return;
-		if (metadata.GoldBounty <= 0f && metadata.XpBounty <= 0f) return;
 
-		PayGold(killerPlayerIndex, metadata.GoldBounty);
-		PayExperience(killerPlayerIndex, killer, metadata.XpBounty);
+		float bountyMultiplier = ReadBountyMultiplier(victimEntity);
+		float payableGold = metadata.GoldBounty * bountyMultiplier;
+		float payableExperience = metadata.XpBounty * bountyMultiplier;
+		if (payableGold <= 0f && payableExperience <= 0f) return;
+
+		PayGold(killerPlayerIndex, payableGold);
+		PayExperience(killerPlayerIndex, killer, payableExperience);
+	}
+
+	/// <summary>
+	///     Reads the bounty multiplier the victim's own stat snapshot states, which is where a level's bounty growth lands.
+	///     Anything that states no multiplier is worth exactly its authored bounty.
+	/// </summary>
+	private float ReadBountyMultiplier(Entity victimEntity)
+	{
+		if (!_map.World.TryGet(victimEntity, out Stats stats)) return 1f;
+		if (!stats.TryGetValue(new StatId(StatKeys.BountyMultiplier), out float multiplier)) return 1f;
+
+		return multiplier > 0f ? multiplier : 1f;
 	}
 
 	private bool IsEnemyKill(Entity victimEntity, int killerPlayerIndex)

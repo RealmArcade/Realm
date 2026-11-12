@@ -10,6 +10,7 @@ public class LevelGrowthMetadata
 	public float IntelligencePerLevel { get; set; }
 	public float WisdomPerLevel { get; set; }
 	public float FortunePerLevel { get; set; }
+	public float BountyMultiplierPerLevel { get; set; }
 
 	public LevelGrowth ToLevelGrowth() => new(
 		StrengthPerLevel,
@@ -17,5 +18,6 @@ public class LevelGrowthMetadata
 		VitalityPerLevel,
 		IntelligencePerLevel,
 		WisdomPerLevel,
-		FortunePerLevel);
+		FortunePerLevel,
+		BountyMultiplierPerLevel);
 }

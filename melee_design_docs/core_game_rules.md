@@ -72,6 +72,7 @@ Formulas throughout the game preserve intuitive monotonicity. More investment ne
 - Active ability effectiveness scales from raw stats, so a level increase raises active output automatically with no separate allocation step. An innate may be flat like a relic or scale from stats, but it never requires a separate allocation step.
 - Every enemy unit, enemy hero, enemy building, and neutral monster awards a bounty of experience and gold when it dies. A bounty never pays wood.
 - A neutral monster's bounty scales with the monster's level.
+- The scale is content, not a rule: a monster's template states the level it stands at and the share of its authored bounty each level above the first adds, and the bounty the engine pays is the template's bounty multiplied by the multiplier that level produces. A template with no level and no such growth pays exactly the bounty it states, which is why soldier, hero and building bounties stay flat while a camp's rises with its level.
 - Hero and building bounties are larger than soldier bounties.
 - The experience portion of a bounty advances combat veterancy. The gold portion is currency and is awarded in addition to gold gathered from nodes.
 - A weaker victim awards less experience, so efficient progression requires engaging progressively stronger opposition.
@@ -443,7 +444,7 @@ Rules:
 
 - Neutral objectives are creeps and bosses scattered across the map.
 - They are fully contestable: their bounty goes to a single team, so claiming one denies it to every other team.
-- A neutral bounty pays experience and gold, scaled by the monster's level, and never wood.
+- A neutral bounty pays experience and gold, scaled by the monster's level, and never wood. The scale is authored on the camp's own template - its level, plus the bounty multiplier each level above the first adds - so raising a camp's level raises what it pays without retuning its flat bounty.
 - Some neutral objectives respawn periodically, so the same location is worth contesting more than once.
 - Every player is effectively a jungler. There is no dedicated jungler role, and no player is assigned to neutral objectives.
 - Players roam the map to find opportunities to catch unprepared opponents, contest neutral objectives, and deny expansions.

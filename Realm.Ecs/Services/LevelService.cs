@@ -14,17 +14,19 @@ public readonly record struct LevelGrowth(
 	float Vitality,
 	float Intelligence,
 	float Wisdom,
-	float Fortune)
+	float Fortune,
+	float BountyMultiplier)
 {
-	public static readonly LevelGrowth None = new(0f, 0f, 0f, 0f, 0f, 0f);
+	public static readonly LevelGrowth None = new(0f, 0f, 0f, 0f, 0f, 0f, 0f);
 
 	public bool IsZero => Strength == 0f && Agility == 0f && Vitality == 0f
-		&& Intelligence == 0f && Wisdom == 0f && Fortune == 0f;
+		&& Intelligence == 0f && Wisdom == 0f && Fortune == 0f && BountyMultiplier == 0f;
 }
 
 /// <summary>
 /// Turns a unit's level into attribute growth through the shared modifier pipeline, so level
-/// scaling composes with items, upgrades and buffs instead of bypassing them.
+/// scaling composes with items, upgrades and buffs instead of bypassing them. A level may also
+/// raise the bounty the unit pays, which is how a monster's worth follows its level.
 /// </summary>
 public static class LevelService
 {
@@ -54,6 +56,7 @@ public static class LevelService
 			Add(ref state, StatKeys.Intelligence, growth.Intelligence, steps);
 			Add(ref state, StatKeys.Wisdom, growth.Wisdom, steps);
 			Add(ref state, StatKeys.Fortune, growth.Fortune, steps);
+			Add(ref state, StatKeys.BountyMultiplier, growth.BountyMultiplier, steps);
 		}
 
 		AttributeStatCalculator.RecalculateEntityStats(world, entity);

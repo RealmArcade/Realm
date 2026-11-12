@@ -2077,7 +2077,7 @@
             Attribute gain per level, independent of where the authored curve came from.
             </summary>
         </member>
-        <member name="M:Realm.Ecs.Services.LevelGrowth.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single,System.Single)">
+        <member name="M:Realm.Ecs.Services.LevelGrowth.#ctor(System.Single,System.Single,System.Single,System.Single,System.Single,System.Single,System.Single)">
             <summary>
             Attribute gain per level, independent of where the authored curve came from.
             </summary>
@@ -2085,7 +2085,8 @@
         <member name="T:Realm.Ecs.Services.LevelService">
             <summary>
             Turns a unit's level into attribute growth through the shared modifier pipeline, so level
-            scaling composes with items, upgrades and buffs instead of bypassing them.
+            scaling composes with items, upgrades and buffs instead of bypassing them. A level may also
+            raise the bounty the unit pays, which is how a monster's worth follows its level.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Services.MapRulesCatalog">

@@ -453,6 +453,9 @@
                   },
                   "FortunePerLevel": {
                     "type": "number"
+                  },
+                  "BountyMultiplierPerLevel": {
+                    "type": "number"
                   }
                 }
               },
@@ -610,6 +613,9 @@
                 "type": "number"
               },
               "MaxLevel": {
+                "type": "integer"
+              },
+              "Level": {
                 "type": "integer"
               },
               "PathingCapabilities": {

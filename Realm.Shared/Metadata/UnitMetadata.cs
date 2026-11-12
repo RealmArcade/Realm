@@ -70,6 +70,7 @@ public class UnitMetadata
 	public float XpBounty { get; set; }
 	public float ExperiencePerLevel { get; set; }
 	public int MaxLevel { get; set; }
+	public int Level { get; set; } = 1;
 	public string[]? PathingCapabilities { get; set; }
 	public int PathingType { get; set; }
 	public string[]? Targets { get; set; }

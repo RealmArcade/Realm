@@ -99,6 +99,7 @@ public static class UnitEntityFactory
 		}
 
 		AttributeStatCalculator.RecalculateEntityStats(world, entity);
+		ApplySpawnLevel(world, entity, metadata);
 
 		float modelScale = scale <= 0.001f ? metadata.Scale : scale;
 		float placedScale = scale <= 0.001f ? 1f : scale;
@@ -263,6 +264,16 @@ public static class UnitEntityFactory
 		}
 
 		return true;
+	}
+
+	private static void ApplySpawnLevel(EcsWorld world, Entity entity, UnitMetadata metadata)
+	{
+		LevelGrowth growth = metadata.LevelGrowth?.ToLevelGrowth() ?? LevelGrowth.None;
+		int level = Math.Max(1, metadata.Level);
+		if (level <= 1 && growth.IsZero) return;
+
+		world.SetOrAdd(entity, new Level(level));
+		LevelService.Apply(world, entity, level, growth);
 	}
 
 	private static uint BuildAutoCastSlots(DefinitionCatalog catalog, string[] abilities)
