@@ -7,9 +7,9 @@ using Realm.Shared.Simulation;
 namespace Realm.Simulation.Tests;
 
 /// <summary>
-///     Plays a match with the parameters a lobby's host configured: how many building options a draw offers, how many
-///     copies of one building a player may hold, the capacity and charge multipliers, and the vision mode the authority
-///     publishes with. A lobby that configures nothing plays the ruleset as it was authored, which the default tests cover.
+///     Plays a match with the parameters a lobby's host configured: how many building options a draw offers, how much
+///     building supply a player holds, the capacity and charge multipliers, and the vision mode the authority publishes
+///     with. A lobby that configures nothing plays the ruleset as it was authored, which the default tests cover.
 /// </summary>
 [TestFixture]
 [NonParallelizable]
@@ -40,10 +40,10 @@ public class MeleeLobbyOptionTests
 	}
 
 	[Test]
-	public void TheHostSetsHowManyCopiesOfOneBuildingAPlayerMayHold()
+	public void TheHostSetsTheBuildingSupply()
 	{
 		var options = new MatchOptionSet();
-		options.Set(MatchOption.MaximumUniqueBuildingInstances, 1);
+		options.Set(MatchOption.MaximumBuildingSupply, 1);
 		MeleeTestMaps.RequireMaps();
 		_match = MeleeMatch.StartDuel(matchOptions: options);
 
@@ -53,8 +53,9 @@ public class MeleeLobbyOptionTests
 		_match.SetWood(1, 500f);
 		DraftOffer second = _match.BeginConstruction(1, SecondSite);
 
-		Assert.That(second.AbilityIds, Is.Empty, "A player at the host's building limit may not be offered another draw.");
-		Assert.That(_match.DraftOptions(1), Is.Empty, "The command grid stays closed at the host's building limit.");
+		Assert.That(second.AbilityIds, Is.Empty, "A player at the host's building supply may not be offered another draw.");
+		Assert.That(_match.DraftOptions(1), Is.Empty, "The command grid stays closed at the host's building supply.");
+		Assert.That(_match.LastFeedbackText(1), Does.Contain("1 building locations"), "The refusal has to name the supply the host stated.");
 	}
 
 	[Test]

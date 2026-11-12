@@ -3782,6 +3782,9 @@
         <member name="F:Realm.Ecs.MatchOption.ChargeMultiplierPercent">
             <summary>The percentage every player's maximum charges is multiplied by.</summary>
         </member>
+        <member name="F:Realm.Ecs.MatchOption.MaximumBuildingSupply">
+            <summary>How many buildings a player may construct and hold, which is the player's building supply.</summary>
+        </member>
         <member name="T:Realm.Ecs.MatchShroudMode">
             <summary>
                 How much of the world a match shows. A lobby's host may override the mode the map states, and

@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Json.Nodes;
 using NUnit.Framework;
 using Realm.Ecs;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Terrain;
 using Realm.Shared;
 using Realm.Shared.Distribution;
@@ -460,6 +461,42 @@ public class MeleeReferenceTests
 		Assert.That(match.Simulation.IsGameOver, Is.False, "Nothing ends the game while the player only builds.");
 		Assert.That(match.Simulation.Map.SaveData.Props?.Count ?? 0, Is.EqualTo(authoredProps), "The board's props have to stay on the board for the whole game.");
 		Assert.That(match.Simulation.Map.HasNavMesh, Is.True, "The board's height field has to bake into the navmesh the soldier walks from.");
+	}
+
+	/// <summary>
+	///     Gathers on the composed board: the ruleset's resource templates have to arrive through the metadata merge with the
+	///     fields that make a node harvestable, or the board places props that look like nodes and yield nothing.
+	/// </summary>
+	[Test]
+	public void TheComposedBoardsNodesCanBeWorked()
+	{
+		using MeleeMatch match = MeleeMatch.StartOnMap(Map.Folder, new[] { "Vale", "Sable" }, Map.ScriptPath);
+
+		Assert.That(match.TotalResourceAmount(), Is.GreaterThan(0f), "The board's props have to become resource nodes that hold something.");
+		foreach (ResourceNodeId node in match.Api.GetResourceNodes())
+		{
+			string nodeType = match.Api.GetResourceNodeType(node);
+			if (nodeType != "gold" && nodeType != "wood") continue;
+
+			Assert.That(
+				match.World.Has<Harvestable>(new Entity(node.Id)),
+				Is.True,
+				$"The {nodeType} node has to keep the harvestable fields its ruleset template states, or it is mined at a fixed rate instead of by the worker's attack.");
+		}
+
+		UnitId site = DraftBuildingOnTheComposedTerrain(match);
+		Assert.That(match.IsAlive(site), Is.True, "The drafted building has to stand for its worker to be raised.");
+
+		match.Step(MeleeMatch.LongestAuthoredConstructionSeconds + 20f);
+		Assert.That(match.Workers(1).Count, Is.GreaterThan(0), "A finished building raises the worker that works it.");
+
+		float before = match.TotalResourceAmount();
+		match.Step(90f);
+
+		Assert.That(
+			match.TotalResourceAmount(),
+			Is.LessThan(before),
+			"A worker on the composed board has to take resource out of a node, which takes the ruleset's harvestable fields arriving through the merge.");
 	}
 
 	/// <summary>

@@ -154,6 +154,7 @@ public class MatchOptionSet
 			MatchOption.OpenPoolDrafting => value <= 1,
 			MatchOption.CapacityMultiplierPercent => value <= MaximumMultiplierPercent,
 			MatchOption.ChargeMultiplierPercent => value <= MaximumMultiplierPercent,
+			MatchOption.MaximumBuildingSupply => value <= 24,
 			_ => false
 		};
 	}

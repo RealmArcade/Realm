@@ -66,6 +66,7 @@ public partial class LobbyRoom : Control
 	private SpinBox? _maximumPlayersSpin;
 	private SpinBox? _draftCountSpin;
 	private SpinBox? _uniqueBuildingsSpin;
+	private SpinBox? _buildingSupplySpin;
 	private SpinBox? _capacityMultiplierSpin;
 	private SpinBox? _chargeMultiplierSpin;
 	private OptionButton? _shroudModeOption;
@@ -840,6 +841,7 @@ public partial class LobbyRoom : Control
 		_maximumPlayersSpin = AddCountSetting(grid, TranslationServer.Translate("Players:"), 0, LobbyLimits.MaximumSeats, MatchOption.MaximumPlayers, TranslationServer.Translate("How many players this match seats. Zero seats the number the map states."));
 		_draftCountSpin = AddCountSetting(grid, TranslationServer.Translate("Building options per draft:"), 0, 24, MatchOption.MaximumBuildingDraftCount, TranslationServer.Translate("How many building options a draft offers at once. Zero offers the number the ruleset states."));
 		_uniqueBuildingsSpin = AddCountSetting(grid, TranslationServer.Translate("Copies of one building:"), 0, 24, MatchOption.MaximumUniqueBuildingInstances, TranslationServer.Translate("How many unique instances of one building a player may own. Zero uses the ruleset's own limit."));
+		_buildingSupplySpin = AddCountSetting(grid, TranslationServer.Translate("Building supply:"), 0, 24, MatchOption.MaximumBuildingSupply, TranslationServer.Translate("How many buildings a player may construct and hold. Zero uses the ruleset's own supply."));
 		_capacityMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Capacity multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.CapacityMultiplierPercent, TranslationServer.Translate("The percentage every player's capacity ceiling is multiplied by. Zero uses the ruleset's own values."));
 		_chargeMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Charge multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.ChargeMultiplierPercent, TranslationServer.Translate("The percentage every player's maximum charges is multiplied by. Zero uses the ruleset's own values."));
 
@@ -939,6 +941,7 @@ public partial class LobbyRoom : Control
 		SetSpinValue(_maximumPlayersSpin, options.Get(MatchOption.MaximumPlayers));
 		SetSpinValue(_draftCountSpin, options.Get(MatchOption.MaximumBuildingDraftCount));
 		SetSpinValue(_uniqueBuildingsSpin, options.Get(MatchOption.MaximumUniqueBuildingInstances));
+		SetSpinValue(_buildingSupplySpin, options.Get(MatchOption.MaximumBuildingSupply));
 		SetSpinValue(_capacityMultiplierSpin, options.Get(MatchOption.CapacityMultiplierPercent));
 		SetSpinValue(_chargeMultiplierSpin, options.Get(MatchOption.ChargeMultiplierPercent));
 
