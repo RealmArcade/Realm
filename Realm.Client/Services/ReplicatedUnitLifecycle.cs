@@ -31,16 +31,19 @@ public class ReplicatedUnitLifecycle
 	private readonly PendingUnitSpawnQueue _pendingSpawns;
 	private readonly Action<Entity> _notePendingKill;
 	private readonly Action<NetworkMappingState, Entity, int> _retireReplica;
+	private readonly Action<int, string> _noteRedefinition;
 
 	public ReplicatedUnitLifecycle(Func<Entity> findWorldEntity, Func<int> lastAppliedSequence,
 		PendingUnitSpawnQueue pendingSpawns, Action<Entity> notePendingKill,
-		Action<NetworkMappingState, Entity, int> retireReplica)
+		Action<NetworkMappingState, Entity, int> retireReplica,
+		Action<int, string> noteRedefinition)
 	{
 		_findWorldEntity = findWorldEntity;
 		_lastAppliedSequence = lastAppliedSequence;
 		_pendingSpawns = pendingSpawns;
 		_notePendingKill = notePendingKill;
 		_retireReplica = retireReplica;
+		_noteRedefinition = noteRedefinition;
 	}
 
 	public Entity Spawn(UnitSnapshot snap, Func<string, bool, string> getFallbackModelPath, out string modelPath, out int playerIndex)
@@ -178,6 +181,43 @@ public class ReplicatedUnitLifecycle
 		return entity;
 	}
 
+	/// <summary>
+	///     Reports whether a description is the same unit under a template it did not have before, which a map does when it
+	///     reveals what a construction site is being raised as. The unit keeps standing: it is the same body, the same
+	///     owner and the same kind of thing, so the replica is retemplated where it is rather than retired and rebuilt,
+	///     which is what would take it out of the player's selection and off the control group it was in.
+	/// </summary>
+	private static bool IsServerEntityRedefined(UnitSnapshot snap, Entity localEntity)
+	{
+		if (GameContext.World is not { } world) return false;
+		if (snap.UnitId.Length == 0 || snap.IsDead) return false;
+		if (!world.IsAlive(localEntity) || world.Has<Dead>(localEntity)) return false;
+		if (world.Has<Building>(localEntity) != snap.IsBuilding) return false;
+		if (!world.Has<DefinitionId>(localEntity) || world.Get<DefinitionId>(localEntity).Value == snap.UnitId) return false;
+
+		return !world.Has<UnitOwnerPlayer>(localEntity)
+		       || snap.OwnerPlayerIndex < 0
+		       || world.Get<UnitOwnerPlayer>(localEntity).PlayerIndex == snap.OwnerPlayerIndex;
+	}
+
+	private void ApplyRedefinition(EcsWorld world, Entity localEntity, in UnitSnapshot snap)
+	{
+		world.SetOrAdd(localEntity, new DefinitionId(snap.UnitId));
+
+		// Attack, resistances and the display name are written from the template rather than described, so a retemplated
+		// unit has to take them from its new one here or it keeps the numbers of what it used to be.
+		if (GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta) || GameHost.BuildingRegistry.TryGetValue(snap.UnitId, out meta))
+		{
+			world.SetOrAdd(localEntity, new Name(meta.Name));
+			world.SetOrAdd(localEntity, new Resistances(meta.Armor, meta.MagicResistance));
+
+			if (meta.Damage > 0f) world.SetOrAdd(localEntity, new Attack(meta.Damage, meta.Range, meta.AttackCooldown));
+			else if (world.Has<Attack>(localEntity)) world.Remove<Attack>(localEntity);
+		}
+
+		_noteRedefinition(snap.EntityId, snap.UnitId);
+	}
+
 	private static bool IsServerEntityIdRecycled(UnitSnapshot snap, Entity localEntity)
 	{
 		if (GameContext.World is not { } world) return true;
@@ -205,13 +245,16 @@ public class ReplicatedUnitLifecycle
 			return;
 		}
 
-		if (!world.IsAlive(localEntity) || IsServerEntityIdRecycled(snap, localEntity))
+		bool redefined = IsServerEntityRedefined(snap, localEntity);
+		if (!world.IsAlive(localEntity) || (!redefined && IsServerEntityIdRecycled(snap, localEntity)))
 		{
 			GameContext.SnapshotTimeline.Reset(localEntity.Id);
 			_retireReplica(mapping, localEntity, snap.EntityId);
 			if (!snap.IsDead) _pendingSpawns.Queue(snap);
 			return;
 		}
+
+		if (redefined) ApplyRedefinition(world, localEntity, snap);
 
 		if (snap.IsDead)
 		{
