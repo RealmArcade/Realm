@@ -51,18 +51,49 @@ public partial class GameHost
 		if (!ReferenceEquals(_hologramPreviewNode, _buildingPreviewMesh))
 		{
 			_hologramPreviewNode = _buildingPreviewMesh;
-			_hologramPreviewBlocked = false;
+			_hologramPreviewState = HologramPreviewState.Legal;
 		}
 
-		if (_hologramPreviewBlocked == blocked) return;
+		HologramPreviewState state = blocked
+			? HologramPreviewState.Blocked
+			: CanAffordActivePlacement(activeType) ? HologramPreviewState.Legal : HologramPreviewState.Unaffordable;
 
-		_hologramPreviewBlocked = blocked;
-		Color targetColor = blocked ? new Color(0.9f, 0.2f, 0.2f) : new Color(0.15f, 0.65f, 1.0f);
+		if (_hologramPreviewState == state) return;
+
+		_hologramPreviewState = state;
+		Color targetColor = state switch
+		{
+			HologramPreviewState.Blocked => new Color(0.9f, 0.2f, 0.2f),
+			HologramPreviewState.Unaffordable => new Color(0.55f, 0.55f, 0.55f),
+			_ => new Color(0.15f, 0.65f, 1.0f)
+		};
 		MakeHologramRecursive(_buildingPreviewMesh, targetColor);
 	}
 
+	private enum HologramPreviewState
+	{
+		Legal,
+		Blocked,
+		Unaffordable
+	}
+
+	/// <summary>
+	///     Reports whether the player can pay the price the placement's own template states. A placement the player cannot
+	///     afford is refused by the match, so the silhouette says so before the click rather than after it, and the price is
+	///     read from the same template metadata the match charges.
+	/// </summary>
+	/// <param name="type">The template the armed placement raises.</param>
+	/// <returns>True when the player holds enough gold, wood and stone for one placement.</returns>
+	private bool CanAffordActivePlacement(string type)
+	{
+		if (GameContext.InGameHud == null) return true;
+		if (!TryGetUnitOrBuildingMetadata(type, out UnitMetadata? metadata)) return true;
+
+		return GameContext.InputService.HasSufficientResources(metadata, Hud.Gold, Hud.Wood, Hud.Stone);
+	}
+
 	private Node3D? _hologramPreviewNode;
-	private bool _hologramPreviewBlocked;
+	private HologramPreviewState _hologramPreviewState;
 
 	public void TrainUnitAtBuilding(string unitId)
 	{
