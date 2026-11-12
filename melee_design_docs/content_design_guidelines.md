@@ -24,7 +24,7 @@ These are not preferences. Content that violates them is rejected or redesigned.
 - Buildings are drafted, unique, and permanent once established. They always carry both an economic and a military function, expressed as a tradeoff.
 - Bulwark is a physical and magic resistance mechanic, not an armor stat. Buildings scale it with the attacking force and building count; heroes scale it with nearby soldiers owned by that hero's player, never with allied soldiers.
 - A building is the unlock. Constructing it grants its soldier type, its production profile, and its economy; there is no research submenu and no post-construction upgrade path.
-- Production is automatic. Charges fill each building's production queue whenever the soldier type has room, and no building exposes a training or manual production command.
+- Production is automatic. A building's two auto-cast production abilities draw on its mana pool whenever the type they raise has room, and no building exposes a training or manual production command.
 - Heroes are the only directly controlled units and the only content with an ability bar.
 - Every building package must be balanceable against every other building package in the shared deck.
 - The nexus is the only elimination condition, so no content may create an alternative win condition.
@@ -103,7 +103,7 @@ Each content type is evaluated primarily on its own terms. This is the strongest
 - Every constructed building costs 100 wood, so the package is the balance unit. A weaker soldier may carry a stronger economy, and a stronger soldier may carry a weaker economy.
 - Both halves of the tradeoff must be real: a building that is strong in both is not a choice, and a building that is weak in both is not content.
 - A building's military half must be readable from its base presence, because observing an opponent's buildings is how army capability is communicated.
-- A building's charge count, capacity contribution, recharge rate, and production time are fixed authored values. Hero actives, hero innates, and relics may modify them; a building never grants an upgrade that does.
+- A building's mana pool, mana regeneration, cooldowns, and capacity contribution are fixed authored values. Hero actives, hero innates, and relics may modify them; a building never grants an upgrade that does.
 - A building's income must be drawn from a finite resource node. A building cannot create gold or wood from nothing: its workers attack the nearest matching node with their own attack, carry the pieces their damage earns, and deliver them at a drop-off, so income falls with worker travel distance and stops when no matching node is reachable.
 - A building's worker profile is stated in its tooltip: how many workers it raises, how quickly, and which permanent buffs it gives them. A building never advertises a computed income rate, because its income is what its workers physically take and carry.
 - A building's placement is part of its value. Content must remain meaningful both when placed beside a resource and when placed inside a chokepoint.
@@ -134,8 +134,8 @@ Players make decisions in real time with full information. Content is only as go
 - Draft reservation is intentionally visible. Before a choice is locked, an opponent inspecting the building site can see the options reserved for that player. After the choice is locked, the other options return to the deck and the site shows only the locked choice, even while construction continues.
 - Screen real estate and interaction count are budgeted. Construction, repair, relic purchase, and the three hero actives are the only verbs a player should need. Targeting and formation are authored rules, not commands, so they must be learned from the draft and the stat panel rather than from a shortcut.
 - Completed building selection is inspection only, with one exception: your own Nexus opens the relic vendor. Every other completed building panel states what the building unlocked and its current state; it never offers a research, training, or post-construction modification command.
-- Counter information is exhaustive. Clicking any unit, allied or enemy, shows its statistics, targeting rule, formation, the charge count of the building that produced it, and active buffs. Selecting a unit the player does not own hides or disables the command card, so an inspection never implies control.
-- Charge readiness is visible without selection. Every soldier-granting building displays its current charge count as a floating number above it, including zero, so an observer can read how soon that building can field another soldier.
+- Counter information is exhaustive. Clicking any unit, allied or enemy, shows its statistics, targeting rule, formation, and active buffs. Selecting a unit the player does not own hides or disables the command card, so an inspection never implies control.
+- Production readiness is visible without selection. Every soldier-granting building displays its available production count, derived from current mana, as a floating number above it, including zero, so an observer can read how soon that building can field another soldier.
 - Numeric systems should be explainable to the player in one sentence, and their formulas should preserve the monotonicity principle: more investment never yields less total value.
 
 ## 8. Economy and Army as One Decision
@@ -146,7 +146,7 @@ Content should reinforce that economic and military development are the same cho
 - Gold income funds relics and wood income funds further buildings, so a package's income type is part of its tradeoff.
 - Content should not provide a way to escape the tradeoff, such as a building that is efficient at both, or a soldier that generates its own economy.
 - Gatherable gold and wood are finite. Depleting a node, choosing which nodes to protect, and denying an opponent's gathering by destroying buildings, killing workers, or exhausting shared nodes are economic decisions alongside drafting, not separate upkeep systems. Bounty gold is additional to node income; wood has no bounty source.
-- Army capacity, charge cadence, production time, and the breadth of formations a draft can cover are the correct places for economic investment to pay off, because they preserve the immutability of individual soldiers at a given hero level.
+- Army capacity, mana throughput, cooldowns, and the breadth of formations a draft can cover are the correct places for economic investment to pay off, because they preserve the immutability of individual soldiers at a given hero level.
 
 ## 9. Content That Should Not Be Created
 

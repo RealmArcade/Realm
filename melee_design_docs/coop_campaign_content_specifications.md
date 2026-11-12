@@ -102,12 +102,12 @@ Rules:
 | :--- | :--- | :--- | :--- |
 | 0:00–1:00 | Establishment | Briefing. The gate, the wall, and the east yard are visible. No enemy movement | This is the ground being defended |
 | 1:00–4:00 | Active economy and first draft | Gather, start a construction, lock a choice during construction | Buildings are the draft, and the building is the unlock |
-| 4:00–7:00 | First contact | Wave 1 probes the gate. The first building's charge has entered production | Charges fill the queue automatically, and the gate is a shape |
+| 4:00–7:00 | First contact | Wave 1 probes the gate. The first building has auto-cast its production ability | Mana feeds production automatically, and the gate is a shape |
 | 7:00–11:00 | Escalation | Wave 2 flanks through the north break. The shelf and the south camp are live choices | Formations cover ground; the hero's target decides the army's focus |
 | 11:00–15:00 | Breach | Wave 3 uses both breaks. A hero caught forward is expected to die once | Army removal, revival, and giving ground without losing the match |
 | 15:00–20:00 | Counterattack | The warband has no further waves. The east yard is open | The nexus is the only win condition, and Bulwark makes force size matter |
 
-The first draft is expected by 1:30. The first soldiers are expected before 4:00. The mission never waits for a specific draft; the waves are timed so a player who is slow to build meets the probe with the hero and whatever the first charge produces.
+The first draft is expected by 1:30. The first soldiers are expected before 4:00. The mission never waits for a specific draft; the waves are timed so a player who is slow to build meets the probe with the hero and whatever the first production casts.
 
 ## 7. Objectives and Pressure
 
@@ -198,7 +198,7 @@ The mission does not require a specific ability order. A player who never casts 
 These are arithmetic and design checks, not balance claims.
 
 - **Opening choice.** Every constructed building costs 100 wood, so the starting 100 wood reaches a construction immediately. Starting 200 gold can buy up to two relics; the opening choice is whether to spend it now or save.
-- **First production versus probe.** The probe is 4 units. The first completed building spends its starting charge into its queue immediately, and the hero fights alongside the first soldier. The first contact is winnable without a second building.
+- **First production versus probe.** The probe is 4 units. The first completed building opens with one production worth of mana and auto-casts immediately, and the hero fights alongside the first soldier. The first contact is winnable without a second building.
 - **Wave 3 capacity.** The breach is 24 units, within the warband's per-type caps. No wave exceeds the buildings that produce it.
 - **Extreme ceiling.** The Extreme wave is every type at cap, 32 units in total. The mission cannot field more without a duplicate building, which the default lobby does not allow.
 - **Enemy capability read.** The five enemy buildings cover front-line, ranged, and sustain capabilities and are visible from the first minute. Every unit in a wave can be predicted from the east yard.
