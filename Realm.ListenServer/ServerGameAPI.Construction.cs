@@ -7,6 +7,7 @@ using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.MapAPI;
 using Realm.Shared.Maps;
+using Realm.Shared.Simulation;
 
 namespace Realm.ListenServer;
 
@@ -36,6 +37,7 @@ public partial class ServerGameAPI
 		_context.World.SetOrAdd(siteEntity, construction);
 		_context.World.SetOrAdd(siteEntity, new UnderConstruction());
 		_context.World.SetOrAdd(siteEntity, new Invulnerable());
+		ConstructionTick.ApplyProgressHealth(_context.World, siteEntity);
 
 		return site;
 	}
@@ -54,6 +56,7 @@ public partial class ServerGameAPI
 
 		_context.World.SetOrAdd(entity, new ConstructionState(MathF.Max(totalConstructionSeconds, MinimumConstructionSeconds)));
 		_context.World.SetOrAdd(entity, new UnderConstruction());
+		ConstructionTick.ApplyProgressHealth(_context.World, entity);
 	}
 
 	/// <summary>
@@ -70,6 +73,7 @@ public partial class ServerGameAPI
 		construction.CompletionCeilingFraction = Math.Clamp(finishedFraction, 0f, 1f);
 		construction.Progress = MathF.Min(construction.Progress, construction.ProgressCeiling);
 		_context.World.Set(entity, construction);
+		ConstructionTick.ApplyProgressHealth(_context.World, entity);
 	}
 
 	/// <summary>
@@ -98,6 +102,8 @@ public partial class ServerGameAPI
 			construction.Progress = MathF.Min(construction.Progress, construction.ProgressCeiling);
 			_context.World.Set(entity, construction);
 		}
+
+		ConstructionTick.ApplyProgressHealth(_context.World, entity);
 
 		return true;
 	}

@@ -198,6 +198,10 @@ public class MatchTick
 
 	private void AdvanceHealthRegeneration(Entity entity, ref Health health)
 	{
+		// A site being raised is dormant: its health is the work done on it, so nothing regenerates it but the building
+		// work itself, and a map cannot hand it health a player has not paid for.
+		if (World.Has<UnderConstruction>(entity)) return;
+
 		health.TimeSinceLastDamage += _deltaSeconds;
 		if (health.HpRegen <= 0f || health.Current >= health.Max) return;
 		if (health.HpRegenCombatDelay > 0f && health.TimeSinceLastDamage < health.HpRegenCombatDelay) return;
@@ -207,6 +211,10 @@ public class MatchTick
 
 	private void AdvanceManaRegeneration(Entity entity, ref Mana mana, ref ManaRegen regen)
 	{
+		// A site being raised is dormant until it is whole, so its pool stands still however the template or the map
+		// states its regeneration. Mana is refilled from the tick the construction completes.
+		if (World.Has<UnderConstruction>(entity)) return;
+
 		if (regen.PerSecond <= 0f || mana.Current >= mana.Max) return;
 
 		mana.Current = MathF.Min(mana.Max, mana.Current + regen.PerSecond * _deltaSeconds);

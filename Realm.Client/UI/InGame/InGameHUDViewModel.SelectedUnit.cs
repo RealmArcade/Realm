@@ -195,6 +195,8 @@ public partial class InGameHUDViewModel
 
 	private string? GetBaseStateText(EcsWorld world, Unit3D u)
 	{
+		if (world.Has<UnderConstruction>(u.Entity)) return "● " + TranslationServer.Translate("UNDER CONSTRUCTION");
+
 		if (world.Has<Gatherer>(u.Entity))
 			return GetGathererStateText(world, u.Entity, world.Get<Gatherer>(u.Entity));
 
@@ -266,15 +268,11 @@ public partial class InGameHUDViewModel
 
 	private void UpdateUnitProduction(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
-		if (!info.IsEnemy && world.Has<ConstructionState>(u.Entity))
-		{
-			var cs = world.Get<ConstructionState>(u.Entity);
-			info.HasProduction = true;
-			info.ProductionTitle = TranslationServer.Translate("UNDER CONSTRUCTION");
-			info.ProductionProgress = cs.Progress;
-			info.ProductionMaxProgress = cs.TotalBuildTime;
-		}
-		else if (!info.IsEnemy && world.Has<ProductionQueue>(u.Entity))
+		// A site being raised has no production to draw: the work on it is its health, so the bar over the building is
+		// where its progress reads, and the panel keeps no second clock for it.
+		if (world.Has<UnderConstruction>(u.Entity)) return;
+
+		if (!info.IsEnemy && world.Has<ProductionQueue>(u.Entity))
 		{
 			var prod = world.Get<ProductionQueue>(u.Entity);
 			info.HasProduction = true;

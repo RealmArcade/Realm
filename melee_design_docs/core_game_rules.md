@@ -338,6 +338,8 @@ Rules:
 - A destroyed building is invulnerable while dormant and cannot be attacked again until fully repaired.
 - A destroyed building generates no income, regenerates no mana, and produces no soldiers or workers. Its stored mana and queue are retained until it is repaired, and its capacity contribution remains part of the type's total cap so destroying it never pushes a surviving army over capacity.
 - New construction uses the same silhouette presentation as a destroyed building, without the destruction visual effects, and is invulnerable until complete. A site that has not been committed to a building yet is drawn the same way, so what is being raised is not readable from the ground until its package is locked; the site then takes that building's silhouette and keeps the work it has already been given.
+- A site's health is its progress: every percent of the work raises one percent of the building's maximum health, so the bar over the site is its construction bar and completing it is what fills the bar. Selection shows the same readings as any other building, and no separate construction progress meter is drawn anywhere.
+- A site is dormant until it is whole. It regenerates no health and no mana while it is being raised, whatever its template or a map states, so a building cannot bank production or repair itself before it exists. Health and mana regeneration begin on the tick the construction completes.
 - Repair is done as percent of max health per second, so the hero can repair two buildings from 0 to 100% in exactly the same amount of time. The repair rate can be different per hero or augmented by buff sources.
 - The nexus is an explicit exception: once destroyed it cannot be repaired.
 

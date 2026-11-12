@@ -163,6 +163,10 @@ public partial interface IGameAPI
 	/// <summary>
 	/// Reports how far a building site has been built, as a fraction from zero to one. A unit that is not a building
 	/// site answers one, so a caller may ask any unit without first knowing what state it is in.
+	/// A site's health is this same fraction of its maximum health, because the bar over a building being raised is its
+	/// construction rather than a second reading of it; a site also regenerates no health and no mana until it is whole,
+	/// so a map cannot bank a building's production before the building exists and must not treat a site's missing health
+	/// as damage to be mended.
 	/// </summary>
 	/// <param name="unit">The building site.</param>
 	/// <returns>The completed fraction of its construction time.</returns>
