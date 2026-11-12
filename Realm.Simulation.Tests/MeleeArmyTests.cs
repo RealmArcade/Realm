@@ -61,18 +61,18 @@ public class MeleeArmyTests
 	}
 
 	[Test]
-	public void LosingTheHeroClearsEveryProductionQueue()
+	public void LosingTheHeroStopsProductionUntilItRevives()
 	{
 		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
 		Assert.That(_match.StepUntilSoldiers(1), Is.EqualTo(1), "The building has to raise its first soldier first.");
 
-		_match.Api.SetUnitChargeCount(building, 1);
+		_match.Api.SetUnitMana(building, _match.MaxManaOf(building));
 		_match.Step(0.2f);
 
 		_match.Kill(_match.Hero(1), _match.Hero(2));
 		_match.Step(10f);
 
-		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(0), "A queue that was cleared by the hero's death must not field a soldier while the hero is gone.");
+		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(0), "A building whose hero is gone must not field a soldier, even with the mana to pay for one.");
 
 		_match.Step(15f);
 		Assert.That(_match.Soldiers(1).Count, Is.GreaterThan(0), "Production has to resume once the hero revives.");
@@ -103,18 +103,18 @@ public class MeleeArmyTests
 	}
 
 	[Test]
-	public void EveryBuildingConsumesTheFoodItTakes()
+	public void EveryBuildingConsumesOneOfTheEightSupply()
 	{
 		int foodCap = _match.MaxPopulationOf(1);
-		Assert.That(foodCap, Is.EqualTo(40), "The ruleset's own food cap has to be the one the seat is given.");
+		Assert.That(foodCap, Is.EqualTo(8), "The ruleset's building supply cap has to be the one the seat is given.");
 
 		int before = _match.PopulationOf(1);
 		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
 		_match.Step(1f);
 		int after = _match.PopulationOf(1);
 
-		Assert.That(_match.IsAlive(building), Is.True, "The building has to stand for its food to be counted.");
-		Assert.That(after - before, Is.EqualTo(2), "A building has to consume the food it takes, or a player could raise buildings without limit.");
+		Assert.That(_match.IsAlive(building), Is.True, "The building has to stand for its supply to be counted.");
+		Assert.That(after - before, Is.EqualTo(1), "A building has to consume the one supply it costs, or a player could raise buildings without limit.");
 	}
 
 	[Test]
@@ -126,7 +126,7 @@ public class MeleeArmyTests
 		int capacity = MeleeContent.CapacityOf(templateId);
 
 		int produced = _match.StepUntilSoldiers(1);
-		Assert.That(produced, Is.EqualTo(1), "The building has to raise its first soldier from its starting charge.");
+		Assert.That(produced, Is.EqualTo(1), "The building has to raise its first soldier from the mana it stores.");
 
 		for (int index = produced; index < capacity; index++)
 		{
@@ -135,23 +135,20 @@ public class MeleeArmyTests
 
 		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(capacity), "The test has to fill the building's capacity first.");
 
-		_match.Step(MeleeContent.RechargeSecondsOf(templateId) + 1f);
+		_match.Step(MeleeContent.SoldierProductionSecondsOf(templateId) + 1f);
 
-		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(capacity), "A full capacity slot must stop the building from spending a charge.");
-		Assert.That(_match.CountCharges(building), Is.EqualTo(MeleeContent.MaximumChargesOf(templateId)), "The charge the building recharged has to wait for a free capacity slot.");
+		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(capacity), "A full capacity slot must stop the building from raising another soldier, whatever mana it has left.");
+		Assert.That(_match.IsAbilityDisabled(building, MeleeContent.SoldierAbilityFor(templateId)), Is.True, "The ruleset has to switch the soldier ability off while its capacity is full.");
 	}
 
 	[Test]
-	public void AChargedBuildingRechargesOnItsAuthoredClock()
+	public void ABuildingRefillsItsManaOnItsAuthoredClock()
 	{
 		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
 		string templateId = _match.TemplateOf(building);
 
-		Assert.That(_match.CountCharges(building), Is.EqualTo(1), "A finished building opens with one charge.");
-
 		int produced = _match.StepUntilSoldiers(1);
-		Assert.That(produced, Is.EqualTo(1), "The first charge raises a soldier.");
-		Assert.That(_match.CountCharges(building), Is.EqualTo(MeleeContent.MaximumChargesOf(templateId) - 1), "Raising that soldier spends the charge.");
+		Assert.That(produced, Is.EqualTo(1), "The building has to raise a soldier from the mana it stores.");
 
 		string soldierType = MeleeContent.SoldierFor(templateId);
 		for (int index = produced; index < MeleeContent.CapacityOf(templateId); index++)
@@ -159,11 +156,11 @@ public class MeleeArmyTests
 			_match.SpawnSoldier(1, soldierType, new Vector3(-40f + index * 1.5f, 0f, -56f));
 		}
 
-		_match.Step(MeleeContent.RechargeSecondsOf(templateId) - 1f);
-		Assert.That(_match.CountCharges(building), Is.EqualTo(MeleeContent.MaximumChargesOf(templateId) - 1), "The charge returns on its authored recharge clock, not earlier.");
+		_match.Api.SetUnitMana(building, 0f);
+		float regen = _match.ManaRegenOf(building);
+		_match.Step(5f);
 
-		_match.Step(2f);
-		Assert.That(_match.CountCharges(building), Is.GreaterThan(MeleeContent.MaximumChargesOf(templateId) - 1), "The recharged charge has to be on the building once its clock runs out.");
+		Assert.That(_match.ManaOf(building), Is.EqualTo(regen * 5f).Within(2f), "A building's mana has to return at the rate of one soldier and one worker production per their authored clocks.");
 	}
 
 	[Test]
@@ -182,13 +179,15 @@ public class MeleeArmyTests
 	}
 
 	[Test]
-	public void TheHeroReturnsAtTheNexusWithItsBuildingsRecharged()
+	public void TheHeroReturnsAtTheNexusWithItsBuildingsRefilled()
 	{
 		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
 		string templateId = _match.TemplateOf(building);
 
-		_match.StepUntilSoldiers(1);
-		Assert.That(_match.CountCharges(building), Is.EqualTo(MeleeContent.MaximumChargesOf(templateId) - 1), "The building spends a charge on its first soldier.");
+		// Both production lines are switched off so the refill can be read before an auto-cast spends it.
+		_match.Api.SetAbilityAutoCast(building, MeleeContent.SoldierAbilityFor(templateId), false);
+		_match.Api.SetAbilityAutoCast(building, MeleeContent.WorkerAbilityFor(templateId), false);
+		_match.Api.SetUnitMana(building, 0f);
 
 		_match.Kill(_match.Hero(1), _match.Hero(2));
 		_match.Step(11.5f);
@@ -198,7 +197,7 @@ public class MeleeArmyTests
 		UnitId revived = _match.Hero(1);
 		Assert.That(_match.IsAlive(revived), Is.True, "The hero has to return when its revival timer expires.");
 		Assert.That(_match.HeroLevel(1), Is.EqualTo(1), "A revived hero starts at level one again.");
-		Assert.That(_match.CountCharges(building), Is.EqualTo(MeleeContent.MaximumChargesOf(templateId)), "A revival refills every soldier-building to its maximum charges.");
+		Assert.That(_match.ManaOf(building), Is.EqualTo(_match.MaxManaOf(building)).Within(0.5f), "A revival refills every building's production mana to its maximum.");
 	}
 
 	[Test]

@@ -9,6 +9,8 @@ namespace Realm.Simulation.Tests;
 /// </summary>
 internal static class MeleeContent
 {
+	public const float ProductionMana = 100f;
+
 	public const string Shieldbearer = "unit/shieldbearer";
 	public const string Axeman = "unit/axeman";
 
@@ -51,6 +53,40 @@ internal static class MeleeContent
 		};
 	}
 
+	public static string SoldierAbilityFor(string buildingTemplateId)
+	{
+		return buildingTemplateId switch
+		{
+			"building/bulwark_hall" => "ability/raise_shieldbearer",
+			"building/warband_yard" => "ability/raise_axeman",
+			"building/spear_lodge" => "ability/raise_spear_militia",
+			"building/archery_range" => "ability/raise_bowman",
+			"building/sling_camp" => "ability/raise_slinger",
+			"building/bolt_foundry" => "ability/raise_bolt_thrower",
+			"building/mender_shrine" => "ability/raise_mender",
+			"building/signal_post" => "ability/raise_standard_bearer",
+			"building/vigil_bastion" => "ability/raise_warder",
+			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no soldier profile grants.")
+		};
+	}
+
+	public static string WorkerAbilityFor(string buildingTemplateId)
+	{
+		return buildingTemplateId switch
+		{
+			"building/bulwark_hall" => "ability/raise_worker_bulwark_hall",
+			"building/warband_yard" => "ability/raise_worker_warband_yard",
+			"building/spear_lodge" => "ability/raise_worker_spear_lodge",
+			"building/archery_range" => "ability/raise_worker_archery_range",
+			"building/sling_camp" => "ability/raise_worker_sling_camp",
+			"building/bolt_foundry" => "ability/raise_worker_bolt_foundry",
+			"building/mender_shrine" => "ability/raise_worker_mender_shrine",
+			"building/signal_post" => "ability/raise_worker_signal_post",
+			"building/vigil_bastion" => "ability/raise_worker_vigil_bastion",
+			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no worker profile serves.")
+		};
+	}
+
 	public static int CapacityOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
@@ -68,7 +104,13 @@ internal static class MeleeContent
 		};
 	}
 
-	public static int MaximumChargesOf(string buildingTemplateId)
+	/// <summary>The mana pool a building of that package holds at whole, which is one production per stored soldier and worker.</summary>
+	public static int MaximumManaOf(string buildingTemplateId)
+	{
+		return (int)((SoldierProductionsOf(buildingTemplateId) + WorkerProductionsOf(buildingTemplateId)) * ProductionMana);
+	}
+
+	public static int SoldierProductionsOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{
@@ -85,7 +127,7 @@ internal static class MeleeContent
 		};
 	}
 
-	public static float RechargeSecondsOf(string buildingTemplateId)
+	public static float SoldierProductionSecondsOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{
@@ -119,7 +161,7 @@ internal static class MeleeContent
 		};
 	}
 
-	public static int WorkerChargesOf(string buildingTemplateId)
+	public static int WorkerProductionsOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{
@@ -136,7 +178,7 @@ internal static class MeleeContent
 		};
 	}
 
-	public static float WorkerRechargeSecondsOf(string buildingTemplateId)
+	public static float WorkerProductionSecondsOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{
@@ -149,23 +191,6 @@ internal static class MeleeContent
 			"building/mender_shrine" => 40f,
 			"building/signal_post" => 30f,
 			"building/vigil_bastion" => 35f,
-			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no worker profile serves.")
-		};
-	}
-
-	public static float WorkerProductionSecondsOf(string buildingTemplateId)
-	{
-		return buildingTemplateId switch
-		{
-			"building/bulwark_hall" => 12f,
-			"building/warband_yard" => 8f,
-			"building/spear_lodge" => 10f,
-			"building/archery_range" => 7f,
-			"building/sling_camp" => 6f,
-			"building/bolt_foundry" => 14f,
-			"building/mender_shrine" => 12f,
-			"building/signal_post" => 9f,
-			"building/vigil_bastion" => 10f,
 			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no worker profile serves.")
 		};
 	}

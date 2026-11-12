@@ -446,6 +446,8 @@ public partial class InGameHUDViewModel
 
 	public List<SelectedUnitInfo> SelectedUnits { get; } = new();
 	public Prop3D? SelectedProp { get; set; }
+	public Entity SelectedResourceNode { get; set; } = Entity.Null;
+	public string SelectedResourceNodePropId { get; set; } = string.Empty;
 	public int CycleSelectionIndex { get; set; }
 
 	public bool IsChatActive { get; set; }

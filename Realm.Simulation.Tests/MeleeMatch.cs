@@ -29,6 +29,7 @@ internal sealed class MeleeMatch : IDisposable
 	public const float BuildingWoodCost = 100f;
 	public const float LongestAuthoredConstructionSeconds = 40f;
 	public const float LongestAuthoredProductionSeconds = 40f;
+	private const float SoldierWaitSeconds = 240f;
 
 	private const int PeerIdBase = 7000;
 
@@ -934,8 +935,10 @@ internal sealed class MeleeMatch : IDisposable
 	/// </summary>
 	public int StepUntilSoldiers(int slot)
 	{
+		// A building pays its worker line first, so a soldier may wait for the crew's capacity to fill and for the
+		// soldier's own reserve to build up. That is minutes of match time, not the one production clock.
 		float waited = 0f;
-		while (Soldiers(slot).Count == 0 && waited < LongestAuthoredProductionSeconds)
+		while (Soldiers(slot).Count == 0 && waited < SoldierWaitSeconds)
 		{
 			Step(1f);
 			waited += 1f;
@@ -973,13 +976,16 @@ internal sealed class MeleeMatch : IDisposable
 		return World.TryGet(playerEntity, out PlayerBuildingLimit limit) ? limit.Value : 0;
 	}
 
-	/// <summary>Reads how many charges a building may hold at most, which a lobby's charge multiplier scales.</summary>
-	public int MaximumChargesOf(UnitId building)
-	{
-		return TryGet(building, out UnitCharges charges) ? charges.MaximumCharges : 0;
-	}
+	public float ManaOf(UnitId unit) => TryGet(unit, out Mana mana) ? mana.Current : 0f;
 
-	public int CountCharges(UnitId building)
+	public float MaxManaOf(UnitId unit) => TryGet(unit, out Mana mana) ? mana.Max : 0f;
+
+	public float ManaRegenOf(UnitId unit) => TryGet(unit, out Mana mana) ? mana.ManaRegen : 0f;
+
+	/// <summary>Reads how many productions a building holds in mana, which is what its production box shows.</summary>
+	public int CountProductions(UnitId building) => (int)MathF.Floor(ManaOf(building) / MeleeContent.ProductionMana);
+
+	public int BadgeOf(UnitId building)
 	{
 		Entity entity = new(building.Value);
 		return World.TryGet(entity, out OverheadBadge badge) ? badge.Value : 0;

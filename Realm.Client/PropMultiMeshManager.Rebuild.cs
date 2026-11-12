@@ -43,7 +43,7 @@ public partial class PropMultiMeshManager : Node3D
 	private void CollectReusableKeysFromEcs()
 	{
 		if (GameContext.World == null || GameContext.Host is not { } host) return;
-		var query = QueryCache.AllPropIdentityAndPositionQuery;
+		var query = QueryCache.AllPropIdentityAndPositionNoneDeadQuery;
 		GameContext.World.Query(in query, (Entity _, ref PropIdentity propIdComp) =>
 		{
 			string key = host.GetModelAssetKey(propIdComp.PropId);
@@ -104,7 +104,7 @@ public partial class PropMultiMeshManager : Node3D
 	{
 		if (GameContext.World == null || GameContext.Host is not { } host) return;
 
-		var query = QueryCache.AllPropIdentityAndPositionQuery;
+		var query = QueryCache.AllPropIdentityAndPositionNoneDeadQuery;
 		GameContext.World.Query(in query, (Entity entity, ref PropIdentity propIdComp, ref Position posComp) =>
 		{
 			if (GameHost.EntityToProp3D.ContainsKey(entity)) return;

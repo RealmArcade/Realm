@@ -164,7 +164,7 @@ public class ResourceEconomyService
 		{
 			string? pType = _context.MapRules.GetResourceTypeForNode(identity.PropId);
 
-			if (pType == type)
+			if (pType == type && _context.World.Get<ResourceNode>(entity).Amount > 0f)
 			{
 				float d = Vector3.Distance(pos, nodePos.Value);
 				if (d < closestDist)

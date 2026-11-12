@@ -10,6 +10,7 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Stats;
 using Realm.Shared.Metadata;
 
@@ -277,6 +278,38 @@ public class UnitStatsPanel
 		_messageLabel.Visible = !string.IsNullOrEmpty(message);
 		_content.Visible = string.IsNullOrEmpty(message);
 		if (_content.Visible == false) HideCategoryPopup();
+	}
+
+	/// <summary>
+	///     Writes the readings of a placed resource node: what it is worth, what is left of it, and the resistances that
+	///     decide how much of a worker's hit it keeps. A node carries the same health and resistance components a unit
+	///     does, so the panel reads it the same way rather than through a second sheet.
+	/// </summary>
+	/// <param name="entity">The placed prop entity of the node.</param>
+	/// <param name="propId">The template the node is placed from.</param>
+	public void UpdateResourceNode(Entity entity, string propId)
+	{
+		var world = GameContext.World;
+		if (world == null || !world.IsAlive(entity) || !world.Has<ResourceNode>(entity))
+		{
+			ShowMessage(string.Empty);
+			return;
+		}
+
+		world.TryGet(entity, out Health health);
+		world.TryGet(entity, out Resistances resistances);
+		ResourceNode node = world.Get<ResourceNode>(entity);
+
+		string type = GameContext.RegistryService.GetResourceTypeForNode(propId) ?? string.Empty;
+		string label = string.IsNullOrEmpty(type) ? propId : type.ToUpperInvariant();
+		_messageLabel.Text = $"{label}\n"
+		                     + $"{TranslationServer.Translate("Health")}: {health.Current:F0} / {health.Max:F0}\n"
+		                     + $"{TranslationServer.Translate("Armor")}: {resistances.Physical:F0}   "
+		                     + $"{TranslationServer.Translate("Magic Resistance")}: {resistances.Magic:F0}\n"
+		                     + $"{TranslationServer.Translate("REMAINING")}: {node.Amount:F0}";
+		_messageLabel.Visible = true;
+		_content.Visible = false;
+		HideCategoryPopup();
 	}
 
 	public void UpdateSingleSelection(SelectedUnitInfo info, bool forceRefresh)

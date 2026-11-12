@@ -76,7 +76,8 @@ public enum PresentationKind : byte
 
 	CastSound,
 
-	InstructionsSectionAdded
+	InstructionsSectionAdded,
+	ResourceNodeDepleted
 }
 
 [MemoryPackable]

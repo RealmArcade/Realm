@@ -301,8 +301,47 @@ public partial class GameHost : Node3D
 	private Node3D? _sharedPropHoverRing;
 	public Entity SelectedPropEntity { get; private set; } = Entity.Null;
 	public string SelectedPropId { get; private set; } = "";
+	public Entity SelectedResourceNodeEntity { get; private set; } = Entity.Null;
+	public string SelectedResourceNodePropId { get; private set; } = "";
 	public Entity HoveredPropEntity { get; private set; } = Entity.Null;
 	public string HoveredPropId { get; private set; } = "";
+
+	/// <summary>
+	///     Selects a placed resource node for inspection. A node is drawn by a shared multi mesh and owns no node of its
+	///     own, so it is named by the entity it is placed as and the shared prop ring marks where it stands.
+	/// </summary>
+	/// <param name="entity">The placed prop entity of the node.</param>
+	/// <param name="propId">The template the node is placed from.</param>
+	public void SelectResourceNode(Entity entity, string propId)
+	{
+		SelectedResourceNodeEntity = entity;
+		SelectedResourceNodePropId = propId;
+
+		if (TryUpdatePropRingState(entity, out var pos, out var scale))
+		{
+			EnsurePropSelectionRing();
+			if (_sharedPropSelectionRing != null)
+			{
+				_sharedPropSelectionRing.Position = pos;
+				_sharedPropSelectionRing.Scale = Vector3.One * scale;
+				_sharedPropSelectionRing.Visible = true;
+			}
+		}
+		else
+		{
+			ClearSelectedResourceNode();
+		}
+	}
+
+	public void ClearSelectedResourceNode()
+	{
+		SelectedResourceNodeEntity = Entity.Null;
+		SelectedResourceNodePropId = "";
+		if (_sharedPropSelectionRing != null && SelectedPropEntity == Entity.Null)
+		{
+			_sharedPropSelectionRing.Visible = false;
+		}
+	}
 
 	public void SetSelectedPropEntity(Entity entity, string propId)
 	{

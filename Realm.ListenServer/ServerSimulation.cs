@@ -203,6 +203,7 @@ public class ServerSimulation : IDisposable
 		simulation.CombatDamageService.UnlimitedPowerProvider = () => simulation.UnlimitedPowerEnabled;
 		simulation.CombatDamageService.OnKillUnitRequested = KillUnit;
 		simulation.CombatDamageService.OnBuildingDormantRequested = HandleBuildingDormant;
+		simulation.ResourceEconomyService.OnPropDepleted = node => _script.Api.NotifyResourceNodeDepleted(new ResourceNodeId(node.Id));
 		simulation.CombatDamageService.DamageEffectivenessProvider = (attacker, target) =>
 		{
 			if (!_map.World.TryGet<UnitOwnerPlayer>(attacker, out UnitOwnerPlayer attackingOwner)) return 1f;

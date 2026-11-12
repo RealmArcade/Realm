@@ -159,19 +159,19 @@ public class MeleeBuildingLifecycleTests
 	}
 
 	[Test]
-	public void ADormantBuildingKeepsItsChargesAndResumesProducingWhenMended()
+	public void ADormantBuildingKeepsItsManaAndResumesProducingWhenMended()
 	{
 		UnitId building = BuildNearTheHero();
 		_match.StepUntilSoldiers(1);
 
-		int reservesBefore = _match.CountCharges(building);
+		float manaBefore = _match.ManaOf(building);
 		int soldiersBefore = _match.Soldiers(1).Count;
 		_match.Kill(building, _match.Hero(2));
 
 		_match.Step(20f);
 
-		Assert.That(_match.CountCharges(building), Is.EqualTo(reservesBefore), "The charges a destroyed building held are kept.");
-		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(soldiersBefore), "A dormant building fields no soldiers.");
+		Assert.That(_match.ManaOf(building), Is.GreaterThanOrEqualTo(manaBefore - 0.5f), "The production mana a destroyed building held is kept, even as its pool keeps refilling.");
+		Assert.That(_match.Soldiers(1).Count, Is.LessThanOrEqualTo(soldiersBefore), "A dormant building fields no soldiers.");
 
 		UnitId hero = _match.Hero(1);
 		Assert.That(_match.Repair(1, hero, building).HasRejection, Is.False, "The repair order is accepted.");
@@ -180,14 +180,13 @@ public class MeleeBuildingLifecycleTests
 		Assert.That(_match.IsDormant(building), Is.False, "The building is mended back to whole.");
 
 		float regaining = 0f;
-		while (_match.CountCharges(building) == 0 && regaining < LongestRepairSeconds)
+		while (_match.Soldiers(1).Count <= soldiersBefore && regaining < MeleeContent.SoldierProductionSecondsOf(_match.TemplateOf(building)) * 3f)
 		{
 			_match.Step(5f);
 			regaining += 5f;
 		}
 
-		Assert.That(_match.CountCharges(building), Is.GreaterThanOrEqualTo(1), "A mended building regains its charges.");
-		Assert.That(_match.StepUntilSoldiers(1), Is.GreaterThan(0), "A mended building fields soldiers again.");
+		Assert.That(_match.Soldiers(1).Count, Is.GreaterThan(soldiersBefore), "A mended building fields new soldiers again.");
 	}
 
 	[Test]

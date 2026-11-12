@@ -397,7 +397,14 @@ public static class MapReferenceResolver
 		}
 
 		string parentMetadataPath = Path.Combine(mapFolder, MapMetadataMerger.MetadataFileName);
-		byte[] parentMetadata = File.Exists(parentMetadataPath) ? File.ReadAllBytes(parentMetadataPath) : Array.Empty<byte>();
+		string partialPath = Path.Combine(mapFolder, MapMetadataMerger.MetadataPartialFileName);
+
+		// The merged metadata.json always states every field a referenced map states, so diffing it against a newer
+		// referenced map would read every field that map has changed since the last save as a parent override and pin the
+		// parent to the old value. The saved override file is the parent's own intent, so it is what a later save merges.
+		byte[] parentMetadata = File.Exists(partialPath)
+			? File.ReadAllBytes(partialPath)
+			: File.Exists(parentMetadataPath) ? File.ReadAllBytes(parentMetadataPath) : Array.Empty<byte>();
 
 		MapMetadataMergeResult mergeResult = MapMetadataMerger.Merge(documents, parentMetadata);
 		if (!mergeResult.Success)
@@ -410,7 +417,6 @@ public static class MapReferenceResolver
 			return MapReferenceResolutionResult.Failure(idempotencyError);
 		}
 
-		string partialPath = Path.Combine(mapFolder, MapMetadataMerger.MetadataPartialFileName);
 		WriteBytesWhenDifferent(partialPath, mergeResult.ParentIntentBytes);
 		WriteBytesWhenDifferent(parentMetadataPath, mergeResult.MergedBytes);
 

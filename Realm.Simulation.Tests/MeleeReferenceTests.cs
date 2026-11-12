@@ -456,7 +456,7 @@ public class MeleeReferenceTests
 
 		Assert.That(match.IsUnderConstruction(site), Is.False, "The ruleset's construction clock has to finish the drafted site on the composed board.");
 		Assert.That(match.IsAlive(match.Hero(1)), Is.True, $"The hero has to stand through {PlayedTicks} ticks of a composed game.");
-		Assert.That(match.Soldiers(1).Count, Is.GreaterThan(0), "The finished building has to raise its soldier on the board's terrain.");
+		Assert.That(match.StepUntilSoldiers(1), Is.GreaterThan(0), "The finished building has to raise its soldier on the board's terrain.");
 		Assert.That(match.Gold(1) - startingGold + match.Wood(1) - startingWood, Is.GreaterThan(0f), "The drafted building's income has to arrive through the composed metadata.");
 		Assert.That(match.Simulation.IsGameOver, Is.False, "Nothing ends the game while the player only builds.");
 		Assert.That(match.Simulation.Map.SaveData.Props?.Count ?? 0, Is.EqualTo(authoredProps), "The board's props have to stay on the board for the whole game.");
@@ -488,7 +488,7 @@ public class MeleeReferenceTests
 		Assert.That(match.IsAlive(site), Is.True, "The drafted building has to stand for its worker to be raised.");
 
 		match.Step(MeleeMatch.LongestAuthoredConstructionSeconds + 20f);
-		Assert.That(match.Workers(1).Count, Is.GreaterThan(0), "A finished building raises the worker that works it.");
+		Assert.That(match.StepUntilWorkers(1), Is.GreaterThan(0), "A finished building raises the worker that works it.");
 
 		float before = match.TotalResourceAmount();
 		match.Step(90f);

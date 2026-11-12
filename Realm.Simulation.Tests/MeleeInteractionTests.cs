@@ -69,15 +69,22 @@ public class MeleeInteractionTests
 	}
 
 	[Test]
-	public void LosingTheHeroClearsTheWorkerQueueToo()
+	public void LosingTheHeroStopsWorkerProductionUntilItRevives()
 	{
 		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
-		Assert.That(_match.Workers(1), Is.Empty, "A worker has to be in production, not already raised, when the hero dies.");
+		Assert.That(_match.StepUntilWorkers(1), Is.GreaterThan(0), "The building has to raise its crew from its opening mana first.");
+
+		foreach (UnitId worker in _match.Workers(1).ToArray())
+		{
+			_match.Kill(worker, _match.Hero(2));
+		}
+
+		Assert.That(_match.Workers(1), Is.Empty, "The test has to empty the crew before the hero dies.");
 
 		_match.Kill(_match.Hero(1), _match.Hero(2));
 		_match.Step(10f);
 
-		Assert.That(_match.Workers(1), Is.Empty, "The worker production queue has to be cleared with every other queue when the hero dies.");
+		Assert.That(_match.Workers(1), Is.Empty, "A building must not raise its crew while the hero it serves is gone.");
 		Assert.That(_match.IsAlive(building), Is.True, "The building itself stays on the board while the hero is away.");
 
 		float waited = 0f;
@@ -87,7 +94,7 @@ public class MeleeInteractionTests
 			waited += 1f;
 		}
 
-		Assert.That(_match.Workers(1).Count, Is.EqualTo(1), "Worker production has to resume once the hero is back and the building holds a charge.");
+		Assert.That(_match.Workers(1).Count, Is.EqualTo(1), "Worker production has to resume once the hero is back and the building can pay for a crew.");
 	}
 
 	[Test]

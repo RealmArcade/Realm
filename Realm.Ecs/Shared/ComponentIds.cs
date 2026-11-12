@@ -62,13 +62,13 @@ public static class ComponentIds
 	/// <summary>Overhead bars hidden tag component identifier.</summary>
 	public const int OverheadBarsHidden = 126;
 	/// <summary>Player damage effectiveness component identifier, holding the multiplier a seat's damage carries against each other seat.</summary>
-	public const int PlayerDamageEffectiveness = 134;
+	public const int PlayerDamageEffectiveness = 133;
 	/// <summary>Player orders locked tag component identifier, marking player-owned units the map drives itself.</summary>
-	public const int PlayerOrdersLocked = 135;
+	public const int PlayerOrdersLocked = 134;
 	/// <summary>Dormant tag component identifier, marking a repairable building that was reduced to zero health.</summary>
-	public const int Dormant = 136;
+	public const int Dormant = 135;
 	/// <summary>Repairable building tag component identifier, marking a building that falls dormant instead of dying.</summary>
-	public const int RepairableBuilding = 137;
+	public const int RepairableBuilding = 136;
 	/// <summary>Worker tag component identifier, marking a unit that follows the worker collision rule.</summary>
-	public const int Worker = 140;
+	public const int Worker = 139;
 }

@@ -129,7 +129,7 @@ public class MeleeFactionTests
 	}
 
 	[Test]
-	public void CorvusGivesEverySoldierBuildingAnExtraCharge()
+	public void CorvusGivesEverySoldierBuildingAnExtraProduction()
 	{
 		using MeleeMatch match = MeleeMatch.StartDuel("Corvus", "Vale");
 		UnitId hero = match.Hero(1);
@@ -138,13 +138,20 @@ public class MeleeFactionTests
 
 		UnitId building = match.PlaceCompletedBuilding(SitePosition);
 		string templateId = match.TemplateOf(building);
-		int authoredMaximum = MeleeContent.MaximumChargesOf(templateId);
-		int ledMaximum = authoredMaximum + 1;
+		int ledMaximum = (int)((MeleeContent.SoldierProductionsOf(templateId) + 1 + MeleeContent.WorkerProductionsOf(templateId)) * MeleeContent.ProductionMana);
 
-		float longestWait = MeleeContent.RechargeSecondsOf(templateId) * (ledMaximum + 1) + 120f;
-		match.Step(longestWait);
+		Assert.That(match.MaxManaOf(building), Is.EqualTo(ledMaximum), "The Standing Ledger has to let the building hold one production more than its authored maximum.");
 
-		Assert.That(match.CountCharges(building), Is.EqualTo(ledMaximum), "The Standing Ledger has to let the building hold one charge more than its authored maximum.");
+		string soldierType = MeleeContent.SoldierFor(templateId);
+		for (int index = 0; index < MeleeContent.CapacityOf(templateId); index++)
+		{
+			match.SpawnSoldier(1, soldierType, new Vector3(-40f + index * 1.5f, 0f, -56f));
+		}
+
+		match.Api.SetUnitMana(building, 0f);
+		match.Step(MeleeContent.SoldierProductionSecondsOf(templateId) * 8f);
+
+		Assert.That(match.ManaOf(building), Is.EqualTo(ledMaximum).Within(0.5f), "The ledger's extra production has to fill with the building's own mana.");
 	}
 
 	[Test]

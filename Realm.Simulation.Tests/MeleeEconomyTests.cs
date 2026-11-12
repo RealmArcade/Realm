@@ -44,18 +44,15 @@ public class MeleeEconomyTests
 	}
 
 	[Test]
-	public void AFinishedBuildingRaisesItsWorkerAfterItsOwnProductionTime()
+	public void AFinishedBuildingRaisesItsWorkerFromItsOpeningMana()
 	{
 		UnitId building = _match.Api.SpawnBuildingUnderConstruction("building/bulwark_hall", SitePosition, 1, 0f);
 		Assert.That(building.IsValid, Is.True, "The test has to raise the building its worker belongs to.");
 
 		_match.Step(2f);
-		Assert.That(WorkersOf(1), Is.Empty, "A worker is produced on the building's worker production timer, not the instant it stands.");
-
-		_match.Step(MeleeContent.WorkerProductionSecondsOf("building/bulwark_hall") + 1f);
 
 		List<UnitId> workers = WorkersOf(1);
-		Assert.That(workers.Count, Is.EqualTo(1), "The building has to raise one worker from its opening charge.");
+		Assert.That(workers.Count, Is.EqualTo(1), "The building's worker ability takes the first production it can pay for, so the economy comes before the line.");
 		Assert.That(_match.World.Has<Worker>(new Entity(workers[0].Value)), Is.True, "Every worker the ruleset raises carries the worker tag.");
 		Assert.That(_match.World.Has<Invulnerable>(new Entity(workers[0].Value)), Is.False, "Workers are attackable units.");
 		Assert.That(_match.Api.GetUnitWorkerAssignment(workers[0]), Is.EqualTo("gold"),

@@ -458,6 +458,24 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, strength, frequency, duration, false);
 	}
 
+	/// <summary>
+	///     Tells every screen that a placed resource node was exhausted and has to leave the board. A placed prop is map
+	///     content each process loads for itself, so the node is named by the point it stood at rather than by an entity
+	///     id the two processes would not share.
+	/// </summary>
+	/// <param name="node">The node that was exhausted.</param>
+	public void NotifyResourceNodeDepleted(ResourceNodeId node)
+	{
+		if (!node.IsValid) return;
+
+		var entity = new Entity(node.Value);
+		if (!_context.World.IsAlive(entity)) return;
+		if (!_context.World.TryGet<Position>(entity, out Position position)) return;
+
+		_presentation.Write(PresentationKind.ResourceNodeDepleted, AllPlayers, node.Value, string.Empty, string.Empty, string.Empty, string.Empty, null,
+			position.Value, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
+	}
+
 	private void SetWorldTimeOfDay(float time)
 	{
 		Entity worldEntity = _context.WorldEntity;

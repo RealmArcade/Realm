@@ -132,14 +132,12 @@ public class MeleeRelicTests
 
 	[TestCase(CouriersKnot)]
 	[TestCase(MusterBell)]
-	public void RechargeRelicsShortenTheChargeClock(string relicId)
+	public void RechargeRelicsShortenTheProductionClock(string relicId)
 	{
 		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
 		string templateId = _match.TemplateOf(building);
-		float authoredRecharge = MeleeContent.RechargeSecondsOf(templateId);
 
 		Assert.That(_match.StepUntilSoldiers(1), Is.EqualTo(1), "The building has to raise its first soldier first.");
-		Assert.That(_match.AddRelic(1, relicId), Is.True, $"The hero has to be able to carry {relicId}.");
 
 		string soldierType = MeleeContent.SoldierFor(templateId);
 		for (int index = 1; index < MeleeContent.CapacityOf(templateId); index++)
@@ -147,12 +145,29 @@ public class MeleeRelicTests
 			_match.SpawnSoldier(1, soldierType, new Vector3(-40f + index * 1.5f, 0f, -56f));
 		}
 
-		float shortenedRecharge = authoredRecharge * CouriersKnotRechargeFactor;
-		_match.Step(shortenedRecharge - 1f);
-		int chargesBeforeTheClock = _match.CountCharges(building);
+		_match.Api.SetUnitMana(building, 0f);
+		float plainRegen = _match.ManaRegenOf(building);
+		_match.Step(10f);
+		float plainGain = _match.ManaOf(building);
 
-		_match.Step(2f);
-		Assert.That(_match.CountCharges(building), Is.GreaterThan(chargesBeforeTheClock), $"{relicId} has to bring the charge back on its shortened clock.");
+		using MeleeMatch relicMatch = MeleeMatch.StartDuel();
+		UnitId relicBuilding = relicMatch.PlaceCompletedBuilding(SitePosition);
+		Assert.That(relicMatch.StepUntilSoldiers(1), Is.EqualTo(1), "The relic match has to raise its first soldier first.");
+		for (int index = 1; index < MeleeContent.CapacityOf(templateId); index++)
+		{
+			relicMatch.SpawnSoldier(1, soldierType, new Vector3(-40f + index * 1.5f, 0f, -56f));
+		}
+
+		Assert.That(relicMatch.AddRelic(1, relicId), Is.True, $"The hero has to be able to carry {relicId}.");
+		relicMatch.Step(0.2f);
+
+		float relicRegen = relicMatch.ManaRegenOf(relicBuilding);
+		Assert.That(relicRegen, Is.GreaterThan(plainRegen), $"{relicId} has to raise the mana a building returns every second.");
+
+		relicMatch.Api.SetUnitMana(relicBuilding, 0f);
+		relicMatch.Step(10f);
+		Assert.That(relicMatch.ManaOf(relicBuilding), Is.GreaterThan(plainGain + plainRegen * 10f * 0.02f),
+			$"{relicId} has to fill the building's production mana faster than its authored clock alone.");
 	}
 
 	[Test]

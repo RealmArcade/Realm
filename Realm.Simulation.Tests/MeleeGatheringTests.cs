@@ -1,6 +1,8 @@
+using System.Linq;
 using System.Numerics;
 using NUnit.Framework;
 using Realm.Ecs;
+using Realm.Ecs.Components.Tags;
 using Realm.Shared.Simulation;
 
 namespace Realm.Simulation.Tests;
@@ -70,6 +72,26 @@ public class MeleeGatheringTests
 
 		Assert.That(_match.Wood(1), Is.GreaterThan(woodBefore), "The wood the hero gathered reaches the player.");
 		Assert.That(_match.ResourceAmount(woodland), Is.LessThan(nodeBefore), "The woodland loses the capacity the hero took.");
+	}
+
+	[Test]
+	public void AnExhaustedNodeDiesAndStopsBeingAGatherTarget()
+	{
+		UnitId hero = _match.Hero(1);
+		Vector3 position = _match.PositionOf(hero);
+		_match.Api.SpawnResourceNode(GoldMineTemplateId, position, 12f);
+		UnitId mine = _match.ResourceNode(GoldMineTemplateId, position);
+		Assert.That(mine.IsValid, Is.True, "The small node has to stand before it can be worked.");
+
+		ServerCommandResult result = _match.Gather(1, hero, _match.PositionOf(mine));
+		Assert.That(result.HasRejection, Is.False, $"The hero's gather order is accepted: {result.RejectionReason}");
+
+		_match.Step(GatheringSeconds);
+
+		Assert.That(_match.ResourceAmount(mine), Is.EqualTo(0f).Within(0.01f), "The node has to lose every point of capacity before it is called exhausted.");
+		Assert.That(_match.World.Has<Dead>(new Entity(mine.Id)), Is.True, "A node at zero health is destroyed rather than left standing as an empty node.");
+		Assert.That(_match.Api.GetResourceNodes().ToArray(), Does.Not.Contain(mine), "An exhausted node has to leave the pool the map and its workers search.");
+		Assert.That(_match.World.Get<Realm.Ecs.Components.Core.Health>(new Entity(mine.Id)).Current, Is.EqualTo(0f).Within(0.01f), "An exhausted node has no health left, which is what makes it destroyed.");
 	}
 
 	[Test]

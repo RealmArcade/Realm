@@ -301,8 +301,7 @@ public partial class GameHost
 		{
 			if (GameContext.World != null && World.IsAlive(entity) && World.Has<PropIdentity>(entity))
 			{
-				string propId = World.Get<PropIdentity>(entity).PropId;
-				GameContext.PropMultiMesh?.MarkDirty(propId);
+				RemoveResourceNodeFromBoard(entity, World.Get<PropIdentity>(entity).PropId);
 			}
 			else
 			{

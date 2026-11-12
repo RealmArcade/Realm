@@ -556,6 +556,8 @@ public partial class InGameHUD : Control
 		ResetBuildSubMenuOnSelectionChange(selectedUnits);
 
 		_viewModel.SelectedProp = GameContext.Host?.SelectedProp;
+		_viewModel.SelectedResourceNode = GameContext.Host?.SelectedResourceNodeEntity ?? Entity.Null;
+		_viewModel.SelectedResourceNodePropId = GameContext.Host?.SelectedResourceNodePropId ?? string.Empty;
 		_viewModel.UpdateSelectedUnits(selectedUnits);
 		_portraitPanelController?.Update(_viewModel);
 		UpdateUnitVitalsBars();

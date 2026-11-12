@@ -16,7 +16,7 @@ namespace Realm.Simulation.Tests;
 [NonParallelizable]
 public class MeleeRulesetSetupTests
 {
-	private const int MaximumBuildingsPerPlayer = 5;
+	private const int MaximumBuildingsPerPlayer = 8;
 
 	[SetUp]
 	public void SetUp()

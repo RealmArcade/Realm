@@ -59,7 +59,7 @@ public class MeleeLobbyOptionTests
 	}
 
 	[Test]
-	public void TheHostMultipliesChargeCapacity()
+	public void TheHostMultipliesStoredProductions()
 	{
 		var options = new MatchOptionSet();
 		options.Set(MatchOption.ChargeMultiplierPercent, 200);
@@ -68,9 +68,10 @@ public class MeleeLobbyOptionTests
 
 		UnitId building = _match.PlaceCompletedBuilding(FirstSite);
 		string templateId = _match.TemplateOf(building);
-		int authoredCharges = MeleeContent.MaximumChargesOf(templateId);
+		int authoredProductions = MeleeContent.SoldierProductionsOf(templateId);
 
-		Assert.That(_match.MaximumChargesOf(building), Is.EqualTo(authoredCharges * 2), "Doubling the charge multiplier doubles the charges a building holds.");
+		Assert.That(_match.MaxManaOf(building), Is.EqualTo((authoredProductions * 2 + MeleeContent.WorkerProductionsOf(templateId)) * MeleeContent.ProductionMana),
+			"Doubling the charge multiplier doubles the production mana a building stores, so it can hold twice the soldiers' worth.");
 	}
 
 	[Test]
@@ -87,13 +88,12 @@ public class MeleeLobbyOptionTests
 		int authoredCapacity = MeleeContent.CapacityOf(templateId);
 
 		int produced = _match.StepUntilSoldiers(1);
-		Assert.That(produced, Is.EqualTo(1), "The building raises its first soldier from its starting charge.");
+		Assert.That(produced, Is.EqualTo(1), "The building raises its first soldier from its starting production.");
 
 		float waited = 0f;
 		while (waited < 120f)
 		{
-			_match.Api.SetUnitCharges(building, 4, 0.1f);
-			_match.Api.SetUnitChargeCount(building, 4);
+			_match.Api.SetUnitMana(building, _match.MaxManaOf(building));
 			_match.Step(1f);
 			waited += 1f;
 		}

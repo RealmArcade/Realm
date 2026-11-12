@@ -23,7 +23,7 @@ public partial class ServerGameAPI
 {
 	private const int OwnedUnitsBufferCapacity = 4096;
 
-	private static readonly QueryDescription ResourceNodeEntitiesQuery = new QueryDescription().WithAll<ResourceNode>();
+	private static readonly QueryDescription ResourceNodeEntitiesQuery = new QueryDescription().WithAll<ResourceNode>().WithNone<Dead>();
 
 	// The units that could be doing something: a unit without MoveTo, AttackMove, AttackTarget or a gathering trip is
 	// idle, which is how the engine's own idle selection reads a unit.

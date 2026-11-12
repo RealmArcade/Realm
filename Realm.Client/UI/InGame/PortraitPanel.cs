@@ -49,7 +49,7 @@ public class PortraitPanel
 	private float _lastPropRemaining = -1f;
 	private string _lastPortraitDescription = string.Empty;
 
-	private enum SelectionType { None, Prop, Empty, Single, Multi }
+	private enum SelectionType { None, Prop, ResourceNode, Empty, Single, Multi }
 	private SelectionType _lastSelectionType = SelectionType.None;
 
 	private readonly string?[] _lastUnitStatuses;
@@ -162,6 +162,10 @@ public class PortraitPanel
 		{
 			UpdatePropSelection(viewModel);
 		}
+		else if (IsResourceNodeSelected(viewModel))
+		{
+			UpdateResourceNodeSelection(viewModel);
+		}
 		else
 		{
 			UpdateEmptySelection();
@@ -198,6 +202,45 @@ public class PortraitPanel
 			_productionBox.Visible = false;
 			ApplyPortraitDescription(null, Entity.Null);
 		}
+	}
+
+	private static bool IsResourceNodeSelected(InGameHUDViewModel viewModel)
+	{
+		if (viewModel.SelectedResourceNode == Entity.Null) return false;
+		if (GameContext.World is not { } world) return false;
+
+		return world.IsAlive(viewModel.SelectedResourceNode) && world.Has<ResourceNode>(viewModel.SelectedResourceNode);
+	}
+
+	private void UpdateResourceNodeSelection(InGameHUDViewModel viewModel)
+	{
+		_statsContainer.Visible = true;
+		_armyCompositionLabel?.Hide();
+		_productionBox.Visible = false;
+
+		string propId = viewModel.SelectedResourceNodePropId;
+		bool nodeChanged = _lastSelectionType != SelectionType.ResourceNode
+		                   || viewModel.SelectedResourceNode != _lastPropEntity
+		                   || propId != _lastPropId;
+
+		if (nodeChanged)
+		{
+			_lastSelectionType = SelectionType.ResourceNode;
+			_lastPropEntity = viewModel.SelectedResourceNode;
+			_lastPropId = propId;
+			_lastPropRemaining = -1f;
+
+			_unitNameLabel.Text = TranslationServer.Translate(GetPropDisplayName(propId));
+
+			if (_portraitTexture != null)
+			{
+				_portraitTexture.Texture = RtexIconLoader.Load(GetPropIconPath(propId));
+			}
+
+			ApplyPortraitDescription(null, Entity.Null);
+		}
+
+		_unitStatsPanel.UpdateResourceNode(viewModel.SelectedResourceNode, propId);
 	}
 
 	private string GetPropDisplayName(string propId)

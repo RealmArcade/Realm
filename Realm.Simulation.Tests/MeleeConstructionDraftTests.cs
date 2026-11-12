@@ -19,7 +19,7 @@ public class MeleeConstructionDraftTests
 {
 	private const float ShortestAuthoredConstructionSeconds = 30f;
 	private const float LongestAuthoredConstructionSeconds = 35f;
-	private const int MaximumBuildingsPerPlayer = 5;
+	private const int MaximumBuildingsPerPlayer = 8;
 
 	private MeleeMatch _match = null!;
 
@@ -50,8 +50,8 @@ public class MeleeConstructionDraftTests
 
 			Assert.That(tooltip, Is.Not.Empty, $"The draft command for '{buildingTemplateId}' has to explain what it raises.");
 			Assert.That(tooltip, Does.Contain(soldierName), $"The draft command for '{buildingTemplateId}' has to name the soldier it raises, so two packages can be told apart before one is locked.");
-			Assert.That(tooltip, Does.Match(@"\d+ charges every \d+s\."), $"The draft command for '{buildingTemplateId}' has to state its charge count and its recharge: '{tooltip}'");
-			Assert.That(tooltip, Does.Match(@"Workers gather (gold|wood): \d+ at \d+s each, gaining .+\.$"), $"The draft command for '{buildingTemplateId}' has to state the worker crew and the buffs it gives them: '{tooltip}'");
+			Assert.That(tooltip, Does.Match(@"\d+ capacity, one every \d+s\."), $"The draft command for '{buildingTemplateId}' has to state its capacity and its production clock: '{tooltip}'");
+			Assert.That(tooltip, Does.Match(@"Workers gather (gold|wood): \d+ at \d+s each, gaining .+\. Both draw from the building's own mana\.$"), $"The draft command for '{buildingTemplateId}' has to state the worker crew, the buffs it gives them and the pool both lines spend: '{tooltip}'");
 			Assert.That(tooltip, Does.Not.Contain("Income"), $"A draft command must not advertise a computed income: '{tooltip}'");
 			tooltips.Add(tooltip);
 		}
@@ -153,7 +153,7 @@ public class MeleeConstructionDraftTests
 		Assert.That(_match.ConstructionProgress(site), Is.GreaterThan(0.01f), "A hero sent to the site has to raise it.");
 
 		Assert.That(_match.IsUnderConstruction(site), Is.True, "The hero has not worked the site long enough for it to finish early.");
-		Assert.That(_match.CountCharges(site), Is.EqualTo(0), "A site holds no charge while it is being built.");
+		Assert.That(_match.CountProductions(site), Is.EqualTo(0), "A site holds no production mana while it is being built.");
 
 		WaitForCompletion(site);
 		Assert.That(_match.IsUnderConstruction(site), Is.False, "The hero finishes the site within the authored window.");
@@ -216,7 +216,7 @@ public class MeleeConstructionDraftTests
 	}
 
 	[Test]
-	public void AFinishedBuildingStartsWithOneChargeAndKeepsItUntilItsSoldierIsReady()
+	public void AFinishedBuildingRaisesItsCrewFromItsOpeningMana()
 	{
 		_match.SetWood(1, 500f);
 		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
@@ -226,30 +226,9 @@ public class MeleeConstructionDraftTests
 
 		float secondsToFinish = WaitForCompletion(site);
 		Assert.That(secondsToFinish, Is.InRange(ShortestAuthoredConstructionSeconds - 1f, LongestAuthoredConstructionSeconds + 1f), "A drafted site has to finish within its authored construction time.");
-		Assert.That(_match.CountCharges(site), Is.EqualTo(1), "A finished building starts with one charge.");
-		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(0), "The first soldier is raised on the building's own production timer.");
 
-		_match.Step(10f);
-		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(1), "The charge the building started with has to become its first soldier.");
-		Assert.That(_match.CountCharges(site), Is.EqualTo(0), "Raising the soldier spends the charge.");
-	}
-
-	[Test]
-	public void AFinishedBuildingRaisesItsSoldierAndSpendsItsCharge()
-	{
-		_match.SetWood(1, 500f);
-		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
-		_match.LockDraftOption(1, offer.AbilityIds[0], SitePosition);
-		UnitId site = FindSite(1);
-		OrderHeroToRaise(site);
-
-		WaitForCompletion(site);
-		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(0), "A building produces on its own timer, not the moment it finishes.");
-
-		_match.Step(12f);
-
-		Assert.That(_match.Soldiers(1).Count, Is.EqualTo(1), "The building has to raise its soldier from its charge.");
-		Assert.That(_match.CountCharges(site), Is.EqualTo(0), "Producing a soldier spends the charge it was produced from.");
+		Assert.That(_match.StepUntilWorkers(1), Is.GreaterThan(0), "The building's opening mana has to become its worker crew, which the soldier line reserves a production for.");
+		Assert.That(_match.StepUntilSoldiers(1), Is.GreaterThan(0), "Once the crew has room no longer, the same pool has to raise the soldier line.");
 		Assert.That(_match.TemplateOf(_match.Soldiers(1)[0]), Is.EqualTo(MeleeContent.SoldierFor(_match.TemplateOf(site))), "The soldier has to be the one its building grants.");
 	}
 
@@ -352,7 +331,7 @@ public class MeleeConstructionDraftTests
 			_match.PlaceDraftBuilding(new Vector3(-60f + placement * 4f, 0f, -60f));
 		}
 
-		Assert.That(_match.Buildings(1).Count, Is.EqualTo(MaximumBuildingsPerPlayer + 1), "Five drafted sites plus the Nexus fill the player's building count.");
+		Assert.That(_match.Buildings(1).Count, Is.EqualTo(MaximumBuildingsPerPlayer + 1), "Eight drafted sites plus the Nexus fill the player's building count.");
 
 		_match.Cast(1, MeleeMatch.BeginConstructionAbilityId, new Vector3(-20f, 0f, -60f));
 		Assert.That(_match.DraftOptions(1), Is.Empty, "A player at the building limit must not be offered another draw.");
@@ -401,7 +380,7 @@ public class MeleeConstructionDraftTests
 	}
 
 	[Test]
-	public void EmergencyLevyHandsEveryOperationalBuildingACharge()
+	public void EmergencyLevyHandsEveryOperationalBuildingAProduction()
 	{
 		_match.SetWood(1, 500f);
 		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
@@ -410,14 +389,14 @@ public class MeleeConstructionDraftTests
 		OrderHeroToRaise(building);
 
 		WaitForCompletion(building);
-		_match.Step(12f);
 		Assert.That(_match.IsUnderConstruction(building), Is.False, "The building has to be finished before the levy applies.");
-		Assert.That(_match.CountCharges(building), Is.EqualTo(0), "Its first charge was spent on its first soldier.");
 
+		_match.Api.SetUnitMana(building, 0f);
+		_match.Api.SetUnitMana(_match.Nexus(1), 0f);
 		_match.CastEmergencyLevy(1);
 
-		Assert.That(_match.CountCharges(building), Is.EqualTo(1), "Emergency Levy has to add a charge to the finished building.");
-		Assert.That(_match.CountCharges(_match.Nexus(1)), Is.EqualTo(0), "The Nexus grants no soldier, so it holds no charge.");
+		Assert.That(_match.ManaOf(building), Is.EqualTo(MeleeContent.ProductionMana).Within(0.5f), "Emergency Levy has to pay one production into every finished building.");
+		Assert.That(_match.ManaOf(_match.Nexus(1)), Is.EqualTo(0f).Within(0.5f), "The Nexus grants no production, so the levy pays it nothing.");
 	}
 
 	/// <summary>

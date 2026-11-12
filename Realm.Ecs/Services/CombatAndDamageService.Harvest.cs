@@ -95,6 +95,9 @@ public partial class CombatAndDamageService
 		OnUnitDamagedCallback?.Invoke(node, worker, wholePoints, wholePoints);
 		if (newHp <= 0f)
 		{
+			// A node's capacity is its health, so an exhausted node is a dead entity: it stops being a gathering target and
+			// the screen that draws placed props drops it from the multimesh that draws its template.
+			_context.World.SetOrAdd(node, new Dead());
 			if (HasAuthority) ClearReferencesTo(node);
 		}
 		else

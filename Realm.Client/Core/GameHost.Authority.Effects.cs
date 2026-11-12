@@ -6,7 +6,10 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.VFX;
 using Realm.Ecs;
+using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
 using Realm.Shared.Metadata;
@@ -186,6 +189,56 @@ public partial class GameHost
 		float frequency = message.SecondCount > 0 ? message.SecondCount : 12f;
 
 		Callable.From(() => unit3D.TriggerImpulse(strength, duration, frequency)).CallDeferred();
+	}
+
+	/// <summary>
+	///     Drops the placed node the authority exhausted. The message names the point the node stood at because both
+	///     processes load the board's props for themselves and therefore do not share an entity id for them.
+	/// </summary>
+	/// <param name="message">The authority's depletion message.</param>
+	private void PresentResourceNodeDepleted(PresentationMessage message)
+	{
+		var point = message.Position.ToNumerics();
+		Entity node = Entity.Null;
+		string propId = string.Empty;
+		float closestDistance = 2.5f;
+
+		var query = QueryCache.AllPositionAndResourceNodeAndPropIdentityQuery;
+		World.Query(in query, (Entity entity, ref Realm.Ecs.Components.Core.Position position, ref PropIdentity identity) =>
+		{
+			float distance = System.Numerics.Vector3.Distance(position.Value, point);
+			if (distance >= closestDistance) return;
+
+			closestDistance = distance;
+			node = entity;
+			propId = identity.PropId;
+		});
+
+		if (node == Entity.Null) return;
+		RemoveResourceNodeFromBoard(node, propId);
+	}
+
+	private void RemoveResourceNodeFromBoard(Entity node, string propId)
+	{
+		if (GameContext.World == null || !World.IsAlive(node)) return;
+
+		World.SetOrAdd(node, new Dead());
+
+		if (SelectedResourceNodeEntity == node)
+		{
+			ClearSelection();
+		}
+
+		if (EntityToProp3D.TryGetValue(node, out Prop3D? prop) && prop != null)
+		{
+			EntityToProp3D.Remove(node);
+			AllProps.Remove(prop);
+			if (SelectedProp == prop) SelectedProp = null;
+			prop.QueueFree();
+		}
+
+		GameContext.PropMultiMesh?.MarkDirty(propId);
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private void PresentResourceImpulse(PresentationMessage message)

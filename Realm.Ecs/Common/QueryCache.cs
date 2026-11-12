@@ -50,7 +50,7 @@ public static class QueryCache
 	public static readonly QueryDescription AllPositionAndOwnerAndInventoryNoneDeadAndBuildingQuery = new QueryDescription().WithAll<Position, Owner, Inventory>().WithNone<Dead, Building>();
 	public static readonly QueryDescription AllPositionAndGathererNoneDeadQuery = new QueryDescription().WithAll<Position, Gatherer>().WithNone<Dead>();
 	public static readonly QueryDescription AllPlayerResourcesNoneDeadQuery = new QueryDescription().WithAll<PlayerResources>().WithNone<Dead>();
-	public static readonly QueryDescription AllPositionAndResourceNodeAndPropIdentityQuery = new QueryDescription().WithAll<Position, ResourceNode, PropIdentity>();
+	public static readonly QueryDescription AllPositionAndResourceNodeAndPropIdentityQuery = new QueryDescription().WithAll<Position, ResourceNode, PropIdentity>().WithNone<Dead>();
 	public static readonly QueryDescription AllPositionAndDefinitionIdAndOwnerNoneDeadQuery = new QueryDescription().WithAll<Position, DefinitionId, Owner>().WithNone<Dead>();
 	public static readonly QueryDescription AllBuffsNoneDeadQuery = new QueryDescription().WithAll<Buffs>().WithNone<Dead>();
 	public static readonly QueryDescription AllBuffStateNoneDeadQuery = new QueryDescription().WithAll<BuffState>().WithNone<Dead>();
