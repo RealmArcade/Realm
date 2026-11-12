@@ -232,7 +232,7 @@ public partial class InGameHUDViewModel
 			{
 				string? itemId = inv.GetItemId(itemIndex);
 				if (itemId == null) continue;
-				info.InventoryItems[itemId] = inv.GetCharges(itemIndex);
+				info.InventoryItems.Add(new CarriedItemInfo(itemId, inv.GetCharges(itemIndex)));
 			}
 		}
 

@@ -18,6 +18,7 @@ public class InventoryPanel
 		public Label CountLabel;
 		public string? LastItemId;
 		public int LastCount;
+		public int LastTotal;
 		public bool LastIsCarriedConsumable;
 	}
 
@@ -25,6 +26,7 @@ public class InventoryPanel
 	{
 		public string ItemId;
 		public int Count;
+		public int Total;
 
 		public bool IsCarriedConsumable;
 	}
@@ -146,6 +148,7 @@ public class InventoryPanel
 				CountLabel = countLabel,
 				LastItemId = null,
 				LastCount = -1,
+				LastTotal = -1,
 				LastIsCarriedConsumable = false
 			};
 		}
@@ -195,12 +198,19 @@ public class InventoryPanel
 		int currentItemCount = 0;
 		if (focusedUnit.InventoryItems != null)
 		{
-			foreach (var kvp in focusedUnit.InventoryItems)
+			for (int slotIndex = 0; slotIndex < focusedUnit.InventoryItems.Count; slotIndex++)
 			{
 				if (currentItemCount >= 6) break;
-				if (kvp.Value <= 0) continue;
 
-				_scratchItems[currentItemCount] = new ItemSlotData { ItemId = kvp.Key, Count = kvp.Value };
+				CarriedItemInfo carried = focusedUnit.InventoryItems[slotIndex];
+				if (carried.Count <= 0) continue;
+
+				_scratchItems[currentItemCount] = new ItemSlotData
+				{
+					ItemId = carried.ItemId,
+					Count = carried.Count,
+					Total = TotalCarriedOf(focusedUnit, carried.ItemId)
+				};
 				currentItemCount++;
 			}
 		}
@@ -224,6 +234,7 @@ public class InventoryPanel
 			{
 				if (_scratchItems[i].ItemId != _lastItemSlots[i].ItemId
 				    || _scratchItems[i].Count != _lastItemSlots[i].Count
+				    || _scratchItems[i].Total != _lastItemSlots[i].Total
 				    || _scratchItems[i].IsCarriedConsumable != _lastItemSlots[i].IsCarriedConsumable)
 				{
 					dirty = true;
@@ -248,7 +259,7 @@ public class InventoryPanel
 				var itemData = _scratchItems[i];
 				_lastItemSlots[i] = itemData;
 
-				if (_slots[i].LastItemId != itemData.ItemId || _slots[i].LastCount != itemData.Count || _slots[i].LastIsCarriedConsumable != itemData.IsCarriedConsumable)
+				if (_slots[i].LastItemId != itemData.ItemId || _slots[i].LastCount != itemData.Count || _slots[i].LastTotal != itemData.Total || _slots[i].LastIsCarriedConsumable != itemData.IsCarriedConsumable)
 				{
 					UpdateItemSlot(i, itemData);
 				}
@@ -261,6 +272,7 @@ public class InventoryPanel
 				_lastItemSlots[i] = default;
 				_slots[i].LastItemId = null;
 				_slots[i].LastCount = -1;
+				_slots[i].LastTotal = -1;
 				_slots[i].LastIsCarriedConsumable = false;
 
 				_slots[i].BlackTile.Visible = true;
@@ -269,11 +281,35 @@ public class InventoryPanel
 		}
 	}
 
+	/// <summary>
+	///     Adds up every slot that holds one item, which is what a tooltip reports as the amount carried rather than the
+	///     pieces of the one slot the cursor is over.
+	/// </summary>
+	/// <param name="focusedUnit">The unit whose inventory is being read.</param>
+	/// <param name="itemId">The item definition identifier to add up.</param>
+	/// <returns>The number of pieces of that item across every slot, or zero when it is not carried.</returns>
+	private static int TotalCarriedOf(SelectedUnitInfo focusedUnit, string itemId)
+	{
+		int total = 0;
+		if (focusedUnit.InventoryItems == null) return total;
+
+		for (int slotIndex = 0; slotIndex < focusedUnit.InventoryItems.Count; slotIndex++)
+		{
+			CarriedItemInfo carried = focusedUnit.InventoryItems[slotIndex];
+			if (!string.Equals(carried.ItemId, itemId, StringComparison.OrdinalIgnoreCase)) continue;
+
+			total += carried.Count;
+		}
+
+		return total;
+	}
+
 	private void UpdateItemSlot(int index, ItemSlotData itemData)
 	{
 		ref var slot = ref _slots[index];
 		slot.LastItemId = itemData.ItemId;
 		slot.LastCount = itemData.Count;
+		slot.LastTotal = itemData.Total;
 		slot.LastIsCarriedConsumable = itemData.IsCarriedConsumable;
 
 		if (itemData.IsCarriedConsumable)
@@ -293,8 +329,8 @@ public class InventoryPanel
 			if (!string.IsNullOrEmpty(itemMeta.IconPath)) iconPath = itemMeta.IconPath;
 		}
 
-		string statBlock = TooltipStatBlock.ForItem(itemMeta, itemData.Count);
-		string rawTooltip = $"{name} (Have: {itemData.Count})\n{desc}";
+		string statBlock = TooltipStatBlock.ForItem(itemMeta, itemData.Total);
+		string rawTooltip = $"{name} (Have: {itemData.Total})\n{desc}";
 		if (statBlock.Length > 0) rawTooltip += "\n" + statBlock;
 		string transTooltip = TranslationServer.Translate(rawTooltip);
 
@@ -302,7 +338,7 @@ public class InventoryPanel
 		slot.ItemButton.TooltipText = TooltipTemplate.Resolve(
 			string.IsNullOrEmpty(transTooltip) ? rawTooltip : transTooltip,
 			TooltipContext.ForUnit(_lastFocusedEntity));
-		slot.CountLabel.Text = itemData.Count.ToString();
+		slot.CountLabel.Text = itemData.Count > 1 ? itemData.Count.ToString() : string.Empty;
 	}
 
 	private void RenderCarriedConsumable(ref SlotControls slot, string definitionId)
@@ -345,6 +381,7 @@ public class InventoryPanel
 			_slots[i].SlotRoot.Visible = false;
 			_slots[i].LastItemId = null;
 			_slots[i].LastCount = -1;
+			_slots[i].LastTotal = -1;
 			_slots[i].LastIsCarriedConsumable = false;
 			_lastItemSlots[i] = default;
 		}
