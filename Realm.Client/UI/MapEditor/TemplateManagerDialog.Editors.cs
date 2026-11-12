@@ -464,20 +464,29 @@ public partial class TemplateManagerDialog
 		RefreshObjectList();
 	}
 
+	private void OpenTemplateEditDialog(IconTemplateEditDialogBase dialog, ObjectItemInfo item)
+	{
+		dialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
+		{
+			_currentPreviewTemplateID = newId;
+			RefreshObjectList();
+		});
+		dialog.SetRandomizeAssetsAction(() =>
+		{
+			dialog.RandomizeAssets();
+			RefreshObjectList();
+		});
+	}
+
 	private void OpenDefaultEditDialog(ObjectItemInfo item)
 	{
-		if (item.Category == "upgrades" || item.Category == "items")
+		if (item.Category == "items")
 		{
-			_itemUpgradeEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
-			{
-				_currentPreviewTemplateID = newId;
-				RefreshObjectList();
-			});
-			_itemUpgradeEditDialog.SetRandomizeAssetsAction(() =>
-			{
-				_itemUpgradeEditDialog.RandomizeAssets();
-				RefreshObjectList();
-			});
+			OpenTemplateEditDialog(_itemEditDialog, item);
+		}
+		else if (item.Category == "upgrades")
+		{
+			OpenTemplateEditDialog(_upgradeEditDialog, item);
 		}
 		else
 		{

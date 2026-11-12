@@ -530,6 +530,11 @@ public partial class GameHost
 					{
 						clickedNode = FindVfxInParentChain(collider);
 					}
+
+					if (clickedNode == null)
+					{
+						clickedNode = FindLootItemInParentChain(collider);
+					}
 				}
 
 				if (clickedNode == null)
@@ -576,6 +581,11 @@ public partial class GameHost
 					{
 						clickedNode = closestVfx;
 					}
+				}
+
+				if (clickedNode == null && TryFindLootItemAt(hitPos, out LootItem3D? clickedLootItem))
+				{
+					clickedNode = clickedLootItem;
 				}
 
 				Vector3 terrainHitPos = (terrainHit != null && terrainHit.ContainsKey("position")) ? terrainHit["position"].AsVector3() : hitPos;

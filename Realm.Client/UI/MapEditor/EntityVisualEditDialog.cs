@@ -62,6 +62,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private LineEdit _txtName = null!;
 	private LineEdit _txtDescription = null!;
 
+	private VBoxContainer _transformSection = null!;
+	private VBoxContainer _shaderSection = null!;
+
 	private HSlider _sldScale = null!;
 	private Label _lblScale = null!;
 	private HSlider _sldYOffset = null!;
@@ -100,8 +103,18 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		scrollBody.AddChild(contentVBox);
 
 		BuildIdentitySection(contentVBox);
-		BuildTransformSection(contentVBox);
-		BuildProceduralAnimationSection(contentVBox);
+
+		_transformSection = new VBoxContainer();
+		_transformSection.Name = "TransformSection_VBoxContainer";
+		_transformSection.AddThemeConstantOverride("separation", 6);
+		contentVBox.AddChild(_transformSection);
+		BuildTransformSection(_transformSection);
+
+		_shaderSection = new VBoxContainer();
+		_shaderSection.Name = "ShaderSection_VBoxContainer";
+		_shaderSection.AddThemeConstantOverride("separation", 6);
+		contentVBox.AddChild(_shaderSection);
+		BuildProceduralAnimationSection(_shaderSection);
 
 		UpdateStudioButtonVisibility();
 	}
@@ -632,6 +645,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 					"buildings" => meta.GetBuilding(fullId) != null,
 					"resources" => meta.GetResource(fullId) != null,
 					"props" => meta.GetProp(fullId) != null,
+					"items" => meta.GetItem(fullId) != null,
 					_ => false
 				};
 
@@ -680,6 +694,7 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 		TitleLabel.Text = $"{TranslationServer.Translate("Visual Properties & Overrides")} - {_originalTemplateID}";
 
+		ApplyItemCategoryLayout();
 		SyncControls();
 		OpenDialog();
 	}

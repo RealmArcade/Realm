@@ -34,6 +34,12 @@ public class EntityVisualEditUndoAction : IEditorAction
 
 		EntityVisualEditDialog.UpdateStaticRegistryModelAndVisualMode(_category, _assetKey, snapshot.ModelPath, snapshot.VisualMode);
 
+		if (string.Equals(_category, "items", System.StringComparison.OrdinalIgnoreCase))
+		{
+			GameContext.IEditorAPI.RefreshPlacedObjectModels(_assetKey);
+			return;
+		}
+
 		GameContext.IEditorAPI.SetModelScale(_assetKey, snapshot.Scale);
 		GameContext.IEditorAPI.SetModelYOffset(_assetKey, snapshot.YOffset);
 		GameContext.IEditorAPI.SetModelCollisionCircleRatio(_assetKey, snapshot.CollisionCircleRatio);

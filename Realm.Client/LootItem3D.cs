@@ -39,6 +39,22 @@ public partial class LootItem3D : Node3D
 		OwnerPlayerIndex = ownerPlayerIndex;
 		IsDespawned = false;
 
+		RebuildVisuals();
+	}
+
+	/// <summary>
+	///     Redraws the drop from the item template it currently resolves to, which is how a model the map author has just
+	///     set shows on a placement that was drawn before the edit.
+	/// </summary>
+	public void RebuildVisuals()
+	{
+		if (_visualRoot != null && GodotObject.IsInstanceValid(_visualRoot))
+		{
+			RemoveChild(_visualRoot);
+			_visualRoot.QueueFree();
+			_visualRoot = null;
+		}
+
 		CreateVisuals();
 	}
 
@@ -77,26 +93,6 @@ public partial class LootItem3D : Node3D
 
 		if (AddModelVisual(itemMetadata?.ModelPath)) return;
 
-		string? iconPath = string.IsNullOrEmpty(itemMetadata?.IconPath) ? null : itemMetadata!.IconPath;
-
-		if (!string.IsNullOrEmpty(iconPath) && ResourceLoader.Exists(iconPath))
-		{
-			var texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
-			if (texture != null)
-			{
-				var sprite = new Sprite3D
-				{
-					Texture = texture,
-					Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
-					PixelSize = 0.012f,
-					Position = new Vector3(0, 0.55f, 0),
-					NoDepthTest = false
-				};
-				_visualRoot.AddChild(sprite);
-				return;
-			}
-		}
-
 		var gemInstance = new MeshInstance3D();
 		gemInstance.Name = "GemInstance_MeshInstance3D";
 		var boxMesh = new BoxMesh
@@ -122,7 +118,7 @@ public partial class LootItem3D : Node3D
 	///     mesh's own origin is. The pedestal stays, so a dropped item still reads as a pickup marker on the ground.
 	/// </summary>
 	/// <param name="modelPath">The model the item's template states, or nothing when it states none.</param>
-	/// <returns>True when a model was placed, which is what makes the icon and the gem the fallbacks.</returns>
+	/// <returns>True when a model was placed, which is what leaves the gem as the only fallback for a template that states none.</returns>
 	private bool AddModelVisual(string? modelPath)
 	{
 		if (string.IsNullOrEmpty(modelPath) || _visualRoot == null) return false;

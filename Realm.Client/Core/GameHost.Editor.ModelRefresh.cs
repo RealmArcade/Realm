@@ -61,6 +61,25 @@ public partial class GameHost
 
 		RefreshUnitsModels(targetId);
 		RefreshPropsModels(targetId);
+		RefreshLootItemModels(targetId);
+	}
+
+	/// <summary>
+	///     Redraws placed drops from their item templates, which is what makes a model the map author has just set show on
+	///     the ground. A drop reads its model from the item registry on every rebuild, so reloading the registry first is
+	///     what the caller owes this pass.
+	/// </summary>
+	/// <param name="targetId">The template whose drops are redrawn, or nothing to redraw every drop.</param>
+	private void RefreshLootItemModels(string? targetId)
+	{
+		foreach (LootItem3D lootItem in AllLootItems)
+		{
+			if (lootItem == null || !GodotObject.IsInstanceValid(lootItem)) continue;
+			if (string.IsNullOrEmpty(targetId) || GameContext.EditorService.IsTargetUnit(lootItem.ItemTypeId, targetId))
+			{
+				lootItem.RebuildVisuals();
+			}
+		}
 	}
 
 	private void RefreshUnitsModels(string? targetId)

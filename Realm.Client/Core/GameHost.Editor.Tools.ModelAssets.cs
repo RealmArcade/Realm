@@ -98,6 +98,12 @@ namespace Realm.Client.Core
 				return GetModelAssetKey(prop);
 			}
 
+			if (objOrId is LootItem3D lootItem)
+			{
+				if (!string.IsNullOrEmpty(lootItem.ItemTypeId)) return lootItem.ItemTypeId;
+				return GetModelAssetKey(lootItem);
+			}
+
 			if (objOrId is string str) return str;
 			return GetModelAssetKey(objOrId);
 		}

@@ -27,6 +27,18 @@ public partial class EntityVisualEditDialog
 			}
 		}
 
+		if (IsItemTemplate)
+		{
+			if (GameContext.Host is { } itemHost && !string.IsNullOrEmpty(_originalTemplateID))
+			{
+				itemHost.LoadUnitMetadata(MapWorkspaceService.GetActiveWorkspacePath());
+				GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
+			}
+
+			UpdateStudioButtonVisibility();
+			return;
+		}
+
 		if (GameContext.Host == null || string.IsNullOrEmpty(_originalTemplateID)) return;
 
 		RestoreStaticRegistryMode();

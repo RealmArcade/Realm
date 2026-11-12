@@ -129,18 +129,26 @@ public partial class EntityVisualEditDialog
 				case "props":
 					ApplyPropMetadata(meta, newTemplateID, tintHex, spawnKey, deathKey);
 					break;
+				case "items":
+					ApplyItemMetadata(meta, newTemplateID);
+					break;
 			}
 		});
 	}
 
 	private void FlushAndRefreshGameHost(string newTemplateID, string spawnKey, string deathKey, string animKey, string wsPath, VisualOverridesSnapshot currentSnapshot)
 	{
-		FlushModelPropertiesToGameHost(newTemplateID, spawnKey, deathKey, animKey);
+		bool templateRenamed = !string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID);
 
-		if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
+		if (!IsItemTemplate)
 		{
-			FlushModelPropertiesToGameHost(_originalTemplateID, spawnKey, deathKey, animKey);
-			GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
+			FlushModelPropertiesToGameHost(newTemplateID, spawnKey, deathKey, animKey);
+
+			if (templateRenamed)
+			{
+				FlushModelPropertiesToGameHost(_originalTemplateID, spawnKey, deathKey, animKey);
+				GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
+			}
 		}
 
 		if (GameContext.Host is { } host) host.LoadUnitMetadata(wsPath);
@@ -151,14 +159,14 @@ public partial class EntityVisualEditDialog
 		EditorHistoryManager.RecordAction(action);
 
 		GameContext.IEditorAPI.RefreshPlacedObjectModels(newTemplateID);
-		if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
+		if (templateRenamed)
 		{
 			GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 		}
 
 		RefreshCurrentSelectedObject();
 
-		if (GameContext.Host is { } flushHost)
+		if (!IsItemTemplate && GameContext.Host is { } flushHost)
 		{
 			flushHost.FlushModelYOffsetSave();
 			flushHost.FlushModelCollisionCircleSave();
@@ -190,6 +198,10 @@ public partial class EntityVisualEditDialog
 			else if (_currentSelectedObject is Prop3D p3d)
 			{
 				p3d.RefreshPropVisual();
+			}
+			else if (_currentSelectedObject is LootItem3D lootItem)
+			{
+				lootItem.RebuildVisuals();
 			}
 		}
 	}

@@ -65,6 +65,10 @@ public partial class EntityVisualEditDialog
 				var p = meta.GetProp(objectId);
 				if (p != null) LoadFromPropMetadata(p);
 				break;
+			case "items":
+				var i = meta.GetItem(objectId);
+				if (i != null) LoadFromItemMetadata(i);
+				break;
 		}
 	}
 
