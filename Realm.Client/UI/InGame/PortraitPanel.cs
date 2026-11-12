@@ -384,7 +384,7 @@ public class PortraitPanel
 		string owner = TooltipValueStore.UnitOwnerKey(info.Entity);
 		string reading = string.Empty;
 		bool published = GameContext.RegistryService != null
-			&& GameContext.RegistryService.TooltipValues.TryGetText(owner, "production.capacity", out reading)
+			&& GameContext.RegistryService.TooltipValues.TryGetText(owner, "production.soldier_capacity", out reading)
 			&& !string.IsNullOrEmpty(reading);
 
 		_productionCapacity.Visible = published;

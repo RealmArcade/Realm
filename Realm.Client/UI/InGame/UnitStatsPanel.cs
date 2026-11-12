@@ -42,6 +42,9 @@ public class UnitStatsPanel
 	private const ulong SignatureSeed = 1469598103934665603UL;
 	private const ulong SignaturePrime = 1099511628211UL;
 
+	private const string SoldierCapacityKey = "production.soldier_capacity";
+	private const string WorkerCapacityKey = "production.worker_capacity";
+
 	private static readonly StatId StrengthStat = new(AttributeType.Strength);
 	private static readonly StatId AgilityStat = new(AttributeType.Agility);
 	private static readonly StatId VitalityStat = new(AttributeType.Vitality);
@@ -105,6 +108,9 @@ public class UnitStatsPanel
 	private readonly VBoxContainer _buffsSection;
 	private readonly HBoxContainer _upgradesStrip;
 	private readonly VBoxContainer _upgradesSection;
+	private readonly VBoxContainer _capacitySection;
+	private readonly StatRow _soldierCapacityRow;
+	private readonly StatRow _workerCapacityRow;
 
 	private readonly List<string> _buffIds = new();
 	private StatCategory? _popupCategory;
@@ -235,6 +241,24 @@ public class UnitStatsPanel
 		_footer.AddThemeConstantOverride("separation", SectionSpacing);
 		_content.AddChild(_footer);
 
+		// A building that fields units from auto-cast abilities has no queue to show, so what it maintains is stated here
+		// instead: the reading is the map's own count against the capacity that building contributes, and a building whose
+		// map publishes neither reading draws no section at all.
+		_capacitySection = new VBoxContainer();
+		_capacitySection.Name = "UnitStatsCapacity_VBoxContainer";
+		_capacitySection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_capacitySection.AddThemeConstantOverride("separation", SectionSeparation);
+		_footer.AddChild(_capacitySection);
+		AddSectionHeader(_capacitySection, UnicodeIcons.USERS, TranslationServer.Translate("Capacity"));
+
+		_soldierCapacityRow = AddStatRow(UnicodeIcons.USERS, "Soldiers", "Soldiers this building maintains against the capacity it contributes.");
+		_workerCapacityRow = AddStatRow(UnicodeIcons.WRENCH, "Workers", "Workers this building maintains against the worker capacity it contributes.");
+		_soldierCapacityRow.Root.Visible = false;
+		_workerCapacityRow.Root.Visible = false;
+		_capacitySection.Visible = false;
+		_capacitySection.AddChild(_soldierCapacityRow.Root);
+		_capacitySection.AddChild(_workerCapacityRow.Root);
+
 		_buffsSection = new VBoxContainer();
 		_buffsSection.Name = "UnitStatsBuffs_VBoxContainer";
 		_buffsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -341,6 +365,10 @@ public class UnitStatsPanel
 		// Buff text is published beside the ECS state rather than inside it, so a description that moves (a bulwark
 		// counting a new soldier, for one) has to be refreshed before the stat signature short-circuits.
 		UpdateBuffStrip(entity, buffs);
+
+		// Capacity moves as the building fields units and loses them, and it is published rather than held in the ECS, so
+		// it is read on every refresh for the same reason the buff text is.
+		UpdateCapacityReadings(entity);
 
 		ulong signature = ComputeSignature(entity, stats, attributes, experience, level, attack, hasExperience, hasLevel, hasAttack,
 			damageType, experiencePerLevel, info.StateText, info.Player, metadata);
@@ -893,6 +921,30 @@ public class UnitStatsPanel
 
 			category.Icon.Visible = anyVisible;
 		}
+	}
+
+	/// <summary>
+	///     Writes the two capacity readings a map publishes for a building: the soldiers it maintains against the capacity
+	///     it contributes, and the workers it maintains against its worker capacity. A building that publishes neither is
+	///     not a unit-raising building, so the whole section stays away rather than showing an empty header.
+	/// </summary>
+	/// <param name="entity">The selected building.</param>
+	private void UpdateCapacityReadings(Entity entity)
+	{
+		TooltipValueStore? published = GameContext.RegistryService?.TooltipValues;
+		string owner = TooltipValueStore.UnitOwnerKey(entity);
+
+		string soldiers = string.Empty;
+		string workers = string.Empty;
+		bool hasSoldiers = published != null && published.TryGetText(owner, SoldierCapacityKey, out soldiers) && soldiers.Length > 0;
+		bool hasWorkers = published != null && published.TryGetText(owner, WorkerCapacityKey, out workers) && workers.Length > 0;
+
+		if (_soldierCapacityRow.Root.Visible != hasSoldiers) _soldierCapacityRow.Root.Visible = hasSoldiers;
+		if (_workerCapacityRow.Root.Visible != hasWorkers) _workerCapacityRow.Root.Visible = hasWorkers;
+		if (_capacitySection.Visible != (hasSoldiers || hasWorkers)) _capacitySection.Visible = hasSoldiers || hasWorkers;
+
+		if (hasSoldiers) _soldierCapacityRow.SetValue(soldiers);
+		if (hasWorkers) _workerCapacityRow.SetValue(workers);
 	}
 
 	private static HBoxContainer CreateIconStrip(string nodeName)

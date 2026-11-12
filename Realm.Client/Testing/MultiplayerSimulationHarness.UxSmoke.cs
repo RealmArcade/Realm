@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Godot;
@@ -333,7 +334,17 @@ public partial class MultiplayerSimulationHarness : Node
 			Check("the removed Damage Per Second row stays gone",
 				hud.FindChildren("UnitStatsRowDamagePerSecond_*", string.Empty, true, false).Count == 0);
 
-			int foldedRows = hud.FindChildren("UnitStatsRow*", string.Empty, true, false).Count;
+			// The capacity readings a map publishes for a building live in the sheet itself, so they are the only rows a
+			// unit may draw before a category is hovered. The hero publishes none, so its sheet draws none.
+			int foldedRows = 0;
+			foreach (Node row in hud.FindChildren("UnitStatsRow*_HBoxContainer", string.Empty, true, false))
+			{
+				if (row is not Control { Visible: true } visibleRow) continue;
+				string rowName = visibleRow.Name.ToString();
+				if (rowName is "UnitStatsRowSoldiers_HBoxContainer" or "UnitStatsRowWorkers_HBoxContainer") continue;
+				foldedRows++;
+			}
+
 			Check("no stat row is drawn until a category is hovered", foldedRows == 0, $"rows={foldedRows}");
 			SaveUxScreenshot("ux_smoke_stats_folded.png", "folded stats", Note);
 
@@ -411,9 +422,9 @@ public partial class MultiplayerSimulationHarness : Node
 			bool answeredByKey = beginKey != '\0' && hud.HandleCommandCardHotkey(ParseHotkey(beginKey.ToString()), (KeyModifierMask)0);
 			Check("begin construction answers the key its slot names", answeredByKey, beginTooltip);
 			await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
-			Check("begin construction asks for a site", currentHost.ActiveSpellTargeting == "ability/begin_construction", currentHost.ActiveSpellTargeting ?? "none");
+			Check("begin construction arms the site placement", currentHost.ActiveBuildingPlacementType == "unit/blueprint", currentHost.ActiveBuildingPlacementType ?? "none");
 
-			currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(2f, 0f, 2f));
+			PlaceActiveBuilding(currentHost, hero.GlobalPosition + new Vector3(2f, 0f, 2f));
 			await ToSignal(GetTree().CreateTimer(1.2f), SceneTreeTimer.SignalName.Timeout);
 			Check("begin construction reserves 100 wood", hud.Wood <= woodBefore - 90f, $"{woodBefore:0.##} -> {hud.Wood:0.##}");
 
@@ -509,9 +520,9 @@ public partial class MultiplayerSimulationHarness : Node
 			{
 				reopenButton.EmitSignal(Button.SignalName.Pressed);
 				await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
-				Check("the second draw asks for a site", currentHost.ActiveSpellTargeting == "ability/begin_construction", currentHost.ActiveSpellTargeting ?? "none");
+				Check("the second draw arms the site placement", currentHost.ActiveBuildingPlacementType == "unit/blueprint", currentHost.ActiveBuildingPlacementType ?? "none");
 
-				currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(2f, 0f, 2f));
+				PlaceActiveBuilding(currentHost, hero.GlobalPosition + new Vector3(2f, 0f, 2f));
 				await ToSignal(GetTree().CreateTimer(1.2f), SceneTreeTimer.SignalName.Timeout);
 				Check("the second draw reserves 100 wood", hud.Wood <= woodBefore - 90f, $"{woodBefore:0.##} -> {hud.Wood:0.##}");
 				Unit3D? secondBlueprint = FindUnit(currentHost, "unit/blueprint", 1);
@@ -554,9 +565,9 @@ public partial class MultiplayerSimulationHarness : Node
 			{
 				finalDrawButton.EmitSignal(Button.SignalName.Pressed);
 				await ToSignal(GetTree().CreateTimer(0.3f), SceneTreeTimer.SignalName.Timeout);
-				Check("the final draw asks for a site", currentHost.ActiveSpellTargeting == "ability/begin_construction", currentHost.ActiveSpellTargeting ?? "none");
+				Check("the final draw arms the site placement", currentHost.ActiveBuildingPlacementType == "unit/blueprint", currentHost.ActiveBuildingPlacementType ?? "none");
 
-				currentHost.CastSpellAt("ability/begin_construction", hero.GlobalPosition + new Vector3(2f, 0f, 2f));
+				PlaceActiveBuilding(currentHost, hero.GlobalPosition + new Vector3(2f, 0f, 2f));
 				await ToSignal(GetTree().CreateTimer(1.2f), SceneTreeTimer.SignalName.Timeout);
 				Check("the final draw reserves 100 wood", hud.Wood <= woodBefore - 90f, $"{woodBefore:0.##} -> {hud.Wood:0.##}");
 			}
@@ -855,17 +866,20 @@ public partial class MultiplayerSimulationHarness : Node
 
 			Node? buildingStats = hud.FindChild("UnitStatsCategories_HBoxContainer", true, false);
 			Check("the building shows the standard stat sheet", buildingStats is HBoxContainer { Visible: true }, buildingStats?.Name ?? "missing");
+			// This ruleset's buildings field their units from auto-cast abilities, so there is no queue and no production
+			// box: what the building maintains is read from the stat sheet instead.
 			Node? buildingProductionBox = hud.FindChild("ProductionBox_VBoxContainer", true, false);
-			Check("the building shows its production box", buildingProductionBox is Control { Visible: true }, buildingProductionBox?.Name ?? "missing");
-			Node? buildingProductionTitle = hud.FindChild("ProductionTitle_Label", true, false);
-			Check("the production box names what the building is doing", buildingProductionTitle is Label productionLabel && productionLabel.Text.Length > 0, (buildingProductionTitle as Label)?.Text ?? "missing");
-			Check("the production box states the mana pool and the clock it returns on",
-				buildingProductionTitle is Label manaLabel && manaLabel.Text.Contains("MANA:", StringComparison.Ordinal) && manaLabel.Text.Contains("/s)", StringComparison.Ordinal),
-				(buildingProductionTitle as Label)?.Text ?? "missing");
-			Node? buildingCapacity = hud.FindChild("ProductionCapacity_Label", true, false);
-			Check("the production box states the soldiers it maintains against its capacity",
-				buildingCapacity is Label capacityLabel && capacityLabel.Visible && capacityLabel.Text.Contains("SOLDIERS:", StringComparison.Ordinal),
-				(buildingCapacity as Label)?.Text ?? "missing");
+			Check("a building with no production queue shows no production box", buildingProductionBox is not Control { Visible: true }, buildingProductionBox?.Name ?? "missing");
+			Node? buildingCapacitySection = hud.FindChild("UnitStatsCapacity_VBoxContainer", true, false);
+			Check("the building states its capacity on the stat sheet", buildingCapacitySection is Control { Visible: true }, buildingCapacitySection?.Name ?? "missing");
+			Node? buildingSoldierCapacity = hud.FindChild("UnitStatsRowSoldiers_HBoxContainer", true, false);
+			Check("the stat sheet states the soldiers it maintains against its capacity",
+				buildingSoldierCapacity is Control { Visible: true } && ReadRowValue(buildingSoldierCapacity).Contains('/', StringComparison.Ordinal),
+				ReadRowValue(buildingSoldierCapacity));
+			Node? buildingWorkerCapacity = hud.FindChild("UnitStatsRowWorkers_HBoxContainer", true, false);
+			Check("the stat sheet states the workers it maintains against its capacity",
+				buildingWorkerCapacity is Control { Visible: true } && ReadRowValue(buildingWorkerCapacity).Contains('/', StringComparison.Ordinal),
+				ReadRowValue(buildingWorkerCapacity));
 			FocusCamera(productionBuilding.GlobalPosition);
 			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 			Check("the drafted building stands on screen", IsOnScreen(productionBuilding.GlobalPosition), $"building {productionBuilding.GlobalPosition} camera {ActiveCamera()?.Position}");
@@ -1350,6 +1364,22 @@ public partial class MultiplayerSimulationHarness : Node
 		if (world == null || !world.IsAlive(unit.Entity) || !world.Has<Health>(unit.Entity)) return 0f;
 
 		return world.Get<Health>(unit.Entity).Current;
+	}
+
+	/// <summary>
+	///     Finishes the placement a card armed, which is what a click on the ground does: the silhouette is only a preview,
+	///     and the order that raises the template is submitted by the placement the click ends.
+	/// </summary>
+	private static void PlaceActiveBuilding(GameHost host, Vector3 position)
+	{
+		MethodInfo? place = typeof(GameHost).GetMethod("ExecuteBuildingPlacement", BindingFlags.Instance | BindingFlags.NonPublic);
+		place?.Invoke(host, new object?[] { host.ActiveBuildingPlacementType ?? string.Empty, position });
+	}
+
+	private static string ReadRowValue(Node? row)
+	{
+		Node? value = row?.FindChild("UnitStatsRowValue_Label", true, false);
+		return value is Label label ? label.Text : string.Empty;
 	}
 
 	private static float ReadMaximumHealth(Unit3D unit)
