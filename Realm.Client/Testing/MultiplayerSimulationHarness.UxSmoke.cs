@@ -862,6 +862,10 @@ public partial class MultiplayerSimulationHarness : Node
 			Check("the production box states the mana pool and the clock it returns on",
 				buildingProductionTitle is Label manaLabel && manaLabel.Text.Contains("MANA:", StringComparison.Ordinal) && manaLabel.Text.Contains("/s)", StringComparison.Ordinal),
 				(buildingProductionTitle as Label)?.Text ?? "missing");
+			Node? buildingCapacity = hud.FindChild("ProductionCapacity_Label", true, false);
+			Check("the production box states the soldiers it maintains against its capacity",
+				buildingCapacity is Label capacityLabel && capacityLabel.Visible && capacityLabel.Text.Contains("SOLDIERS:", StringComparison.Ordinal),
+				(buildingCapacity as Label)?.Text ?? "missing");
 			FocusCamera(productionBuilding.GlobalPosition);
 			await ToSignal(GetTree().CreateTimer(0.4f), SceneTreeTimer.SignalName.Timeout);
 			Check("the drafted building stands on screen", IsOnScreen(productionBuilding.GlobalPosition), $"building {productionBuilding.GlobalPosition} camera {ActiveCamera()?.Position}");

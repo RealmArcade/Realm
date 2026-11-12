@@ -107,6 +107,7 @@ public partial class InGameHUD : Control
 
 	private VBoxContainer _productionBox = null!;
 	private Label _productionTitle = null!;
+	private Label _productionCapacity = null!;
 	private ProgressBar _productionProgress = null!;
 	private Label _productionQueueLabel = null!;
 	private HBoxContainer _queueSlotsContainer = null!;
@@ -426,7 +427,7 @@ public partial class InGameHUD : Control
 		_portraitPanelController = new PortraitPanel(
 			_portraitFrame, _selectionFrame, _unitsContainer, _unitButtons, _statsContainer,
 			_unitStatsPanel,
-			_productionBox, _productionTitle, _productionProgress, _productionQueueLabel, _queueSlotsContainer,
+			_productionBox, _productionTitle, _productionCapacity, _productionProgress, _productionQueueLabel, _queueSlotsContainer,
 			_armyCompositionLabel, GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName"),
 			GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") != null ? GetNode<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") : null
 		);
@@ -521,6 +522,7 @@ public partial class InGameHUD : Control
 		_unitStatsPanel = nodes.StatsPanel;
 		_productionBox = nodes.ProductionBox;
 		_productionTitle = nodes.ProductionTitle;
+		_productionCapacity = nodes.ProductionCapacity;
 		_productionProgress = nodes.ProductionProgress;
 		_productionQueueLabel = nodes.ProductionQueueLabel;
 		_queueSlotsContainer = nodes.QueueSlots;

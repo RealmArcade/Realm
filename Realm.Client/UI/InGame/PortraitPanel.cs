@@ -21,6 +21,7 @@ public class PortraitPanel
 	private UnitStatsPanel _unitStatsPanel;
 	private VBoxContainer _productionBox;
 	private Label _productionTitle;
+	private Label _productionCapacity;
 	private ProgressBar _productionProgress;
 	private Label _productionQueueLabel;
 	private HBoxContainer _queueSlotsContainer;
@@ -59,7 +60,7 @@ public class PortraitPanel
 	public PortraitPanel(PanelContainer portraitFrame, PanelContainer selectionFrame,
 		HBoxContainer unitsContainer, List<Button> unitButtons, HBoxContainer statsContainer,
 		UnitStatsPanel unitStatsPanel,
-		VBoxContainer productionBox, Label productionTitle, ProgressBar productionProgress,
+		VBoxContainer productionBox, Label productionTitle, Label productionCapacity, ProgressBar productionProgress,
 		Label productionQueueLabel, HBoxContainer queueSlotsContainer, Label armyCompositionLabel,
 		Label unitNameLabel, TextureRect? portraitTexture)
 	{
@@ -71,6 +72,7 @@ public class PortraitPanel
 		_unitStatsPanel = unitStatsPanel;
 		_productionBox = productionBox;
 		_productionTitle = productionTitle;
+		_productionCapacity = productionCapacity;
 		_productionProgress = productionProgress;
 		_productionQueueLabel = productionQueueLabel;
 		_queueSlotsContainer = queueSlotsContainer;
@@ -317,7 +319,7 @@ public class PortraitPanel
 		ApplyPortraitDescription(info.Description, info.Entity);
 		_unitStatsPanel.UpdateSingleSelection(info, unitHeaderChanged);
 
-		if (info.IsBuilding && !info.IsEnemy && info.HasProduction)
+		if (info.IsBuilding && info.HasProduction)
 		{
 			_productionBox.Visible = true;
 			UpdateProductionBox(info);
@@ -347,6 +349,7 @@ public class PortraitPanel
 	private void UpdateSimpleProductionBox(SelectedUnitInfo info)
 	{
 		_productionTitle.Text = info.ProductionTitle;
+		ApplyProductionCapacity(info);
 		_productionProgress.Visible = true;
 		_productionProgress.Value = info.ProductionProgress;
 		_productionProgress.MaxValue = info.ProductionMaxProgress;
@@ -361,6 +364,7 @@ public class PortraitPanel
 	private void UpdateQueueProductionBox(SelectedUnitInfo info)
 	{
 		_productionTitle.Text = info.ProductionTitle;
+		ApplyProductionCapacity(info);
 		_productionProgress.Visible = true;
 		_productionProgress.Value = info.ProductionProgress;
 		_productionProgress.MaxValue = info.ProductionMaxProgress;
@@ -373,6 +377,18 @@ public class PortraitPanel
 			_lastProductionQueue.AddRange(info.ProductionQueue);
 			PopulateQueueSlots(info.Entity, info.ProductionQueue);
 		}
+	}
+
+	private void ApplyProductionCapacity(SelectedUnitInfo info)
+	{
+		string owner = TooltipValueStore.UnitOwnerKey(info.Entity);
+		string reading = string.Empty;
+		bool published = GameContext.RegistryService != null
+			&& GameContext.RegistryService.TooltipValues.TryGetText(owner, "production.capacity", out reading)
+			&& !string.IsNullOrEmpty(reading);
+
+		_productionCapacity.Visible = published;
+		if (published) _productionCapacity.Text = string.Format(TranslationServer.Translate("SOLDIERS: {0}"), reading);
 	}
 
 	private bool HasProductionQueueChanged(List<string> productionQueue)

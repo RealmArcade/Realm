@@ -102,6 +102,22 @@ public class MeleeInspectorTests
 	}
 
 	[Test]
+	public void ABuildingPublishesTheSoldiersItMaintainsAgainstItsCapacity()
+	{
+		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
+		_match.StepUntilSoldiers(1);
+		_match.Step(0.2f);
+
+		string reading = _match.UnitTooltipText(1, building, "production.capacity");
+		Assert.That(reading, Does.Match(@"^\d+ / \d+$"), $"A building has to state the soldiers it maintains against the capacity it grants, not '{reading}'.");
+
+		string[] parts = reading.Split(" / ");
+		Assert.That(int.Parse(parts[1]), Is.EqualTo(MeleeContent.CapacityOf(_match.TemplateOf(building))), "The reading's denominator is the capacity the package authors.");
+		Assert.That(int.Parse(parts[0]), Is.GreaterThan(0), "The building has raised a soldier, so the reading has something to count.");
+		Assert.That(int.Parse(parts[0]), Is.EqualTo(_match.Soldiers(1).Count), "The reading's numerator is the living soldiers the building raised.");
+	}
+
+	[Test]
 	public void TheOldInspectorRowsAreNoLongerPublished()
 	{
 		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
