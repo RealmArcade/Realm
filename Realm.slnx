@@ -23,4 +23,5 @@
   <Project Path="Realm.LocalizationGenerator/Realm.LocalizationGenerator.csproj" />
   <Project Path="Realm.TranslationTool/Realm.TranslationTool.csproj" />
   <Project Path="Realm.WasmBindgen/Realm.WasmBindgen.csproj" />
+  <Project Path="Realm.WasmBindgen.Tests/Realm.WasmBindgen.Tests.csproj" />
 </Solution>

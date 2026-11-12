@@ -3,6 +3,8 @@ import struct
 
 # {{OFFSETS}}
 
+INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"
+
 _CACHED_BASE_ADDR = 0
 
 def get_shared_memory_base(target):
@@ -153,6 +155,52 @@ def resolve_component_stride(process, base_addr, comp_id, default_stride):
             return val
     return default_stride
 
+def read_bytes(process, address, size):
+    if address <= 0:
+        return None
+    err = lldb.SBError()
+    data = process.ReadMemory(address, size, err)
+    if not err.Success() or len(data) != size:
+        return None
+    return data
+
+def read_byte(process, address):
+    data = read_bytes(process, address, 1)
+    if data is None:
+        return 0
+    return data[0]
+
+def read_int(process, address):
+    data = read_bytes(process, address, 4)
+    if data is None:
+        return 0
+    return struct.unpack_from("<i", data, 0)[0]
+
+def read_float(process, address):
+    data = read_bytes(process, address, 4)
+    if data is None:
+        return 0.0
+    return struct.unpack_from("<f", data, 0)[0]
+
+def read_ulong(process, address):
+    data = read_bytes(process, address, 8)
+    if data is None:
+        return 0
+    return struct.unpack_from("<Q", data, 0)[0]
+
+def read_alive(process, base_addr, entity_id):
+    if entity_id <= 0 or entity_id >= globals().get("MAX_ENTITIES", 8192):
+        return False
+    return read_byte(process, base_addr + globals().get("ALIVE_OFFSET", 3072) + entity_id) != 0
+
+def has_component(process, base_addr, entity_id, component_id):
+    if entity_id <= 0 or entity_id >= globals().get("MAX_ENTITIES", 8192) or component_id < 0:
+        return False
+    word = component_id >> 6
+    bit = component_id & 63
+    address = base_addr + globals().get("ENTITY_MASKS_OFFSET", 11264) + entity_id * 32 + word * 8
+    return (read_ulong(process, address) & (1 << bit)) != 0
+
 def extract_id_value(valobj):
     if not valobj or not valobj.IsValid():
         return -1
@@ -191,179 +239,222 @@ def resolve_field_type(target, f_type_name):
             f_type = target.GetBasicType(lldb.eBasicTypeInt)
     return f_type
 
-class PlayerIdSyntheticProvider:
+def make_int_value(valobj, name, value):
+    target = valobj.GetTarget()
+    data = lldb.SBData.CreateDataFromSInt32Array(lldb.eByteOrderLittle, 4, [int(value)])
+    return valobj.CreateValueFromData(name, data, target.GetBasicType(lldb.eBasicTypeInt))
+
+def make_float_value(valobj, name, value):
+    target = valobj.GetTarget()
+    bits = struct.unpack("<I", struct.pack("<f", float(value)))[0]
+    data = lldb.SBData.CreateDataFromUInt32Array(lldb.eByteOrderLittle, 4, [bits])
+    return valobj.CreateValueFromData(name, data, target.GetBasicType(lldb.eBasicTypeFloat))
+
+def make_bool_value(valobj, name, value):
+    target = valobj.GetTarget()
+    data = lldb.SBData.CreateDataFromUInt64Array(lldb.eByteOrderLittle, 1, [1 if value else 0])
+    return valobj.CreateValueFromData(name, data, target.GetBasicType(lldb.eBasicTypeBool))
+
+def make_string_value(valobj, name, text):
+    target = valobj.GetTarget()
+    data = lldb.SBData.CreateDataFromCString(lldb.eByteOrderLittle, 1, text)
+    char_type = target.GetBasicType(lldb.eBasicTypeChar)
+    return valobj.CreateValueFromData(name, data, char_type.GetArrayType(len(text) + 1))
+
+def make_value(valobj, name, type_name, value):
+    if type_name == "float":
+        return make_float_value(valobj, name, value)
+    if type_name == "bool":
+        return make_bool_value(valobj, name, value)
+    if type_name == "string":
+        return make_string_value(valobj, name, value)
+    if type_name == "Vector3":
+        return make_string_value(valobj, name, str(value))
+    return make_int_value(valobj, name, value)
+
+def find_handle_spec(type_name):
+    if not type_name:
+        return None
+    short_name = type_name.split(".")[-1]
+    if short_name in HANDLE_TYPES:
+        return HANDLE_TYPES[short_name]
+    for name, spec in HANDLE_TYPES.items():
+        if type_name.endswith(name):
+            return spec
+    return None
+
+def find_host_spec(type_name):
+    if not type_name:
+        return None
+    short_name = type_name.split(".")[-1]
+    if short_name in HOST_TYPES:
+        return HOST_TYPES[short_name]
+    for name, spec in HOST_TYPES.items():
+        if type_name.endswith(name):
+            return spec
+    return None
+
+def find_field_spec(handle_spec, field_name):
+    for field in handle_spec.get("fields", []):
+        if field.get("name") == field_name:
+            return field
+    return None
+
+def read_field_value(valobj, handle_spec, field_spec):
+    kind = field_spec.get("kind", "host")
+    value = extract_id_value(valobj)
+
+    if kind == "value":
+        return value
+    if kind == "valid":
+        return field_spec.get("min", 0) <= value < field_spec.get("max", 2147483647)
+    if kind == "constant":
+        return field_spec.get("constant")
+    if kind == "host":
+        return INSPECTION_REQUIRES_THREADS
+
+    target = valobj.GetTarget()
+    base_addr = get_shared_memory_base(target)
+    if base_addr == 0:
+        return field_spec.get("default")
+
+    process = target.GetProcess()
+
+    if kind == "alive":
+        alive = read_alive(process, base_addr, value)
+        return (not alive) if field_spec.get("invert") else alive
+
+    if kind == "tag":
+        if not (handle_spec.get("min_value", 0) <= value < handle_spec.get("max_value", 2147483647)):
+            return field_spec.get("default", False)
+        if field_spec.get("requires_alive") and not read_alive(process, base_addr, value):
+            return field_spec.get("default", False)
+        return has_component(process, base_addr, value, field_spec.get("component_id", -1))
+
+    if kind == "tag_any":
+        if not (handle_spec.get("min_value", 0) <= value < handle_spec.get("max_value", 2147483647)):
+            return field_spec.get("default", False)
+        if field_spec.get("requires_alive") and not read_alive(process, base_addr, value):
+            return field_spec.get("default", False)
+        for tag_id in field_spec.get("tag_ids", []):
+            if has_component(process, base_addr, value, tag_id):
+                return True
+        return False
+
+    if kind == "component":
+        if not (handle_spec.get("min_value", 0) <= value < handle_spec.get("max_value", 2147483647)):
+            return field_spec.get("default")
+        if field_spec.get("requires_alive") and not read_alive(process, base_addr, value):
+            return field_spec.get("default")
+        index = value + field_spec.get("index_offset", 0)
+        component_name = field_spec.get("component")
+        component_id = field_spec.get("component_id", -1)
+        default_offset = COMPONENT_OFFSETS.get(component_name, 0)
+        default_stride = COMPONENT_SIZES.get(component_name, 0)
+        array_base = resolve_array_base(process, base_addr, component_id, default_offset)
+        stride = resolve_component_stride(process, base_addr, component_id, default_stride)
+        address = array_base + index * stride + field_spec.get("sub_offset", 0)
+        type_name = field_spec.get("type", "int")
+        if type_name == "float":
+            return read_float(process, address)
+        if type_name == "bool":
+            return read_byte(process, address) != 0
+        if type_name == "Vector3":
+            return (read_float(process, address), read_float(process, address + 4), read_float(process, address + 8))
+        return read_int(process, address)
+
+    return None
+
+def format_summary_value(value):
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float):
+        return f"{value:.2f}"
+    if isinstance(value, tuple):
+        return "(" + ", ".join(f"{part:.1f}" for part in value) + ")"
+    return str(value)
+
+class RealmHandleSyntheticProvider:
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
+        self.spec = find_handle_spec(valobj.GetType().GetName())
+        self.fields = self.spec.get("fields", []) if self.spec else []
 
     def update(self):
         return False
 
     def num_children(self):
-        return len(PLAYER_FIELDS)
+        return len(self.fields)
 
     def has_children(self):
-        return len(PLAYER_FIELDS) > 0
+        return len(self.fields) > 0
 
     def get_child_index(self, name):
-        for idx, entry in enumerate(PLAYER_FIELDS):
-            if entry[0] == name:
-                return idx
+        for index, field in enumerate(self.fields):
+            if field.get("name") == name:
+                return index
         return -1
 
     def get_child_at_index(self, index):
-        if index < 0 or index >= len(PLAYER_FIELDS):
+        if index < 0 or index >= len(self.fields):
             return None
-        player_id = extract_id_value(self.valobj)
-        if player_id < 0 or player_id >= MAX_PLAYERS:
+        field = self.fields[index]
+        value = read_field_value(self.valobj, self.spec, field)
+        if value is None:
             return None
+        return make_value(self.valobj, field.get("name", "Value"), field.get("type", "int"), value)
 
-        entry = PLAYER_FIELDS[index]
-        target = self.valobj.GetTarget()
-        if entry[0] in ("Id", "Value"):
-            f_type = target.GetBasicType(lldb.eBasicTypeInt)
-            data = lldb.SBData.CreateDataFromSInt32Array(lldb.eByteOrderLittle, 4, [player_id])
-            return self.valobj.CreateValueFromData(entry[0], data, f_type)
-
-        base_addr = get_shared_memory_base(target)
-        if base_addr == 0:
-            return None
-
-        process = target.GetProcess()
-        if len(entry) == 6:
-            f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
-            arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
-            stride = resolve_component_stride(process, base_addr, comp_id, elem_size)
-        else:
-            f_name, array_offset, elem_size, sub_offset, f_type_name = entry
-            arr_base = base_addr + array_offset
-            stride = elem_size
-
-        slot_addr = arr_base + (player_id * stride) + sub_offset
-        f_type = resolve_field_type(target, f_type_name)
-
-        return self.valobj.CreateValueFromAddress(f_name, slot_addr, f_type)
-
-class UnitIdSyntheticProvider:
+class HostTypeSyntheticProvider:
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
+        self.spec = find_host_spec(valobj.GetType().GetName())
+        self.fields = self.spec.get("fields", []) if self.spec else []
 
     def update(self):
         return False
 
     def num_children(self):
-        return len(ENTITY_FIELDS)
+        return len(self.fields)
 
     def has_children(self):
-        return len(ENTITY_FIELDS) > 0
+        return len(self.fields) > 0
 
     def get_child_index(self, name):
-        for idx, entry in enumerate(ENTITY_FIELDS):
-            if entry[0] == name:
-                return idx
+        for index, field in enumerate(self.fields):
+            if field.get("name") == name:
+                return index
         return -1
 
     def get_child_at_index(self, index):
-        if index < 0 or index >= len(ENTITY_FIELDS):
+        if index < 0 or index >= len(self.fields):
             return None
-        unit_id = extract_id_value(self.valobj)
-        if unit_id < 0 or unit_id >= MAX_ENTITIES:
-            return None
+        field = self.fields[index]
+        return make_string_value(self.valobj, field.get("name", "Value"), INSPECTION_REQUIRES_THREADS)
 
-        entry = ENTITY_FIELDS[index]
-        target = self.valobj.GetTarget()
-        if entry[0] in ("Id", "Value"):
-            f_type = target.GetBasicType(lldb.eBasicTypeInt)
-            data = lldb.SBData.CreateDataFromSInt32Array(lldb.eByteOrderLittle, 4, [unit_id])
-            return self.valobj.CreateValueFromData(entry[0], data, f_type)
+def HostTypeSummaryProvider(valobj, internal_dict):
+    spec = find_host_spec(valobj.GetType().GetName())
+    if not spec:
+        return ""
+    return f"{spec.get('label', spec.get('name', 'Host'))} (host boundary)"
 
-        base_addr = get_shared_memory_base(target)
-        if base_addr == 0:
-            return None
-
-        process = target.GetProcess()
-        if len(entry) == 6:
-            f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
-            arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
-            stride = resolve_component_stride(process, base_addr, comp_id, elem_size)
-        else:
-            f_name, array_offset, elem_size, sub_offset, f_type_name = entry
-            arr_base = base_addr + array_offset
-            stride = elem_size
-
-        slot_addr = arr_base + (unit_id * stride) + sub_offset
-        f_type = resolve_field_type(target, f_type_name)
-
-        return self.valobj.CreateValueFromAddress(f_name, slot_addr, f_type)
-
-def PlayerIdSummaryProvider(valobj, internal_dict):
-    player_id = extract_id_value(valobj)
-    if player_id < 0 or player_id >= MAX_PLAYERS:
-        return f"Player {player_id} [Invalid]"
-
-    target = valobj.GetTarget()
-    base_addr = get_shared_memory_base(target)
-    if base_addr == 0:
-        return f"Player {player_id}"
-
-    error = lldb.SBError()
-    process = target.GetProcess()
-
-    res_base = resolve_array_base(process, base_addr, 69, PLAYER_RESOURCES_OFFSET)
-    res_stride = resolve_component_stride(process, base_addr, 69, PLAYER_RESOURCES_SIZE)
-    res_addr = res_base + (player_id * res_stride)
-    res_bytes = process.ReadMemory(res_addr, 16, error)
-    gold = 0
-    wood = 0
-    if error.Success() and len(res_bytes) >= 8:
-        gold = struct.unpack_from("<i", res_bytes, 0)[0]
-        wood = struct.unpack_from("<i", res_bytes, 4)[0]
-
-    pop_base = resolve_array_base(process, base_addr, 24, PLAYER_POPULATION_OFFSET)
-    pop_stride = resolve_component_stride(process, base_addr, 24, PLAYER_POPULATION_SIZE)
-    pop_addr = pop_base + (player_id * pop_stride)
-    pop_bytes = process.ReadMemory(pop_addr, 8, error)
-    pop = 0
-    max_pop = 0
-    if error.Success() and len(pop_bytes) >= 8:
-        pop = struct.unpack_from("<i", pop_bytes, 0)[0]
-        max_pop = struct.unpack_from("<i", pop_bytes, 4)[0]
-
-    return f"Player {player_id} [Gold: {gold}, Wood: {wood}, Pop: {pop}/{max_pop}]"
-
-def UnitIdSummaryProvider(valobj, internal_dict):
-    unit_id = extract_id_value(valobj)
-    if unit_id < 0 or unit_id >= MAX_ENTITIES:
-        return f"Unit {unit_id} [Invalid]"
-
-    target = valobj.GetTarget()
-    base_addr = get_shared_memory_base(target)
-    if base_addr == 0:
-        return f"Unit {unit_id}"
-
-    error = lldb.SBError()
-    process = target.GetProcess()
-
-    hp_base = resolve_array_base(process, base_addr, 1, HEALTH_OFFSET)
-    hp_stride = resolve_component_stride(process, base_addr, 1, HEALTH_SIZE)
-    hp_addr = hp_base + (unit_id * hp_stride)
-    hp_bytes = process.ReadMemory(hp_addr, 8, error)
-    hp = 0.0
-    max_hp = 0.0
-    if error.Success() and len(hp_bytes) >= 8:
-        hp = struct.unpack_from("<f", hp_bytes, 0)[0]
-        max_hp = struct.unpack_from("<f", hp_bytes, 4)[0]
-
-    pos_base = resolve_array_base(process, base_addr, 0, POSITION_OFFSET)
-    pos_stride = resolve_component_stride(process, base_addr, 0, POSITION_SIZE)
-    pos_addr = pos_base + (unit_id * pos_stride)
-    pos_bytes = process.ReadMemory(pos_addr, 12, error)
-    pos_x = 0.0
-    pos_z = 0.0
-    if error.Success() and len(pos_bytes) >= 12:
-        pos_x = struct.unpack_from("<f", pos_bytes, 0)[0]
-        pos_z = struct.unpack_from("<f", pos_bytes, 8)[0]
-
-    return f"Unit {unit_id} [Health: {int(hp)}/{int(max_hp)}, Pos: ({pos_x:.1f}, {pos_z:.1f})]"
+def RealmHandleSummaryProvider(valobj, internal_dict):
+    spec = find_handle_spec(valobj.GetType().GetName())
+    if not spec:
+        return ""
+    value = extract_id_value(valobj)
+    parts = []
+    for field_name in spec.get("summary_fields", []):
+        field = find_field_spec(spec, field_name)
+        if not field:
+            continue
+        field_value = read_field_value(valobj, spec, field)
+        if field_value is None:
+            continue
+        parts.append(f"{field_name}: {format_summary_value(field_value)}")
+    label = spec.get("label", spec.get("name", "Handle"))
+    if parts:
+        return f"{label} {value} [{', '.join(parts)}]"
+    return f"{label} {value}"
 
 def realm_attach(debugger, command, result, internal_dict):
     import os
@@ -441,11 +532,15 @@ def realm_load_modules(debugger, command, result, internal_dict):
 def __lldb_init_module(debugger, internal_dict):
     category = "Realm"
 
-    debugger.HandleCommand(f"type synthetic add -l realm_lldb.PlayerIdSyntheticProvider -x \"(^|.*[.:_ ])PlayerId$\" -w {category}")
-    debugger.HandleCommand(f"type summary add -F realm_lldb.PlayerIdSummaryProvider -x \"(^|.*[.:_ ])PlayerId$\" -w {category}")
+    for type_name in HANDLE_TYPES:
+        regex = f"(^|.*[.:_ ]){type_name}(\\s*[*&])?$"
+        debugger.HandleCommand(f"type synthetic add -l realm_lldb.RealmHandleSyntheticProvider -x \"{regex}\" -w {category}")
+        debugger.HandleCommand(f"type summary add -F realm_lldb.RealmHandleSummaryProvider -x \"{regex}\" -w {category}")
 
-    debugger.HandleCommand(f"type synthetic add -l realm_lldb.UnitIdSyntheticProvider -x \"(^|.*[.:_ ])UnitId$\" -w {category}")
-    debugger.HandleCommand(f"type summary add -F realm_lldb.UnitIdSummaryProvider -x \"(^|.*[.:_ ])UnitId$\" -w {category}")
+    for type_name in HOST_TYPES:
+        regex = f"(^|.*[.:_ ]){type_name}(\\s*[*&])?$"
+        debugger.HandleCommand(f"type synthetic add -l realm_lldb.HostTypeSyntheticProvider -x \"{regex}\" -w {category}")
+        debugger.HandleCommand(f"type summary add -F realm_lldb.HostTypeSummaryProvider -x \"{regex}\" -w {category}")
 
     debugger.HandleCommand(f"type summary add -s \"(${{var.X}}, ${{var.Y}}, ${{var.Z}})\" -x \"(^|.*[.:_ ])Vector3$\" -w {category}")
 

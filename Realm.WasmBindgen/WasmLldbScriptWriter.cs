@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -11,9 +10,9 @@ namespace Realm.WasmBindgen;
 
 public static class WasmLldbScriptWriter
 {
-	public static void GenerateLldbScript(string repoRoot, Compilation compilation)
+	public static void GenerateLldbScript(string repoRoot, Compilation compilation, string? targetPathOverride = null)
 	{
-		string targetPath = Path.Combine(repoRoot, "MapTemplate", "realm_lldb.py");
+		string targetPath = targetPathOverride ?? Path.Combine(repoRoot, "MapTemplate", "realm_lldb.py");
 		string templatePath = Path.Combine(repoRoot, "Realm.WasmBindgen", "realm_lldb.template.py");
 
 		string templateContent = File.Exists(templatePath)
@@ -22,141 +21,91 @@ public static class WasmLldbScriptWriter
 
 		if (string.IsNullOrEmpty(templateContent)) return;
 
-		var sharedMemorySymbol = compilation.GetTypeByMetadataName("Realm.Ecs.EcsSharedMemory");
-		var constants = new List<(string Name, int Value)>();
-		if (sharedMemorySymbol != null)
+		Dictionary<string, int> sharedConstants = DiscoverSharedConstants(compilation);
+		Dictionary<string, ComponentLayout> componentLayouts = WasmDebugTypeDiscovery.DiscoverComponentLayouts(compilation, repoRoot);
+		Dictionary<string, int> componentIds = WasmDebugTypeDiscovery.DiscoverComponentIds(compilation);
+		Dictionary<string, int> componentOffsets = WasmDebugTypeDiscovery.DiscoverComponentOffsets(compilation, repoRoot, componentLayouts, componentIds);
+		Dictionary<string, HandleTypeLayout> handleTypes = WasmDebugTypeDiscovery.DiscoverHandleTypes(compilation, repoRoot, componentLayouts, componentIds, sharedConstants);
+		Dictionary<string, List<string>> hostTypes = DiscoverHostTypes(compilation);
+
+		var builder = new StringBuilder();
+		builder.AppendLine("# Constants auto-discovered from EcsSharedMemory");
+		foreach ((string name, int value) in sharedConstants.OrderBy(pair => pair.Key, StringComparer.Ordinal))
 		{
-			foreach (var member in sharedMemorySymbol.GetMembers())
+			builder.AppendLine($"{name} = {value}");
+		}
+
+		builder.AppendLine();
+		builder.AppendLine("# Component array offsets auto-discovered from EcsWorld.BindSharedMemory");
+		builder.AppendLine("COMPONENT_OFFSETS = {");
+		foreach ((string name, int offset) in componentOffsets.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+		{
+			builder.AppendLine($"    \"{name}\": {offset},");
+		}
+		builder.AppendLine("}");
+
+		builder.AppendLine();
+		builder.AppendLine("# Component element sizes auto-calculated from struct layouts");
+		builder.AppendLine("COMPONENT_SIZES = {");
+		foreach (string componentName in componentOffsets.Keys.OrderBy(name => name, StringComparer.Ordinal))
+		{
+			if (!componentLayouts.TryGetValue(componentName, out ComponentLayout? layout)) continue;
+			builder.AppendLine($"    \"{layout.Name}\": {layout.Size},");
+		}
+		builder.AppendLine("}");
+
+		builder.AppendLine();
+		builder.AppendLine("# Component identifiers auto-discovered from ComponentIds");
+		builder.AppendLine("COMPONENT_IDS = {");
+		foreach ((string name, int id) in componentIds.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+		{
+			builder.AppendLine($"    \"{name}\": {id},");
+		}
+		builder.AppendLine("}");
+
+		builder.AppendLine();
+		builder.AppendLine("# Handle types and their readable properties auto-discovered from Realm.Ecs and Realm.MapAPI");
+		builder.AppendLine("HANDLE_TYPES = {");
+		foreach (HandleTypeLayout handleType in handleTypes.Values.OrderBy(handle => handle.Name, StringComparer.Ordinal))
+		{
+			builder.AppendLine($"    \"{handleType.Name}\": {{");
+			builder.AppendLine($"        \"name\": \"{handleType.Name}\",");
+			builder.AppendLine($"        \"label\": \"{handleType.Label}\",");
+			builder.AppendLine($"        \"value_field\": \"{handleType.ValueField}\",");
+			builder.AppendLine($"        \"min_value\": {handleType.MinValue},");
+			builder.AppendLine($"        \"max_value\": {handleType.MaxValue},");
+			builder.AppendLine("        \"fields\": [");
+			foreach (HandleFieldSpec field in handleType.Fields)
 			{
-				if (member is IFieldSymbol fieldSymbol && fieldSymbol.IsConst && fieldSymbol.HasConstantValue && fieldSymbol.ConstantValue is int intVal)
-				{
-					constants.Add((fieldSymbol.Name, intVal));
-				}
+				builder.AppendLine($"            {FormatField(field)},");
 			}
+			builder.AppendLine("        ],");
+			builder.AppendLine($"        \"summary_fields\": [{string.Join(", ", handleType.SummaryFields.Select(name => $"\"{name}\""))}],");
+			builder.AppendLine("    },");
 		}
+		builder.AppendLine("}");
 
-		var structSizes = new Dictionary<string, int>();
-		var structSymbols = new[]
+		builder.AppendLine();
+		builder.AppendLine("# Host wrapper types whose properties cross the WASM boundary and cannot be inspected without running threads");
+		builder.AppendLine("HOST_TYPES = {");
+		foreach ((string typeName, List<string> propertyNames) in hostTypes.OrderBy(pair => pair.Key, StringComparer.Ordinal))
 		{
-			("POSITION", "Realm.MapAPI.Position"),
-			("HEALTH", "Realm.MapAPI.Health"),
-			("MANA", "Realm.MapAPI.Mana"),
-			("ATTACK", "Realm.MapAPI.Attack"),
-			("ARMOR", "Realm.MapAPI.Resistances"),
-			("MOVEMENT_STATS", "Realm.MapAPI.MovementStats"),
-			("UNIT_OWNER_PLAYER", "Realm.MapAPI.UnitOwnerPlayer"),
-			("LEVEL", "Realm.MapAPI.Level"),
-			("EXPERIENCE", "Realm.MapAPI.Experience"),
-			("MODEL_SCALE", "Realm.MapAPI.ModelScale"),
-			("ROTATION_Y", "Realm.MapAPI.RotationY"),
-			("PLAYER_RESOURCES", "Realm.MapAPI.PlayerResources"),
-			("SCRIPT_PLAYER", "Realm.MapAPI.ScriptPlayer"),
-			("PLAYER_POPULATION", "Realm.MapAPI.PlayerPopulation"),
-		};
-
-		foreach (var (prefix, typeName) in structSymbols)
-		{
-			var sym = compilation.GetTypeByMetadataName(typeName) ??
-			          compilation.GetTypeByMetadataName($"Realm.MapAPI.Components.{typeName.Substring("Realm.MapAPI.".Length)}");
-			if (sym != null)
+			string label = typeName.EndsWith("_WasmModule", StringComparison.Ordinal) ? typeName.Substring(0, typeName.Length - "_WasmModule".Length) : typeName;
+			builder.AppendLine($"    \"{typeName}\": {{");
+			builder.AppendLine($"        \"name\": \"{typeName}\",");
+			builder.AppendLine($"        \"label\": \"{label}\",");
+			builder.AppendLine("        \"fields\": [");
+			foreach (string propertyName in propertyNames)
 			{
-				CalculateStructLayout(sym, out int size);
-				structSizes[prefix] = size;
+				builder.AppendLine($"            {{ \"name\": \"{propertyName}\" }},");
 			}
-			else
-			{
-				structSizes[prefix] = 0;
-			}
+			builder.AppendLine("        ],");
+			builder.AppendLine("    },");
 		}
+		builder.AppendLine("}");
 
-		var componentIdsSymbol = compilation.GetTypeByMetadataName("Realm.Ecs.ComponentIds");
-		int GetCompId(string name, int fallback)
-		{
-			if (componentIdsSymbol != null)
-			{
-				var member = componentIdsSymbol.GetMembers(name).OfType<IFieldSymbol>().FirstOrDefault();
-				if (member != null && member.IsConst && member.HasConstantValue && member.ConstantValue is int val)
-				{
-					return val;
-				}
-			}
-			return fallback;
-		}
-
-		var playerFields = new List<(string Name, int CompId, string ArrayOffsetName, string ElemSizeName, int SubOffset, string TypeName)>
-		{
-			("Id", -1, "0", "0", 0, "int"),
-			("Gold", GetCompId("PlayerResources", 69), "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 0, "int"),
-			("Wood", GetCompId("PlayerResources", 69), "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 4, "int"),
-			("Stone", GetCompId("PlayerResources", 69), "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 8, "int"),
-			("Ore", GetCompId("PlayerResources", 69), "PLAYER_RESOURCES_OFFSET", "PLAYER_RESOURCES_SIZE", 12, "int"),
-			("IsActive", GetCompId("ScriptPlayer", 31), "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 0, "bool"),
-			("IsComputer", GetCompId("ScriptPlayer", 31), "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 1, "bool"),
-			("Team", GetCompId("ScriptPlayer", 31), "SCRIPT_PLAYER_OFFSET", "SCRIPT_PLAYER_SIZE", 4, "int"),
-			("CurrentPopulation", GetCompId("PlayerPopulation", 24), "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 0, "int"),
-			("MaxPopulation", GetCompId("PlayerPopulation", 24), "PLAYER_POPULATION_OFFSET", "PLAYER_POPULATION_SIZE", 4, "int"),
-		};
-
-		var entityFields = new List<(string Name, int CompId, string ArrayOffsetName, string ElemSizeName, int SubOffset, string TypeName)>
-		{
-			("Id", -1, "0", "0", 0, "int"),
-			("Health", GetCompId("Health", 1), "HEALTH_OFFSET", "HEALTH_SIZE", 0, "float"),
-			("MaxHealth", GetCompId("Health", 1), "HEALTH_OFFSET", "HEALTH_SIZE", 4, "float"),
-			("Mana", GetCompId("Mana", 3), "MANA_OFFSET", "MANA_SIZE", 0, "float"),
-			("MaxMana", GetCompId("Mana", 3), "MANA_OFFSET", "MANA_SIZE", 4, "float"),
-			("ManaRegen", GetCompId("Mana", 3), "MANA_OFFSET", "MANA_SIZE", 8, "float"),
-			("Damage", GetCompId("Attack", 43), "ATTACK_OFFSET", "ATTACK_SIZE", 0, "float"),
-			("Range", GetCompId("Attack", 43), "ATTACK_OFFSET", "ATTACK_SIZE", 4, "float"),
-			("AttackSpeed", GetCompId("Attack", 43), "ATTACK_OFFSET", "ATTACK_SIZE", 8, "float"),
-			("Armor", GetCompId("Resistances", 48), "ARMOR_OFFSET", "ARMOR_SIZE", 0, "float"),
-			("MagicResistance", GetCompId("Resistances", 48), "ARMOR_OFFSET", "ARMOR_SIZE", 4, "float"),
-			("Speed", GetCompId("MovementStats", 57), "MOVEMENT_STATS_OFFSET", "MOVEMENT_STATS_SIZE", 0, "float"),
-			("Position", GetCompId("Position", 0), "POSITION_OFFSET", "POSITION_SIZE", 0, "Vector3"),
-			("Player", GetCompId("UnitOwnerPlayer", 37), "UNIT_OWNER_PLAYER_OFFSET", "UNIT_OWNER_PLAYER_SIZE", 0, "int"),
-			("Level", GetCompId("Level", 106), "LEVEL_OFFSET", "LEVEL_SIZE", 0, "int"),
-			("Experience", GetCompId("Experience", 104), "EXPERIENCE_OFFSET", "EXPERIENCE_SIZE", 0, "float"),
-			("Scale", GetCompId("ModelScale", 108), "MODEL_SCALE_OFFSET", "MODEL_SCALE_SIZE", 0, "float"),
-			("RotationY", GetCompId("RotationY", 112), "ROTATION_Y_OFFSET", "ROTATION_Y_SIZE", 0, "float"),
-		};
-
-		var offsetsBuilder = new StringBuilder();
-		offsetsBuilder.AppendLine("# Constants auto-discovered from EcsSharedMemory");
-		foreach (var (name, value) in constants)
-		{
-			offsetsBuilder.AppendLine($"{name} = {value}");
-		}
-
-		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("# Element sizes auto-calculated from struct layouts");
-		foreach (var (prefix, size) in structSizes)
-		{
-			offsetsBuilder.AppendLine($"{prefix}_SIZE = {size}");
-		}
-
-		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("# Fields auto-discovered for PlayerId (name, comp_id, array_offset, elem_size, sub_offset, type_name)");
-		offsetsBuilder.AppendLine("PLAYER_FIELDS = [");
-		foreach (var f in playerFields)
-		{
-			offsetsBuilder.AppendLine($"    (\"{f.Name}\", {f.CompId}, {f.ArrayOffsetName}, {f.ElemSizeName}, {f.SubOffset}, \"{f.TypeName}\"),");
-		}
-		offsetsBuilder.AppendLine("]");
-
-		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("# Fields auto-discovered for UnitId (name, comp_id, array_offset, elem_size, sub_offset, type_name)");
-		offsetsBuilder.AppendLine("ENTITY_FIELDS = [");
-		foreach (var f in entityFields)
-		{
-			offsetsBuilder.AppendLine($"    (\"{f.Name}\", {f.CompId}, {f.ArrayOffsetName}, {f.ElemSizeName}, {f.SubOffset}, \"{f.TypeName}\"),");
-		}
-		offsetsBuilder.AppendLine("]");
-
-		offsetsBuilder.AppendLine();
-		offsetsBuilder.AppendLine("PLAYER_OFFSETS = {name: (comp_id, array_offset, elem_size, sub_offset, type_name) for name, comp_id, array_offset, elem_size, sub_offset, type_name in PLAYER_FIELDS}");
-		offsetsBuilder.AppendLine("ENTITY_OFFSETS = {name: (comp_id, array_offset, elem_size, sub_offset, type_name) for name, comp_id, array_offset, elem_size, sub_offset, type_name in ENTITY_FIELDS}");
-
-		string scriptContent = templateContent.Replace("# {{OFFSETS}}", offsetsBuilder.ToString().TrimEnd())
-			.Replace("{{OFFSETS}}", offsetsBuilder.ToString().TrimEnd());
+		string scriptContent = templateContent.Replace("# {{OFFSETS}}", builder.ToString().TrimEnd())
+			.Replace("{{OFFSETS}}", builder.ToString().TrimEnd());
 
 		try
 		{
@@ -168,6 +117,91 @@ public static class WasmLldbScriptWriter
 		catch
 		{
 		}
+	}
+
+	private static Dictionary<string, List<string>> DiscoverHostTypes(Compilation compilation)
+	{
+		var hostTypes = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+		INamedTypeSymbol? gameApiSymbol = compilation.GetTypeByMetadataName("Realm.MapAPI.IGameAPI");
+		if (gameApiSymbol == null) return hostTypes;
+
+		List<string> gameApiProperties = gameApiSymbol.GetMembers()
+			.OfType<IPropertySymbol>()
+			.Select(property => property.Name)
+			.Distinct(StringComparer.Ordinal)
+			.OrderBy(name => name, StringComparer.Ordinal)
+			.ToList();
+
+		hostTypes["IGameAPI"] = gameApiProperties;
+		hostTypes["GameAPI_WasmModule"] = gameApiProperties;
+
+		foreach (INamedTypeSymbol entityInterface in WasmEntityDiscovery.DiscoverEntityInterfaces(gameApiSymbol))
+		{
+			List<string> entityProperties = entityInterface.GetMembers()
+				.OfType<IPropertySymbol>()
+				.Select(property => property.Name)
+				.Distinct(StringComparer.Ordinal)
+				.OrderBy(name => name, StringComparer.Ordinal)
+				.ToList();
+
+			hostTypes[entityInterface.Name] = entityProperties;
+			hostTypes[WitIdentifierFormat.CleanInterfaceName(entityInterface) + "_WasmModule"] = entityProperties;
+		}
+
+		return hostTypes;
+	}
+
+	private static Dictionary<string, int> DiscoverSharedConstants(Compilation compilation)
+	{
+		var constants = new Dictionary<string, int>(StringComparer.Ordinal);
+		INamedTypeSymbol? sharedMemorySymbol = compilation.GetTypeByMetadataName("Realm.Ecs.EcsSharedMemory");
+		if (sharedMemorySymbol == null) return constants;
+
+		foreach (IFieldSymbol fieldSymbol in sharedMemorySymbol.GetMembers().OfType<IFieldSymbol>())
+		{
+			if (fieldSymbol.IsConst && fieldSymbol.HasConstantValue && fieldSymbol.ConstantValue is int intValue)
+			{
+				constants[fieldSymbol.Name] = intValue;
+			}
+		}
+
+		return constants;
+	}
+
+	private static string FormatField(HandleFieldSpec field)
+	{
+		var parts = new List<string>
+		{
+			$"\"name\": \"{field.Name}\"",
+			$"\"kind\": \"{field.Kind}\"",
+			$"\"type\": \"{field.TypeName}\""
+		};
+
+		if (field.ComponentName != null) parts.Add($"\"component\": \"{field.ComponentName}\"");
+		if (field.ComponentId >= 0) parts.Add($"\"component_id\": {field.ComponentId}");
+		if (field.SubOffset != 0) parts.Add($"\"sub_offset\": {field.SubOffset}");
+		if (field.IndexOffset != 0) parts.Add($"\"index_offset\": {field.IndexOffset}");
+		if (field.RequiresAlive) parts.Add("\"requires_alive\": True");
+		if (field.Invert) parts.Add("\"invert\": True");
+		if (field.Kind == "valid")
+		{
+			parts.Add($"\"min\": {field.MinValue}");
+			parts.Add($"\"max\": {field.MaxValue}");
+		}
+		if (field.Kind == "constant") parts.Add($"\"constant\": {FormatConstant(field.ConstantValue, field.TypeName)}");
+		if (field.TagNames.Count > 0) parts.Add($"\"tags\": [{string.Join(", ", field.TagNames.Select(name => $"\"{name}\""))}]");
+		if (field.TagIds.Count > 0) parts.Add($"\"tag_ids\": [{string.Join(", ", field.TagIds)}]");
+		if (field.DefaultValue != null) parts.Add($"\"default\": {FormatConstant(field.DefaultValue, field.TypeName)}");
+
+		return "{ " + string.Join(", ", parts) + " }";
+	}
+
+	private static string FormatConstant(object? value, string typeName)
+	{
+		if (value == null) return "None";
+		if (typeName == "bool") return value is true ? "True" : "False";
+		if (typeName == "float") return Convert.ToSingle(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture);
+		return Convert.ToInt32(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
 	}
 
 	public static List<(string Name, int Offset, string TypeName)> CalculateStructLayout(INamedTypeSymbol structSymbol, out int totalSize)
@@ -217,13 +251,21 @@ public static class WasmLldbScriptWriter
 	{
 		int primSize = GetPrimitiveSize(type);
 		if (primSize > 0) return primSize;
-		
+
 		if (type.ToDisplayString() == "System.Numerics.Vector2")
 			return 8;
 		if (type.ToDisplayString() == "System.Numerics.Vector3")
 			return 12;
 		if (type.Name.Contains("FixedBuffer"))
 			return 32;
+
+		AttributeData? inlineArray = type.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.Name == "InlineArrayAttribute");
+		if (inlineArray != null && inlineArray.ConstructorArguments.Length == 1 && inlineArray.ConstructorArguments[0].Value is int elementCount)
+		{
+			IFieldSymbol? elementField = type.GetMembers().OfType<IFieldSymbol>().FirstOrDefault();
+			if (elementField != null) return GetFieldSize(elementField.Type) * elementCount;
+		}
+
 		return 4;
 	}
 
@@ -231,7 +273,7 @@ public static class WasmLldbScriptWriter
 	{
 		int primSize = GetPrimitiveSize(type);
 		if (primSize > 0) return primSize;
-		
+
 		if (type.ToDisplayString() == "System.Numerics.Vector2" || type.ToDisplayString() == "System.Numerics.Vector3")
 			return 4;
 		return 4;

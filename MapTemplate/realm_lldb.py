@@ -2,96 +2,266 @@
 import struct
 
 # Constants auto-discovered from EcsSharedMemory
-MAX_PLAYERS = 25
-MAX_PLAYER_ENTITIES = 26
-MAX_ENTITIES = 8192
-BITSET_CHUNKS = 128
-MAX_COMPONENT_TYPES = 256
-COMPONENT_ARRAY_BASE_OFFSETS_OFFSET = 0
-COMPONENT_STRIDES_OFFSET = 1024
-RANDOM_SEED_OFFSET = 2044
-HEADER_SIZE = 2048
 ACTIVE_ENTITY_BITSET_OFFSET = 2048
 ALIVE_OFFSET = 3072
-ENTITY_MASKS_OFFSET = 11264
-COMPONENTS_START_OFFSET = 273408
-POSITION_OFFSET = 273408
-HEALTH_OFFSET = 371712
-MANA_OFFSET = 535552
-ATTACK_OFFSET = 633856
 ARMOR_OFFSET = 1223680
-MOVEMENT_STATS_OFFSET = 1321984
-UNIT_OWNER_PLAYER_OFFSET = 1485824
-LEVEL_OFFSET = 1518592
+ATTACK_OFFSET = 633856
+BITSET_CHUNKS = 128
+COMPONENTS_START_OFFSET = 273408
+COMPONENT_ARRAY_BASE_OFFSETS_OFFSET = 0
+COMPONENT_STRIDES_OFFSET = 1024
+ENTITY_MASKS_OFFSET = 11264
 EXPERIENCE_OFFSET = 1551360
-MODEL_SCALE_OFFSET = 1584128
-ROTATION_Y_OFFSET = 1616896
-PLAYER_RESOURCES_OFFSET = 1649664
-SCRIPT_PLAYER_OFFSET = 1650912
-PLAYER_POPULATION_OFFSET = 1651612
-MAX_LOBBY_FACTIONS = 16
+HEADER_SIZE = 2048
+HEALTH_OFFSET = 371712
+LEVEL_OFFSET = 1518592
+LOBBY_FACTION_NAMES_OFFSET = 1651840
 LOBBY_FACTION_NAME_CHARACTERS = 24
 LOBBY_ROSTER_HEADER_OFFSET = 1651820
-LOBBY_FACTION_NAMES_OFFSET = 1651840
-PLAYER_ROSTER_SLOTS_OFFSET = 1652608
-UNIT_CHARGES_OFFSET = 1653248
+MANA_OFFSET = 535552
+MAX_COMPONENT_TYPES = 256
+MAX_ENTITIES = 8192
+MAX_LOBBY_FACTIONS = 16
+MAX_PLAYERS = 25
+MAX_PLAYER_ENTITIES = 26
+MODEL_SCALE_OFFSET = 1584128
+MOVEMENT_STATS_OFFSET = 1321984
 PLAYER_DAMAGE_EFFECTIVENESS_OFFSET = 1784320
+PLAYER_POPULATION_OFFSET = 1651612
+PLAYER_RESOURCES_OFFSET = 1649664
+PLAYER_ROSTER_SLOTS_OFFSET = 1652608
+POSITION_OFFSET = 273408
+RANDOM_SEED_OFFSET = 2044
+ROTATION_Y_OFFSET = 1616896
+SCRIPT_PLAYER_OFFSET = 1650912
 TOTAL_SIZE_BYTES = 4194304
+UNIT_CHARGES_OFFSET = 1653248
+UNIT_OWNER_PLAYER_OFFSET = 1485824
 
-# Element sizes auto-calculated from struct layouts
-POSITION_SIZE = 12
-HEALTH_SIZE = 20
-MANA_SIZE = 12
-ATTACK_SIZE = 72
-ARMOR_SIZE = 8
-MOVEMENT_STATS_SIZE = 20
-UNIT_OWNER_PLAYER_SIZE = 4
-LEVEL_SIZE = 4
-EXPERIENCE_SIZE = 4
-MODEL_SCALE_SIZE = 4
-ROTATION_Y_SIZE = 4
-PLAYER_RESOURCES_SIZE = 48
-SCRIPT_PLAYER_SIZE = 36
-PLAYER_POPULATION_SIZE = 8
+# Component array offsets auto-discovered from EcsWorld.BindSharedMemory
+COMPONENT_OFFSETS = {
+    "Attack": 732160,
+    "Experience": 1616896,
+    "Health": 470016,
+    "Level": 1584128,
+    "Mana": 633856,
+    "ModelScale": 1649664,
+    "MovementStats": 1387520,
+    "PlayerDamageEffectiveness": 1784320,
+    "PlayerPopulation": 1750116,
+    "PlayerResources": 1747968,
+    "Position": 273408,
+    "PreviousPosition": 371712,
+    "PreviousRotationY": 1715200,
+    "Resistances": 1321984,
+    "RotationY": 1682432,
+    "ScriptPlayer": 1749216,
+    "UnitCharges": 1653248,
+    "UnitOwnerPlayer": 1551360,
+}
 
-# Fields auto-discovered for PlayerId (name, comp_id, array_offset, elem_size, sub_offset, type_name)
-PLAYER_FIELDS = [
-    ("Id", -1, 0, 0, 0, "int"),
-    ("Gold", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 0, "int"),
-    ("Wood", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 4, "int"),
-    ("Stone", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 8, "int"),
-    ("Ore", 71, PLAYER_RESOURCES_OFFSET, PLAYER_RESOURCES_SIZE, 12, "int"),
-    ("IsActive", 33, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 0, "bool"),
-    ("IsComputer", 33, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 1, "bool"),
-    ("Team", 33, SCRIPT_PLAYER_OFFSET, SCRIPT_PLAYER_SIZE, 4, "int"),
-    ("CurrentPopulation", 26, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 0, "int"),
-    ("MaxPopulation", 26, PLAYER_POPULATION_OFFSET, PLAYER_POPULATION_SIZE, 4, "int"),
-]
+# Component element sizes auto-calculated from struct layouts
+COMPONENT_SIZES = {
+    "Attack": 72,
+    "Experience": 4,
+    "Health": 20,
+    "Level": 4,
+    "Mana": 12,
+    "ModelScale": 4,
+    "MovementStats": 20,
+    "PlayerDamageEffectiveness": 100,
+    "PlayerPopulation": 8,
+    "PlayerResources": 48,
+    "Position": 12,
+    "PreviousPosition": 12,
+    "PreviousRotationY": 4,
+    "Resistances": 8,
+    "RotationY": 4,
+    "ScriptPlayer": 36,
+    "UnitCharges": 16,
+    "UnitOwnerPlayer": 4,
+}
 
-# Fields auto-discovered for UnitId (name, comp_id, array_offset, elem_size, sub_offset, type_name)
-ENTITY_FIELDS = [
-    ("Id", -1, 0, 0, 0, "int"),
-    ("Health", 2, HEALTH_OFFSET, HEALTH_SIZE, 0, "float"),
-    ("MaxHealth", 2, HEALTH_OFFSET, HEALTH_SIZE, 4, "float"),
-    ("Mana", 4, MANA_OFFSET, MANA_SIZE, 0, "float"),
-    ("MaxMana", 4, MANA_OFFSET, MANA_SIZE, 4, "float"),
-    ("ManaRegen", 4, MANA_OFFSET, MANA_SIZE, 8, "float"),
-    ("Damage", 45, ATTACK_OFFSET, ATTACK_SIZE, 0, "float"),
-    ("Range", 45, ATTACK_OFFSET, ATTACK_SIZE, 4, "float"),
-    ("AttackSpeed", 45, ATTACK_OFFSET, ATTACK_SIZE, 8, "float"),
-    ("Armor", 50, ARMOR_OFFSET, ARMOR_SIZE, 0, "float"),
-    ("MagicResistance", 50, ARMOR_OFFSET, ARMOR_SIZE, 4, "float"),
-    ("Speed", 59, MOVEMENT_STATS_OFFSET, MOVEMENT_STATS_SIZE, 0, "float"),
-    ("Position", 0, POSITION_OFFSET, POSITION_SIZE, 0, "Vector3"),
-    ("Player", 39, UNIT_OWNER_PLAYER_OFFSET, UNIT_OWNER_PLAYER_SIZE, 0, "int"),
-    ("Level", 108, LEVEL_OFFSET, LEVEL_SIZE, 0, "int"),
-    ("Experience", 106, EXPERIENCE_OFFSET, EXPERIENCE_SIZE, 0, "float"),
-    ("Scale", 110, MODEL_SCALE_OFFSET, MODEL_SCALE_SIZE, 0, "float"),
-    ("RotationY", 114, ROTATION_Y_OFFSET, ROTATION_Y_SIZE, 0, "float"),
-]
+# Component identifiers auto-discovered from ComponentIds
+COMPONENT_IDS = {
+    "AnimationsFrozen": 127,
+    "Attack": 45,
+    "Building": 94,
+    "CommandsFrozen": 125,
+    "Dead": 97,
+    "Experience": 106,
+    "Frozen": 125,
+    "Health": 2,
+    "Hero": 98,
+    "Invulnerable": 99,
+    "Level": 108,
+    "Mana": 4,
+    "ModelScale": 110,
+    "MovementStats": 59,
+    "OverheadBarsHidden": 126,
+    "PlayerDamageEffectiveness": 134,
+    "PlayerPopulation": 26,
+    "PlayerResources": 71,
+    "Position": 0,
+    "PreviousPosition": 1,
+    "PreviousRotationY": 115,
+    "Resistances": 50,
+    "RotationY": 114,
+    "ScriptPlayer": 33,
+    "Unit": 105,
+    "UnitCharges": 133,
+    "UnitOwnerPlayer": 39,
+}
 
-PLAYER_OFFSETS = {name: (comp_id, array_offset, elem_size, sub_offset, type_name) for name, comp_id, array_offset, elem_size, sub_offset, type_name in PLAYER_FIELDS}
-ENTITY_OFFSETS = {name: (comp_id, array_offset, elem_size, sub_offset, type_name) for name, comp_id, array_offset, elem_size, sub_offset, type_name in ENTITY_FIELDS}
+# Handle types and their readable properties auto-discovered from Realm.Ecs and Realm.MapAPI
+HANDLE_TYPES = {
+    "LootItemId": {
+        "name": "LootItemId",
+        "label": "LootItem",
+        "value_field": "Value",
+        "min_value": 1,
+        "max_value": 8192,
+        "fields": [
+            { "name": "Value", "kind": "value", "type": "int" },
+            { "name": "IsValid", "kind": "valid", "type": "bool", "min": 1, "max": 8192 },
+            { "name": "UniqueId", "kind": "value", "type": "int" },
+            { "name": "Id", "kind": "value", "type": "int" },
+            { "name": "ItemTypeId", "kind": "host", "type": "string" },
+            { "name": "Position", "kind": "host", "type": "string" },
+            { "name": "Charges", "kind": "host", "type": "string" },
+            { "name": "Lifetime", "kind": "host", "type": "string" },
+            { "name": "PickupRadius", "kind": "host", "type": "string" },
+            { "name": "AutoPickup", "kind": "host", "type": "string" },
+            { "name": "OwnerPlayerIndex", "kind": "host", "type": "string" },
+            { "name": "IsDespawned", "kind": "host", "type": "string" },
+        ],
+        "summary_fields": [],
+    },
+    "PlayerId": {
+        "name": "PlayerId",
+        "label": "Player",
+        "value_field": "Value",
+        "min_value": 0,
+        "max_value": 25,
+        "fields": [
+            { "name": "Value", "kind": "value", "type": "int" },
+            { "name": "IsValid", "kind": "valid", "type": "bool", "min": 0, "max": 25 },
+            { "name": "Index", "kind": "value", "type": "int" },
+            { "name": "Id", "kind": "value", "type": "int" },
+            { "name": "IsComputer", "kind": "component", "type": "bool", "component": "ScriptPlayer", "component_id": 33, "sub_offset": 13, "default": False },
+            { "name": "Team", "kind": "component", "type": "int", "component": "ScriptPlayer", "component_id": 33, "sub_offset": 16, "default": 0 },
+            { "name": "Gold", "kind": "component", "type": "int", "component": "PlayerResources", "component_id": 71, "index_offset": 1, "default": 0 },
+            { "name": "Wood", "kind": "component", "type": "int", "component": "PlayerResources", "component_id": 71, "sub_offset": 4, "index_offset": 1, "default": 0 },
+            { "name": "Stone", "kind": "component", "type": "int", "component": "PlayerResources", "component_id": 71, "sub_offset": 8, "index_offset": 1, "default": 0 },
+            { "name": "MaxPopulation", "kind": "component", "type": "int", "component": "PlayerPopulation", "component_id": 26, "sub_offset": 4, "index_offset": 1, "default": 0 },
+            { "name": "Kills", "kind": "component", "type": "int", "component": "ScriptPlayer", "component_id": 33, "sub_offset": 24, "default": 0 },
+            { "name": "Name", "kind": "host", "type": "string" },
+            { "name": "IsActive", "kind": "component", "type": "bool", "component": "ScriptPlayer", "component_id": 33, "sub_offset": 12, "default": False },
+            { "name": "IsHost", "kind": "host", "type": "string" },
+            { "name": "CurrentPopulation", "kind": "component", "type": "int", "component": "PlayerPopulation", "component_id": 26, "index_offset": 1, "default": 0 },
+            { "name": "StartLocation", "kind": "host", "type": "string" },
+            { "name": "Language", "kind": "host", "type": "string" },
+            { "name": "ColorHex", "kind": "host", "type": "string" },
+            { "name": "Color", "kind": "host", "type": "string" },
+            { "name": "ColoredName", "kind": "host", "type": "string" },
+        ],
+        "summary_fields": ["Gold", "Wood", "CurrentPopulation", "MaxPopulation"],
+    },
+    "ResourceNodeId": {
+        "name": "ResourceNodeId",
+        "label": "ResourceNode",
+        "value_field": "Value",
+        "min_value": 0,
+        "max_value": 2147483647,
+        "fields": [
+            { "name": "Value", "kind": "value", "type": "int" },
+            { "name": "IsValid", "kind": "valid", "type": "bool", "min": 0, "max": 2147483647 },
+            { "name": "Index", "kind": "value", "type": "int" },
+            { "name": "Id", "kind": "value", "type": "int" },
+            { "name": "ResourceAmount", "kind": "host", "type": "string" },
+            { "name": "ResourceType", "kind": "host", "type": "string" },
+            { "name": "Position", "kind": "host", "type": "string" },
+            { "name": "IsDepleted", "kind": "host", "type": "string" },
+        ],
+        "summary_fields": [],
+    },
+    "UnitId": {
+        "name": "UnitId",
+        "label": "Unit",
+        "value_field": "Value",
+        "min_value": 1,
+        "max_value": 8192,
+        "fields": [
+            { "name": "Value", "kind": "value", "type": "int" },
+            { "name": "IsValid", "kind": "valid", "type": "bool", "min": 1, "max": 8192 },
+            { "name": "UniqueId", "kind": "value", "type": "int" },
+            { "name": "Id", "kind": "value", "type": "int" },
+            { "name": "Health", "kind": "component", "type": "float", "component": "Health", "component_id": 2, "requires_alive": True, "default": 0 },
+            { "name": "MaxHealth", "kind": "component", "type": "float", "component": "Health", "component_id": 2, "sub_offset": 4, "requires_alive": True, "default": 0 },
+            { "name": "Mana", "kind": "component", "type": "float", "component": "Mana", "component_id": 4, "requires_alive": True, "default": 0 },
+            { "name": "MaxMana", "kind": "component", "type": "float", "component": "Mana", "component_id": 4, "sub_offset": 4, "requires_alive": True, "default": 0 },
+            { "name": "ManaRegen", "kind": "component", "type": "float", "component": "Mana", "component_id": 4, "sub_offset": 8, "requires_alive": True, "default": 0 },
+            { "name": "Damage", "kind": "component", "type": "float", "component": "Attack", "component_id": 45, "requires_alive": True, "default": 0 },
+            { "name": "Range", "kind": "component", "type": "float", "component": "Attack", "component_id": 45, "sub_offset": 4, "requires_alive": True, "default": 0 },
+            { "name": "Armor", "kind": "component", "type": "float", "component": "Resistances", "component_id": 50, "requires_alive": True, "default": 0 },
+            { "name": "Speed", "kind": "component", "type": "float", "component": "MovementStats", "component_id": 59, "requires_alive": True, "default": 0 },
+            { "name": "AttackSpeed", "kind": "component", "type": "float", "component": "Attack", "component_id": 45, "sub_offset": 8, "requires_alive": True, "default": 0 },
+            { "name": "Name", "kind": "host", "type": "string" },
+            { "name": "Player", "kind": "component", "type": "int", "component": "UnitOwnerPlayer", "component_id": 39, "requires_alive": True, "default": -1 },
+            { "name": "Level", "kind": "component", "type": "int", "component": "Level", "component_id": 108, "requires_alive": True, "default": 0 },
+            { "name": "Experience", "kind": "component", "type": "float", "component": "Experience", "component_id": 106, "requires_alive": True, "default": 0 },
+            { "name": "Charges", "kind": "component", "type": "int", "component": "UnitCharges", "component_id": 133, "requires_alive": True, "default": 0 },
+            { "name": "MaximumCharges", "kind": "component", "type": "int", "component": "UnitCharges", "component_id": 133, "sub_offset": 4, "requires_alive": True, "default": 0 },
+            { "name": "ChargeRechargeSeconds", "kind": "component", "type": "float", "component": "UnitCharges", "component_id": 133, "sub_offset": 8, "requires_alive": True, "default": 0 },
+            { "name": "ChargeRechargeRemainingSeconds", "kind": "host", "type": "string" },
+            { "name": "Scale", "kind": "component", "type": "float", "component": "ModelScale", "component_id": 110, "requires_alive": True, "default": 1 },
+            { "name": "Invulnerable", "kind": "tag", "type": "bool", "component": "Invulnerable", "component_id": 99, "requires_alive": True, "tags": ["Invulnerable"], "tag_ids": [99], "default": False },
+            { "name": "AnimationsFrozen", "kind": "tag", "type": "bool", "component": "AnimationsFrozen", "component_id": 127, "requires_alive": True, "tags": ["AnimationsFrozen"], "tag_ids": [127], "default": False },
+            { "name": "CommandsFrozen", "kind": "tag", "type": "bool", "component": "CommandsFrozen", "component_id": 125, "requires_alive": True, "tags": ["CommandsFrozen"], "tag_ids": [125], "default": False },
+            { "name": "Frozen", "kind": "tag_any", "type": "bool", "component": "CommandsFrozen", "component_id": 125, "requires_alive": True, "tags": ["CommandsFrozen", "AnimationsFrozen"], "tag_ids": [125, 127], "default": False },
+            { "name": "HideHealthAndManaBars", "kind": "tag", "type": "bool", "component": "OverheadBarsHidden", "component_id": 126, "requires_alive": True, "tags": ["OverheadBarsHidden"], "tag_ids": [126], "default": False },
+            { "name": "Facing", "kind": "component", "type": "float", "component": "RotationY", "component_id": 114, "requires_alive": True, "default": 0 },
+            { "name": "MagicResistance", "kind": "component", "type": "float", "component": "Resistances", "component_id": 50, "sub_offset": 4, "requires_alive": True, "default": 0 },
+            { "name": "Position", "kind": "component", "type": "Vector3", "component": "Position", "component_id": 0, "requires_alive": True, "default": 0 },
+            { "name": "TemplateID", "kind": "host", "type": "string" },
+            { "name": "TypeId", "kind": "host", "type": "string" },
+            { "name": "UnitTypeId", "kind": "host", "type": "string" },
+            { "name": "UnitIdString", "kind": "host", "type": "string" },
+            { "name": "IsBuilding", "kind": "tag", "type": "bool", "component": "Building", "component_id": 94, "requires_alive": True, "tags": ["Building"], "tag_ids": [94], "default": False },
+            { "name": "IsHero", "kind": "tag", "type": "bool", "component": "Hero", "component_id": 98, "requires_alive": True, "tags": ["Hero"], "tag_ids": [98], "default": False },
+            { "name": "XpBounty", "kind": "constant", "type": "float", "constant": 0 },
+            { "name": "GoldBounty", "kind": "constant", "type": "float", "constant": 0 },
+            { "name": "IsDead", "kind": "alive", "type": "bool", "invert": True, "default": False },
+        ],
+        "summary_fields": ["Health", "MaxHealth", "Position", "Mana"],
+    },
+}
+
+# Host wrapper types whose properties cross the WASM boundary and cannot be inspected without running threads
+HOST_TYPES = {
+    "GameAPI_WasmModule": {
+        "name": "GameAPI_WasmModule",
+        "label": "GameAPI",
+        "fields": [
+            { "name": "CheatsEnabled" },
+            { "name": "GameElapsedTime" },
+            { "name": "PlayerCount" },
+            { "name": "ResourceNodeCount" },
+        ],
+    },
+    "IGameAPI": {
+        "name": "IGameAPI",
+        "label": "IGameAPI",
+        "fields": [
+            { "name": "CheatsEnabled" },
+            { "name": "GameElapsedTime" },
+            { "name": "PlayerCount" },
+            { "name": "ResourceNodeCount" },
+        ],
+    },
+}
+
+INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"
 
 _CACHED_BASE_ADDR = 0
 
@@ -243,6 +413,52 @@ def resolve_component_stride(process, base_addr, comp_id, default_stride):
             return val
     return default_stride
 
+def read_bytes(process, address, size):
+    if address <= 0:
+        return None
+    err = lldb.SBError()
+    data = process.ReadMemory(address, size, err)
+    if not err.Success() or len(data) != size:
+        return None
+    return data
+
+def read_byte(process, address):
+    data = read_bytes(process, address, 1)
+    if data is None:
+        return 0
+    return data[0]
+
+def read_int(process, address):
+    data = read_bytes(process, address, 4)
+    if data is None:
+        return 0
+    return struct.unpack_from("<i", data, 0)[0]
+
+def read_float(process, address):
+    data = read_bytes(process, address, 4)
+    if data is None:
+        return 0.0
+    return struct.unpack_from("<f", data, 0)[0]
+
+def read_ulong(process, address):
+    data = read_bytes(process, address, 8)
+    if data is None:
+        return 0
+    return struct.unpack_from("<Q", data, 0)[0]
+
+def read_alive(process, base_addr, entity_id):
+    if entity_id <= 0 or entity_id >= globals().get("MAX_ENTITIES", 8192):
+        return False
+    return read_byte(process, base_addr + globals().get("ALIVE_OFFSET", 3072) + entity_id) != 0
+
+def has_component(process, base_addr, entity_id, component_id):
+    if entity_id <= 0 or entity_id >= globals().get("MAX_ENTITIES", 8192) or component_id < 0:
+        return False
+    word = component_id >> 6
+    bit = component_id & 63
+    address = base_addr + globals().get("ENTITY_MASKS_OFFSET", 11264) + entity_id * 32 + word * 8
+    return (read_ulong(process, address) & (1 << bit)) != 0
+
 def extract_id_value(valobj):
     if not valobj or not valobj.IsValid():
         return -1
@@ -281,179 +497,222 @@ def resolve_field_type(target, f_type_name):
             f_type = target.GetBasicType(lldb.eBasicTypeInt)
     return f_type
 
-class PlayerIdSyntheticProvider:
+def make_int_value(valobj, name, value):
+    target = valobj.GetTarget()
+    data = lldb.SBData.CreateDataFromSInt32Array(lldb.eByteOrderLittle, 4, [int(value)])
+    return valobj.CreateValueFromData(name, data, target.GetBasicType(lldb.eBasicTypeInt))
+
+def make_float_value(valobj, name, value):
+    target = valobj.GetTarget()
+    bits = struct.unpack("<I", struct.pack("<f", float(value)))[0]
+    data = lldb.SBData.CreateDataFromUInt32Array(lldb.eByteOrderLittle, 4, [bits])
+    return valobj.CreateValueFromData(name, data, target.GetBasicType(lldb.eBasicTypeFloat))
+
+def make_bool_value(valobj, name, value):
+    target = valobj.GetTarget()
+    data = lldb.SBData.CreateDataFromUInt64Array(lldb.eByteOrderLittle, 1, [1 if value else 0])
+    return valobj.CreateValueFromData(name, data, target.GetBasicType(lldb.eBasicTypeBool))
+
+def make_string_value(valobj, name, text):
+    target = valobj.GetTarget()
+    data = lldb.SBData.CreateDataFromCString(lldb.eByteOrderLittle, 1, text)
+    char_type = target.GetBasicType(lldb.eBasicTypeChar)
+    return valobj.CreateValueFromData(name, data, char_type.GetArrayType(len(text) + 1))
+
+def make_value(valobj, name, type_name, value):
+    if type_name == "float":
+        return make_float_value(valobj, name, value)
+    if type_name == "bool":
+        return make_bool_value(valobj, name, value)
+    if type_name == "string":
+        return make_string_value(valobj, name, value)
+    if type_name == "Vector3":
+        return make_string_value(valobj, name, str(value))
+    return make_int_value(valobj, name, value)
+
+def find_handle_spec(type_name):
+    if not type_name:
+        return None
+    short_name = type_name.split(".")[-1]
+    if short_name in HANDLE_TYPES:
+        return HANDLE_TYPES[short_name]
+    for name, spec in HANDLE_TYPES.items():
+        if type_name.endswith(name):
+            return spec
+    return None
+
+def find_host_spec(type_name):
+    if not type_name:
+        return None
+    short_name = type_name.split(".")[-1]
+    if short_name in HOST_TYPES:
+        return HOST_TYPES[short_name]
+    for name, spec in HOST_TYPES.items():
+        if type_name.endswith(name):
+            return spec
+    return None
+
+def find_field_spec(handle_spec, field_name):
+    for field in handle_spec.get("fields", []):
+        if field.get("name") == field_name:
+            return field
+    return None
+
+def read_field_value(valobj, handle_spec, field_spec):
+    kind = field_spec.get("kind", "host")
+    value = extract_id_value(valobj)
+
+    if kind == "value":
+        return value
+    if kind == "valid":
+        return field_spec.get("min", 0) <= value < field_spec.get("max", 2147483647)
+    if kind == "constant":
+        return field_spec.get("constant")
+    if kind == "host":
+        return INSPECTION_REQUIRES_THREADS
+
+    target = valobj.GetTarget()
+    base_addr = get_shared_memory_base(target)
+    if base_addr == 0:
+        return field_spec.get("default")
+
+    process = target.GetProcess()
+
+    if kind == "alive":
+        alive = read_alive(process, base_addr, value)
+        return (not alive) if field_spec.get("invert") else alive
+
+    if kind == "tag":
+        if not (handle_spec.get("min_value", 0) <= value < handle_spec.get("max_value", 2147483647)):
+            return field_spec.get("default", False)
+        if field_spec.get("requires_alive") and not read_alive(process, base_addr, value):
+            return field_spec.get("default", False)
+        return has_component(process, base_addr, value, field_spec.get("component_id", -1))
+
+    if kind == "tag_any":
+        if not (handle_spec.get("min_value", 0) <= value < handle_spec.get("max_value", 2147483647)):
+            return field_spec.get("default", False)
+        if field_spec.get("requires_alive") and not read_alive(process, base_addr, value):
+            return field_spec.get("default", False)
+        for tag_id in field_spec.get("tag_ids", []):
+            if has_component(process, base_addr, value, tag_id):
+                return True
+        return False
+
+    if kind == "component":
+        if not (handle_spec.get("min_value", 0) <= value < handle_spec.get("max_value", 2147483647)):
+            return field_spec.get("default")
+        if field_spec.get("requires_alive") and not read_alive(process, base_addr, value):
+            return field_spec.get("default")
+        index = value + field_spec.get("index_offset", 0)
+        component_name = field_spec.get("component")
+        component_id = field_spec.get("component_id", -1)
+        default_offset = COMPONENT_OFFSETS.get(component_name, 0)
+        default_stride = COMPONENT_SIZES.get(component_name, 0)
+        array_base = resolve_array_base(process, base_addr, component_id, default_offset)
+        stride = resolve_component_stride(process, base_addr, component_id, default_stride)
+        address = array_base + index * stride + field_spec.get("sub_offset", 0)
+        type_name = field_spec.get("type", "int")
+        if type_name == "float":
+            return read_float(process, address)
+        if type_name == "bool":
+            return read_byte(process, address) != 0
+        if type_name == "Vector3":
+            return (read_float(process, address), read_float(process, address + 4), read_float(process, address + 8))
+        return read_int(process, address)
+
+    return None
+
+def format_summary_value(value):
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float):
+        return f"{value:.2f}"
+    if isinstance(value, tuple):
+        return "(" + ", ".join(f"{part:.1f}" for part in value) + ")"
+    return str(value)
+
+class RealmHandleSyntheticProvider:
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
+        self.spec = find_handle_spec(valobj.GetType().GetName())
+        self.fields = self.spec.get("fields", []) if self.spec else []
 
     def update(self):
         return False
 
     def num_children(self):
-        return len(PLAYER_FIELDS)
+        return len(self.fields)
 
     def has_children(self):
-        return len(PLAYER_FIELDS) > 0
+        return len(self.fields) > 0
 
     def get_child_index(self, name):
-        for idx, entry in enumerate(PLAYER_FIELDS):
-            if entry[0] == name:
-                return idx
+        for index, field in enumerate(self.fields):
+            if field.get("name") == name:
+                return index
         return -1
 
     def get_child_at_index(self, index):
-        if index < 0 or index >= len(PLAYER_FIELDS):
+        if index < 0 or index >= len(self.fields):
             return None
-        player_id = extract_id_value(self.valobj)
-        if player_id < 0 or player_id >= MAX_PLAYERS:
+        field = self.fields[index]
+        value = read_field_value(self.valobj, self.spec, field)
+        if value is None:
             return None
+        return make_value(self.valobj, field.get("name", "Value"), field.get("type", "int"), value)
 
-        entry = PLAYER_FIELDS[index]
-        target = self.valobj.GetTarget()
-        if entry[0] in ("Id", "Value"):
-            f_type = target.GetBasicType(lldb.eBasicTypeInt)
-            data = lldb.SBData.CreateDataFromSInt32Array(lldb.eByteOrderLittle, 4, [player_id])
-            return self.valobj.CreateValueFromData(entry[0], data, f_type)
-
-        base_addr = get_shared_memory_base(target)
-        if base_addr == 0:
-            return None
-
-        process = target.GetProcess()
-        if len(entry) == 6:
-            f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
-            arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
-            stride = resolve_component_stride(process, base_addr, comp_id, elem_size)
-        else:
-            f_name, array_offset, elem_size, sub_offset, f_type_name = entry
-            arr_base = base_addr + array_offset
-            stride = elem_size
-
-        slot_addr = arr_base + (player_id * stride) + sub_offset
-        f_type = resolve_field_type(target, f_type_name)
-
-        return self.valobj.CreateValueFromAddress(f_name, slot_addr, f_type)
-
-class UnitIdSyntheticProvider:
+class HostTypeSyntheticProvider:
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
+        self.spec = find_host_spec(valobj.GetType().GetName())
+        self.fields = self.spec.get("fields", []) if self.spec else []
 
     def update(self):
         return False
 
     def num_children(self):
-        return len(ENTITY_FIELDS)
+        return len(self.fields)
 
     def has_children(self):
-        return len(ENTITY_FIELDS) > 0
+        return len(self.fields) > 0
 
     def get_child_index(self, name):
-        for idx, entry in enumerate(ENTITY_FIELDS):
-            if entry[0] == name:
-                return idx
+        for index, field in enumerate(self.fields):
+            if field.get("name") == name:
+                return index
         return -1
 
     def get_child_at_index(self, index):
-        if index < 0 or index >= len(ENTITY_FIELDS):
+        if index < 0 or index >= len(self.fields):
             return None
-        unit_id = extract_id_value(self.valobj)
-        if unit_id < 0 or unit_id >= MAX_ENTITIES:
-            return None
+        field = self.fields[index]
+        return make_string_value(self.valobj, field.get("name", "Value"), INSPECTION_REQUIRES_THREADS)
 
-        entry = ENTITY_FIELDS[index]
-        target = self.valobj.GetTarget()
-        if entry[0] in ("Id", "Value"):
-            f_type = target.GetBasicType(lldb.eBasicTypeInt)
-            data = lldb.SBData.CreateDataFromSInt32Array(lldb.eByteOrderLittle, 4, [unit_id])
-            return self.valobj.CreateValueFromData(entry[0], data, f_type)
+def HostTypeSummaryProvider(valobj, internal_dict):
+    spec = find_host_spec(valobj.GetType().GetName())
+    if not spec:
+        return ""
+    return f"{spec.get('label', spec.get('name', 'Host'))} (host boundary)"
 
-        base_addr = get_shared_memory_base(target)
-        if base_addr == 0:
-            return None
-
-        process = target.GetProcess()
-        if len(entry) == 6:
-            f_name, comp_id, array_offset, elem_size, sub_offset, f_type_name = entry
-            arr_base = resolve_array_base(process, base_addr, comp_id, array_offset)
-            stride = resolve_component_stride(process, base_addr, comp_id, elem_size)
-        else:
-            f_name, array_offset, elem_size, sub_offset, f_type_name = entry
-            arr_base = base_addr + array_offset
-            stride = elem_size
-
-        slot_addr = arr_base + (unit_id * stride) + sub_offset
-        f_type = resolve_field_type(target, f_type_name)
-
-        return self.valobj.CreateValueFromAddress(f_name, slot_addr, f_type)
-
-def PlayerIdSummaryProvider(valobj, internal_dict):
-    player_id = extract_id_value(valobj)
-    if player_id < 0 or player_id >= MAX_PLAYERS:
-        return f"Player {player_id} [Invalid]"
-
-    target = valobj.GetTarget()
-    base_addr = get_shared_memory_base(target)
-    if base_addr == 0:
-        return f"Player {player_id}"
-
-    error = lldb.SBError()
-    process = target.GetProcess()
-
-    res_base = resolve_array_base(process, base_addr, 69, PLAYER_RESOURCES_OFFSET)
-    res_stride = resolve_component_stride(process, base_addr, 69, PLAYER_RESOURCES_SIZE)
-    res_addr = res_base + (player_id * res_stride)
-    res_bytes = process.ReadMemory(res_addr, 16, error)
-    gold = 0
-    wood = 0
-    if error.Success() and len(res_bytes) >= 8:
-        gold = struct.unpack_from("<i", res_bytes, 0)[0]
-        wood = struct.unpack_from("<i", res_bytes, 4)[0]
-
-    pop_base = resolve_array_base(process, base_addr, 24, PLAYER_POPULATION_OFFSET)
-    pop_stride = resolve_component_stride(process, base_addr, 24, PLAYER_POPULATION_SIZE)
-    pop_addr = pop_base + (player_id * pop_stride)
-    pop_bytes = process.ReadMemory(pop_addr, 8, error)
-    pop = 0
-    max_pop = 0
-    if error.Success() and len(pop_bytes) >= 8:
-        pop = struct.unpack_from("<i", pop_bytes, 0)[0]
-        max_pop = struct.unpack_from("<i", pop_bytes, 4)[0]
-
-    return f"Player {player_id} [Gold: {gold}, Wood: {wood}, Pop: {pop}/{max_pop}]"
-
-def UnitIdSummaryProvider(valobj, internal_dict):
-    unit_id = extract_id_value(valobj)
-    if unit_id < 0 or unit_id >= MAX_ENTITIES:
-        return f"Unit {unit_id} [Invalid]"
-
-    target = valobj.GetTarget()
-    base_addr = get_shared_memory_base(target)
-    if base_addr == 0:
-        return f"Unit {unit_id}"
-
-    error = lldb.SBError()
-    process = target.GetProcess()
-
-    hp_base = resolve_array_base(process, base_addr, 1, HEALTH_OFFSET)
-    hp_stride = resolve_component_stride(process, base_addr, 1, HEALTH_SIZE)
-    hp_addr = hp_base + (unit_id * hp_stride)
-    hp_bytes = process.ReadMemory(hp_addr, 8, error)
-    hp = 0.0
-    max_hp = 0.0
-    if error.Success() and len(hp_bytes) >= 8:
-        hp = struct.unpack_from("<f", hp_bytes, 0)[0]
-        max_hp = struct.unpack_from("<f", hp_bytes, 4)[0]
-
-    pos_base = resolve_array_base(process, base_addr, 0, POSITION_OFFSET)
-    pos_stride = resolve_component_stride(process, base_addr, 0, POSITION_SIZE)
-    pos_addr = pos_base + (unit_id * pos_stride)
-    pos_bytes = process.ReadMemory(pos_addr, 12, error)
-    pos_x = 0.0
-    pos_z = 0.0
-    if error.Success() and len(pos_bytes) >= 12:
-        pos_x = struct.unpack_from("<f", pos_bytes, 0)[0]
-        pos_z = struct.unpack_from("<f", pos_bytes, 8)[0]
-
-    return f"Unit {unit_id} [Health: {int(hp)}/{int(max_hp)}, Pos: ({pos_x:.1f}, {pos_z:.1f})]"
+def RealmHandleSummaryProvider(valobj, internal_dict):
+    spec = find_handle_spec(valobj.GetType().GetName())
+    if not spec:
+        return ""
+    value = extract_id_value(valobj)
+    parts = []
+    for field_name in spec.get("summary_fields", []):
+        field = find_field_spec(spec, field_name)
+        if not field:
+            continue
+        field_value = read_field_value(valobj, spec, field)
+        if field_value is None:
+            continue
+        parts.append(f"{field_name}: {format_summary_value(field_value)}")
+    label = spec.get("label", spec.get("name", "Handle"))
+    if parts:
+        return f"{label} {value} [{', '.join(parts)}]"
+    return f"{label} {value}"
 
 def realm_attach(debugger, command, result, internal_dict):
     import os
@@ -531,11 +790,15 @@ def realm_load_modules(debugger, command, result, internal_dict):
 def __lldb_init_module(debugger, internal_dict):
     category = "Realm"
 
-    debugger.HandleCommand(f"type synthetic add -l realm_lldb.PlayerIdSyntheticProvider -x \"(^|.*[.:_ ])PlayerId$\" -w {category}")
-    debugger.HandleCommand(f"type summary add -F realm_lldb.PlayerIdSummaryProvider -x \"(^|.*[.:_ ])PlayerId$\" -w {category}")
+    for type_name in HANDLE_TYPES:
+        regex = f"(^|.*[.:_ ]){type_name}(\\s*[*&])?$"
+        debugger.HandleCommand(f"type synthetic add -l realm_lldb.RealmHandleSyntheticProvider -x \"{regex}\" -w {category}")
+        debugger.HandleCommand(f"type summary add -F realm_lldb.RealmHandleSummaryProvider -x \"{regex}\" -w {category}")
 
-    debugger.HandleCommand(f"type synthetic add -l realm_lldb.UnitIdSyntheticProvider -x \"(^|.*[.:_ ])UnitId$\" -w {category}")
-    debugger.HandleCommand(f"type summary add -F realm_lldb.UnitIdSummaryProvider -x \"(^|.*[.:_ ])UnitId$\" -w {category}")
+    for type_name in HOST_TYPES:
+        regex = f"(^|.*[.:_ ]){type_name}(\\s*[*&])?$"
+        debugger.HandleCommand(f"type synthetic add -l realm_lldb.HostTypeSyntheticProvider -x \"{regex}\" -w {category}")
+        debugger.HandleCommand(f"type summary add -F realm_lldb.HostTypeSummaryProvider -x \"{regex}\" -w {category}")
 
     debugger.HandleCommand(f"type summary add -s \"(${{var.X}}, ${{var.Y}}, ${{var.Z}})\" -x \"(^|.*[.:_ ])Vector3$\" -w {category}")
 
