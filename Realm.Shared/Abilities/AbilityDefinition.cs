@@ -33,7 +33,7 @@ public class AbilityDefinition
 	public float Damage { get; set; } = 0f;
 
 	public float Healing { get; set; } = 0f;
-	public bool AutoCastEnabled { get; set; } = true;
+	public bool AutoCastEnabled { get; set; }
 	public AutoCastTargetRule AutoCastTargetRule { get; set; } = AutoCastTargetRule.NearestEnemy;
 	public float AutoCastAllyHealthPercentBelow { get; set; } = 1f;
 	public float AutoCastManaReserve { get; set; }
