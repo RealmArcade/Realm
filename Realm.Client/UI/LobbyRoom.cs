@@ -68,7 +68,7 @@ public partial class LobbyRoom : Control
 	private SpinBox? _uniqueBuildingsSpin;
 	private SpinBox? _buildingSupplySpin;
 	private SpinBox? _capacityMultiplierSpin;
-	private SpinBox? _chargeMultiplierSpin;
+	private SpinBox? _productionMultiplierSpin;
 	private OptionButton? _shroudModeOption;
 	private CheckBox? _mirroredDraftCheck;
 	private CheckBox? _openPoolDraftingCheck;
@@ -843,7 +843,7 @@ public partial class LobbyRoom : Control
 		_uniqueBuildingsSpin = AddCountSetting(grid, TranslationServer.Translate("Copies of one building:"), 0, 24, MatchOption.MaximumUniqueBuildingInstances, TranslationServer.Translate("How many unique instances of one building a player may own. Zero uses the ruleset's own limit."));
 		_buildingSupplySpin = AddCountSetting(grid, TranslationServer.Translate("Building supply:"), 0, 24, MatchOption.MaximumBuildingSupply, TranslationServer.Translate("How many buildings a player may construct and hold. Zero uses the ruleset's own supply."));
 		_capacityMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Capacity multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.CapacityMultiplierPercent, TranslationServer.Translate("The percentage every player's capacity ceiling is multiplied by. Zero uses the ruleset's own values."));
-		_chargeMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Charge multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.ChargeMultiplierPercent, TranslationServer.Translate("The percentage every player's maximum charges is multiplied by. Zero uses the ruleset's own values."));
+		_productionMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Production multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.ProductionMultiplierPercent, TranslationServer.Translate("The percentage every player's stored production mana is multiplied by. Zero uses the ruleset's own values."));
 
 		var visionLabel = new Label();
 		visionLabel.Name = "VisionLabel_Label";
@@ -943,7 +943,7 @@ public partial class LobbyRoom : Control
 		SetSpinValue(_uniqueBuildingsSpin, options.Get(MatchOption.MaximumUniqueBuildingInstances));
 		SetSpinValue(_buildingSupplySpin, options.Get(MatchOption.MaximumBuildingSupply));
 		SetSpinValue(_capacityMultiplierSpin, options.Get(MatchOption.CapacityMultiplierPercent));
-		SetSpinValue(_chargeMultiplierSpin, options.Get(MatchOption.ChargeMultiplierPercent));
+		SetSpinValue(_productionMultiplierSpin, options.Get(MatchOption.ProductionMultiplierPercent));
 
 		if (_shroudModeOption != null)
 		{

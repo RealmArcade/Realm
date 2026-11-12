@@ -153,7 +153,7 @@ public class MatchOptionSet
 			MatchOption.MirroredAutoDraft => value <= 1,
 			MatchOption.OpenPoolDrafting => value <= 1,
 			MatchOption.CapacityMultiplierPercent => value <= MaximumMultiplierPercent,
-			MatchOption.ChargeMultiplierPercent => value <= MaximumMultiplierPercent,
+			MatchOption.ProductionMultiplierPercent => value <= MaximumMultiplierPercent,
 			MatchOption.MaximumBuildingSupply => value <= 24,
 			_ => false
 		};

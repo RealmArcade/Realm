@@ -3728,8 +3728,8 @@
         <member name="F:Realm.Ecs.MatchOption.CapacityMultiplierPercent">
             <summary>The percentage every player's capacity ceiling is multiplied by.</summary>
         </member>
-        <member name="F:Realm.Ecs.MatchOption.ChargeMultiplierPercent">
-            <summary>The percentage every player's maximum charges is multiplied by.</summary>
+        <member name="F:Realm.Ecs.MatchOption.ProductionMultiplierPercent">
+            <summary>The percentage every player's stored production mana is multiplied by.</summary>
         </member>
         <member name="F:Realm.Ecs.MatchOption.MaximumBuildingSupply">
             <summary>How many buildings a player may construct and hold, which is the player's building supply.</summary>

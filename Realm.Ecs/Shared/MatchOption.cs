@@ -27,8 +27,8 @@ public enum MatchOption : int
 	/// <summary>The percentage every player's capacity ceiling is multiplied by.</summary>
 	CapacityMultiplierPercent = 7,
 
-	/// <summary>The percentage every player's maximum charges is multiplied by.</summary>
-	ChargeMultiplierPercent = 8,
+	/// <summary>The percentage every player's stored production mana is multiplied by.</summary>
+	ProductionMultiplierPercent = 8,
 
 	/// <summary>How many buildings a player may construct and hold, which is the player's building supply.</summary>
 	MaximumBuildingSupply = 9

@@ -8,8 +8,8 @@ namespace Realm.Simulation.Tests;
 
 /// <summary>
 ///     Plays a match with the parameters a lobby's host configured: how many building options a draw offers, how much
-///     building supply a player holds, the capacity and charge multipliers, and the vision mode the authority publishes
-///     with. A lobby that configures nothing plays the ruleset as it was authored, which the default tests cover.
+///     building supply a player holds, the capacity and production multipliers, and the vision mode the authority
+///     publishes with. A lobby that configures nothing plays the ruleset as it was authored, which the default tests cover.
 /// </summary>
 [TestFixture]
 [NonParallelizable]
@@ -62,7 +62,7 @@ public class MeleeLobbyOptionTests
 	public void TheHostMultipliesStoredProductions()
 	{
 		var options = new MatchOptionSet();
-		options.Set(MatchOption.ChargeMultiplierPercent, 200);
+		options.Set(MatchOption.ProductionMultiplierPercent, 200);
 		MeleeTestMaps.RequireMaps();
 		_match = MeleeMatch.StartDuel(matchOptions: options);
 
@@ -71,7 +71,7 @@ public class MeleeLobbyOptionTests
 		int authoredProductions = MeleeContent.SoldierProductionsOf(templateId);
 
 		Assert.That(_match.MaxManaOf(building), Is.EqualTo((authoredProductions * 2 + MeleeContent.WorkerProductionsOf(templateId)) * MeleeContent.ProductionMana),
-			"Doubling the charge multiplier doubles the production mana a building stores, so it can hold twice the soldiers' worth.");
+			"Doubling the production multiplier doubles the production mana a building stores, so it can hold twice the soldiers' worth.");
 	}
 
 	[Test]
