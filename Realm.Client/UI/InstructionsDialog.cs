@@ -164,7 +164,7 @@ public partial class InstructionsDialog : Control
 
 		for (int index = 0; index < _sections.Count; index++)
 		{
-			_sectionSelect.AddItem(_sections[index].Title, index);
+			_sectionSelect.AddItem(TranslationServer.Translate(_sections[index].Title), index);
 		}
 
 		if (_sections.Count > 0) _sectionSelect.Selected = 0;
@@ -177,7 +177,7 @@ public partial class InstructionsDialog : Control
 		if (_sectionBody == null || !GodotObject.IsInstanceValid(_sectionBody)) return;
 
 		int selected = _sectionSelect.Selected;
-		_sectionBody.Text = selected >= 0 && selected < _sections.Count ? _sections[selected].Body : string.Empty;
+		_sectionBody.Text = selected >= 0 && selected < _sections.Count ? TranslationServer.Translate(_sections[selected].Body) : string.Empty;
 	}
 
 	private void OnBackdropInput(InputEvent inputEvent)

@@ -66,7 +66,7 @@ public static class TooltipTemplate
 
 			if (TryResolveText(segment.Scope, segment.Key, context, out string text))
 			{
-				builder.Append(text);
+				builder.Append(TranslationServer.Translate(text));
 				continue;
 			}
 
