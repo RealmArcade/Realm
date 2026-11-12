@@ -43,7 +43,9 @@ public partial class ReplicationContractTests
 		"TerrainSwatchConfig",
 		"HealingTarget",
 		"ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset",
-		"SummonedUnit"
+		"SummonedUnit",
+		"Worker", "WorkerAssignment", "RepairTask", "Harvestable", "PreviewMoveTo",
+		"PlayerBuildingLimit", "PlayerDamageEffectiveness", "EffectivenessAgainstPlayers"
 	};
 
 	private static readonly string[] RpcReplicatedComponents =
