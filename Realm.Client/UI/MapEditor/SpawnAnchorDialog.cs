@@ -9,11 +9,12 @@ using Realm.EditorAPI;
 namespace Realm.Client.UI.MapEditor;
 
 /// <summary>
-///     The editor's spawn anchor table: one row per seat, stating which player that row seats and which authored
-///     coordinate the player begins a match inside, with a button that moves the camera to that coordinate. A row whose
-///     coordinate is unassigned seats nobody, so the board states one mapping per seat and a match picks the point within
-///     the mapped coordinate when it starts. Every change commits through <see cref="GameContext.IEditorAPI" />, so the
-///     table, the undo history and the markers drawn on the terrain all describe the same anchors.
+///     The editor's spawn anchor table: one row per seat, naming the player that row seats and which authored coordinate
+///     the player begins a match inside, with a button that moves the camera to that coordinate. The row a seat occupies
+///     is the seat itself, so the player column is read-only and the coordinate is the only thing a row states. A row
+///     whose coordinate is unassigned seats nobody, so the board states one mapping per seat and a match picks the point
+///     within the mapped coordinate when it starts. Every change commits through <see cref="GameContext.IEditorAPI" />,
+///     so the table, the undo history and the markers drawn on the terrain all describe the same anchors.
 /// </summary>
 [GlobalClass]
 public partial class SpawnAnchorDialog : FloatingDialogBase
@@ -24,7 +25,6 @@ public partial class SpawnAnchorDialog : FloatingDialogBase
 
 	private sealed class AnchorRow
 	{
-		public OptionButton PlayerOption = null!;
 		public OptionButton CoordinateOption = null!;
 		public Button LocateButton = null!;
 		public int Player;
@@ -108,9 +108,10 @@ public partial class SpawnAnchorDialog : FloatingDialogBase
 		}
 
 		playerOption.Selected = rowIndex % PlayerColorConfig.Palette.Length;
-		playerOption.ItemSelected += index => OnPlayerSelected(rowIndex, (int)index);
+		playerOption.Disabled = true;
+		playerOption.TooltipText = TranslationServer.Translate("This row seats this player. Choose the coordinate the player starts inside; the seat itself is fixed by the row.");
 
-		var row = new AnchorRow { PlayerOption = playerOption, Player = playerOption.Selected };
+		var row = new AnchorRow { Player = playerOption.Selected };
 		_rows.Add(row);
 
 		return playerOption;
@@ -144,24 +145,6 @@ public partial class SpawnAnchorDialog : FloatingDialogBase
 
 		_rows[rowIndex].LocateButton = locateButton;
 		return locateButton;
-	}
-
-	private void OnPlayerSelected(int rowIndex, int player)
-	{
-		if (_suppressCallbacks) return;
-		if (rowIndex < 0 || rowIndex >= _rows.Count) return;
-
-		int previousPlayer = _rows[rowIndex].Player;
-		_rows[rowIndex].Player = player;
-
-		for (int otherRow = 0; otherRow < _rows.Count; otherRow++)
-		{
-			if (otherRow == rowIndex || _rows[otherRow].Player != player) continue;
-
-			_rows[otherRow].Player = previousPlayer;
-		}
-
-		RefreshRows();
 	}
 
 	private void OnCoordinateSelected(int rowIndex)
@@ -236,7 +219,6 @@ public partial class SpawnAnchorDialog : FloatingDialogBase
 			for (int rowIndex = 0; rowIndex < _rows.Count; rowIndex++)
 			{
 				AnchorRow row = _rows[rowIndex];
-				row.PlayerOption.Selected = row.Player;
 
 				string coordinateName = string.Empty;
 				for (int anchorIndex = 0; anchorIndex < anchors.Count; anchorIndex++)
