@@ -108,6 +108,16 @@ The first building draft is reachable at match start with the starting 100 wood.
 | Sable, the Ashcaller | Ranged area-damage spellcaster | Medium | 700 | 3 | 20 | 1.5 | 8.5 | 5.0 | 360 | 4.0 | Intelligence 26 |
 | Corvus, the Quartermaster | Economy and tempo strategist | High | 800 | 5 | 24 | 1.3 | 9.0 | 5.0 | 300 | 3.2 | Intelligence 20, Fortune 14 |
 
+Per-level growth. Each hero's `LevelGrowth` follows its own fantasy rather than one shared curve, so the same level produces three different heroes instead of three scaled copies of one:
+
+| Hero | Strength | Agility | Vitality | Intelligence | Wisdom | Fortune |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Vale | 4 | 1.8 | 15 | 2.2 | 0.6 | 0.4 |
+| Sable | 1.2 | 2 | 11 | 4.4 | 1.4 | 0.6 |
+| Corvus | 2.2 | 2.2 | 12 | 2.5 | 1 | 2.8 |
+
+Vale's levels buy health and weapon damage, so she stays the hero that holds ground. Sable's levels put their weight into Intelligence and Wisdom - spell power, magic resistance, healing and penetration - leaving her the frailest hero by a wide margin. Corvus's levels buy Fortune above everything else: critical strikes, evasion, proc rate, and the size of the bounty his own death pays. The Intelligence growth is sized so each hero's ability damage lands on the curve its kit table states, roughly doubling over the level range rather than tripling for the caster.
+
 Every hero active and innate is unlocked at match start. Levels neither unlock nor rank abilities; they raise the hero's raw stats, and active ability effectiveness scales from those stats. An innate may be flat like a relic or scale from stats. Relics are purchased from the Nexus for 100 gold each, independent of level, up to six (section 9).
 
 Each hero has three active combat abilities and one innate passive. The Q, W, and E slots are input positions, not power tiers. There is no ultimate ability: E is simply the third active slot, and all three actives plus the innate are available from the first second of the match. An innate is a permanent player-wide effect in the same design space as a relic; it is never cast, never occupies an ability slot, and is shown as a permanent indicator rather than a button. Because the three actives belong to one hero, they may interact directly; a kit can contain a combo without creating a cross-content dependency.
@@ -312,6 +322,7 @@ These are arithmetic checks, not balance claims.
 - **Formation coverage.** The nine types split three Front, three Flank, and three Back, so every formation has multiple sources and an eight-building player can cover all three.
 - **Gathering cadence.** A level-1 node gives up about one piece per worker swing, so a six-slot wood trip is six swings: 4.8 s at the worker's 0.8 s interval, and a two-worker crew delivers 100 wood in about a minute once the walk is counted. A gold trip is thirty-six pieces for about thirty-nine swings, so a relic and a building cost about the same worker time: 100 pieces each.
 - **Node size.** A level-1 tree line is worth 800 wood, one player's whole building supply, and a level-1 gold mine 600 gold, one player's whole relic pool. A crew that keeps working one node exhausts it inside a match, which is what gives the farther and centre nodes their value.
+- **Level-6 heroes.** Vale stands at 2502 health, 87 attack and 13.7 armor; Sable at 1870 health, 41 attack and 1.9 times her baseline spell power; Corvus at 2096 health, 55.5 attack, 8.2 armor and 21.9% critical chance with 15.7% evasion. The spread is the point: Vale's levels buy a body, Sable's buy spells and Corvus's buy luck.
 - **Relic path.** Relics cost 100 gold each, the pool holds six, and the hero has six slots. A player can eventually buy the whole pool; the decision is purchase order and timing, not access.
 
 ## 11. Deliberately Not Specified Yet
