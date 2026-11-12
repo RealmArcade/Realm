@@ -79,6 +79,7 @@ public partial class CameraControl : Camera3D
 		{
 			FollowTarget = pendingUnit;
 			_pendingFollowUnitServerId = 0;
+			_scriptFollowNeedsSnap = true;
 		}
 
 		ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);

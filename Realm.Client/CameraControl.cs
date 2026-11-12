@@ -366,5 +366,6 @@ public partial class CameraControl : Camera3D
 	private bool _scriptFollowAlignToUnitFacing = false;
 	private float _scriptFollowSmoothing = 8.0f;
 	private int _pendingFollowUnitServerId = 0;
+	private bool _scriptFollowNeedsSnap = false;
 
 }

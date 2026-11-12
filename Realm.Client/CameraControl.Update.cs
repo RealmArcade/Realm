@@ -85,8 +85,41 @@ public partial class CameraControl : Camera3D
 		state.TargetYaw = desiredYawDeg;
 		state.TargetPitch = _scriptFollowPitchDegrees;
 
-		float yawRad = Mathf.DegToRad(desiredYawDeg);
-		Vector3 forwardXZ = new Vector3(-Mathf.Sin(yawRad), 0f, -Mathf.Cos(yawRad));
+		if (_scriptFollowNeedsSnap || _scriptFollowSmoothing <= 0f)
+		{
+			state.CurrentYaw = state.TargetYaw;
+			state.CurrentPitch = state.TargetPitch;
+			_scriptFollowNeedsSnap = false;
+
+			float snapYawRad = Mathf.DegToRad(state.CurrentYaw);
+			Vector3 snapForwardXZ = new Vector3(-Mathf.Sin(snapYawRad), 0f, -Mathf.Cos(snapYawRad));
+			Vector3 snapPos = FollowTarget.Position - snapForwardXZ * _scriptFollowDistance + new Vector3(0f, _scriptFollowHeightOffset, 0f);
+			if (GameContext.Host?.GroundTerrain != null)
+			{
+				GameContext.Host.GroundTerrain.GetHeightAndNormal(snapPos.X, snapPos.Z, out float groundY, out _);
+				if (snapPos.Y < groundY + 1.5f) snapPos.Y = groundY + 1.5f;
+			}
+			Position = snapPos;
+			state.CurrentHeight = Position.Y;
+			state.TargetHeight = Position.Y;
+			return;
+		}
+
+		float rotSmoothing = _scriptFollowSmoothing > 0f ? _scriptFollowSmoothing : 3.5f;
+		float rotAlpha = 1.0f - Mathf.Exp(-rotSmoothing * fDelta);
+
+		float curYawRad = Mathf.DegToRad(state.CurrentYaw);
+		float tgtYawRad = Mathf.DegToRad(state.TargetYaw);
+		float yawDiffRad = Mathf.AngleDifference(curYawRad, tgtYawRad);
+
+		float maxYawStepRad = Mathf.DegToRad(150.0f) * fDelta;
+		float yawStepRad = Mathf.Clamp(yawDiffRad * rotAlpha, -maxYawStepRad, maxYawStepRad);
+
+		state.CurrentYaw = Mathf.RadToDeg(curYawRad + yawStepRad);
+		state.CurrentPitch = Mathf.Lerp(state.CurrentPitch, state.TargetPitch, rotAlpha);
+
+		float camYawRad = Mathf.DegToRad(state.CurrentYaw);
+		Vector3 forwardXZ = new Vector3(-Mathf.Sin(camYawRad), 0f, -Mathf.Cos(camYawRad));
 		Vector3 desiredPos = FollowTarget.Position - forwardXZ * _scriptFollowDistance + new Vector3(0f, _scriptFollowHeightOffset, 0f);
 
 		if (GameContext.Host?.GroundTerrain != null)
@@ -95,14 +128,15 @@ public partial class CameraControl : Camera3D
 			if (desiredPos.Y < camGroundY + 1.5f) desiredPos.Y = camGroundY + 1.5f;
 		}
 
-		if (_scriptFollowSmoothing > 0f)
+		if ((Position - desiredPos).LengthSquared() > 400.0f)
 		{
-			float alpha = 1.0f - Mathf.Exp(-_scriptFollowSmoothing * fDelta);
-			Position = Position.Lerp(desiredPos, alpha);
+			Position = desiredPos;
 		}
 		else
 		{
-			Position = desiredPos;
+			float posSmoothing = _scriptFollowSmoothing * 1.5f;
+			float posAlpha = 1.0f - Mathf.Exp(-posSmoothing * fDelta);
+			Position = Position.Lerp(desiredPos, posAlpha);
 		}
 
 		state.CurrentHeight = Position.Y;
@@ -157,7 +191,13 @@ public partial class CameraControl : Camera3D
 
 	private void ApplyCameraRotation(ref CameraState state, float fDelta)
 	{
-		float rate = _hasScriptFollowConfig && _scriptFollowSmoothing > 0f ? Mathf.Max(8.0f, _scriptFollowSmoothing) : 10.0f;
+		if (_hasScriptFollowConfig)
+		{
+			RotationDegrees = new Vector3(state.CurrentPitch + state.PitchSwing, state.CurrentYaw + state.YawSwing, 0.0f);
+			return;
+		}
+
+		float rate = 10.0f;
 		state.CurrentYaw = Mathf.RadToDeg(Mathf.LerpAngle(Mathf.DegToRad(state.CurrentYaw), Mathf.DegToRad(state.TargetYaw), rate * fDelta));
 		state.CurrentPitch = Mathf.Lerp(state.CurrentPitch, state.TargetPitch, rate * fDelta);
 		RotationDegrees = new Vector3(state.CurrentPitch + state.PitchSwing, state.CurrentYaw + state.YawSwing, 0.0f);

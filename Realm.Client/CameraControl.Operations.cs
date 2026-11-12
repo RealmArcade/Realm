@@ -21,6 +21,7 @@ public partial class CameraControl : Camera3D
 		_pendingFollowUnitServerId = 0;
 		_hasScriptFollowConfig = false;
 		_hasScriptViewActive = false;
+		_scriptFollowNeedsSnap = false;
 		if (IsFreeCamera)
 		{
 			SetFreeCamera(false);
@@ -55,6 +56,7 @@ public partial class CameraControl : Camera3D
 		_scriptFollowAlignToUnitFacing = alignToUnitFacing;
 		_scriptFollowSmoothing = smoothing;
 		_hasScriptFollowConfig = true;
+		_scriptFollowNeedsSnap = true;
 		_targetPitch = _scriptFollowPitchDegrees;
 
 		if (GameContext.Host != null && GameContext.Host.TryGetUnit3DByServerId(serverUnitId, out Unit3D? unit3D))
