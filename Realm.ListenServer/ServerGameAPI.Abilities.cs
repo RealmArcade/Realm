@@ -1,5 +1,6 @@
 using System.Numerics;
 using Realm.Ecs;
+using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.MapAPI;
 using Realm.Shared.Metadata;
@@ -57,6 +58,51 @@ public partial class ServerGameAPI
 
 		UnitMetadata? template = _map.Catalog.FindUnitOrBuilding(unitTypeId);
 		return template?.Abilities ?? Array.Empty<string>();
+	}
+
+	private static readonly HashSet<string> TemplateStatFieldNames = new(StringComparer.OrdinalIgnoreCase)
+	{
+		"Range", "AttackCooldown", "ScanRadius", "SightRange", "AcquisitionRange", "CostGold", "PopCost"
+	};
+	public float GetUnitTypeStat(string unitTypeId, string statName)
+	{
+		if (string.IsNullOrWhiteSpace(unitTypeId) || string.IsNullOrWhiteSpace(statName)) return 0f;
+
+		UnitMetadata? template = _map.Catalog.FindUnitOrBuilding(unitTypeId);
+		if (template == null) return 0f;
+		if (!TemplateStatFieldNames.Contains(statName))
+		{
+			StatKeys.WarnIfUnknown("a map script reading a unit type stat", statName);
+		}
+
+		return statName switch
+		{
+			StatKeys.MaxHp => template.MaxHp,
+			StatKeys.Armor => template.Armor,
+			StatKeys.Attack => template.Damage,
+			StatKeys.MovementSpeed => template.Speed,
+			StatKeys.MaxMana => template.MaxMana,
+			StatKeys.ManaRegen => template.ManaRegen,
+			StatKeys.HpRegen => template.HpRegen,
+			StatKeys.MagicResistance => template.MagicResistance,
+			StatKeys.CritChance => template.CritChance,
+			StatKeys.CritMultiplier => template.CritMultiplier,
+			StatKeys.Strength => template.Strength,
+			StatKeys.Agility => template.Agility,
+			StatKeys.Vitality => template.Vitality,
+			StatKeys.Intelligence => template.Intelligence,
+			StatKeys.Wisdom => template.Wisdom,
+			StatKeys.Fortune => template.Fortune,
+			"Range" => template.Range,
+			"AttackCooldown" => template.AttackCooldown,
+			StatKeys.AttackSpeed => template.AttackCooldown > 0f ? 1f / template.AttackCooldown : 0f,
+			"ScanRadius" => template.ScanRadius,
+			"SightRange" => template.SightRange,
+			"AcquisitionRange" => template.AcquisitionRange,
+			"CostGold" => template.CostGold,
+			"PopCost" => template.PopCost,
+			_ => 0f
+		};
 	}
 
 	public string GetUnitName(string unitTypeId)

@@ -33,7 +33,9 @@ public partial interface IGameAPI
 	string GetPlayerBotGenre(int playerIndex);
 
 	/// <summary>
-	/// Registers a map-defined custom candidate action for evaluation by the bot utility decision loop.
+	/// Registers a map-defined custom candidate action for evaluation by the bot utility decision loop. While a seat
+	/// holds at least one registered candidate the bot scores only those, because they carry their own feature vector
+	/// and its own weights; the genre scan resumes once the map clears them.
 	/// </summary>
 	/// <param name="playerIndex">The zero-based player slot index.</param>
 	/// <param name="actionId">The unique action identifier.</param>

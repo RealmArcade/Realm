@@ -1,7 +1,11 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using Realm.Ecs.AI.Policy;
+using Realm.Ecs.AI.Training;
 using Realm.Tools.MatchRunner;
+
+Console.OutputEncoding = Encoding.UTF8;
 
 MatchRunOptions options;
 try
@@ -22,10 +26,69 @@ if (options.ShowHelp)
 	return 0;
 }
 
+if (!string.IsNullOrWhiteSpace(options.BalanceInputPath))
+{
+	string balanceInputPath = Path.GetFullPath(options.BalanceInputPath);
+	List<string> balanceLines = Directory.Exists(balanceInputPath)
+		? ReadCorpusDirectory(balanceInputPath)
+		: File.ReadAllLines(balanceInputPath).Where(line => line.Length > 0).ToList();
+
+	string reportPath = options.BalanceReportPath
+		?? (Directory.Exists(balanceInputPath)
+			? Path.Combine(balanceInputPath, "balance.md")
+			: balanceInputPath + ".balance.md");
+
+	string digest = BalanceReport.Write(balanceLines, options, reportPath);
+	Console.WriteLine($"analysed {balanceLines.Count} line(s) of {balanceInputPath}");
+	Console.WriteLine($"balance: {reportPath}");
+	Console.WriteLine(digest);
+	return 0;
+}
+
+static List<string> ReadCorpusDirectory(string directory)
+{
+	var lines = new List<string>();
+	foreach (string file in Directory.GetFiles(directory, "*.jsonl").Order(StringComparer.Ordinal))
+	{
+		if (file.Contains(".parts-", StringComparison.Ordinal)) continue;
+		lines.AddRange(File.ReadAllLines(file).Where(line => line.Length > 0));
+	}
+
+	return lines;
+}
+
+if (options.Train)
+{
+	TrainingRunResult result = MatchTrainer.Train(options);
+	BotProfile profile = result.Profile;
+	string profilePath = options.TrainOutputPath ?? Path.Combine(options.MapPath, $"{profile.MapName}_bot.json");
+	string profileDirectory = Path.GetDirectoryName(Path.GetFullPath(profilePath)) ?? Directory.GetCurrentDirectory();
+	Directory.CreateDirectory(profileDirectory);
+	File.WriteAllText(profilePath, profile.ToJson(), new UTF8Encoding(false));
+
+	string manifestPath = Path.ChangeExtension(profilePath, ".run.json");
+	File.WriteAllText(manifestPath, MatchTrainer.BuildManifest(options, result, profilePath), new UTF8Encoding(false));
+
+	Console.WriteLine($"trained profile: {profilePath}");
+	Console.WriteLine($"run manifest:    {manifestPath}");
+	Console.WriteLine($"win rate against the factory profile {profile.FitnessScore:F3} on {Math.Max(options.TrainEvaluations, SelfPlayTrainer.MinimumValidationCandidates)} held-out seeds after {profile.TrainedEpochs} generation(s)");
+	Console.WriteLine($"evaluation matches: {result.PlayedEvaluations} played, {result.FailedEvaluations} failed");
+
+	return 0;
+}
+
 bool isChild = string.Equals(Environment.GetEnvironmentVariable("REALM_MATCH_RUNNER_CHILD"), "1", StringComparison.Ordinal);
 string outputPath = Path.GetFullPath(options.OutputPath);
 string outputDirectory = Path.GetDirectoryName(outputPath) ?? Directory.GetCurrentDirectory();
 Directory.CreateDirectory(outputDirectory);
+
+if (isChild)
+{
+	var childFailures = new List<string>();
+	PlaySeeds([options.SeedStart], options, string.Empty, outputPath, childFailures);
+	return childFailures.Count > 0 ? 1 : 0;
+}
+
 string partsDirectory = Path.Combine(outputDirectory, $"{Path.GetFileName(outputPath)}.parts-{Environment.ProcessId}");
 Directory.CreateDirectory(partsDirectory);
 
@@ -34,7 +97,7 @@ List<string> failureSeeds = new();
 
 if (options.SeedCount == 1)
 {
-	PlaySeeds([options.SeedStart], options, partsDirectory, failureSeeds);
+	PlaySeeds([options.SeedStart], options, partsDirectory, outputPath, failureSeeds);
 }
 else
 {
@@ -49,21 +112,30 @@ string summary = MatchBatchSummary.Build(outcomeLines, options, wallClockSeconds
 string summaryPath = outputPath + ".summary.json";
 File.WriteAllText(summaryPath, summary, new UTF8Encoding(false));
 
+string balancePath = options.BalanceReportPath ?? outputPath + ".balance.md";
+string balanceDigest = options.Balance ? BalanceReport.Write(outcomeLines, options, balancePath) : string.Empty;
+
 if (!isChild)
 {
 	Console.WriteLine($"played {outcomeLines.Count - failureSeeds.Count} match(es) of seeds {options.SeedStart}-{options.SeedEnd} in {wallClockSeconds:F2}s");
 	Console.WriteLine($"outcomes: {outputPath}");
 	Console.WriteLine($"summary:  {summaryPath}");
+
+	if (options.Balance)
+	{
+		Console.WriteLine($"balance:  {balancePath}");
+		Console.WriteLine(balanceDigest);
+	}
 }
 
 Directory.Delete(partsDirectory, recursive: true);
 return failureSeeds.Count > 0 ? 1 : 0;
 
-static void PlaySeeds(IReadOnlyList<int> seeds, MatchRunOptions options, string partsDirectory, List<string> failureSeeds)
+static void PlaySeeds(IReadOnlyList<int> seeds, MatchRunOptions options, string partsDirectory, string directOutputPath, List<string> failureSeeds)
 {
 	foreach (int seed in seeds)
 	{
-		string partPath = Path.Combine(partsDirectory, $"{seed}.jsonl");
+		string partPath = partsDirectory.Length == 0 ? directOutputPath : Path.Combine(partsDirectory, $"{seed}.jsonl");
 		try
 		{
 			var outcome = MatchPlayer.Run(options, seed);
@@ -109,6 +181,12 @@ static void PlayInChildProcesses(MatchRunOptions options, string partsDirectory,
 				{
 					start.ArgumentList.Add("--wasm");
 					start.ArgumentList.Add(options.WasmPath);
+				}
+
+				if (!string.IsNullOrWhiteSpace(options.DataProfilePath))
+				{
+					start.ArgumentList.Add("--data-profile");
+					start.ArgumentList.Add(options.DataProfilePath);
 				}
 
 				start.ArgumentList.Add("--seed-range");

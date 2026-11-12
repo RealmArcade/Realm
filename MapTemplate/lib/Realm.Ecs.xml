@@ -15,6 +15,21 @@
             Represents a generic candidate action discovered by the AI action scanner.
             </summary>
         </member>
+        <member name="P:Realm.Ecs.AI.BotController.MapCandidateSource">
+            <summary>
+            Supplies candidate actions a map registered for this player. Whoever owns the world sets it once, so a seat
+            keeps receiving them when its genre changes. While the list comes back non-empty it takes the seat's
+            decision for that tick, because its candidates carry their own feature vector and are scored with
+            <see cref="P:Realm.Ecs.AI.BotController.MapCandidateWeights"/>; the genre scan resumes once the map clears what it registered.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.AI.Policy.PayloadRandomDecisionPolicy">
+            <summary>
+            Picks uniformly at random among the candidate actions whose payload starts with a given prefix, and otherwise
+            hands the whole list to the policy it wraps. It exists so a match can keep one brain for everything it scores
+            while one family of decisions, such as a map's draft candidates, is played by luck instead.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.ColdPayloadRegistry`1">
             <summary>
                 Resolves a cold payload handle in the ambient world's own store. Only one world is alive per process at a time,

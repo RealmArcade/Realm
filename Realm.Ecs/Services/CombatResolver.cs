@@ -39,13 +39,18 @@ public static class CombatResolver
 		SimulationContext? context = null)
 	{
 		config ??= context?.ActiveCombatConfig ?? new CombatConfig();
-		rng ??= Random.Shared;
+
+		double RollDouble()
+		{
+			if (rng != null) return rng.NextDouble();
+			return SeededRandom.Shared.NextDouble();
+		}
 
 		// Stage 1: raw.
-		float varianceOffset = damageVariance > 0f ? ((float)rng.NextDouble() * 2f - 1f) * damageVariance : 0f;
+		float varianceOffset = damageVariance > 0f ? ((float)RollDouble() * 2f - 1f) * damageVariance : 0f;
 		float rawDamage = MathF.Max(0f, baseDamage + varianceOffset);
 
-		bool isCrit = critChance > 0f && (float)rng.NextDouble() < critChance;
+		bool isCrit = critChance > 0f && (float)RollDouble() < critChance;
 		if (isCrit)
 		{
 			rawDamage *= critMultiplier;

@@ -814,7 +814,9 @@
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.RegisterCustomBotDecision(System.Int32,System.String,System.String,System.Single[],System.Numerics.Vector3,System.String)">
             <summary>
-            Registers a map-defined custom candidate action for evaluation by the bot utility decision loop.
+            Registers a map-defined custom candidate action for evaluation by the bot utility decision loop. While a seat
+            holds at least one registered candidate the bot scores only those, because they carry their own feature vector
+            and its own weights; the genre scan resumes once the map clears them.
             </summary>
             <param name="playerIndex">The zero-based player slot index.</param>
             <param name="actionId">The unique action identifier.</param>
@@ -2557,6 +2559,16 @@
             </summary>
             <param name="unitTypeId">The unit or building type identifier.</param>
             <returns>A read-only list of ability identifiers configured for the unit type (never null).</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitTypeStat(System.String,System.String)">
+            <summary>
+            Retrieves one declared template statistic of a unit or building type, exactly as the map's unit definitions
+            write it and before any per-unit upgrade, item or buff modifies it. A map uses it to value a type without
+            spawning one, for example to let a bot compare two heroes it is choosing between.
+            </summary>
+            <param name="unitTypeId">The unit or building type identifier.</param>
+            <param name="statName">The declared statistic name: for example <c>MaxHp</c>, <c>Armor</c>, <c>Attack</c>, <c>AttackCooldown</c>, <c>MovementSpeed</c>, <c>Range</c>, <c>MaxMana</c>, <c>ManaRegen</c> or one of the attribute names such as <c>Strength</c>.</param>
+            <returns>The declared value, or zero when the type or the statistic name is unknown.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitName(System.String)">
             <summary>

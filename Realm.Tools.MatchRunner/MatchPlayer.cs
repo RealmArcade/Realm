@@ -9,15 +9,49 @@ namespace Realm.Tools.MatchRunner;
 
 public static class MatchPlayer
 {
-	public static MatchOutcome Run(MatchRunOptions options, int seed)
+	public static MatchOutcome Run(MatchRunOptions options, int seed, float[]? seatOneWeights = null)
 	{
 		MatchRosterSeat[] roster = BuildRoster(options.Seats);
 		string workDirectory = Path.Combine(Path.GetTempPath(), "realm-match-runner", $"{Environment.ProcessId}-{seed}");
 		Directory.CreateDirectory(workDirectory);
 
+		try
+		{
+			MatchOutcome outcome = Play(options, seed, seatOneWeights, roster, workDirectory);
+			DeleteWorkDirectory(workDirectory);
+			return outcome;
+		}
+		catch (Exception exception)
+		{
+			throw new InvalidOperationException($"{exception.Message} (the authority log of this match is at {workDirectory})", exception);
+		}
+	}
+
+	private static void DeleteWorkDirectory(string workDirectory)
+	{
+		try
+		{
+			Directory.Delete(workDirectory, recursive: true);
+		}
+		catch (IOException)
+		{
+		}
+		catch (UnauthorizedAccessException)
+		{
+		}
+	}
+
+	private static MatchOutcome Play(MatchRunOptions options, int seed, float[]? seatOneWeights, MatchRosterSeat[] roster, string workDirectory)
+	{
 		LoadedMap map = MapWorldLoader.Load(options.MapPath, roster);
 		using var log = new ServerLog(Path.Combine(workDirectory, "authority.log"));
 		var paths = ServerMatchPaths.ForMap(map, options.MapPath, Path.Combine(workDirectory, "data"), workDirectory);
+
+		if (!string.IsNullOrWhiteSpace(options.DataProfilePath))
+		{
+			Directory.CreateDirectory(paths.DataDirectory);
+			File.Copy(options.DataProfilePath, Path.Combine(paths.DataDirectory, $"{paths.MapName}_bot.json"), overwrite: true);
+		}
 
 		using var simulation = new ServerSimulation(
 			map,
@@ -32,7 +66,7 @@ public static class MatchPlayer
 			preparedScriptHost: null,
 			scriptPathOverride: options.WasmPath);
 
-		ApplyPolicies(simulation, options);
+		ApplyPolicies(simulation, options, seatOneWeights);
 
 		long maximumTicks = (long)Math.Ceiling(options.MaxSeconds * MatchTiming.SimulationTickRateHz);
 		long ticks = 0;
@@ -64,21 +98,61 @@ public static class MatchPlayer
 		return roster;
 	}
 
-	private static void ApplyPolicies(ServerSimulation simulation, MatchRunOptions options)
+	private static void ApplyPolicies(ServerSimulation simulation, MatchRunOptions options, float[]? seatOneWeights)
 	{
 		ServerBots bots = simulation.ScriptApi.Bots;
 		for (int seat = 1; seat <= options.Seats; seat++)
 		{
+			if (seat == 1 && seatOneWeights != null)
+			{
+				ApplyWeights(bots, seat, seatOneWeights, options.TrainGenre);
+				continue;
+			}
+
 			string policy = options.SeatPolicies.TryGetValue(seat, out string? seatPolicy) ? seatPolicy : options.Policy;
 			ApplyPolicy(bots, seat, policy);
 		}
 	}
 
+	private static void ApplyWeights(ServerBots bots, int seat, float[] weights, string genre)
+	{
+		var profile = new BotProfile
+		{
+			Genre = genre,
+			MapName = "Training",
+			ProfileId = "TrainingCandidate",
+			Weights = weights
+		};
+
+		bots.SetProfile(seat, profile.ToJson());
+		bots.SetDecisionPolicy(seat, new LinearUtilityDecisionPolicy());
+	}
+
 	private static void ApplyPolicy(ServerBots bots, int seat, string policy)
 	{
+		if (string.Equals(policy, "none", StringComparison.OrdinalIgnoreCase)) return;
+
 		if (string.Equals(policy, "uniform", StringComparison.OrdinalIgnoreCase))
 		{
 			bots.SetDecisionPolicy(seat, new UniformRandomDecisionPolicy());
+			return;
+		}
+
+		const string randomPayloadPrefix = "random-payload:";
+		if (policy.StartsWith(randomPayloadPrefix, StringComparison.OrdinalIgnoreCase))
+		{
+			string payloadPrefix = policy[randomPayloadPrefix.Length..];
+			if (payloadPrefix.Length == 0) throw new ArgumentException($"seat {seat} was given 'random-payload:' without the payload prefix to randomise");
+			bots.SetDecisionPolicy(seat, new PayloadRandomDecisionPolicy(payloadPrefix, new LinearUtilityDecisionPolicy()));
+			return;
+		}
+
+		const string fixedOncePrefix = "fixed-once:";
+		if (policy.StartsWith(fixedOncePrefix, StringComparison.OrdinalIgnoreCase))
+		{
+			string oncePayloadId = policy[fixedOncePrefix.Length..];
+			if (oncePayloadId.Length == 0) throw new ArgumentException($"seat {seat} was given 'fixed-once:' without the payload to prefer");
+			bots.SetDecisionPolicy(seat, new FixedFirstPickDecisionPolicy(oncePayloadId, onlyFirstDecision: true));
 			return;
 		}
 
@@ -119,6 +193,6 @@ public static class MatchPlayer
 			return;
 		}
 
-		throw new ArgumentException($"seat {seat} was given the policy '{policy}', which is not uniform, fixed:<payload> or profile:<path>");
+		throw new ArgumentException($"seat {seat} was given the policy '{policy}', which is not uniform, fixed:<payload>, fixed-once:<payload>, random-payload:<prefix> or profile:<path>");
 	}
 }

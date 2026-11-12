@@ -109,6 +109,7 @@ interface game-api {
     get-unit-template-id: func(unit-id: s32) -> string;
     get-unit-type-abilities-count: func(unit-type-id: string) -> s32;
     get-unit-type-abilities-get: func(unit-type-id: string, index: s32) -> string;
+    get-unit-type-stat: func(unit-type-id: string, stat-name: string) -> f32;
     get-units-in-radius: func(center-x: f32, center-y: f32, center-z: f32, radius: f32) -> list<s32>;
     get-units-owned-by-player: func(player-index: s32) -> list<s32>;
     get-weather: func() -> string;

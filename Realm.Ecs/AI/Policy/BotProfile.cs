@@ -16,6 +16,7 @@ public class BotProfile
 	public float ActionTemperature { get; set; } = 0.0f;
 	public float MistakeChance { get; set; } = 0.0f;
 	public float[] Weights { get; set; } = Array.Empty<float>();
+	public float[] MapCandidateWeights { get; set; } = Array.Empty<float>();
 	public float FitnessScore { get; set; } = 0.0f;
 	public int TrainedEpochs { get; set; } = 0;
 	public Dictionary<string, string> CustomParameters { get; set; } = new();

@@ -47,6 +47,7 @@ public sealed class PlayerBotDirector
 		{
 			bot = new BotController(playerIndex, profile);
 			bot.CustomActionCallback = (pIdx, actId, pos, intent) => _customAction(pIdx, actId, intent, pos);
+			AttachMapCandidates(playerIndex, bot);
 			_controllers[playerIndex] = bot;
 		}
 		else
@@ -75,7 +76,6 @@ public sealed class PlayerBotDirector
 	{
 		var genreProvider = AiGenreRegistry.Get(genreName);
 		ConfigureGenreProvider(genreProvider, configJson);
-		ConfigureCustomProvider(genreName, genreProvider);
 		UpdateOrCreateBotController(playerIndex, genreProvider);
 	}
 
@@ -92,17 +92,6 @@ public sealed class PlayerBotDirector
 		}
 	}
 
-	private void ConfigureCustomProvider(string genreName, IAiGenreProvider genreProvider)
-	{
-		if (!string.Equals(genreName, "custom", StringComparison.OrdinalIgnoreCase)) return;
-		if (genreProvider is not CustomGenreProvider customProvider) return;
-
-		customProvider.CustomScanner = (world, pIdx, dest, ctx) =>
-		{
-			if (_customDecisions.TryGetValue(pIdx, out var list) && list != null) dest.AddRange(list);
-		};
-	}
-
 	private void UpdateOrCreateBotController(int playerIndex, IAiGenreProvider genreProvider)
 	{
 		if (!_controllers.TryGetValue(playerIndex, out var bot))
@@ -110,6 +99,7 @@ public sealed class PlayerBotDirector
 			var profile = genreProvider.CreateDefaultProfile(GameContext.Simulation.ActiveMapName ?? "GenericMap");
 			bot = new BotController(playerIndex, profile, genreProvider);
 			bot.CustomActionCallback = (pIdx, actId, pos, intent) => _customAction(pIdx, actId, intent, pos);
+			AttachMapCandidates(playerIndex, bot);
 			_controllers[playerIndex] = bot;
 		}
 		else
@@ -118,6 +108,16 @@ public sealed class PlayerBotDirector
 			var profile = genreProvider.CreateDefaultProfile(bot.Profile.MapName);
 			bot.LoadProfile(profile);
 		}
+	}
+
+	private void AttachMapCandidates(int playerIndex, BotController bot)
+	{
+		bot.MapCandidateSource = () => GetCustomDecisions(playerIndex);
+	}
+
+	private List<GenericAffordance>? GetCustomDecisions(int playerIndex)
+	{
+		return _customDecisions.TryGetValue(playerIndex, out var decisions) ? decisions : null;
 	}
 
 	public string GetPlayerBotGenreDomain(int playerIndex)
