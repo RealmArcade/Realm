@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Shared.Metadata;
 
 namespace Realm.Client.UI.MapEditor;
@@ -160,6 +161,28 @@ public partial class ItemEditDialog : IconTemplateEditDialogBase
 	protected override bool TemplateIdExists(MapMetadata meta, string fullId)
 	{
 		return meta.GetItem(fullId) != null;
+	}
+
+	/// <summary>
+	///     Puts the edited item back on the terrain: the registry a drop reads its model from is reloaded, and every placed
+	///     drop of this template is rebuilt, which is what makes a model chosen here show on the ground the author is
+	///     still looking at.
+	/// </summary>
+	/// <param name="newTemplateID">The item template id the properties were written to.</param>
+	protected override void OnTemplateApplied(string newTemplateID)
+	{
+		if (GameContext.Host is { } host) host.LoadUnitMetadata(MapWorkspaceService.GetActiveWorkspacePath());
+
+		Prop3D.InvalidateModelPathCache(newTemplateID);
+		ModelCache.InvalidateModelPath(newTemplateID);
+		Prop3D.InvalidateModelPathCache(_originalTemplateID);
+		ModelCache.InvalidateModelPath(_originalTemplateID);
+
+		GameContext.IEditorAPI.RefreshPlacedObjectModels(newTemplateID);
+		if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase))
+		{
+			GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
+		}
 	}
 
 	protected override void RefreshCategoryControls()

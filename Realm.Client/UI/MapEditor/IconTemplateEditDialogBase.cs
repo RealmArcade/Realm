@@ -185,6 +185,13 @@ public abstract partial class IconTemplateEditDialogBase : FloatingDialogBase
 
 	protected virtual void CaptureCategoryState() { }
 
+	/// <summary>
+	///     Runs after a template's properties have been written, which is where a template whose assets the editor has
+	///     already drawn on the terrain says how those placements pick the new values up.
+	/// </summary>
+	/// <param name="newTemplateID">The template id the properties were written to.</param>
+	protected virtual void OnTemplateApplied(string newTemplateID) { }
+
 	protected void UpdateTooltipPreview()
 	{
 		if (_previewContainer == null) return;
@@ -280,6 +287,8 @@ public abstract partial class IconTemplateEditDialogBase : FloatingDialogBase
 		string workspacePath = MapWorkspaceService.GetActiveWorkspacePath();
 
 		GameContext.MetadataService.UpdateMetadata(workspacePath, meta => ApplyTemplateProperties(meta, newTemplateID));
+
+		OnTemplateApplied(newTemplateID);
 
 		_onAppliedCallback?.Invoke(_originalTemplateID, newTemplateID);
 		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Saved properties for '{0}'"), newTemplateID));

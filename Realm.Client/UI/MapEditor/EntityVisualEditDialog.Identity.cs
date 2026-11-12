@@ -29,11 +29,6 @@ public partial class EntityVisualEditDialog
 			return ResolvePropCategoryAndId(prop, objectId);
 		}
 
-		if (selectedObject is LootItem3D lootItem && !string.IsNullOrEmpty(lootItem.ItemTypeId))
-		{
-			return (ItemCategoryName, lootItem.ItemTypeId);
-		}
-
 		return ResolvePrefixOrRegistryCategoryAndId(objectId);
 	}
 
@@ -189,14 +184,6 @@ public partial class EntityVisualEditDialog
 
 				break;
 
-			case "items":
-				if (GameContext.RegistryService != null && GameContext.RegistryService.ItemRegistry.TryGetValue(key, out var itemTemplate))
-				{
-					itemTemplate.ModelPath = modelPath;
-				}
-
-				break;
-
 			case "props":
 				if (GameHost.PropRegistry.TryGetValue(sn, out var p))
 				{
@@ -250,10 +237,6 @@ public partial class EntityVisualEditDialog
 			else if (_currentSelectedObject is Prop3D p3d)
 			{
 				p3d.RefreshPropVisual();
-			}
-			else if (_currentSelectedObject is LootItem3D lootItem)
-			{
-				lootItem.RebuildVisuals();
 			}
 
 			_modelLocalMinY = CalculateModelLocalMinY(_currentSelectedObject);

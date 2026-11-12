@@ -478,6 +478,25 @@ public partial class TemplateManagerDialog
 		});
 	}
 
+	/// <summary>
+	///     Opens the item template editor on one item template. This is the only dialog an item is edited in, so a drop
+	///     selected on the terrain reaches its ground model, its icon and its grants through it rather than through the
+	///     visual inspector, which has no item controls.
+	/// </summary>
+	/// <param name="templateId">The item template a placed drop is spawned from.</param>
+	public void OpenItemEditor(string templateId)
+	{
+		if (string.IsNullOrWhiteSpace(templateId)) return;
+
+		_itemEditDialog.OpenForObject("items", templateId, (_, newId) =>
+		{
+			if (!Visible) return;
+
+			_currentPreviewTemplateID = newId;
+			RefreshObjectList();
+		});
+	}
+
 	private void OpenDefaultEditDialog(ObjectItemInfo item)
 	{
 		if (item.Category == "items")

@@ -423,7 +423,6 @@
   "Choose Test Map again once the map compiler has finished installing. If the download cannot start, check your internet connection and reopen the Map Editor to retry.": "Choose Test Map again once the map compiler has finished installing. If the download cannot start, check your internet connection and reopen the Map Editor to retry.",
   "Choose a map package this map should take content from": "Choose a map package this map should take content from",
   "Choose between curated [Export] items, individual classes, or whole namespaces": "Choose between curated [Export] items, individual classes, or whole namespaces",
-  "Choose the 3D model this item is drawn with on the terrain. Leave the model empty to draw the item's gem placeholder.": "Choose the 3D model this item is drawn with on the terrain. Leave the model empty to draw the item's gem placeholder.",
   "Choose the friends to invite. They receive the invitation from Steam and can join this lobby with one click.": "Choose the friends to invite. They receive the invitation from Steam and can join this lobby with one click.",
   "Choose what this image converts to: {0}": "Choose what this image converts to: {0}",
   "Choose whether to copy assets, configured templates with their dependencies, or map script code": "Choose whether to copy assets, configured templates with their dependencies, or map script code",

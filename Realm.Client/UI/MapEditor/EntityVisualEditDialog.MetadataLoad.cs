@@ -40,7 +40,6 @@ public partial class EntityVisualEditDialog
 			"buildings" => "building",
 			"resources" => "resource",
 			"props" => "prop",
-			"items" => "item",
 			_ => "unit"
 		};
 	}
@@ -64,10 +63,6 @@ public partial class EntityVisualEditDialog
 			case "props":
 				var p = meta.GetProp(objectId);
 				if (p != null) LoadFromPropMetadata(p);
-				break;
-			case "items":
-				var i = meta.GetItem(objectId);
-				if (i != null) LoadFromItemMetadata(i);
 				break;
 		}
 	}
