@@ -308,6 +308,7 @@ public class MeleeReferenceTests
 			string relativePath = Path.GetRelativePath(Map.Folder, filePath).Replace('\\', '/');
 			if (string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase)) continue;
 			if (string.Equals(relativePath, MapMetadataMerger.MetadataPartialFileName, StringComparison.OrdinalIgnoreCase)) continue;
+			if (MapManifest.IsGeneratedWorkspaceFile(relativePath)) continue;
 			if (relativePath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase)) continue;
 			if (relativePath.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !relativePath.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase)) continue;
 			if (relativePath.EndsWith(".elf", StringComparison.OrdinalIgnoreCase)) continue;

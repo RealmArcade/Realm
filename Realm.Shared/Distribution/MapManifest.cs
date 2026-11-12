@@ -15,6 +15,27 @@ public class MapManifest
 		"WasmEntryPoint.g.cs"
 	};
 
+	/// <summary>
+	///     Answers whether a path names code a workspace writes for itself from the map's own content, which is never
+	///     packaged and never hashed into a manifest: a package that carried one would carry another workspace's generated
+	///     types, and a hash over it would move the map's published identity whenever a workspace was rebuilt.
+	/// </summary>
+	/// <param name="relativePath">A path inside a map folder.</param>
+	/// <returns>True for the generated workspace code.</returns>
+	public static bool IsGeneratedWorkspaceFile(string relativePath)
+	{
+		string fileName = Path.GetFileName(relativePath);
+		for (int index = 0; index < GeneratedWorkspaceFileNames.Length; index++)
+		{
+			if (string.Equals(fileName, GeneratedWorkspaceFileNames[index], StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private Dictionary<string, string> _files = new(StringComparer.OrdinalIgnoreCase);
 	private HashSet<string>? _fileNamesSet;
 
@@ -401,6 +422,15 @@ public class MapManifest
 			foreach (var itemPair in catSource)
 			{
 				string sourceKey = itemPair.Key;
+
+				// The scan ignores build output and the code a workspace generates for itself, so an entry an older manifest
+				// stated for one of those is not carried forward: it would put the generated file back in the published
+				// identity of a map whose content never changed.
+				if (IsIgnoredPath(sourceKey))
+				{
+					continue;
+				}
+
 				string? targetMatchKey = null;
 
 				if (catTarget.ContainsKey(sourceKey))
@@ -547,14 +577,10 @@ public class MapManifest
 
 		// Generated workspace code is written from the map's own merge on every workspace setup and is never taken from a
 		// referenced map, so hashing it would move the package pin whenever a workspace was rebuilt.
-		string fileName = Path.GetFileName(relativePath);
-		for (int index = 0; index < GeneratedWorkspaceFileNames.Length; index++)
-		{
-			if (string.Equals(fileName, GeneratedWorkspaceFileNames[index], StringComparison.OrdinalIgnoreCase))
-				return true;
-		}
+		if (IsGeneratedWorkspaceFile(relativePath))
+			return true;
 
-		return string.Equals(fileName, "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
+		return string.Equals(Path.GetFileName(relativePath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static bool IsIgnoredArchiveExtension(string relativePath)
