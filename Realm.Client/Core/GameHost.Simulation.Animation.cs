@@ -32,6 +32,7 @@ public partial class GameHost
 		if (World.Has<HealingTarget>(entity)) return "Spell_Cast";
 		if (IsEntityGathering(entity)) return "Labor";
 		if (World.Has<BuildTask>(entity)) return "Labor";
+		if (World.Has<RepairTask>(entity)) return "Labor";
 
 		return "Idle";
 	}

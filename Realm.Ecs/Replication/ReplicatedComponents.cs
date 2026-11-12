@@ -559,6 +559,47 @@ public class BuildTaskCodec : INormalizingComponentCodec
 	}
 }
 
+public class RepairTaskCodec : INormalizingComponentCodec
+{
+	public int ComponentTypeId => ComponentType<RepairTask>.Id;
+	public string ComponentName => nameof(RepairTask);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => 4;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<RepairTask>(entity)) return false;
+		ref var task = ref world.Get<RepairTask>(entity);
+		int buildingEntityId = task.BuildingEntity.Id;
+		MemoryMarshal.Write(destination.Slice(0, sizeof(int)), in buildingEntityId);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+		int buildingEntityId = MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+		world.SetOrAdd(entity, new RepairTask(ReplicatedEntityReferences.Resolve(new Entity(buildingEntityId))));
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<RepairTask>(entity)) return;
+		world.Remove<RepairTask>(entity);
+	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+	}
+
+	public void Repoint(EcsWorld world, Entity entity, Entity reference)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<RepairTask>(entity)) return;
+		world.SetOrAdd(entity, new RepairTask(reference));
+	}
+}
+
 public class GathererCodec : INormalizingComponentCodec
 {
 	public int ComponentTypeId => ComponentType<Gatherer>.Id;
@@ -856,6 +897,7 @@ public static class ReplicatedComponents
 		Register(new TagComponentCodec<Dormant>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<RepairableBuilding>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<RepairWorker>(ReplicatedScope.Unit));
+		Register(new RepairTaskCodec());
 	}
 
 	public static void Register(IReplicatedComponentCodec codec)

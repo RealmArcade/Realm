@@ -245,6 +245,7 @@ public class ReplayService
 		if (world.Has<HealingTarget>(entity)) return "Spell_Cast";
 		if (world.Has<Gatherer>(entity) && !world.Get<Gatherer>(entity).ReturningToBase) return "Labor";
 		if (world.Has<BuildTask>(entity)) return "Labor";
+		if (world.Has<RepairTask>(entity)) return "Labor";
 
 		return "Idle";
 	}

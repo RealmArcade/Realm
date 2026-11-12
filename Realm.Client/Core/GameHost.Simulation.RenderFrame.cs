@@ -304,7 +304,7 @@ public partial class GameHost
 		Vector3 ecsVel = hasVelocityComp ? world.Get<Velocity>(entity).Value : Vector3.Zero;
 		bool hasVelocity = hasVelocityComp && ecsVel.LengthSquared() > 0.0001f;
 		bool isLaborAnimating = (world.Has<Gatherer>(entity) && !world.Get<Gatherer>(entity).ReturningToBase)
-		                        || (world.Has<BuildTask>(entity) && !world.Has<MoveTo>(entity));
+		                        || ((world.Has<BuildTask>(entity) || world.Has<RepairTask>(entity)) && !world.Has<MoveTo>(entity));
 
 		if (!posChanged && !hasMovement && !hasVelocity && !hasLookTarget && !isLaborAnimating)
 		{

@@ -61,7 +61,7 @@ Formulas throughout the game preserve intuitive monotonicity. More investment ne
 - The hero gathers resources, constructs buildings, repairs buildings, and fights.
 - Active gathering is faster than passive building-based gathering but requires player attention and mechanical input.
 - A hero can perform only one major non-combat activity at a time. Starting another major activity cancels or pauses the previous one.
-- Construction and repair are visible, timed commitments, and they are orders: the hero raises or mends only the building the player right-clicked for it. Standing near a site or a ruin, idle or otherwise, does nothing, and an order for somewhere else stops the work where it stands. While the hero is working at a site or gathering, it plays its labor animation.
+- Construction and repair are visible, timed commitments, and they are orders: the hero raises or mends only the building the player right-clicked for it. Standing near a site or a ruin, idle or otherwise, does nothing, and an order for somewhere else stops the work where it stands. While the hero is working at a site, mending a damaged building or gathering, it plays its labor animation.
 
 ### 3.3 Hero Abilities and Progression
 
