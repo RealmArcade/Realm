@@ -12,7 +12,8 @@
         </member>
         <member name="T:Realm.Ecs.AI.Affordances.GenericAffordance">
             <summary>
-            Represents a generic candidate action discovered by the AI action scanner.
+            Represents a generic candidate action discovered by the AI action scanner, addressed by its action id when it
+            executes and by its payload id when a decision policy pins it.
             </summary>
         </member>
         <member name="P:Realm.Ecs.AI.BotController.MapCandidateSource">

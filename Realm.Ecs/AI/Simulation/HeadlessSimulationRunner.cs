@@ -37,7 +37,7 @@ public class HeadlessSimulationRunner
 		set => _genreProvider = value ?? new StandardRtsGenreProvider();
 	}
 
-	public Action<int, string, Vector3, string>? CustomActionCallback { get; set; }
+	public Action<int, string, Vector3, string, string>? CustomActionCallback { get; set; }
 
 	public HeadlessSimulationRunner(IAiGenreProvider? genreProvider = null, SeededRandom? random = null)
 	{

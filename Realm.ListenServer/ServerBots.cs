@@ -178,7 +178,7 @@ public class ServerBots
 			return;
 		}
 
-		decisions.Add(new GenericAffordance(Entity.Null, commandIntent, Entity.Null, position, actionId, featureVector));
+		decisions.Add(new GenericAffordance(Entity.Null, commandIntent, Entity.Null, position, actionId, payload, featureVector));
 	}
 
 	public void ClearCustomDecisions(int playerIndex)
@@ -259,9 +259,9 @@ public class ServerBots
 		return _customDecisionsPerPlayer.TryGetValue(playerIndex, out List<GenericAffordance>? decisions) ? decisions : null;
 	}
 
-	private void AnnounceCustomAction(int playerIndex, string actionId, Vector3 position, string intent)
+	private void AnnounceCustomAction(int playerIndex, string actionId, Vector3 position, string intent, string payload)
 	{
-		CustomActionExecuted?.Invoke(playerIndex, actionId, intent, position, string.Empty);
+		CustomActionExecuted?.Invoke(playerIndex, actionId, intent, position, payload);
 		ClearCustomDecisions(playerIndex);
 	}
 

@@ -21,9 +21,9 @@ public sealed class PlayerBotDirector
 {
 	private readonly Dictionary<int, BotController> _controllers = new();
 	private readonly Dictionary<int, List<GenericAffordance>> _customDecisions = new();
-	private readonly Action<int, string, string, Vector3> _customAction;
+	private readonly Action<int, string, string, Vector3, string> _customAction;
 
-	public PlayerBotDirector(Action<int, string, string, Vector3> customAction)
+	public PlayerBotDirector(Action<int, string, string, Vector3, string> customAction)
 	{
 		_customAction = customAction;
 	}
@@ -46,7 +46,7 @@ public sealed class PlayerBotDirector
 		if (!_controllers.TryGetValue(playerIndex, out var bot))
 		{
 			bot = new BotController(playerIndex, profile);
-			bot.CustomActionCallback = (pIdx, actId, pos, intent) => _customAction(pIdx, actId, intent, pos);
+			bot.CustomActionCallback = (pIdx, actId, pos, intent, payload) => _customAction(pIdx, actId, intent, pos, payload);
 			AttachMapCandidates(playerIndex, bot);
 			_controllers[playerIndex] = bot;
 		}
@@ -98,7 +98,7 @@ public sealed class PlayerBotDirector
 		{
 			var profile = genreProvider.CreateDefaultProfile(GameContext.Simulation.ActiveMapName ?? "GenericMap");
 			bot = new BotController(playerIndex, profile, genreProvider);
-			bot.CustomActionCallback = (pIdx, actId, pos, intent) => _customAction(pIdx, actId, intent, pos);
+			bot.CustomActionCallback = (pIdx, actId, pos, intent, payload) => _customAction(pIdx, actId, intent, pos, payload);
 			AttachMapCandidates(playerIndex, bot);
 			_controllers[playerIndex] = bot;
 		}
@@ -155,6 +155,7 @@ public sealed class PlayerBotDirector
 			Entity.Null,
 			position,
 			actionId,
+			payload,
 			featureVector
 		));
 	}

@@ -49,7 +49,7 @@ public class BotController
 		set => _decisionPolicy = value ?? new LinearUtilityDecisionPolicy();
 	}
 
-	public Action<int, string, Vector3, string>? CustomActionCallback { get; set; }
+	public Action<int, string, Vector3, string, string>? CustomActionCallback { get; set; }
 
 	/// <summary>
 	/// Supplies candidate actions a map registered for this player. Whoever owns the world sets it once, so a seat
@@ -159,7 +159,7 @@ public class BotController
 	{
 		if (selected.SourceEntity.IsNull && CustomActionCallback != null)
 		{
-			CustomActionCallback(playerIndex, selected.PayloadId, selected.TargetPosition, selected.Intent.ToString());
+			CustomActionCallback(playerIndex, selected.ActionId, selected.TargetPosition, selected.Intent.ToString(), selected.PayloadId);
 			return;
 		}
 

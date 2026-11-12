@@ -819,11 +819,11 @@
             and its own weights; the genre scan resumes once the map clears them.
             </summary>
             <param name="playerIndex">The zero-based player slot index.</param>
-            <param name="actionId">The unique action identifier.</param>
+            <param name="actionId">The unique action identifier, reported back to <see cref="E:Realm.MapAPI.IGameAPI.OnBotCustomActionExecuted"/> when the candidate executes.</param>
             <param name="intent">The action intent category (e.g., "Build", "Cast", "Transact", "Interact").</param>
             <param name="featureVector">The normalized feature vector scored against the AI weights.</param>
             <param name="position">The target world coordinate for the action.</param>
-            <param name="payload">Optional metadata or argument string passed when the action executes.</param>
+            <param name="payload">The identifier a decision policy pins this candidate by, so a tool can force the candidate named <c>unit/tidecaller</c> with <c>fixed-once:unit/tidecaller</c>. It is reported back to <see cref="E:Realm.MapAPI.IGameAPI.OnBotCustomActionExecuted"/> beside the action id.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.ClearCustomBotDecisions(System.Int32)">
             <summary>
