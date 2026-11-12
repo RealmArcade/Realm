@@ -21,6 +21,13 @@ public partial class LootItem3D : Node3D
 	public bool IsDespawned { get; set; }
 	public Entity Entity { get; set; }
 
+	/// <summary>
+	///     Whether this drop is a placement the map authored - one the terrain file or the editor put there - rather than
+	///     loot a map script or the authority spawned while a match ran. Only an authored placement belongs in terrain.json
+	///     and in the editor's own world, so a runtime drop is never saved and never put back after a playtest.
+	/// </summary>
+	public bool IsAuthoredPlacement { get; set; }
+
 	private const float PedestalTopHeight = 0.08f;
 	private const float ModelRestingHeight = 0.1f;
 

@@ -537,6 +537,7 @@ public partial class GameHost
 
 		var lootNode = new LootItem3D();
 		lootNode.Name = "Loot_LootItem3D";
+		lootNode.IsAuthoredPlacement = false;
 		lootNode.Entity = localEntity;
 		lootNode.Position = new Godot.Vector3(x, y, z);
 		lootNode.Initialize(lootItemId, loot.ItemTypeId, loot.Charges, loot.Lifetime, loot.PickupRadius, loot.AutoPickup, loot.OwnerPlayerIndex);

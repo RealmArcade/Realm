@@ -137,6 +137,7 @@ public partial class GameHost
 		var lootItem = new LootItem3D();
 		lootItem.Name = "PlacedItem_LootItem3D";
 		lootItem.Position = position;
+		lootItem.IsAuthoredPlacement = true;
 		lootItem.Initialize(0, resolvedId, 1, 0f, GroundLootService.DefaultPickupRadius, false, -1);
 
 		AddChild(lootItem);

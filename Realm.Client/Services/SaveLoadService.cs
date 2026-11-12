@@ -459,6 +459,9 @@ public class SaveLoadService
 		foreach (var lootItem in lootItems)
 		{
 			if (lootItem == null || !GodotObject.IsInstanceValid(lootItem) || lootItem.IsDespawned) continue;
+			// A drop a map script or the authority spawned while a match ran is that match's content, not the map's: only a
+			// placement the terrain file or the editor authored is written back to terrain.json.
+			if (!lootItem.IsAuthoredPlacement) continue;
 			if (!MapAssetSync.IsValidItemObjectId(lootItem.ItemTypeId, directory)) continue;
 
 			Godot.Vector3 position = lootItem.Position;
