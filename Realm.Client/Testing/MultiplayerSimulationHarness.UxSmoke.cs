@@ -316,6 +316,23 @@ public partial class MultiplayerSimulationHarness : Node
 			}
 
 			Check("every stat category a unit has shows an icon", visibleIcons >= 4, $"icons={visibleIcons}");
+
+			var categoryTitles = new List<string>();
+			foreach (Node child in strip.GetChildren())
+			{
+				if (child is not Control { Visible: true } category) continue;
+				if (!category.Name.ToString().StartsWith("UnitStatsCategory", StringComparison.Ordinal)) continue;
+				categoryTitles.Add(category.TooltipText);
+			}
+
+			Check("the stat sheet starts with General before its other categories", categoryTitles.Count > 0 && categoryTitles[0] == "General", string.Join(", ", categoryTitles));
+			Check("the stat sheet lists only General, Attributes, Offense and Defense",
+				categoryTitles.SequenceEqual(new[] { "General", "Attributes", "Offense", "Defense" }), string.Join(", ", categoryTitles));
+			Check("the removed Magic and Mobility categories stay gone",
+				hud.FindChild("UnitStatsCategoryMagic_Label", true, false) == null && hud.FindChild("UnitStatsCategoryMobility_Label", true, false) == null);
+			Check("the removed Damage Per Second row stays gone",
+				hud.FindChildren("UnitStatsRowDamagePerSecond_*", string.Empty, true, false).Count == 0);
+
 			int foldedRows = hud.FindChildren("UnitStatsRow*", string.Empty, true, false).Count;
 			Check("no stat row is drawn until a category is hovered", foldedRows == 0, $"rows={foldedRows}");
 			SaveUxScreenshot("ux_smoke_stats_folded.png", "folded stats", Note);
