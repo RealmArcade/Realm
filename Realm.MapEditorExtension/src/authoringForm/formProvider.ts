@@ -56,6 +56,7 @@ interface Session {
     disposed: boolean;
     applying: number;
     foreignEdits: boolean;
+    writeQueue: Promise<void> | undefined;
     subscriptions: vscode.Disposable[];
 }
 
@@ -90,7 +91,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
 
     public dispose(): void {
         for (const session of [...this.sessions.values()]) {
-            this.flush(session);
+            void this.flush(session);
             session.disposed = true;
         }
         this.sessions.clear();
@@ -122,6 +123,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             disposed: false,
             applying: 0,
             foreignEdits: false,
+            writeQueue: undefined,
             subscriptions: []
         };
         this.sessions.set(key, session);
@@ -158,7 +160,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             }),
             panel.onDidChangeViewState(state => {
                 if (!state.webviewPanel.visible) {
-                    this.flush(session, true);
+                    void this.flush(session, true);
                 }
             }),
             panel.onDidDispose(() => this.close(session))
@@ -166,7 +168,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
     }
 
     private close(session: Session): void {
-        this.flush(session, true);
+        void this.flush(session, true);
         session.referenceSubscription?.dispose();
         session.referenceSubscription = undefined;
         session.disposed = true;
@@ -206,7 +208,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
                     this.queue(session, message.path, message.value, message.phase === 'end');
                     return;
                 case 'flush':
-                    this.flush(session);
+                    void this.flush(session);
                     return;
                 case 'layout':
                     session.expanded = Array.isArray(message.expanded) ? message.expanded.filter(entry => typeof entry === 'string') : [];
@@ -225,8 +227,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
                     void this.reveal(session, message.path ?? []);
                     return;
                 case 'openText':
-                    this.flush(session, true);
-                    void vscode.window.showTextDocument(session.document.uri, { preview: false, viewColumn: vscode.ViewColumn.Active });
+                    void this.flush(session, true).then(() => vscode.window.showTextDocument(session.document.uri, { preview: false, viewColumn: vscode.ViewColumn.Active }));
                     return;
                 case 'addEntry':
                     void this.structural(session, message.path ?? [], 'addEntry', message.keyName ?? '');
@@ -348,7 +349,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
 
     private queue(session: Session, requestPath: PathSegments, value: unknown, endOfGesture: boolean): void {
         if (session.pending && pathKey(session.pending.path) !== pathKey(requestPath)) {
-            this.flush(session);
+            void this.flush(session);
         }
         if (session.pending) {
             clearTimeout(session.pending.timer);
@@ -365,17 +366,21 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
         };
     }
 
-    private flush(session: Session, save = false): void {
+    private flush(session: Session, save = false): Promise<void> {
         const pending = session.pending;
         if (!pending) {
-            if (save) {
-                void this.saveIfOurs(session);
-            }
-            return;
+            return save ? this.chain(session, () => this.saveIfOurs(session)) : Promise.resolve();
         }
         session.pending = undefined;
         clearTimeout(pending.timer);
-        void this.commit(session, pending.path, pending.value, save);
+        return this.commit(session, pending.path, pending.value, save);
+    }
+
+    private chain(session: Session, work: () => Promise<void>): Promise<void> {
+        const previous = session.writeQueue ?? Promise.resolve();
+        const next = previous.then(work, work);
+        session.writeQueue = next.then(() => undefined, () => undefined);
+        return next;
     }
 
     private async saveIfOurs(session: Session): Promise<void> {
@@ -389,7 +394,11 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
         }
     }
 
-    private async commit(session: Session, requestPath: PathSegments, rawValue: unknown, save: boolean): Promise<void> {
+    private commit(session: Session, requestPath: PathSegments, rawValue: unknown, save: boolean): Promise<void> {
+        return this.chain(session, () => this.commitNow(session, requestPath, rawValue, save));
+    }
+
+    private async commitNow(session: Session, requestPath: PathSegments, rawValue: unknown, save: boolean): Promise<void> {
         const context = this.contextFor(session.document);
         if (!context) {
             return;
@@ -409,6 +418,9 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
 
         const current = valueAt(context.snapshot, requestPath);
         if (sameValue(current, value)) {
+            if (save) {
+                await this.saveIfOurs(session);
+            }
             return;
         }
 
@@ -423,8 +435,11 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
         }
     }
 
-    private async structural(session: Session, requestPath: PathSegments, operation: 'addEntry' | 'renameEntry' | 'removeEntry' | 'addItem' | 'removeItem', keyName?: string): Promise<void> {
-        this.flush(session);
+    private structural(session: Session, requestPath: PathSegments, operation: 'addEntry' | 'renameEntry' | 'removeEntry' | 'addItem' | 'removeItem', keyName?: string): Promise<void> {
+        return this.flush(session).then(() => this.chain(session, () => this.structuralNow(session, requestPath, operation, keyName)));
+    }
+
+    private async structuralNow(session: Session, requestPath: PathSegments, operation: 'addEntry' | 'renameEntry' | 'removeEntry' | 'addItem' | 'removeItem', keyName?: string): Promise<void> {
         const context = this.contextFor(session.document);
         if (!context) {
             return;
@@ -508,7 +523,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
     }
 
     private async reveal(session: Session, requestPath: PathSegments): Promise<void> {
-        this.flush(session, true);
+        await this.flush(session, true);
         const snapshot = this.services.snapshots.get(session.document);
         const target = requestPath.length === 0 ? undefined : findNode(snapshot, requestPath);
         const editor = await vscode.window.showTextDocument(session.document.uri, {
@@ -528,7 +543,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
     }
 
     private async pickReference(session: Session): Promise<void> {
-        this.flush(session, true);
+        await this.flush(session, true);
         const mapFolder = mapFolderOfDocument(session.document);
         const picked = await vscode.window.showOpenDialog({
             canSelectFiles: true,

@@ -188,10 +188,17 @@ function insertPropertyInSchemaOrder(
         return [vscode.TextEdit.replace(rangeOf(document, objectNode), body)];
     }
 
+    const openingLine = document.positionAt(objectNode.offset).line;
+    const inline = members.some(member => document.positionAt(member.offset).line === openingLine);
+    const inlineText = `${JSON.stringify(keyName)}: ${JSON.stringify(value)}`;
+
     const insertBeforeMember = (member: Node): vscode.TextEdit[] => {
+        const position = document.positionAt(member.offset);
         const targetIndent = lineIndentation(document, member.offset);
-        const at = new vscode.Position(document.positionAt(member.offset).line, targetIndent.length);
-        return [vscode.TextEdit.insert(at, `${rendered},${eol}${targetIndent}`)];
+        if (inline || position.character !== targetIndent.length) {
+            return [vscode.TextEdit.insert(position, `${inlineText}, `)];
+        }
+        return [vscode.TextEdit.insert(new vscode.Position(position.line, targetIndent.length), `${rendered},${eol}${targetIndent}`)];
     };
 
     const desiredIndex = declared.indexOf(keyName);
@@ -227,7 +234,10 @@ function insertPropertyInSchemaOrder(
     }
 
     const last = members[members.length - 1];
-    return [vscode.TextEdit.insert(document.positionAt(last.offset + last.length), `,${eol}${memberIndent}${rendered}`)];
+    return [vscode.TextEdit.insert(
+        document.positionAt(last.offset + last.length),
+        inline ? `, ${inlineText}` : `,${eol}${memberIndent}${rendered}`
+    )];
 }
 
 export function removeAtEdits(document: vscode.TextDocument, snapshot: JsonSnapshot, path: PathSegments): vscode.TextEdit[] | undefined {
@@ -248,6 +258,9 @@ export function appendItemEdits(document: vscode.TextDocument, snapshot: JsonSna
 
 export function insertEntryEdits(document: vscode.TextDocument, snapshot: JsonSnapshot, objectPath: PathSegments, keyName: string, value: unknown): vscode.TextEdit[] | undefined {
     if (!snapshot.tree) {
+        return undefined;
+    }
+    if (findNodeAtLocation(snapshot.tree, [...objectPath, keyName])) {
         return undefined;
     }
     return editsFromParser(document, snapshot.text, [...objectPath, keyName], value);
