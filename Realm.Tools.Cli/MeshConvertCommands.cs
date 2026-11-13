@@ -154,6 +154,8 @@ public static class MeshConvertCommands
 				WriteUvChartReport(optResult, inputFile);
 			}
 
+			outputGlbBytes = GlbLodGenerator.ReduceToBaseTier(outputGlbBytes);
+
 			string? outDir = Path.GetDirectoryName(targetFile);
 			if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir)) Directory.CreateDirectory(outDir);
 

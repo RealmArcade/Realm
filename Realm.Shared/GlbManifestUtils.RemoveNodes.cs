@@ -166,6 +166,80 @@ public static partial class GlbManifestUtils
 		return true;
 	}
 
+	public static bool RemoveAndRemapMeshes(JsonObject root, Func<JsonObject, bool> shouldRemovePredicate)
+	{
+		if (!root.TryGetPropertyValue("meshes", out var meshesNode) || meshesNode is not JsonArray meshesArray || meshesArray.Count == 0)
+			return false;
+
+		int originalMeshCount = meshesArray.Count;
+		var removedIndices = new HashSet<int>();
+
+		for (int i = 0; i < originalMeshCount; i++)
+		{
+			if (meshesArray[i] is JsonObject meshObj && shouldRemovePredicate(meshObj))
+			{
+				removedIndices.Add(i);
+			}
+		}
+
+		if (removedIndices.Count == 0) return false;
+
+		for (int i = originalMeshCount - 1; i >= 0; i--)
+		{
+			if (removedIndices.Contains(i))
+			{
+				meshesArray.RemoveAt(i);
+			}
+		}
+
+		int[] remap = BuildRemap(removedIndices, originalMeshCount);
+		RemapNodeMeshReferences(root, remap);
+
+		return true;
+	}
+
+	private static int[] BuildRemap(HashSet<int> removedIndices, int originalCount)
+	{
+		int[] remap = new int[originalCount];
+		int shift = 0;
+		for (int i = 0; i < originalCount; i++)
+		{
+			if (removedIndices.Contains(i))
+			{
+				remap[i] = -1;
+				shift++;
+			}
+			else
+			{
+				remap[i] = i - shift;
+			}
+		}
+
+		return remap;
+	}
+
+	private static void RemapNodeMeshReferences(JsonObject root, int[] remap)
+	{
+		if (root["nodes"] is not JsonArray nodes) return;
+
+		foreach (var nodeItem in nodes)
+		{
+			if (nodeItem is not JsonObject nodeObj) continue;
+			if (nodeObj["mesh"] is not JsonValue meshValue || !meshValue.TryGetValue(out int meshIndex)) continue;
+			if (meshIndex < 0 || meshIndex >= remap.Length) continue;
+
+			int remappedMeshIndex = remap[meshIndex];
+			if (remappedMeshIndex >= 0)
+			{
+				nodeObj["mesh"] = remappedMeshIndex;
+			}
+			else
+			{
+				nodeObj.Remove("mesh");
+			}
+		}
+	}
+
 	private static void RemapJsonIntArray(JsonArray arr, int[] remap)
 	{
 		var seen = new HashSet<int>();
