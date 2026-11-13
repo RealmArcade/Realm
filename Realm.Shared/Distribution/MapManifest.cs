@@ -7,6 +7,8 @@ using Realm.Shared.Services;
 
 namespace Realm.Shared.Distribution;
 
+[SchemaDescription("The published identity of a map: what it is called, who made it, which version it is, and every asset file it ships, keyed by content hash.")]
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public class MapManifest
 {
 	private static readonly string[] GeneratedWorkspaceFileNames =
@@ -39,17 +41,38 @@ public class MapManifest
 	private Dictionary<string, string> _files = new(StringComparer.OrdinalIgnoreCase);
 	private HashSet<string>? _fileNamesSet;
 
+	[SchemaDescription("The name the map is published and downloaded under.")]
 	public string MapName { get; set; } = string.Empty;
+
+	[SchemaDescription("The name the map credits as its author, which is the identity its publisher proves ownership against.")]
 	public string Author { get; set; } = string.Empty;
+
+	[SchemaDescription("The published version of the map, which a dependency pins and the lobby shows.")]
+	[SchemaSensitive]
 	public string Version { get; set; } = "1.0.0";
+
+	[SchemaDescription("The short introduction shown beside the map in the lobby and in the published listing.")]
+	[SchemaControl(RealmSchemaControl.Textarea)]
 	public string Description { get; set; } = string.Empty;
+
+	[SchemaDescription("The labels the map is discovered and filtered by.")]
+	[SchemaControl(RealmSchemaControl.Tags)]
 	public List<string> Tags { get; set; } = new();
+
+	[SchemaDescription("The other authors allowed to publish new versions of this map.")]
 	public List<string> Maintainers { get; set; } = new();
+
+	[SchemaDescription("The maps this map's publication was greenlit from, kept so a derived release can be traced back.")]
 	public List<string> GreenlitReferences { get; set; } = new();
+
+	[SchemaDescription("The maps this map's assets were imported from, kept so attribution is carried into the published listing.")]
 	public List<string> Attribution_SourceMap { get; set; } = new();
+
+	[SchemaDescription("Whether this publication is a test build, which is kept out of the public listing.")]
 	public bool IsTestVersion { get; set; }
 
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	[SchemaDescription("Every asset file the map ships, grouped by the kind of asset it is.")]
 	public MapManifestAssets? Assets { get; set; }
 
 	[JsonIgnore]

@@ -6,8 +6,8 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);node_modules\**;dist\**</DefaultItemExcludes>
   </PropertyGroup>
 
-  <Target Name="GenerateSchemas" BeforeTargets="NpmBuild;Build;SyncToEmbedded" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
-    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/generate-schemas.ps1&quot;" />
+  <Target Name="VerifySchemas" BeforeTargets="NpmBuild;Build;SyncToEmbedded" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/verify-schemas.ps1&quot;" />
   </Target>
 
   <Target Name="SyncVersion" BeforeTargets="NpmBuild" Condition="$([MSBuild]::IsOSPlatform('Windows'))">

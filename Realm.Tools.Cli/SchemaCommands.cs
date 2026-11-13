@@ -1,77 +1,128 @@
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using Blake3;
-using CommandLine;
 using Realm.Shared;
-using Realm.Shared.Animation;
-using Realm.Shared.Audio;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
-using Realm.Shared.ModelOptimization;
+using Realm.Shared.Serialization;
 using Realm.Shared.Terrain;
-using Realm.Shared.Textures;
 
 namespace Realm.Tools.Cli;
 
 public static class SchemaCommands
 {
+	private static readonly (string FileName, Type ModelType)[] SchemaTargets =
+	{
+		("manifest.schema.json", typeof(MapManifest)),
+		("metadata.schema.json", typeof(MapMetadata)),
+		("terrain.schema.json", typeof(MapSaveData))
+	};
+
 	public static int ExecuteManifest(GenerateManifestSchemaOptions options)
 	{
-		string schemaJson = MapManifest.GenerateJsonSchema();
 		string outputPath = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : "manifest.schema.json";
-		string? outDir = Path.GetDirectoryName(outputPath);
-		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir))
-		{
-			Directory.CreateDirectory(outDir);
-		}
-
-		File.WriteAllText(outputPath, schemaJson, new UTF8Encoding(false));
-		Console.WriteLine($"Generated schema: {outputPath}");
-		return 0;
+		return WriteSchema(typeof(MapManifest), outputPath);
 	}
 
 	public static int ExecuteMetadata(GenerateMetadataSchemaOptions options)
 	{
-		string schemaJson = MapMetadata.GenerateJsonSchema();
 		string outputPath = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : "metadata.schema.json";
-		string? outDir = Path.GetDirectoryName(outputPath);
-		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir))
-		{
-			Directory.CreateDirectory(outDir);
-		}
-
-		File.WriteAllText(outputPath, schemaJson, new UTF8Encoding(false));
-		Console.WriteLine($"Generated schema: {outputPath}");
-		return 0;
+		return WriteSchema(typeof(MapMetadata), outputPath);
 	}
 
 	public static int ExecuteTerrain(GenerateTerrainSchemaOptions options)
 	{
-		string schemaJson = MapSaveData.GenerateJsonSchema();
 		string outputPath = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : "terrain.schema.json";
-		string? outDir = Path.GetDirectoryName(outputPath);
-		if (!string.IsNullOrEmpty(outDir) && !Directory.Exists(outDir))
-		{
-			Directory.CreateDirectory(outDir);
-		}
-
-		File.WriteAllText(outputPath, schemaJson, new UTF8Encoding(false));
-		Console.WriteLine($"Generated schema: {outputPath}");
-		return 0;
+		return WriteSchema(typeof(MapSaveData), outputPath);
 	}
 
 	public static int ExecuteAll(GenerateSchemasOptions options)
 	{
-		string baseDir = !string.IsNullOrWhiteSpace(options.Output) ? options.Output : Directory.GetCurrentDirectory();
-		if (!Directory.Exists(baseDir))
+		string baseDir = ResolveBaseDirectory(options.Output);
+		EnsureDirectory(baseDir);
+
+		foreach ((string fileName, Type modelType) in SchemaTargets)
 		{
-			Directory.CreateDirectory(baseDir);
+			int exitCode = WriteSchema(modelType, Path.Combine(baseDir, fileName));
+			if (exitCode != 0)
+			{
+				return exitCode;
+			}
 		}
 
-		ExecuteManifest(new GenerateManifestSchemaOptions { Output = Path.Combine(baseDir, "manifest.schema.json") });
-		ExecuteMetadata(new GenerateMetadataSchemaOptions { Output = Path.Combine(baseDir, "metadata.schema.json") });
-		ExecuteTerrain(new GenerateTerrainSchemaOptions { Output = Path.Combine(baseDir, "terrain.schema.json") });
+		Console.WriteLine($"Schema vocabulary version: {RealmJsonSchemaExporter.VocabularyVersion}");
 		return 0;
+	}
+
+	/// <summary>
+	///     Verifies that each committed schema still matches what the model generates, so a hand-edited or stale schema
+	///     fails the build instead of shipping.
+	/// </summary>
+	public static int ExecuteVerify(VerifySchemasOptions options)
+	{
+		string baseDir = ResolveBaseDirectory(options.Output);
+		bool failed = false;
+
+		foreach ((string fileName, Type modelType) in SchemaTargets)
+		{
+			string committedPath = Path.Combine(baseDir, fileName);
+			string? drift = RealmJsonSchemaExporter.FindSchemaDrift(modelType, committedPath);
+			if (drift is null)
+			{
+				Console.WriteLine($"Schema up to date: {fileName}");
+				continue;
+			}
+
+			failed = true;
+			Console.Error.WriteLine(drift);
+		}
+
+		if (failed)
+		{
+			Console.Error.WriteLine("Run scripts/generate-schemas.ps1 and commit the regenerated schemas.");
+			return 1;
+		}
+
+		return 0;
+	}
+
+	private static int WriteSchema(Type modelType, string outputPath)
+	{
+		RealmSchemaDocument document = RealmJsonSchemaExporter.GenerateSchema(modelType);
+		string? outDir = Path.GetDirectoryName(outputPath);
+		if (!string.IsNullOrEmpty(outDir))
+		{
+			EnsureDirectory(outDir);
+		}
+
+		File.WriteAllText(outputPath, document.Json, new UTF8Encoding(false));
+		Console.WriteLine($"Generated schema: {outputPath}");
+		ReportMissingDescriptions(Path.GetFileName(outputPath), document);
+		return 0;
+	}
+
+	private static void ReportMissingDescriptions(string fileName, RealmSchemaDocument document)
+	{
+		if (document.MissingDescriptions.Count == 0)
+		{
+			return;
+		}
+
+		Console.WriteLine($"{fileName}: {document.MissingDescriptions.Count} declaration(s) carry no description:");
+		foreach (string entry in document.MissingDescriptions)
+		{
+			Console.WriteLine($"  {entry}");
+		}
+	}
+
+	private static string ResolveBaseDirectory(string? output)
+	{
+		return !string.IsNullOrWhiteSpace(output) ? output : Directory.GetCurrentDirectory();
+	}
+
+	private static void EnsureDirectory(string path)
+	{
+		if (!Directory.Exists(path))
+		{
+			Directory.CreateDirectory(path);
+		}
 	}
 }

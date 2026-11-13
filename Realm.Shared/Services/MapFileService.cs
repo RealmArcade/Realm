@@ -37,6 +37,7 @@ public static class MapFileService
 		ReadCommentHandling = JsonCommentHandling.Skip,
 		WriteIndented = true,
 		PropertyNameCaseInsensitive = true,
+		UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
@@ -45,6 +46,7 @@ public static class MapFileService
 		PropertyNameCaseInsensitive = true,
 		IncludeFields = true,
 		WriteIndented = true,
+		UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
 		Converters = { new JsonStringEnumConverter() },
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
@@ -54,6 +56,7 @@ public static class MapFileService
 		PropertyNameCaseInsensitive = true,
 		IncludeFields = true,
 		WriteIndented = true,
+		UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
 		Converters = { new JsonStringEnumConverter() },
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
@@ -92,14 +95,7 @@ public static class MapFileService
 			return new MapManifest();
 		}
 
-		try
-		{
-			return JsonSerializer.Deserialize<MapManifest>(json, ManifestJsonOptions) ?? new MapManifest();
-		}
-		catch
-		{
-			return new MapManifest();
-		}
+		return JsonSerializer.Deserialize<MapManifest>(json, ManifestJsonOptions) ?? new MapManifest();
 	}
 
 	public static void SaveManifest(string pathOrDirectory, MapManifest manifest)
@@ -140,14 +136,7 @@ public static class MapFileService
 			return new MapMetadata();
 		}
 
-		try
-		{
-			return JsonSerializer.Deserialize<MapMetadata>(json, MetadataJsonOptions) ?? new MapMetadata();
-		}
-		catch
-		{
-			return new MapMetadata();
-		}
+		return JsonSerializer.Deserialize<MapMetadata>(json, MetadataJsonOptions) ?? new MapMetadata();
 	}
 
 	public static void SaveMetadata(string pathOrDirectory, MapMetadata metadata)
@@ -188,14 +177,7 @@ public static class MapFileService
 			return new MapSaveData();
 		}
 
-		try
-		{
-			return JsonSerializer.Deserialize<MapSaveData>(json, TerrainJsonOptions) ?? new MapSaveData();
-		}
-		catch
-		{
-			return new MapSaveData();
-		}
+		return JsonSerializer.Deserialize<MapSaveData>(json, TerrainJsonOptions) ?? new MapSaveData();
 	}
 
 	public static void SaveTerrain(string pathOrDirectory, MapSaveData terrain)

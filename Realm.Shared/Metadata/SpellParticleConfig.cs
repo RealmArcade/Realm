@@ -1,51 +1,145 @@
+using Realm.Shared.Serialization;
 using Realm.Shared.Terrain;
 
 namespace Realm.Shared.Metadata;
 
+[SchemaDescription("One particle system: how many particles it emits, where they start, how they move, how they change colour and size over their lives, and how each one is drawn.")]
 public class SpellParticleConfig
 {
+	[SchemaDescription("The identifier the particle system is known by in the editor.")]
+	[SchemaSensitive]
 	public string ParticleId { get; set; } = "particle_burst";
+
+	[SchemaDescription("The name the particle system shows in the editor.")]
 	public string Name { get; set; } = "Spell Particles";
 
+	[SchemaDescription("How many particles one emission produces.")]
 	public int Amount { get; set; } = 32;
+
+	[SchemaDescription("How long each particle lives before it disappears.")]
+	[SchemaUnit("s")]
 	public float Lifetime { get; set; } = 1.0f;
+
+	[SchemaDescription("How much of the emission is released at the very start rather than over the effect's life, which turns a stream into a burst.")]
+	[SchemaUnit("%")]
+	[SchemaRange(0, 1)]
 	public float Explosiveness { get; set; } = 0.0f;
+
+	[SchemaDescription("How much each particle's start is randomised, so a burst does not read as one wave.")]
+	[SchemaUnit("%")]
+	[SchemaRange(0, 1)]
 	public float Randomness { get; set; } = 0.0f;
+
+	[SchemaDescription("Whether the particles move with the effect they belong to instead of staying where they were emitted.")]
 	public bool LocalCoords { get; set; } = false;
 
+	[SchemaDescription("The shape the particles are emitted inside.")]
 	public SpellParticleShape EmitterShape { get; set; } = SpellParticleShape.Sphere;
+
+	[SchemaDescription("How far from the emitter's centre particles may start when its shape is a sphere.")]
+	[SchemaUnit("m")]
 	public float SphereRadius { get; set; } = 0.5f;
+
+	[SchemaDescription("How far from the emitter's centre particles may start on each axis when its shape is a box.")]
+	[SchemaUnit("m")]
 	public Vector3Data BoxExtents { get; set; } = new Vector3Data(0.5f, 0.5f, 0.5f);
+
+	[SchemaDescription("How far from the emitter's centre the ring the particles start on sits.")]
+	[SchemaUnit("m")]
 	public float RingRadius { get; set; } = 1.0f;
+
+	[SchemaDescription("The inner edge of the ring the particles start on, which makes it a band rather than a circle.")]
+	[SchemaUnit("m")]
 	public float RingInnerRadius { get; set; } = 0.8f;
+
+	[SchemaDescription("How tall the band the particles start in is.")]
+	[SchemaUnit("m")]
 	public float RingHeight { get; set; } = 0.1f;
 
+	[SchemaDescription("The direction the particles are emitted in, before their spread is applied.")]
 	public Vector3Data Direction { get; set; } = new Vector3Data(0f, 1f, 0f);
+
+	[SchemaDescription("How wide a cone the particles are emitted into around their direction.")]
+	[SchemaUnit("°")]
 	public float SpreadDegrees { get; set; } = 45.0f;
+
+	[SchemaDescription("The slowest speed a particle leaves the emitter with.")]
+	[SchemaUnit("m/s")]
 	public float InitialVelocityMin { get; set; } = 1.0f;
+
+	[SchemaDescription("The fastest speed a particle leaves the emitter with.")]
+	[SchemaUnit("m/s")]
 	public float InitialVelocityMax { get; set; } = 3.0f;
+
+	[SchemaDescription("The acceleration every particle is pulled with, which is what makes sparks fall.")]
 	public Vector3Data Gravity { get; set; } = new Vector3Data(0.0f, -4.0f, 0.0f);
+
+	[SchemaDescription("A constant acceleration added to every particle on each axis.")]
 	public Vector3Data LinearAccel { get; set; } = Vector3Data.Zero;
+
+	[SchemaDescription("How strongly particles are pushed away from the emitter's centre as they fly.")]
 	public float RadialAccel { get; set; } = 0.0f;
+
+	[SchemaDescription("How strongly particles are pushed around the emitter's centre as they fly, which makes them swirl.")]
 	public float TangentialAccel { get; set; } = 0.0f;
+
+	[SchemaDescription("How quickly a particle's speed is bled away over its life, which slows a burst to a drift.")]
 	public float Damping { get; set; } = 0.5f;
 
+	[SchemaDescription("The size a particle starts at when it is the smallest of the emission.")]
+	[SchemaUnit("m")]
 	public float InitialScaleMin { get; set; } = 0.2f;
+
+	[SchemaDescription("The size a particle starts at when it is the largest of the emission.")]
+	[SchemaUnit("m")]
 	public float InitialScaleMax { get; set; } = 0.4f;
+
+	[SchemaDescription("The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes.")]
+	[SchemaUnit("%")]
 	public float EndScaleRatio { get; set; } = 0.0f;
 
+	[SchemaDescription("The colour a particle starts its life in.")]
+	[SchemaControl(RealmSchemaControl.Color)]
 	public string ColorStart { get; set; } = "#ffaa00";
+
+	[SchemaDescription("The colour a particle passes through halfway through its life.")]
+	[SchemaControl(RealmSchemaControl.Color)]
 	public string ColorMid { get; set; } = "#ff4400";
+
+	[SchemaDescription("The colour a particle ends its life in.")]
+	[SchemaControl(RealmSchemaControl.Color)]
 	public string ColorEnd { get; set; } = "#220000";
+
+	[SchemaDescription("How opaque a particle is when it starts its life.")]
+	[SchemaUnit("%")]
+	[SchemaRange(0, 1)]
 	public float AlphaStart { get; set; } = 1.0f;
+
+	[SchemaDescription("How opaque a particle is halfway through its life.")]
+	[SchemaUnit("%")]
+	[SchemaRange(0, 1)]
 	public float AlphaMid { get; set; } = 0.8f;
+
+	[SchemaDescription("How opaque a particle is when its life ends.")]
+	[SchemaUnit("%")]
+	[SchemaRange(0, 1)]
 	public float AlphaEnd { get; set; } = 0.0f;
 
+	[SchemaDescription("How strongly the particles glow.")]
 	public float EmissionEnergy { get; set; } = 3.0f;
 
+	[SchemaDescription("How each particle is drawn.")]
 	public SpellParticleRenderMode RenderMode { get; set; } = SpellParticleRenderMode.BillboardQuad;
+
+	[SchemaDescription("How the particles are mixed with what is behind them.")]
 	public VfxBlendMode BlendMode { get; set; } = VfxBlendMode.Additive;
+
+	[SchemaDescription("The texture drawn on each particle when it is drawn as a camera-facing quad.")]
+	[SchemaAsset(new[] { "rtex" }, new[] { "Assets/vfx_spritesheets", "Assets/noise" })]
 	public string ParticleTexture { get; set; } = "";
+
+	[SchemaDescription("The model drawn for each particle when it is drawn as a mesh, such as a chip of debris.")]
+	[SchemaAsset(new[] { "rmesh" }, new[] { "Assets/models/props", "Assets/models/items" })]
 	public string MeshAssetPath { get; set; } = "";
 
 	public SpellParticleConfig Clone()
