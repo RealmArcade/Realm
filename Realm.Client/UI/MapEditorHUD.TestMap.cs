@@ -146,6 +146,11 @@ public partial class MapEditorHUD
 		SetWasmConsoleStatus("Compiling WASM map script...", UIStyle.ColorCyanGlow);
 		AppendWasmConsoleLog("=== WASM COMPILATION PIPELINE STARTED ===");
 		AppendWasmConsoleLog("[DEBUG] The map script runs in the authority process, not in this editor. Attach with the workspace's 'Attach to Realm Authority (Map Script WASM)' configuration; the authority reports its PID and the JIT ELF it exported once it is running.");
+		AppendWasmConsoleLog("[DEBUG] " + DebuggingHelpText.GetTitle());
+		foreach (string line in DebuggingHelpText.GetLines())
+		{
+			AppendWasmConsoleLog("[DEBUG] " + line);
+		}
 
 		await CompileWorkspaceScriptAsync(GameContext.EditorService._editingDirectory, isDebug: true);
 

@@ -10,6 +10,7 @@ namespace Realm.Ecs.Components.Combat;
 ///     fraction a hit loses is only computed from the final points, in the resolver.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct Resistances
 {
 	/// <summary>Points of physical damage resistance.</summary>

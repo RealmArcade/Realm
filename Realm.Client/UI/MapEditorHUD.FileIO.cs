@@ -560,6 +560,8 @@ namespace Realm.Client.UI
 		{
 			_wasmHasErrors = false;
 
+			MapWorkspaceService.RefreshDebuggerAssets(workspace);
+
 			bool compiledSuccessfully = await PerformCompilationStepAsync(workspace, isDebug);
 			if (compiledSuccessfully)
 			{

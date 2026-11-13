@@ -5532,20 +5532,6 @@
             A type-safe unmanaged identifier wrapper for a resource category.
             </summary>
         </member>
-        <member name="T:Realm.MapAPI.Components.SplashType">
-            <summary>
-            Defines area-of-effect splash damage distribution patterns.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Components.SplashType.None">
-            <summary>None enumeration value.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Components.SplashType.RadialStep">
-            <summary>RadialStep enumeration value.</summary>
-        </member>
-        <member name="F:Realm.MapAPI.Components.SplashType.RadialLinear">
-            <summary>RadialLinear enumeration value.</summary>
-        </member>
         <member name="T:Realm.MapAPI.Components.Attack">
             <summary>
             Defines combat attack parameters including damage, range, cooldowns, and area-of-effect splash.
@@ -5638,45 +5624,19 @@
         <member name="P:Realm.MapAPI.Components.Resistances.MagicResistance">
             <summary>Gets the magic resistance points (alias for Magic).</summary>
         </member>
-        <member name="T:Realm.MapAPI.Components.Position">
+        <member name="T:Realm.MapAPI.Components.SplashType">
             <summary>
-            Defines 3D spatial world position vector coordinates of an entity.
+            Defines area-of-effect splash damage distribution patterns.
             </summary>
         </member>
-        <member name="F:Realm.MapAPI.Components.Position.Value">
-            <summary>The 3D world coordinate position vector.</summary>
+        <member name="F:Realm.MapAPI.Components.SplashType.None">
+            <summary>None enumeration value.</summary>
         </member>
-        <member name="M:Realm.MapAPI.Components.Position.#ctor(System.Numerics.Vector3)">
-            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Position"/> struct.</summary>
+        <member name="F:Realm.MapAPI.Components.SplashType.RadialStep">
+            <summary>RadialStep enumeration value.</summary>
         </member>
-        <member name="M:Realm.MapAPI.Components.Position.#ctor(System.Single,System.Single,System.Single)">
-            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Position"/> struct.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Components.Position.op_Implicit(Realm.MapAPI.Components.Position)~System.Numerics.Vector3">
-            <summary>Converts the instance to or from its primitive representation.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Components.Position.op_Implicit(System.Numerics.Vector3)~Realm.MapAPI.Components.Position">
-            <summary>Converts the instance to or from its primitive representation.</summary>
-        </member>
-        <member name="T:Realm.MapAPI.Components.PreviousPosition">
-            <summary>
-            Stores prior simulation tick 3D spatial world position vector coordinates for visual state-snapshot interpolation.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Components.PreviousPosition.Value">
-            <summary>The Value field.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Components.PreviousPosition.#ctor(System.Numerics.Vector3)">
-            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PreviousPosition"/> struct.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Components.PreviousPosition.#ctor(System.Single,System.Single,System.Single)">
-            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PreviousPosition"/> struct.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Components.PreviousPosition.op_Implicit(Realm.MapAPI.Components.PreviousPosition)~System.Numerics.Vector3">
-            <summary>Converts the instance to or from its primitive representation.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Components.PreviousPosition.op_Implicit(System.Numerics.Vector3)~Realm.MapAPI.Components.PreviousPosition">
-            <summary>Converts the instance to or from its primitive representation.</summary>
+        <member name="F:Realm.MapAPI.Components.SplashType.RadialLinear">
+            <summary>RadialLinear enumeration value.</summary>
         </member>
         <member name="T:Realm.MapAPI.Components.Health">
             <summary>
@@ -5743,6 +5703,46 @@
         </member>
         <member name="M:Realm.MapAPI.Components.PlayerPopulation.#ctor(System.Int32,System.Int32)">
             <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PlayerPopulation"/> struct.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.Position">
+            <summary>
+            Defines 3D spatial world position vector coordinates of an entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.Position.Value">
+            <summary>The 3D world coordinate position vector.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Position.#ctor(System.Numerics.Vector3)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Position"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Position.#ctor(System.Single,System.Single,System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.Position"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Position.op_Implicit(Realm.MapAPI.Components.Position)~System.Numerics.Vector3">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.Position.op_Implicit(System.Numerics.Vector3)~Realm.MapAPI.Components.Position">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.PreviousPosition">
+            <summary>
+            Stores prior simulation tick 3D spatial world position vector coordinates for visual state-snapshot interpolation.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.PreviousPosition.Value">
+            <summary>The Value field.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.#ctor(System.Numerics.Vector3)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PreviousPosition"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.#ctor(System.Single,System.Single,System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.PreviousPosition"/> struct.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.op_Implicit(Realm.MapAPI.Components.PreviousPosition)~System.Numerics.Vector3">
+            <summary>Converts the instance to or from its primitive representation.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.Components.PreviousPosition.op_Implicit(System.Numerics.Vector3)~Realm.MapAPI.Components.PreviousPosition">
+            <summary>Converts the instance to or from its primitive representation.</summary>
         </member>
         <member name="T:Realm.MapAPI.Components.ScriptPlayer">
             <summary>
@@ -5877,23 +5877,6 @@
         <member name="M:Realm.MapAPI.Components.ModelScale.op_Implicit(System.Single)~Realm.MapAPI.Components.ModelScale">
             <summary>Converts the instance to or from its primitive representation.</summary>
         </member>
-        <member name="T:Realm.MapAPI.Components.RotationY">
-            <summary>
-            Tracks rotational azimuth heading around the vertical Y-axis in radians.
-            </summary>
-        </member>
-        <member name="F:Realm.MapAPI.Components.RotationY.Value">
-            <summary>Rotational azimuth heading around vertical Y-axis in radians.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Components.RotationY.#ctor(System.Single)">
-            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.RotationY"/> struct.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Components.RotationY.op_Implicit(Realm.MapAPI.Components.RotationY)~System.Single">
-            <summary>Converts the instance to or from its primitive representation.</summary>
-        </member>
-        <member name="M:Realm.MapAPI.Components.RotationY.op_Implicit(System.Single)~Realm.MapAPI.Components.RotationY">
-            <summary>Converts the instance to or from its primitive representation.</summary>
-        </member>
         <member name="T:Realm.MapAPI.Components.PreviousRotationY">
             <summary>
             Stores prior simulation tick rotational azimuth heading around the vertical Y-axis in radians for visual state-snapshot interpolation.
@@ -5911,22 +5894,22 @@
         <member name="M:Realm.MapAPI.Components.PreviousRotationY.op_Implicit(System.Single)~Realm.MapAPI.Components.PreviousRotationY">
             <summary>Converts the instance to or from its primitive representation.</summary>
         </member>
-        <member name="T:Realm.MapAPI.Components.MovementType">
+        <member name="T:Realm.MapAPI.Components.RotationY">
             <summary>
-            Specifies the locomotion medium traversed by a moving entity.
+            Tracks rotational azimuth heading around the vertical Y-axis in radians.
             </summary>
         </member>
-        <member name="F:Realm.MapAPI.Components.MovementType.Ground">
-            <summary>Ground enumeration value.</summary>
+        <member name="F:Realm.MapAPI.Components.RotationY.Value">
+            <summary>Rotational azimuth heading around vertical Y-axis in radians.</summary>
         </member>
-        <member name="F:Realm.MapAPI.Components.MovementType.Air">
-            <summary>Air enumeration value.</summary>
+        <member name="M:Realm.MapAPI.Components.RotationY.#ctor(System.Single)">
+            <summary>Initializes a new instance of the <see cref="T:Realm.MapAPI.Components.RotationY"/> struct.</summary>
         </member>
-        <member name="F:Realm.MapAPI.Components.MovementType.Water">
-            <summary>Water enumeration value.</summary>
+        <member name="M:Realm.MapAPI.Components.RotationY.op_Implicit(Realm.MapAPI.Components.RotationY)~System.Single">
+            <summary>Converts the instance to or from its primitive representation.</summary>
         </member>
-        <member name="F:Realm.MapAPI.Components.MovementType.Hover">
-            <summary>Hover enumeration value.</summary>
+        <member name="M:Realm.MapAPI.Components.RotationY.op_Implicit(System.Single)~Realm.MapAPI.Components.RotationY">
+            <summary>Converts the instance to or from its primitive representation.</summary>
         </member>
         <member name="T:Realm.MapAPI.Components.MovementStats">
             <summary>
@@ -5959,6 +5942,23 @@
         </member>
         <member name="M:Realm.MapAPI.Components.MovementStats.ParseMovementType(System.String)">
             <summary>Executes the ParseMovementType operation.</summary>
+        </member>
+        <member name="T:Realm.MapAPI.Components.MovementType">
+            <summary>
+            Specifies the locomotion medium traversed by a moving entity.
+            </summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementType.Ground">
+            <summary>Ground enumeration value.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementType.Air">
+            <summary>Air enumeration value.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementType.Water">
+            <summary>Water enumeration value.</summary>
+        </member>
+        <member name="F:Realm.MapAPI.Components.MovementType.Hover">
+            <summary>Hover enumeration value.</summary>
         </member>
         <member name="T:Realm.MapAPI.Components.PlayerResources">
             <summary>

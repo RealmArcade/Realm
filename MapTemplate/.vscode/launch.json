@@ -10,6 +10,10 @@
 				"realm_attach"
 			],
 			"cwd": "${workspaceFolder}",
+			"relativePathBase": "${workspaceFolder}",
+			"sourceLanguages": [
+				"csharp"
+			],
 			"breakpointMode": "file",
 			"showDisassembly": "never",
 			"expressions": "simple",
@@ -20,13 +24,15 @@
 				"settings set target.process.run-all-threads false",
 				"settings set target.process.thread.step-out-avoid-nodebug true",
 				"settings set target.process.thread.step-in-avoid-nodebug true",
-				"settings set target.process.thread.step-avoid-regexp ^(__wasm|wasmtime|cabi_|[rR]hp|System\\.|Internal\\.|GameClientWorld\\.|Realm\\.MapAPI\\.|Realm\\.Ecs\\.|Microsoft\\.)"
+				"settings set target.process.thread.step-avoid-regexp ^(__wasm|wasmtime|cabi_|[rR]hp|System\\.|System_|System_Private_CoreLib|S_P_CoreLib_|Internal\\.|GameClientWorld|Realm\\.Ecs\\.|Realm_Ecs_|Microsoft\\.|wasmImport|wasm_import|__import|dotnet_|mono_|wasi_|env\\.)"
 			],
 			"postAttachCommands": [
+				"process handle SIGTRAP -s false -n false -p false",
 				"realm_load_modules",
 				"continue"
 			],
 			"postRunCommands": [
+				"process handle SIGTRAP -s false -n false -p false",
 				"realm_load_modules",
 				"continue"
 			],

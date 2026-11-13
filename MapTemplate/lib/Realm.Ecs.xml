@@ -262,6 +262,11 @@
             Specifies a tooltip description for a property, field, or parameter.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.MapApiComponentAttribute">
+            <summary>
+            Marks a component or enum that is exposed to map scripts through <c>Realm.MapAPI.Components</c>.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Abilities.Ability">
             <summary>
                 Defines the core properties of an ability.

@@ -6,6 +6,7 @@ namespace Realm.Ecs.Components.Core;
 /// Represents the configuration and runtime properties of a player slot.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct ScriptPlayer
 {
 	public float Gold;

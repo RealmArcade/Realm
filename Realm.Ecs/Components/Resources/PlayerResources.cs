@@ -9,6 +9,7 @@ namespace Realm.Ecs.Components.Resources;
 /// A component holding all resource stockpile amounts for a player slot directly in unmanaged memory.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public unsafe struct PlayerResources
 {
 	public const int MaxCustomSlots = 8;
