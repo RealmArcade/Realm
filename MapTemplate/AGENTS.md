@@ -47,7 +47,7 @@ VSCodium agent extensions can programmatically invoke editor operations by issui
 ### metadata.json
 The primary map configuration file. Schema at `.vscode/metadata.schema.json`
 
-Open `metadata.json` and edit the JSON directly: the embedded editor validates it against `.vscode/metadata.schema.json` as you type, and every save is reformatted through the map's canonical JSON writer.
+Open `metadata.json` and edit the JSON directly: the embedded editor validates it against `.vscode/metadata.schema.json` while you type, and a save made from the workspace the running map editor launched is reformatted by that editor's canonical JSON writer.
 
 A unit under `Templates.Units` states `IncludeInDefaultHotkeySelection`: a unit whose template sets it is a unit the player's default hotkeys recall, so F1 gathers that player's idle tagged units and F2 gathers the tagged army, and a unit the map drives itself keeps the flag off so it never lands in a selection the player cannot command.
 
