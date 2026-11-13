@@ -74,6 +74,11 @@
             "type": "integer",
             "title": "Player",
             "description": "The slot the unit belongs to, which decides the player whose colour it wears."
+          },
+          "Level": {
+            "type": "integer",
+            "title": "Level",
+            "description": "The level this unit starts at, which sets its attributes and growth. A level of 0 keeps the template's own level."
           }
         },
         "additionalProperties": false
@@ -131,6 +136,11 @@
             "type": "number",
             "title": "Scale",
             "description": "The multiplier applied to the prop's model size for this placement."
+          },
+          "Level": {
+            "type": "integer",
+            "title": "Level",
+            "description": "The level this prop starts at, which sets its capacities and resistances. A level of 0 keeps the template's own level."
           }
         },
         "additionalProperties": false

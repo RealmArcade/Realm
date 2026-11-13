@@ -20,8 +20,17 @@ namespace Realm.Client.Core
 {
 	public partial class GameHost
 	{
+		private bool IsTerrainToolInteractionBlocked => GroundTerrain == null || GroundTerrain.IsToolInteractionBlocked;
+
+		private void SyncTerrainToolInteractionBlock()
+		{
+			GroundTerrain?.SetToolInteractionBlocked(FloatingDialogBase.HasAnyDialogOpen || WasmConsoleWindow.IsAnyConsoleUnderPointer);
+		}
+
 		private void ProcessMapEditorTick(float fDelta)
 		{
+			SyncTerrainToolInteractionBlock();
+
 			GameContext.EditorService.Clump.TickCooldown(fDelta);
 
 			var mousePos = GetViewport().GetMousePosition();
@@ -259,7 +268,7 @@ namespace Realm.Client.Core
 
 		private void HandleMapEditorClickEvents(Vector3 hitPos, Vector2 mousePos, float fDelta)
 		{
-			if (Input.IsMouseButtonPressed(MouseButton.Left) && !_leftClickInitiatedOverUI && !FloatingDialogBase.HasAnyDialogOpen)
+			if (Input.IsMouseButtonPressed(MouseButton.Left) && !_leftClickInitiatedOverUI && !FloatingDialogBase.HasAnyDialogOpen && !IsTerrainToolInteractionBlocked)
 			{
 				TryStartDragOperation(mousePos);
 

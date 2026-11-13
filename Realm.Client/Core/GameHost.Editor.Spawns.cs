@@ -19,7 +19,7 @@ using Realm.Shared.Simulation;
 namespace Realm.Client.Core;
 public partial class GameHost
 {
-	public Unit3D? SpawnUnitExternal(string unitId, Vector3 position, float rotationY, float scale, int player = 0)
+	public Unit3D? SpawnUnitExternal(string unitId, Vector3 position, float rotationY, float scale, int player = 0, int level = 0)
 	{
 		int playerIndex = player >= 0 ? player : 0;
 		bool isBuilding = false;
@@ -50,6 +50,7 @@ public partial class GameHost
 
 		string name = meta.Name;
 		var entity = CreateEcsUnit(unitId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, position, playerOwner);
+		UnitEntityFactory.ApplySpawnLevel(World, entity, meta, level);
 
 		var unit3D = SpawnUnit3D(entity, unitId, modelPath, position, isBuilding, playerIndex);
 		unit3D.RotationDegrees = new Vector3(0.0f, rotationY, 0.0f);
@@ -83,7 +84,7 @@ public partial class GameHost
 		return TryResolveResourceIdByModelPath(ref propId, ref cleanId);
 	}
 
-	public Prop3D? SpawnPropExternalWithParams(string propId, Vector3 position, float rotationY, float scale)
+	public Prop3D? SpawnPropExternalWithParams(string propId, Vector3 position, float rotationY, float scale, int level = 0)
 	{
 		if (string.IsNullOrEmpty(propId)) return null;
 
@@ -95,7 +96,7 @@ public partial class GameHost
 
 		float baseRadius = ResolveTemplateCollisionRadius(propId);
 
-		var entity = GameContext.EditorService.SpawnPropDomain(propId, new System.Numerics.Vector3(position.X, position.Y, position.Z), rotationY, scale, cleanId, defaultAmount, position.Y, baseRadius);
+		var entity = GameContext.EditorService.SpawnPropDomain(propId, new System.Numerics.Vector3(position.X, position.Y, position.Z), rotationY, scale, cleanId, defaultAmount, position.Y, baseRadius, level);
 
 		if (!GameContext.SessionState.IsMapEditorMode && IsStaticPropAsset(propId))
 		{

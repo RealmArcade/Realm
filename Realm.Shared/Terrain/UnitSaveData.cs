@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Realm.Shared.Serialization;
 
 namespace Realm.Shared.Terrain;
@@ -30,4 +31,8 @@ public class UnitSaveData
 
 	[SchemaDescription("The slot the unit belongs to, which decides the player whose colour it wears.")]
 	public int Player { get; set; }
+
+	[SchemaDescription("The level this unit starts at, which sets its attributes and growth. A level of 0 keeps the template's own level.")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	public int Level { get; set; }
 }

@@ -92,6 +92,9 @@ namespace Realm.Client.UI
 				() => GameContext.Host?.EditorHasUnsavedChanges ?? false,
 				() =>
 				{
+					// A save made outside the editor can introduce members this build does not state, so the document is
+					// brought to this build's shape before either refresh reads it.
+					CanonicalizeMetadataForOpen(GameContext.EditorService._editingDirectory);
 					ReadMetadataAndRefreshTextures();
 					ViewLoadMapProperties();
 					UpdateMapNameHeader();

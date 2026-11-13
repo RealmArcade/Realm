@@ -344,6 +344,7 @@ public class SaveLoadService
 			float rotY = World.Has<RotationY>(entity) ? World.Get<RotationY>(entity).Value : 0f;
 			float scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1f;
 			int playerIndex = World.Has<UnitOwnerPlayer>(entity) ? World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
+			int level = ReadStatedPlacementLevel(entity, defId.Value);
 
 			units.Add(new UnitSaveData
 			{
@@ -353,7 +354,8 @@ public class SaveLoadService
 				PosZ = pos.Value.Z,
 				RotationY = rotY,
 				Scale = scale,
-				Player = playerIndex
+				Player = playerIndex,
+				Level = level
 			});
 		});
 
@@ -372,10 +374,11 @@ public class SaveLoadService
 
 			float rotY = World.Has<RotationY>(entity) ? World.Get<RotationY>(entity).Value : 0f;
 			float scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1f;
+			int level = ReadStatedPlacementLevel(entity, propId.PropId);
 
 			// One placement is one entry. Two props that agree on everything the file records are the same thing drawn
 			// twice, and writing both would double it again the next time the file is read.
-			if (!savedPlacements.Add(PropPlacementKey(propId.PropId, pos.Value.X, pos.Value.Y, pos.Value.Z, scale))) return;
+			if (!savedPlacements.Add(PropPlacementKey(propId.PropId, pos.Value.X, pos.Value.Y, pos.Value.Z, scale, level))) return;
 
 			props.Add(new PropSaveData
 			{
@@ -384,11 +387,45 @@ public class SaveLoadService
 				PosY = pos.Value.Y,
 				PosZ = pos.Value.Z,
 				RotationY = rotY,
-				Scale = scale
+				Scale = scale,
+				Level = level
 			});
 		});
 
 		return props;
+	}
+
+	/// <summary>
+	///     The level a placement states for itself, or zero when it states none. A placement that states nothing starts at
+	///     its template's level, and the match gives it that level as an effective one; writing that effective level back
+	///     into the map would freeze the placement at the level the template happened to have the day the map was saved,
+	///     and every later change to the template's level would stop reaching it. Only a level that differs from the
+	///     template is something the placement itself said.
+	/// </summary>
+	/// <param name="entity">The placement whose level is being written.</param>
+	/// <param name="templateId">The template the placement stands.</param>
+	/// <returns>The level to record, or zero to record none.</returns>
+	public static int ReadStatedPlacementLevel(Entity entity, string templateId)
+	{
+		var world = GameContext.World;
+		if (world == null || !world.IsAlive(entity) || !world.Has<Level>(entity)) return 0;
+
+		int level = world.Get<Level>(entity).Value;
+		if (level <= 0) return 0;
+
+		int templateLevel = ResolveTemplateLevel(templateId);
+		return templateLevel > 0 && level == templateLevel ? 0 : level;
+	}
+
+	private static int ResolveTemplateLevel(string templateId)
+	{
+		var placeables = GameContext.RegistryService?.Placeables;
+		if (placeables == null || string.IsNullOrEmpty(templateId)) return 0;
+
+		if (placeables.Find<ResourceMetadata>(templateId) is { } resource) return resource.Level;
+		if (placeables.Find<UnitMetadata>(templateId) is { } unit) return unit.Level;
+
+		return 0;
 	}
 
 	private List<DecalSaveData> GetDecalSaveData(HashSet<Entity>? validDecalEntities)
@@ -791,7 +828,7 @@ public class SaveLoadService
 				continue;
 			}
 
-			World.Add(World.Create(), new UnitSpawnRequest(u.TemplateId, new Vector3(u.PosX, u.PosY, u.PosZ), u.RotationY, u.Scale, u.Player));
+			World.Add(World.Create(), new UnitSpawnRequest(u.TemplateId, new Vector3(u.PosX, u.PosY, u.PosZ), u.RotationY, u.Scale, u.Player, u.Level));
 		}
 	}
 
@@ -822,9 +859,9 @@ public class SaveLoadService
 				continue;
 			}
 
-			if (!loadedPlacements.Add(PropPlacementKey(p.TemplateId, p.PosX, p.PosY, p.PosZ, p.Scale))) continue;
+			if (!loadedPlacements.Add(PropPlacementKey(p.TemplateId, p.PosX, p.PosY, p.PosZ, p.Scale, p.Level))) continue;
 
-			World.Add(World.Create(), new PropSpawnRequest(p.TemplateId, new Vector3(p.PosX, p.PosY, p.PosZ), p.RotationY, p.Scale));
+			World.Add(World.Create(), new PropSpawnRequest(p.TemplateId, new Vector3(p.PosX, p.PosY, p.PosZ), p.RotationY, p.Scale, p.Level));
 		}
 	}
 
@@ -832,9 +869,9 @@ public class SaveLoadService
 	///     Names one prop placement by everything a save records about it. A second entry that names the same placement is
 	///     the same prop, so the file and the world hold it once however many times a restore read it.
 	/// </summary>
-	private static string PropPlacementKey(string templateId, float x, float y, float z, float scale)
+	private static string PropPlacementKey(string templateId, float x, float y, float z, float scale, int level)
 	{
-		return $"{templateId}_{x:F3}_{y:F3}_{z:F3}_{scale:F3}";
+		return $"{templateId}_{x:F3}_{y:F3}_{z:F3}_{scale:F3}_{level}";
 	}
 
 	private void SpawnDecals(List<DecalSaveData>? decals)

@@ -26,7 +26,7 @@ public partial class GameHost
 {
 	private void HandleEditorLeftClick(InputEventMouseButton editorMouseBtn)
 	{
-		if (_leftClickInitiatedOverUI || IsMouseOverUI() || FloatingDialogBase.HasAnyDialogOpen)
+		if (_leftClickInitiatedOverUI || IsMouseOverUI() || FloatingDialogBase.HasAnyDialogOpen || IsTerrainToolInteractionBlocked)
 		{
 			return;
 		}

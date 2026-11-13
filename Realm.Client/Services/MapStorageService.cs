@@ -670,36 +670,28 @@ public class MapStorageService
 		if (!File.Exists(metadataJsonPath)) return false;
 
 		try
-		{
-			if (JsonNode.Parse(File.ReadAllText(metadataJsonPath)) is not JsonObject mapDoc) return false;
+			{
+				MapMetadata metadata = GameContext.MetadataService.LoadMetadata(metadataJsonPath);
 
-			var contributorsList = ExtractExistingContributors(mapDoc);
-			if (!string.IsNullOrWhiteSpace(authorName)) contributorsList.Add(authorName);
+				var contributorsList = ExtractExistingContributors(metadata);
+				if (!string.IsNullOrWhiteSpace(authorName)) contributorsList.Add(authorName);
 
-			var authorCounts = await CollectWorkspaceAssetAuthorsAsync(workspace, mapTitle, mapVersion, authorName, seedServerUrl, contributorsList);
+				var authorCounts = await CollectWorkspaceAssetAuthorsAsync(workspace, mapTitle, mapVersion, authorName, seedServerUrl, contributorsList);
 
-			UpdateMetadataContributorsAndAttributions(mapDoc, contributorsList, authorCounts, publicKeyBase64);
+				ApplyContributorsAndAttributions(metadata, contributorsList, authorCounts, publicKeyBase64);
 
-			string lineEnding = MapJsonFormatter.DetectLineEnding(metadataJsonPath);
-			byte[] unsignedBytes = Encoding.UTF8.GetBytes(ApplyLineEnding(MapJsonFormatter.FormatNode(mapDoc), lineEnding));
-			string mapBlake3 = RealmMetadataHelper.ComputeBlake3(unsignedBytes, ".json");
-			byte[] signatureBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, Encoding.UTF8.GetBytes($"{mapBlake3}.json"));
+				byte[] unsignedBytes = Encoding.UTF8.GetBytes(MapFileService.SaveUnsignedMetadataToJson(metadata));
+				string mapBlake3 = RealmMetadataHelper.ComputeBlake3(unsignedBytes, ".json");
+				byte[] signatureBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, Encoding.UTF8.GetBytes($"{mapBlake3}.json"));
 
-			mapDoc["signature"] = Convert.ToBase64String(signatureBytes);
-			AtomicFileWriter.WriteAllBytes(metadataJsonPath, Encoding.UTF8.GetBytes(ApplyLineEnding(MapJsonFormatter.FormatNode(mapDoc), lineEnding)));
-			MapFileService.NotifyFileWritten(metadataJsonPath);
-			return true;
-		}
+				MapFileService.SaveSignedMetadata(metadataJsonPath, metadata, Convert.ToBase64String(signatureBytes));
+				return true;
+			}
 		catch (Exception exception)
 		{
 			GameLog.LogError($"[MapStorageService] Could not sign '{metadataJsonPath}': {exception.Message}");
 			return false;
 		}
-	}
-
-	private static string ApplyLineEnding(string text, string lineEnding)
-	{
-		return lineEnding == "\r\n" ? text.Replace("\n", "\r\n") : text;
 	}
 
 	private async Task<Dictionary<string, int>> CollectWorkspaceAssetAuthorsAsync(string workspace, string mapTitle, string mapVersion, string authorName, string seedServerUrl, HashSet<string> contributorsList)
@@ -722,15 +714,14 @@ public class MapStorageService
 		return await CollectAssetAuthorsAsync(referencedHashes, seedServerUrl, httpClient, contributorsList);
 	}
 
-	public HashSet<string> ExtractExistingContributors(JsonObject mapDoc)
+	public HashSet<string> ExtractExistingContributors(MapMetadata metadata)
 	{
 		var contributorsList = new HashSet<string>();
-		if (mapDoc.TryGetPropertyValue("Contributors", out var contNode) && contNode is JsonArray arr)
+		if (metadata?.Contributors == null) return contributorsList;
+
+		foreach (string contributor in metadata.Contributors)
 		{
-			foreach (var node in arr)
-			{
-				if (node != null) contributorsList.Add(node.GetValue<string>());
-			}
+			if (!string.IsNullOrWhiteSpace(contributor)) contributorsList.Add(contributor);
 		}
 
 		return contributorsList;
@@ -769,21 +760,18 @@ public class MapStorageService
 		}
 	}
 
-	public void UpdateMetadataContributorsAndAttributions(JsonObject mapDoc, HashSet<string> contributorsList, Dictionary<string, int> authorCounts, string pubKeyStr)
+	public void ApplyContributorsAndAttributions(MapMetadata metadata, HashSet<string> contributorsList, Dictionary<string, int> authorCounts, string pubKeyStr)
 	{
-		var newContributorsArr = new JsonArray();
-		foreach (var cont in contributorsList) newContributorsArr.Add(cont);
-		mapDoc["Contributors"] = newContributorsArr;
+		metadata.Contributors = contributorsList.ToList();
 
-		var attributionsArr = new JsonArray();
 		var sortedAuthors = authorCounts.Keys.ToList();
 		sortedAuthors.Sort((a, b) => authorCounts[b].CompareTo(authorCounts[a]));
-		foreach (var a in sortedAuthors) attributionsArr.Add(a);
-		mapDoc["Attributions"] = attributionsArr;
-		mapDoc["EngineVersion"] = RealmVersion.GameBinaryVersion;
-		mapDoc["author_key"] = pubKeyStr;
-		if (mapDoc.ContainsKey("signature")) mapDoc.Remove("signature");
+		metadata.Attributions = sortedAuthors;
+		metadata.EngineVersion = RealmVersion.GameBinaryVersion;
+		metadata.AuthorKey = pubKeyStr;
+		metadata.Signature = null;
 	}
+
 	public string ResolveMapDirectoryDomain(string customPath, string currentDir, string defaultPath, bool ensureGlbOptimized, Func<string, string> globalizePath)
 	{
 		string path = string.IsNullOrEmpty(customPath) ? Path.Combine(currentDir ?? defaultPath, "terrain.json") : customPath;

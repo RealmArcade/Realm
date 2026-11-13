@@ -34,21 +34,21 @@ public static class PropEntityFactory
 		return GameplayConstants.ResolveContactRadius(metadata.CollisionCircle, 1f, GameplayConstants.DefaultPropCollisionRadius);
 	}
 
-	public static Entity Create(EcsWorld world, DefinitionCatalog catalog, string propId, string? cleanId, Vector3 position, float rotationY, float scale, float collisionRadius)
+	public static Entity Create(EcsWorld world, DefinitionCatalog catalog, string propId, string? cleanId, Vector3 position, float rotationY, float scale, float collisionRadius, int level = 0)
 	{
 		PlaceableMetadata? metadata = FindPlaceable(catalog, propId, cleanId);
 		float bodyRadius = metadata != null ? ResolveCollisionRadius(metadata) : collisionRadius;
 
 		Entity entity = CreateCore(world, propId, position, rotationY, scale, bodyRadius);
-		AddResourceNode(world, entity, FindResource(catalog, propId, cleanId), DefinitionCatalog.DefaultResourceAmount(propId));
+		AddResourceNode(world, entity, FindResource(catalog, propId, cleanId), DefinitionCatalog.DefaultResourceAmount(propId), level);
 		return entity;
 	}
 
-	public static void AddResourceNode(EcsWorld world, Entity entity, ResourceMetadata? metadata, float savedAmount)
+	public static void AddResourceNode(EcsWorld world, Entity entity, ResourceMetadata? metadata, float savedAmount, int level = 0)
 	{
 		if (metadata != null && (metadata.MaxCapacity > 0f || savedAmount > 0f))
 		{
-			AddHarvestableNode(world, entity, metadata, savedAmount);
+			AddHarvestableNode(world, entity, metadata, savedAmount, level);
 			return;
 		}
 
@@ -66,17 +66,18 @@ public static class PropEntityFactory
 	/// <param name="entity">The node entity to give its capacity and resistances.</param>
 	/// <param name="metadata">The resource template the node is an instance of.</param>
 	/// <param name="requestedAmount">The capacity the node is asked to hold, or zero to use the template's authored capacity at its level.</param>
-	public static void AddHarvestableNode(EcsWorld world, Entity entity, ResourceMetadata metadata, float requestedAmount)
+	/// <param name="level">The level this node stands at, or zero to stand at the level its template states.</param>
+	public static void AddHarvestableNode(EcsWorld world, Entity entity, ResourceMetadata metadata, float requestedAmount, int level = 0)
 	{
-		int level = Math.Max(1, metadata.Level);
+		int nodeLevel = Math.Max(1, level > 0 ? level : metadata.Level);
 		float authoredCapacity = metadata.MaxCapacity > 0f ? metadata.MaxCapacity : requestedAmount;
-		float amount = requestedAmount > 0f ? requestedAmount : authoredCapacity + metadata.MaxCapacityPerLevel * (level - 1);
+		float amount = requestedAmount > 0f ? requestedAmount : authoredCapacity + metadata.MaxCapacityPerLevel * (nodeLevel - 1);
 		if (amount <= 0f) return;
 
 		float harvestRate = metadata.HarvestRate > 0f ? metadata.HarvestRate : 10f;
 		int maxWorkers = metadata.MaxWorkers > 0 ? metadata.MaxWorkers : 5;
 		world.SetOrAdd(entity, new ResourceNode(Guid.Empty, amount, amount, harvestRate, metadata.GrowthRate, maxWorkers));
-		AddHarvestableBody(world, entity, metadata, amount, level);
+		AddHarvestableBody(world, entity, metadata, amount, nodeLevel);
 	}
 
 	private static void AddHarvestableBody(EcsWorld world, Entity entity, ResourceMetadata metadata, float amount, int level)
@@ -84,6 +85,7 @@ public static class PropEntityFactory
 		float armor = metadata.Armor + metadata.ArmorPerLevel * (level - 1);
 		float magicResistance = metadata.MagicResistance + metadata.MagicResistancePerLevel * (level - 1);
 
+		world.SetOrAdd(entity, new Level(level));
 		world.Add(entity, new Health(amount, amount));
 		world.Add(entity, new Resistances(armor, magicResistance));
 

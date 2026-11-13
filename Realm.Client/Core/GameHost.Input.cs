@@ -58,6 +58,7 @@ public partial class GameHost
 
 		if (GameContext.SessionState.IsMapEditorMode)
 		{
+			SyncTerrainToolInteractionBlock();
 			HandleMapEditorInput(@event);
 		}
 		else
@@ -79,7 +80,7 @@ public partial class GameHost
 				else
 				{
 					_leftClickInitiatedOverUI = false;
-					if (GameContext.SessionState.IsMapEditorMode && !FloatingDialogBase.HasAnyDialogOpen)
+					if (GameContext.SessionState.IsMapEditorMode && !FloatingDialogBase.HasAnyDialogOpen && !IsTerrainToolInteractionBlocked)
 					{
 						_is3DLeftClickDown = true;
 						_leftClick3DStartPos = globalMb.Position;
@@ -232,7 +233,7 @@ public partial class GameHost
 
 		if (@event is InputEventMouseButton editorRightMouseBtn && editorRightMouseBtn.Pressed && editorRightMouseBtn.ButtonIndex == MouseButton.Right)
 		{
-			if (IsMouseOverUI()) return;
+			if (IsMouseOverUI() || IsTerrainToolInteractionBlocked) return;
 			if (MainCamera is CameraControl camCtrl && camCtrl.IsFreeCamera)
 			{
 				return;
@@ -296,6 +297,12 @@ public partial class GameHost
 		{
 			if (ActiveEditorTool == EditorTool.Ramp && _rampPressActive)
 			{
+				if (IsTerrainToolInteractionBlocked)
+				{
+					CancelRampInteraction();
+					return;
+				}
+
 				FinishRampInteraction(releaseEvent.Position);
 				GetViewport().SetInputAsHandled();
 				return;

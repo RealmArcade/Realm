@@ -123,6 +123,7 @@ public partial class MapEditorHUD
 		host.SaveMapToFile(tempTerrainPath, performReload: false);
 		host.EditorHasUnsavedChanges = false;
 		InvalidateMetadataCache();
+		CanonicalizeMetadataForOpen(GameContext.EditorService._editingDirectory);
 
 		if (!ApplyMapReferencesOnSave(GameContext.EditorService._editingDirectory))
 		{

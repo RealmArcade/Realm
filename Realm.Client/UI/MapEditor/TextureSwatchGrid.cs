@@ -146,20 +146,20 @@ public sealed class TextureSwatchGrid
 	}
 
 	private SwatchSlotInfo[]? RefreshDataFromWorkspace()
-	{
-		_dataService = GameContext.EditorService;
+	{		_dataService = GameContext.EditorService;
 
 		try
 		{
-			GameContext.EditorService.Swatches.Clear();
+				string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
+				var metadata = GameContext.MetadataService.LoadMetadata(wsPath);
+				var slots = TextureSwatchSlots.ResolveSlots(metadata.Textures, wsPath);
 
-			string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
-			var metadata = MapFileService.LoadMetadata(wsPath);
-			var slots = TextureSwatchSlots.ResolveSlots(metadata?.Textures, wsPath);
-
-			GameContext.EditorService.Swatches.Populate(slots, wsPath);
-			return slots;
-		}
+				// The grid is only replaced once the workspace has been read: a document this build cannot read leaves the
+				// terrain textured with what is already on screen instead of clearing it to the default material.
+				GameContext.EditorService.Swatches.Clear();
+				GameContext.EditorService.Swatches.Populate(slots, wsPath);
+				return slots;
+			}
 		catch (Exception ex)
 		{
 			GameLog.LogError($"[MapEditorHUD] Error in SetupTextureSwatches: {ex.Message}");

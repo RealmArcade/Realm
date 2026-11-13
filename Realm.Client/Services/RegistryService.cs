@@ -337,7 +337,7 @@ public class RegistryService
 	}
 
 
-	public void TryAddResourceNodeComponent(Entity entity, string propId, string cleanId, float defaultAmount)
+	public void TryAddResourceNodeComponent(Entity entity, string propId, string cleanId, float defaultAmount, int level = 0)
 	{
 		ResourceMetadata? metadata = null;
 		if (!ResourceRegistry.TryGetValue(propId, out metadata) && !string.IsNullOrEmpty(cleanId))
@@ -346,7 +346,7 @@ public class RegistryService
 		}
 
 		if (GameContext.World is not { } world) return;
-		PropEntityFactory.AddResourceNode(world, entity, metadata, defaultAmount);
+		PropEntityFactory.AddResourceNode(world, entity, metadata, defaultAmount, level);
 	}
 
 

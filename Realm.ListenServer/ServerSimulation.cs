@@ -5,6 +5,7 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
@@ -34,6 +35,7 @@ public class ServerSimulation : IDisposable
 	private readonly GroundLootService _loot;
 	private readonly HashSet<int> _peersNeedingBaseline = new();
 	private readonly HashSet<int> _peersNeedingDescriptionRepeat = new();
+	private readonly List<(Entity Entity, long DestroyAtTick)> _pendingKilledUnitRemovals = new();
 	private readonly SortedSet<int> _unseatedPlayerSlots = new();
 	private readonly bool _hasRoster;
 	private int _snapshotSequence;
@@ -183,6 +185,7 @@ public class ServerSimulation : IDisposable
 		_matchTick.AdvanceRegeneration(deltaSeconds);
 
 		_events.Step();
+		DestroyExpiredKilledUnits();
 	}
 
 	private const int PopulationRecomputeIntervalTicks = 5;
@@ -259,20 +262,84 @@ public class ServerSimulation : IDisposable
 	private void KillUnit(Entity entity)
 	{
 		if (!_map.World.IsAlive(entity)) return;
+		if (IsKillAlreadyAnswered(entity)) return;
 
 		Entity killer = _map.World.TryGet<LastAttacker>(entity, out LastAttacker lastAttacker) ? lastAttacker.Value : Entity.Null;
 		var victimId = new UnitId(entity.Id);
 		UnitId killerId = killer == Entity.Null ? UnitId.Invalid : new UnitId(killer.Id);
 		_neutralRespawns.OnPlacementDestroyed(victimId);
 		_bounties.PayKill(victimId, killerId);
-		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
 
-		if (_map.World.IsAlive(entity)) _map.World.Destroy(entity);
+		// A peer learns a unit died from a description that says so, and it builds the death effect from that description
+		// rather than from the unit leaving the world. Destroying the body in the tick it died meant the next description
+		// retired it instead, so a screen across a network freed the node without ever being told it had died and the
+		// death shader was never played. The body stays, described as dead, for the grace below and is removed after it.
+		if (!_map.World.Has<Dead>(entity)) _map.World.Add<Dead>(entity);
+		_pendingKilledUnitRemovals.Add((entity, TickCount + DeathPublishGraceTicks));
 
 		// A match recycles a destroyed identifier the moment a unit is spared it, and what the map declared about the unit
 		// that held it would be read as the new unit's own: neither the state it withheld nor who was told about it
-		// belongs to whoever takes the identifier next.
+		// belongs to whoever takes the identifier next. That is answered with the identifier, so it is answered now.
 		_script.Api.Abilities.ForgetUnit(entity.Id);
+
+		// The death is announced last, once the body is already marked and queued: a handler that retires the corpse and
+		// creates a unit frees this identifier during the call, and the unit that takes it must not inherit a removal or
+		// a forgotten ability list that were decided for the unit before it.
+		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
+	}
+
+	/// <summary>
+	///     How many ticks a killed unit is kept in the world after it dies, so the death is described before the body is
+	///     retired. Every peer applies descriptions in sequence, so one that says the unit died is enough for the death
+	///     effect to be built; the rest of the grace is room for a description lost on the way.
+	/// </summary>
+	private const int DeathPublishGraceTicks = 3;
+
+	/// <summary>
+	///     Whether this is the body whose kill was already paid. An identifier is recycled the moment the body holding it
+	///     is destroyed, so the queued entity only answers for the kill while it is still the dead body that was queued: a
+	///     unit that took the identifier afterwards is a different unit and has to have its own death answered.
+	/// </summary>
+	private bool IsKillAlreadyAnswered(Entity entity)
+	{
+		if (!_map.World.IsAlive(entity) || !_map.World.Has<Dead>(entity)) return false;
+
+		for (int index = 0; index < _pendingKilledUnitRemovals.Count; index++)
+		{
+			if (_pendingKilledUnitRemovals[index].Entity == entity) return true;
+		}
+
+		return false;
+	}
+
+	private void DestroyExpiredKilledUnits()
+	{
+		for (int index = _pendingKilledUnitRemovals.Count - 1; index >= 0; index--)
+		{
+			(Entity entity, long destroyAtTick) = _pendingKilledUnitRemovals[index];
+			if (TickCount < destroyAtTick) continue;
+
+			_pendingKilledUnitRemovals.RemoveAt(index);
+
+			// Only the body that was queued is retired. An identifier is handed to the next unit the match creates, so a
+			// body that is not marked dead is a unit this removal knows nothing about, and an entry queued later for the
+			// same identifier means that identifier has died again since and answers to that later entry.
+			if (!_map.World.IsAlive(entity) || !_map.World.Has<Dead>(entity)) continue;
+			if (HasNewerPendingRemoval(entity, destroyAtTick)) continue;
+
+			_map.World.Destroy(entity);
+		}
+	}
+
+	private bool HasNewerPendingRemoval(Entity entity, long destroyAtTick)
+	{
+		for (int index = 0; index < _pendingKilledUnitRemovals.Count; index++)
+		{
+			(Entity pendingEntity, long pendingDestroyAtTick) = _pendingKilledUnitRemovals[index];
+			if (pendingEntity == entity && pendingDestroyAtTick > destroyAtTick) return true;
+		}
+
+		return false;
 	}
 
 	private const int ObstacleScanIntervalTicks = 20;

@@ -128,6 +128,7 @@ namespace Realm.Client.UI
 
 		private bool PerformMapLoad(string selectedFolder)
 		{
+			CanonicalizeMetadataForOpen(GameContext.EditorService._editingDirectory);
 			MapWorkspaceService.EnsureGlbAssetsOptimized(GameContext.EditorService._editingDirectory);
 			MapWorkspaceService.EnsurePngAssetsConverted(GameContext.EditorService._editingDirectory);
 			ViewLoadMapProperties();
@@ -145,6 +146,16 @@ namespace Realm.Client.UI
 			}
 
 			return success;
+		}
+
+		private void CanonicalizeMetadataForOpen(string editingDirectory)
+		{
+			if (string.IsNullOrEmpty(editingDirectory)) return;
+
+			var repair = GameContext.MetadataService.CanonicalizeMetadataFile(Path.Combine(editingDirectory, "metadata.json"));
+			if (!repair.Success || !repair.Changed) return;
+
+			ShowFeedback(TranslationServer.Translate("metadata.json was brought to this build's format; the members that were added or removed are listed in the console."));
 		}
 
 		private void OnMapLoadedSuccessfully(string selectedFolder, string terrainPath)
@@ -208,6 +219,7 @@ namespace Realm.Client.UI
 					_lastMapLoadFailure = TranslationServer.Translate("The map folder cannot be written to.");
 					return false;
 				}
+				CanonicalizeMetadataForOpen(GameContext.EditorService._editingDirectory);
 				string terrainPath = Path.Combine(GameContext.EditorService._editingDirectory, "terrain.json");
 				string metadataPath = Path.Combine(GameContext.EditorService._editingDirectory, "metadata.json");
 				GameContext.EditorService.LastTerrainSyncTime = GameContext.EditorService.GetMaxTerrainWriteTime(terrainPath);

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Realm.Shared.Serialization;
 
 namespace Realm.Shared.Terrain;
@@ -27,4 +28,8 @@ public class PropSaveData
 
 	[SchemaDescription("The multiplier applied to the prop's model size for this placement.")]
 	public float Scale { get; set; } = 1.0f;
+
+	[SchemaDescription("The level this prop starts at, which sets its capacities and resistances. A level of 0 keeps the template's own level.")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	public int Level { get; set; }
 }

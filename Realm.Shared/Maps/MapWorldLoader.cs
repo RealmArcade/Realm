@@ -341,7 +341,8 @@ public static class MapWorldLoader
 				unit.RotationY,
 				unit.Scale,
 				loaded.GetPlayerEntity(unit.Player),
-				bypassPopulation: false);
+				bypassPopulation: false,
+				level: unit.Level);
 
 			if (entity == Entity.Null)
 			{
@@ -372,7 +373,8 @@ public static class MapWorldLoader
 				new Vector3(prop.PosX, prop.PosY, prop.PosZ),
 				prop.RotationY,
 				prop.Scale,
-				collisionRadius: 0f);
+				collisionRadius: 0f,
+				level: prop.Level);
 			loaded.PropCount++;
 		}
 	}

@@ -23,6 +23,11 @@ namespace Realm.Client.Core
 				return true;
 			}
 
+			if (WasmConsoleWindow.IsAnyConsoleUnderPointer)
+			{
+				return true;
+			}
+
 			if (GodotObject.IsInstanceValid(GameContext.MapEditorHud))
 			{
 				return GameContext.MapEditorHud.IsMouseOverUI(GetViewport().GetMousePosition());

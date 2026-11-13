@@ -25,12 +25,13 @@ public static class UnitEntityFactory
 		float rotationY,
 		float scale,
 		PlayerEntity owner,
-		bool bypassPopulation)
+		bool bypassPopulation,
+		int level = 0)
 	{
 		UnitMetadata? metadata = catalog.FindUnitOrBuilding(templateId);
 		if (metadata == null) return Entity.Null;
 
-		return CreateFromMetadata(world, catalog, metadata, templateId, catalog.FindUnit(templateId) == null, position, rotationY, scale, owner, bypassPopulation);
+		return CreateFromMetadata(world, catalog, metadata, templateId, catalog.FindUnit(templateId) == null, position, rotationY, scale, owner, bypassPopulation, level);
 	}
 
 	private static Entity CreateFromMetadata(
@@ -43,7 +44,8 @@ public static class UnitEntityFactory
 		float rotationY,
 		float scale,
 		PlayerEntity owner,
-		bool bypassPopulation)
+		bool bypassPopulation,
+		int level)
 	{
 		Entity entity = CreateCore(
 			world,
@@ -99,7 +101,7 @@ public static class UnitEntityFactory
 		}
 
 		AttributeStatCalculator.RecalculateEntityStats(world, entity);
-		ApplySpawnLevel(world, entity, metadata);
+		ApplySpawnLevel(world, entity, metadata, level);
 
 		float modelScale = scale <= 0.001f ? metadata.Scale : scale;
 		float placedScale = scale <= 0.001f ? 1f : scale;
@@ -270,14 +272,26 @@ public static class UnitEntityFactory
 		return true;
 	}
 
-	private static void ApplySpawnLevel(EcsWorld world, Entity entity, UnitMetadata metadata)
+	/// <summary>
+	///     Gives a unit the level it is placed at and the share of strength, vitality and the other attributes that level
+	///     earns. A placement states its own level, so two instances of one template can start at different levels.
+	/// </summary>
+	/// <param name="world">The world the unit belongs to.</param>
+	/// <param name="entity">The unit to level.</param>
+	/// <param name="metadata">The template the unit stands as, which states the growth a level earns.</param>
+	/// <param name="level">The level the unit is placed at, or zero to stand at the level its template states.</param>
+	public static void ApplySpawnLevel(EcsWorld world, Entity entity, UnitMetadata metadata, int level = 0)
 	{
+		bool statedLevel = level > 0;
 		LevelGrowth growth = metadata.LevelGrowth?.ToLevelGrowth() ?? LevelGrowth.None;
-		int level = Math.Max(1, metadata.Level);
-		if (level <= 1 && growth.IsZero) return;
+		int spawnLevel = Math.Max(1, statedLevel ? level : metadata.Level);
 
-		world.SetOrAdd(entity, new Level(level));
-		LevelService.Apply(world, entity, level, growth);
+		// A placement that states a level keeps the statement even when it earns no growth from it, so the level it was
+		// placed at is still on the unit when the map is saved. Only a level that changes the unit's stats is applied.
+		if (!statedLevel && spawnLevel <= 1 && growth.IsZero) return;
+
+		world.SetOrAdd(entity, new Level(spawnLevel));
+		if (spawnLevel > 1 || !growth.IsZero) LevelService.Apply(world, entity, spawnLevel, growth);
 	}
 
 	private static uint BuildAutoCastSlots(DefinitionCatalog catalog, string[] abilities)
