@@ -231,6 +231,9 @@ public static class UnitEntityFactory
 		world.SetOrAdd(entity, new ModelScale(metadata.Scale));
 		world.SetOrAdd(entity, new CollisionScale(1f));
 
+		if (metadata.IncludeInDefaultHotkeySelection) world.SetOrAdd(entity, new IncludeInDefaultHotkeySelection());
+		else if (world.Has<IncludeInDefaultHotkeySelection>(entity)) world.Remove<IncludeInDefaultHotkeySelection>(entity);
+
 		if (isBuilding)
 		{
 			world.SetOrAdd(entity, new Building());

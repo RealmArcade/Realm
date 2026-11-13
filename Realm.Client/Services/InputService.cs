@@ -255,6 +255,8 @@ public class InputService
 		{
 			if (owner.PlayerEntity.Value == playerEntity)
 			{
+				if (!World.Has<IncludeInDefaultHotkeySelection>(entity)) return;
+
 				bool hasMoveTo = World.Has<MoveTo>(entity);
 				bool hasAttackTarget = World.Has<AttackTarget>(entity);
 				bool hasAttackMove = World.Has<AttackMove>(entity);
@@ -276,10 +278,10 @@ public class InputService
 		var query = QueryCache.AllOwnerAndMovableNoneDeadAndBuildingQuery;
 		World.Query(in query, (Entity entity, ref Owner owner) =>
 		{
-			if (owner.PlayerEntity.Value == playerEntity)
-			{
-				result.Add(entity);
-			}
+			if (owner.PlayerEntity.Value != playerEntity) return;
+			if (!World.Has<IncludeInDefaultHotkeySelection>(entity)) return;
+
+			result.Add(entity);
 		});
 		return result;
 	}

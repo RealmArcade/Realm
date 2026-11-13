@@ -182,7 +182,8 @@ public static class ComponentTypeRegistry
 			typeof(Worker),
 			typeof(PickupTask),
 			typeof(DropItemTask),
-			typeof(SoulboundItems)
+			typeof(SoulboundItems),
+			typeof(IncludeInDefaultHotkeySelection)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

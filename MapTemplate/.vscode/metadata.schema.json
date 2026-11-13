@@ -594,6 +594,9 @@
               "IsHero": {
                 "type": "boolean"
               },
+              "IncludeInDefaultHotkeySelection": {
+                "type": "boolean"
+              },
               "Abilities": {
                 "type": [
                   "array",

@@ -1289,6 +1289,12 @@
                 Tag indicating the entity is a unique, powerful hero unit.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Components.Tags.IncludeInDefaultHotkeySelection">
+            <summary>
+                Marks a unit the default hotkeys pick: F1 and F2 recall the player's tagged units, so a unit the map drives itself
+                stays out of a selection the player cannot command.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Tags.Invulnerable">
             <summary>
                 Tag indicating the entity is invulnerable to damage.

@@ -66,6 +66,7 @@ public class UnitMetadata
 	public bool DespillPlayerColor { get; set; } = false;
 	public string[]? BuildOptions { get; set; }
 	public bool IsHero { get; set; }
+	public bool IncludeInDefaultHotkeySelection { get; set; }
 	public string[]? Abilities { get; set; }
 	public float XpBounty { get; set; }
 	public float ExperiencePerLevel { get; set; }
