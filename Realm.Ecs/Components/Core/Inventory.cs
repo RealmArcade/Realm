@@ -125,7 +125,8 @@ public struct Inventory
 
 	/// <summary>
 	///     Adds an item, filling each slot only up to the stated stack limit and opening further slots for the overflow
-	///     until the unit's granted slots are used up.
+	///     until the unit's granted slots are used up. A request the inventory cannot hold in full is refused without
+	///     changing anything, so a caller that reads the result never has to undo a partial add.
 	/// </summary>
 	/// <param name="itemId">The item definition identifier.</param>
 	/// <param name="count">The number of pieces to add; values below one are treated as one.</param>
@@ -141,6 +142,17 @@ public struct Inventory
 		int remaining = Math.Max(1, count);
 		int itemStringId = StringRegistry.GetOrAdd(itemId);
 		if (itemStringId == 0) return false;
+
+		long capacity = 0;
+		for (int index = 0; index < Count && index < usableSlots; index++)
+		{
+			if (Slots[index].ItemStringId != itemStringId) continue;
+
+			capacity += Math.Max(0, limit - Slots[index].Count);
+		}
+
+		capacity += (long)Math.Max(0, usableSlots - Count) * limit;
+		if (capacity < remaining) return false;
 
 		for (int index = 0; index < Count && index < usableSlots && remaining > 0; index++)
 		{

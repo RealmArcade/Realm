@@ -610,7 +610,8 @@
         <member name="M:Realm.Ecs.Components.Core.Inventory.AddItem(System.String,System.Int32,System.Int32,System.Int32)">
             <summary>
                 Adds an item, filling each slot only up to the stated stack limit and opening further slots for the overflow
-                until the unit's granted slots are used up.
+                until the unit's granted slots are used up. A request the inventory cannot hold in full is refused without
+                changing anything, so a caller that reads the result never has to undo a partial add.
             </summary>
             <param name="itemId">The item definition identifier.</param>
             <param name="count">The number of pieces to add; values below one are treated as one.</param>

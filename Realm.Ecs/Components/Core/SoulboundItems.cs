@@ -18,12 +18,9 @@ public struct SoulboundItems
 	{
 		if (string.IsNullOrEmpty(itemId)) return false;
 
-		int wanted = StringRegistry.GetOrAdd(itemId);
-		if (wanted == 0) return false;
-
 		for (int index = 0; index < Count; index++)
 		{
-			if (ItemStringIds[index] == wanted) return true;
+			if (string.Equals(StringRegistry.Get(ItemStringIds[index]), itemId, StringComparison.OrdinalIgnoreCase)) return true;
 		}
 
 		return false;
