@@ -79,7 +79,11 @@ public static class ModelConverter
 		bool shouldForce = force || (options.HasValue && options.Value.ForceReDecimate);
 		bool isAlreadyOptimized = GlbManifestUtils.HasOptimizationFlag(rawGlbBytes);
 
-		if (!shouldForce && isAlreadyOptimized)
+		var opt = options ?? GetAutomaticOptimizationOptions(effectiveAssetType, shouldForce);
+		opt.ForceReDecimate = shouldForce;
+		var optimizer = new GlbOptimizer();
+
+		if (!shouldForce && isAlreadyOptimized && GlbLodGenerator.HasGeneratedLodTiers(rawGlbBytes))
 		{
 			return new OptimizationResult
 			{
@@ -89,10 +93,18 @@ public static class ModelConverter
 			};
 		}
 
+		if (!shouldForce && isAlreadyOptimized)
+		{
+			var tierResult = optimizer.Optimize(rawGlbBytes, opt);
+			if (!tierResult.Success || tierResult.OutputGlbBytes == null)
+			{
+				tierResult.ErrorMessage ??= "Optimization failed.";
+			}
+
+			return tierResult;
+		}
+
 		byte[] unoptimized = GlbManifestUtils.StripOptimizationMetadata(rawGlbBytes).UnoptimizedBytes;
-		var opt = options ?? GetAutomaticOptimizationOptions(effectiveAssetType, shouldForce);
-		opt.ForceReDecimate = shouldForce;
-		var optimizer = new GlbOptimizer();
 		var optResult = optimizer.Optimize(unoptimized, opt);
 		if (!optResult.Success || optResult.OutputGlbBytes == null)
 		{
@@ -424,7 +436,10 @@ public static class ModelConverter
 
 	public static byte[]? ExtractGlbFromRmesh(ReadOnlySpan<byte> rmeshBytes)
 	{
-		return RmeshFile.GetGlbBytes(rmeshBytes);
+		byte[]? glbBytes = RmeshFile.GetGlbBytes(rmeshBytes);
+		if (glbBytes == null) return null;
+
+		return GlbLodGenerator.ReduceToBaseTier(glbBytes);
 	}
 
 	public static ModelConversionResult ExtractGlbFromRmesh(string inputRmeshPath, string? outputGlbPath = null)

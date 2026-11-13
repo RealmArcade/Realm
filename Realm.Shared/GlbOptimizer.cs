@@ -139,6 +139,11 @@ public class GlbOptimizer
 		byte[] packedBaseMesh = PackBaseMesh(glbBytes, options, ref result);
 		if (!TryDecimateBaseTier(packedBaseMesh, options, ref result, out byte[] masterTierBytes)) return;
 
+		GenerateLodTiers(masterTierBytes, options, compressTextures: true, ref result);
+	}
+
+	private void GenerateLodTiers(byte[] masterTierBytes, OptimizationOptions options, bool compressTextures, ref OptimizationResult result)
+	{
 		var (lodSuccess, lodGlbBytes, lodError, lodTriangleCounts) = GlbLodGenerator.GenerateLods(masterTierBytes, decimationProfile: options.DecimationProfile, uvSeamMergeTolerance: ResolveUvChartMergeTolerance(options));
 		if (!lodSuccess)
 		{
@@ -150,8 +155,9 @@ public class GlbOptimizer
 		result.LodTriangleCounts = lodTriangleCounts;
 
 		byte[] workingBytes = lodGlbBytes.Length > 0 ? lodGlbBytes : masterTierBytes;
+		byte[] texturedBytes = compressTextures ? CompressTextures(workingBytes, options) : workingBytes;
 		byte[] finalBytes = GlbManifestUtils.InjectOptimizationMetadata(
-			CompressTextures(workingBytes, options),
+			texturedBytes,
 			new Dictionary<string, object>
 			{
 				{ "original_size", result.OriginalSize },
@@ -199,9 +205,15 @@ public class GlbOptimizer
 
 		if (!options.ForceReDecimate && IsOptimized(glbBytes))
 		{
-			result.Success = true;
-			result.DecimationSkipped = true;
-			result.OptimizedSize = glbBytes.Length;
+			if (GlbLodGenerator.HasGeneratedLodTiers(glbBytes))
+			{
+				result.Success = true;
+				result.DecimationSkipped = true;
+				result.OptimizedSize = glbBytes.Length;
+				return result;
+			}
+
+			GenerateLodTiers(glbBytes, options, compressTextures: false, ref result);
 			return result;
 		}
 
