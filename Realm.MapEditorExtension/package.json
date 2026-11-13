@@ -1,7 +1,7 @@
 {
     "name":  "realm-map-editor",
     "displayName":  "Realm Map Editor",
-    "description":  "Custom editor for Realm map unit configuration files and asset previews",
+    "description":  "Map project asset viewers and JSON schema validation for Realm maps",
     "version":  "0.0.1",
     "publisher":  "speige",
     "engines":  {
@@ -81,16 +81,6 @@
                                            }
                                        ],
                         "customEditors":  [
-                                              {
-                                                  "viewType":  "realm.mapEditor",
-                                                  "displayName":  "Realm Map Editor",
-                                                  "selector":  [
-                                                                   {
-                                                                       "filenamePattern":  "**/metadata.json"
-                                                                   }
-                                                               ],
-                                                  "priority":  "default"
-                                              },
                                               {
                                                   "viewType":  "realm.rtexViewer",
                                                   "displayName":  "Realm RTEX Texture Viewer",
