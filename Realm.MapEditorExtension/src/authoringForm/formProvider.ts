@@ -29,7 +29,7 @@ export interface FormServices {
 
 const pageSize = 40;
 const coalesceMilliseconds = 220;
-const layoutStatePrefix = 'realm.metadataForm.collapsed:';
+const layoutStatePrefix = 'realm.metadataForm.expanded:';
 
 interface ReferenceDocument {
     name: string;
@@ -45,8 +45,9 @@ interface PendingCommit {
 interface Session {
     document: vscode.TextDocument;
     panel: vscode.WebviewPanel;
-    collapsed: string[];
+    expanded: string[];
     sections: FormNode[];
+    sectionsVersion: number;
     state: 'ok' | 'unparsable';
     reference: ReferenceDocument | undefined;
     pending: PendingCommit | undefined;
@@ -107,8 +108,9 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
         const session: Session = {
             document,
             panel,
-            collapsed: this.readCollapsed(document),
+            expanded: this.readExpanded(document),
             sections: [],
+            sectionsVersion: -1,
             state: 'ok',
             reference: undefined,
             pending: undefined,
@@ -183,8 +185,8 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
                     this.flush(session);
                     return;
                 case 'layout':
-                    session.collapsed = Array.isArray(message.collapsed) ? message.collapsed.filter(entry => typeof entry === 'string') : [];
-                    this.saveCollapsed(session);
+                    session.expanded = Array.isArray(message.expanded) ? message.expanded.filter(entry => typeof entry === 'string') : [];
+                    this.saveExpanded(session);
                     return;
                 case 'compare':
                     void this.pickReference(session);
@@ -270,8 +272,9 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
 
         const state = projectionState(context);
         session.state = state.state;
-        if (state.state === 'ok') {
+        if (state.state === 'ok' && session.sectionsVersion !== context.version) {
             session.sections = buildSections(context);
+            session.sectionsVersion = context.version;
         }
 
         const projection: FormProjection = {
@@ -280,7 +283,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             title: vscode.workspace.asRelativePath(session.document.uri, false),
             subtitle: `Document version ${context.version}`,
             sections: session.sections,
-            collapsed: session.collapsed,
+            expanded: session.expanded,
             writable: state.state === 'ok',
             stateMessage: state.message
         };
@@ -310,7 +313,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             title: session.reference.name,
             subtitle: 'Read-only reference',
             sections: state.state === 'ok' ? buildSections(context) : [],
-            collapsed: [],
+            expanded: [],
             writable: false,
             stateMessage: state.message
         };
@@ -490,18 +493,18 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
         this.postReference(session);
     }
 
-    private readCollapsed(document: vscode.TextDocument): string[] {
+    private readExpanded(document: vscode.TextDocument): string[] {
         const value = this.context.workspaceState.get<unknown>(layoutStatePrefix + document.uri.toString());
         return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
     }
 
-    private saveCollapsed(session: Session): void {
+    private saveExpanded(session: Session): void {
         if (session.layoutTimer) {
             clearTimeout(session.layoutTimer);
         }
         session.layoutTimer = setTimeout(() => {
             session.layoutTimer = undefined;
-            void this.context.workspaceState.update(layoutStatePrefix + session.document.uri.toString(), session.collapsed);
+            void this.context.workspaceState.update(layoutStatePrefix + session.document.uri.toString(), session.expanded);
         }, 200);
     }
 }

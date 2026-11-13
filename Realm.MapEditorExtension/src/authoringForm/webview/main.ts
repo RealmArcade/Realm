@@ -52,6 +52,11 @@ class FormView {
     }
 
     public setProjection(projection: FormProjection): void {
+        if (!this.projection && projection.expanded) {
+            for (const key of projection.expanded) {
+                this.expanded.add(key);
+            }
+        }
         if (this.projection && projection.version === this.projection.version && sameSections(this.projection, projection)) {
             this.projection = projection;
             this.applyStateBanners();
@@ -339,6 +344,24 @@ class FormView {
             }, 'Add a dictionary entry'));
         }
 
+        if (side === 'edited' && node.kind === 'entry') {
+            header.appendChild(this.button('Rename', () => {
+                const keyName = window.prompt('Rename key', node.key ?? '');
+                if (keyName && keyName.trim().length > 0) {
+                    api.postMessage({ type: 'renameEntry', path: node.path, keyName: keyName.trim() } satisfies WebviewToHostMessage);
+                }
+            }, 'Rename this dictionary key'));
+            header.appendChild(this.button('Remove', () => {
+                api.postMessage({ type: 'removeEntry', path: node.path } satisfies WebviewToHostMessage);
+            }, 'Remove this dictionary entry'));
+        }
+
+        if (side === 'edited' && node.kind === 'record') {
+            header.appendChild(this.button('Remove', () => {
+                api.postMessage({ type: 'removeItem', path: node.path } satisfies WebviewToHostMessage);
+            }, 'Remove this record'));
+        }
+
         wrapper.appendChild(header);
 
         if (node.description) {
@@ -422,7 +445,8 @@ class FormView {
             this.expanded.add(key);
         }
         api.setState({ expanded: [...this.expanded] });
-        api.postMessage({ type: 'layout', collapsed: [...this.expanded] } satisfies WebviewToHostMessage);
+        api.postMessage({ type: 'layout', expanded: [...this.expanded] } satisfies WebviewToHostMessage);
+        api.postMessage({ type: 'flush' } satisfies WebviewToHostMessage);
         this.render();
         this.requestOpenContainers();
     }

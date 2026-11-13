@@ -75,7 +75,7 @@ export interface FormProjection {
     title: string;
     subtitle: string;
     sections: FormNode[];
-    collapsed: string[];
+    expanded: string[];
     writable: boolean;
     stateMessage?: string;
 }
@@ -87,7 +87,7 @@ export type WebviewToHostMessage =
     | { type: 'expand'; side: FormSide; path: PathSegments; offset: number; limit: number }
     | { type: 'set'; path: PathSegments; value: unknown; gesture: string; phase: 'change' | 'end' }
     | { type: 'flush' }
-    | { type: 'layout'; collapsed: string[] }
+    | { type: 'layout'; expanded: string[] }
     | { type: 'compare' }
     | { type: 'closeCompare' }
     | { type: 'reveal'; path: PathSegments }
