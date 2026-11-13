@@ -195,6 +195,7 @@ public static class SpawnDeathShaderManager
 	{
 		if (node == null) return true;
 		if (node.HasMeta(ModelShaderManager.OverlayMaterialMetaName)) return true;
+		if (node is GeometryInstance3D groundPlane && ModelShaderManager.HasGroundPlaneMaterial(groundPlane)) return true;
 		string nodeName = node.Name.ToString();
 		return nodeName.StartsWith("_selection", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("Selection", StringComparison.OrdinalIgnoreCase)
