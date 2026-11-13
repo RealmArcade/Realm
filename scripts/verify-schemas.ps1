@@ -1,5 +1,6 @@
 param(
-    [string]$OutputDir = ""
+    [string]$OutputDir = "",
+    [string]$Configuration = "Release"
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,8 +22,15 @@ if ($usesDefaultOutput) {
     }
 }
 
+$cliAssembly = Join-Path $rootDir (Join-Path "Realm.Tools.Cli" (Join-Path (Join-Path "bin" $Configuration) (Join-Path "net10.0" "Realm.Tools.Cli.dll")))
+
 foreach ($schemaDir in $schemaDirs) {
-    & dotnet run --project "$cliProj" -c Release --no-launch-profile -- verify_schemas -o "$schemaDir"
+    if (Test-Path $cliAssembly) {
+        & dotnet exec "$cliAssembly" verify_schemas -o "$schemaDir"
+    } else {
+        & dotnet run --project "$cliProj" -c "$Configuration" --no-launch-profile -- verify_schemas -o "$schemaDir"
+    }
+
     if ($LASTEXITCODE -ne 0) {
         throw "The committed map schemas in $schemaDir no longer match the model. Run scripts/generate-schemas.ps1 and commit the regenerated schemas."
     }
