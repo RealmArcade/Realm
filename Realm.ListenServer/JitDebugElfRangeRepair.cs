@@ -1,12 +1,14 @@
 using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.Text;
 
 namespace Realm.ListenServer;
 
 /// <summary>
-///     Repairs the DWARF range gaps a JIT ELF leaves around map-script functions, so a debugger can resolve the line-table
-///     addresses that fall between the function's first range entry and its next recorded range.
+///     Repairs the DWARF range and location gaps a JIT ELF leaves around map-script functions, so a debugger can resolve
+///     line-table addresses and inspect local variables that fall between the function's first range entry and its next
+///     recorded range.
 /// </summary>
 public static class JitDebugElfRangeRepair
 {
@@ -15,10 +17,10 @@ public static class JitDebugElfRangeRepair
 	private const int SymbolEntrySize = 24;
 
 	/// <summary>
-	///     Extends map-script function range entries to the next range start.
+	///     Extends map-script function range entries and matching location-list entries to the next range start.
 	/// </summary>
 	/// <param name="elfBytes">The JIT ELF bytes, modified in place when a gap is found.</param>
-	/// <returns>The number of range entries that were repaired.</returns>
+	/// <returns>The number of range or location entries that were repaired.</returns>
 	public static int Repair(Span<byte> elfBytes)
 	{
 		if (elfBytes.Length < ElfHeaderMinimumSize) return 0;
@@ -54,6 +56,7 @@ public static class JitDebugElfRangeRepair
 		int textSectionIndex = -1;
 		ulong textAddress = 0;
 		ElfSectionHeader rangesSection = default;
+		ElfSectionHeader locationsSection = default;
 		ElfSectionHeader symbolsSection = default;
 		ElfSectionHeader stringsSection = default;
 
@@ -68,6 +71,9 @@ public static class JitDebugElfRangeRepair
 					break;
 				case ".debug_ranges":
 					rangesSection = sections[index];
+					break;
+				case ".debug_loc":
+					locationsSection = sections[index];
 					break;
 				case ".symtab":
 					symbolsSection = sections[index];
@@ -89,6 +95,7 @@ public static class JitDebugElfRangeRepair
 		if (rangesStart < 0 || rangesEnd > elfBytes.Length) return 0;
 
 		int symbolEntrySize = symbolsSection.EntrySize > 0 ? (int)symbolsSection.EntrySize : SymbolEntrySize;
+		var gaps = new List<(ulong Start, ulong End)>();
 		int repairedCount = 0;
 
 		for (int symbolOffset = 0; symbolOffset + symbolEntrySize <= symbolData.Length; symbolOffset += symbolEntrySize)
@@ -112,7 +119,13 @@ public static class JitDebugElfRangeRepair
 			if (nextRangeStart <= rangeEnd) continue;
 
 			BinaryPrimitives.WriteUInt64LittleEndian(elfBytes.Slice(rangeOffset + 8), nextRangeStart);
+			gaps.Add((rangeEnd, nextRangeStart));
 			repairedCount++;
+		}
+
+		if (locationsSection.Size > 0 && gaps.Count > 0)
+		{
+			repairedCount += RepairLocationLists(elfBytes, locationsSection, gaps);
 		}
 
 		return repairedCount;
@@ -140,6 +153,47 @@ public static class JitDebugElfRangeRepair
 		if (nextStart == rangeEnd) return rangeEnd;
 		if (rangeEnd < nextStart && nextStart < functionHighAddress) return nextStart;
 		return functionHighAddress;
+	}
+
+	private static int RepairLocationLists(Span<byte> elfBytes, ElfSectionHeader locationsSection, List<(ulong Start, ulong End)> gaps)
+	{
+		int start = (int)locationsSection.Offset;
+		int end = checked((int)(locationsSection.Offset + locationsSection.Size));
+		if (start < 0 || end > elfBytes.Length) return 0;
+
+		int repairedCount = 0;
+		int offset = start;
+		while (offset + 16 <= end)
+		{
+			ulong entryStart = BinaryPrimitives.ReadUInt64LittleEndian(elfBytes.Slice(offset));
+			ulong entryEnd = BinaryPrimitives.ReadUInt64LittleEndian(elfBytes.Slice(offset + 8));
+			if (entryStart == 0 && entryEnd == 0)
+			{
+				offset += 16;
+				continue;
+			}
+
+			if (offset + 18 > end) break;
+
+			ushort expressionLength = BinaryPrimitives.ReadUInt16LittleEndian(elfBytes.Slice(offset + 16));
+			int nextOffset = offset + 18 + expressionLength;
+			if (nextOffset > end) break;
+
+			foreach ((ulong gapStart, ulong gapEnd) in gaps)
+			{
+				if (entryEnd != gapStart) continue;
+				if (nextOffset + 16 > end) continue;
+				if (BinaryPrimitives.ReadUInt64LittleEndian(elfBytes.Slice(nextOffset)) != gapEnd) continue;
+
+				BinaryPrimitives.WriteUInt64LittleEndian(elfBytes.Slice(offset + 8), gapEnd);
+				repairedCount++;
+				break;
+			}
+
+			offset = nextOffset;
+		}
+
+		return repairedCount;
 	}
 
 	private static ReadOnlySpan<byte> Slice(Span<byte> data, ulong offset, ulong size)

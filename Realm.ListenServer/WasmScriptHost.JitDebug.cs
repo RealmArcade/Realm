@@ -72,7 +72,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 						int repairedRanges = JitDebugElfRangeRepair.Repair(elfBytes);
 						if (repairedRanges > 0)
 						{
-							LogToConsole($"[WASM DEBUG] Repaired {repairedRanges} DWARF range(s) in the JIT ELF of pid {System.Environment.ProcessId}.");
+							LogToConsole($"[WASM DEBUG] Repaired {repairedRanges} DWARF gap(s) in the JIT ELF of pid {System.Environment.ProcessId}.");
 						}
 
 						string suffix = exportedCount == 0 ? string.Empty : $"_{exportedCount}";
