@@ -151,6 +151,18 @@ public class WasmDebuggerIntegrationTests
 		Assert.That(script, Does.Contain("def collect_statement_entries"));
 		Assert.That(script, Does.Contain("def select_statement_addresses"));
 		Assert.That(script, Does.Contain("def find_authority_pid"));
+		Assert.That(script, Does.Contain("preserved_names"));
+		Assert.That(script, Does.Contain("type category delete Realm"));
+	}
+
+	[Test]
+	public void GeneratedScriptDoesNotEmbedAStaleSourceCommit()
+	{
+		string script = File.ReadAllText(_generatedScriptPath);
+		string? environmentCommit = Environment.GetEnvironmentVariable("REALM_SOURCE_COMMIT");
+		string expected = string.IsNullOrWhiteSpace(environmentCommit) ? "unknown" : environmentCommit.Trim();
+
+		Assert.That(script, Does.Contain($"REALM_LLDB_SOURCE_COMMIT = \"{expected}\""));
 	}
 
 	[Test]

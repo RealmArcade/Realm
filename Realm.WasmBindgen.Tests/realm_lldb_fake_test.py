@@ -440,6 +440,7 @@ def main():
 
     spec = importlib.util.spec_from_file_location("realm_lldb", script_path)
     module = importlib.util.module_from_spec(spec)
+    sys.modules["realm_lldb"] = module
     spec.loader.exec_module(module)
 
     global MEMORY
@@ -653,6 +654,15 @@ def main():
     expect(provider.get_child_at_index(2).GetValueAsSigned() == 10, "the generic list provider did not read element 0")
     expect(provider.get_child_at_index(3).GetValueAsSigned() == 20, "the generic list provider did not read element 1")
 
+    list_value = FakeValue(generic_target, "units_list", list_type.GetName(), address=list_host, type_obj=list_type)
+    list_provider = module.ManagedListSyntheticProvider(list_value, {})
+    expect(list_provider.num_children() == 4, "the direct list provider did not expose the initial elements")
+    write_int(MEMORY, list_host + 8, 3)
+    write_int(MEMORY, array_host + 16, 30)
+    expect(list_provider.update() is True, "the direct list provider did not report a change")
+    expect(list_provider.num_children() == 5, "the direct list provider did not refresh after the list grew")
+    expect(list_provider.get_child_at_index(4).GetValueAsSigned() == 30, "the direct list provider did not read the new element")
+
     class_type = FakeType("SomeClass", byte_size=8, base_count=1)
     class_data_type = FakeType("SomeClass[0]", byte_size=4)
     class_array_type = FakeType(
@@ -746,6 +756,12 @@ def main():
     expect(direct_string_provider.get_child_at_index(0).GetValue() == string_text, "the direct string provider did not decode Value")
     expect(module.ManagedStringSummaryProvider(direct_string_value, {}) == '"unit/chad"', "the direct string summary did not quote the value")
 
+    string_provider = module.ManagedStringSyntheticProvider(direct_string_value, {})
+    write_int(MEMORY, string_host + 4, 4)
+    MEMORY[string_host + 8:string_host + 16] = "hero".encode("utf-16-le")
+    expect(string_provider.update() is True, "the direct string provider did not report a change")
+    expect(string_provider.get_child_at_index(0).GetValue() == "hero", "the direct string provider did not refresh the decoded text")
+
     line_entries = [
         ("C:/map/MapScript.cs", 15, 0x100),
         ("C:/map/MapScript.cs", 15, 0x200),
@@ -776,6 +792,19 @@ def main():
     breakpoint_context.thread.stop_reason = 2
     module.RealmJustMyCodeStopHook().handle_stop(breakpoint_context, FakeStream())
     expect(breakpoint_context.thread.stepped_out is False, "just-my-code interfered with a breakpoint stop")
+
+    module._JUST_MY_CODE_ENABLED = True
+    module._JUST_MY_CODE_INSTALLED = True
+    module._STEP_HOOK_INSTALLED = True
+    module._WATCH_HOOK_INSTALLED = True
+    module._WATCHES = [{"expression": "unit", "handle_spec": module.HANDLE_TYPES["UnitId"], "field_spec": module.find_field_spec(module.HANDLE_TYPES["UnitId"], "Health"), "samples": [100.0]}]
+    reload_result = FakeResult()
+    module.realm_reload(FakeDebugger(verify_target), "", reload_result, {})
+    expect(module._JUST_MY_CODE_ENABLED is True, "realm_reload reset the just-my-code enabled flag")
+    expect(module._JUST_MY_CODE_INSTALLED is True, "realm_reload reset the just-my-code installed flag")
+    expect(module._STEP_HOOK_INSTALLED is True, "realm_reload reset the step hook flag")
+    expect(module._WATCH_HOOK_INSTALLED is True, "realm_reload reset the watch hook flag")
+    expect(len(module._WATCHES) == 1, "realm_reload lost the active watches")
 
     print("OK")
     return 0

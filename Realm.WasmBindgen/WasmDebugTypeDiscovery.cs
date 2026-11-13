@@ -11,14 +11,14 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Realm.WasmBindgen;
 
-public sealed class ComponentFieldLayout
+public class ComponentFieldLayout
 {
 	public string Name { get; init; } = "";
 	public int Offset { get; init; }
 	public string TypeName { get; init; } = "";
 }
 
-public sealed class ComponentLayout
+public class ComponentLayout
 {
 	public string Name { get; init; } = "";
 	public string FullName { get; init; } = "";
@@ -27,7 +27,7 @@ public sealed class ComponentLayout
 	public Dictionary<string, string> PropertyToField { get; init; } = new(StringComparer.Ordinal);
 }
 
-public sealed class HandleFieldSpec
+public class HandleFieldSpec
 {
 	public string Name { get; init; } = "";
 	public string Kind { get; init; } = "host";
@@ -46,7 +46,7 @@ public sealed class HandleFieldSpec
 	public object? DefaultValue { get; init; }
 }
 
-public sealed class HandleTypeLayout
+public class HandleTypeLayout
 {
 	public string Name { get; init; } = "";
 	public string Label { get; init; } = "";
@@ -57,10 +57,8 @@ public sealed class HandleTypeLayout
 	public List<string> SummaryFields { get; init; } = new();
 }
 
-public static class WasmDebugTypeDiscovery
+public static partial class WasmDebugTypeDiscovery
 {
-	private static readonly Regex ExtensionHeaderRegex = new(@"extension\s*\(\s*([A-Za-z_][\w\.]*)\s+([A-Za-z_]\w*)\s*\)", RegexOptions.Compiled);
-
 	private static readonly string[] PreferredSummaryFields =
 	{
 		"Health", "MaxHealth", "Position", "Gold", "Wood", "CurrentPopulation", "MaxPopulation", "ResourceAmount"
@@ -95,7 +93,7 @@ public static class WasmDebugTypeDiscovery
 
 					string? fieldName = fields
 						.Select(field => field.Name)
-						.FirstOrDefault(name => Regex.IsMatch(expression, $@"\b{Regex.Escape(name)}\b"));
+						.FirstOrDefault(name => ContainsIdentifier(expression, name));
 					if (fieldName != null) propertyToField[property.Identifier.Text] = fieldName;
 				}
 
@@ -313,7 +311,7 @@ public static class WasmDebugTypeDiscovery
 			return new HandleFieldSpec { Name = propertyName, Kind = "alive", TypeName = "bool", Invert = true, DefaultValue = false };
 		}
 
-		Match componentMatch = Regex.Match(expression, @"GetComponent<([A-Za-z_][\w\.]*)>\s*\(\s*ComponentIds\.([A-Za-z_]\w*)\s*,\s*([^)]*)\)\s*->\s*([A-Za-z_]\w*)\s*(\()?");
+		Match componentMatch = ComponentMatchRegex().Match(expression);
 		if (componentMatch.Success)
 		{
 			string componentTypeName = componentMatch.Groups[1].Value;
@@ -332,7 +330,7 @@ public static class WasmDebugTypeDiscovery
 			ComponentFieldLayout? field = layout.Fields.FirstOrDefault(candidate => candidate.Name == fieldName);
 			if (field == null) return Host(propertyName);
 
-			int indexOffset = Regex.IsMatch(indexExpression, @"\+\s*1\b") ? 1 : 0;
+			int indexOffset = IndexOffsetRegex().IsMatch(indexExpression) ? 1 : 0;
 			bool requiresAlive = expression.Contains("Alive[", StringComparison.Ordinal);
 			string propertyType = property.Type.ToString();
 			string fieldType = propertyType == "bool" && field.TypeName is "int" or "bool" ? "bool" : field.TypeName;
@@ -352,7 +350,7 @@ public static class WasmDebugTypeDiscovery
 			};
 		}
 
-		List<string> tagNames = Regex.Matches(expression, @"HasComponent\s*\([^,]+,\s*ComponentIds\.([A-Za-z_]\w*)\s*\)")
+		List<string> tagNames = HasComponentRegex().Matches(expression)
 			.Select(match => match.Groups[1].Value)
 			.Distinct(StringComparer.Ordinal)
 			.ToList();
@@ -418,7 +416,7 @@ public static class WasmDebugTypeDiscovery
 
 	private static object? ParseDefaultValue(string expression, string typeName)
 	{
-		Match conditional = Regex.Match(expression, @"\?\s*[^:]+:\s*([^;\)]+)");
+		Match conditional = ConditionalDefaultRegex().Match(expression);
 		if (!conditional.Success) return DefaultForType(typeName);
 
 		string falseBranch = conditional.Groups[1].Value.Trim();
@@ -557,7 +555,7 @@ public static class WasmDebugTypeDiscovery
 	private static string TransformExtensionBlocks(string source)
 	{
 		var builder = new StringBuilder(source);
-		MatchCollection matches = ExtensionHeaderRegex.Matches(source);
+		MatchCollection matches = ExtensionHeaderRegex().Matches(source);
 		for (int index = matches.Count - 1; index >= 0; index--)
 		{
 			Match match = matches[index];
@@ -569,4 +567,39 @@ public static class WasmDebugTypeDiscovery
 
 		return builder.ToString();
 	}
+
+	private static bool ContainsIdentifier(string expression, string identifier)
+	{
+		int index = expression.IndexOf(identifier, StringComparison.Ordinal);
+		while (index >= 0)
+		{
+			bool leftBoundary = index == 0 || !IsIdentifierCharacter(expression[index - 1]);
+			int end = index + identifier.Length;
+			bool rightBoundary = end == expression.Length || !IsIdentifierCharacter(expression[end]);
+			if (leftBoundary && rightBoundary) return true;
+			index = expression.IndexOf(identifier, index + 1, StringComparison.Ordinal);
+		}
+
+		return false;
+	}
+
+	private static bool IsIdentifierCharacter(char character)
+	{
+		return char.IsLetterOrDigit(character) || character == '_';
+	}
+
+	[GeneratedRegex(@"extension\s*\(\s*([A-Za-z_][\w\.]*)\s+([A-Za-z_]\w*)\s*\)")]
+	private static partial Regex ExtensionHeaderRegex();
+
+	[GeneratedRegex(@"GetComponent<([A-Za-z_][\w\.]*)>\s*\(\s*ComponentIds\.([A-Za-z_]\w*)\s*,\s*([^)]*)\)\s*->\s*([A-Za-z_]\w*)\s*(\()?")]
+	private static partial Regex ComponentMatchRegex();
+
+	[GeneratedRegex(@"\+\s*1\b")]
+	private static partial Regex IndexOffsetRegex();
+
+	[GeneratedRegex(@"HasComponent\s*\([^,]+,\s*ComponentIds\.([A-Za-z_]\w*)\s*\)")]
+	private static partial Regex HasComponentRegex();
+
+	[GeneratedRegex(@"\?\s*[^:]+:\s*([^;\)]+)")]
+	private static partial Regex ConditionalDefaultRegex();
 }

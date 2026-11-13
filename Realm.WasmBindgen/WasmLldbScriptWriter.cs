@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
@@ -108,7 +107,7 @@ public static class WasmLldbScriptWriter
 
 		string dataBlock = builder.ToString().TrimEnd();
 		string scriptHash = ComputeSha256(dataBlock);
-		string sourceCommit = ReadSourceCommit(repoRoot);
+		string sourceCommit = ReadSourceCommit();
 
 		builder.AppendLine();
 		builder.AppendLine("# Generated debugger script metadata");
@@ -137,37 +136,10 @@ public static class WasmLldbScriptWriter
 		return Convert.ToHexString(hash).ToLowerInvariant();
 	}
 
-	private static string ReadSourceCommit(string repoRoot)
+	private static string ReadSourceCommit()
 	{
 		string? environmentCommit = Environment.GetEnvironmentVariable("REALM_SOURCE_COMMIT");
-		if (!string.IsNullOrWhiteSpace(environmentCommit)) return environmentCommit.Trim();
-
-		try
-		{
-			var startInfo = new ProcessStartInfo("git", $"-C \"{repoRoot}\" rev-parse HEAD")
-			{
-				RedirectStandardOutput = true,
-				RedirectStandardError = true,
-				UseShellExecute = false,
-				CreateNoWindow = true
-			};
-
-			using Process? process = Process.Start(startInfo);
-			if (process == null) return "unknown";
-
-			string output = process.StandardOutput.ReadToEnd().Trim();
-			if (!process.WaitForExit(2000))
-			{
-				try { process.Kill(); } catch { }
-				return "unknown";
-			}
-
-			return process.ExitCode == 0 && output.Length >= 7 ? output : "unknown";
-		}
-		catch
-		{
-			return "unknown";
-		}
+		return string.IsNullOrWhiteSpace(environmentCommit) ? "unknown" : environmentCommit.Trim();
 	}
 
 	private static Dictionary<string, List<string>> DiscoverHostTypes(Compilation compilation)

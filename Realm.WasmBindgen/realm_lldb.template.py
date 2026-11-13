@@ -1191,7 +1191,28 @@ def realm_reload(debugger, command, result, internal_dict):
         result.SetError("realm_lldb.py path is unknown")
         return
 
-    importlib.reload(module)
+    preserved_names = (
+        "_JUST_MY_CODE_ENABLED",
+        "_JUST_MY_CODE_INSTALLED",
+        "_STEP_HOOK_INSTALLED",
+        "_WATCH_HOOK_INSTALLED",
+        "_WATCHES",
+        "_STOP_ON_WASM_TRAPS",
+        "_STEP_UNTIL_USER",
+        "_STEP_RETRIES",
+    )
+    preserved = {name: getattr(module, name) for name in preserved_names if hasattr(module, name)}
+
+    spec = getattr(module, "__spec__", None)
+    if spec is not None and getattr(spec, "loader", None) is not None:
+        spec.loader.exec_module(module)
+    else:
+        importlib.reload(module)
+
+    for name, value in preserved.items():
+        setattr(module, name, value)
+
+    debugger.HandleCommand("type category delete Realm")
     module.__lldb_init_module(debugger, {})
     result.AppendMessage(f"realm_reload: reloaded {path}")
 
@@ -1328,13 +1349,14 @@ class WebAssemblyRefWrapperSyntheticProvider:
         self.update()
 
     def update(self):
+        previous_children = self.children
         self.guest_pointer = read_wrapper_guest_pointer(self.valobj)
         self.host_pointer = guest_pointer_to_host(self.target, self.guest_pointer)
         self.children = []
         self.mode = "invalid"
 
         if not self.inner_type or not self.inner_type.IsValid() or self.host_pointer == 0:
-            return
+            return self.children != previous_children
 
         type_name = self.inner_type.GetName()
         if type_name == "System_String":
@@ -1349,6 +1371,8 @@ class WebAssemblyRefWrapperSyntheticProvider:
         else:
             self.mode = "object"
             self.build_object()
+
+        return self.children != previous_children
 
     def build_string(self):
         length_offset = get_type_field_offset(self.inner_type, "_stringLength", 4)
@@ -1441,7 +1465,11 @@ class ManagedListSyntheticProvider:
                 self.children.append((f"[{index}]", "element", data_host + index * element_size, element_type, element_is_class))
 
     def update(self):
-        return False
+        previous_children = self.children
+        self.list_host = self.valobj.GetLoadAddress()
+        self.children = []
+        self.build()
+        return self.children != previous_children
 
     def num_children(self):
         return len(self.children)
@@ -1485,7 +1513,11 @@ class ManagedArraySyntheticProvider:
                 self.children.append((f"[{index}]", "element", data_host + index * element_size, element_type, element_is_class))
 
     def update(self):
-        return False
+        previous_children = self.children
+        self.array_host = self.valobj.GetLoadAddress()
+        self.children = []
+        self.build()
+        return self.children != previous_children
 
     def num_children(self):
         return len(self.children)
@@ -1530,7 +1562,11 @@ class ManagedStringSyntheticProvider:
         self.children.append(("Length", "int", length))
 
     def update(self):
-        return False
+        previous_children = self.children
+        self.string_host = self.valobj.GetLoadAddress()
+        self.children = []
+        self.build()
+        return self.children != previous_children
 
     def num_children(self):
         return len(self.children)
@@ -1730,20 +1766,20 @@ def __lldb_init_module(debugger, internal_dict):
 
     debugger.HandleCommand(f"type summary add -s \"(${{var.X}}, ${{var.Y}}, ${{var.Z}})\" -x \"(^|.*[.:_ ])Vector3$\" -w {category}")
 
-    debugger.HandleCommand("command script add -f realm_lldb.realm_attach realm_attach")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_load_modules realm_load_modules")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_version realm_version")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_verify realm_verify")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_doctor realm_doctor")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_inspect realm_inspect")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_watch realm_watch")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_plot realm_plot")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_export realm_export")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_step realm_step")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_break realm_break")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_recover realm_recover")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_reload realm_reload")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_where realm_where")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_exception realm_exception")
-    debugger.HandleCommand("command script add -f realm_lldb.realm_just_my_code realm_just_my_code")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_attach realm_attach")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_load_modules realm_load_modules")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_version realm_version")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_verify realm_verify")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_doctor realm_doctor")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_inspect realm_inspect")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_watch realm_watch")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_plot realm_plot")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_export realm_export")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_step realm_step")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_break realm_break")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_recover realm_recover")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_reload realm_reload")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_where realm_where")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_exception realm_exception")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_just_my_code realm_just_my_code")
     debugger.HandleCommand(f"type category enable {category}")
