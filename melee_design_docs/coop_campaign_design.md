@@ -111,7 +111,7 @@ Every co-op level follows the same macro arc so that players learn the shape of 
 | :--- | :--- | :--- | :--- |
 | 1. Establishment | Introduce the hero, the nexus, and the map | Move, look, hear the briefing | This is my home; this is what I am protecting |
 | 2. Active economy | Fund the first commitment | Gather by hand, and feel the attention cost | Gathering is fast but costs hero time |
-| 3. First draft | Make the first construction commitment | Begin a construction, watch the silhouette, pick one of the three offered buildings during construction | Buildings are the draft, and the building is the unlock |
+| 3. First draft | Make the first construction commitment | Begin a construction, pick one of the three offered buildings from the site's silhouette, and let the hero raise it | Buildings are the draft, and the building is the unlock |
 | 4. First production | Field an army | Let the first building auto-cast its production ability | Soldiers appear from mana, cooldown, and capacity, without a command |
 | 5. First contact | Learn the hero's combat identity | Fight a modest opposing force | The army's targeting rules and formations change the outcome, and the hero's kit has a shape |
 | 6. Escalation | Pressure the economy and the army at once | Clear creeps, deny an expansion, repair | Passive income frees attention; bounties reward activity, and an expansion is denied by destruction, not captured |

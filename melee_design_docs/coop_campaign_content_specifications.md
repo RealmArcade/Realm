@@ -101,7 +101,7 @@ Rules:
 | Time | Beat | Event | What the player should learn |
 | :--- | :--- | :--- | :--- |
 | 0:00–1:00 | Establishment | Briefing. The gate, the wall, and the east yard are visible. No enemy movement | This is the ground being defended |
-| 1:00–4:00 | Active economy and first draft | Gather, start a construction, lock a choice during construction | Buildings are the draft, and the building is the unlock |
+| 1:00–4:00 | Active economy and first draft | Gather, start a construction, lock a choice from the draw | Buildings are the draft, and the building is the unlock |
 | 4:00–7:00 | First contact | Wave 1 probes the gate. The first building has auto-cast its production ability | Mana feeds production automatically, and the gate is a shape |
 | 7:00–11:00 | Escalation | Wave 2 flanks through the north break. The shelf and the south camp are live choices | Formations cover ground; the hero's target decides the army's focus |
 | 11:00–15:00 | Breach | Wave 3 uses both breaks. A hero caught forward is expected to die once | Army removal, revival, and giving ground without losing the match |

@@ -211,9 +211,10 @@ public partial interface IGameAPI
 
 	/// <summary>
 	/// Holds a construction site short of completion: it takes work up to the given fraction of its construction time and
-	/// stops there, so it is drawn as a site that is nearly finished and never becomes a building until the ceiling is
-	/// lifted. This is what lets a map stand a site on the board before it is known what is being raised there, because a
-	/// site that could complete would become a building nobody chose.
+	/// stops there, so it never becomes a building until the ceiling is lifted. This is what lets a map stand a site on the
+	/// board before it is known what is being raised there, because a site that could complete would become a building nobody
+	/// chose. A ceiling of zero denies the site any work at all, which is how a map keeps a site whose choice is still open
+	/// from being built in advance.
 	/// </summary>
 	/// <param name="unit">The building site to hold, or to release when the fraction given is one.</param>
 	/// <param name="finishedFraction">
@@ -225,8 +226,8 @@ public partial interface IGameAPI
 	/// <summary>
 	/// Reveals what a construction site is being raised as: the site takes the chosen building's template, so every screen
 	/// draws that building from the next description it receives, and the work it now needs is the building's own. The
-	/// work the site has already taken stays with it rather than being paid for twice, which is what makes a site a player
-	/// has laboured at before choosing worth as much as the choice itself.
+	/// work the site has already taken stays with it rather than being paid for twice, so a site held at a ceiling of zero
+	/// is revealed with nothing banked and starts its construction from the beginning.
 	/// <para>
 	/// A site held by <see cref="SetUnitConstructionCeiling" /> stays held until the map lifts the ceiling, so revealing a
 	/// site does not on its own make it possible for the site to complete.
