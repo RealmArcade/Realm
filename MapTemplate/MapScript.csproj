@@ -39,6 +39,7 @@
     <Optimize>false</Optimize>
     <StripSymbols>false</StripSymbols>
     <IlcGenerateCompleteTypeMetadata>true</IlcGenerateCompleteTypeMetadata>
+    <IlcDwarfVersion>5</IlcDwarfVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <DebugSymbols>true</DebugSymbols>
@@ -50,7 +51,7 @@
     <DirectPInvoke Include="env" />
     <LinkerArg Include="-Wl,--allow-undefined" />
     <LinkerArg Include="-g" Condition="'$(Configuration)' == 'Debug'" />
-    <LinkerArg Include="-gdwarf-4" Condition="'$(Configuration)' == 'Debug'" />
+    <LinkerArg Include="-gdwarf-5" Condition="'$(Configuration)' == 'Debug'" />
   </ItemGroup>
   <Target Name="EnableAotLate" BeforeTargets="ImportRuntimeIlcPackageTarget;IlcCompile;_ComputeAssembliesToCompileToNative">
     <PropertyGroup>

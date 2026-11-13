@@ -6,6 +6,7 @@ namespace Realm.Ecs.Common;
 /// A type-safe unmanaged identifier wrapper for a resource category.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public readonly record struct ResourceId
 {
 	public int StringId { get; }
