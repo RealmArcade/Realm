@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -90,10 +90,45 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 
 				currentEntryPointer = Marshal.ReadIntPtr(currentEntryPointer, 0);
 			}
+
+			WriteDebugMetadata(wasmPath);
 		}
 		catch (Exception exception)
 		{
 			LogToConsole($"[WASM DEBUG] Failed to export JIT debug symbols: {exception.Message}", true);
+		}
+	}
+
+	private void WriteDebugMetadata(string wasmPath)
+	{
+		try
+		{
+			string? workspaceDirectory = ResolveWorkspaceDirectory(wasmPath);
+			string? directoryName = Path.GetDirectoryName(wasmPath);
+			string pidStr = System.Environment.ProcessId.ToString();
+			string debugJson = $"{{\"pid\":{System.Environment.ProcessId},\"sharedMemoryPointer\":{_sharedMemoryPointer.ToInt64()}}}";
+
+			if (!string.IsNullOrEmpty(workspaceDirectory) && Directory.Exists(workspaceDirectory))
+			{
+				File.WriteAllText(Path.Combine(workspaceDirectory, "authority.pid"), pidStr);
+				if (_sharedMemoryPointer != IntPtr.Zero)
+				{
+					File.WriteAllText(Path.Combine(workspaceDirectory, "MapScript.debug.json"), debugJson);
+				}
+			}
+
+			if (!string.IsNullOrEmpty(directoryName) && Directory.Exists(directoryName))
+			{
+				File.WriteAllText(Path.Combine(directoryName, "authority.pid"), pidStr);
+				if (_sharedMemoryPointer != IntPtr.Zero)
+				{
+					File.WriteAllText(Path.Combine(directoryName, "MapScript.debug.json"), debugJson);
+				}
+			}
+		}
+		catch (Exception exception)
+		{
+			LogToConsole($"[WASM DEBUG] Failed to write debug metadata: {exception.Message}", true);
 		}
 	}
 

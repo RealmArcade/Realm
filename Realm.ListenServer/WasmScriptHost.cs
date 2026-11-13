@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -126,7 +126,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 			var config = new Config()
 				.WithEpochInterruption(true)
 				.WithDebugInfo(_isDebugMode)
-				.WithOptimizationLevel(OptimizationLevel.SpeedAndSize);
+				.WithOptimizationLevel(_isDebugMode ? OptimizationLevel.None : OptimizationLevel.SpeedAndSize);
 			_engine = new Engine(config);
 			if (_isDebugMode)
 			{
@@ -192,6 +192,10 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 					{
 						_sharedMemoryPointer = sharedMemPtr;
 						_world?.BindSharedMemory(sharedMemPtr, _sharedMemoryOffset);
+						if (_isDebugMode)
+						{
+							WriteDebugMetadata(wasmPath);
+						}
 						PublishSharedPlayerSlots();
 
 						var setTableDirFn = _instance.GetFunction("set_realm_shared_memory_table_directory");

@@ -344,8 +344,7 @@ public partial class ListenServerHost
 			{
 				LagProbe.Count(LagEvent.AuthorityBaselinesPublished);
 				if (reason == SnapshotBaselineReason.Safety) LagProbe.Count(LagEvent.AuthorityBaselinesBecausePeerBehind);
-				else if (reason == SnapshotBaselineReason.Initial) LagProbe.Count(LagEvent.AuthorityBaselinesPublished);
-				else LagProbe.Count(LagEvent.AuthorityBaselinesBecausePeerAsked);
+				else if (reason != SnapshotBaselineReason.Initial) LagProbe.Count(LagEvent.AuthorityBaselinesBecausePeerAsked);
 			}
 		}
 
@@ -380,13 +379,17 @@ public partial class ListenServerHost
 		if (!snapshot.IsBaseline && _peersThatLoseDescriptions.Contains(peerId))
 		{
 			// A link that has stopped asking for lost descriptions has stopped losing them, and every description sent
-			// twice after that is bandwidth spent on a fault that is gone.
-			if (_lastRepairSentTickPerPeer.TryGetValue(peerId, out long lastRepairTick)
-			    && simulation.TickCount - lastRepairTick > LossyPeerMemoryTicks)
+			// twice after that is bandwidth spent on a fault that is gone. The clock is the last time this peer named a
+			// loss rather than the last repair the match managed to send: a request the ring could not answer still says
+			// the link was losing descriptions, and a peer that never had a repair sent would otherwise stay in this set
+			// for the rest of the match.
+			if (!_lastLossNamedTickPerPeer.TryGetValue(peerId, out long lastLossTick)
+			    || simulation.TickCount - lastLossTick > LossyPeerMemoryTicks)
 			{
 				_peersThatLoseDescriptions.Remove(peerId);
 				_descriptionsLostByPeer.Remove(peerId);
 				_lossWindowStartedTickPerPeer.Remove(peerId);
+				_lastLossNamedTickPerPeer.Remove(peerId);
 			}
 
 			if (_peersThatLoseDescriptions.Contains(peerId)

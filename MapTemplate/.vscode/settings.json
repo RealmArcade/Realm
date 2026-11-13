@@ -1,27 +1,30 @@
 {
-	"editor.formatOnSave": true,
-	"dotnet.preferCSharpExtension": true,
-	"dotnet.server.useOmnisharp": false,
-	"dotnet.projects.enableAutomaticRestore": true,
-	"debug.showDisassembly": "never",
-	"json.schemas": [
-		{
-			"fileMatch": [
-				"/metadata.json"
-			],
-			"url": "./.vscode/metadata.schema.json"
-		},
-		{
-			"fileMatch": [
-				"/manifest.json"
-			],
-			"url": "./.vscode/manifest.schema.json"
-		},
-		{
-			"fileMatch": [
-				"/terrain.json"
-			],
-			"url": "./.vscode/terrain.schema.json"
-		}
-	]
+  "editor.formatOnSave": true,
+  "dotnet.preferCSharpExtension": true,
+  "dotnet.server.useOmnisharp": false,
+  "dotnet.projects.enableAutomaticRestore": true,
+  "debug.showDisassembly": "never",
+  "lldb.showDisassembly": "never",
+  "lldb.consoleMode": "evaluate",
+  "json.schemas": [
+    {
+      "fileMatch": [
+        "/metadata.json"
+      ],
+      "url": "./.vscode/metadata.schema.json"
+    },
+    {
+      "fileMatch": [
+        "/manifest.json"
+      ],
+      "url": "./.vscode/manifest.schema.json"
+    },
+    {
+      "fileMatch": [
+        "/terrain.json"
+      ],
+      "url": "./.vscode/terrain.schema.json"
+    }
+  ],
+  "security.workspace.trust.enabled": false
 }

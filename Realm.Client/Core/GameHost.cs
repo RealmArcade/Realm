@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -176,6 +176,8 @@ public partial class GameHost : Node3D
 
 	private bool _wasClientInMultiplayer => GameContext.NetworkService?.WasClientInMultiplayer ?? false;
 	public bool IsConnectionLost => GameContext.NetworkService?.IsConnectionLost ?? false;
+
+	public bool IsWaitingForAuthorityDebugger => GameContext.ServerSession?.IsAuthorityHeldForDebug ?? false;
 
 	private Dictionary<int, Entity> _peerIdToPlayerEntityMap
 		=> World.GetFieldOrDefault<NetworkMappingState, Dictionary<int, Entity>>(GameContext.Simulation.WorldEntity, s => s.PeerIdToPlayerEntityMap);

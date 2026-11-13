@@ -377,7 +377,11 @@ public class ScriptAbilityRegistry
 			});
 
 			told[entry.Key] = entry.Value;
-			restatements[entry.Key] = RestatedDescriptionCount;
+
+			// Only a statement the peer does not already hold, or one a restatement asked for, arms the repeat count. An
+			// emission that is spending the count leaves it to be spent: refilling it there stated the same exception in
+			// every delta for as long as it existed, since the count it reset was never allowed to run out.
+			if (restateEverything || restatedForUnit || !alreadyStatedOnce) restatements[entry.Key] = RestatedDescriptionCount;
 		}
 
 		_clearedKeys.Clear();
@@ -434,7 +438,7 @@ public class ScriptAbilityRegistry
 			});
 
 			told[entry.Key] = entry.Value;
-			restatements[entry.Key] = RestatedDescriptionCount;
+			if (restateEverything || !alreadyStatedOnce) restatements[entry.Key] = RestatedDescriptionCount;
 		}
 
 		_clearedNamedKeys.Clear();

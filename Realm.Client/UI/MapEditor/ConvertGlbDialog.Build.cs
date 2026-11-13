@@ -19,10 +19,6 @@ public partial class ConvertGlbDialog
 {
 	private void BuildDialogUi()
 	{
-		var btnWebAi = UIStyle.CreateWebAiButton();
-		HeaderHBox.AddChild(btnWebAi);
-		HeaderHBox.MoveChild(btnWebAi, HeaderHBox.GetChildCount() - 2);
-
 		var scroll = new ScrollContainer();
 		scroll.Name = "Scroll_ScrollContainer";
 		scroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;

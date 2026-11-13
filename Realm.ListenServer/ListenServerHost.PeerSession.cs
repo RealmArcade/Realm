@@ -94,6 +94,13 @@ public partial class ListenServerHost
 		_lastRepairSentTickPerPeer.Remove(peerId);
 		_lastRepairFirstSequencePerPeer.Remove(peerId);
 		_obstacleSignaturePerPeer.Remove(peerId);
+
+		// A seat is a fresh start for the repeat as well: the peer this seat replaces may have been the lossy one, and the
+		// tick the repeat expires on goes with the repair bookkeeping above.
+		_peersThatLoseDescriptions.Remove(peerId);
+		_descriptionsLostByPeer.Remove(peerId);
+		_lossWindowStartedTickPerPeer.Remove(peerId);
+		_lastLossNamedTickPerPeer.Remove(peerId);
 	}
 
 	private void ForgetPeerBookkeeping(int peerId)
@@ -119,5 +126,6 @@ public partial class ListenServerHost
 		_peersThatLoseDescriptions.Remove(peerId);
 		_descriptionsLostByPeer.Remove(peerId);
 		_lossWindowStartedTickPerPeer.Remove(peerId);
+		_lastLossNamedTickPerPeer.Remove(peerId);
 	}
 }

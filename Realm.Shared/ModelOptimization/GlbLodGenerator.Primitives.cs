@@ -39,7 +39,8 @@ public static unsafe partial class GlbLodGenerator
 			return;
 		}
 
-		AppendSimplifiedPrimitive(primObj, simplifiedIndices, root, newBinStream, newPrimitives);
+		if (!TryAppendCompactedPrimitive(primObj, simplifiedIndices, geometry.Value, root, binBytes, newBinStream, newPrimitives))
+			newPrimitives.Add(primObj.DeepClone());
 	}
 
 	private static bool ShouldSkipPrimitive(JsonObject primObj)

@@ -365,6 +365,11 @@ public partial class GameHost
 		if (GameContext.SessionState.IsMapEditorMode || GameContext.ReplayPlayback.IsPlayingReplay) return;
 		if (!ShouldProcessPhysicsTick() || GameContext.NetworkService.IsPaused) return;
 
+		// A debugger holding the authority is not a lagging link: the description this screen holds is still the newest
+		// one the match ever wrote, so the clock is left where it is. Stepping it forward would run the presentation
+		// window dry and make the resume look like a stall to deepen the buffer for.
+		if (GameContext.ServerSession is { IsAuthorityHeldForDebug: true }) return;
+
 		// The match clock is advanced once per tick and every replicated unit is placed from it below, so this is the only
 		// thing that moves one: the client renders the authority's own timeline from a little behind it.
 		int starvationsBefore = GameContext.SnapshotTimeline.StarvationCount;
