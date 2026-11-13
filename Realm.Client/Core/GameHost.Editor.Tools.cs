@@ -24,7 +24,7 @@ namespace Realm.Client.Core
 
 		private void SyncTerrainToolInteractionBlock()
 		{
-			GroundTerrain?.SetToolInteractionBlocked(FloatingDialogBase.HasAnyDialogOpen);
+			GroundTerrain?.SetToolInteractionBlocked(FloatingDialogBase.HasAnyDialogOpen || WasmConsoleWindow.IsAnyConsoleUnderPointer);
 		}
 
 		private void ProcessMapEditorTick(float fDelta)
