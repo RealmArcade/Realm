@@ -97,6 +97,42 @@ public class MetadataService
 		}
 	}
 
+	/// <summary>
+	///     Brings a metadata document on disk to the shape this build states, before anything reads it strictly: members the
+	///     model does not declare are removed, members the document leaves out are added with their defaults, and a
+	///     signature the rewrite invalidates is dropped. A document that is already canonical is left untouched, signature
+	///     included. Members are reported so a map that was written for another build surfaces instead of hiding.
+	/// </summary>
+	public MetadataDocumentRepairResult CanonicalizeMetadataFile(string pathOrDirectory)
+	{
+		string targetPath = ResolveMetadataPath(pathOrDirectory);
+		var result = MetadataDocumentRepair.Canonicalize(targetPath, CleanMetadata);
+		if (!result.Success)
+		{
+			GameLog.LogError($"[MetadataService] {result.ErrorMessage}");
+			return result;
+		}
+
+		if (!result.Changed) return result;
+
+		foreach (string removedMember in result.RemovedMembers)
+		{
+			GameLog.LogToConsole($"[MetadataService] Removed '{removedMember}' from {Path.GetFileName(targetPath)} because this build does not state it.");
+		}
+
+		foreach (string addedMember in result.AddedMembers)
+		{
+			GameLog.LogToConsole($"[MetadataService] Added '{addedMember}' to {Path.GetFileName(targetPath)} with its default value.");
+		}
+
+		if (result.SignatureDropped)
+		{
+			GameLog.LogToConsole($"[MetadataService] Dropped the authorship signature of {Path.GetFileName(targetPath)} because the document changed; sign the map again to cover the new file.");
+		}
+
+		return result;
+	}
+
 	public void UpdateMetadata(string? pathOrDirectory, Action<MapMetadata> updateAction)
 	{
 		if (updateAction == null) return;
