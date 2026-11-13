@@ -265,7 +265,7 @@ HOST_TYPES = {
 # Generated debugger script metadata
 REALM_LLDB_SCRIPT_VERSION = "1"
 REALM_LLDB_SCRIPT_HASH = "f683cd830eee2a946494ad66b004576a1e69bd91fef15b6693299a1f07a1a26b"
-REALM_LLDB_SOURCE_COMMIT = "cb5acd25bd8d2458ffd1be6738930df699354e3a"
+REALM_LLDB_SOURCE_COMMIT = "db1dff65bb78d9606f10b407661a1ecb26c6bae8"
 
 INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"
 
@@ -1160,13 +1160,35 @@ _STEP_UNTIL_USER = False
 _STEP_RETRIES = 0
 _STEP_HOOK_INSTALLED = False
 _STOP_ON_WASM_TRAPS = False
+_USER_SOURCE_FILES = None
+
+def discover_user_source_files():
+    global _USER_SOURCE_FILES
+    if _USER_SOURCE_FILES is not None:
+        return _USER_SOURCE_FILES
+
+    import os
+    workspace = os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd()
+    skipped_directories = {
+        "bin", "obj", "lib", ".git", ".godot", "map_backups", "map_upgrades", "backups",
+        ".backups", ".dotnet", ".wasi", ".sidecarcache", ".cache", ".vs", ".idea", "node_modules"
+    }
+    sources = set()
+    for root, directories, files in os.walk(workspace):
+        directories[:] = [directory for directory in directories if directory.lower() not in skipped_directories]
+        for name in files:
+            if not name.endswith(".cs"):
+                continue
+            if name.endswith(".g.cs") or name == "Attribution_SourceMapAttribute.cs":
+                continue
+            path = os.path.normcase(os.path.abspath(os.path.join(root, name))).replace("\\", "/")
+            sources.add(path)
+
+    _USER_SOURCE_FILES = sources
+    return sources
 
 def is_user_frame(frame):
     if not frame or not frame.IsValid():
-        return False
-
-    function_name = frame.GetFunctionName() or ""
-    if HOST_FRAME_REGEX.search(function_name):
         return False
 
     line_entry = frame.GetLineEntry()
@@ -1174,13 +1196,14 @@ def is_user_frame(frame):
         file_spec = line_entry.GetFileSpec()
         path = file_spec.fullpath if file_spec and file_spec.IsValid() else ""
         if path:
-            normalized = path.replace("\\", "/")
-            if HOST_FRAME_REGEX.search(normalized):
-                return False
-            if normalized.endswith(".cs"):
-                return True
+            import os
+            normalized = os.path.normcase(os.path.abspath(path)).replace("\\", "/")
+            return normalized in discover_user_source_files()
 
-    return bool(function_name) and not HOST_FRAME_REGEX.search(function_name)
+    function_name = frame.GetFunctionName() or ""
+    if HOST_FRAME_REGEX.search(function_name):
+        return False
+    return bool(function_name)
 
 def format_frame(frame):
     if not frame or not frame.IsValid():

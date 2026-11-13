@@ -563,7 +563,10 @@ def main():
     expect("watch,index,value" in export_content, "realm_export did not write the CSV header")
     os.remove(export_path)
 
-    user_frame = FakeFrame({}, function_name="Realm.Maps.MapScript.Update", path="D:/maps/MapScript.cs", line=42)
+    user_source_path = os.path.join(os.path.dirname(os.path.abspath(script_path)), "MapScript.cs")
+    with open(user_source_path, "w") as user_source_file:
+        user_source_file.write("// test map script" + chr(10))
+    user_frame = FakeFrame({}, function_name="Realm.Maps.MapScript.Update", path=user_source_path, line=42)
     host_frame = FakeFrame({}, function_name="Realm.MapAPI.GameAPI_WasmModule.get_PlayerCount", path="D:/realm/Realm.MapAPI/GameAPI.cs", line=10)
     expect(module.is_user_frame(user_frame) is True, "a map-script frame was not recognized as user code")
     expect(module.is_user_frame(host_frame) is False, "a host frame was recognized as user code")

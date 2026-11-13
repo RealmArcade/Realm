@@ -14,20 +14,23 @@ namespace Realm.WasmBindgen.Tests;
 public class WasmDebuggerIntegrationTests
 {
 	private string _repoRoot = null!;
+	private string _generatedScriptDirectory = null!;
 	private string _generatedScriptPath = null!;
 
 	[OneTimeSetUp]
 	public void OneTimeSetUp()
 	{
 		_repoRoot = FindRepoRoot();
-		_generatedScriptPath = Path.Combine(Path.GetTempPath(), $"realm_lldb_{Guid.NewGuid():N}.py");
+		_generatedScriptDirectory = Path.Combine(Path.GetTempPath(), $"realm_lldb_{Guid.NewGuid():N}");
+		Directory.CreateDirectory(_generatedScriptDirectory);
+		_generatedScriptPath = Path.Combine(_generatedScriptDirectory, "realm_lldb.py");
 		WasmLldbScriptWriter.GenerateLldbScript(_repoRoot, CreateCompilation(), _generatedScriptPath);
 	}
 
 	[OneTimeTearDown]
 	public void OneTimeTearDown()
 	{
-		if (File.Exists(_generatedScriptPath)) File.Delete(_generatedScriptPath);
+		if (Directory.Exists(_generatedScriptDirectory)) Directory.Delete(_generatedScriptDirectory, true);
 	}
 
 	[Test]
