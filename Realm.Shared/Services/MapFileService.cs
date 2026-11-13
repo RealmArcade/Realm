@@ -37,6 +37,7 @@ public static class MapFileService
 		ReadCommentHandling = JsonCommentHandling.Skip,
 		WriteIndented = true,
 		PropertyNameCaseInsensitive = true,
+		UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
 
@@ -45,6 +46,7 @@ public static class MapFileService
 		PropertyNameCaseInsensitive = true,
 		IncludeFields = true,
 		WriteIndented = true,
+		UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
 		Converters = { new JsonStringEnumConverter() },
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
@@ -54,6 +56,7 @@ public static class MapFileService
 		PropertyNameCaseInsensitive = true,
 		IncludeFields = true,
 		WriteIndented = true,
+		UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
 		Converters = { new JsonStringEnumConverter() },
 		Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
 	};
@@ -82,7 +85,7 @@ public static class MapFileService
 		}
 
 		string json = File.ReadAllText(targetPath);
-		return LoadManifestFromJson(json);
+		return DeserializeOrExplain<MapManifest>(json, ManifestJsonOptions, targetPath) ?? new MapManifest();
 	}
 
 	public static MapManifest LoadManifestFromJson(string json)
@@ -92,14 +95,7 @@ public static class MapFileService
 			return new MapManifest();
 		}
 
-		try
-		{
-			return JsonSerializer.Deserialize<MapManifest>(json, ManifestJsonOptions) ?? new MapManifest();
-		}
-		catch
-		{
-			return new MapManifest();
-		}
+		return JsonSerializer.Deserialize<MapManifest>(json, ManifestJsonOptions) ?? new MapManifest();
 	}
 
 	public static void SaveManifest(string pathOrDirectory, MapManifest manifest)
@@ -130,7 +126,7 @@ public static class MapFileService
 		}
 
 		string json = File.ReadAllText(targetPath);
-		return LoadMetadataFromJson(json);
+		return DeserializeOrExplain<MapMetadata>(json, MetadataJsonOptions, targetPath) ?? new MapMetadata();
 	}
 
 	public static MapMetadata LoadMetadataFromJson(string json)
@@ -140,14 +136,7 @@ public static class MapFileService
 			return new MapMetadata();
 		}
 
-		try
-		{
-			return JsonSerializer.Deserialize<MapMetadata>(json, MetadataJsonOptions) ?? new MapMetadata();
-		}
-		catch
-		{
-			return new MapMetadata();
-		}
+		return JsonSerializer.Deserialize<MapMetadata>(json, MetadataJsonOptions) ?? new MapMetadata();
 	}
 
 	public static void SaveMetadata(string pathOrDirectory, MapMetadata metadata)
@@ -178,7 +167,7 @@ public static class MapFileService
 		}
 
 		string json = File.ReadAllText(targetPath);
-		return LoadTerrainFromJson(json);
+		return DeserializeOrExplain<MapSaveData>(json, TerrainJsonOptions, targetPath) ?? new MapSaveData();
 	}
 
 	public static MapSaveData LoadTerrainFromJson(string json)
@@ -188,14 +177,7 @@ public static class MapFileService
 			return new MapSaveData();
 		}
 
-		try
-		{
-			return JsonSerializer.Deserialize<MapSaveData>(json, TerrainJsonOptions) ?? new MapSaveData();
-		}
-		catch
-		{
-			return new MapSaveData();
-		}
+		return JsonSerializer.Deserialize<MapSaveData>(json, TerrainJsonOptions) ?? new MapSaveData();
 	}
 
 	public static void SaveTerrain(string pathOrDirectory, MapSaveData terrain)
@@ -215,6 +197,37 @@ public static class MapFileService
 	public static string SaveTerrainToJson(MapSaveData terrain)
 	{
 		return JsonSerializer.Serialize(terrain, TerrainJsonOptions);
+	}
+
+	/// <summary>
+	///     Reads a map document and, when its content is no longer something this build can hold, says which file, which
+	///     member and which path in that file is at fault. A map whose format this build does not read is a map authored
+	///     for another build: it fails rather than loading as an empty document, and it fails with a sentence an author can
+	///     act on rather than with the serializer's own account of a .NET type.
+	/// </summary>
+	/// <param name="json">The document text.</param>
+	/// <param name="options">The options the document is read with.</param>
+	/// <param name="targetPath">The file the text came from.</param>
+	/// <returns>The deserialized document, or null when the document is empty.</returns>
+	private static T? DeserializeOrExplain<T>(string json, JsonSerializerOptions options, string targetPath) where T : class
+	{
+		try
+		{
+			return JsonSerializer.Deserialize<T>(json, options);
+		}
+		catch (JsonException exception)
+		{
+			throw new JsonException(ExplainFailure(targetPath, exception), exception.Path, exception.LineNumber, exception.BytePositionInLine, exception);
+		}
+	}
+
+	private static string ExplainFailure(string targetPath, JsonException exception)
+	{
+		string location = string.IsNullOrEmpty(exception.Path) ? "" : $" at {exception.Path}";
+		string line = exception.LineNumber is long lineNumber ? $" (line {lineNumber + 1})" : "";
+		return $"{Path.GetFileName(targetPath)} in '{targetPath}' cannot be read by this build{location}{line}: {exception.Message} " +
+			"A map states exactly the members its build defines, so a member this build does not know means the map was authored for another build; " +
+			"open it in the map editor so it is upgraded before it is played.";
 	}
 
 	public static void WriteAllTextAtomically(string targetPath, string contents)

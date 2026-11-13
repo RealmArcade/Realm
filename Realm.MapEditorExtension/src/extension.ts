@@ -2,15 +2,18 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
-import { RealmMapEditorProvider } from './editorProvider';
 import { RealmRtexViewerProvider } from './rtexEditorProvider';
 import { RealmRanimViewerProvider } from './ranimEditorProvider';
 import { RealmRmeshViewerProvider, RmeshGlbFileSystemProvider, openRmeshInGlbViewer } from './rmeshEditorProvider';
 import { RealmRaudViewerProvider } from './raudEditorProvider';
 import { MIXAMO_EXPORT_LICENSING_WARNING } from './constants';
+import { createAuthoringServices, registerAuthoringFeatures } from './authoring/features';
+import { computeFormattingEdits } from './authoring/formatting';
 
 export function activate(context: vscode.ExtensionContext) {
-    context.subscriptions.push(RealmMapEditorProvider.register(context));
+    const authoring = createAuthoringServices(context);
+    registerAuthoringFeatures(context, authoring);
+
     context.subscriptions.push(RealmRtexViewerProvider.register(context));
     context.subscriptions.push(RealmRanimViewerProvider.register(context));
     context.subscriptions.push(RealmRmeshViewerProvider.register(context));
@@ -65,9 +68,9 @@ export function activate(context: vscode.ExtensionContext) {
                             return [vscode.TextEdit.replace(fullRange, response.formattedContent)];
                         }
                     } catch (err) {
-                        console.error('[RealmExtension] onWillSaveTextDocument IPC error:', err);
+                        console.debug('[RealmExtension] formatting the document without the running map editor:', err);
                     }
-                    return [];
+                    return computeFormattingEdits(event.document, authoring.snapshots, authoring.registry);
                 })());
             }
         })
@@ -136,7 +139,7 @@ function startGodotIpcListener(context: vscode.ExtensionContext): void {
                         if (cmd === 'saveAll') {
                             await handleSaveAllCommand();
                         } else if (cmd === 'reloadWorkspaceMetadata' && data.workspaceMetadataPath) {
-                            await openWorkspaceMetadata(data.workspaceMetadataPath);
+                            await openWorkspaceMetadata(data.workspaceMetadataPath, false);
                         }
                     }
                 }
@@ -187,7 +190,7 @@ function httpGetJson(urlStr: string): Promise<any> {
     });
 }
 
-async function openWorkspaceMetadata(metadataPath: string): Promise<void> {
+async function openWorkspaceMetadata(metadataPath: string, preserveFocus: boolean): Promise<void> {
     if (!fs.existsSync(metadataPath)) { return; }
 
     try {
@@ -211,9 +214,27 @@ async function openWorkspaceMetadata(metadataPath: string): Promise<void> {
             await document.save();
         }
 
-        await vscode.commands.executeCommand('vscode.openWith', metadataUri, 'realm.mapEditor', { preview: false });
+        await revealMetadataDocument(document, preserveFocus);
     } catch (err) {
         console.error('[RealmExtension] Failed to reload active workspace metadata:', err);
+    }
+}
+
+async function revealMetadataDocument(document: vscode.TextDocument, preserveFocus: boolean): Promise<void> {
+    const textEditor = vscode.window.visibleTextEditors.find(editor => editor.document.uri.toString() === document.uri.toString());
+    if (textEditor) {
+        await vscode.window.showTextDocument(textEditor.document, {
+            viewColumn: textEditor.viewColumn,
+            preview: false,
+            preserveFocus
+        });
+        return;
+    }
+
+    try {
+        await vscode.commands.executeCommand('vscode.openWith', document.uri, 'realm.metadataForm', vscode.ViewColumn.Active);
+    } catch {
+        await vscode.window.showTextDocument(document, { preview: false, preserveFocus });
     }
 }
 
@@ -230,7 +251,7 @@ async function openStartupFiles(context: vscode.ExtensionContext): Promise<void>
     if (!fs.existsSync(scriptPath) || !fs.existsSync(metadataPath)) { return; }
 
     try {
-        await openWorkspaceMetadata(metadataPath);
+        await openWorkspaceMetadata(metadataPath, true);
 
         const scriptUri = vscode.Uri.file(scriptPath);
         const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);

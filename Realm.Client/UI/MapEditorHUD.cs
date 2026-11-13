@@ -123,9 +123,6 @@ public partial class MapEditorHUD : Control
 	private EnvironmentConfigDialog _environmentConfigDialog { get; set; } = null!;
 	private EntityVisualEditDialog _entityVisualEditDialog { get; set; } = null!;
 	private AnimationPreviewDialog _animationPreviewDialog { get; set; } = null!;
-	private WeaponVfxDialog _weaponVfxDialog { get; set; } = null!;
-	private ModelPickerDialog _modelPickerDialog { get; set; } = null!;
-	private AbilityVfxDialog _abilityVfxDialog { get; set; } = null!;
 	private AssetManagerDialog _assetManagerDialog { get; set; } = null!;
 	private ImportFromMapDialog _importFromMapDialog { get; set; } = null!;
 	private CompositeMapDialog _compositeMapDialog { get; set; } = null!;

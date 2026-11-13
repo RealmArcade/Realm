@@ -1,7 +1,7 @@
 {
     "name":  "realm-map-editor",
     "displayName":  "Realm Map Editor",
-    "description":  "Custom editor for Realm map unit configuration files and asset previews",
+    "description":  "Map project asset viewers, JSON schema validation and schema-driven authoring for Realm maps",
     "version":  "0.0.1",
     "publisher":  "speige",
     "engines":  {
@@ -82,8 +82,8 @@
                                        ],
                         "customEditors":  [
                                               {
-                                                  "viewType":  "realm.mapEditor",
-                                                  "displayName":  "Realm Map Editor",
+                                                  "viewType":  "realm.metadataForm",
+                                                  "displayName":  "Metadata Form",
                                                   "selector":  [
                                                                    {
                                                                        "filenamePattern":  "**/metadata.json"
@@ -134,6 +134,11 @@
                                           ],
                         "commands":  [
                                          {
+                                             "command":  "realm.openMetadataForm",
+                                             "title":  "Open Metadata as Form",
+                                             "category":  "Realm"
+                                         },
+                                         {
                                              "command":  "realm.openRmesh3D",
                                              "title":  "Open in 3D GLB Viewer",
                                              "category":  "Realm"
@@ -146,6 +151,11 @@
                                      ],
                         "menus":  {
                                       "explorer/context":  [
+                                                               {
+                                                                   "command":  "realm.openMetadataForm",
+                                                                   "when":  "resourceFilename == metadata.json",
+                                                                   "group":  "navigation"
+                                                               },
                                                                {
                                                                    "command":  "realm.openRmesh3D",
                                                                    "when":  "resourceExtname == .rmesh",
@@ -171,14 +181,38 @@
                                                    "fileMatch":  "**/terrain.json",
                                                    "url":  "./terrain.schema.json"
                                                }
-                                           ]
+                                           ],
+                        "configuration":  {
+                                              "title":  "Realm Map Authoring",
+                                              "properties":  {
+                                                                 "realm.mapAuthoring.hover":  {
+                                                                                                  "type":  "boolean",
+                                                                                                  "default":  true,
+                                                                                                  "description":  "Explain schema-driven values in map documents when the pointer rests on them."
+                                                                                              },
+                                                                 "realm.mapAuthoring.decorations":  {
+                                                                                                        "type":  "boolean",
+                                                                                                        "default":  true,
+                                                                                                        "description":  "Draw inline colour swatches and asset kind glyphs in map documents."
+                                                                                                    },
+                                                                 "realm.mapAuthoring.codeLens":  {
+                                                                                                     "type":  "boolean",
+                                                                                                     "default":  true,
+                                                                                                     "description":  "Offer preview lenses above asset and colour values in map documents."
+                                                                                                 }
+                                                             }
+                                          }
                     },
+    "dependencies":  {
+                         "jsonc-parser":  "^3.3.1"
+                     },
     "scripts":  {
                     "vscode:prepublish":  "npm run compile",
-                    "compile":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node",
-                    "watch":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --watch"
+                    "compile":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --main-fields=module,main \u0026\u0026 esbuild src/authoringForm/webview/main.ts --bundle --outfile=dist/form.js --platform=browser --format=iife",
+                    "watch":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --main-fields=module,main --watch"
                 },
     "devDependencies":  {
+                            "@types/node":  "^20.19.43",
                             "@types/vscode":  "^1.75.0",
                             "esbuild":  "^0.20.0",
                             "typescript":  "^5.0.0"

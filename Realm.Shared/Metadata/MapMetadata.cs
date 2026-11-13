@@ -4,51 +4,88 @@ using Realm.Shared.Serialization;
 
 namespace Realm.Shared.Metadata;
 
+[SchemaDescription("The whole authored definition of a map: what it is called, which build and dependencies it expects, and every unit, building, weapon, ability, item and cosmetic template it ships.")]
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public class MapMetadata
 {
-	[JsonPropertyName("license")] public string License { get; set; } = "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt";
+	[JsonPropertyName("license")]
+	[SchemaDescription("The licence the map's content is published under, stored as an exact URL so the same licence text is agreed to by everybody who downloads the map.")]
+	[SchemaSensitive]
+	public string License { get; set; } = "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt";
 
-	[JsonPropertyName("GameBuildNumber")] public string? GameBuildNumber { get; set; }
+	[JsonPropertyName("GameBuildNumber")]
+	[SchemaDescription("The Realm build the map was authored and published against. A lobby only offers the map to a build that matches it exactly.")]
+	[SchemaSensitive]
+	public string? GameBuildNumber { get; set; }
 
-	[JsonPropertyName("MapProperties")] public MapInfoMetadata MapProperties { get; set; } = new();
+	[JsonPropertyName("MapProperties")]
+	[SchemaDescription("Everything the map says about itself to a player: its name, its author, its size, its lighting and the slots it offers.")]
+	public MapInfoMetadata MapProperties { get; set; } = new();
 
-	[JsonPropertyName("Dependencies")] public List<MapDependencyMetadata> Dependencies { get; set; } = new();
+	[JsonPropertyName("Dependencies")]
+	[SchemaDescription("Other published maps this map builds on. Their content is merged into this one before the map's own templates are resolved.")]
+	public List<MapDependencyMetadata> Dependencies { get; set; } = new();
 
-	[JsonPropertyName("Templates")] public TemplateContainer Templates { get; set; } = new();
+	[JsonPropertyName("Templates")]
+	[SchemaDescription("Every unit, building, prop, resource, ability, weapon, upgrade, item, consumable, attachment and visual effect the map defines.")]
+	public TemplateContainer Templates { get; set; } = new();
 
-	[JsonPropertyName("CombatTuning")] public CombatTuningMetadata? CombatTuning { get; set; }
+	[JsonPropertyName("CombatTuning")]
+	[SchemaDescription("Overrides for the combat curve constants the match uses to turn attributes into damage, haste, mitigation and crit chance.")]
+	public CombatTuningMetadata? CombatTuning { get; set; }
 
 	[JsonPropertyName("CustomProceduralAnimations")]
+	[SchemaDescription("Procedural motion profiles the map adds to the engine's built-in ones, referenced by name from a placeable's procedural animation field.")]
 	public List<ProceduralAnimationConfig> CustomProceduralAnimations { get; set; } = new();
 
 	[JsonPropertyName("CustomWaterProfiles")]
+	[SchemaDescription("Water profiles the map adds to the engine's built-in ones, referenced by name from a texture's pathing profile.")]
 	public List<WaterProfileSaveData> CustomWaterProfiles { get; set; } = new();
 
 	[JsonPropertyName("CustomEnvironmentPresets")]
+	[SchemaDescription("Environment presets the map adds to the engine's built-in ones, referenced by name from the default preset field or from a match setting.")]
 	public List<EnvironmentPresetConfig> CustomEnvironmentPresets { get; set; } = new();
 
 	[JsonPropertyName("DefaultEnvironmentPreset")]
+	[SchemaDescription("The environment preset a match on this map starts with.")]
+	[SchemaReference("CustomEnvironmentPresets")]
 	public string? DefaultEnvironmentPreset { get; set; }
 
-	[JsonPropertyName("textures")] public Dictionary<string, TextureMetadata> Textures { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("textures")]
+	[SchemaDescription("Terrain swatches keyed by the name the map's terrain data and its pathing profiles refer to them by. Keys are data and are not fixed by the model.")]
+	public Dictionary<string, TextureMetadata> Textures { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("decals")] public Dictionary<string, DecalMetadata> Decals { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("decals")]
+	[SchemaDescription("Decal templates keyed by the name a texture's bombing rules or a placed decal refers to them by. Keys are data and are not fixed by the model.")]
+	public Dictionary<string, DecalMetadata> Decals { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("vfx_spritesheets")] public Dictionary<string, VfxMetadata> VfxSpritesheets { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("vfx_spritesheets")]
+	[SchemaDescription("Sprite sheet visual effects keyed by the name a visual effect attachment refers to them by. Keys are data and are not fixed by the model.")]
+	public Dictionary<string, VfxMetadata> VfxSpritesheets { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("noise_textures")] public Dictionary<string, TextureMetadata> NoiseTextures { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("noise_textures")]
+	[SchemaDescription("Noise textures keyed by the name a shader or weapon effect refers to them by. Keys are data and are not fixed by the model.")]
+	public Dictionary<string, TextureMetadata> NoiseTextures { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("icons")] public Dictionary<string, IconMetadata> Icons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("icons")]
+	[SchemaDescription("Command card icons keyed by the name a template's icon field refers to them by. Keys are data and are not fixed by the model.")]
+	public Dictionary<string, IconMetadata> Icons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("skyboxes")] public Dictionary<string, SkyboxMetadata> Skyboxes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("skyboxes")]
+	[SchemaDescription("Skyboxes keyed by the name a match setting refers to them by. Keys are data and are not fixed by the model.")]
+	public Dictionary<string, SkyboxMetadata> Skyboxes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("ribbons")] public Dictionary<string, RibbonMetadata> Ribbons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("ribbons")]
+	[SchemaDescription("Ribbon trail textures keyed by the name a weapon's ribbon field refers to them by. Keys are data and are not fixed by the model.")]
+	public Dictionary<string, RibbonMetadata> Ribbons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("SpawnShader")] public Dictionary<string, SpawnShaderMetadata> SpawnShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	[JsonPropertyName("SpawnShader")]
+	[SchemaDescription("Spawn shaders keyed by the name a placeable's spawn shader field refers to them by. Keys are data and are not fixed by the model.")]
+	public Dictionary<string, SpawnShaderMetadata> SpawnShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	[JsonPropertyName("gdshader")] public Dictionary<string, ShaderMetadata> GdShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
-	[JsonExtensionData] public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+	[JsonPropertyName("gdshader")]
+	[SchemaDescription("Shader configurations keyed by the name a weapon or effect refers to them by. Keys are data and are not fixed by the model.")]
+	public Dictionary<string, ShaderMetadata> GdShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
 	public UnitMetadata? GetUnit(string objectId) => Templates?.Units?.FirstOrDefault(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 	public UnitMetadata? FindUnit(string objectId) => GetUnit(objectId);

@@ -36,9 +36,10 @@ public static class Program
 			typeof(GenerateManifestSchemaOptions),
 			typeof(GenerateMetadataSchemaOptions),
 			typeof(GenerateTerrainSchemaOptions),
-			typeof(GenerateSchemasOptions));
+			typeof(GenerateSchemasOptions),
+			typeof(VerifySchemasOptions));
 
-		return Parser.Default.ParseArguments<MeshConvertOptions, TextureConvertOptions, AudioConvertOptions, FbxToRanimOptions, RanimRenderOptions, MetadataOptions, Blake3Options, MeshPlayerColorCliOptions, RigHumanoidOptions, KeygenOptions, GenerateManifestSchemaOptions, GenerateMetadataSchemaOptions, GenerateTerrainSchemaOptions, GenerateSchemasOptions>(sanitizedArgs)
+		return Parser.Default.ParseArguments<MeshConvertOptions, TextureConvertOptions, AudioConvertOptions, FbxToRanimOptions, RanimRenderOptions, MetadataOptions, Blake3Options, MeshPlayerColorCliOptions, RigHumanoidOptions, KeygenOptions, GenerateManifestSchemaOptions, GenerateMetadataSchemaOptions, GenerateTerrainSchemaOptions, GenerateSchemasOptions, VerifySchemasOptions>(sanitizedArgs)
 			.WithParsed(options => CommandLineArgsHelper.ApplyBooleanOverrides(options, originalArgs))
 			.MapResult(
 				(MeshConvertOptions options) => MeshConvertCommands.Execute(options),
@@ -55,6 +56,7 @@ public static class Program
 				(GenerateMetadataSchemaOptions options) => SchemaCommands.ExecuteMetadata(options),
 				(GenerateTerrainSchemaOptions options) => SchemaCommands.ExecuteTerrain(options),
 				(GenerateSchemasOptions options) => SchemaCommands.ExecuteAll(options),
+				(VerifySchemasOptions options) => SchemaCommands.ExecuteVerify(options),
 				errors => 1);
 	}
 

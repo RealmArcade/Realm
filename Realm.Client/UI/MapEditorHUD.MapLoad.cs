@@ -59,6 +59,8 @@ namespace Realm.Client.UI
 			catch (Exception ex)
 			{
 				GameLog.LogError($"[MapEditorHUD] Failed to load map folder: {ex.Message}");
+				_lastMapLoadFailure = string.Format(TranslationServer.Translate("The map cannot be loaded: {0}"), ex.Message);
+				ShowFeedback(_lastMapLoadFailure);
 				return false;
 			}
 		}
@@ -220,7 +222,8 @@ namespace Realm.Client.UI
 			catch (Exception ex)
 			{
 				GameLog.LogError($"[MapEditorHUD] Failed to load map folder: {ex.Message}");
-				_lastMapLoadFailure = ex.Message;
+				_lastMapLoadFailure = string.Format(TranslationServer.Translate("The map cannot be loaded: {0}"), ex.Message);
+				ShowFeedback(_lastMapLoadFailure);
 				return false;
 			}
 			finally
