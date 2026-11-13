@@ -32,30 +32,34 @@ public partial class GameHost
 		var hit = RaycastFromMouse(clickPos);
 		Node? collider = null;
 		Unit3D? clickedUnit = null;
+		LootItem3D? clickedLootItem = null;
 		if (hit != null && hit.ContainsKey("collider"))
 		{
 			collider = hit["collider"].As<Node>();
 			clickedUnit = FindUnit3DInParentChain(collider);
+			if (clickedUnit == null)
+			{
+				clickedLootItem = FindLootItemInParentChain(collider);
+			}
+		}
+
+		if (clickedUnit == null && clickedLootItem == null && TryRaycastTerrainFromMousePosition(clickPos, out Vector3 groundPoint))
+		{
+			TryFindLootItemAt(groundPoint, out clickedLootItem);
+		}
+
+		if (clickedLootItem != null)
+		{
+			ClearSelection();
+			SelectLootItem(clickedLootItem);
+			GameContext.InGameHud?.RefreshUI(SelectedUnits);
+			return;
 		}
 
 		clickedUnit ??= FindUnitNearScreenPoint(clickPos);
 
 		if (clickedUnit == null)
 		{
-			LootItem3D? clickedLootItem = FindLootItemInParentChain(collider);
-			if (clickedLootItem == null && TryRaycastTerrainFromMousePosition(clickPos, out Vector3 groundPoint))
-			{
-				TryFindLootItemAt(groundPoint, out clickedLootItem);
-			}
-
-			if (clickedLootItem != null)
-			{
-				ClearSelection();
-				SelectLootItem(clickedLootItem);
-				GameContext.InGameHud?.RefreshUI(SelectedUnits);
-				return;
-			}
-
 			var camera = GetViewport()?.GetCamera3D();
 			if (camera != null && TryPickResourceNodeAtScreenPoint(camera, clickPos, out Entity nodeEntity, out string nodePropId))
 			{
