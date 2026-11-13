@@ -364,7 +364,29 @@ public class ShroudService
 		if (unit.Entity == Entity.Null || !world.IsAlive(unit.Entity) || !world.Has<Position>(unit.Entity)) return true;
 
 		ref var position = ref world.Get<Position>(unit.Entity);
-		return grid.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)
+		return IsWorldPointVisibleOnMinimap(new Vector3(position.Value.X, position.Value.Y, position.Value.Z));
+	}
+
+	/// <summary>
+	///     Answers whether the observed player can see a point on the board, which is what decides whether an overhead
+	///     reading of a placed node is drawn: a node under unrevealed ground is not read out for that player.
+	/// </summary>
+	/// <param name="worldPosition">The point on the board to read.</param>
+	/// <returns>True when the point lies under the observed player's vision, or when no shroud is presented at all.</returns>
+	public bool IsWorldPointVisibleOnMinimap(Vector3 worldPosition)
+	{
+		if (_isRevealAll || !_hasPresentedShroud) return true;
+
+		var world = GameContext.World;
+		if (world == null) return true;
+
+		Entity worldEntity = FindWorldEntity();
+		if (worldEntity == Entity.Null || !world.IsAlive(worldEntity) || !world.Has<ShroudState>(worldEntity)) return true;
+
+		var grid = ShroudGridRegistry.Get(world.Get<ShroudState>(worldEntity).GridHandle);
+		if (grid == null || !grid.IsAllocated) return true;
+
+		return grid.TryGetCellIndex(worldPosition.X, worldPosition.Z, out int cellIndex)
 		       && grid.IsVisible(cellIndex, _observedGroup);
 	}
 

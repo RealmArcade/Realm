@@ -5,6 +5,7 @@ using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 
 namespace Realm.Client.UI.InGame;
@@ -202,7 +203,74 @@ public partial class UnitHealthBarOverlay : Control
 			});
 		}
 
+		if (barsAllowed && _showHealthBar)
+		{
+			CollectResourceNodeBars(camera, world, viewportSize, mode);
+		}
+
 		QueueRedraw();
+	}
+
+	/// <summary>
+	///     Adds a plate to every harvestable node standing on the board, so a mine or a tree states what it still holds
+	///     against what it held. A node's capacity is its health, so its plate reads exactly as a unit's does, and a node
+	///     that is drawn by the multi mesh it shares with every node of its template has no node of its own to stand the
+	///     plate on top of: its placed position and its contact radius give the height the plate is raised by.
+	/// </summary>
+	/// <param name="camera">The camera the board is seen through.</param>
+	/// <param name="world">The world the placed nodes live in.</param>
+	/// <param name="viewportSize">The size of the viewport the plates are drawn over.</param>
+	/// <param name="mode">The plate visibility the player chose.</param>
+	private void CollectResourceNodeBars(Camera3D camera, Realm.Ecs.EcsWorld world, Vector2 viewportSize, HealthBarMode mode)
+	{
+		ShroudService shroud = GameContext.ShroudService;
+
+		foreach (Realm.Ecs.Entity entity in world.Query<Position, ResourceNode, PropIdentity>())
+		{
+			if (world.Has<Dead>(entity) || !world.Has<Harvestable>(entity)) continue;
+
+			float current = 0f;
+			float maximum = 0f;
+
+			if (world.TryGet(entity, out Health capacity) && capacity.Max > 0f)
+			{
+				current = capacity.Current;
+				maximum = capacity.Max;
+			}
+			else if (world.TryGet(entity, out ResourceNode resourceNode) && resourceNode.MaxCapacity > 0f)
+			{
+				current = resourceNode.Amount;
+				maximum = resourceNode.MaxCapacity;
+			}
+
+			if (maximum <= 0f) continue;
+
+			float fraction = Mathf.Clamp(current / maximum, 0f, 1f);
+			if (mode == HealthBarMode.Damaged && fraction >= 1f) continue;
+
+			Position nodePosition = world.Get<Position>(entity);
+			Vector3 position = new(nodePosition.Value.X, nodePosition.Value.Y, nodePosition.Value.Z);
+			if (shroud != null && !shroud.IsWorldPointVisibleOnMinimap(position)) continue;
+
+			float radius = world.TryGet(entity, out CollisionRadius collisionRadius) ? collisionRadius.Value : 0f;
+			Vector3 anchor = position + new Vector3(0f, Mathf.Max(2.2f, radius * 2.2f), 0f);
+			if (camera.IsPositionBehind(anchor)) continue;
+
+			Vector2 screen = camera.UnprojectPosition(anchor);
+			if (screen.X < 0f || screen.Y < 0f || screen.X > viewportSize.X || screen.Y > viewportSize.Y) continue;
+
+			float distance = camera.GlobalPosition.DistanceTo(anchor);
+			float scale = Mathf.Clamp(14f / Mathf.Max(distance, 0.001f), 0.4f, 1.4f);
+
+			_bars.Add(new HealthBarEntry
+			{
+				Entity = entity,
+				Position = screen,
+				Scale = scale,
+				HealthFraction = fraction,
+				HasHealth = true
+			});
+		}
 	}
 
 	public override void _Draw()
