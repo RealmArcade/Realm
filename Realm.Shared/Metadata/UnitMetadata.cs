@@ -3,11 +3,13 @@ using Realm.Shared.Animation;
 
 namespace Realm.Shared.Metadata;
 
-public class UnitMetadata
+public class UnitMetadata : PlaceableMetadata
 {
-	public string TemplateID { get; set; } = string.Empty;
-	public string Name { get; set; } = string.Empty;
-	public string Description { get; set; } = string.Empty;
+	public UnitMetadata()
+	{
+		IgnorePlayerColor = false;
+	}
+
 	public float MaxHp { get; set; }
 	public float Damage { get; set; }
 	public float Range { get; set; }
@@ -53,17 +55,6 @@ public class UnitMetadata
 	public float AcquisitionRange { get; set; } = 15.0f;
 	public float GoldBounty { get; set; }
 	public float RespawnSeconds { get; set; }
-	public string? ModelPath { get; set; }
-	public string? PortraitModelPath { get; set; }
-	public string VisualMode { get; set; } = "GroundPlane";
-	public float Scale { get; set; } = 1.0f;
-	public float YOffset { get; set; }
-	public float CollisionCircle { get; set; }
-	public float Brightness { get; set; } = 0.5f;
-	public string? Tint { get; set; }
-	public bool NormalizeLuminance { get; set; } = true;
-	public bool IgnorePlayerColor { get; set; }
-	public bool DespillPlayerColor { get; set; } = false;
 	public string[]? BuildOptions { get; set; }
 	public bool IsHero { get; set; }
 	public bool IncludeInDefaultHotkeySelection { get; set; }
@@ -73,35 +64,21 @@ public class UnitMetadata
 	public int MaxLevel { get; set; }
 	public int Level { get; set; } = 1;
 	public string[]? PathingCapabilities { get; set; }
-	public int PathingType { get; set; }
 	public string[]? Targets { get; set; }
 	public string[]? Weapons { get; set; }
 	public string? ProjectileModelPath { get; set; }
 	public Dictionary<string, List<UnitAnimationEntry>>? Animations { get; set; }
 	public UnitObjectAttachments? ObjectAttachments { get; set; }
-	public List<PseudoSocketAnchor>? PseudoSockets { get; set; }
 	public UnitSoundsMetadata? Sounds { get; set; }
 	public string[]? StartingItems { get; set; }
 	public string[]? ShopItems { get; set; }
 	public string[]? Upgrades { get; set; }
 	public string[]? StatusEffects { get; set; }
 	public string[]? SoundEvents { get; set; }
-	public string? SpawnShader { get; set; }
-	public string? DeathShader { get; set; }
-	public string? ProceduralAnimation { get; set; }
-	public bool? EnableProceduralAnimation { get; set; }
-
-	public string? DespawnShader
-	{
-		get => DeathShader;
-		set => DeathShader = value;
-	}
 
 	public const float DefaultConstructionRange = 4f;
 
 	public float ConstructionRange { get; set; } = DefaultConstructionRange;
-
-	public string? Attribution_ImportedFromMap { get; set; }
 
 	public bool TryGetObjectAttachment(HumanoidBone hand, string attachmentId, [NotNullWhen(true)] out HandAttachmentOrientation? orientation)
 	{
