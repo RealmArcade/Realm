@@ -285,7 +285,7 @@ export function describeLeaf(
         return { ...base, widget: 'tags' };
     }
 
-    return base;
+    return schemaDocument.resolve(schema) ? { ...base, widget: 'text', monospace: false } : base;
 }
 
 function isContainerValue(value: unknown): boolean {
