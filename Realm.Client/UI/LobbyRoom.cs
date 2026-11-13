@@ -763,7 +763,7 @@ public partial class LobbyRoom : Control
 
 		if (_teamsTogetherCheck != null && GodotObject.IsInstanceValid(_teamsTogetherCheck))
 		{
-			_teamsTogetherCheck.Visible = true;
+			_teamsTogetherCheck.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
 		}
 	}
 	/// <summary>
@@ -778,6 +778,7 @@ public partial class LobbyRoom : Control
 
 		_matchSettingsButton = new Button();
 		_matchSettingsButton.Name = "MatchSettingsButton_Button";
+		_matchSettingsButton.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
 		_matchSettingsButton.Position = new Vector2(1450, 660);
 		_matchSettingsButton.Size = new Vector2(340, 40);
 		_matchSettingsButton.AddThemeConstantOverride("icon_max_width", 20);
@@ -798,8 +799,11 @@ public partial class LobbyRoom : Control
 
 	private void ToggleMatchSettingsPopup()
 	{
+		if (BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE) return;
+
 		if (_matchSettingsPopup != null && GodotObject.IsInstanceValid(_matchSettingsPopup))
 		{
+			ClearMatchSettingsControls();
 			_matchSettingsPopup.QueueFree();
 			_matchSettingsPopup = null;
 			return;
@@ -959,7 +963,7 @@ public partial class LobbyRoom : Control
 		SetSpinValue(_capacityMultiplierSpin, options.Get(MatchOption.CapacityMultiplierPercent));
 		SetSpinValue(_productionMultiplierSpin, options.Get(MatchOption.ProductionMultiplierPercent));
 
-		if (_shroudModeOption != null)
+		if (_shroudModeOption != null && GodotObject.IsInstanceValid(_shroudModeOption))
 		{
 			int shroudMode = options.Get(MatchOption.ShroudMode);
 			for (int index = 0; index < _shroudModeOption.ItemCount; index++)
@@ -970,13 +974,26 @@ public partial class LobbyRoom : Control
 			}
 		}
 
-		if (_mirroredDraftCheck != null) _mirroredDraftCheck.ButtonPressed = options.IsEnabled(MatchOption.MirroredAutoDraft);
-		if (_openPoolDraftingCheck != null) _openPoolDraftingCheck.ButtonPressed = options.IsEnabled(MatchOption.OpenPoolDrafting);
+		if (_mirroredDraftCheck != null && GodotObject.IsInstanceValid(_mirroredDraftCheck)) _mirroredDraftCheck.ButtonPressed = options.IsEnabled(MatchOption.MirroredAutoDraft);
+		if (_openPoolDraftingCheck != null && GodotObject.IsInstanceValid(_openPoolDraftingCheck)) _openPoolDraftingCheck.ButtonPressed = options.IsEnabled(MatchOption.OpenPoolDrafting);
+	}
+
+	private void ClearMatchSettingsControls()
+	{
+		_maximumPlayersSpin = null;
+		_draftCountSpin = null;
+		_uniqueBuildingsSpin = null;
+		_buildingSupplySpin = null;
+		_capacityMultiplierSpin = null;
+		_productionMultiplierSpin = null;
+		_shroudModeOption = null;
+		_mirroredDraftCheck = null;
+		_openPoolDraftingCheck = null;
 	}
 
 	private static void SetSpinValue(SpinBox? spin, int value)
 	{
-		if (spin == null) return;
+		if (spin == null || !GodotObject.IsInstanceValid(spin)) return;
 
 		spin.SetValueNoSignal(value);
 	}
