@@ -38,6 +38,12 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool AllowsCheats => IsSinglePlayer;
 	public string? LastHostError { get; private set; }
 
+	public void ReportHostError(string message)
+	{
+		LastHostError = message;
+		GD.PushError($"[LobbyManager] {message}");
+	}
+
 	public string LastAuthorityLogPath { get; private set; } = string.Empty;
 
 	public string LastAuthorityConsoleLogPath { get; private set; } = string.Empty;

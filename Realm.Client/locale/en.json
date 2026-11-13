@@ -2287,6 +2287,8 @@
   "The imported terrain did not match the editor grid.": "The imported terrain did not match the editor grid.",
   "The invited lobby could not be reached. It may have been closed.": "The invited lobby could not be reached. It may have been closed.",
   "The map (Chaos Arena) could not be downloaded. Check your internet connection, then open this screen again.": "The map (Chaos Arena) could not be downloaded. Check your internet connection, then open this screen again.",
+  "The map cannot be loaded by this build: {0}": "The map cannot be loaded by this build: {0}",
+  "The map cannot be loaded: {0}": "The map cannot be loaded: {0}",
   "The map could not be added: {0}": "The map could not be added: {0}",
   "The map could not be written to its folder: {0}": "The map could not be written to its folder: {0}",
   "The map file '{0}' is corrupt or contains invalid JSON syntax and failed to parse.": "The map file '{0}' is corrupt or contains invalid JSON syntax and failed to parse.",
