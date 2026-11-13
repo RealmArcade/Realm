@@ -1818,6 +1818,7 @@
   "Resolution:": "Resolution:",
   "Resolved: {0} ({1}) - {2}": "Resolved: {0} ({1}) - {2}",
   "Resource Abundance": "Resource Abundance",
+  "Resource still standing in this node. A worker takes away what one of its hits deals after the node's resistances.": "Resource still standing in this node. A worker takes away what one of its hits deals after the node's resistances.",
   "Resources": "Resources",
   "Restart preview projectile": "Restart preview projectile",
   "Restart procedural effect": "Restart procedural effect",

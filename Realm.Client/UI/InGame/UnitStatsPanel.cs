@@ -98,6 +98,7 @@ public class UnitStatsPanel
 	private readonly StatRow _attackRangeRow;
 	private readonly StatRow _attackSpeedRow;
 	private readonly StatRow _moveSpeedRow;
+	private readonly StatRow _resourcesRow;
 	private readonly StatRow _armorRow;
 	private readonly StatRow _magicResistanceRow;
 	private readonly StatRow _armorPenetrationRow;
@@ -235,13 +236,15 @@ public class UnitStatsPanel
 		_spellPowerRow = AddStatRow(UnicodeIcons.WAND_MAGIC, "Spell Power", "Ability damage multiplier.");
 		_lifeStealRow = AddStatRow(UnicodeIcons.HAND_MEDICAL, "Life Steal", "Share of the damage dealt that is returned to this unit as health.");
 		_cooldownReductionRow = AddStatRow(UnicodeIcons.HOURGLASS_HALF, "Cooldown Reduction", "Share of an ability's cooldown that is removed.");
-		_armorRow = AddStatRow(UnicodeIcons.SHIELD, "Armor", "Armor points that reduce incoming physical damage.");
-		_magicResistanceRow = AddStatRow(UnicodeIcons.WIZARD_HAT, "Magic Resistance", "Magic resistance points that reduce incoming magic damage.");
+		_armorRow = AddStatRow(UnicodeIcons.SHIELD, TranslationServer.Translate("Armor"), "Armor points that reduce incoming physical damage.");
+		_magicResistanceRow = AddStatRow(UnicodeIcons.WIZARD_HAT, TranslationServer.Translate("Magic Resistance"), "Magic resistance points that reduce incoming magic damage.");
 		_evasionRow = AddStatRow(UnicodeIcons.FEATHER_POINTED, "Evasion", "Chance to avoid an incoming attack entirely.");
 		_tenacityRow = AddStatRow(UnicodeIcons.SHIELD_HEART, "Tenacity", "Share of an incoming crowd-control effect's duration that is resisted.");
+		_resourcesRow = AddStatRow(UnicodeIcons.MOUNTAIN, TranslationServer.Translate("Resources"),
+			TranslationServer.Translate("Resource still standing in this node. A worker takes away what one of its hits deals after the node's resistances."));
 
 		RegisterCategory(UnicodeIcons.STAR, "General",
-			_levelRow, _experienceRow, _goldBountyRow, _experienceBountyRow, _lifeStealRow, _cooldownReductionRow, _moveSpeedRow, _damageTypeRow);
+			_resourcesRow, _levelRow, _experienceRow, _goldBountyRow, _experienceBountyRow, _lifeStealRow, _cooldownReductionRow, _moveSpeedRow, _damageTypeRow);
 		RegisterCategory(UnicodeIcons.HAND_FIST, "Attributes",
 			_strengthRow, _agilityRow, _vitalityRow, _intelligenceRow, _wisdomRow, _fortuneRow);
 		RegisterCategory(UnicodeIcons.BURST, "Offense",
@@ -326,8 +329,7 @@ public class UnitStatsPanel
 	///     does, so the panel reads it the same way rather than through a second sheet.
 	/// </summary>
 	/// <param name="entity">The placed prop entity of the node.</param>
-	/// <param name="propId">The template the node is placed from.</param>
-	public void UpdateResourceNode(Entity entity, string propId)
+	public void UpdateResourceNode(Entity entity)
 	{
 		var world = GameContext.World;
 		if (world == null || !world.IsAlive(entity) || !world.Has<ResourceNode>(entity))
@@ -339,15 +341,24 @@ public class UnitStatsPanel
 		world.TryGet(entity, out Health health);
 		world.TryGet(entity, out Resistances resistances);
 
-		string type = GameContext.RegistryService.GetResourceTypeForNode(propId) ?? string.Empty;
-		string label = string.IsNullOrEmpty(type) ? propId : type.ToUpperInvariant();
-		_messageLabel.Text = $"{label}\n"
-		                     + $"{TranslationServer.Translate("Resources")}: {health.Current:F0} / {health.Max:F0}\n"
-		                     + $"{TranslationServer.Translate("Armor")}: {resistances.Physical:F0}   "
-		                     + $"{TranslationServer.Translate("Magic Resistance")}: {resistances.Magic:F0}";
-		_messageLabel.Visible = true;
-		_content.Visible = false;
-		HideCategoryPopup();
+		_messageLabel.Text = string.Empty;
+		_messageLabel.Visible = false;
+		_content.Visible = true;
+		_lastSignature = 0;
+
+		_resourcesRow.SetValue($"{health.Current:F0} / {health.Max:F0}");
+		_armorRow.SetValue(FormatAmount(resistances.Physical));
+		_magicResistanceRow.SetValue(FormatAmount(resistances.Magic));
+
+		ApplyRowVisibility(false, false, false, false, false, false, true);
+
+		_stateLabel.Text = string.Empty;
+		_stateLabel.Visible = false;
+		_buffsStrip.Visible = false;
+		_buffsSection.Visible = false;
+		_upgradesStrip.Visible = false;
+		_upgradesSection.Visible = false;
+		_capacitySection.Visible = false;
 	}
 
 	/// <summary>
@@ -582,7 +593,7 @@ public class UnitStatsPanel
 		_attackSpeedRow.SetValue(FormatAmount(attacksPerSecond));
 		_attackRangeRow.SetValue(FormatAmount(attack.Range));
 
-		ApplyRowVisibility(hasExperience, hasLevel, hasAttack, goldBounty > 0f, experienceBounty > 0f);
+		ApplyRowVisibility(true, hasExperience, hasLevel, hasAttack, goldBounty > 0f, experienceBounty > 0f, true);
 
 		_moveSpeedRow.SetValue(FormatAmount(ReadStat(stats, MovementSpeedStat)));
 		_armorRow.SetValue(FormatAmount(ReadStat(stats, ArmorStat)));
@@ -1091,8 +1102,30 @@ public class UnitStatsPanel
 		_popupAttachedRows.Clear();
 	}
 
-	private void ApplyRowVisibility(bool hasExperience, bool hasLevel, bool hasAttack, bool hasGoldBounty, bool hasExperienceBounty)
+	private void ApplyRowVisibility(bool showsUnitRows, bool hasExperience, bool hasLevel, bool hasAttack, bool hasGoldBounty,
+		bool hasExperienceBounty, bool showsDefense)
 	{
+		_resourcesRow.Root.Visible = !showsUnitRows;
+		_strengthRow.Root.Visible = showsUnitRows;
+		_agilityRow.Root.Visible = showsUnitRows;
+		_vitalityRow.Root.Visible = showsUnitRows;
+		_intelligenceRow.Root.Visible = showsUnitRows;
+		_wisdomRow.Root.Visible = showsUnitRows;
+		_fortuneRow.Root.Visible = showsUnitRows;
+		_moveSpeedRow.Root.Visible = showsUnitRows;
+		_damageTypeRow.Root.Visible = showsUnitRows;
+		_criticalHitRow.Root.Visible = showsUnitRows;
+		_armorPenetrationRow.Root.Visible = showsUnitRows;
+		_magicPenetrationRow.Root.Visible = showsUnitRows;
+		_spellPowerRow.Root.Visible = showsUnitRows;
+		_lifeStealRow.Root.Visible = showsUnitRows;
+		_cooldownReductionRow.Root.Visible = showsUnitRows;
+		_evasionRow.Root.Visible = showsUnitRows;
+		_tenacityRow.Root.Visible = showsUnitRows;
+		_attackSpeedRow.Root.Visible = showsUnitRows;
+		_attackDamageRow.Root.Visible = showsUnitRows;
+		_armorRow.Root.Visible = showsDefense;
+		_magicResistanceRow.Root.Visible = showsDefense;
 		_experienceRow.Root.Visible = hasExperience;
 		_levelRow.Root.Visible = hasLevel;
 		_attackRangeRow.Root.Visible = hasAttack;

@@ -299,9 +299,10 @@ public class PortraitPanel
 			}
 
 			ApplyPortraitDescription(null, Entity.Null);
+			_unitStatsPanel.DismissCategoryPopup();
 		}
 
-		_unitStatsPanel.UpdateResourceNode(viewModel.SelectedResourceNode, propId);
+		_unitStatsPanel.UpdateResourceNode(viewModel.SelectedResourceNode);
 	}
 
 	private string GetPropDisplayName(string propId)
