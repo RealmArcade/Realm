@@ -95,6 +95,11 @@ public static partial class ModelShaderManager
 
 	private static void ApplyPlayerColorShaderToSurfaces(MeshInstance3D meshInst, bool normalizeLuminance)
 	{
+		// An instance override draws every surface, and it is converted on its own right after this call. A mesh with that
+		// override set has no surface material to read, so a surface override built here would be a shader with no albedo
+		// in front of the textured one: that is how a ground plane drawn from a texture read as a flat quad.
+		if (meshInst.MaterialOverride != null) return;
+
 		int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
 		for (int i = 0; i < surfaceCount; i++)
 		{

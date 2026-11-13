@@ -204,6 +204,9 @@ namespace Realm.Client.Utils
 				mat.SetShaderParameter("has_normal_texture", true);
 			}
 
+			// The albedo texture is the whole point of a ground plane, so the plane carries it on its own surface as well
+			// as on the instance: a material refresh that reaches either level then still has a texture to keep.
+			planeMesh.Material = mat;
 			meshInstance.MaterialOverride = mat;
 			rootNode.AddChild(meshInstance);
 
