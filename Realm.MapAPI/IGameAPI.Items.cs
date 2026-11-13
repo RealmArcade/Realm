@@ -46,10 +46,15 @@ public partial interface IGameAPI
 	bool UnitHasItem(UnitId unit, string itemId);
 
 	/// <summary>
-	/// Retrieves the item archetype identifiers currently held in the unit's inventory.
+	/// Retrieves the item archetype identifiers currently held in the unit's inventory, naming each item once even when
+	/// its charges spill across several slots.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
-	/// <returns>A read-only collection of item archetype identifiers.</returns>
+	/// <returns>A read-only collection of the distinct item archetype identifiers, in the order they were first carried.</returns>
+	/// <remarks>
+	/// Read the number of charges of a named item with <see cref="GetUnitItemCharges" />: the total it holds, not what one
+	/// slot of it holds, so copying a unit's items is a walk over this list and one charge read per entry.
+	/// </remarks>
 	IReadOnlyList<string> GetUnitItems(UnitId unit);
 
 	/// <summary>

@@ -210,9 +210,10 @@ public static unsafe class UnitIdScriptExtensions
 	public bool HasItem(string itemId) => GameAPI.Current.UnitHasItem(unitId, itemId);
 
 	/// <summary>
-	/// Retrieves the item archetype identifiers currently held in the unit's inventory.
+	/// Retrieves the item archetype identifiers currently held in the unit's inventory, naming each item once even when
+	/// its charges spill across several slots.
 	/// </summary>
-	/// <returns>A read-only collection of item archetype identifiers.</returns>
+	/// <returns>A read-only collection of the distinct item archetype identifiers, in the order they were first carried.</returns>
 	public IReadOnlyList<string> GetItems() => GameAPI.Current.GetUnitItems(unitId);
 
 	/// <summary>

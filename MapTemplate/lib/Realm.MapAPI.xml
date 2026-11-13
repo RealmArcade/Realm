@@ -1834,10 +1834,15 @@
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitItems(Realm.Ecs.UnitId)">
             <summary>
-            Retrieves the item archetype identifiers currently held in the unit's inventory.
+            Retrieves the item archetype identifiers currently held in the unit's inventory, naming each item once even when
+            its charges spill across several slots.
             </summary>
             <param name="unit">The unit identifier.</param>
-            <returns>A read-only collection of item archetype identifiers.</returns>
+            <returns>A read-only collection of the distinct item archetype identifiers, in the order they were first carried.</returns>
+            <remarks>
+            Read the number of charges of a named item with <see cref="M:Realm.MapAPI.IGameAPI.GetUnitItemCharges(Realm.Ecs.UnitId,System.String)" />: the total it holds, not what one
+            slot of it holds, so copying a unit's items is a walk over this list and one charge read per entry.
+            </remarks>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitItemCharges(Realm.Ecs.UnitId,System.String)">
             <summary>
@@ -5373,9 +5378,10 @@
         </member>
         <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GetItems">
             <summary>
-            Retrieves the item archetype identifiers currently held in the unit's inventory.
+            Retrieves the item archetype identifiers currently held in the unit's inventory, naming each item once even when
+            its charges spill across several slots.
             </summary>
-            <returns>A read-only collection of item archetype identifiers.</returns>
+            <returns>A read-only collection of the distinct item archetype identifiers, in the order they were first carried.</returns>
         </member>
         <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.HasBuff(System.String)">
             <summary>

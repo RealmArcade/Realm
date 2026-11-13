@@ -109,7 +109,28 @@ public partial class ServerGameAPI
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return Array.Empty<string>();
 
-		return Items.List(entity);
+		return DistinctItemIds(Items.List(entity));
+	}
+
+	/// <summary>
+	///     Names each carried item once, however many slots it fills. A script reading the list to copy or reroll a unit
+	///     would otherwise meet the same item again for every slot of it and grant its charges that many times over.
+	/// </summary>
+	/// <param name="carriedSlots">The carried item ids in slot order, which repeats an item that spills across slots.</param>
+	/// <returns>The distinct item ids, keeping the order they were first carried in.</returns>
+	private static List<string> DistinctItemIds(List<string> carriedSlots)
+	{
+		var distinct = new List<string>(carriedSlots.Count);
+		for (int index = 0; index < carriedSlots.Count; index++)
+		{
+			string itemId = carriedSlots[index];
+			if (string.IsNullOrEmpty(itemId)) continue;
+			if (distinct.Exists(knownId => string.Equals(knownId, itemId, StringComparison.OrdinalIgnoreCase))) continue;
+
+			distinct.Add(itemId);
+		}
+
+		return distinct;
 	}
 
 	public int GetUnitItemCharges(UnitId unit, string itemId)
