@@ -196,8 +196,13 @@ public partial class GameHost
 		}
 		else
 		{
+			// A box that sweeps no unit reaches for the things standing on the ground instead: a mine or a tree first,
+			// then a dropped item, since both are read the same way and neither can be ordered anywhere.
 			ClearSelection();
-			SelectResourcePropInRect(camera, dragRect);
+			if (!SelectResourcePropInRect(camera, dragRect))
+			{
+				SelectLootItemInRect(camera, dragRect);
+			}
 		}
 
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
@@ -268,7 +273,14 @@ public partial class GameHost
 		}
 	}
 
-	private void SelectResourcePropInRect(Camera3D camera, Rect2 dragRect)
+	/// <summary>
+	///     Selects the resource node a box swept, which is the node the drag was drawn around. A node is drawn by a shared
+	///     multi mesh, so it is matched against the screen position of every live node rather than through a collider.
+	/// </summary>
+	/// <param name="camera">The camera the board is seen through.</param>
+	/// <param name="dragRect">The box the pointer was dragged out, in screen coordinates.</param>
+	/// <returns>True when the box caught a node, which is what leaves a dropped item the only thing left to look for.</returns>
+	private bool SelectResourcePropInRect(Camera3D camera, Rect2 dragRect)
 	{
 		Entity selectedEntity = Entity.Null;
 		string selectedPropId = string.Empty;
@@ -287,10 +299,44 @@ public partial class GameHost
 			selectedPropId = identity.PropId;
 		});
 
-		if (selectedEntity == Entity.Null) return;
+		if (selectedEntity == Entity.Null) return false;
 
 		ClearSelection();
 		SelectResourceNode(selectedEntity, selectedPropId);
+		return true;
+	}
+
+	/// <summary>
+	///     Selects the dropped item a box swept, which lets a player read a drop the same way a click on it does. A box
+	///     is aimed at where the drop stands rather than at its silhouette, and the nearest one to the pointer's end of
+	///     the drag is taken so a crowded pile answers with a single item.
+	/// </summary>
+	/// <param name="camera">The camera the board is seen through.</param>
+	/// <param name="dragRect">The box the pointer was dragged out, in screen coordinates.</param>
+	private void SelectLootItemInRect(Camera3D camera, Rect2 dragRect)
+	{
+		LootItem3D? closest = null;
+		float closestScreenDistance = float.MaxValue;
+		Vector2 pointer = dragRect.GetCenter();
+
+		foreach (LootItem3D candidate in AllLootItems)
+		{
+			if (candidate == null || !GodotObject.IsInstanceValid(candidate) || !candidate.Visible) continue;
+			if (camera.IsPositionBehind(candidate.GlobalPosition)) continue;
+
+			Vector2 screenPosition = camera.UnprojectPosition(candidate.GlobalPosition);
+			if (!dragRect.HasPoint(screenPosition)) continue;
+
+			float screenDistance = screenPosition.DistanceSquaredTo(pointer);
+			if (screenDistance >= closestScreenDistance) continue;
+
+			closestScreenDistance = screenDistance;
+			closest = candidate;
+		}
+
+		if (closest == null) return;
+
+		SelectLootItem(closest);
 	}
 
 	private const float ResourceNodePickPixels = 26f;
