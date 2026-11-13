@@ -42,22 +42,11 @@ public class MapStorageService
 		return $"{cleanMapName}_{cleanMapVersion}_{shortHash}.rmap";
 	}
 
-	public (bool Success, List<string> MissingAssets, List<(string RelativePath, long SizeBytes, double SizeMB)> OversizedAssets) ValidateWorkspaceForExportDomain(string wsPath)
+	public (bool Success, List<string> MissingAssets) ValidateWorkspaceAssetsForExportDomain(string wsPath)
 	{
 		MapAssetHelper.PruneNonExistentAssetsFromManifest(wsPath);
 		var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(wsPath);
-		if (!assetsValid)
-		{
-			return (false, missingAssets, new List<(string RelativePath, long SizeBytes, double SizeMB)>());
-		}
-
-		var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(wsPath);
-		if (!sizesValid)
-		{
-			return (false, new List<string>(), oversizedAssets);
-		}
-
-		return (true, new List<string>(), new List<(string RelativePath, long SizeBytes, double SizeMB)>());
+		return (assetsValid, missingAssets);
 	}
 
 	public string ResolveExportDestinationPath(string destinationPath, string mapTitle, string mapVersion, string manifestBlake3)
@@ -624,7 +613,7 @@ public class MapStorageService
 
 	private const string DebugBuildPropertyOverrides = " -p:Optimize=false -p:DebugSymbols=true -p:DebugType=embedded -p:StripSymbols=false -p:IlcGenerateCompleteTypeMetadata=true";
 
-	private const string ReleaseBuildPropertyOverrides = " -p:Optimize=true -p:DebugSymbols=true -p:DebugType=embedded -p:StripSymbols=false";
+	private const string ReleaseBuildPropertyOverrides = " -p:Optimize=true -p:DebugSymbols=false -p:DebugType=none -p:StripSymbols=true";
 
 	private static string ResolveBuildPropertyOverrides(bool isDebug) => isDebug ? DebugBuildPropertyOverrides : ReleaseBuildPropertyOverrides;
 

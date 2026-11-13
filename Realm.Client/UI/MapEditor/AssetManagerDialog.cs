@@ -10,6 +10,8 @@ using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.EditorAPI;
 using Realm.Shared.Audio;
+using Realm.Shared.Metadata;
+using Realm.Shared.ModelOptimization;
 using Realm.Shared.Textures;
 using Realm.Client.Utils;
 
@@ -46,6 +48,8 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 	private PanelContainer _footerPanel = null!;
 	private TextureRect _footerThumbnail = null!;
+	private TextureRect _sourceImagePreview = null!;
+	private Button _btnExportSourceImage = null!;
 	private Label _lblSelectedFileName = null!;
 	private Label _lblSelectedPath = null!;
 	private Label _lblSelectedSize = null!;
@@ -69,6 +73,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 	private string _searchFilterText = string.Empty;
 	private IndexedAsset? _selectedAsset;
 	private string? _selectedRaudEntryName;
+	private byte[]? _selectedSourceImageWebp;
 
 	private static readonly string[] ValidAssetTypes = new[] { "All" }
 		.Concat(RealmMetadataHelper.GetAssetTypeDisplayOrder())
@@ -247,6 +252,7 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		UpdateSelectedAssetLabels();
 		UpdateSelectedAssetThumbnail();
 		UpdateSelectedAssetMetadataSummary();
+		UpdateSelectedAssetSourceImage();
 		UpdateSelectedAssetAudioPreview();
 	}
 
@@ -261,6 +267,10 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 		_optRaudEntries.Visible = false;
 		_optRaudEntries.Clear();
 		_selectedRaudEntryName = null;
+		_selectedSourceImageWebp = null;
+		_sourceImagePreview.Texture = null;
+		_sourceImagePreview.Visible = false;
+		_btnExportSourceImage.Visible = false;
 		_btnDeleteAsset.Disabled = true;
 	}
 
@@ -294,6 +304,92 @@ public partial class AssetManagerDialog : AssetGridDialogBase
 
 
 
+
+	private void UpdateSelectedAssetSourceImage()
+	{
+		_selectedSourceImageWebp = null;
+		_sourceImagePreview.Texture = null;
+		_sourceImagePreview.Visible = false;
+		_btnExportSourceImage.Visible = false;
+
+		if (_selectedAsset == null) return;
+		if (!_selectedAsset.Extension.Equals(".rmesh", StringComparison.OrdinalIgnoreCase)) return;
+		if (!File.Exists(_selectedAsset.FilePath)) return;
+
+		byte[]? imageWebpBytes = RmeshFile.GetSourceProfileImageWebpFromFile(_selectedAsset.FilePath);
+		if (imageWebpBytes == null || imageWebpBytes.Length == 0) return;
+
+		var image = new Image();
+		if (image.LoadWebpFromBuffer(imageWebpBytes) != Error.Ok) return;
+
+		_selectedSourceImageWebp = imageWebpBytes;
+		_sourceImagePreview.Texture = ImageTexture.CreateFromImage(image);
+		_sourceImagePreview.Visible = true;
+		_btnExportSourceImage.Visible = true;
+	}
+
+	private void OnExportSourceImagePressed()
+	{
+		if (_selectedAsset == null || _selectedSourceImageWebp == null || _selectedSourceImageWebp.Length == 0) return;
+
+		Hud?.ShowConfirmationDialog(
+			TranslationServer.Translate(RealmMetadataHelper.AssetAgreementWarning),
+			ShowSourceImageSaveDialog,
+			confirmText: TranslationServer.Translate("YES"),
+			cancelText: TranslationServer.Translate("NO"));
+	}
+
+	private void ShowSourceImageSaveDialog()
+	{
+		if (_selectedAsset == null || _selectedSourceImageWebp == null || _selectedSourceImageWebp.Length == 0) return;
+
+		string initialDirectory = Path.GetDirectoryName(_selectedAsset.FilePath) ?? PathUtils.GetProjectRoot();
+		string defaultFileName = $"{Path.GetFileNameWithoutExtension(_selectedAsset.FileName)}.source.webp";
+
+		var err = DisplayServer.FileDialogShow(
+			TranslationServer.Translate("Export Source Reference Image (.webp)"),
+			initialDirectory,
+			defaultFileName,
+			false,
+			DisplayServer.FileDialogMode.SaveFile,
+			new[] { "*.webp ; WebP Image (*.webp)" },
+			Callable.From((bool status, string[] selectedPaths, int selectedFilterIndex) =>
+			{
+				if (status && selectedPaths.Length > 0)
+				{
+					ExportSourceImageTo(selectedPaths[0]);
+				}
+			})
+		);
+
+		if (err != Error.Ok)
+		{
+			Hud?.ShowFeedback(TranslationServer.Translate("Failed to show file dialog"));
+		}
+	}
+
+	private void ExportSourceImageTo(string destinationPath)
+	{
+		if (_selectedSourceImageWebp == null || _selectedSourceImageWebp.Length == 0) return;
+
+		try
+		{
+			string targetPath = destinationPath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
+				? destinationPath
+				: $"{destinationPath}.webp";
+
+			string? targetDirectory = Path.GetDirectoryName(targetPath);
+			if (!string.IsNullOrEmpty(targetDirectory)) Directory.CreateDirectory(targetDirectory);
+
+			File.WriteAllBytes(targetPath, _selectedSourceImageWebp);
+			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Exported source reference image to {0}"), targetPath));
+		}
+		catch (Exception ex)
+		{
+			GameLog.LogError($"[AssetManagerDialog] ExportSourceImageTo error: {ex.Message}");
+			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Error exporting source reference image: {0}"), ex.Message));
+		}
+	}
 
 	private void OnConvertImagePressed()
 	{

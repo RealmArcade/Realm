@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using Realm.Shared.Services;
 
 namespace Realm.Client.Services;
@@ -13,6 +14,8 @@ namespace Realm.Client.Services;
 /// </summary>
 public static class MapScriptArtifacts
 {
+	private static readonly byte[] DebugInformationSectionNameBytes = Encoding.ASCII.GetBytes(".debug_info");
+
 	public static string? FindCompiledScript(string workspace)
 	{
 		return FindCompiledScriptInBin(Path.Combine(workspace, "bin"));
@@ -31,6 +34,28 @@ public static class MapScriptArtifacts
 		if (!Directory.Exists(scriptDirectory)) return null;
 
 		return Directory.GetFiles(scriptDirectory, "*.wasm", SearchOption.TopDirectoryOnly).FirstOrDefault();
+	}
+
+	/// <summary>
+	///     Reports whether a compiled script still carries DWARF debug information. A playtest build keeps it so a debugger can
+	///     attach and inspect the script; a build meant to ship drops it, and the artifact that still has it is what makes a
+	///     package large enough to be refused.
+	/// </summary>
+	/// <param name="wasmPath">The compiled script to inspect.</param>
+	/// <returns>Whether the artifact carries debug information.</returns>
+	public static bool ContainsDebugInformation(string wasmPath)
+	{
+		if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath)) return false;
+
+		try
+		{
+			byte[] artifactBytes = File.ReadAllBytes(wasmPath);
+			return artifactBytes.AsSpan().IndexOf(DebugInformationSectionNameBytes) >= 0;
+		}
+		catch (IOException)
+		{
+			return false;
+		}
 	}
 
 	/// <summary>

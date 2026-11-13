@@ -154,6 +154,7 @@ public partial class LobbyRoom
 		_teamsTogetherCheck.Size = new Vector2(340, 40);
 		_teamsTogetherCheck.ButtonPressed = Lobby.TeamsTogether;
 		_teamsTogetherCheck.Disabled = !Lobby.IsHost;
+		_teamsTogetherCheck.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
 
 		if (_connectingPopup != null && GodotObject.IsInstanceValid(_connectingPopup))
 		{
