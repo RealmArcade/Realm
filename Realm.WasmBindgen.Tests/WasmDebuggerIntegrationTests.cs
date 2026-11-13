@@ -162,6 +162,8 @@ public class WasmDebuggerIntegrationTests
 		Assert.That(script, Does.Contain("def realm_step_tick"));
 		Assert.That(script, Does.Contain("def realm_watch_tick"));
 		Assert.That(script, Does.Contain("def resolve_line_addresses"));
+		Assert.That(script, Does.Contain("def repair_jit_elf_ranges"));
+		Assert.That(script, Does.Contain("repaired {repaired} DWARF range"));
 	}
 
 	[Test]

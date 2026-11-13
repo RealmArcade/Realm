@@ -1713,6 +1713,108 @@ def RealmHandleSummaryProvider(valobj, internal_dict):
         return f"{label} {value} [{', '.join(parts)}]"
     return f"{label} {value}"
 
+def repair_jit_elf_ranges(elf_path):
+    import struct
+
+    try:
+        with open(elf_path, "rb") as elf_file:
+            data = bytearray(elf_file.read())
+    except Exception:
+        return 0
+
+    if len(data) < 64 or data[0:4] != b"ELF" or data[4] != 2 or data[5] != 1:
+        return 0
+
+    try:
+        section_table_offset = struct.unpack_from("<Q", data, 0x28)[0]
+        section_entry_size = struct.unpack_from("<H", data, 0x3A)[0]
+        section_count = struct.unpack_from("<H", data, 0x3C)[0]
+        section_names_index = struct.unpack_from("<H", data, 0x3E)[0]
+        sections = []
+        for index in range(section_count):
+            offset = section_table_offset + index * section_entry_size
+            sections.append(struct.unpack_from("<IIQQQQIIQQ", data, offset))
+
+        name_section = sections[section_names_index]
+        name_data = bytes(data[name_section[4]:name_section[4] + name_section[5]])
+
+        def section_name(name_offset):
+            end = name_data.find(b"\0", name_offset)
+            return name_data[name_offset:end].decode("latin1")
+
+        text_index = -1
+        text_address = 0
+        ranges_section = None
+        symbols_section = None
+        strings_section = None
+        for index, section in enumerate(sections):
+            name = section_name(section[0])
+            if name == ".text":
+                text_index = index
+                text_address = section[3]
+            elif name == ".debug_ranges":
+                ranges_section = section
+            elif name == ".symtab":
+                symbols_section = section
+            elif name == ".strtab":
+                strings_section = section
+
+        if text_index < 0 or ranges_section is None or symbols_section is None or strings_section is None:
+            return 0
+
+        symbol_data = data[symbols_section[4]:symbols_section[4] + symbols_section[5]]
+        string_data = bytes(data[strings_section[4]:strings_section[4] + strings_section[5]])
+        ranges_start = ranges_section[4]
+        ranges_end = ranges_section[4] + ranges_section[5]
+        patch_count = 0
+
+        for symbol_offset in range(0, len(symbol_data), 24):
+            name_offset, _, _, section_index, symbol_value, symbol_size = struct.unpack_from("<IBBHQQ", symbol_data, symbol_offset)
+            if section_index != text_index or symbol_size == 0:
+                continue
+            name_end = string_data.find(b"\0", name_offset)
+            name = string_data[name_offset:name_end].decode("latin1", errors="replace")
+            if "Realm_Maps_" not in name or "Attribution" in name:
+                continue
+
+            low_address = text_address + symbol_value
+            high_address = low_address + symbol_size
+            range_offset = None
+            for candidate in range(ranges_start, ranges_end - 15, 16):
+                start_address, end_address = struct.unpack_from("<QQ", data, candidate)
+                if start_address == low_address and end_address < high_address:
+                    range_offset = candidate
+                    break
+
+            if range_offset is None:
+                continue
+
+            start_address, end_address = struct.unpack_from("<QQ", data, range_offset)
+            next_start = None
+            if range_offset + 32 <= ranges_end:
+                candidate_start, candidate_end = struct.unpack_from("<QQ", data, range_offset + 16)
+                if candidate_start == 0 and candidate_end == 0:
+                    next_start = high_address
+                elif candidate_start == end_address:
+                    continue
+                elif end_address < candidate_start < high_address:
+                    next_start = candidate_start
+
+            if next_start is None:
+                next_start = high_address
+
+            if next_start > end_address:
+                struct.pack_into("<Q", data, range_offset + 8, next_start)
+                patch_count += 1
+
+        if patch_count > 0:
+            with open(elf_path, "wb") as elf_file:
+                elf_file.write(data)
+    except Exception:
+        return 0
+
+    return patch_count
+
 def realm_load_modules(debugger, command, result, internal_dict):
     import os, glob
     target = debugger.GetSelectedTarget()
@@ -1728,6 +1830,9 @@ def realm_load_modules(debugger, command, result, internal_dict):
 
     def load_elf(elf_path):
         norm = os.path.abspath(elf_path).replace("\\", "/")
+        repaired = repair_jit_elf_ranges(norm)
+        if repaired:
+            result.AppendMessage(f"realm_load_modules: repaired {repaired} DWARF range(s) in {os.path.basename(norm)}")
         fs = lldb.SBFileSpec(norm)
         mod = target.FindModule(fs)
         if not mod or not mod.IsValid():
