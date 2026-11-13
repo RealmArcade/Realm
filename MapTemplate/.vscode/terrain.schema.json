@@ -3,46 +3,80 @@
     "object",
     "null"
   ],
+  "description": "The terrain of a map as the editor saves it: its size, the units, props, decals, items and effects placed on it, and the named coordinates and starting areas a match uses.",
+  "x-realm-schema-version": 1,
   "properties": {
     "Width": {
-      "type": "integer"
+      "type": "integer",
+      "title": "Width",
+      "description": "The width of the terrain in cells."
     },
     "Depth": {
-      "type": "integer"
+      "type": "integer",
+      "title": "Depth",
+      "description": "The depth of the terrain in cells."
     },
     "Units": {
       "type": [
         "array",
         "null"
       ],
+      "title": "Units",
+      "description": "The units and buildings the map places when a match starts.",
       "items": {
         "type": [
           "object",
           "null"
         ],
+        "description": "One unit or building the map places on the battlefield when a match starts, with where it stands and whose it is.",
         "properties": {
           "TemplateId": {
-            "type": "string"
+            "type": "string",
+            "title": "TemplateId",
+            "description": "The unit or building template placed here.",
+            "x-realm-reference": {
+              "sheets": [
+                "Units",
+                "Buildings"
+              ]
+            }
           },
           "PosX": {
-            "type": "number"
+            "type": "number",
+            "title": "PosX",
+            "description": "Where the unit stands across the map.",
+            "x-realm-unit": "m"
           },
           "PosY": {
-            "type": "number"
+            "type": "number",
+            "title": "PosY",
+            "description": "How high above the ground the unit stands.",
+            "x-realm-unit": "m"
           },
           "PosZ": {
-            "type": "number"
+            "type": "number",
+            "title": "PosZ",
+            "description": "Where the unit stands along the map.",
+            "x-realm-unit": "m"
           },
           "RotationY": {
-            "type": "number"
+            "type": "number",
+            "title": "RotationY",
+            "description": "Which way the unit faces.",
+            "x-realm-unit": "°"
           },
           "Scale": {
-            "type": "number"
+            "type": "number",
+            "title": "Scale",
+            "description": "The multiplier applied to the unit's model size for this placement."
           },
           "Player": {
-            "type": "integer"
+            "type": "integer",
+            "title": "Player",
+            "description": "The slot the unit belongs to, which decides the player whose colour it wears."
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "Props": {
@@ -50,31 +84,56 @@
         "array",
         "null"
       ],
+      "title": "Props",
+      "description": "The props the map places for scenery or to block movement.",
       "items": {
         "type": [
           "object",
           "null"
         ],
+        "description": "One prop the map places on the battlefield, with where it stands and which way it faces.",
         "properties": {
           "TemplateId": {
-            "type": "string"
+            "type": "string",
+            "title": "TemplateId",
+            "description": "The prop template placed here.",
+            "x-realm-reference": {
+              "sheets": [
+                "Props"
+              ]
+            }
           },
           "PosX": {
-            "type": "number"
+            "type": "number",
+            "title": "PosX",
+            "description": "Where the prop stands across the map.",
+            "x-realm-unit": "m"
           },
           "PosY": {
-            "type": "number"
+            "type": "number",
+            "title": "PosY",
+            "description": "How high above the ground the prop stands.",
+            "x-realm-unit": "m"
           },
           "PosZ": {
-            "type": "number"
+            "type": "number",
+            "title": "PosZ",
+            "description": "Where the prop stands along the map.",
+            "x-realm-unit": "m"
           },
           "RotationY": {
-            "type": "number"
+            "type": "number",
+            "title": "RotationY",
+            "description": "Which way the prop faces.",
+            "x-realm-unit": "°"
           },
           "Scale": {
-            "type": "number"
+            "type": "number",
+            "title": "Scale",
+            "description": "The multiplier applied to the prop's model size for this placement."
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "Decals": {
@@ -82,37 +141,66 @@
         "array",
         "null"
       ],
+      "title": "Decals",
+      "description": "The decals the map projects onto the ground.",
       "items": {
         "type": [
           "object",
           "null"
         ],
+        "description": "One decal the map projects onto the ground, with where it sits and which way it is turned.",
         "properties": {
           "TemplateId": {
-            "type": "string"
+            "type": "string",
+            "title": "TemplateId",
+            "description": "The decal template placed here.",
+            "x-realm-reference": {
+              "dictionary": "decals"
+            }
           },
           "PosX": {
-            "type": "number"
+            "type": "number",
+            "title": "PosX",
+            "description": "Where the decal sits across the map.",
+            "x-realm-unit": "m"
           },
           "PosY": {
-            "type": "number"
+            "type": "number",
+            "title": "PosY",
+            "description": "How high above the ground the decal sits.",
+            "x-realm-unit": "m"
           },
           "PosZ": {
-            "type": "number"
+            "type": "number",
+            "title": "PosZ",
+            "description": "Where the decal sits along the map.",
+            "x-realm-unit": "m"
           },
           "RotationX": {
-            "type": "number"
+            "type": "number",
+            "title": "RotationX",
+            "description": "How far the decal is tipped over its sideways axis.",
+            "x-realm-unit": "°"
           },
           "RotationY": {
-            "type": "number"
+            "type": "number",
+            "title": "RotationY",
+            "description": "How far the decal is turned around the vertical axis.",
+            "x-realm-unit": "°"
           },
           "RotationZ": {
-            "type": "number"
+            "type": "number",
+            "title": "RotationZ",
+            "description": "How far the decal is rolled over its forward axis.",
+            "x-realm-unit": "°"
           },
           "Scale": {
-            "type": "number"
+            "type": "number",
+            "title": "Scale",
+            "description": "The multiplier applied to the decal's size for this placement."
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "Items": {
@@ -120,25 +208,46 @@
         "array",
         "null"
       ],
+      "title": "Items",
+      "description": "The items the map leaves lying on the ground to be collected.",
       "items": {
         "type": [
           "object",
           "null"
         ],
+        "description": "One item the map places on the ground, waiting for a unit to walk over and collect it.",
         "properties": {
           "TemplateId": {
-            "type": "string"
+            "type": "string",
+            "title": "TemplateId",
+            "description": "The item template lying here.",
+            "x-realm-reference": {
+              "sheets": [
+                "Items",
+                "Consumables"
+              ]
+            }
           },
           "PosX": {
-            "type": "number"
+            "type": "number",
+            "title": "PosX",
+            "description": "Where the item lies across the map.",
+            "x-realm-unit": "m"
           },
           "PosY": {
-            "type": "number"
+            "type": "number",
+            "title": "PosY",
+            "description": "How high above the ground the item lies.",
+            "x-realm-unit": "m"
           },
           "PosZ": {
-            "type": "number"
+            "type": "number",
+            "title": "PosZ",
+            "description": "Where the item lies along the map.",
+            "x-realm-unit": "m"
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "Vfx": {
@@ -146,636 +255,1361 @@
         "array",
         "null"
       ],
+      "title": "Vfx",
+      "description": "The visual effects the map places in the world.",
       "items": {
         "type": [
           "object",
           "null"
         ],
+        "description": "One visual effect the map places in the world, with where it sits, how it is turned and scaled, and the configuration this placement uses.",
         "properties": {
           "VfxId": {
-            "type": "string"
+            "type": "string",
+            "title": "VfxId",
+            "description": "The visual effect template placed here.",
+            "x-realm-reference": {
+              "sheets": [
+                "Vfx"
+              ]
+            }
           },
           "PosX": {
-            "type": "number"
+            "type": "number",
+            "title": "PosX",
+            "description": "Where the effect sits across the map.",
+            "x-realm-unit": "m"
           },
           "PosY": {
-            "type": "number"
+            "type": "number",
+            "title": "PosY",
+            "description": "How high above the ground the effect sits.",
+            "x-realm-unit": "m"
           },
           "PosZ": {
-            "type": "number"
+            "type": "number",
+            "title": "PosZ",
+            "description": "Where the effect sits along the map.",
+            "x-realm-unit": "m"
           },
           "RotationX": {
-            "type": "number"
+            "type": "number",
+            "title": "RotationX",
+            "description": "How far the effect is tipped over its sideways axis.",
+            "x-realm-unit": "°"
           },
           "RotationY": {
-            "type": "number"
+            "type": "number",
+            "title": "RotationY",
+            "description": "How far the effect is turned around the vertical axis.",
+            "x-realm-unit": "°"
           },
           "RotationZ": {
-            "type": "number"
+            "type": "number",
+            "title": "RotationZ",
+            "description": "How far the effect is rolled over its forward axis.",
+            "x-realm-unit": "°"
           },
           "ScaleX": {
-            "type": "number"
+            "type": "number",
+            "title": "ScaleX",
+            "description": "The multiplier applied to the effect's width for this placement."
           },
           "ScaleY": {
-            "type": "number"
+            "type": "number",
+            "title": "ScaleY",
+            "description": "The multiplier applied to the effect's height for this placement."
           },
           "ScaleZ": {
-            "type": "number"
+            "type": "number",
+            "title": "ScaleZ",
+            "description": "The multiplier applied to the effect's depth for this placement."
           },
           "NormalOffset": {
-            "type": "number"
+            "type": "number",
+            "title": "NormalOffset",
+            "description": "How far the effect is lifted along the surface it sits on, so it does not sink into it.",
+            "x-realm-unit": "m"
           },
           "Config": {
             "type": [
               "object",
               "null"
             ],
+            "title": "Config",
+            "description": "The configuration this placement spawns the effect with, when it should differ from the template it names.",
             "properties": {
               "VfxId": {
-                "type": "string"
+                "type": "string",
+                "title": "VfxId",
+                "description": "The identifier abilities, weapons and attachments name this visual effect by.",
+                "x-realm-sensitive": true
               },
               "Name": {
-                "type": "string"
+                "type": "string",
+                "title": "Name",
+                "description": "The name the visual effect shows in the editor."
               },
               "PrimitiveType": {
-                "type": "integer"
+                "type": "integer",
+                "title": "PrimitiveType",
+                "description": "The shape the effect is drawn with, which decides how its texture is wrapped and how it moves over its life.",
+                "x-realm-enum-labels": [
+                  {
+                    "value": 0,
+                    "label": "VortexDisc"
+                  },
+                  {
+                    "value": 1,
+                    "label": "FunnelCone"
+                  },
+                  {
+                    "value": 2,
+                    "label": "RibbonRing"
+                  },
+                  {
+                    "value": 3,
+                    "label": "HemisphereDome"
+                  },
+                  {
+                    "value": 4,
+                    "label": "GroundPlane"
+                  },
+                  {
+                    "value": 5,
+                    "label": "WeaponFin"
+                  },
+                  {
+                    "value": 6,
+                    "label": "CrossQuad"
+                  },
+                  {
+                    "value": 7,
+                    "label": "SlashArc"
+                  },
+                  {
+                    "value": 8,
+                    "label": "LightShaft"
+                  },
+                  {
+                    "value": 9,
+                    "label": "AuraCapsule"
+                  },
+                  {
+                    "value": 10,
+                    "label": "AuraSphere"
+                  },
+                  {
+                    "value": 11,
+                    "label": "ProjectedVolumeCube"
+                  },
+                  {
+                    "value": 12,
+                    "label": "ParticleSystem"
+                  }
+                ]
               },
               "ParticleConfig": {
                 "type": [
                   "object",
                   "null"
                 ],
+                "title": "ParticleConfig",
+                "description": "The particle system the effect emits, when its primitive type is a real particle system rather than wrapped geometry.",
                 "properties": {
                   "ParticleId": {
-                    "type": "string"
+                    "type": "string",
+                    "title": "ParticleId",
+                    "description": "The identifier the particle system is known by in the editor.",
+                    "x-realm-sensitive": true
                   },
                   "Name": {
-                    "type": "string"
+                    "type": "string",
+                    "title": "Name",
+                    "description": "The name the particle system shows in the editor."
                   },
                   "Amount": {
-                    "type": "integer"
+                    "type": "integer",
+                    "title": "Amount",
+                    "description": "How many particles one emission produces."
                   },
                   "Lifetime": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Lifetime",
+                    "description": "How long each particle lives before it disappears.",
+                    "x-realm-unit": "s"
                   },
                   "Explosiveness": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Explosiveness",
+                    "description": "How much of the emission is released at the very start rather than over the effect's life, which turns a stream into a burst.",
+                    "minimum": 0,
+                    "maximum": 1
                   },
                   "Randomness": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Randomness",
+                    "description": "How much each particle's start is randomised, so a burst does not read as one wave.",
+                    "minimum": 0,
+                    "maximum": 1
                   },
                   "LocalCoords": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "title": "LocalCoords",
+                    "description": "Whether the particles move with the effect they belong to instead of staying where they were emitted."
                   },
                   "EmitterShape": {
-                    "type": "integer"
+                    "type": "integer",
+                    "title": "EmitterShape",
+                    "description": "The shape the particles are emitted inside.",
+                    "x-realm-enum-labels": [
+                      {
+                        "value": 0,
+                        "label": "Point"
+                      },
+                      {
+                        "value": 1,
+                        "label": "Sphere"
+                      },
+                      {
+                        "value": 2,
+                        "label": "Box"
+                      },
+                      {
+                        "value": 3,
+                        "label": "Ring"
+                      }
+                    ]
                   },
                   "SphereRadius": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "SphereRadius",
+                    "description": "How far from the emitter's centre particles may start when its shape is a sphere.",
+                    "x-realm-unit": "m"
                   },
                   "BoxExtents": {
                     "type": "object",
+                    "title": "BoxExtents",
+                    "description": "How far from the emitter's centre particles may start on each axis when its shape is a box.",
+                    "x-realm-unit": "m",
                     "properties": {
                       "X": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "X",
+                        "description": "The distance along the first horizontal axis."
                       },
                       "Y": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "Y",
+                        "description": "The distance along the vertical axis."
                       },
                       "Z": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "Z",
+                        "description": "The distance along the second horizontal axis."
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   "RingRadius": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "RingRadius",
+                    "description": "How far from the emitter's centre the ring the particles start on sits.",
+                    "x-realm-unit": "m"
                   },
                   "RingInnerRadius": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "RingInnerRadius",
+                    "description": "The inner edge of the ring the particles start on, which makes it a band rather than a circle.",
+                    "x-realm-unit": "m"
                   },
                   "RingHeight": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "RingHeight",
+                    "description": "How tall the band the particles start in is.",
+                    "x-realm-unit": "m"
                   },
                   "Direction": {
                     "type": "object",
+                    "title": "Direction",
+                    "description": "The direction the particles are emitted in, before their spread is applied.",
                     "properties": {
                       "X": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "X",
+                        "description": "The distance along the first horizontal axis."
                       },
                       "Y": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "Y",
+                        "description": "The distance along the vertical axis."
                       },
                       "Z": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "Z",
+                        "description": "The distance along the second horizontal axis."
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   "SpreadDegrees": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "SpreadDegrees",
+                    "description": "How wide a cone the particles are emitted into around their direction.",
+                    "x-realm-unit": "°"
                   },
                   "InitialVelocityMin": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "InitialVelocityMin",
+                    "description": "The slowest speed a particle leaves the emitter with.",
+                    "x-realm-unit": "m/s"
                   },
                   "InitialVelocityMax": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "InitialVelocityMax",
+                    "description": "The fastest speed a particle leaves the emitter with.",
+                    "x-realm-unit": "m/s"
                   },
                   "Gravity": {
                     "type": "object",
+                    "title": "Gravity",
+                    "description": "The acceleration every particle is pulled with, which is what makes sparks fall.",
                     "properties": {
                       "X": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "X",
+                        "description": "The distance along the first horizontal axis."
                       },
                       "Y": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "Y",
+                        "description": "The distance along the vertical axis."
                       },
                       "Z": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "Z",
+                        "description": "The distance along the second horizontal axis."
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   "LinearAccel": {
                     "type": "object",
+                    "title": "LinearAccel",
+                    "description": "A constant acceleration added to every particle on each axis.",
                     "properties": {
                       "X": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "X",
+                        "description": "The distance along the first horizontal axis."
                       },
                       "Y": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "Y",
+                        "description": "The distance along the vertical axis."
                       },
                       "Z": {
-                        "type": "number"
+                        "type": "number",
+                        "title": "Z",
+                        "description": "The distance along the second horizontal axis."
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   "RadialAccel": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "RadialAccel",
+                    "description": "How strongly particles are pushed away from the emitter's centre as they fly."
                   },
                   "TangentialAccel": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "TangentialAccel",
+                    "description": "How strongly particles are pushed around the emitter's centre as they fly, which makes them swirl."
                   },
                   "Damping": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Damping",
+                    "description": "How quickly a particle's speed is bled away over its life, which slows a burst to a drift."
                   },
                   "InitialScaleMin": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "InitialScaleMin",
+                    "description": "The size a particle starts at when it is the smallest of the emission.",
+                    "x-realm-unit": "m"
                   },
                   "InitialScaleMax": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "InitialScaleMax",
+                    "description": "The size a particle starts at when it is the largest of the emission.",
+                    "x-realm-unit": "m"
                   },
                   "EndScaleRatio": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "EndScaleRatio",
+                    "description": "The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes."
                   },
                   "ColorStart": {
-                    "type": "string"
+                    "type": "string",
+                    "title": "ColorStart",
+                    "description": "The colour a particle starts its life in.",
+                    "x-realm-control": "color"
                   },
                   "ColorMid": {
-                    "type": "string"
+                    "type": "string",
+                    "title": "ColorMid",
+                    "description": "The colour a particle passes through halfway through its life.",
+                    "x-realm-control": "color"
                   },
                   "ColorEnd": {
-                    "type": "string"
+                    "type": "string",
+                    "title": "ColorEnd",
+                    "description": "The colour a particle ends its life in.",
+                    "x-realm-control": "color"
                   },
                   "AlphaStart": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "AlphaStart",
+                    "description": "How opaque a particle is when it starts its life.",
+                    "minimum": 0,
+                    "maximum": 1
                   },
                   "AlphaMid": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "AlphaMid",
+                    "description": "How opaque a particle is halfway through its life.",
+                    "minimum": 0,
+                    "maximum": 1
                   },
                   "AlphaEnd": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "AlphaEnd",
+                    "description": "How opaque a particle is when its life ends.",
+                    "minimum": 0,
+                    "maximum": 1
                   },
                   "EmissionEnergy": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "EmissionEnergy",
+                    "description": "How strongly the particles glow."
                   },
                   "RenderMode": {
-                    "type": "integer"
+                    "type": "integer",
+                    "title": "RenderMode",
+                    "description": "How each particle is drawn.",
+                    "x-realm-enum-labels": [
+                      {
+                        "value": 0,
+                        "label": "BillboardQuad"
+                      },
+                      {
+                        "value": 1,
+                        "label": "Mesh"
+                      }
+                    ]
                   },
                   "BlendMode": {
-                    "type": "integer"
+                    "type": "integer",
+                    "title": "BlendMode",
+                    "description": "How the particles are mixed with what is behind them.",
+                    "x-realm-enum-labels": [
+                      {
+                        "value": 0,
+                        "label": "Additive"
+                      },
+                      {
+                        "value": 1,
+                        "label": "AlphaBlend"
+                      }
+                    ]
                   },
                   "ParticleTexture": {
-                    "type": "string"
+                    "type": "string",
+                    "title": "ParticleTexture",
+                    "description": "The texture drawn on each particle when it is drawn as a camera-facing quad.",
+                    "x-realm-asset": {
+                      "kinds": [
+                        "rtex"
+                      ],
+                      "folders": [
+                        "Assets/vfx_spritesheets",
+                        "Assets/noise"
+                      ]
+                    }
                   },
                   "MeshAssetPath": {
-                    "type": "string"
+                    "type": "string",
+                    "title": "MeshAssetPath",
+                    "description": "The model drawn for each particle when it is drawn as a mesh, such as a chip of debris.",
+                    "x-realm-asset": {
+                      "kinds": [
+                        "rmesh"
+                      ],
+                      "folders": [
+                        "Assets/models/props",
+                        "Assets/models/items"
+                      ]
+                    }
                   }
-                }
+                },
+                "additionalProperties": false
               },
               "Stages": {
                 "type": [
                   "array",
                   "null"
                 ],
+                "title": "Stages",
+                "description": "The stages the effect plays over its life, each with its own trigger, timing and look.",
                 "items": {
                   "type": [
                     "object",
                     "null"
                   ],
+                  "description": "One stage of a visual effect's life: which effect plays, when it starts, how long it lasts and how large it is drawn.",
                   "properties": {
                     "EffectId": {
-                      "type": "string"
+                      "type": "string",
+                      "title": "EffectId",
+                      "description": "The visual effect the stage plays.",
+                      "x-realm-reference": {
+                        "sheets": [
+                          "Vfx"
+                        ]
+                      }
                     },
                     "Trigger": {
-                      "type": "integer"
+                      "type": "integer",
+                      "title": "Trigger",
+                      "description": "The moment the stage starts.",
+                      "x-realm-enum-labels": [
+                        {
+                          "value": 0,
+                          "label": "Immediately"
+                        },
+                        {
+                          "value": 1,
+                          "label": "AfterDelay"
+                        },
+                        {
+                          "value": 2,
+                          "label": "OnImpact"
+                        },
+                        {
+                          "value": 3,
+                          "label": "OnTargetDeath"
+                        }
+                      ]
                     },
                     "DelaySeconds": {
-                      "type": "number"
+                      "type": "number",
+                      "title": "DelaySeconds",
+                      "description": "How long after the trigger the stage starts.",
+                      "x-realm-unit": "s"
                     },
                     "DurationSeconds": {
-                      "type": "number"
+                      "type": "number",
+                      "title": "DurationSeconds",
+                      "description": "How long the stage lasts before it is cleaned up.",
+                      "x-realm-unit": "s"
                     },
                     "Scale": {
-                      "type": "number"
+                      "type": "number",
+                      "title": "Scale",
+                      "description": "The multiplier applied to the stage's size."
                     },
                     "SingleInstance": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "title": "SingleInstance",
+                      "description": "Whether only one of this stage may be alive at a time, so recasting replaces it instead of stacking another."
                     },
                     "ParticleConfig": {
                       "type": [
                         "object",
                         "null"
                       ],
+                      "title": "ParticleConfig",
+                      "description": "The particles the stage emits, when it is a particle stage rather than a wrapped effect.",
                       "properties": {
                         "ParticleId": {
-                          "type": "string"
+                          "type": "string",
+                          "title": "ParticleId",
+                          "description": "The identifier the particle system is known by in the editor.",
+                          "x-realm-sensitive": true
                         },
                         "Name": {
-                          "type": "string"
+                          "type": "string",
+                          "title": "Name",
+                          "description": "The name the particle system shows in the editor."
                         },
                         "Amount": {
-                          "type": "integer"
+                          "type": "integer",
+                          "title": "Amount",
+                          "description": "How many particles one emission produces."
                         },
                         "Lifetime": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "Lifetime",
+                          "description": "How long each particle lives before it disappears.",
+                          "x-realm-unit": "s"
                         },
                         "Explosiveness": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "Explosiveness",
+                          "description": "How much of the emission is released at the very start rather than over the effect's life, which turns a stream into a burst.",
+                          "minimum": 0,
+                          "maximum": 1
                         },
                         "Randomness": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "Randomness",
+                          "description": "How much each particle's start is randomised, so a burst does not read as one wave.",
+                          "minimum": 0,
+                          "maximum": 1
                         },
                         "LocalCoords": {
-                          "type": "boolean"
+                          "type": "boolean",
+                          "title": "LocalCoords",
+                          "description": "Whether the particles move with the effect they belong to instead of staying where they were emitted."
                         },
                         "EmitterShape": {
-                          "type": "integer"
+                          "type": "integer",
+                          "title": "EmitterShape",
+                          "description": "The shape the particles are emitted inside.",
+                          "x-realm-enum-labels": [
+                            {
+                              "value": 0,
+                              "label": "Point"
+                            },
+                            {
+                              "value": 1,
+                              "label": "Sphere"
+                            },
+                            {
+                              "value": 2,
+                              "label": "Box"
+                            },
+                            {
+                              "value": 3,
+                              "label": "Ring"
+                            }
+                          ]
                         },
                         "SphereRadius": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "SphereRadius",
+                          "description": "How far from the emitter's centre particles may start when its shape is a sphere.",
+                          "x-realm-unit": "m"
                         },
                         "BoxExtents": {
+                          "title": "BoxExtents",
+                          "description": "How far from the emitter's centre particles may start on each axis when its shape is a box.",
+                          "x-realm-unit": "m",
                           "$ref": "#/properties/Vfx/items/properties/Config/properties/ParticleConfig/properties/BoxExtents"
                         },
                         "RingRadius": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "RingRadius",
+                          "description": "How far from the emitter's centre the ring the particles start on sits.",
+                          "x-realm-unit": "m"
                         },
                         "RingInnerRadius": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "RingInnerRadius",
+                          "description": "The inner edge of the ring the particles start on, which makes it a band rather than a circle.",
+                          "x-realm-unit": "m"
                         },
                         "RingHeight": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "RingHeight",
+                          "description": "How tall the band the particles start in is.",
+                          "x-realm-unit": "m"
                         },
                         "Direction": {
+                          "title": "Direction",
+                          "description": "The direction the particles are emitted in, before their spread is applied.",
                           "$ref": "#/properties/Vfx/items/properties/Config/properties/ParticleConfig/properties/Direction"
                         },
                         "SpreadDegrees": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "SpreadDegrees",
+                          "description": "How wide a cone the particles are emitted into around their direction.",
+                          "x-realm-unit": "°"
                         },
                         "InitialVelocityMin": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "InitialVelocityMin",
+                          "description": "The slowest speed a particle leaves the emitter with.",
+                          "x-realm-unit": "m/s"
                         },
                         "InitialVelocityMax": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "InitialVelocityMax",
+                          "description": "The fastest speed a particle leaves the emitter with.",
+                          "x-realm-unit": "m/s"
                         },
                         "Gravity": {
+                          "title": "Gravity",
+                          "description": "The acceleration every particle is pulled with, which is what makes sparks fall.",
                           "$ref": "#/properties/Vfx/items/properties/Config/properties/ParticleConfig/properties/Gravity"
                         },
                         "LinearAccel": {
+                          "title": "LinearAccel",
+                          "description": "A constant acceleration added to every particle on each axis.",
                           "$ref": "#/properties/Vfx/items/properties/Config/properties/ParticleConfig/properties/LinearAccel"
                         },
                         "RadialAccel": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "RadialAccel",
+                          "description": "How strongly particles are pushed away from the emitter's centre as they fly."
                         },
                         "TangentialAccel": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "TangentialAccel",
+                          "description": "How strongly particles are pushed around the emitter's centre as they fly, which makes them swirl."
                         },
                         "Damping": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "Damping",
+                          "description": "How quickly a particle's speed is bled away over its life, which slows a burst to a drift."
                         },
                         "InitialScaleMin": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "InitialScaleMin",
+                          "description": "The size a particle starts at when it is the smallest of the emission.",
+                          "x-realm-unit": "m"
                         },
                         "InitialScaleMax": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "InitialScaleMax",
+                          "description": "The size a particle starts at when it is the largest of the emission.",
+                          "x-realm-unit": "m"
                         },
                         "EndScaleRatio": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "EndScaleRatio",
+                          "description": "The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes."
                         },
                         "ColorStart": {
-                          "type": "string"
+                          "type": "string",
+                          "title": "ColorStart",
+                          "description": "The colour a particle starts its life in.",
+                          "x-realm-control": "color"
                         },
                         "ColorMid": {
-                          "type": "string"
+                          "type": "string",
+                          "title": "ColorMid",
+                          "description": "The colour a particle passes through halfway through its life.",
+                          "x-realm-control": "color"
                         },
                         "ColorEnd": {
-                          "type": "string"
+                          "type": "string",
+                          "title": "ColorEnd",
+                          "description": "The colour a particle ends its life in.",
+                          "x-realm-control": "color"
                         },
                         "AlphaStart": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "AlphaStart",
+                          "description": "How opaque a particle is when it starts its life.",
+                          "minimum": 0,
+                          "maximum": 1
                         },
                         "AlphaMid": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "AlphaMid",
+                          "description": "How opaque a particle is halfway through its life.",
+                          "minimum": 0,
+                          "maximum": 1
                         },
                         "AlphaEnd": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "AlphaEnd",
+                          "description": "How opaque a particle is when its life ends.",
+                          "minimum": 0,
+                          "maximum": 1
                         },
                         "EmissionEnergy": {
-                          "type": "number"
+                          "type": "number",
+                          "title": "EmissionEnergy",
+                          "description": "How strongly the particles glow."
                         },
                         "RenderMode": {
-                          "type": "integer"
+                          "type": "integer",
+                          "title": "RenderMode",
+                          "description": "How each particle is drawn.",
+                          "x-realm-enum-labels": [
+                            {
+                              "value": 0,
+                              "label": "BillboardQuad"
+                            },
+                            {
+                              "value": 1,
+                              "label": "Mesh"
+                            }
+                          ]
                         },
                         "BlendMode": {
-                          "type": "integer"
+                          "type": "integer",
+                          "title": "BlendMode",
+                          "description": "How the particles are mixed with what is behind them.",
+                          "x-realm-enum-labels": [
+                            {
+                              "value": 0,
+                              "label": "Additive"
+                            },
+                            {
+                              "value": 1,
+                              "label": "AlphaBlend"
+                            }
+                          ]
                         },
                         "ParticleTexture": {
-                          "type": "string"
+                          "type": "string",
+                          "title": "ParticleTexture",
+                          "description": "The texture drawn on each particle when it is drawn as a camera-facing quad.",
+                          "x-realm-asset": {
+                            "kinds": [
+                              "rtex"
+                            ],
+                            "folders": [
+                              "Assets/vfx_spritesheets",
+                              "Assets/noise"
+                            ]
+                          }
                         },
                         "MeshAssetPath": {
-                          "type": "string"
+                          "type": "string",
+                          "title": "MeshAssetPath",
+                          "description": "The model drawn for each particle when it is drawn as a mesh, such as a chip of debris.",
+                          "x-realm-asset": {
+                            "kinds": [
+                              "rmesh"
+                            ],
+                            "folders": [
+                              "Assets/models/props",
+                              "Assets/models/items"
+                            ]
+                          }
                         }
-                      }
+                      },
+                      "additionalProperties": false
                     }
-                  }
+                  },
+                  "additionalProperties": false
                 }
               },
               "BlendMode": {
-                "type": "integer"
+                "type": "integer",
+                "title": "BlendMode",
+                "description": "How the effect is mixed with what is behind it.",
+                "x-realm-enum-labels": [
+                  {
+                    "value": 0,
+                    "label": "Additive"
+                  },
+                  {
+                    "value": 1,
+                    "label": "AlphaBlend"
+                  }
+                ]
               },
               "PlacementMode": {
-                "type": "integer"
+                "type": "integer",
+                "title": "PlacementMode",
+                "description": "How the effect is placed against the world when it is spawned.",
+                "x-realm-enum-labels": [
+                  {
+                    "value": 0,
+                    "label": "SurfaceSnap"
+                  },
+                  {
+                    "value": 1,
+                    "label": "Free"
+                  },
+                  {
+                    "value": 2,
+                    "label": "GroundProjected"
+                  }
+                ]
               },
               "TintWithPlayerColor": {
-                "type": "boolean"
+                "type": "boolean",
+                "title": "TintWithPlayerColor",
+                "description": "Whether the effect is tinted with the colour of the player it belongs to, so two armies' effects read apart."
               },
               "TargetSocket": {
-                "type": "string"
+                "type": "string",
+                "title": "TargetSocket",
+                "description": "The socket of the model the effect is parented to, such as a hand, a weapon tip or the model's root."
               },
               "BaseTexture": {
-                "type": "string"
+                "type": "string",
+                "title": "BaseTexture",
+                "description": "The texture wrapped over the effect's geometry, which gives it its streaks, rings or flames.",
+                "x-realm-asset": {
+                  "kinds": [
+                    "rtex"
+                  ],
+                  "folders": [
+                    "Assets/vfx_spritesheets",
+                    "Assets/vfx_radial",
+                    "Assets/vfx_vertical"
+                  ]
+                }
               },
               "NoiseTexture": {
-                "type": "string"
+                "type": "string",
+                "title": "NoiseTexture",
+                "description": "The noise texture the effect's distortion and erosion are read from.",
+                "x-realm-asset": {
+                  "kinds": [
+                    "rtex"
+                  ],
+                  "folders": [
+                    "Assets/noise"
+                  ]
+                }
               },
               "ProceduralMotionId": {
-                "type": "string"
+                "type": "string",
+                "title": "ProceduralMotionId",
+                "description": "The procedural motion profile the effect's geometry is animated with.",
+                "x-realm-reference": {
+                  "sheets": [
+                    "CustomProceduralAnimations"
+                  ]
+                }
               },
               "BaseUvScroll": {
                 "type": "object",
+                "title": "BaseUvScroll",
+                "description": "How fast the base texture scrolls across the effect's geometry.",
                 "properties": {
                   "X": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "X",
+                    "description": "The value along the first axis."
                   },
                   "Y": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Y",
+                    "description": "The value along the second axis."
                   }
-                }
+                },
+                "additionalProperties": false
               },
               "BaseUvScale": {
                 "type": "object",
+                "title": "BaseUvScale",
+                "description": "How many times the base texture repeats over the effect's geometry.",
                 "properties": {
                   "X": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "X",
+                    "description": "The value along the first axis."
                   },
                   "Y": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Y",
+                    "description": "The value along the second axis."
                   }
-                }
+                },
+                "additionalProperties": false
               },
               "UseFlipbook": {
-                "type": "boolean"
+                "type": "boolean",
+                "title": "UseFlipbook",
+                "description": "Whether the effect is animated from a sprite sheet rather than from a scrolling texture."
               },
               "FlipbookColumns": {
-                "type": "integer"
+                "type": "integer",
+                "title": "FlipbookColumns",
+                "description": "How many frames the sprite sheet holds across."
               },
               "FlipbookRows": {
-                "type": "integer"
+                "type": "integer",
+                "title": "FlipbookRows",
+                "description": "How many frames the sprite sheet holds down."
               },
               "FlipbookFps": {
-                "type": "number"
+                "type": "number",
+                "title": "FlipbookFps",
+                "description": "How many sprite sheet frames the effect plays per second."
               },
               "FlipbookSubframeBlend": {
-                "type": "boolean"
+                "type": "boolean",
+                "title": "FlipbookSubframeBlend",
+                "description": "Whether two neighbouring sprite sheet frames are blended while the effect plays."
               },
               "NoiseUvScroll": {
                 "type": "object",
+                "title": "NoiseUvScroll",
+                "description": "How fast the noise texture scrolls across the effect's geometry.",
                 "properties": {
                   "X": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "X",
+                    "description": "The value along the first axis."
                   },
                   "Y": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Y",
+                    "description": "The value along the second axis."
                   }
-                }
+                },
+                "additionalProperties": false
               },
               "NoiseUvScale": {
                 "type": "object",
+                "title": "NoiseUvScale",
+                "description": "How many times the noise texture repeats over the effect's geometry.",
                 "properties": {
                   "X": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "X",
+                    "description": "The value along the first axis."
                   },
                   "Y": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Y",
+                    "description": "The value along the second axis."
                   }
-                }
+                },
+                "additionalProperties": false
               },
               "DistortionStrength": {
-                "type": "number"
+                "type": "number",
+                "title": "DistortionStrength",
+                "description": "How far the noise pushes the effect's texture around, which makes a flat shape read as turbulent."
               },
               "BaseColor": {
-                "type": "string"
+                "type": "string",
+                "title": "BaseColor",
+                "description": "The main colour the effect is drawn in.",
+                "x-realm-control": "color"
               },
               "SecondaryColor": {
-                "type": "string"
+                "type": "string",
+                "title": "SecondaryColor",
+                "description": "The colour blended with the main colour away from the core, which gives the effect depth.",
+                "x-realm-control": "color"
               },
               "CoreColor": {
-                "type": "string"
+                "type": "string",
+                "title": "CoreColor",
+                "description": "The colour of the brightest part of the effect, its core.",
+                "x-realm-control": "color"
               },
               "ColorMixRatio": {
-                "type": "number"
+                "type": "number",
+                "title": "ColorMixRatio",
+                "description": "How far the effect is mixed towards its secondary colour rather than its base colour.",
+                "minimum": 0,
+                "maximum": 1
               },
               "EmissionBoost": {
-                "type": "number"
+                "type": "number",
+                "title": "EmissionBoost",
+                "description": "How strongly the effect's colours glow, which additive blending turns into brightness."
               },
               "CoreThreshold": {
-                "type": "number"
+                "type": "number",
+                "title": "CoreThreshold",
+                "description": "The texture value above which the effect is drawn in its core colour.",
+                "minimum": 0,
+                "maximum": 1
               },
               "LuminanceToAlpha": {
-                "type": "boolean"
+                "type": "boolean",
+                "title": "LuminanceToAlpha",
+                "description": "Whether the texture's brightness is turned into the effect's opacity, which is how a black-backed flame texture becomes a flame."
               },
               "LuminanceThreshold": {
-                "type": "number"
+                "type": "number",
+                "title": "LuminanceThreshold",
+                "description": "The brightness below which the texture is fully transparent when it is turned into opacity.",
+                "minimum": 0,
+                "maximum": 1
               },
               "LuminanceSmoothness": {
-                "type": "number"
+                "type": "number",
+                "title": "LuminanceSmoothness",
+                "description": "How softly the brightness-to-opacity cutoff is applied.",
+                "minimum": 0,
+                "maximum": 1
               },
               "UseGrayscale": {
-                "type": "boolean"
+                "type": "boolean",
+                "title": "UseGrayscale",
+                "description": "Whether the effect works from the grayscale brightness of its texture rather than each colour channel."
               },
               "InvertMask": {
-                "type": "boolean"
+                "type": "boolean",
+                "title": "InvertMask",
+                "description": "Whether the effect's mask is inverted, so the parts that would be hidden are the parts that are drawn."
               },
               "HighPassCutoff": {
-                "type": "number"
+                "type": "number",
+                "title": "HighPassCutoff",
+                "description": "The brightness the effect's mask is cut from, which removes its dim background entirely.",
+                "minimum": 0,
+                "maximum": 1
               },
               "EnableRadialFalloff": {
-                "type": "boolean"
+                "type": "boolean",
+                "title": "EnableRadialFalloff",
+                "description": "Whether the effect fades out towards the edge of its shape instead of ending in a hard outline."
               },
               "RadialFalloffStart": {
-                "type": "number"
+                "type": "number",
+                "title": "RadialFalloffStart",
+                "description": "How far out the effect stays fully drawn before its radial fade begins.",
+                "minimum": 0,
+                "maximum": 1
               },
               "RadialFalloffEnd": {
-                "type": "number"
+                "type": "number",
+                "title": "RadialFalloffEnd",
+                "description": "How far out the effect has faded away completely.",
+                "minimum": 0,
+                "maximum": 1
               },
               "EnableLengthFade": {
-                "type": "boolean"
+                "type": "boolean",
+                "title": "EnableLengthFade",
+                "description": "Whether the effect fades along its length, which lets a beam or a trail end softly."
               },
               "LengthFadeStart": {
-                "type": "number"
+                "type": "number",
+                "title": "LengthFadeStart",
+                "description": "How far along its length the effect stays fully drawn before its length fade begins.",
+                "minimum": 0,
+                "maximum": 1
               },
               "LengthFadeEnd": {
-                "type": "number"
+                "type": "number",
+                "title": "LengthFadeEnd",
+                "description": "How far along its length the effect has faded away completely.",
+                "minimum": 0,
+                "maximum": 1
               },
               "ErosionProgress": {
-                "type": "number"
+                "type": "number",
+                "title": "ErosionProgress",
+                "description": "How much the effect has eroded away, from whole to gone.",
+                "minimum": 0,
+                "maximum": 1
               },
               "EnableFresnel": {
-                "type": "boolean"
+                "type": "boolean",
+                "title": "EnableFresnel",
+                "description": "Whether the effect brightens where it turns away from the camera, which gives an aura a glowing rim."
               },
               "FresnelPower": {
-                "type": "number"
+                "type": "number",
+                "title": "FresnelPower",
+                "description": "How tightly the effect's rim glow hugs its silhouette."
               },
               "FresnelIntensity": {
-                "type": "number"
+                "type": "number",
+                "title": "FresnelIntensity",
+                "description": "How strong the effect's rim glow is."
               },
               "EnableDepthFade": {
-                "type": "boolean"
+                "type": "boolean",
+                "title": "EnableDepthFade",
+                "description": "Whether the effect fades where it cuts into the ground or another solid surface."
               },
               "DepthFadeDistance": {
-                "type": "number"
+                "type": "number",
+                "title": "DepthFadeDistance",
+                "description": "How far the effect has to be inside another surface before it has faded away.",
+                "x-realm-unit": "m"
               },
               "SurfaceNormalOffset": {
-                "type": "number"
+                "type": "number",
+                "title": "SurfaceNormalOffset",
+                "description": "How far the effect is lifted along the surface normal, so it does not fight the surface for the same depth.",
+                "x-realm-unit": "m"
               },
               "PositionOffset": {
                 "type": "object",
+                "title": "PositionOffset",
+                "description": "Where the effect sits relative to what it is attached to.",
                 "properties": {
                   "X": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "X",
+                    "description": "The distance along the first horizontal axis."
                   },
                   "Y": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Y",
+                    "description": "The distance along the vertical axis."
                   },
                   "Z": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Z",
+                    "description": "The distance along the second horizontal axis."
                   }
-                }
+                },
+                "additionalProperties": false
               },
               "RotationOffset": {
                 "type": "object",
+                "title": "RotationOffset",
+                "description": "How the effect is turned relative to what it is attached to, in degrees around each axis.",
                 "properties": {
                   "X": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "X",
+                    "description": "The distance along the first horizontal axis."
                   },
                   "Y": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Y",
+                    "description": "The distance along the vertical axis."
                   },
                   "Z": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Z",
+                    "description": "The distance along the second horizontal axis."
                   }
-                }
+                },
+                "additionalProperties": false
               },
               "ScaleOffset": {
                 "type": "object",
+                "title": "ScaleOffset",
+                "description": "The multiplier applied to the effect's size on each axis.",
                 "properties": {
                   "X": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "X",
+                    "description": "The distance along the first horizontal axis."
                   },
                   "Y": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Y",
+                    "description": "The distance along the vertical axis."
                   },
                   "Z": {
-                    "type": "number"
+                    "type": "number",
+                    "title": "Z",
+                    "description": "The distance along the second horizontal axis."
                   }
-                }
+                },
+                "additionalProperties": false
               },
               "Attribution_ImportedFromMap": {
                 "type": [
                   "string",
                   "null"
-                ]
+                ],
+                "title": "Attribution_ImportedFromMap",
+                "description": "The map the effect was imported from, kept so attribution survives a round trip through the editor."
               }
-            }
+            },
+            "additionalProperties": false
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "CameraBoundsLeft": {
       "type": [
         "number",
         "null"
-      ]
+      ],
+      "title": "CameraBoundsLeft",
+      "description": "The west edge of the area the camera may pan to."
     },
     "CameraBoundsRight": {
       "type": [
         "number",
         "null"
-      ]
+      ],
+      "title": "CameraBoundsRight",
+      "description": "The east edge of the area the camera may pan to."
     },
     "CameraBoundsTop": {
       "type": [
         "number",
         "null"
-      ]
+      ],
+      "title": "CameraBoundsTop",
+      "description": "The north edge of the area the camera may pan to."
     },
     "CameraBoundsBottom": {
       "type": [
         "number",
         "null"
-      ]
+      ],
+      "title": "CameraBoundsBottom",
+      "description": "The south edge of the area the camera may pan to."
     },
     "SkyboxPath": {
       "type": [
         "string",
         "null"
-      ]
+      ],
+      "title": "SkyboxPath",
+      "description": "Path to the skybox drawn behind this map's battlefield.",
+      "x-realm-asset": {
+        "kinds": [
+          "rtex"
+        ],
+        "folders": [
+          "Assets/skyboxes"
+        ]
+      }
     },
     "Coordinates": {
       "type": [
         "array",
         "null"
       ],
+      "title": "Coordinates",
+      "description": "The named rectangles of the battlefield a map's slots and script refer to.",
       "items": {
         "type": [
           "object",
           "null"
         ],
+        "description": "One named rectangle of the battlefield, such as a start location or a capture zone, that a map's script and slots refer to by name.",
         "properties": {
           "Name": {
-            "type": "string"
+            "type": "string",
+            "title": "Name",
+            "description": "The name the map's slots and script refer to this coordinate by.",
+            "x-realm-sensitive": true
           },
           "MinX": {
-            "type": "number"
+            "type": "number",
+            "title": "MinX",
+            "description": "The west edge of the coordinate's rectangle.",
+            "x-realm-unit": "m"
           },
           "MinZ": {
-            "type": "number"
+            "type": "number",
+            "title": "MinZ",
+            "description": "The north edge of the coordinate's rectangle.",
+            "x-realm-unit": "m"
           },
           "MaxX": {
-            "type": "number"
+            "type": "number",
+            "title": "MaxX",
+            "description": "The east edge of the coordinate's rectangle.",
+            "x-realm-unit": "m"
           },
           "MaxZ": {
-            "type": "number"
+            "type": "number",
+            "title": "MaxZ",
+            "description": "The south edge of the coordinate's rectangle.",
+            "x-realm-unit": "m"
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "SpawnAnchors": {
@@ -783,20 +1617,29 @@
         "array",
         "null"
       ],
+      "title": "SpawnAnchors",
+      "description": "Where each player's units start a match on this map.",
       "items": {
         "type": [
           "object",
           "null"
         ],
+        "description": "Where one player's units start a match on this map, named after the coordinate that holds the starting area.",
         "properties": {
           "Player": {
-            "type": "integer"
+            "type": "integer",
+            "title": "Player",
+            "description": "The slot whose starting area this anchor is."
           },
           "CoordinateName": {
-            "type": "string"
+            "type": "string",
+            "title": "CoordinateName",
+            "description": "The coordinate that holds the slot's starting area."
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
-  }
+  },
+  "additionalProperties": false
 }

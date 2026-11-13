@@ -229,42 +229,4 @@ public partial class VSCodeManager
 		responseObj["error"] = errorMsg;
 	}
 
-
-	private void HandleReloadMetadata(JsonObject responseObj)
-	{
-		Callable.From(() =>
-		{
-			Action reloadAction = () =>
-			{
-				if (GameContext.MapEditorHud != null)
-				{
-					GameContext.MapEditorHud.ReadMetadataAndRefreshTextures();
-					GameContext.MapEditorHud.ShowFeedback(TranslationServer.Translate("metadata.json updated externally â€” reloaded."));
-				}
-				else if (GameContext.Host != null && GameContext.Host.GroundTerrain != null)
-				{
-					GameContext.Host.GroundTerrain.ReloadTerrainTextures(true);
-				}
-			};
-
-			if (FloatingDialogBase.HasAnyDialogOpen && GameContext.MapEditorHud != null)
-			{
-				GameContext.MapEditorHud.ShowConfirmationDialog(
-					TranslationServer.Translate("External edits detected in metadata.json. Reload external changes or keep current dialog changes?"),
-					onConfirm: reloadAction,
-					confirmText: TranslationServer.Translate("RELOAD"),
-					cancelText: TranslationServer.Translate("KEEP CHANGES")
-				);
-			}
-			else
-			{
-				reloadAction();
-			}
-		}).CallDeferred();
-
-		responseObj["action"] = "reloadMetadataResult";
-		responseObj["type"] = "reloadMetadataResult";
-		responseObj["success"] = true;
-	}
-
 }

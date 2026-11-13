@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
+using System.Text.Json;
 using Realm.Ecs;
 using Realm.Ecs.Replication;
 using DotRecast.Detour;
@@ -87,6 +88,7 @@ public partial class GameHost
 		if (IsBuildingMatchWorld) return;
 		if (GameContext.Lobby?.IsGameStarted == true) return;
 		if (string.IsNullOrWhiteSpace(mapName)) return;
+		if (!CanReadMapDocuments(mapName)) return;
 
 		IsBuildingMatchWorld = true;
 		_worldBuildStage = 0;
@@ -97,6 +99,25 @@ public partial class GameHost
 		HideWorldUntilMatchStarts();
 		ClearWorldNodesForRebuild();
 		ResetScreenScopeForWorldRebuild();
+	}
+
+	private bool CanReadMapDocuments(string mapName)
+	{
+		string? mapDirectory = ResolveMapDirectory(mapName);
+		if (string.IsNullOrEmpty(mapDirectory)) return true;
+
+		try
+		{
+			MapFileService.LoadMetadata(mapDirectory);
+			return true;
+		}
+		catch (JsonException exception)
+		{
+			string message = string.Format(TranslationServer.Translate("The map cannot be loaded by this build: {0}"), exception.Message);
+			GameContext.Lobby?.ReportHostError(message);
+			GameLog.LogError($"[GameHost] {message}");
+			return false;
+		}
 	}
 
 	public bool AdvanceMatchWorldPreparation()

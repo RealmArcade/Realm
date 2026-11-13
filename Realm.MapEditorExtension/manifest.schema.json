@@ -3,21 +3,36 @@
     "object",
     "null"
   ],
+  "description": "The published identity of a map: what it is called, who made it, which version it is, and every asset file it ships, keyed by content hash.",
+  "x-realm-schema-version": 1,
   "properties": {
     "MapName": {
-      "type": "string"
+      "type": "string",
+      "title": "MapName",
+      "description": "The name the map is published and downloaded under."
     },
     "Author": {
-      "type": "string"
+      "type": "string",
+      "title": "Author",
+      "description": "The name the map credits as its author, which is the identity its publisher proves ownership against."
     },
     "Version": {
-      "type": "string"
+      "type": "string",
+      "title": "Version",
+      "description": "The published version of the map, which a dependency pins and the lobby shows.",
+      "x-realm-sensitive": true
     },
     "Description": {
-      "type": "string"
+      "type": "string",
+      "title": "Description",
+      "description": "The short introduction shown beside the map in the lobby and in the published listing.",
+      "x-realm-control": "textarea"
     },
     "Tags": {
       "type": "array",
+      "title": "Tags",
+      "description": "The labels the map is discovered and filtered by.",
+      "x-realm-control": "tags",
       "items": {
         "type": [
           "string",
@@ -27,6 +42,8 @@
     },
     "Maintainers": {
       "type": "array",
+      "title": "Maintainers",
+      "description": "The other authors allowed to publish new versions of this map.",
       "items": {
         "type": [
           "string",
@@ -36,6 +53,8 @@
     },
     "GreenlitReferences": {
       "type": "array",
+      "title": "GreenlitReferences",
+      "description": "The maps this map's publication was greenlit from, kept so a derived release can be traced back.",
       "items": {
         "type": [
           "string",
@@ -45,6 +64,8 @@
     },
     "Attribution_SourceMap": {
       "type": "array",
+      "title": "Attribution_SourceMap",
+      "description": "The maps this map's assets were imported from, kept so attribution is carried into the published listing.",
       "items": {
         "type": [
           "string",
@@ -53,19 +74,25 @@
       }
     },
     "IsTestVersion": {
-      "type": "boolean"
+      "type": "boolean",
+      "title": "IsTestVersion",
+      "description": "Whether this publication is a test build, which is kept out of the public listing."
     },
     "Assets": {
       "type": [
         "object",
         "null"
       ],
+      "title": "Assets",
+      "description": "Every asset file the map ships, grouped by the kind of asset it is.",
       "properties": {
         "Animation": {
           "type": [
             "object",
             "null"
           ],
+          "title": "Animation",
+          "description": "The map's animation files, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -78,6 +105,8 @@
             "object",
             "null"
           ],
+          "title": "Building",
+          "description": "The map's building models, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -90,6 +119,8 @@
             "object",
             "null"
           ],
+          "title": "Character",
+          "description": "The map's unit and character models, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -102,6 +133,8 @@
             "object",
             "null"
           ],
+          "title": "Decal",
+          "description": "The map's decal textures, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -114,6 +147,8 @@
             "object",
             "null"
           ],
+          "title": "Icon",
+          "description": "The map's command card icons, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -126,6 +161,8 @@
             "object",
             "null"
           ],
+          "title": "Item",
+          "description": "The map's item, attachment and projectile models, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -138,6 +175,8 @@
             "object",
             "null"
           ],
+          "title": "Music",
+          "description": "The map's music tracks, keyed by their path inside the map's audio folder and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -150,6 +189,8 @@
             "object",
             "null"
           ],
+          "title": "Noise",
+          "description": "The map's noise textures, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -162,6 +203,8 @@
             "object",
             "null"
           ],
+          "title": "Prop",
+          "description": "The map's prop and resource models, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -174,6 +217,8 @@
             "object",
             "null"
           ],
+          "title": "Ribbon",
+          "description": "The map's ribbon trail textures, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -186,6 +231,8 @@
             "object",
             "null"
           ],
+          "title": "Shader",
+          "description": "The map's shader configurations, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -198,6 +245,8 @@
             "object",
             "null"
           ],
+          "title": "Skybox",
+          "description": "The map's skyboxes, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -210,6 +259,8 @@
             "object",
             "null"
           ],
+          "title": "SoundEffect",
+          "description": "The map's sound effects, keyed by their path inside the map's audio folder and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -222,6 +273,8 @@
             "object",
             "null"
           ],
+          "title": "Spritesheet",
+          "description": "The map's visual effect sprite sheets, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -234,6 +287,8 @@
             "object",
             "null"
           ],
+          "title": "Terrain",
+          "description": "The map's terrain textures, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -246,6 +301,8 @@
             "object",
             "null"
           ],
+          "title": "vfx_radial",
+          "description": "The map's radial visual effect textures, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -258,6 +315,8 @@
             "object",
             "null"
           ],
+          "title": "vfx_vertical",
+          "description": "The map's vertical visual effect textures, keyed by file name and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -270,6 +329,8 @@
             "object",
             "null"
           ],
+          "title": "Other",
+          "description": "The files that belong to no asset category, keyed by their map-relative path and hashed by content.",
           "additionalProperties": {
             "type": [
               "string",
@@ -277,7 +338,9 @@
             ]
           }
         }
-      }
+      },
+      "additionalProperties": false
     }
-  }
+  },
+  "additionalProperties": false
 }

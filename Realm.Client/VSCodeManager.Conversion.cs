@@ -205,14 +205,6 @@ public partial class VSCodeManager
 		return (int)val;
 	}
 
-	private float GetFloatProperty(JsonNode? node, string key, float defaultValue = 0f)
-	{
-		if (node == null) return defaultValue;
-		var val = node[key];
-		if (val == null) return defaultValue;
-		return (float)val;
-	}
-
 	private void HandleConvertRaud(JsonNode? node, JsonObject responseObj)
 	{
 		string inputPath = GetStringProperty(node, "inputPath", "");

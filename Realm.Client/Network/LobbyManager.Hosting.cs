@@ -43,7 +43,20 @@ public partial class LobbyManager
 		LastLobbyWarning = null;
 
 		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
-		var metadata = MapFileService.LoadMetadata(mapDirectory ?? string.Empty);
+
+		MapMetadata metadata;
+		try
+		{
+			metadata = MapFileService.LoadMetadata(mapDirectory ?? string.Empty);
+		}
+		catch (JsonException exception)
+		{
+			LastHostError = string.Format(Tr("The map cannot be loaded by this build: {0}"), exception.Message);
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			IsGameStarted = false;
+			return false;
+		}
+
 		MaxPlayers = metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
 		int requestedAiCount = Math.Max(0, metadata.MapProperties?.TestAiPlayerCount ?? 1);
 		int aiCount = Math.Min(requestedAiCount, Math.Max(0, MaxPlayers - 1));

@@ -247,18 +247,6 @@ public class MetadataService
 		}
 
 		metadata.License = UgcLicenseUrl;
-
-		if (metadata.ExtensionData != null)
-		{
-			metadata.ExtensionData.Remove("Assets");
-			metadata.ExtensionData.Remove("assets");
-		}
-
-		if (metadata.MapProperties.ExtensionData != null)
-		{
-			metadata.MapProperties.ExtensionData.Remove("Assets");
-			metadata.MapProperties.ExtensionData.Remove("assets");
-		}
 	}
 
 	public EnvironmentPresetConfig? GetEnvironmentPreset(MapMetadata metadata, string presetId)
