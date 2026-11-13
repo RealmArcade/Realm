@@ -317,7 +317,7 @@ public class SaveLoadService
 		for (int index = 0; index < anchors.Count; index++)
 		{
 			EditorSpawnAnchor anchor = anchors[index];
-			saved.Add(new SpawnAnchorSaveData { Player = anchor.Player, PosX = anchor.PositionX, PosZ = anchor.PositionZ });
+			saved.Add(new SpawnAnchorSaveData { Player = anchor.Player, CoordinateName = anchor.CoordinateName ?? string.Empty });
 		}
 
 		return saved;
@@ -328,6 +328,7 @@ public class SaveLoadService
 		saveData.Units = GetUnitSaveData(directory);
 		saveData.Props = GetPropSaveData(directory);
 		saveData.Decals = GetDecalSaveData(validDecalEntities);
+		saveData.Items = GetItemSaveData(directory);
 		saveData.Vfx = GetVfxSaveData();
 	}
 
@@ -362,6 +363,7 @@ public class SaveLoadService
 	private List<PropSaveData> GetPropSaveData(string directory)
 	{
 		var props = new List<PropSaveData>();
+		var savedPlacements = new HashSet<string>();
 		var propQuery = QueryCache.AllPropIdentityAndPositionQuery;
 
 		World.Query(in propQuery, (Entity entity, ref PropIdentity propId, ref Position pos) =>
@@ -370,6 +372,10 @@ public class SaveLoadService
 
 			float rotY = World.Has<RotationY>(entity) ? World.Get<RotationY>(entity).Value : 0f;
 			float scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1f;
+
+			// One placement is one entry. Two props that agree on everything the file records are the same thing drawn
+			// twice, and writing both would double it again the next time the file is read.
+			if (!savedPlacements.Add(PropPlacementKey(propId.PropId, pos.Value.X, pos.Value.Y, pos.Value.Z, scale))) return;
 
 			props.Add(new PropSaveData
 			{
@@ -441,6 +447,36 @@ public class SaveLoadService
 		}
 
 		return decals;
+	}
+
+	private List<ItemSaveData> GetItemSaveData(string directory)
+	{
+		var items = new List<ItemSaveData>();
+		var lootItems = GameContext.Host?.AllLootItems;
+		if (lootItems == null) return items;
+
+		var savedPlacements = new HashSet<string>();
+		foreach (var lootItem in lootItems)
+		{
+			if (lootItem == null || !GodotObject.IsInstanceValid(lootItem) || lootItem.IsDespawned) continue;
+			// A drop a map script or the authority spawned while a match ran is that match's content, not the map's: only a
+			// placement the terrain file or the editor authored is written back to terrain.json.
+			if (!lootItem.IsAuthoredPlacement) continue;
+			if (!MapAssetSync.IsValidItemObjectId(lootItem.ItemTypeId, directory)) continue;
+
+			Godot.Vector3 position = lootItem.Position;
+			if (!savedPlacements.Add($"{lootItem.ItemTypeId}_{position.X:F3}_{position.Y:F3}_{position.Z:F3}")) continue;
+
+			items.Add(new ItemSaveData
+			{
+				TemplateId = lootItem.ItemTypeId,
+				PosX = position.X,
+				PosY = position.Y,
+				PosZ = position.Z
+			});
+		}
+
+		return items;
 	}
 
 	private List<VfxSaveData> GetVfxSaveData()
@@ -517,7 +553,13 @@ public class SaveLoadService
 		World.Query(in worldQuery2, (Entity entity, ref TerrainState t, ref EditorState e) => { World.Set(entity, updatedEditor); });
 	}
 
-	private void CleanupOldMapEntities()
+	/// <summary>
+	///     Removes every placed entity a map's file describes: units, props, decals and any spawn request still waiting to
+	///     become one. The ECS is the source of truth for what the map holds, so a restore has to empty it rather than only
+	///     the Godot nodes it drew them with: a static prop is placed as a multimesh instance with no node of its own, and
+	///     clearing the nodes alone leaves its entity behind to be counted and saved a second time.
+	/// </summary>
+	public void ClearPlacedEntities()
 	{
 		var unitQuery = QueryCache.AllDefinitionIdAndPositionAndOwnerQuery;
 		var unitsToDestroy = new List<Entity>();
@@ -548,6 +590,10 @@ public class SaveLoadService
 		var req3List = new List<Entity>();
 		World.Query(in req3, (Entity entity) => req3List.Add(entity));
 		foreach (var ent in req3List) World.Destroy(ent);
+
+		// A placed item is drawn as a drop node this screen owns rather than as a prop entity, so the nodes are what a new
+		// map has to replace. Loot the authority replicates reaches this screen afterwards and is not part of the file.
+		GameContext.Host?.ClearPlacedLootItems();
 	}
 
 	private void DetermineMapDimensions(string mapDir, MapSaveData saveData, out int width, out int depth)
@@ -621,7 +667,7 @@ public class SaveLoadService
 			_lastLoadedCoordinates = saveData.Coordinates ?? new List<CoordinateSaveData>();
 			_lastLoadedSpawnAnchors = saveData.SpawnAnchors ?? new List<SpawnAnchorSaveData>();
 
-			CleanupOldMapEntities();
+			ClearPlacedEntities();
 
 			DetermineMapDimensions(mapDir, saveData, out int width, out int depth);
 			saveData.Width = width;
@@ -728,6 +774,7 @@ public class SaveLoadService
 	private void SpawnEntitiesFromSaveData(MapSaveData saveData, string mapDir, bool unitsFromAuthority)
 	{
 		if (!unitsFromAuthority) SpawnUnits(saveData.Units, mapDir);
+		if (!unitsFromAuthority) SpawnItems(saveData.Items, mapDir);
 		SpawnProps(saveData.Props, mapDir);
 		SpawnDecals(saveData.Decals);
 		SpawnVfx(saveData.Vfx);
@@ -748,9 +795,25 @@ public class SaveLoadService
 		}
 	}
 
+	private void SpawnItems(List<ItemSaveData>? items, string mapDir)
+	{
+		if (items == null) return;
+		foreach (var i in items)
+		{
+			if (!MapAssetSync.IsValidItemObjectId(i.TemplateId, mapDir))
+			{
+				GD.PushWarning($"[SaveLoadService] Ignored invalid item '{i.TemplateId}' in terrain.json because it does not exist as an Object ID in metadata.json.");
+				continue;
+			}
+
+			GameContext.Host?.SpawnItemExternal(i.TemplateId, new Godot.Vector3(i.PosX, i.PosY, i.PosZ));
+		}
+	}
+
 	private void SpawnProps(List<PropSaveData>? props, string mapDir)
 	{
 		if (props == null) return;
+		var loadedPlacements = new HashSet<string>();
 		foreach (var p in props)
 		{
 			if (!MapAssetSync.IsValidPropObjectId(p.TemplateId, mapDir))
@@ -759,8 +822,19 @@ public class SaveLoadService
 				continue;
 			}
 
+			if (!loadedPlacements.Add(PropPlacementKey(p.TemplateId, p.PosX, p.PosY, p.PosZ, p.Scale))) continue;
+
 			World.Add(World.Create(), new PropSpawnRequest(p.TemplateId, new Vector3(p.PosX, p.PosY, p.PosZ), p.RotationY, p.Scale));
 		}
+	}
+
+	/// <summary>
+	///     Names one prop placement by everything a save records about it. A second entry that names the same placement is
+	///     the same prop, so the file and the world hold it once however many times a restore read it.
+	/// </summary>
+	private static string PropPlacementKey(string templateId, float x, float y, float z, float scale)
+	{
+		return $"{templateId}_{x:F3}_{y:F3}_{z:F3}_{scale:F3}";
 	}
 
 	private void SpawnDecals(List<DecalSaveData>? decals)

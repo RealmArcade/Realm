@@ -2,6 +2,7 @@ using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Replication;
+using Realm.Ecs.Services;
 using Realm.Shared.Abilities;
 using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
@@ -61,6 +62,27 @@ public class ScriptAbilityRegistry
 
 	public bool Knows(string abilityId) => !string.IsNullOrWhiteSpace(abilityId);
 
+	/// <summary>
+	///     Answers what the authority needs to accept a cast of this ability. A definition the map registered while it ran
+	///     is as real as one a template declared, and returning false only for the latter is what made every
+	///     script-created card a command the gate called undefined.
+	/// </summary>
+	public bool TryGetRules(string abilityId, out AbilityRules rules)
+	{
+		rules = default;
+		if (string.IsNullOrWhiteSpace(abilityId)) return false;
+
+		string key = NormalizeKey(abilityId);
+		if (!_definitions.TryGetValue(key, out AbilityDefinition? definition))
+		{
+			if (_catalog.FindAbility(abilityId) == null) return false;
+			definition = GetDefinition(abilityId);
+		}
+
+		rules = new AbilityRules(definition.ManaCost, definition.Cooldown, definition.TargetRange);
+		return true;
+	}
+
 	public bool Register(string abilityId, string displayName, string tooltip, string iconPath, bool isInstant)
 	{
 		if (string.IsNullOrWhiteSpace(abilityId)) return false;
@@ -113,8 +135,9 @@ public class ScriptAbilityRegistry
 		definition.TooltipTemplate = string.IsNullOrWhiteSpace(metadata.Role) ? description : $"[{metadata.Role.Trim()}] {description}";
 		definition.IconPath = metadata.IconPath ?? string.Empty;
 		definition.IsInstant = string.Equals(metadata.AbilityType, "instant_spell", StringComparison.OrdinalIgnoreCase);
-		definition.AutoCastEnabled = metadata.AutoCast?.Enabled ?? true;
-		definition.AutoCastRequiresEnemy = metadata.AutoCast?.RequiresEnemyTarget ?? true;
+		definition.IsPassive = string.Equals(metadata.AbilityType, "passive", StringComparison.OrdinalIgnoreCase);
+		definition.AutoCastEnabled = metadata.AutoCast?.Enabled ?? false;
+		definition.AutoCastTargetRule = metadata.AutoCast?.TargetRule ?? AutoCastTargetRule.NearestEnemy;
 		definition.AutoCastAllyHealthPercentBelow = metadata.AutoCast?.AllyHealthPercentBelow ?? 1f;
 		definition.AutoCastManaReserve = metadata.AutoCast?.ManaReserve ?? 0f;
 		definition.AutoCastMinManaPercent = metadata.AutoCast?.MinManaPercent ?? 0f;
@@ -128,6 +151,7 @@ public class ScriptAbilityRegistry
 		definition.VisualEffect = metadata.VisualEffect;
 		definition.ProjectileId = metadata.ProjectileId;
 		definition.CastSound = metadata.CastSound;
+		definition.PlacementTemplateId = metadata.PlacementTemplateId;
 		definition.GridX = metadata.GridX;
 		definition.GridY = metadata.GridY;
 		definition.Hotkey = metadata.Hotkey ?? string.Empty;

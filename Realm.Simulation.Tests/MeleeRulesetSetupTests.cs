@@ -16,7 +16,7 @@ namespace Realm.Simulation.Tests;
 [NonParallelizable]
 public class MeleeRulesetSetupTests
 {
-	private const int MaximumBuildingsPerPlayer = 5;
+	private const int MaximumBuildingsPerPlayer = 8;
 
 	[SetUp]
 	public void SetUp()
@@ -130,14 +130,18 @@ public class MeleeRulesetSetupTests
 	}
 
 	[Test]
-	public void TheAuthoredStartingUnitsCarryNoBuffsTheyDidNotEarn()
+	public void TheAuthoredStartingUnitsCarryOnlyTheBuffsTheyEarned()
 	{
 		using MeleeMatch match = MeleeMatch.StartDuel();
 
-		UnitId vale = match.Hero(1);
-		Assert.That(match.Has<Buffs>(vale), Is.False, "Vale's innate is a stat modifier rather than a buff.");
-
 		UnitId sable = match.Hero(2);
 		Assert.That(match.Api.UnitHasBuff(sable, "buff/cinder_mark"), Is.True, "Sable has to carry the Cinder Mark buff from the first tick.");
+
+		match.Step(1.2f);
+
+		UnitId vale = match.Hero(1);
+		Assert.That(match.Api.UnitHasBuff(vale, "buff/bulwark"), Is.True, "Every hero carries the bulwark as a buff once the match ticks.");
+		Assert.That(match.TryGet(vale, out Buffs valeBuffs), Is.True, "Vale's bulwark has to be listed with its other status effects.");
+		Assert.That(valeBuffs.Count, Is.EqualTo(1), "Vale's innate is a stat modifier, so its bulwark is the only buff it carries.");
 	}
 }

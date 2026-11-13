@@ -177,6 +177,7 @@ namespace Realm.Client.UI
 		public void RefreshCoordinateListExternal()
 		{
 			_instanceManagerDialog?.RefreshIfOpen();
+			_spawnAnchorDialog?.RefreshIfOpen();
 		}
 
 
@@ -801,6 +802,12 @@ namespace Realm.Client.UI
 			}
 
 			_instanceManagerDialog.OpenDialog(initialTypeFilter);
+		}
+
+		public void OpenSpawnAnchorDialog()
+		{
+			_spawnAnchorDialog ??= new SpawnAnchorDialog(this);
+			_spawnAnchorDialog.OpenDialog();
 		}
 
 		public void ApplyEditorPreferences(EditorPreferencesData prefs)

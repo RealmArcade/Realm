@@ -234,6 +234,31 @@ public unsafe class LobbyAPI_WasmModule : ILobbyAPI
 		LobbyImports.SetMaximumPlayerCount(maximumPlayerCount);
 	}
 
+	/// <summary>
+	///     States whether the lobby's Teams Together checkbox starts checked, which is how a map that plays its teams as
+	///     sides says so. The host keeps the last word, so an order placed after the host has changed the checkbox leaves
+	///     the host's choice alone.
+	/// </summary>
+	/// <param name="teamsTogether">Whether the checkbox starts checked.</param>
+	public void SetTeamsTogetherDefault(bool teamsTogether)
+	{
+		LobbyImports.SetTeamsTogetherDefault(teamsTogether);
+	}
+
+	/// <summary>
+	///     Assigns a board coordinate to a team, so every player of that team starts at a random point inside it instead of
+	///     at the anchor the board states for that player slot. A team outside the lobby's teams and a coordinate this
+	///     board does not author are both refused, and an empty name clears the team's assignment.
+	/// </summary>
+	/// <param name="teamIndex">The team number, from one up to the teams this lobby offers.</param>
+	/// <param name="coordinateName">The board coordinate the team begins inside, or empty to clear the assignment.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	public bool SetTeamSpawnCoordinate(int teamIndex, string coordinateName)
+	{
+		if (teamIndex <= 0) return false;
+		return LobbyImports.SetTeamSpawnCoordinate(teamIndex, coordinateName ?? string.Empty);
+	}
+
 	private static bool IsSlotIndex(int playerIndex)
 	{
 		return playerIndex > 0 && playerIndex < EcsSharedMemory.LobbyRosterHeaderAt(SharedMemory)->SlotCount;

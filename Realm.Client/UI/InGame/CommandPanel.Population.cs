@@ -23,7 +23,15 @@ public partial class CommandPanel
 
 		if (focusedUnit.IsBuilding && focusedUnit.IsUnderConstruction)
 		{
-			items.Add(CreateCancelConstructionItem());
+			// A site whose own choices are still open keeps the grid it was given: a map that draws the buildings a site may
+			// become, or asks anything else of the player before it is raised, has nowhere else to offer it. A site with no
+			// such work offers the engine's cancel command, which is all a plain site has to say.
+			foreach (var ability in focusedUnit.Abilities)
+			{
+				AddItem(items, CreateAbilityItem(ability, focusedUnit.Entity));
+			}
+
+			if (items.Count == 0) items.Add(CreateCancelConstructionItem());
 			return items;
 		}
 

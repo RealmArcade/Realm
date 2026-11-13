@@ -47,6 +47,14 @@ public static class LobbyImports
 	[WasmImportLinkage]
 	private static extern void ImportSetLobbyColorLocked(int playerIndex, int locked);
 
+	[DllImport(Module, EntryPoint = "set-lobby-teams-together-default")]
+	[WasmImportLinkage]
+	private static extern void ImportSetLobbyTeamsTogetherDefault(int teamsTogether);
+
+	[DllImport(Module, EntryPoint = "set-lobby-team-spawn-coordinate")]
+	[WasmImportLinkage]
+	private static extern int ImportSetLobbyTeamSpawnCoordinate(int teamIndex, nint coordinateNamePointer, int coordinateNameLength);
+
 	/// <summary>Places the order that adds a named faction to the lobby roster.</summary>
 	/// <param name="factionName">The faction's name, passed to the authority as UTF-8 with its byte length.</param>
 	/// <returns>Whether the authority accepted the order.</returns>
@@ -120,5 +128,22 @@ public static class LobbyImports
 	public static void SetColorLocked(int playerIndex, bool locked)
 	{
 		ImportSetLobbyColorLocked(playerIndex, locked ? 1 : 0);
+	}
+
+	/// <summary>Places the order that states whether the lobby's Teams Together checkbox starts checked.</summary>
+	/// <param name="teamsTogether">Whether the checkbox starts checked.</param>
+	public static void SetTeamsTogetherDefault(bool teamsTogether)
+	{
+		ImportSetLobbyTeamsTogetherDefault(teamsTogether ? 1 : 0);
+	}
+
+	/// <summary>Places the order that assigns a board coordinate to a team, or clears the team's assignment when the name is empty.</summary>
+	/// <param name="teamIndex">The team number.</param>
+	/// <param name="coordinateName">The board coordinate the team begins inside, passed as UTF-8 with its byte length.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
+	public static unsafe bool SetTeamSpawnCoordinate(int teamIndex, string coordinateName)
+	{
+		byte[] bytes = Encoding.UTF8.GetBytes(coordinateName);
+		fixed (byte* pointer = bytes) return ImportSetLobbyTeamSpawnCoordinate(teamIndex, (nint)pointer, bytes.Length) != 0;
 	}
 }

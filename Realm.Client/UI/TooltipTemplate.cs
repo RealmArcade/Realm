@@ -66,7 +66,7 @@ public static class TooltipTemplate
 
 			if (TryResolveText(segment.Scope, segment.Key, context, out string text))
 			{
-				builder.Append(text);
+				builder.Append(TranslationServer.Translate(text));
 				continue;
 			}
 
@@ -312,7 +312,7 @@ public static class TooltipTemplate
 		}
 
 		TooltipValueStore? published = PublishedValues;
-		return published != null && published.TryGetNumber(TooltipValueStore.OwnerKey("unit", entity.Id), key, out value);
+		return published != null && published.TryGetNumber(TooltipValueStore.UnitOwnerKey(entity), key, out value);
 	}
 
 	private static bool TryResolveUnitText(Entity entity, string key, out string value)
@@ -322,7 +322,7 @@ public static class TooltipTemplate
 
 		TooltipValueStore? published = PublishedValues;
 		if (published != null &&
-			published.TryGetText(TooltipValueStore.OwnerKey("unit", entity.Id), key, out value))
+			published.TryGetText(TooltipValueStore.UnitOwnerKey(entity), key, out value))
 		{
 			return true;
 		}
@@ -462,7 +462,7 @@ public static class TooltipTemplate
 	private static bool TryResolveConsumableNumber(string? cardOrId, string key, out float value)
 	{
 		value = 0f;
-		Realm.Shared.Metadata.ConsumableMetadata? consumable = ResolveConsumable(cardOrId);
+		ItemMetadata? consumable = ResolveConsumable(cardOrId);
 		if (consumable == null) return false;
 
 		switch (key.ToLowerInvariant())
@@ -480,7 +480,7 @@ public static class TooltipTemplate
 	private static bool TryResolveConsumableText(string? cardOrId, string key, out string value)
 	{
 		value = string.Empty;
-		Realm.Shared.Metadata.ConsumableMetadata? consumable = ResolveConsumable(cardOrId);
+		ItemMetadata? consumable = ResolveConsumable(cardOrId);
 		if (consumable == null) return false;
 
 		if (string.Equals(key, "SlotGroup", StringComparison.OrdinalIgnoreCase))
@@ -495,7 +495,7 @@ public static class TooltipTemplate
 		return true;
 	}
 
-	private static Realm.Shared.Metadata.ConsumableMetadata? ResolveConsumable(string? cardOrId)
+	private static ItemMetadata? ResolveConsumable(string? cardOrId)
 	{
 		if (string.IsNullOrEmpty(cardOrId)) return null;
 		return GameContext.RegistryService?.GetConsumableForCard(cardOrId) ??

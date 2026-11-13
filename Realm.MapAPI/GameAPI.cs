@@ -85,6 +85,15 @@ public static class GameAPI
 		/// <summary>Turns order acceptance on or off for the unit.</summary>
 		public void SetUnitCommandsFrozen(UnitId unit, bool value) => gameApi.SetUnitCommandsFrozen(unit, value);
 
+		/// <summary>Locks the unit to the map script that drives it, or hands it back to its player.</summary>
+		public void SetUnitPlayerOrdersLocked(UnitId unit, bool value) => gameApi.SetUnitPlayerOrdersLocked(unit, value);
+
+		/// <summary>States what one gathering swing takes from a node and how long the swing lasts.</summary>
+		public void SetUnitGatherInterval(UnitId unit, float swingSeconds) => gameApi.SetUnitGatherInterval(unit, swingSeconds);
+
+		/// <summary>States the share of each delivered swing the map keeps.</summary>
+		public void SetUnitGatherTaxRate(UnitId unit, float taxRate) => gameApi.SetUnitGatherTaxRate(unit, taxRate);
+
 		/// <summary>Turns all unit activity on or off, covering movement, orders and animation together.</summary>
 		public void SetUnitFrozen(UnitId unit, bool value) => gameApi.SetUnitFrozen(unit, value);
 

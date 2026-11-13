@@ -17,6 +17,12 @@ namespace Realm.MapAPI;
 ///         colour and locks it, and the lobby stops offering that field for that seat. A map that sets nothing leaves the
 ///         lobby's own assignment of colours and teams in place, which is what the default lobby rules do.
 ///     </para>
+///     <para>
+///         The two settings beyond the roster are the ones a map states once and a host may still overrule: whether the
+///         lobby groups a team's players into consecutive player slots when the match starts, and which board coordinate
+///         each team begins inside. Both are placed as orders here and only take effect when the match starts, so a map
+///         states them while its lobby fills and never has to read them back.
+///     </para>
 /// </remarks>
 public interface ILobbyAPI
 {
@@ -142,4 +148,26 @@ public interface ILobbyAPI
 	/// </summary>
 	/// <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
 	void SetMaximumPlayerCount(int maximumPlayerCount);
+
+	/// <summary>
+	///     States whether the lobby's Teams Together checkbox starts checked, which is what a map that plays its teams as
+	///     sides states: a checked lobby groups every team's players into consecutive player slots when the match starts, so
+	///     a team's members sit next to each other rather than wherever they happened to join. The host may still clear the
+	///     checkbox, and a host that has changed it keeps its own choice rather than being overruled by this order.
+	/// </summary>
+	/// <param name="teamsTogether">Whether the checkbox starts checked.</param>
+	void SetTeamsTogetherDefault(bool teamsTogether);
+
+	/// <summary>
+	///     Assigns a board coordinate to a team, which is how a map that seats its teams apart states where each side
+	///     begins: every player of that team starts at a random point inside the coordinate rather than at the anchor the
+	///     board states for that player slot. An assignment replaces the board's own anchors for that team's players, so a
+	///     team whose members share ground needs nothing from the board's per-slot anchors, and a team with no assignment
+	///     keeps them. A name the board does not author is refused, because a team seated nowhere is a team the match cannot
+	///     start; an empty name clears the team's assignment.
+	/// </summary>
+	/// <param name="teamIndex">The team number, from one up to the teams this lobby offers.</param>
+	/// <param name="coordinateName">The board coordinate the team begins inside, or empty to clear the assignment.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	bool SetTeamSpawnCoordinate(int teamIndex, string coordinateName);
 }

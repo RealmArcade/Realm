@@ -2,6 +2,7 @@ using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.MapAPI;
 using Realm.Shared.Network;
@@ -13,6 +14,13 @@ public partial class ServerGameAPI
 	private const string DefaultLeaderboardBoardId = "default";
 
 	private const int AllPlayers = ServerPresentationEvent.Everyone;
+
+	private const float ResourceNodeAmountPublishSeconds = 0.25f;
+	private const float ResourceNodeAmountQuantum = 0.5f;
+
+	private readonly float[] _publishedResourceNodeAmounts = new float[EcsSharedMemory.MAX_ENTITIES];
+	private readonly bool[] _publishedResourceNodeAmountsKnown = new bool[EcsSharedMemory.MAX_ENTITIES];
+	private float _resourceNodeAmountTimer;
 
 	private readonly Dictionary<int, ScriptStaticText> _staticTexts = new();
 	private readonly Dictionary<int, List<int>> _selectedUnitsByPlayer = new();
@@ -431,6 +439,24 @@ public partial class ServerGameAPI
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
 	}
 
+	/// <summary>
+	///     Hands every screen one pose to draw on a unit, which is what a cast is: the unit is drawn in that pose for one
+	///     cycle of the animation and then goes back to the pose its orders describe. Unlike <see cref="SetUnitAnimation" />
+	///     this is not remembered as the unit's standing animation, so a peer that joins after the cast is not shown a pose
+	///     that finished before it arrived.
+	/// </summary>
+	/// <param name="unit">The unit to pose.</param>
+	/// <param name="animationName">The animation to draw once.</param>
+	private void PulseUnitAnimation(UnitId unit, string animationName)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+		if (string.IsNullOrWhiteSpace(animationName)) return;
+
+		_presentation.Write(PresentationKind.UnitAnimationPulse, AllPlayers, unit.Value, animationName, string.Empty, string.Empty, string.Empty, null,
+			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
+	}
+
 	public void SetUnitHandAttachment(UnitId unit, string hand, string? attachmentId)
 	{
 		Entity entity = ResolveUnit(unit);
@@ -456,6 +482,80 @@ public partial class ServerGameAPI
 
 		_presentation.Write(PresentationKind.ResourceMeshImpulse, AllPlayers, node.Value, string.Empty, string.Empty, string.Empty, string.Empty, null,
 			Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, 0, strength, frequency, duration, false);
+	}
+
+	/// <summary>
+	///     Tells every screen that a placed resource node was exhausted and has to leave the board. A placed prop is map
+	///     content each process loads for itself, so the node is named by the point it stood at rather than by an entity
+	///     id the two processes would not share.
+	/// </summary>
+	/// <param name="node">The node that was exhausted.</param>
+	public void NotifyResourceNodeDepleted(ResourceNodeId node)
+	{
+		if (!node.IsValid) return;
+
+		var entity = new Entity(node.Value);
+		if (!_context.World.IsAlive(entity)) return;
+		if (!_context.World.TryGet<Position>(entity, out Position position)) return;
+
+		_presentation.Write(PresentationKind.ResourceNodeDepleted, AllPlayers, node.Value, string.Empty, string.Empty, string.Empty, string.Empty, null,
+			position.Value, Vector3.Zero, Vector3.Zero, 0, 0, 0f, 0f, 0f, false);
+	}
+
+	/// <summary>
+	///     Keeps every screen's copy of a placed resource node's remaining capacity current. A placed prop belongs to the
+	///     board each process loads for itself, so a node cannot travel in a unit description: the amount is published by
+	///     the point the node stands at, and only once it has actually moved, so a board whose nodes nobody works sends
+	///     nothing.
+	/// </summary>
+	/// <param name="deltaSeconds">The seconds this tick covers.</param>
+	public void PublishResourceNodeAmounts(float deltaSeconds)
+	{
+		_resourceNodeAmountTimer += deltaSeconds;
+		if (_resourceNodeAmountTimer < ResourceNodeAmountPublishSeconds) return;
+		_resourceNodeAmountTimer = 0f;
+
+		EcsWorld world = _context.World;
+		foreach (Entity entity in world.Query<ResourceNode, Position>())
+		{
+			if (world.Has<Dead>(entity)) continue;
+			if (!world.TryGet(entity, out ResourceNode node)) continue;
+
+			int entityId = entity.Id;
+			if (entityId <= 0 || entityId >= _publishedResourceNodeAmounts.Length) continue;
+
+			// The first reading of a node is what the screen already placed it with, so it is recorded rather than sent.
+			if (!_publishedResourceNodeAmountsKnown[entityId])
+			{
+				_publishedResourceNodeAmountsKnown[entityId] = true;
+				_publishedResourceNodeAmounts[entityId] = node.Amount;
+				continue;
+			}
+
+			if (MathF.Abs(_publishedResourceNodeAmounts[entityId] - node.Amount) < ResourceNodeAmountQuantum) continue;
+
+			_publishedResourceNodeAmounts[entityId] = node.Amount;
+			NotifyResourceNodeAmount(new ResourceNodeId(entityId), node.Amount);
+		}
+	}
+
+	/// <summary>
+	///     Tells every screen how much of a resource node is left. A placed prop is board content each process loads for
+	///     itself, so the node travels by the point it stands at rather than by an entity id the two processes would not
+	///     share.
+	/// </summary>
+	/// <param name="node">The node whose remaining capacity changed.</param>
+	/// <param name="remaining">How much of the node is left, in the pieces it yields.</param>
+	public void NotifyResourceNodeAmount(ResourceNodeId node, float remaining)
+	{
+		if (!node.IsValid) return;
+
+		var entity = new Entity(node.Value);
+		if (!_context.World.IsAlive(entity)) return;
+		if (!_context.World.TryGet(entity, out Position position)) return;
+
+		_presentation.Write(PresentationKind.ResourceNodeAmountChanged, AllPlayers, node.Value, string.Empty, string.Empty, string.Empty, string.Empty, null,
+			position.Value, Vector3.Zero, Vector3.Zero, 0, 0, remaining, 0f, 0f, false);
 	}
 
 	private void SetWorldTimeOfDay(float time)

@@ -56,7 +56,10 @@ public partial class GameHost
 
 		var def = GetAbilityDefinition(spellId);
 
-		if (_multiplayerActive && !Multiplayer.IsServer())
+		// A screen that renders a match running in another process has no Godot peer of its own, so the peer check
+		// alone left every cast to resolve locally and the authority never heard it. The session is what names a
+		// match this screen does not simulate, and it is the stream the command has to travel on.
+		if ((_multiplayerActive && !Multiplayer.IsServer()) || GameContext.ServerSession != null)
 		{
 			ExecuteClientMultiplayerSpellCast(spellId, def, position);
 			return;
@@ -81,11 +84,6 @@ public partial class GameHost
 
 	private void ExecuteClientMultiplayerSpellCast(string spellId, AbilityDefinition? def, Vector3 position)
 	{
-		if (def != null && def.Cooldown > 0f)
-		{
-			GameContext.InputService.SetSpellCooldown(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), spellId, def.Cooldown);
-		}
-
 		if (def != null)
 		{
 			GameContext.FXService.SpawnAbilityEffect(this, def, position);
@@ -117,9 +115,9 @@ public partial class GameHost
 
 		// Affordability and cooldown are settled before the script hears about the cast, matching the authoritative server
 		// path. Raising OnSpellCast first let a refused cast still run its map-side effects and left a cooldown behind.
-		if (IsSpellOnCooldown(spellId, def)) return;
+		if (IsSpellOnCooldown(spellId, def, casterEntity)) return;
 
-		if (!GameContext.InputService.TryExecuteSpellCast(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), casterEntity, spellId, out float maxCd))
+		if (!GameContext.InputService.TryExecuteSpellCast(casterEntity, spellId, out float maxCd))
 		{
 			ShowInsufficientManaFeedback(spellId, def);
 			return;
@@ -144,9 +142,11 @@ public partial class GameHost
 		GameContext.InGameHud?.ShowFeedbackText($"{displayName} requires {(int)cost} mana", new Color(0.9f, 0.4f, 0.1f));
 	}
 
-	private bool IsSpellOnCooldown(string spellId, AbilityDefinition? def)
+	private bool IsSpellOnCooldown(string spellId, AbilityDefinition? def, Entity casterEntity)
 	{
-		float cd = GameContext.InputService.GetSpellCooldown(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex), spellId);
+		float cd = casterEntity != Entity.Null && World.IsAlive(casterEntity)
+			? UnitOrderService.GetAbilityCooldownRemaining(World, casterEntity, spellId)
+			: 0f;
 		if (cd <= 0f) return false;
 
 		string displayName = def?.DisplayName ?? spellId;
@@ -185,6 +185,60 @@ public partial class GameHost
 		{
 			ExecuteSpellCast(abilityId, new Vector3(pos.X, pos.Y, pos.Z));
 		}
+	}
+
+	/// <summary>
+	///     Turns one ability's auto-cast on or off for every selected unit that carries it. The authority owns the state,
+	///     so this is an order like any other: a match running in another process hears it as a command and the card's
+	///     marquee follows the replicated state rather than the click. The toggle reads the state of the first unit it can
+	///     act for, so a mixed selection is brought to the same state in one click.
+	/// </summary>
+	/// <param name="abilityId">The ability the selected units should auto-cast, or stop auto-casting.</param>
+	public void ToggleAbilityAutoCast(string abilityId)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (string.IsNullOrWhiteSpace(abilityId)) return;
+		if (SelectedUnits.Count == 0) return;
+
+		var localEntities = new List<Entity>();
+		var serverEntityIds = new List<int>();
+		bool active = false;
+		bool readState = false;
+
+		for (int index = 0; index < SelectedUnits.Count; index++)
+		{
+			Unit3D? unit = SelectedUnits[index];
+			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
+			if (!World.IsAlive(unit.Entity)) continue;
+			if (!GameContext.PerspectiveFilter.CanControl(unit.Player)) continue;
+			if (World.Has<PlayerOrdersLocked>(unit.Entity)) continue;
+
+			if (!readState)
+			{
+				active = !GameContext.SimulationService.IsAbilityAutoCast((UnitId)unit.Entity.Id, abilityId);
+				readState = true;
+			}
+
+			localEntities.Add(unit.Entity);
+			serverEntityIds.Add(GetServerEntityId(unit.Entity));
+		}
+
+		if (!readState || localEntities.Count == 0) return;
+
+		if ((_multiplayerActive && !Multiplayer.IsServer()) || GameContext.ServerSession != null)
+		{
+			SubmitRemoteCommand(active ? "autocast_on" : "autocast_off", serverEntityIds, Vector3.Zero, 0, abilityId);
+		}
+		else
+		{
+			for (int index = 0; index < localEntities.Count; index++)
+			{
+				GameContext.SimulationService.SetAbilityAutoCast((UnitId)localEntities[index].Id, abilityId, active);
+			}
+		}
+
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	public void BuyItem(string itemId, Entity buildingEntity)

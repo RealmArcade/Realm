@@ -119,6 +119,24 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
+	///     Asks the lobby to group each team's players into consecutive player slots when the match starts. Only the host
+	///     may change it, and the authority's answer is what every seat reads back.
+	/// </summary>
+	/// <param name="enabled">Whether the match should group each team's players.</param>
+	public void UpdateTeamsTogether(bool enabled)
+	{
+		if (!IsHost) return;
+
+		TeamsTogether = enabled;
+		TeamsTogetherChanged?.Invoke(enabled);
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.SetTeamsTogether,
+			Flag = enabled
+		});
+	}
+
+	/// <summary>
 	///     Sets one parameter the host configures for the match. Zero returns an option to the map's own default, which is
 	///     how the standard lobby states all of them.
 	/// </summary>

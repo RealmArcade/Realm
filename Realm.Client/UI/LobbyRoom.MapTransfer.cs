@@ -139,4 +139,44 @@ public partial class LobbyRoom
 			_spectatorDelayCheck.ButtonPressed = enabled;
 		}
 	}
+
+	/// <summary>
+	///     Offers the lobby's Teams Together switch. Every seat reads it, but only the host may change it: a seat that
+	///     does not administer the lobby sees the setting its match will play with and cannot touch it.
+	/// </summary>
+	private void CreateTeamsTogetherUI()
+	{
+		_teamsTogetherCheck = new CheckBox();
+		_teamsTogetherCheck.Name = "TeamsTogetherCheck_CheckBox";
+		_teamsTogetherCheck.Text = Tr("Teams Together");
+		_teamsTogetherCheck.TooltipText = Tr("Groups each team's players into consecutive player slots, so a side sits together in the match.");
+		_teamsTogetherCheck.Position = new Vector2(1450, 720);
+		_teamsTogetherCheck.Size = new Vector2(340, 40);
+		_teamsTogetherCheck.ButtonPressed = Lobby.TeamsTogether;
+		_teamsTogetherCheck.Disabled = !Lobby.IsHost;
+
+		if (_connectingPopup != null && GodotObject.IsInstanceValid(_connectingPopup))
+		{
+			_teamsTogetherCheck.Visible = false;
+		}
+
+		UIStyle.ApplyCheckboxStyle(_teamsTogetherCheck);
+
+		_teamsTogetherCheck.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			Lobby.UpdateTeamsTogether(_teamsTogetherCheck.ButtonPressed);
+		};
+
+		_teamsTogetherCheck.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		AddChild(_teamsTogetherCheck);
+	}
+
+	private void OnTeamsTogetherChanged(bool enabled)
+	{
+		if (_teamsTogetherCheck == null) return;
+		if (!GodotObject.IsInstanceValid(_teamsTogetherCheck)) return;
+
+		_teamsTogetherCheck.ButtonPressed = enabled;
+	}
 }

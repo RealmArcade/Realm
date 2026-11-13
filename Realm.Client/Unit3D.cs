@@ -74,6 +74,7 @@ public partial class Unit3D : Node3D
 		_cachedGeometryInstances.Clear();
 		Node root = (_modelNode != null && GodotObject.IsInstanceValid(_modelNode)) ? _modelNode : this;
 		CollectGeometryInstancesRecursive(root, _cachedGeometryInstances);
+		if (_isRuinSilhouette) ModelShaderManager.SetRuinSilhouette(root, true);
 	}
 
 	private static void CollectGeometryInstancesRecursive(Node node, List<GeometryInstance3D> list)
@@ -100,27 +101,53 @@ public partial class Unit3D : Node3D
 	}
 
 	private float _cachedBaseModelScale = 1.0f;
-	private bool _isLaborPulsing = false;
 
-	public void SetLaborPulseScale(float pulse)
+	private bool _isRuinSilhouette = false;
+
+	private Tween? _activeTransitionTween;
+
+	public bool HasPlayedSpawnShader { get; private set; }
+
+	public bool HasPlayedDespawnShader { get; private set; }
+
+	public bool TryPlaySpawnShader(string shaderKey)
 	{
-		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
-		{
-			_isLaborPulsing = true;
-			float baseModelScale = _cachedBaseModelScale;
-			_modelNode.Scale = new Vector3(pulse * 0.9f * baseModelScale, (2.0f - pulse) * 0.9f * baseModelScale, pulse * 0.9f * baseModelScale);
-		}
+		if (HasPlayedSpawnShader) return false;
+		HasPlayedSpawnShader = true;
+
+		CancelActiveTransitionTween();
+		_activeTransitionTween = SpawnDeathShaderManager.AnimateTransition(this, shaderKey, true, null, () => _activeTransitionTween = null);
+		return true;
 	}
 
-	public void ResetLaborPulseScale()
+	public bool TryPlayDespawnShader(string shaderKey, Action onComplete)
 	{
-		if (!_isLaborPulsing) return;
-		_isLaborPulsing = false;
-		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
+		if (HasPlayedDespawnShader) return false;
+		HasPlayedDespawnShader = true;
+
+		CancelActiveTransitionTween();
+		_activeTransitionTween = SpawnDeathShaderManager.AnimateTransition(this, shaderKey, false, null, () =>
 		{
-			float baseModelScale = _cachedBaseModelScale;
-			_modelNode.Scale = new Vector3(baseModelScale, baseModelScale, baseModelScale);
-		}
+			_activeTransitionTween = null;
+			onComplete();
+		});
+		return true;
+	}
+
+	private void CancelActiveTransitionTween()
+	{
+		if (_activeTransitionTween == null) return;
+		if (GodotObject.IsInstanceValid(_activeTransitionTween)) _activeTransitionTween.Kill();
+		_activeTransitionTween = null;
+	}
+
+	public void SetRuinSilhouette(bool dormant)
+	{
+		if (_isRuinSilhouette == dormant) return;
+		_isRuinSilhouette = dormant;
+
+		Node root = (_modelNode != null && GodotObject.IsInstanceValid(_modelNode)) ? _modelNode : this;
+		ModelShaderManager.SetRuinSilhouette(root, dormant);
 	}
 
 	private Vector3 _velocity = Vector3.Zero;
@@ -290,6 +317,8 @@ public partial class Unit3D : Node3D
 	private float _animStepAccumulator = 0f;
 	private string? _deferredAnimationName;
 	private float _deferredAnimationDelayRemaining = 0f;
+	private string? _heldAnimationName;
+	private float _heldAnimationSecondsRemaining = 0f;
 	private Aabb _cachedLocalAabb = new Aabb(new Vector3(-1.5f, 0f, -1.5f), new Vector3(3f, 4f, 3f));
 
 	public bool IsCulled => _isCulled;

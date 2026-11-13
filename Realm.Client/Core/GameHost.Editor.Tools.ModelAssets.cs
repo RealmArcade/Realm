@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Ecs;
@@ -67,19 +67,17 @@ namespace Realm.Client.Core
 
 		private string? CheckPropOrResourceRegistryForModelPath(string str)
 		{
-			if (PropRegistry != null && PropRegistry.TryGetValue(str, out var propMeta) && !string.IsNullOrEmpty(propMeta.ModelPath))
-				return GameContext.EditorService.NormalizeModelAssetKey(propMeta.ModelPath);
-			if (ResourceRegistry != null && ResourceRegistry.TryGetValue(str, out var resMeta) && !string.IsNullOrEmpty(resMeta.ModelPath))
-				return GameContext.EditorService.NormalizeModelAssetKey(resMeta.ModelPath);
+			if (Placeables.TryGet(str, out PlaceableTemplate template) && template.Kind is PlaceableKind.Prop or PlaceableKind.Resource && !string.IsNullOrEmpty(template.Metadata.ModelPath))
+				return GameContext.EditorService.NormalizeModelAssetKey(template.Metadata.ModelPath);
+
 			return null;
 		}
 
 		private string? CheckUnitOrBuildingRegistryForModelPath(string str)
 		{
-			if (UnitRegistry != null && UnitRegistry.TryGetValue(str, out var unitMeta) && !string.IsNullOrEmpty(unitMeta.ModelPath))
-				return GameContext.EditorService.NormalizeModelAssetKey(unitMeta.ModelPath);
-			if (BuildingRegistry != null && BuildingRegistry.TryGetValue(str, out var bldMeta) && !string.IsNullOrEmpty(bldMeta.ModelPath))
-				return GameContext.EditorService.NormalizeModelAssetKey(bldMeta.ModelPath);
+			if (Placeables.TryGet(str, out PlaceableTemplate template) && template.Kind is PlaceableKind.Unit or PlaceableKind.Building && !string.IsNullOrEmpty(template.Metadata.ModelPath))
+				return GameContext.EditorService.NormalizeModelAssetKey(template.Metadata.ModelPath);
+
 			return null;
 		}
 
@@ -96,6 +94,12 @@ namespace Realm.Client.Core
 			{
 				if (!string.IsNullOrEmpty(prop.PropId)) return prop.PropId;
 				return GetModelAssetKey(prop);
+			}
+
+			if (objOrId is LootItem3D lootItem)
+			{
+				if (!string.IsNullOrEmpty(lootItem.ItemTypeId)) return lootItem.ItemTypeId;
+				return GetModelAssetKey(lootItem);
 			}
 
 			if (objOrId is string str) return str;
@@ -352,29 +356,7 @@ namespace Realm.Client.Core
 
 		private void UpdateDespillMetadataForAsset(string assetKey, bool despillPlayerColor)
 		{
-			if (UnitRegistry != null && UnitRegistry.TryGetValue(assetKey, out var unitMeta))
-			{
-				unitMeta.DespillPlayerColor = despillPlayerColor;
-				UnitRegistry[assetKey] = unitMeta;
-			}
-
-			if (BuildingRegistry != null && BuildingRegistry.TryGetValue(assetKey, out var bldMeta))
-			{
-				bldMeta.DespillPlayerColor = despillPlayerColor;
-				BuildingRegistry[assetKey] = bldMeta;
-			}
-
-			if (ResourceRegistry != null && ResourceRegistry.TryGetValue(assetKey, out var resMeta))
-			{
-				resMeta.DespillPlayerColor = despillPlayerColor;
-				ResourceRegistry[assetKey] = resMeta;
-			}
-
-			if (PropRegistry != null && PropRegistry.TryGetValue(assetKey, out var propMeta))
-			{
-				propMeta.DespillPlayerColor = despillPlayerColor;
-				PropRegistry[assetKey] = propMeta;
-			}
+			if (Placeables.Find(assetKey) is { } placeable) placeable.DespillPlayerColor = despillPlayerColor;
 		}
 
 		public string GetModelSpawnShader(object objOrId)
@@ -398,12 +380,7 @@ namespace Realm.Client.Core
 		{
 			if (string.IsNullOrEmpty(primaryKey)) return "";
 
-			if (UnitRegistry.TryGetValue(primaryKey, out var meta) && !string.IsNullOrWhiteSpace(meta.SpawnShader)) return meta.SpawnShader;
-			if (BuildingRegistry.TryGetValue(primaryKey, out var bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.SpawnShader)) return bldMeta.SpawnShader;
-			if (ResourceRegistry.TryGetValue(primaryKey, out var resMeta) && !string.IsNullOrWhiteSpace(resMeta.SpawnShader)) return resMeta.SpawnShader;
-			if (PropRegistry.TryGetValue(primaryKey, out var propMeta) && !string.IsNullOrWhiteSpace(propMeta.SpawnShader)) return propMeta.SpawnShader;
-
-			return "";
+			return Placeables.Find(primaryKey)?.SpawnShader ?? "";
 		}
 
 		public void SetModelSpawnShader(string assetKey, string shaderKey)
@@ -439,30 +416,7 @@ namespace Realm.Client.Core
 		private void UpdateRegistrySpawnShaders(string assetKey, string shaderKey)
 		{
 			string? finalShader = string.IsNullOrWhiteSpace(shaderKey) ? null : shaderKey.Trim();
-
-			if (UnitRegistry.TryGetValue(assetKey, out var unitMeta))
-			{
-				unitMeta.SpawnShader = finalShader;
-				UnitRegistry[assetKey] = unitMeta;
-			}
-
-			if (BuildingRegistry.TryGetValue(assetKey, out var bldMeta))
-			{
-				bldMeta.SpawnShader = finalShader;
-				BuildingRegistry[assetKey] = bldMeta;
-			}
-
-			if (PropRegistry.TryGetValue(assetKey, out var propMeta))
-			{
-				propMeta.SpawnShader = finalShader;
-				PropRegistry[assetKey] = propMeta;
-			}
-
-			if (ResourceRegistry.TryGetValue(assetKey, out var resMeta))
-			{
-				resMeta.SpawnShader = finalShader;
-				ResourceRegistry[assetKey] = resMeta;
-			}
+			if (Placeables.Find(assetKey) is { } placeable) placeable.SpawnShader = finalShader;
 		}
 
 		public void SetModelDeathShader(string assetKey, string shaderKey)
@@ -500,30 +454,7 @@ namespace Realm.Client.Core
 		private void UpdateDeathShaderMetadataForAsset(string assetKey, string shaderKey)
 		{
 			string? cleanShaderKey = string.IsNullOrWhiteSpace(shaderKey) ? null : shaderKey.Trim();
-
-			if (UnitRegistry != null && UnitRegistry.TryGetValue(assetKey, out var unitMeta))
-			{
-				unitMeta.DeathShader = cleanShaderKey;
-				UnitRegistry[assetKey] = unitMeta;
-			}
-
-			if (BuildingRegistry != null && BuildingRegistry.TryGetValue(assetKey, out var bldMeta))
-			{
-				bldMeta.DeathShader = cleanShaderKey;
-				BuildingRegistry[assetKey] = bldMeta;
-			}
-
-			if (PropRegistry != null && PropRegistry.TryGetValue(assetKey, out var propMeta))
-			{
-				propMeta.DeathShader = cleanShaderKey;
-				PropRegistry[assetKey] = propMeta;
-			}
-
-			if (ResourceRegistry != null && ResourceRegistry.TryGetValue(assetKey, out var resMeta))
-			{
-				resMeta.DeathShader = cleanShaderKey;
-				ResourceRegistry[assetKey] = resMeta;
-			}
+			if (Placeables.Find(assetKey) is { } placeable) placeable.DeathShader = cleanShaderKey;
 		}
 
 		public string GetModelProceduralAnimation(object objOrId)
@@ -576,12 +507,9 @@ namespace Realm.Client.Core
 		private bool CheckRegistryIgnorePlayerColor(string primaryKey)
 		{
 			if (string.IsNullOrEmpty(primaryKey)) return false;
-			if (UnitRegistry.TryGetValue(primaryKey, out var meta)) return meta.IgnorePlayerColor;
-			if (BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta)) return buildingMeta.IgnorePlayerColor;
-			if (ResourceRegistry.TryGetValue(primaryKey, out var resMeta)) return resMeta.IgnorePlayerColor;
-			if (PropRegistry.TryGetValue(primaryKey, out var propMeta)) return propMeta.IgnorePlayerColor;
-			if (AttachmentRegistry.TryGetValue(primaryKey, out _)) return true;
-			return false;
+			if (Placeables.Find(primaryKey) is { } placeable) return placeable.IgnorePlayerColor;
+
+			return AttachmentRegistry.TryGetValue(primaryKey, out _);
 		}
 
 		private bool CheckModelCacheIgnorePlayerColor(string normPrimary, string normAsset)
@@ -643,29 +571,7 @@ namespace Realm.Client.Core
 
 		private void UpdateIgnoreColorMetadataForAsset(string assetKey, bool ignorePlayerColor)
 		{
-			if (UnitRegistry != null && UnitRegistry.TryGetValue(assetKey, out var unitMeta))
-			{
-				unitMeta.IgnorePlayerColor = ignorePlayerColor;
-				UnitRegistry[assetKey] = unitMeta;
-			}
-
-			if (BuildingRegistry != null && BuildingRegistry.TryGetValue(assetKey, out var bldMeta))
-			{
-				bldMeta.IgnorePlayerColor = ignorePlayerColor;
-				BuildingRegistry[assetKey] = bldMeta;
-			}
-
-			if (ResourceRegistry != null && ResourceRegistry.TryGetValue(assetKey, out var resMeta))
-			{
-				resMeta.IgnorePlayerColor = ignorePlayerColor;
-				ResourceRegistry[assetKey] = resMeta;
-			}
-
-			if (PropRegistry != null && PropRegistry.TryGetValue(assetKey, out var propMeta))
-			{
-				propMeta.IgnorePlayerColor = ignorePlayerColor;
-				PropRegistry[assetKey] = propMeta;
-			}
+			if (Placeables.Find(assetKey) is { } placeable) placeable.IgnorePlayerColor = ignorePlayerColor;
 		}
 
 		private static void FindMeshInstancesRecursive(Node parent, List<MeshInstance3D> result)

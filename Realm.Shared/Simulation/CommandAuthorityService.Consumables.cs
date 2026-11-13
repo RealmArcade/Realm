@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Realm.Ecs;
@@ -51,7 +51,7 @@ public partial class CommandAuthorityService
 			return;
 		}
 
-		ConsumableMetadata? consumable = ConsumableProvider(cardId);
+		ItemMetadata? consumable = ConsumableProvider(cardId);
 		if (consumable == null)
 		{
 			rejectionReason = $"the map sells no consumable '{cardId}'";
@@ -116,7 +116,7 @@ public partial class CommandAuthorityService
 		ConsumableChangedSink?.Invoke(target.Id, consumable.TemplateID);
 	}
 
-	private Entity FindConsumableTarget(Entity building, Entity playerEntity, ConsumableMetadata consumable, Vector3 position)
+	private Entity FindConsumableTarget(Entity building, Entity playerEntity, ItemMetadata consumable, Vector3 position)
 	{
 		bool ownOnly = !string.Equals(consumable.TargetScope, "AnyUnit", StringComparison.OrdinalIgnoreCase);
 		float bestDistance = consumable.PurchaseRange;
@@ -138,7 +138,7 @@ public partial class CommandAuthorityService
 		return best;
 	}
 
-	private bool CarriesAttachment(Entity unit, ConsumableMetadata consumable)
+	private bool CarriesAttachment(Entity unit, ItemMetadata consumable)
 	{
 		if (!_context.World.TryGet<ConsumableAttachment>(unit, out ConsumableAttachment attachment)) return false;
 		if (!attachment.HasDefinition) return false;

@@ -125,6 +125,43 @@ public partial class GameHost
 				GameContext.EditorService.Interaction.SetIsPastingObject(false);
 				GetViewport().SetInputAsHandled();
 			}
+			else if (ActiveEditorTool == EditorTool.PlaceItem)
+			{
+				if (!GameContext.EditorService.Interaction.HasCachedRandom) GenerateNewRandomPlacementRotationAndScale();
+				float placementRot = (GameContext.EditorService.Tools.RandomRotation && !GameContext.EditorService.Interaction.IsPastingObject) ? GameContext.EditorService.Interaction.CachedRandomRotation : GameContext.EditorService.Tools.PlacementRotation;
+				Vector3 spawnPos = CalculatePlacementPosition(hitPos);
+				spawnPos.Y = GetTerrainHeightAt(spawnPos);
+
+				var lootItem = SpawnItemExternal(ActivePlaceId, spawnPos);
+				if (lootItem != null)
+				{
+					var actions = new List<IEditorAction>
+					{
+						new ObjectSpawnAction("item", ActivePlaceId, spawnPos, placementRot, 1f, lootItem)
+					};
+					if (EditorMirrorMode != MirrorMode.None)
+					{
+						foreach (var t in GetMirroredTransforms(spawnPos, placementRot))
+						{
+							Vector3 mPos = t.Position;
+							mPos.Y = GetTerrainHeightAt(mPos);
+							var mirroredItem = SpawnItemExternal(ActivePlaceId, mPos);
+							if (mirroredItem != null)
+							{
+								actions.Add(new ObjectSpawnAction("item", ActivePlaceId, mPos, t.Rotation, 1f, mirroredItem));
+							}
+						}
+					}
+
+					var composite = new CompositeAction(actions);
+					EditorHistoryManager.RecordAction(composite);
+					EditorHasUnsavedChanges = true;
+				}
+
+				GenerateNewRandomPlacementRotationAndScale();
+				GameContext.EditorService.Interaction.SetIsPastingObject(false);
+				GetViewport().SetInputAsHandled();
+			}
 			else if (ActiveEditorTool == EditorTool.PlaceDecal)
 			{
 				if (!TryGetValidPlacementContext(hitPos, out float placementRot, out float scaleVal, out Vector3 spawnPos)) return;
@@ -493,6 +530,11 @@ public partial class GameHost
 					{
 						clickedNode = FindVfxInParentChain(collider);
 					}
+
+					if (clickedNode == null)
+					{
+						clickedNode = FindLootItemInParentChain(collider);
+					}
 				}
 
 				if (clickedNode == null)
@@ -539,6 +581,11 @@ public partial class GameHost
 					{
 						clickedNode = closestVfx;
 					}
+				}
+
+				if (clickedNode == null && TryFindLootItemAt(hitPos, out LootItem3D? clickedLootItem))
+				{
+					clickedNode = clickedLootItem;
 				}
 
 				Vector3 terrainHitPos = (terrainHit != null && terrainHit.ContainsKey("position")) ? terrainHit["position"].AsVector3() : hitPos;

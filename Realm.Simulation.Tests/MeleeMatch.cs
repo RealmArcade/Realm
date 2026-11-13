@@ -1,7 +1,10 @@
 using System.Numerics;
 using Realm.Ecs;
+using Realm.Ecs.Common;
+using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
@@ -26,14 +29,16 @@ internal sealed class MeleeMatch : IDisposable
 	public const float BuildingWoodCost = 100f;
 	public const float LongestAuthoredConstructionSeconds = 40f;
 	public const float LongestAuthoredProductionSeconds = 40f;
+	private const float SoldierWaitSeconds = 240f;
 
 	private const int PeerIdBase = 7000;
 
 	private readonly ServerLog _log;
 	private readonly string _workDirectory;
 	private readonly List<ServerPresentationEvent> _events = new();
+	private int _nextCommandId = 1;
 
-	private MeleeMatch(string[] factions, int seed, string mapFolder, string scriptPath, MatchOptionSet? matchOptions = null, int[]? teams = null)
+	private MeleeMatch(string[] factions, int seed, string mapFolder, string scriptPath, MatchOptionSet? matchOptions = null, int[]? teams = null, bool cheatsEnabled = false)
 	{
 		Factions = factions;
 		_workDirectory = Path.Combine(Path.GetTempPath(), "realm-melee-simulation", $"{Environment.ProcessId}-{seed}-{Guid.NewGuid():N}");
@@ -56,7 +61,7 @@ internal sealed class MeleeMatch : IDisposable
 			paths,
 			_log,
 			seed,
-			cheatsEnabled: false,
+			cheatsEnabled: cheatsEnabled,
 			wasmDebug: false,
 			mapWorkspacePath: null,
 			roster: roster,
@@ -83,9 +88,9 @@ internal sealed class MeleeMatch : IDisposable
 
 	public int PlayerCount => Factions.Length;
 
-	public static MeleeMatch Start(string[] factions, int seed = 1, MatchOptionSet? matchOptions = null, int[]? teams = null)
+	public static MeleeMatch Start(string[] factions, int seed = 1, MatchOptionSet? matchOptions = null, int[]? teams = null, bool cheatsEnabled = false)
 	{
-		return new MeleeMatch(factions, seed, MeleeTestMaps.BoardFolder, MeleeTestMaps.ScriptPath, matchOptions, teams);
+		return new MeleeMatch(factions, seed, MeleeTestMaps.BoardFolder, MeleeTestMaps.ScriptPath, matchOptions, teams, cheatsEnabled);
 	}
 
 	/// <summary>
@@ -100,9 +105,9 @@ internal sealed class MeleeMatch : IDisposable
 		return new MeleeMatch(factions, seed, MeleeTestMaps.BoardFolder, MeleeTestMaps.ScriptPath, matchOptions: null, teams: teams);
 	}
 
-	public static MeleeMatch StartDuel(string firstFaction = "Vale", string secondFaction = "Sable", int seed = 1, MatchOptionSet? matchOptions = null)
+	public static MeleeMatch StartDuel(string firstFaction = "Vale", string secondFaction = "Sable", int seed = 1, MatchOptionSet? matchOptions = null, bool cheatsEnabled = false)
 	{
-		return Start(new[] { firstFaction, secondFaction }, seed, matchOptions);
+		return Start(new[] { firstFaction, secondFaction }, seed, matchOptions, cheatsEnabled: cheatsEnabled);
 	}
 
 	/// <summary>
@@ -147,10 +152,13 @@ internal sealed class MeleeMatch : IDisposable
 
 	private void DrainPresentation()
 	{
-		ServerPresentationEvent[] drained = Simulation.CollectPresentation();
+		ReadOnlySpan<ServerPresentationEvent> drained = Simulation.CollectPresentation();
 		if (drained.Length == 0) return;
 
-		_events.AddRange(drained);
+		for (int index = 0; index < drained.Length; index++)
+		{
+			_events.Add(drained[index]);
+		}
 	}
 
 	public IReadOnlyList<ServerPresentationEvent> EventsFor(int slot, PresentationKind kind)
@@ -174,6 +182,29 @@ internal sealed class MeleeMatch : IDisposable
 	{
 		return Api.GetUnitsOwnedByPlayer(slot).ToArray();
 	}
+
+	public Entity PlayerEntity(int slot) => Simulation.Map.GetPlayerEntity(slot).Value;
+
+	public bool IsGameOver => Simulation.IsGameOver;
+
+	public bool FastBuildEnabled => Simulation.Map.Simulation.FastBuildEnabled;
+
+	public bool UnlimitedPowerEnabled => Simulation.Map.Simulation.UnlimitedPowerEnabled;
+
+	public bool ShroudDisabled => Simulation.Map.Simulation.ShroudDisabled;
+
+	public float SpeedOf(UnitId unit) => TryGet(unit, out MovementStats movement) ? movement.Speed : 0f;
+
+	public float StatOf(UnitId unit, string statName)
+	{
+		return TryGet(unit, out Stats stats) ? stats.Get(new Realm.Ecs.Common.StatId(statName)) : 0f;
+	}
+
+	public float ArmorOf(UnitId unit) => StatOf(unit, "Armor");
+
+	public float TenacityOf(UnitId unit) => StatOf(unit, "Tenacity");
+
+	public float AttackDamageOf(UnitId unit) => TryGet(unit, out Attack attack) ? attack.Damage : 0f;
 
 	public UnitId Hero(int slot)
 	{
@@ -206,12 +237,30 @@ internal sealed class MeleeMatch : IDisposable
 		return buildings;
 	}
 
+	/// <summary>
+	///     Lists the worker crew a seat owns. Every building raises workers from the one shared worker template, so a test
+	///     reads a crew by that template rather than by the building that raised it.
+	/// </summary>
+	/// <param name="slot">The seat whose workers are listed.</param>
+	/// <returns>The live workers the seat owns.</returns>
+	public IReadOnlyList<UnitId> Workers(int slot)
+	{
+		var workers = new List<UnitId>();
+		foreach (UnitId unit in Owned(slot))
+		{
+			if (TemplateOf(unit) == "unit/worker") workers.Add(unit);
+		}
+
+		return workers;
+	}
+
 	public IReadOnlyList<UnitId> Soldiers(int slot)
 	{
 		var soldiers = new List<UnitId>();
 		foreach (UnitId unit in Owned(slot))
 		{
 			if (Has<Building>(unit) || Has<Hero>(unit)) continue;
+			if (Array.IndexOf(MeleeContent.SoldierTemplateIds, TemplateOf(unit)) < 0) continue;
 			soldiers.Add(unit);
 		}
 
@@ -308,6 +357,275 @@ internal sealed class MeleeMatch : IDisposable
 	}
 
 	/// <summary>
+	///     Finds a resource node of a template, choosing the one nearest a position when several are placed. A board decides
+	///     where its nodes stand, so a test reads the placed node rather than a position chosen for it.
+	/// </summary>
+	/// <param name="templateId">The node template to look for.</param>
+	/// <param name="near">The position to choose the closest node to, or null to take the first one placed.</param>
+	/// <returns>The node's entity, or an invalid id when the board places none of that template.</returns>
+	public UnitId ResourceNode(string templateId, Vector3? near = null)
+	{
+		UnitId found = UnitId.Invalid;
+		float closestDistance = float.MaxValue;
+		var query = QueryCache.AllPropIdentityAndPositionQuery;
+		World.Query(in query, (Entity entity, ref Position position, ref PropIdentity identity) =>
+		{
+			if (!string.Equals(identity.PropId, templateId, StringComparison.OrdinalIgnoreCase)) return;
+
+			if (near.HasValue)
+			{
+				float distance = Vector3.Distance(position.Value, near.Value);
+				if (distance >= closestDistance) return;
+				closestDistance = distance;
+			}
+			else if (found.IsValid)
+			{
+				return;
+			}
+
+			found = new UnitId(entity.Id);
+		});
+
+		return found;
+	}
+
+	public float ResourceAmount(UnitId node) => TryGet(node, out ResourceNode resourceNode) ? resourceNode.Amount : 0f;
+
+	/// <summary>
+	///     Empties one placed node the way a worker would over time, so a test can watch what the worker does when its
+	///     node runs dry without spending the minutes a full swing count would take.
+	/// </summary>
+	/// <param name="node">The placed node whose capacity is emptied.</param>
+	public void EmptyResourceNode(UnitId node)
+	{
+		if (!TryGet(node, out Position position)) return;
+
+		foreach (ResourceNodeId candidate in Api.GetResourceNodes())
+		{
+			if (Vector3.Distance(Api.GetResourceNodePosition(candidate), position.Value) > 0.01f) continue;
+
+			Api.SetResourceNodeAmount(candidate, 0f);
+			return;
+		}
+	}
+
+	/// <summary>
+	///     Adds up what every node on the board still holds, which is how a test tells what the workers took out of them.
+	/// </summary>
+	/// <returns>The remaining capacity of every resource node.</returns>
+	public float TotalResourceAmount()
+	{
+		float total = 0f;
+		foreach (ResourceNodeId node in Api.GetResourceNodes()) total += Api.GetResourceNodeAmount(node);
+		return total;
+	}
+
+	/// <summary>
+	///     Adds up what every worker of a seat is holding, which is what a node has given up but the player has not been
+	///     paid yet.
+	/// </summary>
+	/// <param name="slot">The seat whose workers are counted.</param>
+	/// <returns>The total a seat's gatherers carry in their hands.</returns>
+	/// <summary>
+	///     Reads how much food a seat's living units have consumed, which is what the lobby row shows as population.
+	/// </summary>
+	/// <param name="slot">The seat whose food is read.</param>
+	/// <returns>The food the seat's units consume.</returns>
+	public int PopulationOf(int slot) => ReadPopulation(slot).Current;
+
+	/// <summary>
+	///     Reads the food cap a seat was given.
+	/// </summary>
+	/// <param name="slot">The seat whose food cap is read.</param>
+	/// <returns>The greatest food the seat may consume.</returns>
+	public int MaxPopulationOf(int slot) => ReadPopulation(slot).Max;
+
+	private PlayerPopulation ReadPopulation(int slot)
+	{
+		Entity worldEntity = Simulation.Map.WorldEntity;
+		if (!World.TryGet(worldEntity, out NetworkMappingState mapping) || mapping.PlayerEntities == null) return default;
+		if (slot < 0 || slot >= mapping.PlayerEntities.Length) return default;
+
+		return TryGet(new UnitId(mapping.PlayerEntities[slot].Id), out PlayerPopulation population) ? population : default;
+	}
+
+	/// <summary>
+	///     Moves a placed prop to another point on the board, which is how a test puts the same node at two different
+	///     distances from the same building without authoring a second board.
+	/// </summary>
+	/// <param name="prop">The prop entity to move.</param>
+	/// <param name="position">The point it should stand at.</param>
+	public void MoveProp(UnitId prop, Vector3 position)
+	{
+		World.Set(new Entity(prop.Value), new Position(position));
+	}
+
+	/// <summary>
+	///     Adds up one item across every unit of a seat, which is what its workers are holding but have not delivered.
+	/// </summary>
+	/// <param name="slot">The seat whose units are read.</param>
+	/// <param name="itemId">The item definition identifier to add up.</param>
+	/// <returns>The number of pieces carried across every slot and unit.</returns>
+	public int TotalItemCount(int slot, string itemId)
+	{
+		int total = 0;
+		foreach (UnitId unit in Owned(slot))
+		{
+			if (!IsAlive(unit)) continue;
+			if (TryGet(unit, out Realm.Ecs.Components.Core.Inventory inventory)) total += inventory.GetItemCount(itemId);
+		}
+
+		return total;
+	}
+
+	public bool IsGathering(UnitId unit) => Has<Gatherer>(unit);
+
+	/// <summary>
+	///     Sends a line the way chat does when a player types a cheat, so a test reads the authority's own answer rather
+	///     than inferring it from the effect the cheat applied.
+	/// </summary>
+	/// <param name="slot">The seat that typed the line.</param>
+	/// <param name="cheatWord">The word that was typed, exactly as it was typed.</param>
+	/// <returns>What the authority answered the line with.</returns>
+	public ServerCommandResult SubmitCheat(int slot, string cheatWord, params UnitId[] units)
+	{
+		var selectedIds = new System.Collections.Generic.List<int>();
+		for (int index = 0; index < units.Length; index++)
+		{
+			if (units[index].IsValid) selectedIds.Add(units[index].Value);
+		}
+
+		var command = new NetworkCommand
+		{
+			CommandId = _nextCommandId++,
+			CommandType = "cheat",
+			UnitEntityIds = selectedIds,
+			TargetPosition = new NetworkVector3(0f, 0f, 0f),
+			TargetEntityId = 0,
+			ArgString = cheatWord
+		};
+
+		return Send(slot, command);
+	}
+
+	/// <summary>
+	///     Sends one of the movement orders the command card offers, so a test plays the same routing a button press does.
+	/// </summary>
+	/// <param name="slot">The seat issuing the order.</param>
+	/// <param name="commandType">The command the card sends, such as stop, hold, attack_move or patrol.</param>
+	/// <param name="position">The ground point the order names, or zero for an order that names none.</param>
+	/// <param name="units">The units the order applies to.</param>
+	/// <returns>What the authority answered the order with.</returns>
+	public ServerCommandResult Order(int slot, string commandType, Vector3 position, params UnitId[] units)
+	{
+		var unitIds = new System.Collections.Generic.List<int>();
+		for (int index = 0; index < units.Length; index++)
+		{
+			if (units[index].IsValid) unitIds.Add(units[index].Value);
+		}
+
+		var command = new NetworkCommand
+		{
+			CommandId = _nextCommandId++,
+			CommandType = commandType,
+			UnitEntityIds = unitIds,
+			TargetPosition = new NetworkVector3(position.X, position.Y, position.Z),
+			TargetEntityId = 0,
+			ArgString = string.Empty
+		};
+
+		return Send(slot, command);
+	}
+
+	/// <summary>
+	///     Sends the order a player's right-click on an enemy unit sends, so a test exercises the authority's own attack
+	///     routing rather than writing a target component directly.
+	/// </summary>
+	/// <param name="slot">The seat issuing the order.</param>
+	/// <param name="unit">The unit being ordered to attack.</param>
+	/// <param name="target">The unit that was clicked.</param>
+	/// <returns>What the authority answered the order with.</returns>
+	public ServerCommandResult Attack(int slot, UnitId unit, UnitId target)
+	{
+		var command = new NetworkCommand
+		{
+			CommandId = _nextCommandId++,
+			CommandType = "attack",
+			UnitEntityIds = new System.Collections.Generic.List<int> { unit.Value },
+			TargetPosition = new NetworkVector3(0f, 0f, 0f),
+			TargetEntityId = target.Value,
+			ArgString = string.Empty
+		};
+
+		return Send(slot, command);
+	}
+
+	/// <summary>
+	///     Sends the order a player's right-click on a resource node sends, so a test exercises the authority's own gather
+	///     routing rather than writing a gatherer component directly.
+	/// </summary>
+	/// <param name="slot">The seat issuing the order.</param>
+	/// <param name="unit">The unit being ordered to gather.</param>
+	/// <param name="nodePosition">The position of the node that was clicked.</param>
+	/// <returns>What the authority answered the order with.</returns>
+	public ServerCommandResult Gather(int slot, UnitId unit, Vector3 nodePosition)
+	{
+		var command = new NetworkCommand
+		{
+			CommandId = _nextCommandId++,
+			CommandType = "gather",
+			UnitEntityIds = new System.Collections.Generic.List<int> { unit.Value },
+			TargetPosition = new NetworkVector3(nodePosition.X, nodePosition.Y, nodePosition.Z),
+			TargetEntityId = 0,
+			ArgString = string.Empty
+		};
+
+		return Send(slot, command);
+	}
+
+	/// <summary>
+	///     Sends the order a player's right-click on a damaged building sends, so a test exercises the authority's own
+	///     repair routing rather than writing a repair task directly.
+	/// </summary>
+	/// <param name="slot">The seat issuing the order.</param>
+	/// <param name="unit">The unit being ordered to mend the building.</param>
+	/// <param name="building">The building that was clicked.</param>
+	/// <returns>What the authority answered the order with.</returns>
+	public ServerCommandResult Repair(int slot, UnitId unit, UnitId building)
+	{
+		var command = new NetworkCommand
+		{
+			CommandId = _nextCommandId++,
+			CommandType = "repair",
+			UnitEntityIds = new System.Collections.Generic.List<int> { unit.Value },
+			TargetPosition = new NetworkVector3(0f, 0f, 0f),
+			TargetEntityId = building.Value,
+			ArgString = string.Empty
+		};
+
+		return Send(slot, command);
+	}
+
+	/// <summary>
+	///     Sends the order a player's right-click on a construction site sends, so a test exercises the authority's own build
+	///     routing rather than advancing the site directly. A site is work like any other: nothing raises it until a unit is
+	///     told to work at it.
+	/// </summary>
+	/// <param name="slot">The seat issuing the order.</param>
+	/// <param name="unit">The unit being sent to raise the site.</param>
+	/// <param name="site">The construction site that was clicked.</param>
+	/// <returns>What the authority answered the order with.</returns>
+	public ServerCommandResult Raise(int slot, UnitId unit, UnitId site) => Repair(slot, unit, site);
+
+	/// <summary>
+	///     Reads whether a building is dormant, which is the state a repairable building is left in when its health runs out.
+	/// </summary>
+	public bool IsDormant(UnitId unit) => Has<Realm.Ecs.Components.Tags.Dormant>(unit);
+
+	/// <summary>Reads whether a building is one the map lets fall dormant instead of being destroyed.</summary>
+	public bool IsRepairable(UnitId unit) => Has<Realm.Ecs.Components.Tags.RepairableBuilding>(unit);
+
+	/// <summary>
 	///     Starts a construction the way a player's Begin Construction button does, and reads back the packages the
 	///     command grid is now offering: the units that carry the grid only show the abilities the map revealed.
 	/// </summary>
@@ -317,22 +635,58 @@ internal sealed class MeleeMatch : IDisposable
 		return new DraftOffer(slot, DraftOptions(slot));
 	}
 
+	/// <summary>
+	///     The blueprint a draw leaves standing on the ground the player cast at. It is the unit whose command grid offers
+	///     the packages the deck drew, so a test reads the draw from it rather than from the hero that paid for the site.
+	/// </summary>
+	/// <param name="slot">The seat whose blueprint is wanted.</param>
+	/// <returns>The blueprint, or an invalid id when no draw is open.</returns>
+	public UnitId Blueprint(int slot)
+	{
+		foreach (UnitId unit in Owned(slot))
+		{
+			if (!IsAlive(unit)) continue;
+			if (string.Equals(TemplateOf(unit), "unit/blueprint", StringComparison.OrdinalIgnoreCase)) return unit;
+		}
+
+		return UnitId.Invalid;
+	}
+
 	public string[] DraftOptions(int slot)
 	{
 		var options = new List<string>();
+		UnitId blueprint = Blueprint(slot);
+		if (!blueprint.IsValid) return options.ToArray();
+
 		foreach (string buildingTemplateId in MeleeContent.DraftableBuildings)
 		{
-			if (IsAbilityVisible(Hero(slot), buildingTemplateId)) options.Add(buildingTemplateId);
+			if (IsAbilityVisible(blueprint, buildingTemplateId)) options.Add(buildingTemplateId);
 		}
 
 		return options.ToArray();
 	}
 
-	public bool IsDraftAbandonVisible(int slot) => IsAbilityVisible(Hero(slot), AbandonConstructionAbilityId);
+	public bool IsDraftAbandonVisible(int slot)
+	{
+		UnitId blueprint = Blueprint(slot);
+		return blueprint.IsValid && IsAbilityVisible(blueprint, AbandonConstructionAbilityId);
+	}
 
 	public bool IsAbilityVisible(UnitId unit, string abilityId)
 	{
-		if (!unit.IsValid) return false;
+		if (!unit.IsValid || !IsAlive(unit)) return false;
+
+		IReadOnlyList<string> carried = Api.GetUnitTypeAbilities(TemplateOf(unit));
+		bool carriesAbility = false;
+		for (int index = 0; index < carried.Count; index++)
+		{
+			if (!string.Equals(carried[index], abilityId, StringComparison.OrdinalIgnoreCase)) continue;
+
+			carriesAbility = true;
+			break;
+		}
+
+		if (!carriesAbility) return false;
 
 		return !Api.Abilities.IsUnitAbilityHidden(unit.UniqueId, abilityId);
 	}
@@ -362,12 +716,20 @@ internal sealed class MeleeMatch : IDisposable
 	/// </summary>
 	public void LockDraftOption(int slot, string buildingTemplateId, Vector3 position)
 	{
-		Cast(slot, buildingTemplateId, position);
+		UnitId blueprint = Blueprint(slot);
+		if (!blueprint.IsValid) throw new InvalidOperationException("No blueprint stands to answer the draw from.");
+
+		CastFrom(slot, blueprint, buildingTemplateId, position);
+		if (DraftOptions(slot).Length == 0) StepTicks(2);
 	}
 
 	public void AbandonDraft(int slot)
 	{
-		Cast(slot, AbandonConstructionAbilityId, Vector3.Zero);
+		UnitId blueprint = Blueprint(slot);
+		if (!blueprint.IsValid) return;
+
+		CastFrom(slot, blueprint, AbandonConstructionAbilityId, Vector3.Zero);
+		StepTicks(2);
 	}
 
 	public ServerCommandResult Send(int slot, NetworkCommand command)
@@ -391,10 +753,80 @@ internal sealed class MeleeMatch : IDisposable
 		return added;
 	}
 
+	public bool UnitHasItem(UnitId unit, string itemId) => Api.UnitHasItem(unit, itemId);
+
+	public float ExperienceOf(UnitId unit) => TryGet(unit, out Experience experience) ? experience.Current : 0f;
+
+	public bool IsAbilityDisabled(UnitId unit, string abilityId) => Api.Abilities.IsUnitAbilityDisabled(unit.UniqueId, abilityId);
+
+	/// <summary>
+	///     Casts an ability from a chosen unit, which is how a player uses the Nexus it selected rather than its hero.
+	/// </summary>
+	public void CastFrom(int slot, UnitId caster, string abilityId, Vector3 position)
+	{
+		Api.CastAbility(caster, abilityId, position);
+		DrainPresentation();
+	}
+
+	/// <summary>
+	///     Reads the last feedback line a seat was shown, which is where a refused purchase explains itself.
+	/// </summary>
+	public string LastFeedbackText(int slot)
+	{
+		string text = string.Empty;
+		for (int index = 0; index < _events.Count; index++)
+		{
+			ServerPresentationEvent candidate = _events[index];
+			if (candidate.Kind != PresentationKind.PlayerFeedbackText) continue;
+			if (candidate.PlayerIndex != slot && candidate.PlayerIndex != ServerPresentationEvent.Everyone) continue;
+
+			text = candidate.Text;
+		}
+
+		return text;
+	}
+
+	/// <summary>
+	///     Reads one piece of text the authority published about a unit, which is how a map names a buff on the stat sheet
+	///     or writes the line a player hovers over it.
+	/// </summary>
+	/// <param name="slot">The seat whose presentation stream is read.</param>
+	/// <param name="unit">The unit whose published text is being read.</param>
+	/// <param name="key">The tooltip key the map wrote, such as <c>buff.bulwark.name</c>.</param>
+	/// <returns>The last text published for that key, or an empty string when it was never published.</returns>
+	public string UnitTooltipText(int slot, UnitId unit, string key)
+	{
+		string owner = unit.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		string text = string.Empty;
+
+		for (int index = 0; index < _events.Count; index++)
+		{
+			ServerPresentationEvent candidate = _events[index];
+			if (candidate.Kind != PresentationKind.TooltipTextSet) continue;
+			if (candidate.PlayerIndex != slot && candidate.PlayerIndex != ServerPresentationEvent.Everyone) continue;
+			if (!string.Equals(candidate.Key, "unit", StringComparison.OrdinalIgnoreCase)) continue;
+			if (!string.Equals(candidate.Text, owner, StringComparison.Ordinal)) continue;
+			if (!string.Equals(candidate.Text2, key, StringComparison.Ordinal)) continue;
+
+			text = candidate.Text3;
+		}
+
+		return text;
+	}
+
 	public void Kill(UnitId target, UnitId attacker, float damage = 100000f)
 	{
 		Api.DealTypedDamage(attacker, target, damage, "physical");
 		DrainPresentation();
+	}
+
+	/// <summary>
+	///     Reads the unit an order is currently aimed at, which is how a test observes the target a ruleset's targeting
+	///     rule selected rather than inferring it from damage other units may also have dealt.
+	/// </summary>
+	public UnitId CurrentTarget(UnitId unit)
+	{
+		return TryGet(unit, out AttackTarget target) ? new UnitId(target.Target.Id) : UnitId.Invalid;
 	}
 
 	public int LevelOf(UnitId unit)
@@ -441,7 +873,12 @@ internal sealed class MeleeMatch : IDisposable
 
 		foreach (UnitId building in Buildings(1))
 		{
-			if (Has<UnderConstruction>(building)) return building;
+			if (!Has<UnderConstruction>(building)) continue;
+
+			// A placed site does not raise itself. The helper right-clicks it with the hero, which is the order a player
+			// gives next, so tests that only care about a finished building do not have to repeat the click.
+			Raise(1, Hero(1), building);
+			return building;
 		}
 
 		throw new InvalidOperationException("Picking a drawn package left no construction site.");
@@ -486,14 +923,33 @@ internal sealed class MeleeMatch : IDisposable
 	/// </summary>
 	public int StepUntilSoldiers(int slot)
 	{
+		// A building pays its worker line first, so a soldier may wait for the crew's capacity to fill and for the
+		// soldier's own reserve to build up. That is minutes of match time, not the one production clock.
 		float waited = 0f;
-		while (Soldiers(slot).Count == 0 && waited < LongestAuthoredProductionSeconds)
+		while (Soldiers(slot).Count == 0 && waited < SoldierWaitSeconds)
 		{
 			Step(1f);
 			waited += 1f;
 		}
 
 		return Soldiers(slot).Count;
+	}
+
+	/// <summary>
+	///     Waits for the player's first worker and returns how many workers it then holds.
+	/// </summary>
+	/// <param name="slot">The seat whose crew is waited for.</param>
+	/// <returns>The number of workers the seat owns once the first one is raised.</returns>
+	public int StepUntilWorkers(int slot)
+	{
+		float waited = 0f;
+		while (Workers(slot).Count == 0 && waited < LongestAuthoredProductionSeconds)
+		{
+			Step(1f);
+			waited += 1f;
+		}
+
+		return Workers(slot).Count;
 	}
 
 	public int HeroLevel(int slot)
@@ -508,13 +964,16 @@ internal sealed class MeleeMatch : IDisposable
 		return World.TryGet(playerEntity, out PlayerBuildingLimit limit) ? limit.Value : 0;
 	}
 
-	/// <summary>Reads how many charges a building may hold at most, which a lobby's charge multiplier scales.</summary>
-	public int MaximumChargesOf(UnitId building)
-	{
-		return TryGet(building, out UnitCharges charges) ? charges.MaximumCharges : 0;
-	}
+	public float ManaOf(UnitId unit) => TryGet(unit, out Mana mana) ? mana.Current : 0f;
 
-	public int CountCharges(UnitId building)
+	public float MaxManaOf(UnitId unit) => TryGet(unit, out Mana mana) ? mana.Max : 0f;
+
+	public float ManaRegenOf(UnitId unit) => TryGet(unit, out Mana mana) ? mana.ManaRegen : 0f;
+
+	/// <summary>Reads how many productions a building holds in mana, which is what its production box shows.</summary>
+	public int CountProductions(UnitId building) => (int)MathF.Floor(ManaOf(building) / MeleeContent.ProductionMana);
+
+	public int BadgeOf(UnitId building)
 	{
 		Entity entity = new(building.Value);
 		return World.TryGet(entity, out OverheadBadge badge) ? badge.Value : 0;

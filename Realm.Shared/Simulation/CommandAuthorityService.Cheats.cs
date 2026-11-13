@@ -41,31 +41,41 @@ public partial class CommandAuthorityService
 			return;
 		}
 
-		switch (ParseCheat(key))
+		if (!CheatCatalog.TryParse(key, out CheatKind? parsedCheat))
 		{
-			case CheatKind.SecureTheBag:
-				ApplySecureTheBag(playerEntity);
+			rejectionReason = $"'{key}' is not a cheat this build knows";
+			return;
+		}
+
+		CheatKind cheat = parsedCheat;
+		switch (cheat)
+		{
+			case CheatKind.GrantResources:
+				GrantResources(playerEntity);
 				break;
-			case CheatKind.GigaChad:
-				ApplyGigachad(playerEntity);
+			case CheatKind.EmpowerOwnedUnits:
+				EmpowerOwnedUnits(playerEntity);
 				break;
-			case CheatKind.NeedForSpeed:
-				ApplyNeedForSpeed(peerId, cmd);
+			case CheatKind.BoostSelectedMovementSpeed:
+				BoostSelectedMovementSpeed(peerId, cmd);
 				break;
-			case CheatKind.ThanosSnap:
-				ApplyThanosSnap();
+			case CheatKind.KillEnemyAiUnits:
+				KillEnemyAiUnits();
 				break;
-			case CheatKind.EzClap:
+			case CheatKind.EndMatch:
 				_context.IsGameOver = true;
 				break;
-			case CheatKind.Aura:
-				ApplyAura();
+			case CheatKind.DisableShroud:
+				DisableShroud();
 				break;
-			case CheatKind.SpeedRun:
+			case CheatKind.ToggleFastBuild:
 				_context.FastBuildEnabled = !_context.FastBuildEnabled;
 				break;
-			case CheatKind.Skibidi:
-				ApplySkibidi(playerEntity);
+			case CheatKind.ToggleUnlimitedPower:
+				ToggleUnlimitedPower(playerEntity);
+				break;
+			case CheatKind.KillSelectedUnits:
+				KillSelectedUnits(peerId, cmd);
 				break;
 			default:
 				rejectionReason = $"'{key}' is not a cheat this build knows";
@@ -73,34 +83,7 @@ public partial class CommandAuthorityService
 		}
 	}
 
-	/// <summary>The cheats this build answers to; the wire carries their names, not these values.</summary>
-	private enum CheatKind
-	{
-		None,
-		SecureTheBag,
-		GigaChad,
-		NeedForSpeed,
-		ThanosSnap,
-		EzClap,
-		Aura,
-		SpeedRun,
-		Skibidi
-	}
-
-	private static CheatKind ParseCheat(string key) => key switch
-	{
-		"securethebag" => CheatKind.SecureTheBag,
-		"gigachad" => CheatKind.GigaChad,
-		"needforspeed" => CheatKind.NeedForSpeed,
-		"thanossnap" => CheatKind.ThanosSnap,
-		"ezclap" => CheatKind.EzClap,
-		"aura" => CheatKind.Aura,
-		"speedrun" => CheatKind.SpeedRun,
-		"skibidi" => CheatKind.Skibidi,
-		_ => CheatKind.None
-	};
-
-	private void ApplySecureTheBag(Entity playerEntity)
+	private void GrantResources(Entity playerEntity)
 	{
 		if (!_context.World.TryGet<PlayerResources>(playerEntity, out PlayerResources resources)) return;
 
@@ -116,7 +99,7 @@ public partial class CommandAuthorityService
 		_context.World.Set(playerEntity, resources);
 	}
 
-	private void ApplyGigachad(Entity playerEntity)
+	private void EmpowerOwnedUnits(Entity playerEntity)
 	{
 		var query = QueryCache.AllHealthAndOwnerQuery;
 		_context.World.Query(in query, (Entity entity, ref Owner owner) =>
@@ -128,7 +111,7 @@ public partial class CommandAuthorityService
 		});
 	}
 
-	private void ApplyNeedForSpeed(int peerId, NetworkCommand cmd)
+	private void BoostSelectedMovementSpeed(int peerId, NetworkCommand cmd)
 	{
 		if (cmd.UnitEntityIds == null) return;
 
@@ -142,7 +125,7 @@ public partial class CommandAuthorityService
 		}
 	}
 
-	private void ApplyThanosSnap()
+	private void KillEnemyAiUnits()
 	{
 		var targets = new List<Entity>();
 		var query = QueryCache.AllHealthAndOwnerQuery;
@@ -167,15 +150,38 @@ public partial class CommandAuthorityService
 		}
 	}
 
-	private void ApplyAura()
+	private void DisableShroud()
 	{
+		_context.ShroudDisabled = true;
+
 		Entity worldEntity = _context.WorldEntity;
 		if (worldEntity == Entity.Null || !_context.World.IsAlive(worldEntity)) return;
 
 		_context.World.Mutate<ShroudState>(worldEntity, (ref ShroudState shroud) => shroud.VisibilityMode = ShroudVisibilityMode.Revealed);
 	}
 
-	private void ApplySkibidi(Entity playerEntity)
+	/// <summary>
+	///     Kills the units the order names, so a developer can reach a death the match would otherwise have to be played
+	///     into. The blow is dealt through the damage pipeline rather than by marking the unit dead, because a death the
+	///     resolver never saw is one the match, the map and every bounty rule would never be told about. Only the caller's
+	///     own units answer, because a cheat still goes through the same authority check an order does.
+	/// </summary>
+	private void KillSelectedUnits(int peerId, NetworkCommand cmd)
+	{
+		if (cmd.UnitEntityIds == null) return;
+		if (_context.CombatDamageService == null) return;
+
+		foreach (int serverId in cmd.UnitEntityIds)
+		{
+			Entity entity = _targets.Resolve(serverId);
+			if (entity == Entity.Null || !IsClientAuthorized(peerId, entity)) continue;
+			if (!_context.World.IsAlive(entity) || _context.World.Has<Dead>(entity)) continue;
+
+			_context.CombatDamageService.DealResolvedDamage(entity, entity, 1000000f, "physical");
+		}
+	}
+
+	private void ToggleUnlimitedPower(Entity playerEntity)
 	{
 		_context.UnlimitedPowerEnabled = !_context.UnlimitedPowerEnabled;
 		if (!_context.UnlimitedPowerEnabled) return;

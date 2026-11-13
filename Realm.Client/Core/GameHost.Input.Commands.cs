@@ -24,6 +24,8 @@ using Realm.Shared.Abilities;
 namespace Realm.Client.Core;
 public partial class GameHost
 {
+	public const string DropItemTargetingMode = "drop";
+
 	public void EnterCommandTargeting(string mode)
 	{
 		ActiveCommandTargeting = mode;
@@ -49,6 +51,52 @@ public partial class GameHost
 				Hud.ShowFeedbackText("Rally Command: Click ground to set building Rally Point", new Color(1.0f, 0.85f, 0.5f));
 			}
 		}
+	}
+
+	/// <summary>
+	///     Starts a drop: the next left-click on the ground sends the focused unit there to put the named item down.
+	///     Only the item and the spot travel, because the authority owns both the walk and the handover.
+	/// </summary>
+	/// <param name="itemId">The item the focused unit carries and should put down.</param>
+	/// <param name="charges">How many pieces of it the slot holds, which is what leaves the inventory.</param>
+	public void EnterItemDropTargeting(string itemId, int charges)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (string.IsNullOrWhiteSpace(itemId)) return;
+		if (GameContext.InputService == null) return;
+
+		if (IsFocusedUnitHoldingItemSoulbound(itemId))
+		{
+			GameContext.InGameHud?.ShowFeedbackText(
+				TranslationServer.Translate("This item cannot be dropped, it is soul-bound"),
+				new Color(0.9f, 0.4f, 0.1f));
+			return;
+		}
+
+		ActiveSpellTargeting = null;
+		GameContext.InputService.ActiveDropItemId = itemId;
+		GameContext.InputService.ActiveDropItemCharges = Math.Max(1, charges);
+		ActiveCommandTargeting = DropItemTargetingMode;
+		Input.SetDefaultCursorShape(Input.CursorShape.PointingHand);
+
+		if (GameContext.InGameHud == null) return;
+
+		string itemName = itemId.ToUpper();
+		if (ItemRegistry.TryGetValue(itemId, out var itemMeta) && !string.IsNullOrEmpty(itemMeta.Name)) itemName = MapText.TranslateName(itemMeta.Name);
+
+		Hud.ShowFeedbackText(
+			string.Format(TranslationServer.Translate("Dropping {0}: click the ground to put it down"), itemName),
+			new Color(0.85f, 0.75f, 0.25f));
+	}
+
+	private bool IsFocusedUnitHoldingItemSoulbound(string itemId)
+	{
+		Unit3D? focusedUnit = GetFocusedSelectedUnit();
+		if (focusedUnit == null || !GodotObject.IsInstanceValid(focusedUnit)) return false;
+		if (!World.IsAlive(focusedUnit.Entity)) return false;
+		if (!World.TryGet<SoulboundItems>(focusedUnit.Entity, out SoulboundItems bound)) return false;
+
+		return bound.Contains(itemId);
 	}
 
 	public void IssueMoveCommand(Vector3 targetPos, bool isQueued = false)
@@ -82,11 +130,22 @@ public partial class GameHost
 		}
 	}
 
+	/// <summary>
+	///     Answers whether the player may order this unit. A unit the map drives itself is selectable and inspectable, so
+	///     its abilities and tooltips stay readable, but every order the player sends for it is refused by the authority.
+	/// </summary>
+	/// <param name="unit">The selected unit to test.</param>
+	/// <returns>True when the unit accepts the player's orders.</returns>
+	private static bool CanCommandUnit(Unit3D unit)
+	{
+		return GameContext.World == null || !GameContext.World.IsAlive(unit.Entity) || !GameContext.World.Has<PlayerOrdersLocked>(unit.Entity);
+	}
+
 	private void ViewCollectMoveCommandTargets(List<Entity> selectedEntities, List<int> targetIds)
 	{
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player)) continue;
+			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player) || !CanCommandUnit(unit)) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
@@ -106,6 +165,18 @@ public partial class GameHost
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		if (SelectedUnits.Count == 0) return;
 
+		// The attack command reads what it was pointed at instead of always striking it: an allied building that still
+		// needs raising or mending is work for the units that carry a repair rate, and a resource node is gathered. One
+		// command therefore answers the same click the way the player means it, without a separate tool for each action.
+		if (!GameContext.PerspectiveFilter.IsHostileToObserved(target.Player))
+		{
+			if (target.IsBuilding && HasSelectedRepairerFor(target))
+			{
+				IssueRepairCommand(target, isQueued);
+				return;
+			}
+		}
+
 		ViewShowAttackCommandFeedback(target);
 
 		var targetIds = new List<int>();
@@ -123,7 +194,12 @@ public partial class GameHost
 
 		if (GameContext.InGameHud != null)
 		{
-			Hud.ShowFeedbackText($"Command: Attack {target.UnitId.ToUpper()}", new Color(0.9f, 0.2f, 0.2f));
+			// The unit the order names is shown by the name the map gave it, not by its template identifier: a player
+			// who right-clicks a camp reads "Crest Boar", never "UNIT/CREST_BOAR".
+			string targetName = GameHost.TryGetUnitOrBuildingMetadata(target.TemplateID, out UnitMetadata? targetMetadata) && !string.IsNullOrEmpty(targetMetadata.Name)
+				? targetMetadata.Name
+				: target.UnitId;
+			Hud.ShowFeedbackText(string.Format(TranslationServer.Translate("Command: Attack {0}"), targetName), new Color(0.9f, 0.2f, 0.2f));
 		}
 	}
 
@@ -131,7 +207,7 @@ public partial class GameHost
 	{
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player)) continue;
+			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player) || !CanCommandUnit(unit)) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
@@ -172,7 +248,7 @@ public partial class GameHost
 	{
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player) || unit.Entity == target.Entity) continue;
+			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player) || unit.Entity == target.Entity || !CanCommandUnit(unit)) continue;
 			selectedEntities.Add(unit.Entity);
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
@@ -213,6 +289,14 @@ public partial class GameHost
 		}
 
 		int index = GameContext.InputService.CycleSelectionFocus(GameContext.Simulation.WorldEntity, unitIds, reverse);
+		FocusSelectionUnit(index);
+	}
+
+	private void FocusSelectionUnit(int index)
+	{
+		if (index < 0 || index >= SelectedUnits.Count) return;
+
+		CycleSelectionIndex = index;
 		var focusUnit = SelectedUnits[index];
 
 		var camera = GetViewport().GetCamera3D();
@@ -236,7 +320,7 @@ public partial class GameHost
 
 		var camera = GetViewport().GetCamera3D();
 		if (camera != null)
-			camera.GlobalPosition = new Vector3(building.GlobalPosition.X, camera.GlobalPosition.Y, building.GlobalPosition.Z);
+			CenterCameraAt(building.GlobalPosition);
 		SelectOnlyUnit(building);
 		GameContext.InGameHud?.ShowFeedbackText($"Jumped to: {building.UnitId.ToUpper()}", new Color(0.9f, 0.8f, 0.3f));
 	}
@@ -248,50 +332,105 @@ public partial class GameHost
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
+	private enum SelectionRecallKind : byte
+	{
+		Idle,
+		Army
+	}
+
+	private struct SelectionRecallMemory
+	{
+		public ulong Signature;
+		public bool HasSelection;
+		public bool HasFocused;
+	}
+
+	private SelectionRecallMemory _idleSelectionRecall;
+	private SelectionRecallMemory _armySelectionRecall;
+
 	public void SelectAllIdleUnits()
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		ClearSelection();
 		var entities = GameContext.InputService.GetIdleUnitEntities(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex));
-		int selectedCount = 0;
-		foreach (var ent in entities)
-		{
-			var unit = AllUnits.Find(u => u.Entity == ent);
-			if (unit != null)
-			{
-				SelectUnit(unit);
-				selectedCount++;
-			}
-		}
-
-		GameContext.InGameHud?.RefreshUI(SelectedUnits);
-		if (GameContext.InGameHud != null)
-		{
-			Hud.ShowFeedbackText($"Selected {selectedCount} Idle Units", new Color(0.5f, 1.0f, 0.5f));
-		}
+		SelectAllRecalledUnits(SelectionRecallKind.Idle, entities);
 	}
 
 	public void SelectAllMilitaryUnits()
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
-		ClearSelection();
 		var entities = GameContext.InputService.GetMilitaryUnitEntities(GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex));
+		SelectAllRecalledUnits(SelectionRecallKind.Army, entities);
+	}
+
+	private void SelectAllRecalledUnits(SelectionRecallKind kind, List<Entity> entities)
+	{
+		int previousFocusIndex = CycleSelectionIndex;
+		ref SelectionRecallMemory recall = ref _idleSelectionRecall;
+		if (kind == SelectionRecallKind.Army) recall = ref _armySelectionRecall;
+
+		ClearSelection();
 		int selectedCount = 0;
 		foreach (var ent in entities)
 		{
 			var unit = AllUnits.Find(u => u.Entity == ent);
-			if (unit != null)
-			{
-				SelectUnit(unit);
-				selectedCount++;
-			}
+			if (unit == null) continue;
+
+			SelectUnit(unit);
+			selectedCount++;
 		}
 
+		ulong signature = ComputeSelectionSignature(SelectedUnits);
+		bool sameSelection = recall.HasSelection && recall.Signature == signature;
+		bool shouldFocusFirst = recall.HasSelection && (!sameSelection || !recall.HasFocused);
+		bool shouldCycle = recall.HasSelection && sameSelection && recall.HasFocused;
+
+		recall.Signature = signature;
+		recall.HasSelection = true;
+		recall.HasFocused = selectedCount > 0 && (shouldFocusFirst || shouldCycle);
+
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
-		if (GameContext.InGameHud != null)
+
+		if (selectedCount == 0)
 		{
-			Hud.ShowFeedbackText($"Selected All Army ({selectedCount} Units)", new Color(0.5f, 1.0f, 0.5f));
+			string emptyMessage = kind == SelectionRecallKind.Idle
+				? "Selected 0 Idle Units"
+				: "Selected All Army (0 Units)";
+			GameContext.InGameHud?.ShowFeedbackText(emptyMessage, new Color(0.5f, 1.0f, 0.5f));
+			return;
 		}
+
+		if (shouldFocusFirst || shouldCycle)
+		{
+			if (shouldCycle && selectedCount > 1)
+			{
+				CycleSelectionIndex = Math.Clamp(previousFocusIndex, 0, selectedCount - 1);
+				CycleSelectionFocus();
+				return;
+			}
+
+			FocusSelectionUnit(0);
+			return;
+		}
+
+		string selectedMessage = kind == SelectionRecallKind.Idle
+			? $"Selected {selectedCount} Idle Units"
+			: $"Selected All Army ({selectedCount} Units)";
+		GameContext.InGameHud?.ShowFeedbackText(selectedMessage, new Color(0.5f, 1.0f, 0.5f));
+	}
+
+	private static ulong ComputeSelectionSignature(List<Unit3D> units)
+	{
+		const ulong offset = 14695981039346656037UL;
+		const ulong prime = 1099511628211UL;
+		ulong signature = offset;
+		for (int index = 0; index < units.Count; index++)
+		{
+			signature ^= (ulong)units[index].Entity.Id;
+			signature *= prime;
+		}
+
+		signature ^= (ulong)units.Count;
+		return signature;
 	}
 
 	private void PerformDoubleClickSelection(Vector2 clickPos)
@@ -333,6 +472,38 @@ public partial class GameHost
 		GameContext.InGameHud?.ShowFeedbackText($"Selected {visibleUnits.Count} {type.ToUpper()}(s)", new Color(0.5f, 1.0f, 0.5f));
 	}
 
+	/// <summary>
+	///     Puts a world point at the centre of the screen without changing the camera's pitch or zoom. The camera keeps
+	///     its height and steps back along the axis it looks down, which is what places the point in the middle of the
+	///     frustum; moving the camera to the point itself, or a fixed number of units south of it, leaves it near an edge.
+	/// </summary>
+	/// <param name="worldPosition">The point that should be centred.</param>
+	private void CenterCameraAt(Vector3 worldPosition)
+	{
+		// One focus rule for every caller. The camera's own FocusOnPosition is what the rest of the game uses, and it
+		// keeps the zoom the player set; computing a second placement here from the camera's current forward used the
+		// pitch swing as well as the pitch, so a recall could centre on a point the camera was not yet looking down at.
+		if (MainCamera is CameraControl cameraControl)
+		{
+			cameraControl.FocusOnPosition(worldPosition);
+			return;
+		}
+
+		var camera = GetViewport().GetCamera3D();
+		if (camera == null) return;
+
+		Vector3 forward = -camera.GlobalTransform.Basis.Z;
+		float cameraHeight = camera.GlobalPosition.Y;
+		if (forward.Y > -0.01f)
+		{
+			camera.GlobalPosition = new Vector3(worldPosition.X, cameraHeight, worldPosition.Z);
+			return;
+		}
+
+		float distance = (cameraHeight - worldPosition.Y) / -forward.Y;
+		camera.GlobalPosition = worldPosition - forward * distance;
+	}
+
 	public void CenterCameraOnPrimaryBuilding()
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
@@ -354,11 +525,7 @@ public partial class GameHost
 		var target = primaryBuilding ?? anyOwnedBuilding;
 		if (target != null)
 		{
-			var camera = GetViewport().GetCamera3D();
-			if (camera != null)
-			{
-				camera.GlobalPosition = new Vector3(target.GlobalPosition.X, target.GlobalPosition.Y, target.GlobalPosition.Z + 25f);
-			}
+			CenterCameraAt(target.GlobalPosition);
 		}
 	}
 
@@ -366,12 +533,7 @@ public partial class GameHost
 	{
 		if (SelectedUnits.Count > 0)
 		{
-			var unit = SelectedUnits[0];
-			var camera = GetViewport().GetCamera3D();
-			if (camera != null)
-			{
-				camera.GlobalPosition = new Vector3(unit.GlobalPosition.X, unit.GlobalPosition.Y, unit.GlobalPosition.Z + 25f);
-			}
+			CenterCameraAt(SelectedUnits[0].GlobalPosition);
 		}
 		else
 		{
@@ -529,12 +691,7 @@ public partial class GameHost
 				sumPos += u.GlobalPosition;
 			}
 
-			Vector3 avgPos = sumPos / group.Count;
-			var camera = GetViewport().GetCamera3D();
-			if (camera != null)
-			{
-				camera.GlobalPosition = new Vector3(avgPos.X, camera.GlobalPosition.Y, avgPos.Z + 25f);
-			}
+			CenterCameraAt(sumPos / group.Count);
 		}
 
 		_lastGroupPressTime[index] = now;

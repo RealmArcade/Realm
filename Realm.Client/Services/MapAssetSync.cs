@@ -54,6 +54,23 @@ public static class MapAssetSync
 		return metadata.Templates.Buildings?.Any(b => string.Equals(unitId, b.TemplateID, StringComparison.OrdinalIgnoreCase)) ?? false;
 	}
 
+	public static bool IsValidItemObjectId(string itemId, string? mapDirectory = null)
+	{
+		if (string.IsNullOrWhiteSpace(itemId)) return false;
+
+		if (GameContext.RegistryService?.ItemRegistry.ContainsKey(itemId) == true) return true;
+
+		return HasItemMetadata(itemId, mapDirectory);
+	}
+
+	private static bool HasItemMetadata(string itemId, string? mapDirectory)
+	{
+		string targetDir = !string.IsNullOrEmpty(mapDirectory) ? mapDirectory : MapWorkspaceService.GetActiveWorkspacePath();
+		if (!GameContext.MetadataService.TryLoadMetadata(targetDir, out var metadata) || metadata.Templates == null) return false;
+
+		return metadata.Templates.Items?.Any(i => string.Equals(itemId, i.TemplateID, StringComparison.OrdinalIgnoreCase)) ?? false;
+	}
+
 	private static readonly Dictionary<string, string> CategorySubFolderMap = new(StringComparer.OrdinalIgnoreCase)
 	{
 		{ "character", "models/units" },

@@ -35,6 +35,7 @@ public partial class MultiplayerSimulationHarness : Node
 	}
 
 	private string _role = "host";
+	private string _faction = "Vale";
 	private bool _roleLocked;
 	private string _hostAddress = "127.0.0.1";
 	private int _port = 8999;
@@ -85,6 +86,7 @@ public partial class MultiplayerSimulationHarness : Node
 			{
 				"host" => await RunHostAsync(),
 				"testmap" => await RunTestMapAsync(),
+				"uxsmoke" => await RunUxSmokeAsync(),
 				"probe" => await RunProbeAsync(),
 				"editorreturn" => await RunEditorReturnLauncherAsync(),
 				"editorreturnwork" => await RunEditorReturnWorkAsync(),
@@ -192,10 +194,21 @@ public partial class MultiplayerSimulationHarness : Node
 				case "--probes":
 					_probesEnabled = value == "1";
 					break;
+				case "--faction":
+					_faction = NormaliseFaction(value);
+					break;
 			}
 		}
 
 		if (string.IsNullOrEmpty(_outputDirectory)) throw new InvalidOperationException("Missing --output argument.");
+	}
+
+	private static string NormaliseFaction(string faction)
+	{
+		if (string.Equals(faction, "Sable", StringComparison.OrdinalIgnoreCase)) return "Sable";
+		if (string.Equals(faction, "Vale", StringComparison.OrdinalIgnoreCase)) return "Vale";
+
+		throw new InvalidOperationException($"'{faction}' is not a hero faction this smoke run can play; name Vale or Sable.");
 	}
 
 	private float _abilityDumpAccumulator;
@@ -221,9 +234,14 @@ public partial class MultiplayerSimulationHarness : Node
 		if (peerId <= 0 || peerId == _recordedClientPeerId) return;
 
 		_recordedClientPeerId = peerId;
+		// The id travels beside the records it names, so the host screen's own id lands in the directory the host screen
+		// writes its client records into rather than in the client's. Sharing one file put both ids in the client's, and a
+		// baseline the authority published to the host screen was then read as one the client should have applied.
+		string peerIdDirectory = _role == "host" ? Path.Combine(_outputDirectory, "host") : _outputDirectory;
 		try
 		{
-			File.AppendAllText(Path.Combine(_outputDirectory, "client_peer_id.txt"), peerId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n");
+			Directory.CreateDirectory(peerIdDirectory);
+			File.AppendAllText(Path.Combine(peerIdDirectory, "client_peer_id.txt"), peerId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n");
 		}
 		catch (IOException)
 		{

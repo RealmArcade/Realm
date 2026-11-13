@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -10,7 +11,9 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Stats;
+using Realm.Shared.Abilities;
 using Realm.Shared.Metadata;
 
 namespace Realm.Client.UI.InGame;
@@ -30,12 +33,19 @@ public class UnitStatsPanel
 	private const int SectionSpacing = 4;
 	private const int SectionSeparation = 1;
 	private const int RowSeparation = 4;
-	private const int ColumnSeparation = 10;
-	private const int RowsPerColumn = 6;
+	private const int CategoryIconSize = 30;
+	private const int CategoryIconFontSize = 18;
+	private const int PopupWidth = 250;
+	private const int PopupPadding = 12;
+	private const float PopupCloseDelaySeconds = 0.18f;
+	private const float PopupIconGap = 6f;
 	private const float HeaderTitleMinimumWidth = 80f;
 	private const float StripIconSize = 22f;
 	private const ulong SignatureSeed = 1469598103934665603UL;
 	private const ulong SignaturePrime = 1099511628211UL;
+
+	private const string SoldierCapacityKey = "production.soldier_capacity";
+	private const string WorkerCapacityKey = "production.worker_capacity";
 
 	private static readonly StatId StrengthStat = new(AttributeType.Strength);
 	private static readonly StatId AgilityStat = new(AttributeType.Agility);
@@ -60,15 +70,20 @@ public class UnitStatsPanel
 	private static readonly StatId FlatMagicPenetrationStat = new(CombatStatType.FlatMagicPenetration);
 	private static readonly StatId PercentMagicPenetrationStat = new(CombatStatType.PercentMagicPenetration);
 	private static readonly StatId AttackDelayStat = new(StatKeys.AttackDelay);
+	private static readonly StatId BountyMultiplierStat = new(StatKeys.BountyMultiplier);
 
 	private readonly VBoxContainer _root;
 	private readonly Label _messageLabel;
 	private readonly VBoxContainer _content;
-	private readonly HFlowContainer _columns;
-	private readonly List<StatRow> _orderedRows = new();
+	private readonly HBoxContainer _categoryStrip;
+	private readonly List<StatCategory> _categories = new();
+	private readonly List<StatRow> _popupAttachedRows = new();
+	private readonly PopupPanel _categoryPopup;
+	private readonly Timer _popupCloseDelay;
+	private readonly VBoxContainer _popupRows;
+	private readonly Label _popupTitle;
 	private readonly VBoxContainer _footer;
 	private readonly Label _stateLabel;
-	private readonly Label _descriptionLabel;
 	private readonly StatRow _strengthRow;
 	private readonly StatRow _agilityRow;
 	private readonly StatRow _vitalityRow;
@@ -77,11 +92,13 @@ public class UnitStatsPanel
 	private readonly StatRow _fortuneRow;
 	private readonly StatRow _experienceRow;
 	private readonly StatRow _levelRow;
+	private readonly StatRow _goldBountyRow;
+	private readonly StatRow _experienceBountyRow;
 	private readonly StatRow _attackDamageRow;
-	private readonly StatRow _damagePerSecondRow;
 	private readonly StatRow _attackRangeRow;
 	private readonly StatRow _attackSpeedRow;
 	private readonly StatRow _moveSpeedRow;
+	private readonly StatRow _resourcesRow;
 	private readonly StatRow _armorRow;
 	private readonly StatRow _magicResistanceRow;
 	private readonly StatRow _armorPenetrationRow;
@@ -93,19 +110,25 @@ public class UnitStatsPanel
 	private readonly StatRow _cooldownReductionRow;
 	private readonly StatRow _tenacityRow;
 	private readonly StatRow _damageTypeRow;
-	private readonly VBoxContainer _readingsSection;
-	private readonly List<ReadingRowControl> _readingRows = new();
-	private readonly HBoxContainer _statusEffectsStrip;
-	private readonly VBoxContainer _statusEffectsSection;
+	private readonly HBoxContainer _buffsStrip;
+	private readonly VBoxContainer _buffsSection;
 	private readonly HBoxContainer _upgradesStrip;
 	private readonly VBoxContainer _upgradesSection;
+	private readonly VBoxContainer _capacitySection;
+	private readonly StatRow _soldierCapacityRow;
+	private readonly StatRow _workerCapacityRow;
 
-	private readonly List<string> _statusEffectIds = new();
-	private int _lastColumnLayoutMask = -1;
+	private readonly List<string> _buffIds = new();
+	private readonly StringBuilder _groundItemSheet = new(256);
+	private string _lastGroundItemId = string.Empty;
+	private int _lastGroundItemCharges = -1;
+	private int _lastGroundItemSecondsRemaining = -1;
+	private bool _lastGroundItemAutomaticPickup;
+	private bool _showingGroundItemSheet;
+	private StatCategory? _popupCategory;
 	private ulong _lastSignature;
-	private ulong _lastStatusEffectsSignature;
+	private ulong _lastBuffsSignature;
 	private ulong _lastUpgradesSignature;
-	private ulong _lastReadingsSignature;
 
 	public UnitStatsPanel()
 	{
@@ -132,13 +155,60 @@ public class UnitStatsPanel
 		_content.AddThemeConstantOverride("separation", SectionSpacing);
 		_root.AddChild(_content);
 
-		_columns = new HFlowContainer();
-		_columns.Name = "UnitStatsColumns_HFlowContainer";
-		_columns.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_columns.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
-		_columns.AddThemeConstantOverride("h_separation", ColumnSeparation);
-		_columns.AddThemeConstantOverride("v_separation", SectionSpacing);
-		_content.AddChild(_columns);
+		// The panel lists what a player checks at a glance as one icon per category rather than every stat at once: the
+		// rows themselves live in the popup a category opens on hover, so the frame stays a short strip instead of a wall
+		// of labels. Buffs and upgrades below keep their own sections because they are the map's own statements about the
+		// unit rather than the engine's generic stat sheet.
+		var statsSection = new VBoxContainer();
+		statsSection.Name = "UnitStatsCategories_VBoxContainer";
+		statsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		statsSection.AddThemeConstantOverride("separation", SectionSeparation);
+		_content.AddChild(statsSection);
+		AddSectionHeader(statsSection, UnicodeIcons.TABLE, TranslationServer.Translate("Stats"));
+
+		_categoryStrip = new HBoxContainer();
+		_categoryStrip.Name = "UnitStatsCategories_HBoxContainer";
+		_categoryStrip.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_categoryStrip.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
+		_categoryStrip.AddThemeConstantOverride("separation", RowSeparation);
+		statsSection.AddChild(_categoryStrip);
+
+		_categoryPopup = new PopupPanel();
+		_categoryPopup.Name = "UnitStatsCategoryPopup_PopupPanel";
+		_categoryPopup.AddThemeStyleboxOverride("panel", CreatePopupStyle());
+		_root.AddChild(_categoryPopup);
+		_root.VisibilityChanged += HideCategoryPopupWhenHidden;
+
+		// Moving from an icon into its popup crosses a small gap, so the close is delayed by a moment and cancelled when
+		// the pointer arrives; a row's own tooltip stays readable instead of vanishing the instant the icon is left.
+		_popupCloseDelay = new Timer();
+		_popupCloseDelay.Name = "UnitStatsCategoryPopupCloseTimer";
+		_popupCloseDelay.OneShot = true;
+		_popupCloseDelay.WaitTime = PopupCloseDelaySeconds;
+		_popupCloseDelay.Timeout += HideCategoryPopup;
+		_root.AddChild(_popupCloseDelay);
+
+		var popupMargin = new MarginContainer();
+		popupMargin.Name = "UnitStatsCategoryPopupMargin_MarginContainer";
+		popupMargin.AddThemeConstantOverride("margin_left", PopupPadding);
+		popupMargin.AddThemeConstantOverride("margin_right", PopupPadding);
+		popupMargin.AddThemeConstantOverride("margin_top", PopupPadding);
+		popupMargin.AddThemeConstantOverride("margin_bottom", PopupPadding);
+		popupMargin.MouseEntered += CancelCategoryPopupClose;
+		popupMargin.MouseExited += ScheduleCategoryPopupClose;
+		_categoryPopup.AddChild(popupMargin);
+
+		_popupRows = new VBoxContainer();
+		_popupRows.Name = "UnitStatsCategoryPopupRows_VBoxContainer";
+		_popupRows.AddThemeConstantOverride("separation", SectionSeparation);
+		popupMargin.AddChild(_popupRows);
+
+		_popupTitle = new Label();
+		_popupTitle.Name = "UnitStatsCategoryPopupTitle_Label";
+		_popupTitle.CustomMinimumSize = new Vector2(PopupWidth - PopupPadding * 2, 0f);
+		_popupTitle.AddThemeFontSizeOverride("font_size", HeaderFontSize + 1);
+		_popupTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
+		_popupRows.AddChild(_popupTitle);
 
 		_strengthRow = AddStatRow(UnicodeIcons.HAND_FIST, "Strength", AttributeTooltip(AttributeType.Strength));
 		_agilityRow = AddStatRow(UnicodeIcons.WIND, "Agility", AttributeTooltip(AttributeType.Agility));
@@ -149,9 +219,12 @@ public class UnitStatsPanel
 
 		_experienceRow = AddStatRow(UnicodeIcons.STAR, "Experience", "Experience this unit has accumulated toward its next level.");
 		_levelRow = AddStatRow(UnicodeIcons.STAIRS, "Level", "Level this unit has reached.");
+		_goldBountyRow = AddStatRow(UnicodeIcons.COINS, TranslationServer.Translate("Gold Bounty"),
+			TranslationServer.Translate("Gold this unit pays to whoever lands the killing blow, scaled by its level."));
+		_experienceBountyRow = AddStatRow(UnicodeIcons.TROPHY, TranslationServer.Translate("Experience Bounty"),
+			TranslationServer.Translate("Experience this unit pays toward the killer's hero, scaled by its level."));
 
 		_attackDamageRow = AddStatRow(UnicodeIcons.BURST, "Attack Damage", "Damage this unit deals with one attack, including the bonus from its Strength.");
-		_damagePerSecondRow = AddStatRow(UnicodeIcons.EXPLOSION, "Damage Per Second", "Damage this unit deals per second while attacking continuously.");
 		_attackRangeRow = AddStatRow(UnicodeIcons.CROSSHAIRS, "Attack Range", "Distance at which this unit can attack.");
 		_attackSpeedRow = AddStatRow(UnicodeIcons.GAUGE, "Attack Speed", "Attacks this unit makes per second, including the haste from its Agility.");
 		_moveSpeedRow = AddStatRow(UnicodeIcons.SHOE_PRINTS, "Move Speed", "Distance this unit covers per second.");
@@ -163,10 +236,21 @@ public class UnitStatsPanel
 		_spellPowerRow = AddStatRow(UnicodeIcons.WAND_MAGIC, "Spell Power", "Ability damage multiplier.");
 		_lifeStealRow = AddStatRow(UnicodeIcons.HAND_MEDICAL, "Life Steal", "Share of the damage dealt that is returned to this unit as health.");
 		_cooldownReductionRow = AddStatRow(UnicodeIcons.HOURGLASS_HALF, "Cooldown Reduction", "Share of an ability's cooldown that is removed.");
-		_armorRow = AddStatRow(UnicodeIcons.SHIELD, "Armor", "Armor points that reduce incoming physical damage.");
-		_magicResistanceRow = AddStatRow(UnicodeIcons.WIZARD_HAT, "Magic Resistance", "Magic resistance points that reduce incoming magic damage.");
+		_armorRow = AddStatRow(UnicodeIcons.SHIELD, TranslationServer.Translate("Armor"), "Armor points that reduce incoming physical damage.");
+		_magicResistanceRow = AddStatRow(UnicodeIcons.WIZARD_HAT, TranslationServer.Translate("Magic Resistance"), "Magic resistance points that reduce incoming magic damage.");
 		_evasionRow = AddStatRow(UnicodeIcons.FEATHER_POINTED, "Evasion", "Chance to avoid an incoming attack entirely.");
 		_tenacityRow = AddStatRow(UnicodeIcons.SHIELD_HEART, "Tenacity", "Share of an incoming crowd-control effect's duration that is resisted.");
+		_resourcesRow = AddStatRow(UnicodeIcons.MOUNTAIN, TranslationServer.Translate("Resources"),
+			TranslationServer.Translate("Resource still standing in this node. A worker takes away what one of its hits deals after the node's resistances."));
+
+		RegisterCategory(UnicodeIcons.STAR, "General",
+			_resourcesRow, _levelRow, _experienceRow, _goldBountyRow, _experienceBountyRow, _lifeStealRow, _cooldownReductionRow, _moveSpeedRow, _damageTypeRow);
+		RegisterCategory(UnicodeIcons.HAND_FIST, "Attributes",
+			_strengthRow, _agilityRow, _vitalityRow, _intelligenceRow, _wisdomRow, _fortuneRow);
+		RegisterCategory(UnicodeIcons.BURST, "Offense",
+			_attackDamageRow, _attackRangeRow, _attackSpeedRow, _criticalHitRow, _armorPenetrationRow, _spellPowerRow, _magicPenetrationRow);
+		RegisterCategory(UnicodeIcons.SHIELD, "Defense",
+			_armorRow, _magicResistanceRow, _evasionRow, _tenacityRow);
 
 		_footer = new VBoxContainer();
 		_footer.Name = "UnitStatsFooter_VBoxContainer";
@@ -175,29 +259,39 @@ public class UnitStatsPanel
 		_footer.AddThemeConstantOverride("separation", SectionSpacing);
 		_content.AddChild(_footer);
 
-		_readingsSection = new VBoxContainer();
-		_readingsSection.Name = "UnitStatsReadings_VBoxContainer";
-		_readingsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_readingsSection.AddThemeConstantOverride("separation", SectionSeparation);
-		_readingsSection.Visible = false;
-		_footer.AddChild(_readingsSection);
-		AddSectionHeader(_readingsSection, UnicodeIcons.LIST, "Readings");
+		// A building that fields units from auto-cast abilities has no queue to show, so what it maintains is stated here
+		// instead: the reading is the map's own count against the capacity that building contributes, and a building whose
+		// map publishes neither reading draws no section at all.
+		_capacitySection = new VBoxContainer();
+		_capacitySection.Name = "UnitStatsCapacity_VBoxContainer";
+		_capacitySection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_capacitySection.AddThemeConstantOverride("separation", SectionSeparation);
+		_footer.AddChild(_capacitySection);
+		AddSectionHeader(_capacitySection, UnicodeIcons.USERS, TranslationServer.Translate("Capacity"));
 
-		_statusEffectsSection = new VBoxContainer();
-		_statusEffectsSection.Name = "UnitStatsStatusEffects_VBoxContainer";
-		_statusEffectsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_statusEffectsSection.AddThemeConstantOverride("separation", SectionSeparation);
-		_footer.AddChild(_statusEffectsSection);
-		AddSectionHeader(_statusEffectsSection, UnicodeIcons.CIRCLE_EXCLAMATION, "Status Effects");
-		_statusEffectsStrip = CreateIconStrip("UnitStatsStatusEffects_HBoxContainer");
-		_statusEffectsSection.AddChild(_statusEffectsStrip);
+		_soldierCapacityRow = AddStatRow(UnicodeIcons.USERS, "Soldiers", "Soldiers this building maintains against the capacity it contributes.");
+		_workerCapacityRow = AddStatRow(UnicodeIcons.WRENCH, "Workers", "Workers this building maintains against the worker capacity it contributes.");
+		_soldierCapacityRow.Root.Visible = false;
+		_workerCapacityRow.Root.Visible = false;
+		_capacitySection.Visible = false;
+		_capacitySection.AddChild(_soldierCapacityRow.Root);
+		_capacitySection.AddChild(_workerCapacityRow.Root);
+
+		_buffsSection = new VBoxContainer();
+		_buffsSection.Name = "UnitStatsBuffs_VBoxContainer";
+		_buffsSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		_buffsSection.AddThemeConstantOverride("separation", SectionSeparation);
+		_footer.AddChild(_buffsSection);
+		AddSectionHeader(_buffsSection, UnicodeIcons.HEART_PULSE, TranslationServer.Translate("Buffs"));
+		_buffsStrip = CreateIconStrip("UnitStatsBuffs_HBoxContainer");
+		_buffsSection.AddChild(_buffsStrip);
 
 		_upgradesSection = new VBoxContainer();
 		_upgradesSection.Name = "UnitStatsUpgrades_VBoxContainer";
 		_upgradesSection.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		_upgradesSection.AddThemeConstantOverride("separation", SectionSeparation);
 		_footer.AddChild(_upgradesSection);
-		AddSectionHeader(_upgradesSection, UnicodeIcons.CIRCLE_ARROW_UP, "Upgrades");
+		AddSectionHeader(_upgradesSection, UnicodeIcons.CIRCLE_ARROW_UP, TranslationServer.Translate("Upgrades"));
 		_upgradesStrip = CreateIconStrip("UnitStatsUpgrades_HBoxContainer");
 		_upgradesSection.AddChild(_upgradesStrip);
 
@@ -210,25 +304,217 @@ public class UnitStatsPanel
 		_stateLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		_footer.AddChild(_stateLabel);
 
-		_descriptionLabel = new Label();
-		_descriptionLabel.Name = "UnitStatsDescription_Label";
-		_descriptionLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		_descriptionLabel.CustomMinimumSize = new Vector2(280f, 0f);
-		_descriptionLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-		_descriptionLabel.AddThemeFontSizeOverride("font_size", ValueFontSize);
-		_descriptionLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_footer.AddChild(_descriptionLabel);
-
 		ShowMessage(string.Empty);
 	}
 
 	public VBoxContainer Root => _root;
 
+	public void DismissCategoryPopup()
+	{
+		HideCategoryPopup();
+	}
+
 	public void ShowMessage(string message)
 	{
+		_showingGroundItemSheet = false;
 		_messageLabel.Text = message;
 		_messageLabel.Visible = !string.IsNullOrEmpty(message);
 		_content.Visible = string.IsNullOrEmpty(message);
+		if (_content.Visible == false) HideCategoryPopup();
+	}
+
+	/// <summary>
+	///     Writes the readings of a placed resource node: what it is worth, what is left of it, and the resistances that
+	///     decide how much of a worker's hit it keeps. A node carries the same health and resistance components a unit
+	///     does, so the panel reads it the same way rather than through a second sheet.
+	/// </summary>
+	/// <param name="entity">The placed prop entity of the node.</param>
+	public void UpdateResourceNode(Entity entity)
+	{
+		var world = GameContext.World;
+		if (world == null || !world.IsAlive(entity) || !world.Has<ResourceNode>(entity))
+		{
+			ShowMessage(string.Empty);
+			return;
+		}
+
+		world.TryGet(entity, out Health health);
+		world.TryGet(entity, out Resistances resistances);
+
+		_messageLabel.Text = string.Empty;
+		_messageLabel.Visible = false;
+		_content.Visible = true;
+		_lastSignature = 0;
+
+		_resourcesRow.SetValue($"{health.Current:F0} / {health.Max:F0}");
+		_armorRow.SetValue(FormatAmount(resistances.Physical));
+		_magicResistanceRow.SetValue(FormatAmount(resistances.Magic));
+
+		ApplyRowVisibility(false, false, false, false, false, false, true);
+
+		_stateLabel.Text = string.Empty;
+		_stateLabel.Visible = false;
+		_buffsStrip.Visible = false;
+		_buffsSection.Visible = false;
+		_upgradesStrip.Visible = false;
+		_upgradesSection.Visible = false;
+		_capacitySection.Visible = false;
+	}
+
+	/// <summary>
+	///     Writes the sheet of a ground item: how many pieces of it lie there, what its template states it is, what
+	///     carrying a piece grants, and how long it has left before it goes. A drop is not a unit, so its readings come
+	///     from the replicated <see cref="Realm.Ecs.Components.Core.GroundLoot" /> state and its template rather than from
+	///     the stat rows a unit fills in.
+	/// </summary>
+	/// <param name="lootItem">The drop the local player selected.</param>
+	public void UpdateGroundItem(LootItem3D lootItem)
+	{
+		int charges = lootItem.Charges;
+		float lifetime = lootItem.Lifetime;
+		float remainingLifetime = lootItem.RemainingLifetime;
+		bool automaticPickup = lootItem.AutoPickup;
+
+		var world = GameContext.World;
+		if (world != null && lootItem.Entity != Entity.Null && world.IsAlive(lootItem.Entity)
+		    && world.TryGet(lootItem.Entity, out GroundLoot groundLoot))
+		{
+			charges = groundLoot.Charges;
+			lifetime = groundLoot.Lifetime;
+			remainingLifetime = groundLoot.RemainingLifetime;
+			automaticPickup = groundLoot.AutoPickup;
+		}
+
+		int secondsRemaining = lifetime > 0f ? Mathf.Max(0, Mathf.CeilToInt(remainingLifetime)) : -1;
+		bool sheetChanged = !string.Equals(_lastGroundItemId, lootItem.ItemTypeId, StringComparison.Ordinal)
+		                    || _lastGroundItemCharges != charges
+		                    || _lastGroundItemSecondsRemaining != secondsRemaining
+		                    || _lastGroundItemAutomaticPickup != automaticPickup;
+		if (_showingGroundItemSheet && !sheetChanged) return;
+
+		_lastGroundItemId = lootItem.ItemTypeId;
+		_lastGroundItemCharges = charges;
+		_lastGroundItemSecondsRemaining = secondsRemaining;
+		_lastGroundItemAutomaticPickup = automaticPickup;
+
+		ItemMetadata? metadata = null;
+		GameContext.RegistryService?.ItemRegistry.TryGetValue(lootItem.ItemTypeId, out metadata);
+
+		var sheet = _groundItemSheet;
+		sheet.Clear();
+
+		if (metadata != null && !string.IsNullOrEmpty(metadata.ItemClass))
+		{
+			sheet.Append(TranslationServer.Translate("ITEM CLASS"));
+			sheet.Append(": ");
+			sheet.Append(metadata.ItemClass.ToUpperInvariant());
+			sheet.Append('\n');
+		}
+
+		sheet.Append(TranslationServer.Translate("ON THE GROUND"));
+		sheet.Append(": ");
+		sheet.Append(charges.ToString(CultureInfo.InvariantCulture));
+
+		if (metadata != null && metadata.MaxStacks > 1)
+		{
+			sheet.Append("   ");
+			sheet.Append(TranslationServer.Translate("PER SLOT"));
+			sheet.Append(": ");
+			sheet.Append(metadata.MaxStacks.ToString(CultureInfo.InvariantCulture));
+		}
+
+		if (metadata != null && metadata.ItemLevel > 0)
+		{
+			sheet.Append("   ");
+			sheet.Append(TranslationServer.Translate("LEVEL"));
+			sheet.Append(": ");
+			sheet.Append(metadata.ItemLevel.ToString(CultureInfo.InvariantCulture));
+		}
+
+		string description = MapText.Translate(metadata?.Description);
+		if (description.Length > 0)
+		{
+			sheet.Append('\n');
+			sheet.Append(description);
+		}
+
+		string statBlock = TooltipStatBlock.ForItem(metadata, charges);
+		if (statBlock.Length > 0)
+		{
+			sheet.Append('\n');
+			sheet.Append(statBlock);
+		}
+
+		AppendGrantedReferences(sheet, TranslationServer.Translate("GRANTS WEAPON"), metadata?.GrantedWeapons);
+		AppendGrantedReferences(sheet, TranslationServer.Translate("GRANTS ABILITY"), metadata?.GrantedAbilities);
+		AppendGrantedReferences(sheet, TranslationServer.Translate("GRANTS UPGRADE"), metadata?.GrantedUpgrades);
+
+		if (!string.IsNullOrWhiteSpace(metadata?.Requirements))
+		{
+			sheet.Append('\n');
+			sheet.Append(TranslationServer.Translate("REQUIRES"));
+			sheet.Append(": ");
+			sheet.Append(MapText.Translate(metadata.Requirements));
+		}
+
+		string pickupMode = automaticPickup
+			? TranslationServer.Translate("AUTOMATIC")
+			: TranslationServer.Translate("BY HAND");
+
+		sheet.Append('\n');
+		sheet.Append(TranslationServer.Translate("PICKUP"));
+		sheet.Append(": ");
+		sheet.Append(pickupMode);
+
+		if (secondsRemaining >= 0)
+		{
+			sheet.Append("   ");
+			sheet.Append(TranslationServer.Translate("DESPAWNS IN"));
+			sheet.Append(": ");
+			sheet.Append(secondsRemaining.ToString(CultureInfo.InvariantCulture));
+			sheet.Append('s');
+		}
+
+		ShowMessage(sheet.ToString());
+		_showingGroundItemSheet = true;
+	}
+
+	/// <summary>
+	///     Appends one line per identifier a template grants, naming each one the way its own template does so a drop
+	///     states what a player's unit will actually receive. An identifier the map no longer defines is skipped, which
+	///     keeps a stale entry from printing a raw path in the sheet.
+	/// </summary>
+	private static void AppendGrantedReferences(StringBuilder sheet, string label, string[]? identifiers)
+	{
+		if (identifiers == null) return;
+
+		for (int index = 0; index < identifiers.Length; index++)
+		{
+			string? displayName = GrantedReferenceName(identifiers[index]);
+			if (string.IsNullOrEmpty(displayName)) continue;
+
+			sheet.Append('\n');
+			sheet.Append(label);
+			sheet.Append(": ");
+			sheet.Append(displayName);
+		}
+	}
+
+	private static string? GrantedReferenceName(string? identifier)
+	{
+		if (string.IsNullOrWhiteSpace(identifier)) return null;
+
+		if (GameHost.WeaponRegistry.TryGetValue(identifier, out var weapon) && !string.IsNullOrEmpty(weapon.Name))
+			return MapText.TranslateName(weapon.Name);
+
+		AbilityDefinition? ability = GameContext.RegistryService?.GetAbilityDefinition(identifier);
+		if (ability != null && !string.IsNullOrEmpty(ability.DisplayName))
+			return MapText.TranslateName(ability.DisplayName);
+
+		if (GameHost.UpgradeRegistry.TryGetValue(identifier, out var upgrade) && !string.IsNullOrEmpty(upgrade.Name))
+			return MapText.TranslateName(upgrade.Name);
+
+		return null;
 	}
 
 	public void UpdateSingleSelection(SelectedUnitInfo info, bool forceRefresh)
@@ -256,11 +542,19 @@ public class UnitStatsPanel
 		string damageType = metadata != null && !string.IsNullOrEmpty(metadata.DamageType) ? metadata.DamageType : string.Empty;
 		float experiencePerLevel = metadata != null ? metadata.ExperiencePerLevel : 0f;
 
-		_statusEffectIds.Clear();
-		buffs.CopyKeys(_statusEffectIds);
+		_buffIds.Clear();
+		buffs.CopyKeys(_buffIds);
+
+		// Buff text is published beside the ECS state rather than inside it, so a description that moves (a bulwark
+		// counting a new soldier, for one) has to be refreshed before the stat signature short-circuits.
+		UpdateBuffStrip(entity, buffs);
+
+		// Capacity moves as the building fields units and loses them, and it is published rather than held in the ECS, so
+		// it is read on every refresh for the same reason the buff text is.
+		UpdateCapacityReadings(entity);
 
 		ulong signature = ComputeSignature(entity, stats, attributes, experience, level, attack, hasExperience, hasLevel, hasAttack,
-			damageType, experiencePerLevel, info.StateText, info.Description, info.Player, metadata);
+			damageType, experiencePerLevel, info.StateText, info.Player, metadata);
 		if (!forceRefresh && signature == _lastSignature)
 		{
 			return;
@@ -278,17 +572,28 @@ public class UnitStatsPanel
 		_experienceRow.SetValue(FormatExperience(experience.Current, level.Value, experiencePerLevel, hasLevel));
 		_levelRow.SetValue(level.Value.ToString(CultureInfo.InvariantCulture));
 
+		// A bounty is the template's own number raised by the unit's level, which is what the match pays when the unit
+		// dies: the multiplier is the one the authority published in its stats, so the panel states the price of the
+		// fight rather than the flat figure the template was authored with.
+		float bountyMultiplier = ReadStat(stats, BountyMultiplierStat);
+		if (bountyMultiplier <= 0f) bountyMultiplier = 1f;
+
+		bool statesBounty = info.Player <= 0;
+		float goldBounty = statesBounty ? MathF.Round((metadata != null ? metadata.GoldBounty : 0f) * bountyMultiplier) : 0f;
+		float experienceBounty = statesBounty ? (metadata != null ? metadata.XpBounty : 0f) * bountyMultiplier : 0f;
+
+		_goldBountyRow.SetValue(FormatBounty(goldBounty));
+		_experienceBountyRow.SetValue(FormatAmount(experienceBounty));
+
 		float attackDamage = ReadStat(stats, AttackStat);
 		_attackDamageRow.SetValue(FormatAmount(attackDamage));
 
 		float attackDelay = ReadStat(stats, AttackDelayStat);
 		float attacksPerSecond = attackDelay > 0f ? 1f / attackDelay : 0f;
 		_attackSpeedRow.SetValue(FormatAmount(attacksPerSecond));
-		_damagePerSecondRow.SetValue(FormatAmount(attackDamage * attacksPerSecond));
 		_attackRangeRow.SetValue(FormatAmount(attack.Range));
 
-		ApplyRowVisibility(hasExperience, hasLevel, hasAttack);
-		UpdateReadings(entity, forceRefresh);
+		ApplyRowVisibility(true, hasExperience, hasLevel, hasAttack, goldBounty > 0f, experienceBounty > 0f, true);
 
 		_moveSpeedRow.SetValue(FormatAmount(ReadStat(stats, MovementSpeedStat)));
 		_armorRow.SetValue(FormatAmount(ReadStat(stats, ArmorStat)));
@@ -308,18 +613,13 @@ public class UnitStatsPanel
 
 		ApplyText(_stateLabel, info.StateText);
 		_stateLabel.Visible = !string.IsNullOrEmpty(_stateLabel.Text);
-		string description = string.IsNullOrEmpty(info.Description)
-			? string.Empty
-			: TooltipTemplate.Resolve(TranslationServer.Translate(info.Description), TooltipContext.ForUnit(entity));
-		ApplyText(_descriptionLabel, description);
 
-		UpdateStatusEffectStrip();
 		UpdateUpgradeStrip(info, metadata);
 	}
 
 	private ulong ComputeSignature(Entity entity, in Stats stats, in UnitAttributes attributes,
 		in Experience experience, in Level level, in Attack attack, bool hasExperience, bool hasLevel, bool hasAttack,
-		string damageType, float experiencePerLevel, string? stateText, string? description, int playerIndex, UnitMetadata? metadata)
+		string damageType, float experiencePerLevel, string? stateText, int playerIndex, UnitMetadata? metadata)
 	{
 		ulong signature = SignatureSeed;
 		signature = Mix(signature, entity.Id);
@@ -354,14 +654,13 @@ public class UnitStatsPanel
 		signature = Mix(signature, ReadStat(stats, TenacityStat));
 		signature = Mix(signature, damageType);
 		signature = Mix(signature, stateText);
-		signature = Mix(signature, description);
 		signature = Mix(signature, playerIndex);
 		signature = Mix(signature, metadata?.TemplateID);
 		signature = Mix(signature, metadata?.Upgrades == null ? 0 : metadata.Upgrades.Length);
 
-		for (int index = 0; index < _statusEffectIds.Count; index++)
+		for (int index = 0; index < _buffIds.Count; index++)
 		{
-			signature = Mix(signature, _statusEffectIds[index]);
+			signature = Mix(signature, _buffIds[index]);
 		}
 
 		if (metadata?.Upgrades != null)
@@ -376,30 +675,88 @@ public class UnitStatsPanel
 		return signature;
 	}
 
-	private void UpdateStatusEffectStrip()
+	/// <summary>
+	///     Draws one icon per buff the unit carries. A map can publish what its buffs mean under the unit's own tooltip
+	///     keys, so the strip shows the map's words when it has them and a readable fallback when it does not; a timed
+	///     buff also states what is left of it.
+	/// </summary>
+	private void UpdateBuffStrip(Entity entity, in Buffs buffs)
 	{
+		TooltipValueStore? published = GameContext.RegistryService?.TooltipValues;
+		string owner = TooltipValueStore.UnitOwnerKey(entity);
+
 		ulong signature = SignatureSeed;
-		for (int index = 0; index < _statusEffectIds.Count; index++)
+		for (int index = 0; index < _buffIds.Count; index++)
 		{
-			signature = Mix(signature, _statusEffectIds[index]);
+			signature = Mix(signature, _buffIds[index]);
+			signature = Mix(signature, ReadBuffName(published, owner, _buffIds[index]));
+			signature = Mix(signature, ReadBuffDescription(published, owner, _buffIds[index]));
+			signature = Mix(signature, ReadBuffIcon(published, owner, _buffIds[index]));
+			signature = Mix(signature, buffs.GetDuration(index));
 		}
 
-		if (signature == _lastStatusEffectsSignature && _statusEffectsStrip.GetChildCount() > 0)
+		if (signature == _lastBuffsSignature && _buffsStrip.GetChildCount() > 0)
 		{
+			_buffsSection.Visible = true;
 			return;
 		}
 
-		_lastStatusEffectsSignature = signature;
-		ClearStrip(_statusEffectsStrip);
+		_lastBuffsSignature = signature;
+		ClearStrip(_buffsStrip);
 
-		for (int index = 0; index < _statusEffectIds.Count; index++)
+		for (int index = 0; index < _buffIds.Count; index++)
 		{
-			string statusEffectId = _statusEffectIds[index];
-			if (string.IsNullOrEmpty(statusEffectId)) continue;
-			_statusEffectsStrip.AddChild(CreateGlyphIcon(StatusEffectGlyph(statusEffectId), TranslationServer.Translate(ToDisplayName(statusEffectId))));
+			string buffId = _buffIds[index];
+			if (string.IsNullOrEmpty(buffId)) continue;
+
+			string name = ReadBuffName(published, owner, buffId);
+			string description = ReadBuffDescription(published, owner, buffId);
+			string tooltip = TranslationServer.Translate(name);
+			if (!string.IsNullOrEmpty(description)) tooltip += "\n" + TranslationServer.Translate(description);
+
+			float duration = buffs.GetDuration(index);
+			if (duration > 0f && duration < 3600f)
+			{
+				tooltip += "\n" + string.Format(TranslationServer.Translate("{0} s remaining"), MathF.Ceiling(buffs.GetRemaining(index)).ToString(CultureInfo.InvariantCulture));
+			}
+
+			_buffsStrip.AddChild(CreateBuffIcon(ReadBuffIcon(published, owner, buffId), StatusEffectGlyph(buffId), tooltip));
 		}
 
-		_statusEffectsSection.Visible = _statusEffectsStrip.GetChildCount() > 0;
+		_buffsSection.Visible = _buffsStrip.GetChildCount() > 0;
+	}
+
+	private static string ReadBuffName(TooltipValueStore? published, string owner, string buffId)
+	{
+		if (published != null && published.TryGetText(owner, BuffTooltipKey(buffId, "name"), out string name) && !string.IsNullOrWhiteSpace(name)) return name;
+
+		return ToDisplayName(buffId);
+	}
+
+	private static string ReadBuffDescription(TooltipValueStore? published, string owner, string buffId)
+	{
+		return published != null && published.TryGetText(owner, BuffTooltipKey(buffId, "description"), out string description)
+			? description
+			: string.Empty;
+	}
+
+	/// <summary>
+	///     The icon a map drew for one of its buffs. A status effect the map says nothing about falls back to the glyph the
+	///     engine picks from the buff's name, so an undescribed buff is still a readable mark rather than a blank slot.
+	/// </summary>
+	private static string ReadBuffIcon(TooltipValueStore? published, string owner, string buffId)
+	{
+		return published != null && published.TryGetText(owner, BuffTooltipKey(buffId, "icon"), out string iconPath)
+			? iconPath
+			: string.Empty;
+	}
+
+	private static string BuffTooltipKey(string buffId, string field)
+	{
+		string core = buffId.StartsWith("buff/", StringComparison.OrdinalIgnoreCase)
+			? buffId.Substring("buff/".Length)
+			: buffId;
+		return $"buff.{core}.{field}";
 	}
 
 	private void UpdateUpgradeStrip(SelectedUnitInfo info, UnitMetadata? metadata)
@@ -476,6 +833,11 @@ public class UnitStatsPanel
 		return stats.TryGetValue(statId, out float value) ? value : 0f;
 	}
 
+	private static string FormatBounty(float value)
+	{
+		return MathF.Round(value).ToString("0", CultureInfo.InvariantCulture);
+	}
+
 	private static string FormatAmount(float value)
 	{
 		return value.ToString("0.##", CultureInfo.InvariantCulture);
@@ -499,9 +861,16 @@ public class UnitStatsPanel
 
 	private static string ToDisplayName(string identifier)
 	{
-		string trimmed = identifier.Contains("upgrade/", StringComparison.Ordinal)
-			? identifier.Replace("upgrade/", string.Empty, StringComparison.Ordinal)
-			: identifier;
+		string trimmed = identifier;
+		string[] prefixes = { "upgrade/", "buff/", "ability/", "item/", "unit/", "building/" };
+		for (int index = 0; index < prefixes.Length; index++)
+		{
+			if (!trimmed.StartsWith(prefixes[index], StringComparison.OrdinalIgnoreCase)) continue;
+
+			trimmed = trimmed.Substring(prefixes[index].Length);
+			break;
+		}
+
 		trimmed = trimmed.Replace('_', ' ');
 		if (trimmed.Length == 0) return identifier;
 		return char.ToUpperInvariant(trimmed[0]) + trimmed.Substring(1);
@@ -509,6 +878,8 @@ public class UnitStatsPanel
 
 	private static string StatusEffectGlyph(string statusEffectId)
 	{
+		if (statusEffectId.Contains("bulwark", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.SHIELD_HEART;
+		if (statusEffectId.Contains("worker", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.WRENCH;
 		if (statusEffectId.Contains("stun", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.CIRCLE_DOT;
 		if (statusEffectId.Contains("silence", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.BAN;
 		if (statusEffectId.Contains("slow", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.SNOWFLAKE;
@@ -517,62 +888,6 @@ public class UnitStatsPanel
 		if (statusEffectId.Contains("haste", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.WIND;
 		if (statusEffectId.Contains("run", StringComparison.OrdinalIgnoreCase)) return UnicodeIcons.PERSON_RUNNING;
 		return UnicodeIcons.CIRCLE_EXCLAMATION;
-	}
-
-	private void UpdateReadings(Entity entity, bool forceRefresh)
-	{
-		var world = GameContext.World;
-		UnitCharges charges = default;
-		bool hasCharges = world != null && world.TryGet(entity, out charges) && charges.MaximumCharges > 0;
-
-		float remainingSeconds = hasCharges ? charges.RemainingSecondsToNextCharge() : 0f;
-		int wholeRemainingSeconds = (int)MathF.Ceiling(remainingSeconds);
-
-		ulong signature = SignatureSeed;
-		if (hasCharges)
-		{
-			signature = Mix(signature, charges.Charges);
-			signature = Mix(signature, charges.MaximumCharges);
-			signature = Mix(signature, wholeRemainingSeconds);
-		}
-
-		if (!forceRefresh && signature == _lastReadingsSignature) return;
-		_lastReadingsSignature = signature;
-
-		if (!hasCharges)
-		{
-			for (int index = 0; index < _readingRows.Count; index++)
-			{
-				_readingRows[index].Root.Visible = false;
-			}
-
-			_readingsSection.Visible = false;
-			return;
-		}
-
-		EnsureReadingRows(2);
-
-		_readingRows[0].Root.Visible = true;
-		_readingRows[0].Set(TranslationServer.Translate("Charges"), $"{charges.Charges} / {charges.MaximumCharges}");
-
-		_readingRows[1].Root.Visible = true;
-		_readingRows[1].Set(
-			TranslationServer.Translate("Next charge"),
-			wholeRemainingSeconds <= 0
-				? TranslationServer.Translate("Ready")
-				: string.Format(TranslationServer.Translate("{0} s"), wholeRemainingSeconds.ToString(CultureInfo.InvariantCulture)));
-
-		_readingsSection.Visible = true;
-	}
-
-	private void EnsureReadingRows(int count)
-	{
-		while (_readingRows.Count < count)
-		{
-			var row = new ReadingRowControl();
-			_readingsSection.AddChild(row.Root);
-			_readingRows.Add(row);
-		}
 	}
 
 	private static ulong Mix(ulong signature, float value)
@@ -624,16 +939,6 @@ public class UnitStatsPanel
 		};
 	}
 
-	private static VBoxContainer CreateColumn(string nodeName)
-	{
-		var column = new VBoxContainer();
-		column.Name = nodeName;
-		column.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
-		column.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
-		column.AddThemeConstantOverride("separation", SectionSeparation);
-		return column;
-	}
-
 	private static void AddSectionHeader(VBoxContainer column, string icon, string title)
 	{
 		var header = new HBoxContainer();
@@ -667,58 +972,204 @@ public class UnitStatsPanel
 
 	private StatRow AddStatRow(string icon, string name, string tooltip)
 	{
-		var row = new StatRow(icon, name, tooltip);
-		_orderedRows.Add(row);
-		return row;
+		return new StatRow(icon, name, tooltip);
 	}
 
-	private void ApplyRowVisibility(bool hasExperience, bool hasLevel, bool hasAttack)
+	/// <summary>
+	///     Registers one group of rows under an icon the player hovers to read them. The rows keep living in this panel
+	///     so their values are written the same way whatever the popup is showing.
+	/// </summary>
+	private void RegisterCategory(string glyph, string title, params StatRow[] rows)
 	{
-		_experienceRow.Root.Visible = hasExperience;
-		_levelRow.Root.Visible = hasLevel;
-		_damagePerSecondRow.Root.Visible = hasAttack;
-		_attackRangeRow.Root.Visible = hasAttack;
+		var category = new StatCategory(glyph, title, rows);
 
-		int layoutMask = (hasExperience ? 1 : 0) | (hasLevel ? 2 : 0) | (hasAttack ? 4 : 0);
-		EnsureColumnLayout(layoutMask);
+		var icon = new Label();
+		icon.Name = $"UnitStatsCategory{title}_Label";
+		icon.Text = glyph;
+		icon.TooltipText = TranslationServer.Translate(title);
+		icon.MouseFilter = Control.MouseFilterEnum.Stop;
+		icon.CustomMinimumSize = new Vector2(CategoryIconSize, CategoryIconSize);
+		icon.HorizontalAlignment = HorizontalAlignment.Center;
+		icon.VerticalAlignment = VerticalAlignment.Center;
+		ApplyIconFont(icon);
+		icon.AddThemeFontSizeOverride("font_size", CategoryIconFontSize);
+		icon.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
+		icon.MouseEntered += () =>
+		{
+			icon.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			ShowCategoryPopup(category, icon);
+		};
+		icon.MouseExited += () =>
+		{
+			icon.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
+			ScheduleCategoryPopupClose();
+		};
+
+		category.Icon = icon;
+		_categories.Add(category);
+		_categoryStrip.AddChild(icon);
 	}
 
-	private void EnsureColumnLayout(int layoutMask)
+	private void ShowCategoryPopup(StatCategory category, Control icon)
 	{
-		if (layoutMask == _lastColumnLayoutMask && _columns.GetChildCount() > 0) return;
+		CancelCategoryPopupClose();
+		if (_popupCategory == category && _categoryPopup.Visible) return;
 
-		_lastColumnLayoutMask = layoutMask;
+		DetachPopupRows();
+		_popupCategory = category;
+		_popupTitle.Text = TranslationServer.Translate(category.Title);
 
-		for (int index = 0; index < _orderedRows.Count; index++)
+		int rowCount = 0;
+		for (int index = 0; index < category.Rows.Length; index++)
 		{
-			StatRow row = _orderedRows[index];
-			row.Root.GetParent()?.RemoveChild(row.Root);
-		}
-
-		for (int index = _columns.GetChildCount() - 1; index >= 0; index--)
-		{
-			Node column = _columns.GetChild(index);
-			_columns.RemoveChild(column);
-			column.QueueFree();
-		}
-
-		VBoxContainer? currentColumn = null;
-		int rowsInColumn = RowsPerColumn;
-		for (int index = 0; index < _orderedRows.Count; index++)
-		{
-			StatRow row = _orderedRows[index];
+			StatRow row = category.Rows[index];
 			if (!row.Root.Visible) continue;
 
-			if (currentColumn == null || rowsInColumn >= RowsPerColumn)
+			_popupRows.AddChild(row.Root);
+			_popupAttachedRows.Add(row);
+			rowCount++;
+		}
+
+		if (rowCount == 0)
+		{
+			HideCategoryPopup();
+			return;
+		}
+
+		Vector2 contentSize = _popupRows.GetCombinedMinimumSize();
+		Vector2 iconScreen = icon.GetScreenPosition();
+		Vector2 viewportSize = icon.GetViewportRect().Size;
+		int width = Math.Max(PopupWidth, (int)contentSize.X + PopupPadding * 2);
+		width = Math.Min(width, Math.Max(1, (int)viewportSize.X));
+		int height = (int)contentSize.Y + PopupPadding * 2;
+		int x = (int)(iconScreen.X + icon.Size.X + PopupIconGap);
+		if (x + width > viewportSize.X) x = (int)(iconScreen.X - width - PopupIconGap);
+		int y = (int)(iconScreen.Y + icon.Size.Y * 0.5f - height * 0.5f);
+		x = Math.Clamp(x, 0, Math.Max(0, (int)viewportSize.X - width));
+		y = Math.Clamp(y, 0, Math.Max(0, (int)viewportSize.Y - height));
+
+		_categoryPopup.Popup(new Rect2I(x, y, width, height));
+	}
+
+	private void ScheduleCategoryPopupClose()
+	{
+		if (_categoryPopup.Visible) _popupCloseDelay.Start();
+	}
+
+	private void CancelCategoryPopupClose()
+	{
+		_popupCloseDelay.Stop();
+	}
+
+	private void HideCategoryPopup()
+	{
+		_popupCloseDelay.Stop();
+		if (_categoryPopup.Visible) _categoryPopup.Hide();
+		_popupCategory = null;
+	}
+
+	/// <summary>
+	///     Closes the popup when the panel it belongs to is hidden. The popup is its own window, so it would otherwise stay
+	///     on screen over a panel that no longer draws anything, such as when the selection is cleared.
+	/// </summary>
+	private void HideCategoryPopupWhenHidden()
+	{
+		if (!_root.IsVisibleInTree()) HideCategoryPopup();
+	}
+
+	private static StyleBoxFlat CreatePopupStyle()
+	{
+		var style = new StyleBoxFlat();
+		style.BgColor = UIStyle.ColorPanelBg;
+		style.BorderColor = UIStyle.ColorBronze;
+		style.SetBorderWidthAll(1);
+		style.SetCornerRadiusAll(4);
+		return style;
+	}
+
+	/// <summary>
+	///     Takes the rows back out of the popup without freeing them, so the next category can show its own. The title
+	///     stays, because it is the popup's own label rather than a stat.
+	/// </summary>
+	private void DetachPopupRows()
+	{
+		for (int index = 0; index < _popupAttachedRows.Count; index++)
+		{
+			StatRow row = _popupAttachedRows[index];
+			if (row.Root.GetParent() == _popupRows) _popupRows.RemoveChild(row.Root);
+		}
+
+		_popupAttachedRows.Clear();
+	}
+
+	private void ApplyRowVisibility(bool showsUnitRows, bool hasExperience, bool hasLevel, bool hasAttack, bool hasGoldBounty,
+		bool hasExperienceBounty, bool showsDefense)
+	{
+		_resourcesRow.Root.Visible = !showsUnitRows;
+		_strengthRow.Root.Visible = showsUnitRows;
+		_agilityRow.Root.Visible = showsUnitRows;
+		_vitalityRow.Root.Visible = showsUnitRows;
+		_intelligenceRow.Root.Visible = showsUnitRows;
+		_wisdomRow.Root.Visible = showsUnitRows;
+		_fortuneRow.Root.Visible = showsUnitRows;
+		_moveSpeedRow.Root.Visible = showsUnitRows;
+		_damageTypeRow.Root.Visible = showsUnitRows;
+		_criticalHitRow.Root.Visible = showsUnitRows;
+		_armorPenetrationRow.Root.Visible = showsUnitRows;
+		_magicPenetrationRow.Root.Visible = showsUnitRows;
+		_spellPowerRow.Root.Visible = showsUnitRows;
+		_lifeStealRow.Root.Visible = showsUnitRows;
+		_cooldownReductionRow.Root.Visible = showsUnitRows;
+		_evasionRow.Root.Visible = showsUnitRows;
+		_tenacityRow.Root.Visible = showsUnitRows;
+		_attackSpeedRow.Root.Visible = showsUnitRows;
+		_attackDamageRow.Root.Visible = showsUnitRows;
+		_armorRow.Root.Visible = showsDefense;
+		_magicResistanceRow.Root.Visible = showsDefense;
+		_experienceRow.Root.Visible = hasExperience;
+		_levelRow.Root.Visible = hasLevel;
+		_attackRangeRow.Root.Visible = hasAttack;
+		_goldBountyRow.Root.Visible = hasGoldBounty;
+		_experienceBountyRow.Root.Visible = hasExperienceBounty;
+
+		for (int index = 0; index < _categories.Count; index++)
+		{
+			StatCategory category = _categories[index];
+			bool anyVisible = false;
+			for (int rowIndex = 0; rowIndex < category.Rows.Length; rowIndex++)
 			{
-				currentColumn = CreateColumn("UnitStatsColumn_VBoxContainer");
-				_columns.AddChild(currentColumn);
-				rowsInColumn = 0;
+				if (!category.Rows[rowIndex].Root.Visible) continue;
+
+				anyVisible = true;
+				break;
 			}
 
-			currentColumn.AddChild(row.Root);
-			rowsInColumn++;
+			category.Icon.Visible = anyVisible;
 		}
+	}
+
+	/// <summary>
+	///     Writes the two capacity readings a map publishes for a building: the soldiers it maintains against the capacity
+	///     it contributes, and the workers it maintains against its worker capacity. A building that publishes neither is
+	///     not a unit-raising building, so the whole section stays away rather than showing an empty header.
+	/// </summary>
+	/// <param name="entity">The selected building.</param>
+	private void UpdateCapacityReadings(Entity entity)
+	{
+		TooltipValueStore? published = GameContext.RegistryService?.TooltipValues;
+		string owner = TooltipValueStore.UnitOwnerKey(entity);
+
+		string soldiers = string.Empty;
+		string workers = string.Empty;
+		bool hasSoldiers = published != null && published.TryGetText(owner, SoldierCapacityKey, out soldiers) && soldiers.Length > 0;
+		bool hasWorkers = published != null && published.TryGetText(owner, WorkerCapacityKey, out workers) && workers.Length > 0;
+
+		if (_soldierCapacityRow.Root.Visible != hasSoldiers) _soldierCapacityRow.Root.Visible = hasSoldiers;
+		if (_workerCapacityRow.Root.Visible != hasWorkers) _workerCapacityRow.Root.Visible = hasWorkers;
+		if (_capacitySection.Visible != (hasSoldiers || hasWorkers)) _capacitySection.Visible = hasSoldiers || hasWorkers;
+
+		if (hasSoldiers) _soldierCapacityRow.SetValue(soldiers);
+		if (hasWorkers) _workerCapacityRow.SetValue(workers);
 	}
 
 	private static HBoxContainer CreateIconStrip(string nodeName)
@@ -730,10 +1181,26 @@ public class UnitStatsPanel
 		return strip;
 	}
 
+	private static Control CreateBuffIcon(string iconPath, string glyph, string tooltip)
+	{
+		Texture2D? texture = string.IsNullOrEmpty(iconPath) ? null : RtexIconLoader.Load(iconPath);
+		if (texture == null) return CreateGlyphIcon(glyph, tooltip);
+
+		var icon = new TextureRect();
+		icon.Name = "UnitStatsBuff_TextureRect";
+		icon.Texture = texture;
+		icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+		icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+		icon.TooltipText = tooltip;
+		icon.MouseFilter = Control.MouseFilterEnum.Pass;
+		icon.CustomMinimumSize = new Vector2(StripIconSize, StripIconSize);
+		return icon;
+	}
+
 	private static Control CreateGlyphIcon(string glyph, string tooltip)
 	{
 		var label = new Label();
-		label.Name = "UnitStatsStatusEffect_Label";
+		label.Name = "UnitStatsBuffIcon_Label";
 		label.Text = glyph;
 		label.TooltipText = tooltip;
 		label.MouseFilter = Control.MouseFilterEnum.Pass;
@@ -760,56 +1227,26 @@ public class UnitStatsPanel
 		return icon;
 	}
 
-	private class ReadingRowControl
+	/// <summary>
+	///     One group of stat rows the panel keeps behind an icon: the glyph that names the group, the translated title the
+	///     popup heads itself with, and the rows the group shows in the order a player reads them.
+	/// </summary>
+	private class StatCategory
 	{
-		private readonly Label _valueLabel;
-		private readonly Label _nameLabel;
-
-		public ReadingRowControl()
+		public StatCategory(string glyph, string title, StatRow[] rows)
 		{
-			Root = new HBoxContainer();
-			Root.Name = "UnitStatsReadingRow_HBoxContainer";
-			Root.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
-			Root.AddThemeConstantOverride("separation", RowSeparation);
-			Root.MouseFilter = Control.MouseFilterEnum.Pass;
-
-			var iconLabel = new Label();
-			iconLabel.Name = "UnitStatsReadingRowIcon_Label";
-			iconLabel.Text = UnicodeIcons.CIRCLE;
-			iconLabel.CustomMinimumSize = new Vector2(IconColumnWidth, 0f);
-			iconLabel.VerticalAlignment = VerticalAlignment.Center;
-			iconLabel.MouseFilter = Control.MouseFilterEnum.Pass;
-			ApplyIconFont(iconLabel);
-			iconLabel.AddThemeFontSizeOverride("font_size", IconFontSize);
-			iconLabel.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
-			Root.AddChild(iconLabel);
-
-			_nameLabel = new Label();
-			_nameLabel.Name = "UnitStatsReadingRowName_Label";
-			_nameLabel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
-			_nameLabel.VerticalAlignment = VerticalAlignment.Center;
-			_nameLabel.MouseFilter = Control.MouseFilterEnum.Pass;
-			_nameLabel.AddThemeFontSizeOverride("font_size", ValueFontSize);
-			_nameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-			Root.AddChild(_nameLabel);
-
-			_valueLabel = new Label();
-			_valueLabel.Name = "UnitStatsReadingRowValue_Label";
-			_valueLabel.VerticalAlignment = VerticalAlignment.Center;
-			_valueLabel.MouseFilter = Control.MouseFilterEnum.Pass;
-			_valueLabel.AddThemeFontSizeOverride("font_size", ValueFontSize);
-			_valueLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			Root.AddChild(_valueLabel);
+			Glyph = glyph;
+			Title = title;
+			Rows = rows;
 		}
 
-		public HBoxContainer Root { get; }
+		public string Glyph { get; }
 
-		public void Set(string label, string value)
-		{
-			ApplyText(_nameLabel, label);
-			ApplyText(_valueLabel, value);
-			_valueLabel.Visible = !string.IsNullOrEmpty(value);
-		}
+		public string Title { get; }
+
+		public StatRow[] Rows { get; }
+
+		public Label Icon { get; set; } = null!;
 	}
 
 	private class StatRow
@@ -819,7 +1256,7 @@ public class UnitStatsPanel
 		public StatRow(string icon, string name, string tooltip)
 		{
 			Root = new HBoxContainer();
-			Root.Name = "UnitStatsRow_HBoxContainer";
+			Root.Name = $"UnitStatsRow{name.Replace(" ", string.Empty, StringComparison.Ordinal)}_HBoxContainer";
 			Root.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
 			Root.AddThemeConstantOverride("separation", RowSeparation);
 			Root.MouseFilter = Control.MouseFilterEnum.Pass;

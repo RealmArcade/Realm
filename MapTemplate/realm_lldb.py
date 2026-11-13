@@ -36,7 +36,6 @@ RANDOM_SEED_OFFSET = 2044
 ROTATION_Y_OFFSET = 1616896
 SCRIPT_PLAYER_OFFSET = 1650912
 TOTAL_SIZE_BYTES = 4194304
-UNIT_CHARGES_OFFSET = 1653248
 UNIT_OWNER_PLAYER_OFFSET = 1485824
 
 # Component array offsets auto-discovered from EcsWorld.BindSharedMemory
@@ -57,7 +56,6 @@ COMPONENT_OFFSETS = {
     "Resistances": 1321984,
     "RotationY": 1682432,
     "ScriptPlayer": 1749216,
-    "UnitCharges": 1653248,
     "UnitOwnerPlayer": 1551360,
 }
 
@@ -79,7 +77,6 @@ COMPONENT_SIZES = {
     "Resistances": 8,
     "RotationY": 4,
     "ScriptPlayer": 36,
-    "UnitCharges": 16,
     "UnitOwnerPlayer": 4,
 }
 
@@ -90,6 +87,7 @@ COMPONENT_IDS = {
     "Building": 94,
     "CommandsFrozen": 125,
     "Dead": 97,
+    "Dormant": 135,
     "Experience": 106,
     "Frozen": 125,
     "Health": 2,
@@ -100,18 +98,20 @@ COMPONENT_IDS = {
     "ModelScale": 110,
     "MovementStats": 59,
     "OverheadBarsHidden": 126,
-    "PlayerDamageEffectiveness": 134,
+    "PlayerDamageEffectiveness": 133,
+    "PlayerOrdersLocked": 134,
     "PlayerPopulation": 26,
     "PlayerResources": 71,
     "Position": 0,
     "PreviousPosition": 1,
     "PreviousRotationY": 115,
+    "RepairableBuilding": 136,
     "Resistances": 50,
     "RotationY": 114,
     "ScriptPlayer": 33,
     "Unit": 105,
-    "UnitCharges": 133,
     "UnitOwnerPlayer": 39,
+    "Worker": 139,
 }
 
 # Handle types and their readable properties auto-discovered from Realm.Ecs and Realm.MapAPI
@@ -211,14 +211,11 @@ HANDLE_TYPES = {
             { "name": "Player", "kind": "component", "type": "int", "component": "UnitOwnerPlayer", "component_id": 39, "requires_alive": True, "default": -1 },
             { "name": "Level", "kind": "component", "type": "int", "component": "Level", "component_id": 108, "requires_alive": True, "default": 0 },
             { "name": "Experience", "kind": "component", "type": "float", "component": "Experience", "component_id": 106, "requires_alive": True, "default": 0 },
-            { "name": "Charges", "kind": "component", "type": "int", "component": "UnitCharges", "component_id": 133, "requires_alive": True, "default": 0 },
-            { "name": "MaximumCharges", "kind": "component", "type": "int", "component": "UnitCharges", "component_id": 133, "sub_offset": 4, "requires_alive": True, "default": 0 },
-            { "name": "ChargeRechargeSeconds", "kind": "component", "type": "float", "component": "UnitCharges", "component_id": 133, "sub_offset": 8, "requires_alive": True, "default": 0 },
-            { "name": "ChargeRechargeRemainingSeconds", "kind": "host", "type": "string" },
             { "name": "Scale", "kind": "component", "type": "float", "component": "ModelScale", "component_id": 110, "requires_alive": True, "default": 1 },
             { "name": "Invulnerable", "kind": "tag", "type": "bool", "component": "Invulnerable", "component_id": 99, "requires_alive": True, "tags": ["Invulnerable"], "tag_ids": [99], "default": False },
             { "name": "AnimationsFrozen", "kind": "tag", "type": "bool", "component": "AnimationsFrozen", "component_id": 127, "requires_alive": True, "tags": ["AnimationsFrozen"], "tag_ids": [127], "default": False },
             { "name": "CommandsFrozen", "kind": "tag", "type": "bool", "component": "CommandsFrozen", "component_id": 125, "requires_alive": True, "tags": ["CommandsFrozen"], "tag_ids": [125], "default": False },
+            { "name": "PlayerOrdersLocked", "kind": "tag", "type": "bool", "component": "PlayerOrdersLocked", "component_id": 134, "requires_alive": True, "tags": ["PlayerOrdersLocked"], "tag_ids": [134], "default": False },
             { "name": "Frozen", "kind": "tag_any", "type": "bool", "component": "CommandsFrozen", "component_id": 125, "requires_alive": True, "tags": ["CommandsFrozen", "AnimationsFrozen"], "tag_ids": [125, 127], "default": False },
             { "name": "HideHealthAndManaBars", "kind": "tag", "type": "bool", "component": "OverheadBarsHidden", "component_id": 126, "requires_alive": True, "tags": ["OverheadBarsHidden"], "tag_ids": [126], "default": False },
             { "name": "Facing", "kind": "component", "type": "float", "component": "RotationY", "component_id": 114, "requires_alive": True, "default": 0 },
@@ -233,6 +230,7 @@ HANDLE_TYPES = {
             { "name": "XpBounty", "kind": "constant", "type": "float", "constant": 0 },
             { "name": "GoldBounty", "kind": "constant", "type": "float", "constant": 0 },
             { "name": "IsDead", "kind": "alive", "type": "bool", "invert": True, "default": False },
+            { "name": "IsDormant", "kind": "tag", "type": "bool", "component": "Dormant", "component_id": 135, "requires_alive": True, "tags": ["Dormant"], "tag_ids": [135], "default": False },
         ],
         "summary_fields": ["Health", "MaxHealth", "Position", "Mana"],
     },
@@ -264,7 +262,7 @@ HOST_TYPES = {
 
 # Generated debugger script metadata
 REALM_LLDB_SCRIPT_VERSION = "1"
-REALM_LLDB_SCRIPT_HASH = "f683cd830eee2a946494ad66b004576a1e69bd91fef15b6693299a1f07a1a26b"
+REALM_LLDB_SCRIPT_HASH = "9f1594e9592b15151644ff9803ed70e8aa19fa3697e3b47d85ddaf6af687a0a4"
 REALM_LLDB_SOURCE_COMMIT = "unknown"
 
 INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"

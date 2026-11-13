@@ -67,6 +67,7 @@ public partial class ServerLobby
 			Factions = Roster?.GetFactionNames() ?? [],
 			TeamCount = Roster?.TeamCount ?? LobbyLimits.DefaultTeamCount,
 			SpectatorDelay = SpectatorDelay,
+			TeamsTogether = Roster?.TeamsTogether ?? false,
 			HostStability = HostStability,
 			CountdownActive = _countdownActive,
 			CountdownRemainingSeconds = _countdownActive ? Math.Max(0, _lastCountdownSeconds) : 0,

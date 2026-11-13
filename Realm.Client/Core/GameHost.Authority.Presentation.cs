@@ -231,6 +231,7 @@ public partial class GameHost
 				break;
 
 			case PresentationKind.UnitAnimationSet:
+			case PresentationKind.UnitAnimationPulse:
 				PresentUnitAnimation(message);
 				break;
 
@@ -244,6 +245,14 @@ public partial class GameHost
 
 			case PresentationKind.ResourceMeshImpulse:
 				PresentResourceImpulse(message);
+				break;
+
+			case PresentationKind.ResourceNodeDepleted:
+				PresentResourceNodeDepleted(message);
+				break;
+
+			case PresentationKind.ResourceNodeAmountChanged:
+				PresentResourceNodeAmount(message);
 				break;
 
 			case PresentationKind.PlayerAbilityRegistered:

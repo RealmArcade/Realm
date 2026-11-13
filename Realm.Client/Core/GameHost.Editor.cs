@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Godot;
@@ -36,6 +36,10 @@ public partial class GameHost
 		else if (objectType == "vfx")
 		{
 			return SpawnVfxExternalWithParams(objectId, position, rotationDegrees, Vector3.One * (scale <= 0f ? 1.0f : scale));
+		}
+		else if (objectType == "item")
+		{
+			return SpawnItemExternal(objectId, position);
 		}
 		return null;
 	}
@@ -346,8 +350,7 @@ public partial class GameHost
 	private bool CheckRegistryIgnorePlayerColorForAsset(string normAsset)
 	{
 		if (string.IsNullOrEmpty(normAsset)) return false;
-		if (ResourceRegistry.TryGetValue(normAsset, out var resMeta2)) return resMeta2.IgnorePlayerColor;
-		if (PropRegistry.TryGetValue(normAsset, out var propMeta2)) return propMeta2.IgnorePlayerColor;
+		if (Placeables.TryGet(normAsset, out PlaceableTemplate template) && template.Kind is PlaceableKind.Resource or PlaceableKind.Prop) return template.Metadata.IgnorePlayerColor;
 		if (AttachmentRegistry.TryGetValue(normAsset, out var attachmentMeta)) return attachmentMeta.IgnorePlayerColor;
 		return false;
 	}

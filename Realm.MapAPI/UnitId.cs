@@ -75,6 +75,12 @@ public static unsafe class UnitIdScriptExtensions
 	public bool IsDead => unitId.Value <= 0 || unitId.Value >= EcsSharedMemory.MAX_ENTITIES || EcsSharedMemory.Alive[unitId.Value] == 0;
 
 	/// <summary>
+	/// Gets a value indicating whether this building is dormant, which is what a repairable building becomes when its
+	/// health runs out: it is invulnerable, it works at nothing, and it is waiting for a repairing unit to restore it.
+	/// </summary>
+	public bool IsDormant => unitId.Value > 0 && unitId.Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[unitId.Value] != 0 && EcsSharedMemory.HasComponent(unitId.Value, ComponentIds.Dormant);
+
+	/// <summary>
 	/// Orders the unit to move to the specified destination in world coordinates.
 	/// </summary>
 	/// <param name="destination">The destination position.</param>
@@ -204,9 +210,10 @@ public static unsafe class UnitIdScriptExtensions
 	public bool HasItem(string itemId) => GameAPI.Current.UnitHasItem(unitId, itemId);
 
 	/// <summary>
-	/// Retrieves the item archetype identifiers currently held in the unit's inventory.
+	/// Retrieves the item archetype identifiers currently held in the unit's inventory, naming each item once even when
+	/// its charges spill across several slots.
 	/// </summary>
-	/// <returns>A read-only collection of item archetype identifiers.</returns>
+	/// <returns>A read-only collection of the distinct item archetype identifiers, in the order they were first carried.</returns>
 	public IReadOnlyList<string> GetItems() => GameAPI.Current.GetUnitItems(unitId);
 
 	/// <summary>

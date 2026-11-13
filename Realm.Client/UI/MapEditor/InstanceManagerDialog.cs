@@ -376,15 +376,15 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private string GetResourceRegistryName(string id)
 	{
-		if (GameHost.ResourceRegistry != null && GameHost.ResourceRegistry.TryGetValue(id, out var rMeta) && !string.IsNullOrEmpty(rMeta.Name))
-			return rMeta.Name;
+		if (GameHost.Placeables.Find(id)?.Name is { Length: > 0 } name) return name;
+
 		return Path.GetFileNameWithoutExtension(id);
 	}
 
 	private string GetUnitRegistryName(string id)
 	{
-		if (GameHost.UnitRegistry != null && GameHost.UnitRegistry.TryGetValue(id, out var uMeta) && !string.IsNullOrEmpty(uMeta.Name))
-			return uMeta.Name;
+		if (GameHost.Placeables.Find(id)?.Name is { Length: > 0 } name) return name;
+
 		return Path.GetFileNameWithoutExtension(id);
 	}
 
@@ -404,8 +404,8 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private string GetPropRegistryName(string id)
 	{
-		if (GameHost.PropRegistry != null && GameHost.PropRegistry.TryGetValue(id, out var pMeta) && !string.IsNullOrEmpty(pMeta.Name))
-			return pMeta.Name;
+		if (GameHost.Placeables.Find(id)?.Name is { Length: > 0 } name) return name;
+
 		return Path.GetFileNameWithoutExtension(id);
 	}
 
@@ -459,8 +459,10 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 		foreach (var anchor in anchors)
 		{
-			string displayTitle = string.Format(TranslationServer.Translate("Slot {0}"), anchor.Player);
-			string posText = $"({anchor.PositionX:F0}, {anchor.PositionZ:F0})";
+			string displayTitle = PlayerColorConfig.GetPaletteLabel(anchor.Player);
+			string posText = string.IsNullOrEmpty(anchor.CoordinateName)
+				? TranslationServer.Translate("(unassigned)")
+				: anchor.CoordinateName;
 			result.Add((displayTitle, "Spawn Anchors", null, posText, null, anchor.Player));
 		}
 	}

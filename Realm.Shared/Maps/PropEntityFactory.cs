@@ -1,6 +1,8 @@
 using System.Numerics;
+using System;
 using Realm.Ecs;
 using Realm.Ecs.Common;
+using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
@@ -46,10 +48,7 @@ public static class PropEntityFactory
 	{
 		if (metadata != null && (metadata.MaxCapacity > 0f || savedAmount > 0f))
 		{
-			float amount = metadata.MaxCapacity > 0f ? metadata.MaxCapacity : savedAmount;
-			float harvestRate = metadata.HarvestRate > 0f ? metadata.HarvestRate : 10f;
-			int maxWorkers = metadata.MaxWorkers > 0 ? metadata.MaxWorkers : 5;
-			world.Add(entity, new ResourceNode(Guid.Empty, amount, amount, harvestRate, metadata.GrowthRate, maxWorkers));
+			AddHarvestableNode(world, entity, metadata, savedAmount);
 			return;
 		}
 
@@ -57,6 +56,40 @@ public static class PropEntityFactory
 		{
 			world.Add(entity, new ResourceNode(Guid.Empty, savedAmount, savedAmount, 10f, 0f, 5));
 		}
+	}
+
+	/// <summary>
+	///     Gives a gatherable node the body combat reads: its capacity is its health, its template's resistances decide how
+	///     much of a worker's hit it keeps, and each point that lands is one piece of the item the template names.
+	/// </summary>
+	/// <param name="world">The world the node belongs to.</param>
+	/// <param name="entity">The node entity to give its capacity and resistances.</param>
+	/// <param name="metadata">The resource template the node is an instance of.</param>
+	/// <param name="requestedAmount">The capacity the node is asked to hold, or zero to use the template's authored capacity at its level.</param>
+	public static void AddHarvestableNode(EcsWorld world, Entity entity, ResourceMetadata metadata, float requestedAmount)
+	{
+		int level = Math.Max(1, metadata.Level);
+		float authoredCapacity = metadata.MaxCapacity > 0f ? metadata.MaxCapacity : requestedAmount;
+		float amount = requestedAmount > 0f ? requestedAmount : authoredCapacity + metadata.MaxCapacityPerLevel * (level - 1);
+		if (amount <= 0f) return;
+
+		float harvestRate = metadata.HarvestRate > 0f ? metadata.HarvestRate : 10f;
+		int maxWorkers = metadata.MaxWorkers > 0 ? metadata.MaxWorkers : 5;
+		world.SetOrAdd(entity, new ResourceNode(Guid.Empty, amount, amount, harvestRate, metadata.GrowthRate, maxWorkers));
+		AddHarvestableBody(world, entity, metadata, amount, level);
+	}
+
+	private static void AddHarvestableBody(EcsWorld world, Entity entity, ResourceMetadata metadata, float amount, int level)
+	{
+		float armor = metadata.Armor + metadata.ArmorPerLevel * (level - 1);
+		float magicResistance = metadata.MagicResistance + metadata.MagicResistancePerLevel * (level - 1);
+
+		world.Add(entity, new Health(amount, amount));
+		world.Add(entity, new Resistances(armor, magicResistance));
+
+		string resourceType = string.IsNullOrEmpty(metadata.ResourceType) ? string.Empty : metadata.ResourceType;
+		string itemId = string.IsNullOrEmpty(metadata.ItemTemplateId) ? string.Empty : metadata.ItemTemplateId;
+		if (resourceType.Length > 0 && itemId.Length > 0) world.Add(entity, new Harvestable(resourceType, itemId, metadata.YieldPerDamage));
 	}
 
 	private static ResourceMetadata? FindResource(DefinitionCatalog catalog, string propId, string? cleanId)

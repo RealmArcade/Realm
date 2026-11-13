@@ -123,4 +123,47 @@ public partial class PropMultiMeshManager : Node3D
 		}
 	}
 
+	/// <summary>
+	///     Reads the world bounds every mesh of one placed prop covers. A prop is drawn as instances inside a shared
+	///     multi mesh, so its bounds are the merge of each sub mesh's local box under that instance's transform.
+	/// </summary>
+	/// <param name="entity">The prop whose placed instance is read.</param>
+	/// <param name="bounds">The world bounds the prop covers, when it is placed.</param>
+	/// <returns>Whether the prop is currently drawn by a chunk group.</returns>
+	public bool TryGetPropWorldBounds(Entity entity, out Aabb bounds)
+	{
+		bounds = default;
+		if (!_entityIndexMap.TryGetValue(entity, out var info)) return false;
+
+		bool hasBounds = false;
+		for (int subIdx = 0; subIdx < info.ChunkGroup.MultiMeshNodes.Count; subIdx++)
+		{
+			MultiMeshInstance3D? node = info.ChunkGroup.MultiMeshNodes[subIdx];
+			if (node == null || !GodotObject.IsInstanceValid(node) || node.Multimesh == null) continue;
+
+			MultiMesh multiMesh = node.Multimesh;
+			if (multiMesh.Mesh == null || info.Index >= multiMesh.VisibleInstanceCount) continue;
+
+			Aabb instanceBounds = TransformBounds(multiMesh.GetInstanceTransform(info.Index), multiMesh.Mesh.GetAabb());
+			bounds = hasBounds ? bounds.Merge(instanceBounds) : instanceBounds;
+			hasBounds = true;
+		}
+
+		return hasBounds;
+	}
+
+	private static Aabb TransformBounds(Transform3D transform, Aabb localBounds)
+	{
+		Vector3 minimum = new(float.MaxValue, float.MaxValue, float.MaxValue);
+		Vector3 maximum = new(float.MinValue, float.MinValue, float.MinValue);
+		for (int cornerIndex = 0; cornerIndex < 8; cornerIndex++)
+		{
+			Vector3 corner = transform * localBounds.GetEndpoint(cornerIndex);
+			minimum = minimum.Min(corner);
+			maximum = maximum.Max(corner);
+		}
+
+		return new Aabb(minimum, maximum - minimum);
+	}
+
 }

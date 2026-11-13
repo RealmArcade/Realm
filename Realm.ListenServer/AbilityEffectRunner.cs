@@ -23,6 +23,12 @@ public class AbilityEffectRunner
 	private int _castingPlayerIndex;
 	private Entity _castingEntity;
 
+	/// <summary>
+	///     Raised with the caster, the point it aimed at and the radius to search, which is how a gather effect hands the
+	///     order to the authority that owns the resource nodes.
+	/// </summary>
+	public Action<Entity, Vector3, float>? GatherRequested { get; set; }
+
 	public AbilityEffectRunner(SimulationContext context, Func<int, int, bool> areAllied, Func<string, Vector3, int, UnitId> summon)
 	{
 		_context = context;
@@ -53,6 +59,12 @@ public class AbilityEffectRunner
 			if (effect.Kind == AbilityEffectKind.Summon)
 			{
 				if (casterAlive) ApplySummon(casterEntity, effect, targetPosition);
+				continue;
+			}
+
+			if (effect.Kind == AbilityEffectKind.Gather)
+			{
+				if (casterAlive) GatherRequested?.Invoke(casterEntity, targetPosition, MathF.Max(effect.Radius, 0.5f));
 				continue;
 			}
 
@@ -95,6 +107,12 @@ public class AbilityEffectRunner
 			case AbilityEffectKind.Buff:
 			case AbilityEffectKind.Debuff:
 				ApplyStatus(target, effect, duration);
+				break;
+
+			case AbilityEffectKind.Stun:
+				if (duration <= 0f) return;
+				UnitOrderService.ApplyBuff(world, target, "stun", duration);
+				UnitOrderService.Stop(world, target);
 				break;
 
 			case AbilityEffectKind.Knockback:
@@ -199,6 +217,12 @@ public class AbilityEffectRunner
 		EcsWorld world = _context.World;
 		float facing = world.Has<RotationY>(casterEntity) ? world.Get<RotationY>(casterEntity).Value : 0f;
 		var facingDirection = new Vector3(MathF.Cos(facing), 0f, MathF.Sin(facing));
+
+		if (effect.Delivery is AbilityEffectDelivery.Line or AbilityEffectDelivery.Cone)
+		{
+			Vector3 aim = targetPosition - casterPosition;
+			if (aim.LengthSquared() > 0.0001f) facingDirection = Vector3.Normalize(aim);
+		}
 
 		foreach (Entity entity in world.Query<Position, Health>())
 		{

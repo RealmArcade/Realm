@@ -53,9 +53,6 @@ public partial class GameHost
 		public bool ShouldUpdateEcsRotationY;
 		public float NewEcsRotationY;
 
-		public byte LaborScaleAction;
-		public float LaborPulseValue;
-
 		public bool ShouldSetTransform;
 		public Transform3D FinalTransform;
 		public Godot.Vector3 NextPos;
@@ -186,14 +183,7 @@ public partial class GameHost
 				unit3D.Velocity = item.NewUnitVelocity;
 			}
 
-			if (item.LaborScaleAction == 1)
-			{
-				unit3D.SetLaborPulseScale(item.LaborPulseValue);
-			}
-			else if (item.LaborScaleAction == 2)
-			{
-				unit3D.ResetLaborPulseScale();
-			}
+			unit3D.SetRuinSilhouette(world.Has<Dormant>(item.Entity) || world.Has<UnderConstruction>(item.Entity));
 
 			if (item.ShouldSetTransform)
 			{
@@ -301,10 +291,8 @@ public partial class GameHost
 		bool hasVelocityComp = world.Has<Velocity>(entity);
 		Vector3 ecsVel = hasVelocityComp ? world.Get<Velocity>(entity).Value : Vector3.Zero;
 		bool hasVelocity = hasVelocityComp && ecsVel.LengthSquared() > 0.0001f;
-		bool isLaborAnimating = (world.Has<Gatherer>(entity) && !world.Get<Gatherer>(entity).ReturningToBase)
-		                        || (world.Has<BuildTask>(entity) && !world.Has<MoveTo>(entity));
 
-		if (!posChanged && !hasMovement && !hasVelocity && !hasLookTarget && !isLaborAnimating)
+		if (!posChanged && !hasMovement && !hasVelocity && !hasLookTarget && !item.Unit.HasHeldAnimation)
 		{
 			return;
 		}
@@ -347,19 +335,6 @@ public partial class GameHost
 		}
 
 		Basis targetBasis = ComputeVisualRotationBasisParallel(ref item, entity, effectiveUnitVelocity, nextPos, lookTargetPos, hasLookTarget, fDelta, fraction, out float targetRotY);
-
-		if (!item.IsFlashingScale)
-		{
-			if (isLaborAnimating)
-			{
-				item.LaborScaleAction = 1;
-				item.LaborPulseValue = 1.0f + Mathf.Sin(_renderCurrentGameTime * 10f) * 0.1f;
-			}
-			else
-			{
-				item.LaborScaleAction = 2;
-			}
-		}
 
 		bool basisChanged = Mathf.Abs(Mathf.AngleDifference(item.CachedRotationY, targetRotY)) > 0.0005f || !targetBasis.IsEqualApprox(item.CachedBasis);
 		if (posChanged || scaleChanged || basisChanged)

@@ -28,6 +28,7 @@ public static class EditorToolLabels
 			EditorTool.PlaceProp => TranslationServer.Translate("PLACE PROP"),
 			EditorTool.PlaceDecal => TranslationServer.Translate("PLACE DECAL"),
 			EditorTool.PlaceVfx => TranslationServer.Translate("PLACE VFX"),
+			EditorTool.PlaceItem => TranslationServer.Translate("PLACE ITEM"),
 			EditorTool.DeleteObject => TranslationServer.Translate("DELETE OBJECT"),
 			EditorTool.SelectMove => TranslationServer.Translate("SELECT / MOVE"),
 			EditorTool.Eyedropper => TranslationServer.Translate("EYEDROPPER"),

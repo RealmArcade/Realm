@@ -120,6 +120,7 @@ private static void IndexArchivedFilesInManifest(string sourceDirectory, IReadOn
 		{
 			string relativePath = Path.GetRelativePath(sourceDirectory, filePath).Replace('\\', '/');
 			if (string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase)) continue;
+			if (MapManifest.IsGeneratedWorkspaceFile(relativePath)) continue;
 			if (listedFiles.ContainsKey(relativePath)) continue;
 
 			var archivedFile = new FileInfo(filePath);

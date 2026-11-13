@@ -123,6 +123,8 @@ public class InputService
 			state.ActiveSpellTargeting = null;
 			state.ActiveCommandTargeting = null;
 			state.ActiveBuildingPlacementType = null;
+			state.ActiveDropItemId = null;
+			state.DropItemCharges = 0;
 			state.ActivePingMode = false;
 		}
 	}
@@ -253,12 +255,15 @@ public class InputService
 		{
 			if (owner.PlayerEntity.Value == playerEntity)
 			{
+				if (!World.Has<IncludeInDefaultHotkeySelection>(entity)) return;
+
 				bool hasMoveTo = World.Has<MoveTo>(entity);
 				bool hasAttackTarget = World.Has<AttackTarget>(entity);
 				bool hasAttackMove = World.Has<AttackMove>(entity);
 				bool isGathering = World.Has<Gatherer>(entity) && World.Get<Gatherer>(entity).TargetEntity != Entity.Null;
+				bool isWorkingOnBuilding = World.Has<BuildTask>(entity) || World.Has<RepairTask>(entity);
 
-				if (!hasMoveTo && !hasAttackTarget && !hasAttackMove && !isGathering)
+				if (!hasMoveTo && !hasAttackTarget && !hasAttackMove && !isGathering && !isWorkingOnBuilding)
 				{
 					result.Add(entity);
 				}
@@ -273,10 +278,10 @@ public class InputService
 		var query = QueryCache.AllOwnerAndMovableNoneDeadAndBuildingQuery;
 		World.Query(in query, (Entity entity, ref Owner owner) =>
 		{
-			if (owner.PlayerEntity.Value == playerEntity)
-			{
-				result.Add(entity);
-			}
+			if (owner.PlayerEntity.Value != playerEntity) return;
+			if (!World.Has<IncludeInDefaultHotkeySelection>(entity)) return;
+
+			result.Add(entity);
 		});
 		return result;
 	}
@@ -304,11 +309,6 @@ public class InputService
 	public float GetPlacementRadius(string placeId, float scale = 1.0f) => PlacementQueries.GetPlacementRadius(placeId, scale);
 
 	public Vector3? FindNearestFreePosition(Vector3 startPos, float checkRadius, float maxSearchDist = 20.0f, float terrainQuadSize = 2.0f, int terrainWidth = 256, int terrainDepth = 256) => PlacementQueries.FindNearestFreePosition(startPos, checkRadius, maxSearchDist, terrainQuadSize, terrainWidth, terrainDepth);
-
-	public bool TryExecuteSpellCast(Entity playerEntity, string spellId, out float cooldownMax)
-	{
-		return TryExecuteSpellCast(playerEntity, Entity.Null, spellId, out cooldownMax);
-	}
 
 	private bool ConsumeManaIfSufficient(Entity entity, string spellId)
 	{
@@ -347,7 +347,7 @@ public class InputService
 		return true;
 	}
 
-	public bool TryExecuteSpellCast(Entity playerEntity, Entity casterEntity, string spellId, out float cooldownMax)
+	public bool TryExecuteSpellCast(Entity casterEntity, string spellId, out float cooldownMax)
 	{
 		cooldownMax = 10.0f;
 		if (GameContext.Host != null)
@@ -359,19 +359,11 @@ public class InputService
 			}
 		}
 
-		if (casterEntity != Entity.Null && World.IsAlive(casterEntity))
-		{
-			if (!ConsumeManaIfSufficient(casterEntity, spellId)) return false;
+		if (casterEntity == Entity.Null || !World.IsAlive(casterEntity)) return true;
 
-			if (!TryApplyCooldown(casterEntity, spellId, cooldownMax)) return false;
-		}
+		if (!ConsumeManaIfSufficient(casterEntity, spellId)) return false;
 
-		if (World.IsAlive(playerEntity))
-		{
-			if (!TryApplyCooldown(playerEntity, spellId, cooldownMax)) return false;
-		}
-
-		return true;
+		return TryApplyCooldown(casterEntity, spellId, cooldownMax);
 	}
 
 	public bool BuyItem(string itemId, Entity playerEntity, Vector3 shopPosition, Entity selectedUnitEntity, out Entity targetUnitEntity)
@@ -725,6 +717,46 @@ public class InputService
 			if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
 			ref var state = ref World.Get<InputState>(worldEntity);
 			state.ActiveCommandTargeting = value;
+			if (!string.IsNullOrEmpty(value)) return;
+
+			state.ActiveDropItemId = null;
+			state.DropItemCharges = 0;
+		}
+	}
+
+	public string? ActiveDropItemId
+	{
+		get
+		{
+			var worldEntity = GetWorldEntity();
+			return worldEntity != Entity.Null && World.Has<InputState>(worldEntity)
+				? World.Get<InputState>(worldEntity).ActiveDropItemId
+				: null;
+		}
+		set
+		{
+			var worldEntity = GetWorldEntity();
+			if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
+			ref var state = ref World.Get<InputState>(worldEntity);
+			state.ActiveDropItemId = value;
+		}
+	}
+
+	public int ActiveDropItemCharges
+	{
+		get
+		{
+			var worldEntity = GetWorldEntity();
+			return worldEntity != Entity.Null && World.Has<InputState>(worldEntity)
+				? World.Get<InputState>(worldEntity).DropItemCharges
+				: 0;
+		}
+		set
+		{
+			var worldEntity = GetWorldEntity();
+			if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
+			ref var state = ref World.Get<InputState>(worldEntity);
+			state.DropItemCharges = value;
 		}
 	}
 
@@ -778,28 +810,6 @@ public class InputService
 		if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
 		ref var state = ref World.Get<InputState>(worldEntity);
 		state.CycleSelectionIndex = selectedCount > 0 ? Math.Clamp(value, 0, selectedCount - 1) : 0;
-	}
-
-	public void SetSpellCooldown(Entity playerEntity, string spellId, float cooldown)
-	{
-		if (playerEntity == Entity.Null || !World.IsAlive(playerEntity)) return;
-		if (World.Has<SpellCooldowns>(playerEntity))
-		{
-			ref var spellCooldowns = ref World.Get<SpellCooldowns>(playerEntity);
-			spellCooldowns.Set(spellId, cooldown, cooldown);
-		}
-	}
-
-	public float GetSpellCooldown(Entity playerEntity, string spellId)
-	{
-		if (playerEntity == Entity.Null || !World.IsAlive(playerEntity)) return 0f;
-		if (World.Has<SpellCooldowns>(playerEntity))
-		{
-			var spellCooldowns = World.Get<SpellCooldowns>(playerEntity);
-			if (spellCooldowns.TryGetValue(spellId, out float remaining)) return remaining;
-		}
-
-		return 0f;
 	}
 
 	public void ApplySpellEffect(AbilityDefinition def, Vector3 simPos, Entity target)

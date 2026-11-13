@@ -42,7 +42,7 @@ namespace Realm.Ecs.Services
 			_context.World.Query(in splashQuery, (Entity splashEnt, ref Position sPos, ref Health sHp, ref Owner sOwner) =>
 			{
 				if (splashEnt == primaryTarget || splashEnt == attacker) return;
-				if (_context.World.Has<Invulnerable>(splashEnt)) return;
+				if (_context.World.Has<Invulnerable>(splashEnt) || _context.World.Has<Dormant>(splashEnt)) return;
 
 				if (!atk.FriendlyFire)
 				{
@@ -69,7 +69,7 @@ namespace Realm.Ecs.Services
 			Entity splashEnt = entry.Entity;
 			if (splashEnt == _splashPrimaryTarget || splashEnt == _splashAttacker) return;
 			if (!_context.World.IsAlive(splashEnt) || _context.World.Has<Dead>(splashEnt) || !_context.World.Has<Health>(splashEnt)) return;
-			if (_context.World.Has<Invulnerable>(splashEnt)) return;
+			if (_context.World.Has<Invulnerable>(splashEnt) || _context.World.Has<Dormant>(splashEnt)) return;
 
 			Owner sOwner = _context.World.Has<Owner>(splashEnt) ? _context.World.Get<Owner>(splashEnt) : default;
 

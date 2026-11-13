@@ -412,6 +412,15 @@
         <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitCommandsFrozen(Realm.Ecs.UnitId,System.Boolean)">
             <summary>Turns order acceptance on or off for the unit.</summary>
         </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitPlayerOrdersLocked(Realm.Ecs.UnitId,System.Boolean)">
+            <summary>Locks the unit to the map script that drives it, or hands it back to its player.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitGatherInterval(Realm.Ecs.UnitId,System.Single)">
+            <summary>States what one gathering swing takes from a node and how long the swing lasts.</summary>
+        </member>
+        <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitGatherTaxRate(Realm.Ecs.UnitId,System.Single)">
+            <summary>States the share of each delivered swing the map keeps.</summary>
+        </member>
         <member name="M:Realm.MapAPI.GameAPI.HandleCommandSink.SetUnitFrozen(Realm.Ecs.UnitId,System.Boolean)">
             <summary>Turns all unit activity on or off, covering movement, orders and animation together.</summary>
         </member>
@@ -1243,6 +1252,18 @@
             <param name="unit">The harvesting unit.</param>
             <param name="resourceNode">The target resource node.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.IssueRepairOrder(Realm.Ecs.UnitId,Realm.Ecs.UnitId)">
+            <summary>
+            Issues a repair order, sending a unit that can mend buildings to put a standing building back together.
+            </summary>
+            <remarks>
+            The unit walks to the building and mends it at its own repair rate while it stands there; walking away leaves the
+            building exactly as far along as the unit left it. Any allied unit that carries a repair rate may mend any allied
+            repairable building, and the building keeps its charges and its production queue while it waits.
+            </remarks>
+            <param name="unit">The unit doing the mending.</param>
+            <param name="building">The allied building to mend.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.IssueStopOrder(Realm.Ecs.UnitId)">
             <summary>
             Orders the unit to stop its current action immediately.
@@ -1778,7 +1799,8 @@
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.AddItemToUnit(Realm.Ecs.UnitId,System.String)">
             <summary>
-            Adds an item archetype to the specified unit's inventory.
+            Adds an item archetype to the specified unit's inventory. An item granted this way is bound to the unit that
+            received it: it stays with that unit and cannot be put down, unlike an item collected from the ground.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="itemId">The item definition identifier.</param>
@@ -1786,7 +1808,8 @@
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.AddItemToUnitWithCharges(Realm.Ecs.UnitId,System.String,System.Int32)">
             <summary>
-            Adds an item archetype to the specified unit's inventory with a stack of the given charge count.
+            Adds an item archetype to the specified unit's inventory with a stack of the given charge count. The granted
+            pieces are bound to the unit that received them, so they cannot be put down.
             </summary>
             <param name="unit">The unit identifier.</param>
             <param name="itemId">The item definition identifier.</param>
@@ -1811,10 +1834,15 @@
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitItems(Realm.Ecs.UnitId)">
             <summary>
-            Retrieves the item archetype identifiers currently held in the unit's inventory.
+            Retrieves the item archetype identifiers currently held in the unit's inventory, naming each item once even when
+            its charges spill across several slots.
             </summary>
             <param name="unit">The unit identifier.</param>
-            <returns>A read-only collection of item archetype identifiers.</returns>
+            <returns>A read-only collection of the distinct item archetype identifiers, in the order they were first carried.</returns>
+            <remarks>
+            Read the number of charges of a named item with <see cref="M:Realm.MapAPI.IGameAPI.GetUnitItemCharges(Realm.Ecs.UnitId,System.String)" />: the total it holds, not what one
+            slot of it holds, so copying a unit's items is a walk over this list and one charge read per entry.
+            </remarks>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitItemCharges(Realm.Ecs.UnitId,System.String)">
             <summary>
@@ -1955,22 +1983,14 @@
             <param name="value">Row value text.</param>
             <param name="color">Optional RGB tint for the label text.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItem(System.String,System.Numerics.Vector3,System.Int32,System.Single)">
+        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItem(System.String,System.Numerics.Vector2,System.Int32,System.Single)">
             <summary>
-            Spawns a pickup loot item at the specified 3D world space coordinates.
+            Spawns a pickup loot item at a point on the ground, the way <see cref="M:Realm.MapAPI.IGameAPI.SpawnUnitForPlayer(System.String,System.Numerics.Vector2,System.Int32,System.Boolean,System.Boolean)" /> does:
+            the point states where on the board the item lies and the engine reads the terrain's height there, so a map never
+            has to sample the height field to drop something that lands on the ground.
             </summary>
             <param name="itemTypeId">The identifier of the item type from the item registry.</param>
-            <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
-            <param name="charges">The initial charge count or stacked quantity for the item.</param>
-            <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
-            <returns>The spawned loot item identifier.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SpawnLootItemAtLocation(System.String,System.Numerics.Vector3,System.Int32,System.Single)">
-            <summary>
-            Spawns a pickup loot item at the specified 3D world space coordinates.
-            </summary>
-            <param name="itemTypeId">The identifier of the item type from the item registry.</param>
-            <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+            <param name="position">The ground position in 2D board space (X, Z); the height comes from the terrain.</param>
             <param name="charges">The initial charge count or stacked quantity for the item.</param>
             <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
             <returns>The spawned loot item identifier.</returns>
@@ -2914,6 +2934,133 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">True to freeze the unit in place; false to let it act normally again.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitPlayerOrdersLocked(Realm.Ecs.UnitId,System.Boolean)">
+            <summary>
+            Makes a player-owned unit refuse its player's orders while the map script keeps commanding it, or releases it again.
+            </summary>
+            <remarks>
+            A locked unit keeps its owner, its abilities and its position, but its player cannot move, attack, hold, patrol or
+            gather with it, and the client draws every ability card it owns as disabled so the player cannot cast from it. The
+            map is unaffected: orders and casts it issues itself still apply, which is what lets a ruleset run an autonomous army
+            that the player watches and inspects but cannot steer. This differs from <see cref="M:Realm.MapAPI.IGameAPI.SetUnitCommandsFrozen(Realm.Ecs.UnitId,System.Boolean)"/>, which
+            stops the unit acting at all, and from hiding its abilities, which leaves the player able to move it.
+            </remarks>
+            <param name="unit">The unit to lock to its map.</param>
+            <param name="value">True to refuse player orders; false to accept them again.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitGatherInterval(Realm.Ecs.UnitId,System.Single)">
+            <summary>
+            States how long one gathering swing lasts, which is the cadence a worker works a node at.
+            </summary>
+            <remarks>
+            A gather order sets the worker going; this states how long each of its swings takes. What a swing takes from the
+            node is decided by the node's yield and the worker's own attack, so a map overrides the rhythm rather than the
+            amount, and leaving the seconds at zero falls back to the unit's attack interval. The call does nothing for a unit
+            that is not gathering.
+            </remarks>
+            <param name="unit">The gathering unit.</param>
+            <param name="swingSeconds">The seconds one swing lasts, or zero to swing at the unit's own attack interval.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitGatherTaxRate(Realm.Ecs.UnitId,System.Single)">
+            <summary>
+            States the share of each delivered swing the map keeps, so a ruleset can tax a worker's income.
+            </summary>
+            <remarks>
+            The tax is taken from the delivery, never from the swing: the node still loses exactly the amount the building
+            advertises, and only what reaches the player's purse is reduced. The fraction of a resource a taxed delivery leaves
+            behind is carried into that worker's next delivery rather than rounded away, so a run pays the total its advertised
+            rate states. Zero pays every delivery in full, which is what a worker nobody taxed pays; values are clamped between
+            zero and 0.99 so a delivery always pays something unless the map pays nothing. The call does nothing for a unit that
+            is not gathering. Taxing each worker at its own building's rank among the player's buildings is what makes a
+            progressive, marginal income tax: earlier buildings keep the share they were given, and a new building pays less
+            than the one before it without changing what the earlier ones pay.
+            </remarks>
+            <param name="unit">The gathering unit whose deliveries are taxed.</param>
+            <param name="taxRate">The fraction kept from each delivered swing, from zero to 0.99.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitRepairRate(Realm.Ecs.UnitId,System.Single)">
+            <summary>
+            States how fast a unit mends a building, as a fraction of the building's maximum health per second.
+            </summary>
+            <remarks>
+            A rate above zero is what lets a unit accept a repair order at all, so a ruleset decides which units mend and how
+            fast by stating a rate per unit rather than the engine assuming a builder. Because the rate is a share of the
+            building's maximum health, a hero spends the same time raising any building from zero to whole, and a rate that a
+            buff or a relic raises mends every building faster. A rate of zero, or a call with no rate, takes the ability
+            away and ends any mending the unit was doing. The rate belongs to the repairer, so two units can mend the same
+            building at different speeds.
+            </remarks>
+            <param name="unit">The unit that mends buildings.</param>
+            <param name="healthPercentPerSecond">The fraction of the building's maximum health restored each second.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitRepairRate(Realm.Ecs.UnitId)">
+            <summary>
+            Answers how fast a unit mends buildings, as a fraction of the building's maximum health per second.
+            </summary>
+            <param name="unit">The unit whose repair rate is read.</param>
+            <returns>The fraction restored each second, or zero when the unit cannot repair.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitSpellPower(Realm.Ecs.UnitId)">
+            <summary>
+            Answers a unit's current spell power, the multiplier its ability damage carries after its attributes and buffs
+            have been resolved.
+            </summary>
+            <remarks>
+            Spell power belongs to the caster rather than to one ability, so a rule that scales a burn, a heal or a shield
+            from it reads the same number every ability reads. It is a multiplier added to one, which is how the engine applies
+            it to authored ability damage; a unit with no spell power answers zero.
+            </remarks>
+            <param name="unit">The unit whose spell power is read.</param>
+            <returns>The spell power multiplier, or zero when the unit has none.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitRepairable(Realm.Ecs.UnitId,System.Boolean)">
+            <summary>
+            States whether a building falls dormant when its health runs out instead of being destroyed.
+            </summary>
+            <remarks>
+            A repairable building at zero health stays in the world: it is invulnerable, it earns nothing, it recharges
+            nothing, it produces nothing and it attacks nothing, while the charges and the production queue it already holds
+            are kept. A repairing unit raises it back toward full health, and the building only starts working again once it
+            is whole. A building the map never marked repairable is destroyed at zero health, which is what every building did
+            before a map asked for this, so a ruleset that has no repair has nothing to configure.
+            </remarks>
+            <param name="unit">The building.</param>
+            <param name="repairable">True to let the building fall dormant instead of dying at zero health.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitWorker(Realm.Ecs.UnitId,System.Boolean)">
+            <summary>
+            States whether a unit is a resource worker for the worker collision rule.
+            </summary>
+            <remarks>
+            Workers body-block the workers of their own player and pass through the workers of every other player, so a
+            gathering crew never jams on itself while rival crews walk through one another. Only worker against worker is
+            decided here: a worker still collides with soldiers, heroes and buildings like any other unit, and a match that
+            never marks a worker keeps every unit blocking every other unit. The flag belongs to the unit, so two workers of
+            the same player body-block while two workers of different players ghost, whatever their teams say.
+            </remarks>
+            <param name="unit">The unit to mark or unmark.</param>
+            <param name="worker">True to make the unit a worker; false to give it ordinary unit collision again.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitWorkerAssignment(Realm.Ecs.UnitId,System.String)">
+            <summary>
+                Assigns the resource a worker gathers, which is how the building that raised it states what its crew works.
+            </summary>
+            <remarks>
+                The assignment is the script's own instruction to the worker, not an order: the map reads it back with
+                <see cref="M:Realm.MapAPI.IGameAPI.GetUnitWorkerAssignment(Realm.Ecs.UnitId)"/> and issues the gather order to the matching node, so one worker template
+                can be sent to gold by one building and to wood by another. A resource name the map never uses is kept as stated,
+                which lets a package add its own resource without an engine change. An empty name clears the assignment.
+            </remarks>
+            <param name="unit">The worker to assign.</param>
+            <param name="resourceType">The resource type to gather, such as gold or wood, or an empty string to clear it.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetUnitWorkerAssignment(Realm.Ecs.UnitId)">
+            <summary>
+                Answers the resource a worker was assigned to gather.
+            </summary>
+            <param name="unit">The worker whose assignment is read.</param>
+            <returns>The assigned resource type, or an empty string when the unit has no assignment.</returns>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitHideHealthAndManaBars(Realm.Ecs.UnitId,System.Boolean)">
             <summary>
             Shows or hides the overhead health and mana bars for a single unit.
@@ -2943,42 +3090,6 @@
             <param name="unit">The unit identifier.</param>
             <param name="value">The number to draw, from 0 to 999, or a negative value to draw no badge at all.</param>
             <param name="color">The tint of the badge, in the same 0-1 channel range as every other colour a map gives.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitCharges(Realm.Ecs.UnitId,System.Int32,System.Single)">
-            <summary>
-            States the charges a unit keeps and how long it takes to regain one, which is how a map makes a building hold a
-            limited number of what it fields.
-            </summary>
-            <remarks>
-            The engine owns the count: it regains a charge every <paramref name="rechargeSeconds" /> on its own, so a map
-            states the parameters once and never advances the timer itself. The count is a component of the unit, read the
-            same way by the inspector, the overhead plate and the map, and replicated with the unit, so every screen states
-            the same number without the map publishing it.
-            <para>
-            Stating the parameters again keeps the count the unit holds, clamped to the new maximum, and keeps the recharge it
-            has already served, so a rule that raises the cap mid-match does not hand out charges and a rule that lowers the
-            recharge time is felt on the charge being regained. Calling it on a unit that carries no charges gives it a count
-            of zero, because the maximum stated here is what the charge is worth.
-            </para>
-            <para>
-            A maximum of zero removes the charges from the unit, which is how a map says the rule no longer applies to it.
-            </para>
-            </remarks>
-            <param name="unit">The unit identifier.</param>
-            <param name="maximumCharges">The greatest number of charges the unit may hold, or zero to hold none at all.</param>
-            <param name="rechargeSeconds">Seconds the unit takes to regain one charge, or zero to regain them at once.</param>
-        </member>
-        <member name="M:Realm.MapAPI.IGameAPI.SetUnitChargeCount(Realm.Ecs.UnitId,System.Int32)">
-            <summary>
-            Sets how many charges a unit holds right now, which is how a map spends or grants one.
-            </summary>
-            <remarks>
-            The count is clamped to what the unit states through <see cref="M:Realm.MapAPI.IGameAPI.SetUnitCharges(Realm.Ecs.UnitId,System.Int32,System.Single)" />, and a unit that carries no
-            charges ignores the call because it has no count to set. Spending the last charge resets the recharge, because the
-            time served toward a charge the unit already held is not time served toward the next one.
-            </remarks>
-            <param name="unit">The unit identifier.</param>
-            <param name="charges">The number of charges the unit holds, which is clamped to the maximum it states.</param>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerDamageEffectiveness(System.Int32,System.Int32,System.Single)">
             <summary>
@@ -3207,8 +3318,8 @@
         <member name="M:Realm.MapAPI.IGameAPI.GetSpawnAnchorCount">
             <summary>
             Gets how many player starting points the map instance the match is playing declares.
-            A spawn anchor joins a player slot to a point on the board, and it is authored with the board's terrain instead
-            of in a script, so one ruleset can be played on any board that seats its players. A map that declares none
+            A spawn anchor joins a player slot to a named coordinate of the board, and it is authored with the board's terrain
+            instead of in a script, so one ruleset can be played on any board that seats its players. A map that declares none
             answers zero, which is how a script tells a board meant for it apart from one it was pointed at by mistake.
             </summary>
             <returns>The number of spawn anchors the loaded map declares.</returns>
@@ -3216,17 +3327,29 @@
         <member name="M:Realm.MapAPI.IGameAPI.GetSpawnAnchor(System.Int32)">
             <summary>
             Gets where the map instance places the starting point of one player slot.
-            The point is snapped to the ground of the loaded terrain, so it is a position a starting building can be placed
-            at and a camera can be moved to without the script reading a height field itself. A slot the map declares no
-            anchor for answers <see cref="P:System.Numerics.Vector3.Zero"/>.
+            The anchor is the coordinate the board seats that slot inside, and the point is picked within it when the match
+            begins, so two players assigned the same ground do not stand on the identical step. The point is snapped to the
+            ground of the loaded terrain, so it is a position a starting building can be placed at and a camera can be moved to
+            without the script reading a height field itself. A slot the map declares no usable anchor for is seated anywhere on
+            the board, so this never answers a point a match cannot use.
+            <para>
+            The lobby's map may seat a whole team inside one coordinate instead, through
+            <see cref="M:Realm.MapAPI.ILobbyAPI.SetTeamSpawnCoordinate(System.Int32,System.String)" />. That assignment outranks the board's own anchor for every slot on
+            the team it names, so a side that shares ground begins together inside that coordinate while each of its players
+            still picks its own point there.
+            </para>
             </summary>
             <param name="playerSlot">The one-based player slot the lobby seats a player in, as the map's own slot numbering states it.</param>
-            <returns>The ground position of that slot's anchor, or <see cref="P:System.Numerics.Vector3.Zero"/> when the map declares none for it.</returns>
+            <returns>The ground position of that slot's anchor, or a point anywhere on the board when the map declares none for it.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.GetUnitConstructionProgress(Realm.Ecs.UnitId)">
             <summary>
             Reports how far a building site has been built, as a fraction from zero to one. A unit that is not a building
             site answers one, so a caller may ask any unit without first knowing what state it is in.
+            A site's health is this same fraction of its maximum health, because the bar over a building being raised is its
+            construction rather than a second reading of it; a site also regenerates no health and no mana until it is whole,
+            so a map cannot bank a building's production before the building exists and must not treat a site's missing health
+            as damage to be mended.
             </summary>
             <param name="unit">The building site.</param>
             <returns>The completed fraction of its construction time.</returns>
@@ -3254,6 +3377,50 @@
             <param name="totalConstructionSeconds">How much build time the site needs before it completes.</param>
             <returns>The site unit, or an invalid handle when the template is not a building this map defines.</returns>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.StartUnitConstruction(Realm.Ecs.UnitId,System.Single)">
+            <summary>
+            Turns a unit that already stands into a building site, which is how a map raises something from where it was
+            placed instead of spawning a second entity beside it. The unit takes the work it was given before it completes and
+            is announced through <see cref="E:Realm.MapAPI.IGameAPI.OnConstructionFinished" /> like any other site.
+            <para>
+            Whether a site may be attacked, ordered or worked on is the map's own decision, so nothing but the construction
+            itself is written here: a unit that should not be attacked is made invulnerable by the map, and a unit a worker
+            should be able to raise is one the map made a building.
+            </para>
+            </summary>
+            <param name="unit">The unit to raise as a building site.</param>
+            <param name="totalConstructionSeconds">How much work the site needs before it completes, which has to be greater than zero.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitConstructionCeiling(Realm.Ecs.UnitId,System.Single)">
+            <summary>
+            Holds a construction site short of completion: it takes work up to the given fraction of its construction time and
+            stops there, so it never becomes a building until the ceiling is lifted. This is what lets a map stand a site on the
+            board before it is known what is being raised there, because a site that could complete would become a building nobody
+            chose. A ceiling of zero denies the site any work at all, which is how a map keeps a site whose choice is still open
+            from being built in advance.
+            </summary>
+            <param name="unit">The building site to hold, or to release when the fraction given is one.</param>
+            <param name="finishedFraction">
+            The furthest the site may be built, from zero to one. One releases the site and is the state every site starts in;
+            a site held below one keeps the progress it has already been given, shortened to the new ceiling.
+            </param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.RevealBuildingSite(Realm.Ecs.UnitId,System.String,System.Single)">
+            <summary>
+            Reveals what a construction site is being raised as: the site takes the chosen building's template, so every screen
+            draws that building from the next description it receives, and the work it now needs is the building's own. The
+            work the site has already taken stays with it rather than being paid for twice, so a site held at a ceiling of zero
+            is revealed with nothing banked and starts its construction from the beginning.
+            <para>
+            A site held by <see cref="M:Realm.MapAPI.IGameAPI.SetUnitConstructionCeiling(Realm.Ecs.UnitId,System.Single)" /> stays held until the map lifts the ceiling, so revealing a
+            site does not on its own make it possible for the site to complete.
+            </para>
+            </summary>
+            <param name="site">The building site to reveal.</param>
+            <param name="buildingTypeId">The template of the building the site is being raised as.</param>
+            <param name="totalConstructionSeconds">How much work the revealed site needs in total, which has to be greater than zero.</param>
+            <returns>True when the site now stands as that building, or false when it or the template is unknown to this map.</returns>
+        </member>
         <member name="T:Realm.MapAPI.ILobbyAPI">
             <summary>
                 The roster a map script owns while its lobby is filling: which factions the map offers, how many players it seats,
@@ -3271,6 +3438,12 @@
                     A lock is what a map offers a player as a choice it may not change: a script sets a slot's faction, team or
                     colour and locks it, and the lobby stops offering that field for that seat. A map that sets nothing leaves the
                     lobby's own assignment of colours and teams in place, which is what the default lobby rules do.
+                </para>
+                <para>
+                    The two settings beyond the roster are the ones a map states once and a host may still overrule: whether the
+                    lobby groups a team's players into consecutive player slots when the match starts, and which board coordinate
+                    each team begins inside. Both are placed as orders here and only take effect when the match starts, so a map
+                    states them while its lobby fills and never has to read them back.
                 </para>
             </remarks>
         </member>
@@ -3396,6 +3569,28 @@
                 count smaller than the players already sitting in it.
             </summary>
             <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetTeamsTogetherDefault(System.Boolean)">
+            <summary>
+                States whether the lobby's Teams Together checkbox starts checked, which is what a map that plays its teams as
+                sides states: a checked lobby groups every team's players into consecutive player slots when the match starts, so
+                a team's members sit next to each other rather than wherever they happened to join. The host may still clear the
+                checkbox, and a host that has changed it keeps its own choice rather than being overruled by this order.
+            </summary>
+            <param name="teamsTogether">Whether the checkbox starts checked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetTeamSpawnCoordinate(System.Int32,System.String)">
+            <summary>
+                Assigns a board coordinate to a team, which is how a map that seats its teams apart states where each side
+                begins: every player of that team starts at a random point inside the coordinate rather than at the anchor the
+                board states for that player slot. An assignment replaces the board's own anchors for that team's players, so a
+                team whose members share ground needs nothing from the board's per-slot anchors, and a team with no assignment
+                keeps them. A name the board does not author is refused, because a team seated nowhere is a team the match cannot
+                start; an empty name clears the team's assignment.
+            </summary>
+            <param name="teamIndex">The team number, from one up to the teams this lobby offers.</param>
+            <param name="coordinateName">The board coordinate the team begins inside, or empty to clear the assignment.</param>
+            <returns>Whether the authority took the order.</returns>
         </member>
         <member name="T:Realm.MapAPI.ILobbyScript">
             <summary>
@@ -3700,6 +3895,24 @@
             </summary>
             <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
         </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetTeamsTogetherDefault(System.Boolean)">
+            <summary>
+                States whether the lobby's Teams Together checkbox starts checked, which is how a map that plays its teams as
+                sides says so. The host keeps the last word, so an order placed after the host has changed the checkbox leaves
+                the host's choice alone.
+            </summary>
+            <param name="teamsTogether">Whether the checkbox starts checked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetTeamSpawnCoordinate(System.Int32,System.String)">
+            <summary>
+                Assigns a board coordinate to a team, so every player of that team starts at a random point inside it instead of
+                at the anchor the board states for that player slot. A team outside the lobby's teams and a coordinate this
+                board does not author are both refused, and an empty name clears the team's assignment.
+            </summary>
+            <param name="teamIndex">The team number, from one up to the teams this lobby offers.</param>
+            <param name="coordinateName">The board coordinate the team begins inside, or empty to clear the assignment.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
         <member name="T:Realm.MapAPI.LobbyImports">
             <summary>
                 The roster orders a map script places with the authority, declared by hand because the roster itself is published
@@ -3751,6 +3964,16 @@
             <summary>Places the order that locks or unlocks a slot's colour.</summary>
             <param name="playerIndex">The player slot.</param>
             <param name="locked">Whether the field is locked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetTeamsTogetherDefault(System.Boolean)">
+            <summary>Places the order that states whether the lobby's Teams Together checkbox starts checked.</summary>
+            <param name="teamsTogether">Whether the checkbox starts checked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetTeamSpawnCoordinate(System.Int32,System.String)">
+            <summary>Places the order that assigns a board coordinate to a team, or clears the team's assignment when the name is empty.</summary>
+            <param name="teamIndex">The team number.</param>
+            <param name="coordinateName">The board coordinate the team begins inside, passed as UTF-8 with its byte length.</param>
+            <returns>Whether the authority accepted the order.</returns>
         </member>
         <member name="T:Realm.MapAPI.LootItemIdScriptExtensions">
             <summary>
@@ -4858,6 +5081,9 @@
         <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_IsDead(Realm.Ecs.UnitId)">
             <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.IsDead"/>
         </member>
+        <member name="M:Realm.MapAPI.UnitIdScriptExtensions.get_IsDormant(Realm.Ecs.UnitId)">
+            <inheritdoc cref="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.IsDormant"/>
+        </member>
         <member name="M:Realm.MapAPI.UnitIdScriptExtensions.MoveTo(Realm.Ecs.UnitId,System.Numerics.Vector3)">
             <inheritdoc cref="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.MoveTo(System.Numerics.Vector3)"/>
         </member>
@@ -5015,6 +5241,12 @@
             Gets a value indicating whether this unit is dead.
             </summary>
         </member>
+        <member name="P:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.IsDormant">
+            <summary>
+            Gets a value indicating whether this building is dormant, which is what a repairable building becomes when its
+            health runs out: it is invulnerable, it works at nothing, and it is waiting for a repairing unit to restore it.
+            </summary>
+        </member>
         <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.MoveTo(System.Numerics.Vector3)">
             <summary>
             Orders the unit to move to the specified destination in world coordinates.
@@ -5146,9 +5378,10 @@
         </member>
         <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.GetItems">
             <summary>
-            Retrieves the item archetype identifiers currently held in the unit's inventory.
+            Retrieves the item archetype identifiers currently held in the unit's inventory, naming each item once even when
+            its charges spill across several slots.
             </summary>
-            <returns>A read-only collection of item archetype identifiers.</returns>
+            <returns>A read-only collection of the distinct item archetype identifiers, in the order they were first carried.</returns>
         </member>
         <member name="M:Realm.MapAPI.UnitIdScriptExtensions.&lt;G&gt;$A8628E50ED1168F4F3C0EE102E85FD56.HasBuff(System.String)">
             <summary>
@@ -5531,8 +5764,8 @@
         <member name="F:Realm.MapAPI.Components.ScriptPlayer.IsComputerByte">
             <summary>Backing byte indicating whether the player is controlled by AI (1 if AI, 0 if human).</summary>
         </member>
-        <member name="F:Realm.MapAPI.Components.ScriptPlayer.Reserved0">
-            <summary>Reserved alignment padding byte.</summary>
+        <member name="F:Realm.MapAPI.Components.ScriptPlayer.Placement">
+            <summary>Final placement of the player's team in the match ranking, one for the team that outlasted the others and zero while no ranking has been recorded.</summary>
         </member>
         <member name="F:Realm.MapAPI.Components.ScriptPlayer.Reserved1">
             <summary>Reserved alignment padding byte.</summary>

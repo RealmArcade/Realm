@@ -1906,7 +1906,7 @@
   "Tint with player color": "Tint with player color",
   "Tints ground-level glows with the owning player's color instead of the authored effect colors": "Tints ground-level glows with the owning player's color instead of the authored effect colors",
   "Toggle Add/Delete Controls": "تبديل عناصر التحكم في الإضافة/الحذف",
-  "Toggle Camera Zoom (Near / Mid / Far) [Z]": "تبديل تكبير الكاميرا (قريب / متوسط / بعيد) [Z]",
+  "Toggle Camera Zoom (Near / Mid / Far)": "تبديل تكبير الكاميرا (قريب / متوسط / بعيد)",
   "Toggle Debug JSON View": "تبديل عرض تصحيح JSON",
   "Toggle Embedded VSCode JSON / Script editor": "تبديل محرر البرمجة / JSON المضمن لـ VSCode",
   "Toggle Free Camera": "تبديل الكاميرا الحرة",

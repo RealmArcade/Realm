@@ -84,4 +84,8 @@ public class ServerLobbyAPI : ILobbyAPI
 	}
 
 	public void SetMaximumPlayerCount(int maximumPlayerCount) => _roster.TrySetMaximumPlayerCount(maximumPlayerCount);
+
+	public void SetTeamsTogetherDefault(bool teamsTogether) => _roster.SetTeamsTogetherDefault(teamsTogether);
+
+	public bool SetTeamSpawnCoordinate(int teamIndex, string coordinateName) => _roster.SetTeamSpawnCoordinate(teamIndex, coordinateName);
 }

@@ -1906,7 +1906,7 @@
   "Tint with player color": "Tint with player color",
   "Tints ground-level glows with the owning player's color instead of the authored effect colors": "Tints ground-level glows with the owning player's color instead of the authored effect colors",
   "Toggle Add/Delete Controls": "Steuerelemente für Hinzufügen/Löschen umschalten",
-  "Toggle Camera Zoom (Near / Mid / Far) [Z]": "Kamerazoom umschalten (Nah / Mittel / Fern) [Z]",
+  "Toggle Camera Zoom (Near / Mid / Far)": "Kamerazoom umschalten (Nah / Mittel / Fern)",
   "Toggle Debug JSON View": "Debug-JSON-Ansicht umschalten",
   "Toggle Embedded VSCode JSON / Script editor": "Eingebetteten VSCode-JSON-/Skript-Editor umschalten",
   "Toggle Free Camera": "Freie Kamera umschalten",

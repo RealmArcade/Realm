@@ -154,6 +154,7 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 
 			InitializeAutoBindings();
 			InitializeManualBindings();
+			ValidateModuleImports();
 
 			_instance = _linker.Instantiate(_store, _module);
 			InitializeAutoEvents();
@@ -240,4 +241,26 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		}
 	}
 
+	/// <summary>
+	///     Rejects a script published against an older engine before the linker reports the stale symbol as an opaque
+	///     unknown import. A map ships the bytes it was published with, so an import this build no longer defines means the
+	///     workspace has to be recompiled, not that the runtime is misconfigured.
+	/// </summary>
+	private void ValidateModuleImports()
+	{
+		List<string>? missingImports = null;
+		foreach (var import in _module.Imports)
+		{
+			if (IsRuntimeProvidedImportModule(import.ModuleName)) continue;
+			if (_linker.GetFunction(_store, import.ModuleName, import.Name) != null) continue;
+			missingImports ??= new List<string>();
+			missingImports.Add($"{import.ModuleName}::{import.Name}");
+		}
+
+		if (missingImports == null) return;
+		throw new InvalidOperationException($"Map script '{_scriptPath}' was built against an engine that provided {missingImports.Count} import(s) this build does not: {string.Join(", ", missingImports)}. Rebuild the map workspace with this build (Test Map or Publish) before playing it.");
+	}
+
+	private static bool IsRuntimeProvidedImportModule(string moduleName) =>
+		moduleName is "env" or "wasi_snapshot_preview1" or "wasi_unstable";
 }

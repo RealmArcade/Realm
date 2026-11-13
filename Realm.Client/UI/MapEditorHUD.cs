@@ -131,6 +131,7 @@ public partial class MapEditorHUD : Control
 	private CompositeMapDialog _compositeMapDialog { get; set; } = null!;
 	private TemplateManagerDialog _templateManagerDialog { get; set; } = null!;
 	private InstanceManagerDialog _instanceManagerDialog { get; set; } = null!;
+	private SpawnAnchorDialog? _spawnAnchorDialog;
 	private AssetBrowserDialog _assetBrowserDialog { get; set; } = null!;
 	private NoiseTextureDialog _noiseTextureDialog { get; set; } = null!;
 	private ConvertGlbDialog _convertGlbDialog { get; set; } = null!;
@@ -307,7 +308,7 @@ public partial class MapEditorHUD : Control
 			EditorTool.PaintTexture or EditorTool.FloodFill => EditorModule.TextureDeco,
 			EditorTool.DrawCoordinate => EditorModule.Coordinates,
 			EditorTool.PaintPathing or EditorTool.FloodFillPathing => EditorModule.Pathing,
-			EditorTool.PlaceUnit or EditorTool.PlaceProp or EditorTool.PlacePropClump or EditorTool.PlaceDecal or EditorTool.DeleteObject or EditorTool.SelectMove => EditorModule.Objects,
+			EditorTool.PlaceUnit or EditorTool.PlaceProp or EditorTool.PlacePropClump or EditorTool.PlaceDecal or EditorTool.PlaceItem or EditorTool.DeleteObject or EditorTool.SelectMove => EditorModule.Objects,
 			EditorTool.SelectArea or EditorTool.PasteArea => EditorModule.Clipboard,
 			_ => _activeModule
 		};

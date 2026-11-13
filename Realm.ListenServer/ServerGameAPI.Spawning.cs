@@ -236,22 +236,116 @@ public partial class ServerGameAPI
 		_timers.Remove(timerHandle);
 	}
 
+	private readonly Dictionary<int, Vector3> _resolvedSpawnAnchors = new();
+
 	public int GetSpawnAnchorCount() => _map.SaveData.SpawnAnchors?.Count ?? 0;
 
+	/// <summary>
+	///     Answers where one player slot begins, picking the point the first time it is asked and holding it for the rest
+	///     of the match: a seat is one place, so a map that reads it twice must not be answered twice differently.
+	/// </summary>
+	/// <param name="playerSlot">The one-based player slot the map's own numbering states.</param>
+	/// <returns>The point that slot begins at, snapped to the terrain.</returns>
 	public Vector3 GetSpawnAnchor(int playerSlot)
 	{
+		if (_resolvedSpawnAnchors.TryGetValue(playerSlot, out Vector3 resolved)) return resolved;
+
+		CoordinateSaveData? seat = FindTeamSpawnCoordinate(playerSlot) ?? FindSpawnAnchorCoordinate(playerSlot);
+		Vector3 point = seat == null ? RandomPointOnBoard() : RandomPointInCoordinate(seat);
+		_resolvedSpawnAnchors[playerSlot] = point;
+
+		return point;
+	}
+
+	/// <summary>
+	///     Finds the coordinate the lobby's map seated one player's team in, which is what a board that plays its teams
+	///     as sides states instead of seating each player itself. Every player of a team reads the same coordinate, so a
+	///     side begins together inside it while each seat still picks its own point there.
+	/// </summary>
+	/// <param name="playerSlot">The one-based player slot the map's own numbering states.</param>
+	/// <returns>The coordinate that slot's team begins inside, or nothing when the lobby assigned its team none.</returns>
+	private CoordinateSaveData? FindTeamSpawnCoordinate(int playerSlot)
+	{
+		if (_teamSpawnCoordinates.Length == 0) return null;
+
+		int team = ReadPlayerTeam(playerSlot);
+		if (team <= 0 || team >= _teamSpawnCoordinates.Length) return null;
+
+		return FindCoordinate(_teamSpawnCoordinates[team]);
+	}
+
+	/// <summary>
+	///     Reads the team a player slot plays on out of the world's player table, which is what the lobby seats a slot on
+	///     before any script runs.
+	/// </summary>
+	/// <param name="playerSlot">The one-based player slot.</param>
+	/// <returns>The team number, or zero when the slot plays on no team or is not a player.</returns>
+	private int ReadPlayerTeam(int playerSlot)
+	{
+		if (!TryReadPlayersState(out ScriptPlayersState players)) return 0;
+
+		return players.IsValidSlot(playerSlot) ? players.Get(playerSlot).Team : 0;
+	}
+
+	/// <summary>
+	///     Finds the coordinate the board seats one player inside. An anchor whose coordinate this board does not author
+	///     seats nobody, which is the same answer a player the board states no anchor for gets.
+	/// </summary>
+	/// <param name="playerSlot">The one-based player slot the map's own numbering states.</param>
+	/// <returns>The coordinate the slot begins inside, or nothing when the board states no usable anchor for it.</returns>
+	private CoordinateSaveData? FindSpawnAnchorCoordinate(int playerSlot)
+	{
 		List<SpawnAnchorSaveData>? anchors = _map.SaveData.SpawnAnchors;
-		if (anchors == null) return Vector3.Zero;
+		if (anchors == null) return null;
 
 		for (int index = 0; index < anchors.Count; index++)
 		{
 			SpawnAnchorSaveData anchor = anchors[index];
 			if (anchor.Player != playerSlot) continue;
 
-			var point = new Vector3(anchor.PosX, 0f, anchor.PosZ);
-			return new Vector3(point.X, ReadTerrainHeight(point), point.Z);
+			return FindCoordinate(anchor.CoordinateName);
 		}
 
-		return Vector3.Zero;
+		return null;
+	}
+
+	/// <summary>
+	///     Picks where inside a seat's coordinate that seat begins. The whole rectangle is fair game rather than its
+	///     centre, so two boards that state the same ground do not seat everyone on the identical step.
+	/// </summary>
+	/// <param name="coordinate">The coordinate the seat begins inside.</param>
+	/// <returns>The picked point, snapped to the terrain.</returns>
+	private Vector3 RandomPointInCoordinate(CoordinateSaveData coordinate)
+	{
+		float minX = MathF.Min(coordinate.MinX, coordinate.MaxX);
+		float maxX = MathF.Max(coordinate.MinX, coordinate.MaxX);
+		float minZ = MathF.Min(coordinate.MinZ, coordinate.MaxZ);
+		float maxZ = MathF.Max(coordinate.MinZ, coordinate.MaxZ);
+
+		return SnapToGround(SeededRandom.Shared.NextSingle() * (maxX - minX) + minX, SeededRandom.Shared.NextSingle() * (maxZ - minZ) + minZ);
+	}
+
+	/// <summary>
+	///     Picks where a player the board states no anchor for begins: anywhere on the board the match is played on. A
+	///     board that names no seat for a player still starts that player somewhere rather than refusing to seat them.
+	/// </summary>
+	/// <returns>The picked point, snapped to the terrain.</returns>
+	private Vector3 RandomPointOnBoard()
+	{
+		Entity worldEntity = _context.WorldEntity;
+		if (worldEntity == Entity.Null || !_context.World.IsAlive(worldEntity)) return Vector3.Zero;
+		if (!_context.World.TryGet<TerrainState>(worldEntity, out TerrainState terrain)) return Vector3.Zero;
+		if (terrain.Width <= 0 || terrain.Depth <= 0) return Vector3.Zero;
+
+		float halfWidth = terrain.Width * 0.5f * terrain.QuadSize;
+		float halfDepth = terrain.Depth * 0.5f * terrain.QuadSize;
+
+		return SnapToGround(SeededRandom.Shared.NextSingle() * halfWidth * 2f - halfWidth, SeededRandom.Shared.NextSingle() * halfDepth * 2f - halfDepth);
+	}
+
+	private Vector3 SnapToGround(float x, float z)
+	{
+		var point = new Vector3(x, 0f, z);
+		return new Vector3(point.X, ReadTerrainHeight(point), point.Z);
 	}
 }

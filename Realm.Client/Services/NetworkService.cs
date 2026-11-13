@@ -47,6 +47,7 @@ public class NetworkService
 	private bool _fingerprintMatchLogged;
 
 	private readonly PendingUnitSpawnQueue _pendingUnitSpawns = new();
+	private readonly List<(int ServerEntityId, string Definition)> _pendingUnitReskins = new();
 	private List<Entity> _pendingUnitKills = new();
 	private List<Entity> _pendingUnitDespawns = new();
 
@@ -63,7 +64,8 @@ public class NetworkService
 			() => LastAppliedSnapshotSequenceForDiagnostics,
 			_pendingUnitSpawns,
 			localEntity => _pendingUnitKills.Add(localEntity),
-			RetireClientEntityForUntrackedServerId);
+			RetireClientEntityForUntrackedServerId,
+			(serverEntityId, definition) => _pendingUnitReskins.Add((serverEntityId, definition)));
 	}
 
 	public bool IsPaused { get; set; } = false;
@@ -104,6 +106,7 @@ public class NetworkService
 		RemainingPauses = 3;
 		PauseCooldownSecondsRemaining = 0;
 		_pendingUnitSpawns.Clear();
+		_pendingUnitReskins.Clear();
 		_pendingUnitKills.Clear();
 		_pendingUnitDespawns.Clear();
 		_componentApplier.Clear();
@@ -424,6 +427,24 @@ public class NetworkService
 	public bool TryTakePendingUnitSpawn(out UnitSnapshot snapshot) => _pendingUnitSpawns.TryTakeAny(out snapshot);
 
 	public bool IsWaitingForUnitSpawn(int serverEntityId) => _pendingUnitSpawns.Contains(serverEntityId);
+
+	/// <summary>
+	///     Takes one unit whose template a description replaced, so its view can be dressed as what it now is. The replica
+	///     itself is retemplated as the description is applied, so this only carries the change to the node that draws it.
+	/// </summary>
+	/// <param name="serverEntityId">The unit whose template changed.</param>
+	/// <param name="definition">The template it now stands as.</param>
+	/// <returns>True when a changed unit was waiting.</returns>
+	public bool TryTakePendingUnitReskin(out int serverEntityId, out string definition)
+	{
+		serverEntityId = -1;
+		definition = string.Empty;
+		if (_pendingUnitReskins.Count == 0) return false;
+
+		(serverEntityId, definition) = _pendingUnitReskins[0];
+		_pendingUnitReskins.RemoveAt(0);
+		return true;
+	}
 
 
 	public IReadOnlyList<Entity> FlushPendingUnitKills() => SwapPending(ref _pendingUnitKills, ref _pendingUnitKillsTaken);

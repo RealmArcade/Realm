@@ -80,7 +80,7 @@ public static class MatchRoster
 			players[seat.Slot].IsComputer = seat.IsComputer;
 			players[seat.Slot].Team = seat.Team;
 			players[seat.Slot].TeamNameStringId = StringRegistry.GetOrAdd(teamName);
-			players[seat.Slot].Faction = seat.Faction ?? string.Empty;
+			players[seat.Slot].Faction = LobbyLimits.IsRandomFaction(seat.Faction) ? string.Empty : seat.Faction ?? string.Empty;
 		}
 	}
 

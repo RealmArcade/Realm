@@ -36,8 +36,8 @@ Formulas throughout the game preserve intuitive monotonicity. More investment ne
 | Formation | The deterministic position a soldier type holds relative to the hero, drawn from a shared enum. |
 | Doctrine | The player's accumulated identity for the match, formed from drafted building packages and the relics purchased along the way. Working term; the concept is a dynamically assembled faction. |
 | Building Deck | The shared pool of building options. A chosen building leaves the deck; the unchosen options return; the deck is replenished when it runs out. |
-| Building Supply | How many building locations a player may hold, derived from the player's building draft count. |
-| Unlock | The package a constructed building grants: one soldier type, that building's charge count, capacity contribution, recharge rate, and production time, plus its income. There is no separate research tree or post-construction upgrade path. |
+| Building Supply | How many building locations a player may hold. The standard ruleset caps it at eight, and every constructed building costs one point. |
+| Unlock | The package a constructed building grants: one soldier type with that building's mana pool, mana regeneration, auto-cast cooldown, capacity contribution, and production time, plus its worker profile: capacity, worker auto-cast cooldown, worker production time, assigned resource, and the permanent buffs it gives the workers it raises. There is no separate research tree or post-construction upgrade path. |
 | Combat Veterancy | The progression earned by fighting and killing, which raises hero level and sets the level of every army unit. Relics are not part of veterancy. |
 | Bounty | The experience and gold awarded when an enemy unit, enemy hero, enemy building, or neutral monster dies. A bounty never pays wood. |
 | Relic | A player-wide upgrade purchased at the Nexus for 100 gold and equipped in one of the hero's six inventory slots. |
@@ -51,6 +51,7 @@ Formulas throughout the game preserve intuitive monotonicity. More investment ne
 
 - The lobby presents hero selection as a single dropdown labelled Race / Faction, with Random as an option. The label is the lobby's affordance, not a rules concept: no race or faction exists, and no selection grants a distinct roster.
 - Each player enters the match with exactly one hero, either chosen directly or resolved from Random.
+- Random is the lobby's own entry, offered after the factions the map states, and the authority resolves it when it seats the match to one of those factions, drawn from the match seed. A seed therefore seats the same heroes each time, the choice cannot be re-rolled by picking Random again, and the hero a player plays is fixed for the whole match. Nothing that plays the match ever sees a random faction, so a map reads a faction and spawns its hero without knowing the option exists.
 - The Nexus is identical for every hero and every player, so hero choice never changes a player's starting structure.
 - The hero is the player's only directly controlled unit, and serves as both avatar and commander.
 - Every hero has Bulwark, like the Nexus, granting physical and magic resistance that scales with the number of that player's own soldiers nearby. Allied soldiers do not count.
@@ -60,7 +61,7 @@ Formulas throughout the game preserve intuitive monotonicity. More investment ne
 - The hero gathers resources, constructs buildings, repairs buildings, and fights.
 - Active gathering is faster than passive building-based gathering but requires player attention and mechanical input.
 - A hero can perform only one major non-combat activity at a time. Starting another major activity cancels or pauses the previous one.
-- Construction and repair are visible, timed commitments.
+- Construction and repair are visible, timed commitments, and they are orders: the hero raises or mends only the building the player right-clicked for it. Standing near a site or a ruin, idle or otherwise, does nothing, and an order for somewhere else stops the work where it stands. While the hero is working at a site, mending a damaged building or gathering, it plays its labor animation and turns to face what it is working on, so the work reads as aimed at that building or that node rather than merely happening near it. A unit that is walking back to the site keeps its walking animation and only poses as labor once it is standing at the work.
 
 ### 3.3 Hero Abilities and Progression
 
@@ -69,8 +70,10 @@ Formulas throughout the game preserve intuitive monotonicity. More investment ne
 - An innate is a permanent player-wide effect that changes a fundamental rule of the player's army, buildings, or economy, in the same design space as a relic. It is always active, is never cast, and is not a fourth ability slot.
 - The three actives may interact with one another directly. A combo inside one hero's kit is allowed because the whole kit is one piece of content and creates no cross-content dependency.
 - Active ability effectiveness scales from raw stats, so a level increase raises active output automatically with no separate allocation step. An innate may be flat like a relic or scale from stats, but it never requires a separate allocation step.
+- A cast is visible on the caster rather than only on what it hits: the caster takes its casting pose towards the point it cast at, holds it for one cycle of that animation, and then returns to the pose its orders describe. Casting is instantaneous, so this pose is presentation and never a window for the simulation to act in.
 - Every enemy unit, enemy hero, enemy building, and neutral monster awards a bounty of experience and gold when it dies. A bounty never pays wood.
 - A neutral monster's bounty scales with the monster's level.
+- The scale is content, not a rule: a monster's template states the level it stands at and the share of its authored bounty each level above the first adds, and the bounty the engine pays is the template's bounty multiplied by the multiplier that level produces. A template with no level and no such growth pays exactly the bounty it states, which is why soldier, hero and building bounties stay flat while a camp's rises with its level.
 - Hero and building bounties are larger than soldier bounties.
 - The experience portion of a bounty advances combat veterancy. The gold portion is currency and is awarded in addition to gold gathered from nodes.
 - A weaker victim awards less experience, so efficient progression requires engaging progressively stronger opposition.
@@ -83,7 +86,7 @@ Formulas throughout the game preserve intuitive monotonicity. More investment ne
 - When the hero dies, its entire army is removed and every production queue is cleared.
 - The hero revives at its nexus after a revival timer.
 - The revival timer increases with successive deaths.
-- On revival, all army charges are replenished and production resumes automatically.
+- On revival, every building's production mana is refilled to its maximum and its auto-cast production resumes automatically.
 - A hero whose nexus has been destroyed still revives at that destroyed nexus.
 
 ### 3.5 Hero Movement
@@ -147,7 +150,10 @@ Rules:
 ### 4.5 Auto-Cast Abilities
 
 - Soldier abilities are auto-cast, each with its own deterministic rule drawn from a shared enum of auto-cast rules. Soldiers never receive a player order.
+- An ability supports auto-cast only when its template designates an `AutoCast` block. An ability with no such block is never auto-cast and is not togglable: its card carries no border and does not answer a right-click, so a border on a card always means a real switch. Drafting a building, a construction command or any other one-shot card is therefore never marked as auto-cast.
+- The enum is the engine's, not a map's: an ability states its rule in `AutoCast.TargetRule`, and the engine resolves the target from it. The rules are: `Self`, which casts at the caster because no target is needed; `NearestEnemy`, which needs an enemy inside the cast range; `MostWoundedAlly`, which takes the allied unit with the lowest share of its health left; `LowestHealthAlly`, which takes the allied unit with the least health points left; and `AllyWithoutEffect`, which takes the nearest ally that does not already carry the buff the cast applies. Any allied target may also be limited by `AutoCast.AllyHealthPercentBelow`, the highest health share a candidate may be at, so a heal declares 0.9 and a shield that wants any ally leaves it at 1.
 - A typical auto-cast is an area-of-effect cast onto the entire army and hero simultaneously, triggered on cooldown when its criteria are met: sufficient mana, an available target, and a valid target inside cast range. A heal, for example, requires an allied unit below 100% health.
+- Because the rule is authored beside the ability, a new soldier ability that heals, shields or refreshes the army needs no map code at all: the map states the rule and the engine finds the target every tick.
 - Because every unit has its own stats, one cast resolves differently on each unit. A stun reduced by high tenacity or ignored by spell immunity is the expected outcome, not a special case.
 - Abilities are deliberately simple, both to keep cognitive load low and to keep the engine implementation tractable. More creative abilities can be added in later patches without changing these rules.
 
@@ -162,30 +168,38 @@ Rules:
 
 ### 5.1 Automatic Production
 
-- There is no summon ability. No player command starts, stops, or reorders production.
-- Each soldier-granting building has its own production profile for the soldier type it grants: maximum charge count, capacity contribution, recharge rate, and production time. It also has its own charge pool and production queue.
-- A building consumes one charge automatically whenever it is functional, the type has an unreserved slot, and a charge is available. It does so regardless of combat status or of what the hero is doing. A player cannot hold a charge back while capacity is open.
-- Unreserved capacity is the type's total capacity from its buildings minus living soldiers and soldiers already queued or in production. Queued soldiers reserve capacity, so automatic consumption cannot overfill the cap.
-- A consumed charge becomes a queued soldier at its building. Queued soldiers are produced one at a time in queue order at the type's authored production time.
-- The queue has no separate length limit. Charges and available capacity are the only gates.
-- A completed soldier spawns at its building and joins the hero's formation under the normal pathing and collision rules.
-- When no unreserved slot exists, charges accumulate to the building's maximum charge count and wait. A charge is never spent on a soldier that cannot be fielded.
-- A newly completed building begins with one charge, then recharges toward its authored maximum.
-- A destroyed building stops recharging and stops producing. Its charges and queued soldiers are retained, and both resume when the building is repaired.
-- Charges and production timers are independent of hero activity. The hero never returns to a building to collect a soldier or release a charge.
+- There is no summon ability and no player command that starts, stops, or reorders production. Soldier and worker production are auto-cast abilities on the building.
+- A building's production is fed by its own mana pool, not by unit charges. The pool, its regeneration and the ability's cooldown are authored on the building.
+- Every soldier-granting building carries two production abilities: one raises its soldier type and one raises its worker crew. Both draw from the same pool, so a building raising workers has less mana for soldiers. That contention is a deliberate property of the building, not a defect.
+- An ability casts when it is auto-casting, its cooldown is ready, its mana cost is covered, and the type it raises has room. A building spends no mana on a unit it cannot field.
+- A cast pays the ability's mana, reserves the type's slot and starts the ability's cooldown. The unit is raised at the building and joins the army under the normal pathing and collision rules; it never spawns on the hero.
+- A raised soldier walks from its building to the hero. The walk is readable to both players and keeps the building's location meaningful after construction.
+- When no slot is open, mana accumulates to the pool's maximum and waits. Capacity caps are still authored per building and remain a map-side gate where the generic mana pool cannot express them.
+- A newly completed building begins with one production worth of mana, so its first cast does not wait on regeneration. Because both abilities share the pool, whichever casts first claims it and the other waits; that contention is intended.
+- A destroyed building stops regenerating mana and stops casting. Its stored mana and queue are retained, and both resume when the building is repaired.
+- Auto-cast is on when the building is completed. The player may right-click either production card to switch that ability off or back on. Every card whose ability supports auto-cast carries the dashed border, whether the ability is on or off, and the border marches only while that ability is auto-casting; a still border therefore reads as an ability that could cast itself but is currently switched off. Toggling is an order that reaches the authority, not a local UI state.
 
 ### 5.2 Building Production Values
 
-- Each building owns the production values for the soldier type it grants: maximum charge count, capacity contribution, recharge rate, and production time.
+- Each building owns the production values for the soldier type it grants: its mana pool, mana regeneration, auto-cast cooldown, capacity contribution, and production time.
 - A soldier type's total capacity is the sum of the capacity contributions of the player's owned buildings that grant it.
 - Soldier types have hard caps that cannot be surpassed.
-- When a soldier type has no unreserved slot, its buildings retain their charges rather than spending them.
-- Each copy of a building tracks its charges, recharge, and queue independently. A second copy contributes its full values rather than sharing the first copy's pool, so two copies double total charge capacity, recharge throughput, and production throughput.
-- Relics, hero actives, and hero innates can modify a building's production values. They apply to each building separately, so duplicate copies are affected independently.
+- When a soldier type has no open slot, its buildings retain their mana rather than spending it.
+- Each copy of a building tracks its mana, cooldown, and queue independently. A second copy contributes its full values rather than sharing the first copy's pool, so two copies double total mana capacity, regeneration throughput, and production throughput.
+- Relics, hero actives, and hero innates can modify a building's production values, including its mana regeneration and cooldown reduction. They apply to each building separately, so duplicate copies are affected independently.
 - A building's production values are fixed by its authored profile and changed only by those buff sources.
 - A building's production values do not improve a soldier's combat statistics. The hero's level is the only global source of stat growth for every soldier.
 - Soldier types are not tiered. Every soldier is set to the hero's level, so a package drafted early remains valid late; balance is applied to the building package as a whole.
-- Army progression combines veterancy, which raises every soldier's stats, with capacity, charge cadence, and production time, which decide how many soldiers are fielded and how quickly.
+- Army progression combines veterancy, which raises every soldier's stats, with capacity, mana throughput, cooldown, and production time, which decide how many soldiers are fielded and how quickly.
+
+### 5.3 Worker Production
+
+- A building raises workers through the same mana-fed auto-cast model as soldiers, from its own worker ability: worker capacity, worker auto-cast cooldown, and worker production time. Both abilities draw on the building's single mana pool.
+- A worker is raised when the worker ability casts and a worker slot is open. It spawns at its building and walks to its assigned resource. The mana it spends is no longer available to the soldier ability, so the two lines compete for the same resource.
+- A newly completed building auto-casts its crew from the first moment it is functional, from the same opening mana that its soldier ability can claim.
+- A worker profile is part of the building package, so a package may be strong in soldiers and weak in workers, or the reverse.
+- Worker capacity and production values are authored per building and are affected by the same lobby multipliers as soldier capacity.
+- Worker production values do not state an income rate. Income emerges from what the workers do (section 9.3).
 
 ## 6. Drafting
 
@@ -198,7 +212,7 @@ Rules:
 
 ### 6.2 The Shared Building Deck
 
-- Draftable content consists of building packages. A package is a building, the soldier type it grants, that building's charge count, capacity contribution, recharge rate, production time, economy, and construction time.
+- Draftable content consists of building packages. A package is a building, the soldier type it grants, that building's mana pool, mana regeneration, auto-cast cooldown, capacity contribution, production time, economy, and construction time.
 - There is one shared deck of buildings. There are no mutually exclusive unit pools; every package competes with every other package.
 - Every constructed building package in the content set is an option in the deck.
 - Each construction draws up to three options from the buildings still remaining in the deck that the player does not already own. In a lobby that allows duplicate copies, an owned building stays eligible up to the configured limit. The draw is reserved for that player until the choice is locked.
@@ -215,21 +229,22 @@ Rules:
 The draft is expressed through building construction, so that the decision and its commitment are the same act.
 
 1. **Accumulate the cost.** The player gathers 100 wood.
-2. **Begin construction.** The player starts a construction action. The building site appears as an unidentified silhouette. The hero continues construction, equivalent to repairing the building from 0 to 100% health.
-3. **Draw up to three options.** Up to three buildings still in the shared deck and not already owned by the player are drawn and reserved for this player; if the lobby allows duplicates, owned buildings are eligible up to the configured limit. Fewer than three is correct when fewer exist.
-4. **Choose one.** All drawn options are revealed immediately and the player selects one. The others return to the shared deck.
-5. **Complete construction.** The selected option stays locked but is not finalized until construction finishes. Construction time is the decision window; no separate draft timer exists.
-6. **Establish the building.** On completion the selected option becomes the player's building at that location.
-7. **Undrafted building.** Completion stays stuck at 99% and the building does not visually transform or start functioning until a draft choice is locked.
+2. **Begin construction.** The player presses Begin Construction and places the site with the standard construction placement: the site's own silhouette follows the cursor, turning red over ground the match would refuse, instead of a targeting cross-hair. The 100 wood is charged and the unidentified site stands there; it is the only construction site a player may hold open, so the hero's own grid stops offering Begin Construction while a draw is open.
+3. **Draw up to three options.** Up to three buildings still in the shared deck and not already owned by the player are drawn and reserved for this player, and the site's command grid shows exactly those packages; if the lobby allows duplicates, owned buildings are eligible up to the configured limit. Fewer than three is correct when fewer exist.
+4. **Hold the site undecided.** The unidentified site is invulnerable, not operational and not identifiable, and it takes no work at all: nothing a hero does to it advances it, so the ground cannot be prepared before the package is known and no construction time is banked while the player decides. A draw left unanswered holds its site and its reserved wood until the player answers it or abandons it.
+5. **Choose one.** The drawn options are visible immediately and the player picks one from the site's command grid. That building leaves the deck, the site becomes that building, and the others return to the shared deck. If the hero is idle when the choice is locked, it is ordered to the site at once and starts raising it, so a player who was waiting on the draw has nothing left to click; a hero already working elsewhere keeps what it was told to do.
+6. **Raise the site.** The revealed site needs the building's own construction time in full, because nothing was banked while it was undecided. It stays invulnerable and not operational until it is whole, and an order for somewhere else stops the work where it stands. Raising is the hero's labour and never a clock: no separate draft timer exists, and a hero that never works the site never finishes it.
+7. **Establish the building.** On completion the site becomes the player's building at that location, becomes attackable, and begins its production.
+8. **No undrafted completion.** A site with no package locked cannot be advanced or completed, so construction can never finish as a building nobody chose.
 
 Consequences of this structure:
 
 - The chosen option is committed before construction completes, so a player cannot wait to see how the battlefield develops before finalizing.
 - Drawing reserves options rather than consuming them; only the selected building leaves the deck.
 - The next construction draws a fresh set. A previous draw is never reused.
-- Construction time doubles as the draft decision window.
+- The decision window is the open draw itself, and the site banks no work while it is open, so deciding early is the only way to start raising sooner. Labouring a site whose choice is still open is not possible, because no work can be given to it yet.
 - If construction is canceled before a choice is locked, its reserved options return to the deck and its 100 wood is refunded. No building is created and no draft is spent.
-- If construction is canceled after a choice is locked, the selected building returns to the deck, its 100 wood is refunded, no building supply is consumed, and no building is created.
+- Once a choice is locked the construction is committed: the wood is not refunded, the package does not return to the deck, and the site waits invulnerable until a hero raises it. Abandoning is offered only while the draw is open.
 - If no option exists to offer, the construction is canceled before a draw and its 100 wood is refunded.
 
 ### 6.4 Draft Competition
@@ -242,7 +257,7 @@ Consequences of this structure:
 ### 6.5 Package Balance
 
 - Every building package is balanced against every other building package in the shared deck.
-- The balance unit is the complete package: soldier, capacity, charge count, recharge rate, production time, economy, and construction time together. A weaker soldier can carry a stronger economy, and a stronger soldier can carry a weaker economy.
+- The balance unit is the complete package: soldier, capacity, mana pool, mana regeneration, auto-cast cooldown, production time, economy, and construction time together. A weaker soldier can carry a stronger economy, and a stronger soldier can carry a weaker economy.
 - Soldier types are not tiered. Every soldier scales with the hero's level, so a package drafted early remains relevant late.
 - Cross-package relationships are expressed through stated characteristics and buff sources, never through specific building or unit-name combinations.
 - Drafting one particular package must not make another specific package the automatically correct follow-up choice.
@@ -261,7 +276,7 @@ Consequences of this structure:
 
 ### 7.2 Buff Sources
 
-- Only the hero kit and relics modify an entity's static metadata during a match. The hero kit is its three active abilities plus its innate; there is no third modifier layer.
+- The hero kit, relics, and a building's authored worker buffs modify an entity's static metadata during a match. The hero kit is its three active abilities plus its innate; the worker buffs are applied when a building raises a worker; there is no further modifier layer.
 - Buffs typically apply to the entire army and hero simultaneously rather than to a selected unit.
 - The same buff can resolve differently on each unit, because each unit has its own stats. Tenacity, spell immunity, armor, and health are read per unit.
 - A buff is normally accompanied by a visual effect on every affected unit. During development some buffs may lack their visual; the unit stat panel is authoritative and always lists active buffs, so a missing effect never hides information.
@@ -298,7 +313,8 @@ A hero's own three actives and innate are one piece of content, so they may inte
 
 ### 8.2 Building Supply
 
-- A player's maximum building supply is determined by the player's building draft count.
+- Every constructed building costs one point of building supply. The Nexus is free and does not count.
+- The standard ruleset caps a player at eight building locations. A placement that would exceed the cap is refused before its wood is charged.
 - A player cannot exceed that supply through expansion.
 - Resource locations are not owned. Multiple players may build next to the same concentrated resource.
 - An opponent can deny an expansion's income by destroying its gathering building or by exhausting nearby nodes so its workers must travel farther. The denied player can repair or rebuild, and the attacker can destroy it again.
@@ -320,15 +336,17 @@ Rules:
 - Any allied hero can repair an allied building.
 - A building at zero health enters the destroyed state and stays there until restored to 100% health. The destroyed status does not reset at partial repair.
 - A destroyed building is invulnerable while dormant and cannot be attacked again until fully repaired.
-- A destroyed building generates no income, recharges no charges, and produces no soldiers for its associated soldier type. Its charges and queue are retained until it is repaired, and its capacity contribution remains part of the type's total cap so destroying it never pushes a surviving army over capacity.
-- New construction uses the same silhouette presentation as a destroyed building, without the destruction visual effects, and is invulnerable until complete.
+- A destroyed building generates no income, regenerates no mana, and produces no soldiers or workers. Its stored mana and queue are retained until it is repaired, and its capacity contribution remains part of the type's total cap so destroying it never pushes a surviving army over capacity.
+- New construction uses the same silhouette presentation as a destroyed building, without the destruction visual effects, and is invulnerable until complete. A site that has not been committed to a building yet is drawn the same way, so what is being raised is not readable from the ground until its package is locked; the site then takes that building's silhouette and starts its work from nothing.
+- A site's health is its progress: every percent of the work raises one percent of the building's maximum health, so the bar over the site is its construction bar and completing it is what fills the bar. Selection shows the same readings as any other building, and no separate construction progress meter is drawn anywhere.
+- A site is dormant until it is whole. It regenerates no health and no mana while it is being raised, whatever its template or a map states, so a building cannot bank production or repair itself before it exists. Health and mana regeneration begin on the tick the construction completes.
 - Repair is done as percent of max health per second, so the hero can repair two buildings from 0 to 100% in exactly the same amount of time. The repair rate can be different per hero or augmented by buff sources.
 - The nexus is an explicit exception: once destroyed it cannot be repaired.
 
 ### 8.4 Lobby-Configurable Building Multiplicity
 
 - The default lobby configuration prevents a player from obtaining a second copy of a building.
-- A second copy has its own production profile, charge pool, recharge timer, and queue. It contributes its full income and production values rather than sharing the first copy's state, so two copies double income, total charge capacity, capacity contribution, recharge throughput, and production throughput. Each copy keeps its authored per-building values; only the totals across copies double.
+- A second copy has its own production profile, mana pool, regeneration, cooldown, and queue. It contributes its full income and production values rather than sharing the first copy's state, so two copies double income, total mana capacity, capacity contribution, regeneration throughput, and production throughput. Each copy keeps its authored per-building values; only the totals across copies double.
 - The default configuration is a setting of the formula, not a separate ruleset.
 
 ## 9. Economy
@@ -338,8 +356,8 @@ Rules:
 | Resource | Acquired from | Role |
 | :--- | :--- | :--- |
 | Veterancy | Experience from bounties paid by enemy units, enemy heroes, enemy buildings, and neutral monsters | Advances hero level, which grants raw stats to the hero and sets every army unit's level. It is progression, never a currency. |
-| Gold | Finite gold mines, gathered by the hero or passively by buildings, plus the gold portion of bounties | Spent at the Nexus on relics, at 100 gold per relic. |
-| Wood | Finite tree lines, gathered by the hero or passively by buildings | Spent on building construction, at 100 wood per building. Bounties never pay wood. |
+| Gold | Finite gold mines, attacked by the hero or by building workers, plus the gold portion of bounties | Spent at the Nexus on relics, at 100 gold per relic. |
+| Wood | Finite tree lines, attacked by the hero or by building workers | Spent on building construction, at 100 wood per building. Bounties never pay wood. |
 
 Rules:
 
@@ -348,34 +366,50 @@ Rules:
 - Gold has two sources: finite nodes and bounties. Bounty gold is created by combat rather than drawn from a node. Wood has no bounty source.
 - Neutral bounties scale with the monster's level. Hero and building bounties are larger than soldier bounties.
 - Creeps are not a gatherable resource. They are concentrated neutral monsters in key locations whose bounty pays experience and gold to whoever kills them (section 10.2).
+- A gathered piece is an inventory item. Wood and gold are item templates with a per-slot stack limit, so what a worker carries is visible in its inventory and is spent at the drop-off as items rather than as an abstract number.
+- Item templates state their stack limit: wood holds one piece per slot and gold holds six. Additional pieces of a stack-limited item open the next inventory slot instead of overflowing the first.
+- Every unit may fill six inventory slots. Equipment and gathered pieces share those slots, so a hero carrying relics has that many fewer slots left to haul with, and a full inventory is six wood or thirty-six gold. The slot count is a map rule (`InventorySlots`), not a property of an item or a unit.
+- Gathering is never instantaneous and never takes a whole stack in one swing: a unit fills its inventory over several hits, and a unit whose attack is stronger or whose penetration is higher fills it in fewer of them.
 
 ### 9.2 Active Economy
 
 - Heroes gather gold and wood directly from resource nodes, consuming the node's remaining capacity.
+- A hero gathers only when the player gives the order, either through the gather ability or by right-clicking a node with an order that applies to it. The hero never seeks a node on its own when idle; that automatic behaviour belongs to workers, which carry it through a tag. This keeps one gathering implementation for both unit kinds while leaving the hero's attention as a real cost.
 - Active gathering is faster than passive gathering but requires the player's attention and mechanical input.
 - The economic advantage of active gathering comes from choosing when to invest hero time in it, not from requiring uninterrupted repetitive clicking.
 - Hero gathering's opportunity cost is the hero's time away from fighting, contesting, and constructing.
 
-### 9.3 Passive Economy
+### 9.3 Building Workers
 
-- Buildings gather resources passively through invulnerable workers that travel between the building and the nearest matching resource node.
-- Passive gathering is slower than active hero gathering but requires no attention. Workers are not individually controlled or attackable.
-- A building's passive income is determined by worker travel time: closer nodes produce a higher rate, and greater distance reduces it.
-- When the nearest matching node is exhausted, pathfinding selects the next nearest reachable matching node. If that node is distant, the walk can reduce income to practical uselessness.
-- If no matching node is reachable, the building produces no income of that type.
+- Buildings raise workers through their worker production profile (section 5.3) instead of gathering through an abstract income rate. A worker is a unit on the board with health, position, an attack, and an inventory.
+- Every building raises the same worker template. The template has per-level attribute scaling, so a worker's level is what separates a stronger worker from a weaker one.
+- A worker's level is the construction order of the building that raised it: the first building raises level 1 workers, the second raises level 2 workers, and so on. A later building therefore raises stronger workers without any separate upgrade.
+- A building applies its authored permanent buffs to every worker it raises. The buffs use the ordinary stat pipeline, are listed on the worker's stat panel, and are the only per-building difference between workers raised from the same template. Buffs typically raise the worker's damage (gathering rate), durability, or movement speed.
+- Workers are attackable units, not invulnerable ones. They cannot be given player orders. When a worker is killed, its building raises a replacement through its worker ability when its mana and cooldown allow.
+- A building assigns each worker the resource it gathers when it raises it, as a tag on the worker (`worker_assignment_gold` or `worker_assignment_wood`). The worker AI reads that tag, so one worker template serves every building and a package decides only which node type its crew works.
+- A worker plays its labor animation while it attacks a node or works at a construction site, and faces the node or site it is working on. The animation is presentation of the same gather or build order the simulation is carrying out, not a separate state.
+- A worker attacks the nearest node of the resource its building assigns to it, using its own attack. The node's own yield (`YieldPerDamage`) turns the damage that gets through its resistances into pieces: a tree or a gold mine gives up one piece per four points, so a worker's swing is worth about one piece, the pieces are drawn off the node's health one point each, and the pieces the worker cannot carry stay on the node instead of being taken and discarded.
+- A worker's attack interval is its labour cadence, so the interval and the walk together decide what a crew delivers. At the ruleset's 0.8 s interval a six-piece wood trip is six swings, about five seconds of work at the node, and a two-worker crew brings a building's 100 wood home in about a minute once the walk is counted. A gold trip is thirty-six pieces for about thirty-nine swings, so a relic and a building cost about the same worker time.
+- When the worker cannot hold another piece, it walks to the nearest building that accepts a drop-off, sells the carried items there, adds their number to the player's stockpile, and is sent back out to its node. An idle worker with room in its inventory is sent to the nearest node of its assigned resource.
+- What a worker carries is exactly the items in its inventory: the gathering state keeps no carried total and no capacity of its own, so the pieces a player sees in the inventory are the pieces that will be sold, and equipment in those same slots is what reduces a haul.
+- When its node is exhausted, the worker moves to the next nearest reachable node of the same resource. If none is reachable, it stands idle rather than producing from nothing.
 - A node has no worker cap. Any number of buildings may gather from it, and all of them draw from the same capacity.
 - Owned workers body-block one another, but ghost through allied and enemy workers.
-- As long as nearby nodes remain, passive income increasingly supports the player, allowing attention to shift from gathering toward combat.
-- No repetitive gathering is required after the economic transition.
+- A building's income is therefore what its workers physically take, carry, and deliver over time. It is decided by their damage, attack speed, level, buffs and travel distance, not by a stated rate. Income falls with travel distance because the walk is part of the trip.
+- Workers are a third way to deny an expansion, alongside destroying its building and exhausting its node: killing workers stops the deliveries until their building replaces them.
 
 ### 9.4 Resource Nodes
 
-- Gatherable gold and wood are finite. Each gold mine and tree line is a resource node with a finite capacity.
+- Gatherable gold and wood are finite. Each gold mine and tree line is a resource node with a finite capacity, and that capacity is its health.
+- Every gatherable node of one kind is an instance of one template slug: all trees share a tree template and all gold mines share a gold template. Levels are expressed through that template's per-level scaling of capacity and resistances instead of through separate templates per level.
+- A node's template states its armor and magic resistance as well as its capacity, so a higher-level node can be both larger and harder to take from.
+- Capacity is sized to what its resource buys: a level-1 tree line holds 800 pieces, one player's whole building supply, and a level-1 gold mine holds 600, one player's whole relic pool. A crew that keeps working one node therefore runs it dry inside a match and has to reach farther, which is what makes the farther and centre nodes worth contesting.
+- Gathering is combat: the worker's damage type, its armor and magic penetration, its critical strikes, and its attack speed all apply, and the node's resistances reduce what lands. The damage that lands is converted into pieces of the node's item by the node's yield, and each piece removes one point of health, so resistance and yield together decide how many swings a node costs. The ruleset's level 1 trees and gold mines resist enough of a worker's swing that it is worth one piece.
+- A node at zero health is destroyed, leaves the gathering pool, and yields nothing further. The client removes the placed prop the node was drawn as. It only returns to service if its map data gives it a growth rate that restores capacity.
+- A resource node is selectable by clicking it or by dragging a selection box that catches it. Its panel shows the resource it yields as one reading — its remaining resources, which are its health, against the capacity it was placed with — together with its armor and magic resistance, so a player can judge what a node is worth and how hard it will be to work before committing workers to it. The reading falls while the node is being worked.
 - Gold also enters the economy through kill bounties. Bounty gold is created by combat rather than drawn from a node, so node depletion limits gathering but not bounty income. Wood has no bounty source.
-- Gathering consumes that capacity. Hero gathering and passive building gathering both draw from the same stock.
-- A node at zero capacity is exhausted. It yields no further gold or wood. A building using it pathfinds to the next nearest matching node (section 9.3), and the node only returns to service if its map data gives it a growth rate that restores capacity.
-- Gathering is not blocked by other players. Any number of players may gather from the same node, and workers from different players neither block nor fight one another, but they deplete the same finite stock.
-- Exhaustion is a second form of denial. Destroying a gathering building stops its income; exhausting the node it relies on forces its workers onto a farther node, which can reduce or effectively stop its income, and can deny an opponent's expansion or active gathering.
+- Gathering is not blocked by other players. Any number of players may attack the same node, and their hits draw from the same finite health.
+- Exhaustion is a second form of denial. Destroying a gathering building stops its deliveries; exhausting the node it relies on forces its workers onto a farther node, which can reduce or effectively stop its income, and can deny an opponent's expansion or active gathering.
 
 ### 9.5 Economic Expansion
 
@@ -389,14 +423,13 @@ Rules:
 - Denial by depletion is permanent for that node unless it regrows, though the player who depletes it spends time and exposure gathering it. In both destruction and depletion, the denying player does not capture the location or the building.
 - Expansion competes with military investment for the same resources, so economic development delays some military development.
 
-### 9.6 Income Tax
+### 9.6 Worker Levels and Buffs
 
-- Income tax scales with the number of functional buildings a player owns.
-- Destroyed, unrepaired buildings are excluded from the functional building count.
-- The tax is progressive and marginal: each additional building contributes less net income than the previous one, without retroactively penalizing income already generated.
-- Total net income never decreases because another functional building was added.
-- Building costs and relic prices remain fixed rather than scaling with building count.
-- The purpose is to keep the cadence of major purchases relatively consistent as the economy grows, preventing a stronger economy from accelerating building and relic cadence without bound.
+- A worker's level is fixed by the order of the building that raised it and never changes for that worker. A building's workers all share its construction order, so replacing a killed worker raises another at the same level.
+- A building's worker buffs are permanent for the worker's lifetime, applied when it is raised, and use the same stat pipeline as every other modifier. They are listed on the worker's stat panel like any other active buff.
+- Because the buffs and the level are visible on the worker, a player reasons about a building's gathering rate from the worker's own stats and buffs rather than from an advertised number. The building's draft tooltip states the buffs its workers receive, not an estimated rate.
+- Worker buffs are authored content, not a separate upgrade layer. A building cannot change its worker buffs after construction, and no buff is applied by a research step.
+- Since income is physical, there is no income tax. The cadence of major purchases is bounded by worker capacity, the building's mana and worker cooldown, the walk, and the node's finite health rather than by a tax curve.
 
 ### 9.7 Resources and Allies
 
@@ -416,7 +449,7 @@ Rules:
 
 - Neutral objectives are creeps and bosses scattered across the map.
 - They are fully contestable: their bounty goes to a single team, so claiming one denies it to every other team.
-- A neutral bounty pays experience and gold, scaled by the monster's level, and never wood.
+- A neutral bounty pays experience and gold, scaled by the monster's level, and never wood. The scale is authored on the camp's own template - its level, plus the bounty multiplier each level above the first adds - so raising a camp's level raises what it pays without retuning its flat bounty.
 - Some neutral objectives respawn periodically, so the same location is worth contesting more than once.
 - Every player is effectively a jungler. There is no dedicated jungler role, and no player is assigned to neutral objectives.
 - Players roam the map to find opportunities to catch unprepared opponents, contest neutral objectives, and deny expansions.
@@ -428,12 +461,19 @@ Rules:
 - Competitive balance assumes full vision and full information. Shroud is an optional lobby mode (section 14); the standard rules and the balance model assume it is off. Shroud is the tactical hiding of knowledge, not the environmental fog that a weather preset draws, and the rules only ever refer to the former.
 - Scouting is optional flavor rather than a strategically mandatory activity.
 - Strategic advantage comes from making better decisions with visible information, not from hidden army compositions.
-- Building draft reservation is visible. Before a choice is locked, an opponent who inspects the hero holding the open draft can see the three building options reserved for that player, stated as inspector readings on that hero. Once the choice is locked, the readings clear, the unchosen options return to the deck and the site reveals only the locked option, even while construction continues.
+- Building draft reservation is visible. Before a choice is locked, the site states in its own state line the buildings the deck reserved for it, so any player who selects that ground reads the reservation and an opponent can act on it. Once the choice is locked, the note clears, the unchosen options return to the deck, and the site states what it is by being that building, even while construction continues.
 - A player may act on that information, for example by delaying their own construction when a desired option is reserved by an opponent and may return to the deck.
-- Counter information is exhaustive: clicking any unit, allied or enemy, shows its stats, targeting rule, formation, active buffs, and the current charge count of the building that produced it. Selecting a unit the player does not own hides or disables the command card.
-- The readings the ruleset keeps itself are published as inspector readings on the unit rather than left in the map script, so every player reads the same values: a soldier-granting building states the soldier it unlocks, its charge count against its maximum, the seconds until its next charge, the income it produces and the soldiers it maintains against its capacity.
-- Every soldier-granting building displays its current charge count as a floating number above it. The indicator is visible to every player, includes zero, and requires no selection. The Nexus has no charge indicator because it grants no soldier type.
-- Clicking a completed building, allied or enemy, shows its current health. A non-Nexus building also shows the soldier type it unlocks, its capacity contribution, current charge count and recharge, active production queue, and current income. Completed buildings have no command card: your own Nexus opens the relic vendor, and every other completed building is inspection-only.
+- Counter information is exhaustive: clicking any unit, allied or enemy, shows its stats, targeting rule, formation, and active buffs. Selecting a unit the player does not own hides or disables the command card.
+- The readings the ruleset keeps itself reach every player through the unit's own panel rather than through a hidden script state: a soldier-granting building states the soldier it unlocks and both auto-cast cooldowns on its production cards, its soldiers and workers maintained against the capacity it contributes on its stat sheet, and the buffs its worker crew carries on the workers themselves.
+- Clicking a completed building, allied or enemy, shows its current health and its mana, read from the health and mana bars under its portrait. A non-Nexus building also shows the soldier type it unlocks, the soldiers and workers it maintains against its capacity contributions on its stat sheet, both auto-cast cooldowns, and the worker buffs it provides. A building fields its units by casting, not by queueing, so it has no production box and no production queue to show; the production box belongs to content that trains on a timer. Completed buildings have no command card: your own Nexus opens the relic vendor, and every other completed building is inspection-only.
+- Clicking a resource node, allied or enemy, shows its remaining capacity, health, and resistances; it never opens a command card.
+- The player's stat sheet groups readings into General, Attributes, Offense and Defense, in that order. General holds progression and economy readings (level, experience, life steal, cooldown reduction, movement speed, damage type), Attributes holds the six core attributes, Offense holds attack damage, attack range, attack speed, critical hit, armor and magic penetration and spell power, and Defense holds armor, magic resistance, evasion and tenacity.
+
+### 10.4 Instructions Menu
+
+- The map publishes its player-facing instructions through `IGameAPI.AddInstructionsSection`. Each section has a title and a body written from the same numbers the script plays by, and the in-game instructions menu lists them in the order they were added.
+- Instructions are part of the map package, not engine UI copy, so a ruleset can explain its own production, supply, gathering and victory rules without the engine hard-coding any of them.
+- The menu is read-only and available for the whole match.
 
 ## 11. Victory and Defeat
 
@@ -461,6 +501,7 @@ The victory condition is deliberately singular so that balance adjustments can b
 - In a two-team match, first place is labeled Winner and second place Loser.
 - Near-simultaneous destruction is resolved by whichever destruction occurs first.
 - If two opposing teams' nexuses are destroyed on the same simulation tick, their relative ranking is intentionally undefined and non-deterministic. No tie-break is implemented, because the choice is irrelevant.
+- The ranking is an engine result, not a ruleset one: the authority records a team as eliminated when its last active seat is defeated and writes every seat's team placement into the replicated player state when the match ends. The end-of-match table reads that placement, ranks seats by it ahead of the tab's own scoring column, and shows the rank column only when a ranking was recorded, so a match that ended without an elimination labels nobody.
 
 ## 12. Bulwark
 
@@ -514,7 +555,7 @@ The purpose is to prevent an undeclared third party from converting an existing 
 - The shield is shown as a visual effect with an obvious gradient so the approximate current reduction is legible to the player.
 - The formula is standardized and documented so that identical participation history always produces identical adjustment, and so that bug reports can be evaluated against a stated rule.
 
-The mechanic intentionally permits a nuisance third party to make an existing fight less efficient, which may cause one of the original participants to disengage and farm elsewhere. It is not intended to make collusion free: two cooperating players who fight each other pay in time, in damage to repair, in charges and production time, and in exposure to third parties. Any benefit from manipulating participation must be weighed against those actual costs.
+The mechanic intentionally permits a nuisance third party to make an existing fight less efficient, which may cause one of the original participants to disengage and farm elsewhere. It is not intended to make collusion free: two cooperating players who fight each other pay in time, in damage to repair, in production mana and cooldown, and in exposure to third parties. Any benefit from manipulating participation must be weighed against those actual costs.
 
 ### 13.4 Anti-Kingmaker Invariants
 
@@ -534,7 +575,7 @@ The mechanic intentionally permits a nuisance third party to make an existing fi
 The host configures three base parameters:
 
 - Maximum player count.
-- Maximum building draft count, and therefore building supply.
+- Maximum building supply.
 - Maximum unique instances of a building.
 
 The host may also enable any combination of the following modes. The standard lobby has all of them off and uses the default values above.
@@ -543,10 +584,19 @@ The host may also enable any combination of the following modes. The standard lo
 | :--- | :--- |
 | Shroud enabled | Vision is limited to sight ranges instead of the standard full information. This is tactical shroud, not environmental fog. |
 | Mirrored auto-draft | Every player receives the same heroes and the same building options, removing draft asymmetry from the match. |
-| Adjusted multipliers | Maximum capacity or maximum charges are multiplied for every player, at a value the host sets. |
+| Adjusted multipliers | Maximum capacity or production mana and cooldowns are multiplied for every player, at a value the host sets. |
 | Open pool drafting | Drafted buildings remain in the deck instead of leaving it when selected, so duplicate buildings can be drafted. |
 
 These parameters and modes modify the game's underlying formulas rather than selecting different hard-coded rulesets. The default lobby configuration establishes the intended standard experience.
+
+### 14.1 Seating
+
+Seating is a separate concern from the parameters above: it decides which player index a seat plays as and where that seat begins, not what the match's formulas are. Both seating rules are stated by the map and answered by the host, and both take effect when the match starts rather than while the lobby fills.
+
+- **Teams Together.** The lobby offers one checkbox, shown to every seat and editable only by the host, that groups each team's players into consecutive player slots. With it on, the match re-sorts the seats by team and then by the order they joined within their team, so team 1 holds the first run of player indices, team 2 the next run, and so on. Seats are permuted, never added or removed, and a seat on no team keeps the index it already held. With it off, every seat keeps the player index it joined with. The standard lobby has it off.
+- **Default.** A map states the value the checkbox starts at, because a map that plays its teams as sides wants it on. The host keeps the last word: from the moment the host changes the checkbox, that choice stands for the rest of the lobby and the map's default never overrules it.
+- **Team spawn assignments.** A map may seat a whole team inside one of the board's own coordinates instead of seating its members one at a time. Every player of an assigned team then begins at a random point inside that team's coordinate, so teammates share ground while each still starts somewhere different. An assignment replaces the board's per-slot spawn anchors for the team it names, a team with no assignment keeps the board's anchors, and a coordinate the board does not author is refused rather than reseating the team somewhere else.
+- **Why the host still chooses.** Seating changes who is adjacent on the board and in the player index, which is reading information a player can act on. It is therefore visible to every seat and changed only by the host, like the parameters above.
 
 ## 15. Balance Methodology
 
@@ -563,7 +613,6 @@ The game is not balanced mathematically. Win rates are measured, not derived.
 The following are intentionally outside this document or are not yet specified sufficiently. They belong in child documents or content specifications unless they require a change to a foundational rule above.
 
 - Exact anti-kingmaker formula, including the precise decay curve and the exact normalization function.
-- Exact income tax curve.
 - Exact Bulwark resistance curves and radii.
 - Exact relic pool, relic availability, and any relic pricing beyond 100 gold.
 - Exact targeting debounce, formation spacing, leash distance, and formation change debounce.
@@ -572,10 +621,9 @@ The following are intentionally outside this document or are not yet specified s
 - Specific buildings and the soldier, economy, and production values each one provides.
 - Creep types, camps, respawn behavior, and exact neutral bounty values.
 - Map layouts and exact resource-node placement.
-- Exact resource-node capacities, worker travel speed, gathering-rate distance falloff, and regrowth values.
+- Exact resource-node capacities, resistances, worker travel speed, worker capacity and cooldown values, and regrowth values.
 - Detailed nexus attack and defense rules.
 - Match length, pacing, and multi-team victory resolution beyond the ranking rule.
-- Behaviour when construction reaches completion while a draw has been offered but no option has been locked.
 
 ## 17. Design Boundary
 

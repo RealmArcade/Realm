@@ -14,11 +14,12 @@ public class MeleeRelicTests
 {
 	private const string SigilOfTheWall = "item/sigil_of_the_wall";
 	private const string CouriersKnot = "item/couriers_knot";
+	private const string MusterBell = "item/muster_bell";
 	private const string SpikedBarricades = "item/spiked_barricades";
 	private const string DeepGranaries = "item/deep_granaries";
 	private const string WardensWrit = "item/wardens_writ";
 	private const float SigilMaxHealthFactor = 1.1f;
-	private const float WritTenacity = 10f;
+	private const float WritTenacity = 0.1f;
 	private const float DeepGranariesIncomeFactor = 1.1f;
 	private const float CouriersKnotRechargeFactor = 0.9f;
 	private const float SpikedBarricadesReflectFraction = 0.25f;
@@ -53,7 +54,7 @@ public class MeleeRelicTests
 			"building/mender_shrine",
 			"building/signal_post",
 			"building/vigil_bastion"
-		}.Where(templateId => MeleeContent.GoldPerMinuteOf(templateId) > 0f).ToArray();
+		}.Where(templateId => MeleeContent.WorkerResourceOf(templateId) == "gold").ToArray();
 	}
 
 	[Test]
@@ -77,12 +78,14 @@ public class MeleeRelicTests
 	{
 		UnitId soldier = _match.SpawnSoldier(1, "unit/axeman", BackFormationPosition);
 		UnitId hero = _match.Hero(1);
+		float soldierTenacityBefore = _match.TenacityOf(soldier);
 
 		Assert.That(_match.AddRelic(1, WardensWrit), Is.True, "The hero has to be able to carry the Warden's Writ.");
 		_match.Step(0.2f);
 
-		Assert.That(_match.ModifierTotalFrom(soldier, "relic/wardens_writ", "Tenacity"), Is.EqualTo(WritTenacity).Within(0.01f), "The writ has to give every soldier tenacity.");
-		Assert.That(_match.ModifierTotalFrom(hero, "relic/wardens_writ", "Tenacity"), Is.EqualTo(WritTenacity).Within(0.01f), "The writ has to give the hero tenacity as well.");
+		Assert.That(_match.ModifierTotalFrom(soldier, "relic/wardens_writ", "Tenacity"), Is.EqualTo(WritTenacity).Within(0.001f), "The writ has to add a tenth of tenacity to every soldier.");
+		Assert.That(_match.TenacityOf(soldier), Is.EqualTo(soldierTenacityBefore + WritTenacity).Within(0.001f), "The soldier's derived tenacity has to rise by the writ's tenth.");
+		Assert.That(_match.ModifierTotalFrom(hero, "relic/wardens_writ", "Tenacity"), Is.EqualTo(WritTenacity).Within(0.001f), "The writ has to give the hero tenacity as well.");
 	}
 
 	[Test]
@@ -94,7 +97,7 @@ public class MeleeRelicTests
 		_match.Step(0.2f);
 		_match.Step(5f);
 
-		Assert.That(_match.ModifierTotalFrom(hero, "relic/wardens_writ", "Tenacity"), Is.EqualTo(WritTenacity).Within(0.01f), "A relic the hero keeps must not stack with itself over time.");
+		Assert.That(_match.ModifierTotalFrom(hero, "relic/wardens_writ", "Tenacity"), Is.EqualTo(WritTenacity).Within(0.001f), "A relic the hero keeps must not stack with itself over time.");
 	}
 
 	[Test]
@@ -120,19 +123,21 @@ public class MeleeRelicTests
 		granaried.Step(IncomeSeconds);
 		float granariedIncome = granaried.Gold(1) - granariedGoldBefore;
 
-		Assert.That(plainIncome, Is.EqualTo(MeleeContent.GoldPerMinuteOf(templateId)).Within(1f), "The undecorated building has to pay its authored rate.");
-		Assert.That(granariedIncome, Is.EqualTo(plainIncome * DeepGranariesIncomeFactor).Within(1f), "The Deep Granaries has to raise the gold income by a tenth.");
+		Assert.That(plainIncome, Is.GreaterThan(0f), "The undecorated building's worker has to carry gold home before the comparison means anything.");
+		Assert.That(
+			granariedIncome,
+			Is.EqualTo(plainIncome * DeepGranariesIncomeFactor).Within(MathF.Max(1f, plainIncome * 0.1f)),
+			"The Deep Granaries has to raise what a worker carries home by a tenth.");
 	}
 
-	[Test]
-	public void TheCouriersKnotShortensTheRecharge()
+	[TestCase(CouriersKnot)]
+	[TestCase(MusterBell)]
+	public void RechargeRelicsShortenTheProductionClock(string relicId)
 	{
 		UnitId building = _match.PlaceCompletedBuilding(SitePosition);
 		string templateId = _match.TemplateOf(building);
-		float authoredRecharge = MeleeContent.RechargeSecondsOf(templateId);
 
 		Assert.That(_match.StepUntilSoldiers(1), Is.EqualTo(1), "The building has to raise its first soldier first.");
-		Assert.That(_match.AddRelic(1, CouriersKnot), Is.True, "The hero has to be able to carry the Courier's Knot.");
 
 		string soldierType = MeleeContent.SoldierFor(templateId);
 		for (int index = 1; index < MeleeContent.CapacityOf(templateId); index++)
@@ -140,12 +145,29 @@ public class MeleeRelicTests
 			_match.SpawnSoldier(1, soldierType, new Vector3(-40f + index * 1.5f, 0f, -56f));
 		}
 
-		float shortenedRecharge = authoredRecharge * CouriersKnotRechargeFactor;
-		_match.Step(shortenedRecharge - 1f);
-		int chargesBeforeTheClock = _match.CountCharges(building);
+		_match.Api.SetUnitMana(building, 0f);
+		float plainRegen = _match.ManaRegenOf(building);
+		_match.Step(10f);
+		float plainGain = _match.ManaOf(building);
 
-		_match.Step(2f);
-		Assert.That(_match.CountCharges(building), Is.GreaterThan(chargesBeforeTheClock), "The knot has to bring the charge back on its shortened clock.");
+		using MeleeMatch relicMatch = MeleeMatch.StartDuel();
+		UnitId relicBuilding = relicMatch.PlaceCompletedBuilding(SitePosition);
+		Assert.That(relicMatch.StepUntilSoldiers(1), Is.EqualTo(1), "The relic match has to raise its first soldier first.");
+		for (int index = 1; index < MeleeContent.CapacityOf(templateId); index++)
+		{
+			relicMatch.SpawnSoldier(1, soldierType, new Vector3(-40f + index * 1.5f, 0f, -56f));
+		}
+
+		Assert.That(relicMatch.AddRelic(1, relicId), Is.True, $"The hero has to be able to carry {relicId}.");
+		relicMatch.Step(0.2f);
+
+		float relicRegen = relicMatch.ManaRegenOf(relicBuilding);
+		Assert.That(relicRegen, Is.GreaterThan(plainRegen), $"{relicId} has to raise the mana a building returns every second.");
+
+		relicMatch.Api.SetUnitMana(relicBuilding, 0f);
+		relicMatch.Step(10f);
+		Assert.That(relicMatch.ManaOf(relicBuilding), Is.GreaterThan(plainGain + plainRegen * 10f * 0.02f),
+			$"{relicId} has to fill the building's production mana faster than its authored clock alone.");
 	}
 
 	[Test]

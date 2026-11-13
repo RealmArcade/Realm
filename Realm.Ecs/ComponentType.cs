@@ -173,8 +173,17 @@ public static class ComponentTypeRegistry
 			typeof(AbsorbShield),
 			typeof(AttackSpeedStat),
 			typeof(OverheadBadge),
-			typeof(UnitCharges),
-			typeof(PlayerDamageEffectiveness)
+			typeof(PlayerDamageEffectiveness),
+			typeof(PlayerOrdersLocked),
+			typeof(Dormant),
+			typeof(RepairableBuilding),
+			typeof(RepairWorker),
+			typeof(RepairTask),
+			typeof(Worker),
+			typeof(PickupTask),
+			typeof(DropItemTask),
+			typeof(SoulboundItems),
+			typeof(IncludeInDefaultHotkeySelection)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)
@@ -214,6 +223,7 @@ public static class ComponentTypeRegistry
 			(typeof(Building), ComponentIds.Building),
 			(typeof(Dead), ComponentIds.Dead),
 			(typeof(Hero), ComponentIds.Hero),
+			(typeof(Worker), ComponentIds.Worker),
 			(typeof(Invulnerable), ComponentIds.Invulnerable),
 			(typeof(Unit), ComponentIds.Unit),
 			(typeof(Experience), ComponentIds.Experience),
@@ -224,8 +234,8 @@ public static class ComponentTypeRegistry
 			(typeof(CommandsFrozen), ComponentIds.CommandsFrozen),
 			(typeof(AnimationsFrozen), ComponentIds.AnimationsFrozen),
 			(typeof(OverheadBarsHidden), ComponentIds.OverheadBarsHidden),
-			(typeof(UnitCharges), ComponentIds.UnitCharges),
-			(typeof(PlayerDamageEffectiveness), ComponentIds.PlayerDamageEffectiveness)
+			(typeof(PlayerDamageEffectiveness), ComponentIds.PlayerDamageEffectiveness),
+			(typeof(PlayerOrdersLocked), ComponentIds.PlayerOrdersLocked)
 		};
 
 		for (int index = 0; index < sharedComponents.Length; index++)

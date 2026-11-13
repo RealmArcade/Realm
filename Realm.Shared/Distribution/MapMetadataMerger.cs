@@ -292,7 +292,7 @@ public static class MapMetadataMerger
 		return true;
 	}
 
-	private static void MergeInto(JsonObject target, JsonObject source)
+	private static void MergeInto(JsonObject target, JsonObject source, bool replaceArrays = false)
 	{
 		foreach (KeyValuePair<string, JsonNode?> property in source)
 		{
@@ -304,13 +304,13 @@ public static class MapMetadataMerger
 
 			if (existing is JsonObject existingObject && property.Value is JsonObject incomingObject)
 			{
-				MergeInto(existingObject, incomingObject);
+				MergeInto(existingObject, incomingObject, replaceArrays);
 				continue;
 			}
 
 			if (existing is JsonArray existingArray && property.Value is JsonArray incomingArray)
 			{
-				MergeArray(existingArray, incomingArray);
+				MergeArray(existingArray, incomingArray, replaceArrays);
 				continue;
 			}
 
@@ -318,22 +318,46 @@ public static class MapMetadataMerger
 		}
 	}
 
-	private static void MergeArray(JsonArray target, JsonArray source)
+	/// <summary>
+	///     Lays one array over another. An entry with a slug is merged into the entry of the same slug field by field,
+	///     which is what lets a parent state one property of a referenced template without freezing every other property
+	///     at the version it was read from. An array a template's own field states is replaced whole, because a list inside
+	///     a template is that template's value rather than a set the parent extends.
+	/// </summary>
+	private static void MergeArray(JsonArray target, JsonArray source, bool replaceArrays = false)
 	{
+		if (replaceArrays && !HasSluggedEntry(source))
+		{
+			target.Clear();
+			foreach (JsonNode? entry in source)
+			{
+				target.Add(entry?.DeepClone());
+			}
+
+			return;
+		}
+
 		foreach (JsonNode? entry in source)
 		{
 			string slug = TryGetSlug(entry);
 			if (!string.IsNullOrEmpty(slug))
 			{
+				JsonNode? merged = entry?.DeepClone();
 				for (int index = target.Count - 1; index >= 0; index--)
 				{
-					if (string.Equals(TryGetSlug(target[index]), slug, StringComparison.Ordinal))
+					if (!string.Equals(TryGetSlug(target[index]), slug, StringComparison.Ordinal)) continue;
+
+					if (target[index] is JsonObject existingObject && merged is JsonObject incomingObject)
 					{
-						target.RemoveAt(index);
+						var combined = (JsonObject)existingObject.DeepClone();
+						MergeInto(combined, incomingObject, replaceArrays: true);
+						merged = combined;
 					}
+
+					target.RemoveAt(index);
 				}
 
-				target.Add(entry?.DeepClone());
+				target.Add(merged);
 				continue;
 			}
 
@@ -342,6 +366,16 @@ public static class MapMetadataMerger
 				target.Add(entry?.DeepClone());
 			}
 		}
+	}
+
+	private static bool HasSluggedEntry(JsonArray array)
+	{
+		foreach (JsonNode? entry in array)
+		{
+			if (!string.IsNullOrEmpty(TryGetSlug(entry))) return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>
@@ -374,10 +408,18 @@ public static class MapMetadataMerger
 
 			if (existing is JsonArray existingArray && property.Value is JsonArray parentArray)
 			{
-				JsonArray additions = ComputeArrayIntent(existingArray, parentArray, displayPath, overriddenKeys);
-				if (additions.Count > 0)
+				if (HasSluggedEntry(parentArray) || HasSluggedEntry(existingArray))
 				{
-					intent[property.Key] = additions;
+					JsonArray additions = ComputeArrayIntent(existingArray, parentArray, displayPath, overriddenKeys);
+					if (additions.Count > 0)
+					{
+						intent[property.Key] = additions;
+					}
+				}
+				else if (!JsonNode.DeepEquals(existingArray, parentArray))
+				{
+					intent[property.Key] = parentArray.DeepClone();
+					overriddenKeys.Add(displayPath);
 				}
 
 				continue;
@@ -419,6 +461,17 @@ public static class MapMetadataMerger
 					}
 				}
 
+				if (existing is JsonObject existingObject && entry is JsonObject parentEntry)
+				{
+					JsonObject nested = ComputeParentIntent(existingObject, parentEntry, $"{displayPath}[{slug}]", overriddenKeys);
+					if (nested.Count == 0) continue;
+
+					var intentEntry = new JsonObject { [SlugKeyOf(parentEntry)] = slug };
+					MergeInto(intentEntry, nested, replaceArrays: true);
+					intent.Add(intentEntry);
+					continue;
+				}
+
 				if (existing != null && JsonNode.DeepEquals(existing, entry))
 				{
 					continue;
@@ -439,6 +492,16 @@ public static class MapMetadataMerger
 		}
 
 		return intent;
+	}
+
+	private static string SlugKeyOf(JsonObject entry)
+	{
+		foreach (string slugKey in SlugKeys)
+		{
+			if (entry[slugKey] is JsonValue value && value.TryGetValue(out string text) && !string.IsNullOrWhiteSpace(text)) return slugKey;
+		}
+
+		return SlugKeys[0];
 	}
 
 	private static string TryGetSlug(JsonNode? entry)

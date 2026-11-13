@@ -12,6 +12,7 @@ using Realm.Client.Services;
 using Realm.Client.UI.InGame;
 using Realm.Client.Utils;
 using Realm.Ecs.Common;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Vector3 = Godot.Vector3;
@@ -107,6 +108,7 @@ public partial class InGameHUD : Control
 
 	private VBoxContainer _productionBox = null!;
 	private Label _productionTitle = null!;
+	private Label _productionCapacity = null!;
 	private ProgressBar _productionProgress = null!;
 	private Label _productionQueueLabel = null!;
 	private HBoxContainer _queueSlotsContainer = null!;
@@ -428,7 +430,7 @@ public partial class InGameHUD : Control
 		_portraitPanelController = new PortraitPanel(
 			_portraitFrame, _selectionFrame, _unitsContainer, _unitButtons, _statsContainer,
 			_unitStatsPanel,
-			_productionBox, _productionTitle, _productionProgress, _productionQueueLabel, _queueSlotsContainer,
+			_productionBox, _productionTitle, _productionCapacity, _productionProgress, _productionQueueLabel, _queueSlotsContainer,
 			_armyCompositionLabel, GetNode<Label>("BottomConsole/HBox/PortraitFrame/VBox/UnitName"),
 			GetNodeOrNull<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") != null ? GetNode<TextureRect>("BottomConsole/HBox/PortraitFrame/VBox/PortraitTexture") : null
 		);
@@ -523,6 +525,7 @@ public partial class InGameHUD : Control
 		_unitStatsPanel = nodes.StatsPanel;
 		_productionBox = nodes.ProductionBox;
 		_productionTitle = nodes.ProductionTitle;
+		_productionCapacity = nodes.ProductionCapacity;
 		_productionProgress = nodes.ProductionProgress;
 		_productionQueueLabel = nodes.ProductionQueueLabel;
 		_queueSlotsContainer = nodes.QueueSlots;
@@ -533,14 +536,47 @@ public partial class InGameHUD : Control
 		if (_unitVitalsBars == null) return;
 
 		List<SelectedUnitInfo> selectedUnits = _viewModel.SelectedUnits;
-		if (selectedUnits == null || selectedUnits.Count != 1)
+		if (selectedUnits != null && selectedUnits.Count == 1)
 		{
-			_unitVitalsBars.Hide();
+			int index = _viewModel.CycleSelectionIndex < selectedUnits.Count ? _viewModel.CycleSelectionIndex : 0;
+			_unitVitalsBars.UpdateSingleSelection(selectedUnits[index]);
 			return;
 		}
 
-		int index = _viewModel.CycleSelectionIndex < selectedUnits.Count ? _viewModel.CycleSelectionIndex : 0;
-		_unitVitalsBars.UpdateSingleSelection(selectedUnits[index]);
+		if (selectedUnits == null || selectedUnits.Count == 0)
+		{
+			Entity selectedResourceNode = ResolveSelectedResourceNodeEntity();
+			if (selectedResourceNode != Entity.Null)
+			{
+				_unitVitalsBars.UpdateResourceNode(selectedResourceNode);
+				return;
+			}
+		}
+
+		_unitVitalsBars.Hide();
+	}
+
+	/// <summary>
+	///     Names the resource node the local player is reading, whether it was picked out of the shared multimesh every
+	///     mine and tree is drawn by or clicked as a placed prop of its own. Its capacity is what its health bar states, so
+	///     the bottom console reads a node the same way it reads a unit.
+	/// </summary>
+	/// <returns>The selected node's entity, or <see cref="Entity.Null" /> when nothing selected is a node.</returns>
+	private Entity ResolveSelectedResourceNodeEntity()
+	{
+		if (GameContext.World is not { } world) return Entity.Null;
+
+		Entity nodeEntity = _viewModel.SelectedResourceNode;
+		if (nodeEntity != Entity.Null && world.IsAlive(nodeEntity) && world.Has<ResourceNode>(nodeEntity)) return nodeEntity;
+
+		Prop3D? selectedProp = _viewModel.SelectedProp;
+		if (selectedProp != null && GodotObject.IsInstanceValid(selectedProp))
+		{
+			Entity propEntity = selectedProp.Entity;
+			if (propEntity != Entity.Null && world.IsAlive(propEntity) && world.Has<ResourceNode>(propEntity)) return propEntity;
+		}
+
+		return Entity.Null;
 	}
 
 	public void RefreshUI(List<Unit3D>? selectedUnits)
@@ -558,6 +594,9 @@ public partial class InGameHUD : Control
 		ResetBuildSubMenuOnSelectionChange(selectedUnits);
 
 		_viewModel.SelectedProp = GameContext.Host?.SelectedProp;
+		_viewModel.SelectedLootItem = GameContext.Host?.SelectedLootItem;
+		_viewModel.SelectedResourceNode = GameContext.Host?.SelectedResourceNodeEntity ?? Entity.Null;
+		_viewModel.SelectedResourceNodePropId = GameContext.Host?.SelectedResourceNodePropId ?? string.Empty;
 		_viewModel.UpdateSelectedUnits(selectedUnits);
 		_portraitPanelController?.Update(_viewModel);
 		UpdateUnitVitalsBars();

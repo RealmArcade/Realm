@@ -81,17 +81,29 @@ public partial class ServerLobby
 		string? rejection = ValidateStart(ignoreReadiness: true);
 		if (rejection != null) return rejection;
 
+		int seed = RandomNumberGenerator.GetInt32(1, int.MaxValue);
+		var factionPicker = new Random(seed);
+		string[] offeredFactions = Roster?.GetFactionNames() ?? Array.Empty<string>();
+
 		var roster = new List<MatchRosterSeat>(_seats.Count);
 		var assignments = new List<(int PeerId, int Slot)>(_seats.Count);
 		var sessionSeats = new Dictionary<string, int>(_seats.Count, StringComparer.Ordinal);
 		foreach (LobbySeat seat in _seats.Values)
 		{
-			roster.Add(new MatchRosterSeat(seat.Slot, seat.AccountId, seat.Name, seat.Team, seat.TeamName, seat.IsComputer, (int)LobbyBotDifficultyRules.Clamp(seat.Difficulty)));
+			string faction = ResolveSeatFaction(seat.Faction, offeredFactions, factionPicker);
+			roster.Add(new MatchRosterSeat(seat.Slot, seat.AccountId, seat.Name, seat.Team, seat.TeamName, seat.IsComputer, (int)LobbyBotDifficultyRules.Clamp(seat.Difficulty), faction));
 			if (!seat.IsComputer && seat.SessionToken.Length > 0) sessionSeats[seat.SessionToken] = seat.Slot;
 			if (!seat.IsComputer && !seat.IsDisconnected && seat.PeerId > 0) assignments.Add((seat.PeerId, seat.Slot));
 		}
 
-		int seed = RandomNumberGenerator.GetInt32(1, int.MaxValue);
+		// Teams Together is a seating rule rather than a match parameter: the seats are permuted before the match reads
+		// them, so every player index the match and its script see already reads as one block per team.
+		if (Roster?.TeamsTogether == true)
+		{
+			GroupTeamsTogether(roster, assignments, sessionSeats);
+			_log.Write("this lobby groups each team's players into consecutive player slots");
+		}
+
 		rejection = _startMatch(roster, assignments, sessionSeats, seed);
 		if (rejection != null) return rejection;
 
@@ -118,5 +130,73 @@ public partial class ServerLobby
 		}
 
 		return null;
+	}
+
+	/// <summary>
+	///     Groups each team's players into consecutive player slots, which is what the lobby's Teams Together setting
+	///     asks for: the seats of one team then hold 1 through n, the next team n+1 through m, and so on, so a match and
+	///     the script that seats it read a side as one run of player indices. Seats are permuted rather than added, so
+	///     nobody gains or loses a seat, and a seat on no team keeps the slot it already held.
+	/// </summary>
+	/// <param name="roster">The seats the match is being started with, in slot order.</param>
+	/// <param name="assignments">The peer to slot assignments the match seats its connections by.</param>
+	/// <param name="sessionSlots">The session token to slot assignments a reconnecting peer is recognised by.</param>
+	private static void GroupTeamsTogether(List<MatchRosterSeat> roster, List<(int PeerId, int Slot)> assignments, Dictionary<string, int> sessionSlots)
+	{
+		var playing = new List<MatchRosterSeat>(roster.Count);
+		for (int index = 0; index < roster.Count; index++)
+		{
+			if (roster[index].Team >= 1) playing.Add(roster[index]);
+		}
+
+		playing.Sort((left, right) => left.Team != right.Team ? left.Team.CompareTo(right.Team) : left.Slot.CompareTo(right.Slot));
+
+		var slotByOldSlot = new Dictionary<int, int>(playing.Count);
+		for (int index = 0; index < playing.Count; index++)
+		{
+			slotByOldSlot[playing[index].Slot] = index + 1;
+		}
+
+		for (int index = 0; index < roster.Count; index++)
+		{
+			if (!slotByOldSlot.TryGetValue(roster[index].Slot, out int groupedSlot)) continue;
+			roster[index] = roster[index] with { Slot = groupedSlot };
+		}
+
+		roster.Sort((left, right) => left.Slot.CompareTo(right.Slot));
+
+		for (int index = 0; index < assignments.Count; index++)
+		{
+			(int peerId, int slot) = assignments[index];
+			if (slotByOldSlot.TryGetValue(slot, out int groupedSlot)) assignments[index] = (peerId, groupedSlot);
+		}
+
+		if (sessionSlots.Count == 0) return;
+
+		var groupedSessions = new Dictionary<string, int>(sessionSlots.Count, StringComparer.Ordinal);
+		foreach (var pair in sessionSlots)
+		{
+			groupedSessions[pair.Key] = slotByOldSlot.TryGetValue(pair.Value, out int groupedSlot) ? groupedSlot : pair.Value;
+		}
+
+		sessionSlots.Clear();
+		foreach (var pair in groupedSessions) sessionSlots[pair.Key] = pair.Value;
+	}
+
+	/// <summary>
+	///     Names the faction a seat plays the match as: the faction it holds, or, for a seat that left the choice to the
+	///     match, one of the factions its map offers drawn from the match seed. A map that offers no factions leaves a
+	///     random seat without one, exactly as a seat that chose nothing holds none.
+	/// </summary>
+	/// <param name="faction">The faction the seat holds in the lobby.</param>
+	/// <param name="offeredFactions">The factions the lobby's map offers.</param>
+	/// <param name="factionPicker">The draw this match resolves its random seats from.</param>
+	/// <returns>The faction the seat enters the match with.</returns>
+	private static string ResolveSeatFaction(string faction, IReadOnlyList<string> offeredFactions, Random factionPicker)
+	{
+		if (!LobbyLimits.IsRandomFaction(faction)) return faction;
+		if (offeredFactions.Count == 0) return string.Empty;
+
+		return offeredFactions[factionPicker.Next(offeredFactions.Count)];
 	}
 }

@@ -15,8 +15,8 @@ public class DefinitionCatalog
 	private readonly Dictionary<string, ResourceMetadata> _resources = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, ItemMetadata> _items = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, UpgradeMetadata> _upgrades = new(StringComparer.OrdinalIgnoreCase);
-	private readonly Dictionary<string, ConsumableMetadata> _consumables = new(StringComparer.OrdinalIgnoreCase);
-	private readonly Dictionary<string, ConsumableMetadata> _consumablesByCard = new(StringComparer.OrdinalIgnoreCase);
+	private readonly Dictionary<string, ItemMetadata> _consumables = new(StringComparer.OrdinalIgnoreCase);
+	private readonly Dictionary<string, ItemMetadata> _consumablesByCard = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, WeaponMetadata> _weapons = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, AbilityMetadata> _abilities = new(StringComparer.OrdinalIgnoreCase);
 
@@ -85,7 +85,7 @@ public class DefinitionCatalog
 
 		for (int index = 0; index < templates.Consumables.Count; index++)
 		{
-			ConsumableMetadata consumable = templates.Consumables[index];
+			ItemMetadata consumable = templates.Consumables[index];
 			if (string.IsNullOrEmpty(consumable.TemplateID)) continue;
 
 			catalog.AddWithAliases(catalog._consumables, consumable.TemplateID, consumable);
@@ -110,7 +110,9 @@ public class DefinitionCatalog
 	public void BindTo(MapRulesCatalog rules)
 	{
 		rules.BuildOptionsProvider = templateId => FindBuilding(templateId)?.BuildOptions;
-		rules.PopulationCostProvider = templateId => FindUnit(templateId)?.PopCost ?? 0;
+		// A building consumes the food it takes as well as a unit does: a base that costs nothing to hold could be raised
+		// without limit, and the cap would only ever describe the army standing in front of it.
+		rules.PopulationCostProvider = templateId => FindUnitOrBuilding(templateId)?.PopCost ?? 0;
 	}
 
 	public void BindTo(CommandAuthorityService authority)
@@ -142,12 +144,12 @@ public class DefinitionCatalog
 
 	public ItemMetadata? FindItem(string templateId) => Find(_items, templateId);
 
-	public ConsumableMetadata? FindConsumable(string templateId) => Find(_consumables, templateId);
+	public ItemMetadata? FindConsumable(string templateId) => Find(_consumables, templateId);
 
-	public ConsumableMetadata? FindConsumableForCard(string cardId)
+	public ItemMetadata? FindConsumableForCard(string cardId)
 	{
 		if (string.IsNullOrEmpty(cardId)) return null;
-		return _consumablesByCard.TryGetValue(cardId, out ConsumableMetadata? consumable) ? consumable : null;
+		return _consumablesByCard.TryGetValue(cardId, out ItemMetadata? consumable) ? consumable : null;
 	}
 
 	public UpgradeMetadata? FindUpgrade(string templateId) => Find(_upgrades, templateId);
@@ -175,7 +177,7 @@ public class DefinitionCatalog
 		};
 	}
 
-	private void AddConsumableCard(string cardId, ConsumableMetadata consumable)
+	private void AddConsumableCard(string cardId, ItemMetadata consumable)
 	{
 		if (string.IsNullOrEmpty(cardId)) return;
 

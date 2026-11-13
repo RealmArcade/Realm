@@ -5,6 +5,7 @@ using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 
 namespace Realm.Client.UI.InGame;
@@ -46,6 +47,8 @@ public partial class UnitHealthBarOverlay : Control
 	private static readonly Color ManaFillColor = new(0.14f, 0.4f, 0.92f);
 	private static readonly Color ManaHighlightColor = new(0.52f, 0.72f, 1f, 0.7f);
 	private static readonly Color LevelTextColor = new(0.97f, 0.95f, 0.88f);
+	private static readonly Color DormantFrameColor = new(0.42f, 0.24f, 0.2f);
+	private static readonly Color DormantMarkColor = new(0.85f, 0.28f, 0.2f);
 
 	private static readonly string[] BadgeText = BuildBadgeText();
 
@@ -56,6 +59,7 @@ public partial class UnitHealthBarOverlay : Control
 
 	private struct HealthBarEntry
 	{
+		public Realm.Ecs.Entity Entity;
 		public Vector2 Position;
 		public float Scale;
 		public float HealthFraction;
@@ -65,11 +69,50 @@ public partial class UnitHealthBarOverlay : Control
 		public bool HasHealth;
 		public bool HasMana;
 		public bool HasBadge;
+		public bool IsDormant;
+	}
+
+	public int BadgesDrawn { get; private set; }
+
+	/// <summary>
+	///     Answers whether the plate drawn for a unit is the crossed-out plate of a dormant building, so a test can read
+	///     what the screen drew rather than what it was asked to draw.
+	/// </summary>
+	/// <param name="entity">The unit whose plate is read.</param>
+	/// <param name="dormant">True when the unit's plate is crossed out.</param>
+	/// <returns>True when a plate was drawn for the unit this frame.</returns>
+	public bool TryReadDormant(Realm.Ecs.Entity entity, out bool dormant)
+	{
+		for (int index = 0; index < _bars.Count; index++)
+		{
+			if (_bars[index].Entity.Id != entity.Id) continue;
+
+			dormant = _bars[index].IsDormant;
+			return true;
+		}
+
+		dormant = false;
+		return false;
+	}
+
+	public bool TryReadBadge(Realm.Ecs.Entity entity, out int value)
+	{
+		for (int index = 0; index < _bars.Count; index++)
+		{
+			if (_bars[index].Entity.Id != entity.Id) continue;
+
+			value = _bars[index].BadgeValue;
+			return _bars[index].HasBadge;
+		}
+
+		value = 0;
+		return false;
 	}
 
 	public void Refresh(Camera3D? camera)
 	{
 		_bars.Clear();
+		BadgesDrawn = 0;
 
 		ResolvePlateVisibility();
 
@@ -143,8 +186,10 @@ public partial class UnitHealthBarOverlay : Control
 			float distance = camera.GlobalPosition.DistanceTo(anchor);
 			float scale = Mathf.Clamp(14f / Mathf.Max(distance, 0.001f), 0.4f, 1.4f);
 
+			if (hasBadge) BadgesDrawn++;
 			_bars.Add(new HealthBarEntry
 			{
+				Entity = unit.Entity,
 				Position = screen,
 				Scale = scale,
 				HealthFraction = healthFraction,
@@ -153,11 +198,79 @@ public partial class UnitHealthBarOverlay : Control
 				BadgeColor = hasBadge ? UnpackBadgeColor(badge.ColorRgb) : LevelTextColor,
 				HasHealth = showHealth,
 				HasMana = showMana,
-				HasBadge = hasBadge
+				HasBadge = hasBadge,
+				IsDormant = world.Has<Dormant>(unit.Entity)
 			});
 		}
 
+		if (barsAllowed && _showHealthBar)
+		{
+			CollectResourceNodeBars(camera, world, viewportSize, mode);
+		}
+
 		QueueRedraw();
+	}
+
+	/// <summary>
+	///     Adds a plate to every harvestable node standing on the board, so a mine or a tree states what it still holds
+	///     against what it held. A node's capacity is its health, so its plate reads exactly as a unit's does, and a node
+	///     that is drawn by the multi mesh it shares with every node of its template has no node of its own to stand the
+	///     plate on top of: its placed position and its contact radius give the height the plate is raised by.
+	/// </summary>
+	/// <param name="camera">The camera the board is seen through.</param>
+	/// <param name="world">The world the placed nodes live in.</param>
+	/// <param name="viewportSize">The size of the viewport the plates are drawn over.</param>
+	/// <param name="mode">The plate visibility the player chose.</param>
+	private void CollectResourceNodeBars(Camera3D camera, Realm.Ecs.EcsWorld world, Vector2 viewportSize, HealthBarMode mode)
+	{
+		ShroudService shroud = GameContext.ShroudService;
+
+		foreach (Realm.Ecs.Entity entity in world.Query<Position, ResourceNode, PropIdentity>())
+		{
+			if (world.Has<Dead>(entity) || !world.Has<Harvestable>(entity)) continue;
+
+			float current = 0f;
+			float maximum = 0f;
+
+			if (world.TryGet(entity, out Health capacity) && capacity.Max > 0f)
+			{
+				current = capacity.Current;
+				maximum = capacity.Max;
+			}
+			else if (world.TryGet(entity, out ResourceNode resourceNode) && resourceNode.MaxCapacity > 0f)
+			{
+				current = resourceNode.Amount;
+				maximum = resourceNode.MaxCapacity;
+			}
+
+			if (maximum <= 0f) continue;
+
+			float fraction = Mathf.Clamp(current / maximum, 0f, 1f);
+			if (mode == HealthBarMode.Damaged && fraction >= 1f) continue;
+
+			Position nodePosition = world.Get<Position>(entity);
+			Vector3 position = new(nodePosition.Value.X, nodePosition.Value.Y, nodePosition.Value.Z);
+			if (shroud != null && !shroud.IsWorldPointVisibleOnMinimap(position)) continue;
+
+			float radius = world.TryGet(entity, out CollisionRadius collisionRadius) ? collisionRadius.Value : 0f;
+			Vector3 anchor = position + new Vector3(0f, Mathf.Max(2.2f, radius * 2.2f), 0f);
+			if (camera.IsPositionBehind(anchor)) continue;
+
+			Vector2 screen = camera.UnprojectPosition(anchor);
+			if (screen.X < 0f || screen.Y < 0f || screen.X > viewportSize.X || screen.Y > viewportSize.Y) continue;
+
+			float distance = camera.GlobalPosition.DistanceTo(anchor);
+			float scale = Mathf.Clamp(14f / Mathf.Max(distance, 0.001f), 0.4f, 1.4f);
+
+			_bars.Add(new HealthBarEntry
+			{
+				Entity = entity,
+				Position = screen,
+				Scale = scale,
+				HealthFraction = fraction,
+				HasHealth = true
+			});
+		}
 	}
 
 	public override void _Draw()
@@ -193,8 +306,9 @@ public partial class UnitHealthBarOverlay : Control
 			float bodyLeft = left + frameThickness;
 			float bodyTop = top + frameThickness;
 
+			Color frameColor = bar.IsDormant ? DormantFrameColor : FrameColor;
 			DrawRect(new Rect2(left + scale, top + scale, totalWidth, totalHeight), FrameShadowColor);
-			DrawRect(new Rect2(left, top, totalWidth, totalHeight), FrameColor);
+			DrawRect(new Rect2(left, top, totalWidth, totalHeight), frameColor);
 			DrawRect(new Rect2(bodyLeft, bodyTop, bodyWidth, bodyHeight), BackplateColor);
 
 			float cursor = bodyLeft;
@@ -211,6 +325,8 @@ public partial class UnitHealthBarOverlay : Control
 				float manaTop = bar.HasHealth ? bodyTop + barHeight + barGap : bodyTop;
 				DrawBar(new Rect2(cursor, manaTop, barWidth, barHeight), barInset, bar.ManaFraction, ManaFillColor, ManaHighlightColor);
 			}
+
+			if (bar.IsDormant) DrawDormantMark(new Rect2(bodyLeft, bodyTop, bodyWidth, bodyHeight), scale);
 		}
 	}
 
@@ -220,6 +336,19 @@ public partial class UnitHealthBarOverlay : Control
 		_showHealthBar = rules == null || rules.UnitHealthBarEnabled;
 		_showManaBar = rules != null && rules.UnitManaBarEnabled;
 		_showBadge = rules != null && rules.UnitLevelBadgeEnabled;
+	}
+
+	/// <summary>
+	///     Crosses a dormant building's plate out, so a building reduced to zero health reads as ruined at a glance instead
+	///     of as a unit that happens to be at no health.
+	/// </summary>
+	private void DrawDormantMark(Rect2 body, float scale)
+	{
+		if (body.Size.X <= 0f || body.Size.Y <= 0f) return;
+
+		float thickness = Mathf.Max(1f, scale);
+		DrawLine(new Vector2(body.Position.X, body.Position.Y), new Vector2(body.Position.X + body.Size.X, body.Position.Y + body.Size.Y), DormantMarkColor, thickness);
+		DrawLine(new Vector2(body.Position.X + body.Size.X, body.Position.Y), new Vector2(body.Position.X, body.Position.Y + body.Size.Y), DormantMarkColor, thickness);
 	}
 
 	private void DrawBar(Rect2 bar, float inset, float fraction, Color fillColor, Color highlightColor)

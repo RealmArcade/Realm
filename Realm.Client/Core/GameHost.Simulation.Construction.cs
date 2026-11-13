@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Realm.Ecs;
 using Godot;
@@ -107,8 +107,8 @@ public partial class GameHost
 		if (!World.Has<DefinitionId>(buildingEntity)) return;
 
 		string bType = World.Get<DefinitionId>(buildingEntity).Value;
-		bool isBuilding = false;
-		if (!UnitRegistry.TryGetValue(bType, out var m) && !(isBuilding = BuildingRegistry.TryGetValue(bType, out m))) return;
+		if (!Placeables.TryGetUnitOrBuilding(bType, out var m)) return;
+		bool isBuilding = Placeables.TryGet(bType, out PlaceableTemplate buildingTemplate) && buildingTemplate.Kind == PlaceableKind.Building;
 		if (TryGetUnit3D(buildingEntity, out _)) return;
 
 		if (m == null) return;
@@ -119,7 +119,7 @@ public partial class GameHost
 		int ownerPlayer = World.Has<UnitOwnerPlayer>(buildingEntity)
 			? World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex
 			: 0;
-		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, ownerPlayer, false, false);
+		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, ownerPlayer, executeSpawnShader: true);
 
 		if (TryGetUnit3D(buildingEntity, out var bNode) && GodotObject.IsInstanceValid(bNode))
 		{
@@ -332,7 +332,7 @@ public partial class GameHost
 
 	private void AssignBuildTaskToWorker(Entity workerEntity, string buildType, Vector3 targetPos)
 	{
-		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !BuildingRegistry.TryGetValue(buildType, out meta)) return;
+		if (!Placeables.TryGetUnitOrBuilding(buildType, out var meta)) return;
 		if (meta == null) return;
 		string? targetModel = meta.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
@@ -349,6 +349,7 @@ public partial class GameHost
 
 		World.Add(bldEntity, new ConstructionState(buildTime));
 		World.Add(bldEntity, new UnderConstruction());
+		World.Add(bldEntity, new Invulnerable());
 
 		if (!World.Has<CollisionRadius>(bldEntity))
 		{

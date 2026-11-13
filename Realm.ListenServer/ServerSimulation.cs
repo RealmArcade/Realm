@@ -25,10 +25,12 @@ public class ServerSimulation : IDisposable
 	private readonly SnapshotFanOut _snapshots;
 	private readonly ServerProductionStep _production;
 	private readonly ConstructionTick _construction;
+	private readonly BuildingRepairTick _repair;
 	private readonly ServerSimulationEvents _events;
 	private readonly ServerPresentationQueue _presentation = new();
 	private readonly ServerMapScript _script;
 	private readonly NeutralRespawnService _neutralRespawns;
+	private readonly MatchBountyService _bounties;
 	private readonly GroundLootService _loot;
 	private readonly HashSet<int> _peersNeedingBaseline = new();
 	private readonly HashSet<int> _peersNeedingDescriptionRepeat = new();
@@ -40,7 +42,7 @@ public class ServerSimulation : IDisposable
 	private bool _disposed;
 	private long _navMeshRebakeTick = -1;
 
-	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null, MatchOptionSet? matchOptions = null)
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null, MatchOptionSet? matchOptions = null, IReadOnlyList<string?>? teamSpawnCoordinates = null)
 	{
 		MatchOptions = matchOptions ?? new MatchOptionSet();
 		_map = map;
@@ -75,9 +77,12 @@ public class ServerSimulation : IDisposable
 		EnsureMatchClock(map);
 		_production = new ServerProductionStep(map.World, map, log);
 		_construction = new ConstructionTick(map.Simulation, map.Catalog);
+		_repair = new BuildingRepairTick(map.Simulation, map.Catalog);
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
-		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, MatchOptions);
+		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, MatchOptions, teamSpawnCoordinates);
+		_commands.ScriptAbilityRulesProvider = spellId =>
+			_script.Api.Abilities.TryGetRules(spellId, out AbilityRules scriptRules) ? scriptRules : null;
 		if (roster != null) ApplyRosterBotDifficulties(roster);
 		_script.Api.Metrics = Metrics;
 		if (!MatchOptions.IsEmpty) log.Write($"the lobby configured this match: {MatchOptions.Describe()}");
@@ -95,6 +100,7 @@ public class ServerSimulation : IDisposable
 
 		_neutralRespawns = new NeutralRespawnService(map, _script.Api, log);
 		_neutralRespawns.Start();
+		_bounties = new MatchBountyService(map, _script.Api);
 
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
@@ -102,6 +108,7 @@ public class ServerSimulation : IDisposable
 			resources.GoldResourceId,
 			resources.WoodResourceId,
 			resources.StoneResourceId);
+		map.Simulation.ResourceEconomyService.ItemMaxStacksProvider = itemId => map.Catalog.FindItem(itemId)?.MaxStacks ?? 1;
 
 		BakeNavMesh();
 	}
@@ -161,9 +168,12 @@ public class ServerSimulation : IDisposable
 		_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
 		_production.Step(deltaSeconds);
 		_construction.Step(deltaSeconds);
+		_repair.Step(deltaSeconds);
 		_loot.Step(deltaSeconds);
 		_neutralRespawns.Step(deltaSeconds);
 		_script.Step(deltaSeconds);
+		_script.Api.StepAutoCast(deltaSeconds);
+		_script.Api.PublishResourceNodeAmounts(deltaSeconds);
 		_script.Api.AdvanceTimers(deltaSeconds);
 		RecomputePopulationWhenDue();
 		RefreshNavMeshWhenObstaclesChange();
@@ -193,6 +203,8 @@ public class ServerSimulation : IDisposable
 		simulation.CombatDamageService.ItemGrantedWeaponsProvider = itemId => _map.Catalog.FindItem(itemId)?.GrantedWeapons;
 		simulation.CombatDamageService.UnlimitedPowerProvider = () => simulation.UnlimitedPowerEnabled;
 		simulation.CombatDamageService.OnKillUnitRequested = KillUnit;
+		simulation.CombatDamageService.OnBuildingDormantRequested = HandleBuildingDormant;
+		simulation.ResourceEconomyService.OnPropDepleted = node => _script.Api.NotifyResourceNodeDepleted(new ResourceNodeId(node.Id));
 		simulation.CombatDamageService.DamageEffectivenessProvider = (attacker, target) =>
 		{
 			if (!_map.World.TryGet<UnitOwnerPlayer>(attacker, out UnitOwnerPlayer attackingOwner)) return 1f;
@@ -229,12 +241,30 @@ public class ServerSimulation : IDisposable
 		return !_script.Api.ArePlayersAllied(playerIndex, otherPlayerIndex);
 	}
 
+	/// <summary>
+	///     Answers a building that just ran out of health while the map lets it be repaired. The building stays standing
+	///     and dormant, so this pays whoever broke it the same bounty their kill would have paid and leaves the rest to the
+	///     repair: no death event is raised, because the unit is still there for its owner to raise again.
+	/// </summary>
+	private void HandleBuildingDormant(Entity entity)
+	{
+		if (!_map.World.IsAlive(entity)) return;
+
+		Entity killer = _map.World.TryGet<LastAttacker>(entity, out LastAttacker lastAttacker) ? lastAttacker.Value : Entity.Null;
+		if (killer == Entity.Null) return;
+
+		_bounties.PayKill(new UnitId(entity.Id), new UnitId(killer.Id));
+	}
+
 	private void KillUnit(Entity entity)
 	{
 		if (!_map.World.IsAlive(entity)) return;
 
 		Entity killer = _map.World.TryGet<LastAttacker>(entity, out LastAttacker lastAttacker) ? lastAttacker.Value : Entity.Null;
-		_neutralRespawns.OnPlacementDestroyed(new UnitId(entity.Id), killer == Entity.Null ? UnitId.Invalid : new UnitId(killer.Id));
+		var victimId = new UnitId(entity.Id);
+		UnitId killerId = killer == Entity.Null ? UnitId.Invalid : new UnitId(killer.Id);
+		_neutralRespawns.OnPlacementDestroyed(victimId);
+		_bounties.PayKill(victimId, killerId);
 		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
 
 		if (_map.World.IsAlive(entity)) _map.World.Destroy(entity);

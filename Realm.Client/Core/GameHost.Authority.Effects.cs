@@ -6,7 +6,10 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.VFX;
 using Realm.Ecs;
+using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
 using Realm.Shared.Metadata;
@@ -146,13 +149,20 @@ public partial class GameHost
 		Callable.From(() => unit3D.ApplyModelTint(tint)).CallDeferred();
 	}
 
+	/// <summary>
+	///     Holds the animation the authority staged for a unit until one cycle of it has been drawn. The unit's own orders
+	///     choose its animation every animation step, so an animation that is merely started here would be taken back before
+	///     it could be seen; holding it is what makes a cast - or any pose a map stages - reach the screen.
+	/// </summary>
+	/// <param name="message">The authority's animation message: the animation in its key and its duration in its value.</param>
 	private void PresentUnitAnimation(PresentationMessage message)
 	{
 		if (string.IsNullOrWhiteSpace(message.Key)) return;
 		if (!TryPresentUnit(message.Handle, out Unit3D? unit3D)) return;
 
 		string animationName = message.Key;
-		Callable.From(() => unit3D.PlayAnimation(animationName)).CallDeferred();
+		float holdSeconds = message.Duration;
+		Callable.From(() => unit3D.PlayAnimationHeld(animationName, holdSeconds)).CallDeferred();
 	}
 
 	private void PresentUnitHandAttachment(PresentationMessage message)
@@ -186,6 +196,95 @@ public partial class GameHost
 		float frequency = message.SecondCount > 0 ? message.SecondCount : 12f;
 
 		Callable.From(() => unit3D.TriggerImpulse(strength, duration, frequency)).CallDeferred();
+	}
+
+	/// <summary>
+	///     Drops the placed node the authority exhausted. The message names the point the node stood at because both
+	///     processes load the board's props for themselves and therefore do not share an entity id for them.
+	/// </summary>
+	/// <param name="message">The authority's depletion message.</param>
+	private void PresentResourceNodeDepleted(PresentationMessage message)
+	{
+		if (!TryFindResourceNodeNear(message.Position.ToNumerics(), out Entity node)) return;
+		if (!World.TryGet(node, out PropIdentity identity)) return;
+
+		RemoveResourceNodeFromBoard(node, identity.PropId);
+	}
+
+	/// <summary>
+	///     Keeps a placed node's remaining capacity as current as the authority's. A node is board content each process
+	///     loads for itself, so the authority states what is left by the point the node stands at rather than by an entity
+	///     id the two processes do not share.
+	/// </summary>
+	/// <param name="message">The authority's statement of a node's remaining capacity.</param>
+	private void PresentResourceNodeAmount(PresentationMessage message)
+	{
+		if (!TryFindResourceNodeNear(message.Position.ToNumerics(), out Entity node)) return;
+
+		float amount = MathF.Max(0f, message.Value);
+
+		if (World.TryGet(node, out Health health))
+		{
+			health.Current = MathF.Min(amount, health.Max);
+			World.Set(node, health);
+		}
+
+		if (World.TryGet(node, out ResourceNode resourceNode))
+		{
+			resourceNode.Amount = amount;
+			World.Set(node, resourceNode);
+		}
+
+		if (SelectedResourceNodeEntity == node) GameContext.InGameHud?.RefreshUI(SelectedUnits);
+	}
+
+	/// <summary>
+	///     Finds the placed node a message names. Both processes load the board's props for themselves, so the node is
+	///     named by the point it stands at and the nearest node to that point is the one meant.
+	/// </summary>
+	/// <param name="point">The point the message names.</param>
+	/// <param name="node">The node that stands nearest that point, when one is close enough to be it.</param>
+	/// <returns>True when a node was found.</returns>
+	private bool TryFindResourceNodeNear(System.Numerics.Vector3 point, out Entity node)
+	{
+		Entity found = Entity.Null;
+		float closestDistance = 2.5f;
+
+		var query = QueryCache.AllPositionAndResourceNodeAndPropIdentityQuery;
+		World.Query(in query, (Entity entity, ref Realm.Ecs.Components.Core.Position position, ref PropIdentity identity) =>
+		{
+			float distance = System.Numerics.Vector3.Distance(position.Value, point);
+			if (distance >= closestDistance) return;
+
+			closestDistance = distance;
+			found = entity;
+		});
+
+		node = found;
+		return node != Entity.Null;
+	}
+
+	private void RemoveResourceNodeFromBoard(Entity node, string propId)
+	{
+		if (GameContext.World == null || !World.IsAlive(node)) return;
+
+		World.SetOrAdd(node, new Dead());
+
+		if (SelectedResourceNodeEntity == node)
+		{
+			ClearSelection();
+		}
+
+		if (EntityToProp3D.TryGetValue(node, out Prop3D? prop) && prop != null)
+		{
+			EntityToProp3D.Remove(node);
+			AllProps.Remove(prop);
+			if (SelectedProp == prop) SelectedProp = null;
+			prop.QueueFree();
+		}
+
+		GameContext.PropMultiMesh?.MarkDirty(propId);
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	private void PresentResourceImpulse(PresentationMessage message)

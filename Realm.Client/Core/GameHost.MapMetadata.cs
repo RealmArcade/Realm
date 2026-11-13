@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -205,10 +205,12 @@ public partial class GameHost
 			GD.PushWarning(combatTuningWarnings[index]);
 		}
 
-		UnitRegistry.Clear();
-		BuildingRegistry.Clear();
-		PropRegistry.Clear();
-		ResourceRegistry.Clear();
+		// The plate a unit draws and the slots it may fill are the match's rules rather than a screen preference, so this
+		// process states them from the same map the authority states them from: a screen that skipped this drew no mana
+		// bar, no level badge and the wrong carry capacity until the authority's own catalog reached it.
+		MapWorldLoader.ApplyMapRules(GameContext.Simulation.MapRules, metadata.MapProperties);
+
+		GameContext.RegistryService?.Placeables.Clear();
 		WeaponRegistry.Clear();
 		AttachmentRegistry.Clear();
 		ItemRegistry.Clear();
@@ -328,7 +330,7 @@ public partial class GameHost
 		RegisterTemplates(PropRegistry, catalog.Props);
 	}
 
-	private static void RegisterTemplates<T>(Dictionary<StringName, T> registry, IReadOnlyDictionary<string, T> templates)
+	private static void RegisterTemplates<T>(PlaceableView<T> registry, IReadOnlyDictionary<string, T> templates) where T : PlaceableMetadata
 	{
 		foreach (KeyValuePair<string, T> entry in templates)
 		{

@@ -239,7 +239,7 @@ public class MapMetadata
 		else Templates.Items.Add(item);
 	}
 
-	public void AddOrUpdateConsumable(ConsumableMetadata consumable)
+	public void AddOrUpdateConsumable(ItemMetadata consumable)
 	{
 		if (string.IsNullOrWhiteSpace(consumable.TemplateID)) return;
 		Templates ??= new();
@@ -249,13 +249,13 @@ public class MapMetadata
 		else Templates.Consumables.Add(consumable);
 	}
 
-	public ConsumableMetadata? GetConsumable(string consumableId)
+	public ItemMetadata? GetConsumable(string consumableId)
 	{
 		if (Templates?.Consumables == null || string.IsNullOrWhiteSpace(consumableId)) return null;
 
 		for (int i = 0; i < Templates.Consumables.Count; i++)
 		{
-			ConsumableMetadata consumable = Templates.Consumables[i];
+			ItemMetadata consumable = Templates.Consumables[i];
 			if (string.Equals(consumable.TemplateID, consumableId, StringComparison.OrdinalIgnoreCase)) return consumable;
 		}
 

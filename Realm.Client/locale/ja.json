@@ -1906,7 +1906,7 @@
   "Tint with player color": "Tint with player color",
   "Tints ground-level glows with the owning player's color instead of the authored effect colors": "Tints ground-level glows with the owning player's color instead of the authored effect colors",
   "Toggle Add/Delete Controls": "追加/削除コントロールの切り替え",
-  "Toggle Camera Zoom (Near / Mid / Far) [Z]": "カメラズーム切り替え (近 / 中 / 遠) [Z]",
+  "Toggle Camera Zoom (Near / Mid / Far)": "カメラズーム切り替え (近 / 中 / 遠)",
   "Toggle Debug JSON View": "デバッグJSONビューの切り替え",
   "Toggle Embedded VSCode JSON / Script editor": "内蔵VSCode JSON/スクリプトエディタの切り替え",
   "Toggle Free Camera": "フリーカメラの切り替え",

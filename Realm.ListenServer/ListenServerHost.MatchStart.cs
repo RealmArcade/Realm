@@ -33,7 +33,7 @@ public partial class ListenServerHost
 			MarkStartStage("map loaded");
 			var paths = ServerMatchPaths.From(_arguments);
 			int hostPlayerSlot = ResolveLobbyHostPlayerSlot(assignments);
-			_simulation = new ServerSimulation(worldOwnedHere, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, hostPlayerSlot, preparedScriptHost, matchOptions: _lobby?.MatchOptions);
+			_simulation = new ServerSimulation(worldOwnedHere, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, hostPlayerSlot, preparedScriptHost, matchOptions: _lobby?.MatchOptions, teamSpawnCoordinates: _lobby?.Roster?.CopyTeamSpawnCoordinates());
 			preparedScriptHost = null;
 			if (hostPlayerSlot > 0) _log.Write($"player slot {hostPlayerSlot} hosts this match: its seat is the one that administered the lobby");
 

@@ -58,6 +58,7 @@ public partial class LobbyRoom : Control
 	private readonly Dictionary<int, PanelContainer> _playerRowsByPeerId = new();
 	private Label _inviteFeedback = null!;
 	private CheckBox _spectatorDelayCheck = null!;
+	private CheckBox _teamsTogetherCheck = null!;
 	private Panel? _countdownPopup;
 	private Label? _countdownTextLabel;
 	private Panel? _connectingPopup;
@@ -66,8 +67,9 @@ public partial class LobbyRoom : Control
 	private SpinBox? _maximumPlayersSpin;
 	private SpinBox? _draftCountSpin;
 	private SpinBox? _uniqueBuildingsSpin;
+	private SpinBox? _buildingSupplySpin;
 	private SpinBox? _capacityMultiplierSpin;
-	private SpinBox? _chargeMultiplierSpin;
+	private SpinBox? _productionMultiplierSpin;
 	private OptionButton? _shroudModeOption;
 	private CheckBox? _mirroredDraftCheck;
 	private CheckBox? _openPoolDraftingCheck;
@@ -236,6 +238,8 @@ public partial class LobbyRoom : Control
 
 		CreateSpectatorDelayUI();
 		Lobby.SpectatorDelayChanged += OnSpectatorDelayChanged;
+		CreateTeamsTogetherUI();
+		Lobby.TeamsTogetherChanged += OnTeamsTogetherChanged;
 		CreateMatchSettingsUI();
 		Lobby.MatchOptionsChanged += OnMatchOptionsChanged;
 
@@ -390,6 +394,7 @@ public partial class LobbyRoom : Control
 			Lobby.KickReceived -= OnLobbyKickReceived;
 
 			Lobby.SpectatorDelayChanged -= OnSpectatorDelayChanged;
+			Lobby.TeamsTogetherChanged -= OnTeamsTogetherChanged;
 			Lobby.MatchOptionsChanged -= OnMatchOptionsChanged;
 
 			Lobby.MapDownloadProgressChanged -= OnMapDownloadProgress;
@@ -697,6 +702,11 @@ public partial class LobbyRoom : Control
 			_spectatorDelayCheck.Visible = false;
 		}
 
+		if (_teamsTogetherCheck != null && GodotObject.IsInstanceValid(_teamsTogetherCheck))
+		{
+			_teamsTogetherCheck.Visible = false;
+		}
+
 		_connectingPopup = new Panel();
 		_connectingPopup.Name = "ConnectingPopup_Panel";
 		_connectingPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -750,6 +760,11 @@ public partial class LobbyRoom : Control
 		{
 			_spectatorDelayCheck.Visible = true;
 		}
+
+		if (_teamsTogetherCheck != null && GodotObject.IsInstanceValid(_teamsTogetherCheck))
+		{
+			_teamsTogetherCheck.Visible = true;
+		}
 	}
 	/// <summary>
 	///     Offers the lobby's host the parameters it may set for the match: how many players are seated, how many building
@@ -763,7 +778,7 @@ public partial class LobbyRoom : Control
 
 		_matchSettingsButton = new Button();
 		_matchSettingsButton.Name = "MatchSettingsButton_Button";
-		_matchSettingsButton.Position = new Vector2(1450, 720);
+		_matchSettingsButton.Position = new Vector2(1450, 660);
 		_matchSettingsButton.Size = new Vector2(340, 40);
 		_matchSettingsButton.AddThemeConstantOverride("icon_max_width", 20);
 		_matchSettingsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
@@ -840,8 +855,9 @@ public partial class LobbyRoom : Control
 		_maximumPlayersSpin = AddCountSetting(grid, TranslationServer.Translate("Players:"), 0, LobbyLimits.MaximumSeats, MatchOption.MaximumPlayers, TranslationServer.Translate("How many players this match seats. Zero seats the number the map states."));
 		_draftCountSpin = AddCountSetting(grid, TranslationServer.Translate("Building options per draft:"), 0, 24, MatchOption.MaximumBuildingDraftCount, TranslationServer.Translate("How many building options a draft offers at once. Zero offers the number the ruleset states."));
 		_uniqueBuildingsSpin = AddCountSetting(grid, TranslationServer.Translate("Copies of one building:"), 0, 24, MatchOption.MaximumUniqueBuildingInstances, TranslationServer.Translate("How many unique instances of one building a player may own. Zero uses the ruleset's own limit."));
+		_buildingSupplySpin = AddCountSetting(grid, TranslationServer.Translate("Building supply:"), 0, 24, MatchOption.MaximumBuildingSupply, TranslationServer.Translate("How many buildings a player may construct and hold. Zero uses the ruleset's own supply."));
 		_capacityMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Capacity multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.CapacityMultiplierPercent, TranslationServer.Translate("The percentage every player's capacity ceiling is multiplied by. Zero uses the ruleset's own values."));
-		_chargeMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Charge multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.ChargeMultiplierPercent, TranslationServer.Translate("The percentage every player's maximum charges is multiplied by. Zero uses the ruleset's own values."));
+		_productionMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Production multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.ProductionMultiplierPercent, TranslationServer.Translate("The percentage every player's stored production mana is multiplied by. Zero uses the ruleset's own values."));
 
 		var visionLabel = new Label();
 		visionLabel.Name = "VisionLabel_Label";
@@ -939,8 +955,9 @@ public partial class LobbyRoom : Control
 		SetSpinValue(_maximumPlayersSpin, options.Get(MatchOption.MaximumPlayers));
 		SetSpinValue(_draftCountSpin, options.Get(MatchOption.MaximumBuildingDraftCount));
 		SetSpinValue(_uniqueBuildingsSpin, options.Get(MatchOption.MaximumUniqueBuildingInstances));
+		SetSpinValue(_buildingSupplySpin, options.Get(MatchOption.MaximumBuildingSupply));
 		SetSpinValue(_capacityMultiplierSpin, options.Get(MatchOption.CapacityMultiplierPercent));
-		SetSpinValue(_chargeMultiplierSpin, options.Get(MatchOption.ChargeMultiplierPercent));
+		SetSpinValue(_productionMultiplierSpin, options.Get(MatchOption.ProductionMultiplierPercent));
 
 		if (_shroudModeOption != null)
 		{

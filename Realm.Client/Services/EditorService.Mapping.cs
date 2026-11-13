@@ -20,6 +20,9 @@ public partial class EditorService
 	public bool PlaceProp(string propId, float x, float y, float z, float rotationY, float scale) =>
 		EditorMappingOperations.PlaceProp(propId, x, y, z, rotationY, scale);
 
+	public bool PlaceItem(string itemId, float x, float y, float z) =>
+		EditorMappingOperations.PlaceItem(itemId, x, y, z);
+
 	public List<string> ResolvePropAssetIds(string[] keywords, bool includeResources) =>
 		EditorMappingOperations.ResolvePropAssetIds(keywords, includeResources);
 

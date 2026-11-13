@@ -90,19 +90,30 @@ public class MeleeAutoCastTests
 
 		Assert.That(_match.TryGet(ally, out AbsorbShield shield), Is.True, "The Warding Aegis has to leave an absorb pool on the ally it shielded.");
 		Assert.That(shield.Total(), Is.EqualTo(60f).Within(1f), "The Aegis shields for its authored sixty points.");
+
+		float healthWithShield = _match.HealthOf(ally);
+		float shieldBeforeHit = shield.Total();
+		_match.Api.DealTypedDamage(_match.Hero(2), ally, 30f, "physical");
+
+		Assert.That(_match.HealthOf(ally), Is.EqualTo(healthWithShield).Within(0.01f), "A hit the shield can cover must not reach the shielded soldier's health.");
+		Assert.That(_match.TryGet(ally, out AbsorbShield afterHit), Is.True, "The shield has to keep whatever the hit did not spend.");
+		Assert.That(afterHit.Total(), Is.LessThan(shieldBeforeHit), "The shield has to spend the damage it covered.");
+		Assert.That(afterHit.Total(), Is.GreaterThanOrEqualTo(shieldBeforeHit - 30f), "The shield must not spend more than the resolved hit.");
 	}
 
 	[Test]
 	public void TheStandardBearerKeepsItsAuraOnTheSoldiersAroundIt()
 	{
-		_match.SpawnSoldier(1, "unit/standard_bearer", CasterPosition);
-		UnitId near = _match.SpawnSoldier(1, "unit/axeman", BesideCasterPosition);
-		UnitId far = _match.SpawnSoldier(1, "unit/axeman", FarFromCasterPosition);
+		Vector3 heroPosition = _match.PositionOf(_match.Hero(1));
+		_match.SpawnSoldier(1, "unit/standard_bearer", heroPosition + new Vector3(4f, 0f, 0f));
+		UnitId near = _match.SpawnSoldier(1, "unit/axeman", heroPosition + new Vector3(5f, 0f, 0f));
+		UnitId far = _match.SpawnSoldier(1, "unit/axeman", heroPosition + new Vector3(24f, 0f, 0f));
 
 		_match.Step(0.5f);
 
 		Assert.That(_match.Api.UnitHasBuff(near, "buff/standard_aura"), Is.True, "The Standard Bearer has to put its aura on the soldiers beside it.");
 		Assert.That(_match.Api.UnitHasBuff(far, "buff/standard_aura"), Is.False, "A soldier beyond the aura's reach must not carry it.");
+		Assert.That(_match.SpeedOf(near), Is.EqualTo(_match.SpeedOf(far) * 1.1f).Within(_match.SpeedOf(far) * 0.02f), "The aura has to move the soldier beside the bearer ten percent faster.");
 
 		_match.Step(StandardAuraBuffSeconds + 1f);
 		Assert.That(_match.Api.UnitHasBuff(near, "buff/standard_aura"), Is.True, "The aura has to be renewed so it never lapses while the bearer stands.");

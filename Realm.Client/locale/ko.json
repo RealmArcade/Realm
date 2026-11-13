@@ -2194,7 +2194,7 @@
   "Tint with player color": "플레이어 색상으로 색조 적용",
   "Tints ground-level glows with the owning player's color instead of the authored effect colors": "지면 발광을 제작된 효과 색상 대신 소유 플레이어의 색상으로 물들입니다",
   "Toggle Add/Delete Controls": "추가/삭제 컨트롤 전환",
-  "Toggle Camera Zoom (Near / Mid / Far) [Z]": "카메라 줌 전환 (근거리 / 중거리 / 원거리) [Z]",
+  "Toggle Camera Zoom (Near / Mid / Far)": "카메라 줌 전환 (근거리 / 중거리 / 원거리)",
   "Toggle Debug JSON View": "디버그 JSON 뷰 전환",
   "Toggle Embedded VSCode JSON / Script editor": "내장 VSCode JSON / 스크립트 편집기 전환",
   "Toggle Free Camera": "자유 카메라 전환",

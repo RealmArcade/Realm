@@ -62,6 +62,7 @@ public partial class GameHost
 		GameContext.PropMultiMesh?.Clear();
 		AllDecals.Clear();
 		AllVfx.Clear();
+		ClearPlacedLootItems();
 		GameContext.FXService.ClearActivePings();
 		EntityToUnit3D.Clear();
 		EntityIdToUnit3D.Clear();

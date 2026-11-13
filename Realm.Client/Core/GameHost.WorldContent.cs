@@ -28,6 +28,7 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
+using Realm.Shared.Network;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
 using Environment = Godot.Environment;
@@ -268,6 +269,21 @@ public partial class GameHost
 		SetSkyboxTexture(EditorSkyboxPath);
 	}
 
+	private LootItem3D? FindLootItemInParentChain(Node? node)
+	{
+		while (node != null)
+		{
+			if (node is LootItem3D loot)
+			{
+				return loot;
+			}
+
+			node = node.GetParent();
+		}
+
+		return null;
+	}
+
 	private Prop3D? FindProp3DInParentChain(Node? node)
 	{
 		while (node != null)
@@ -332,6 +348,170 @@ public partial class GameHost
 		return closest;
 	}
 
+	private const float ResourceNodeClickReach = 3.5f;
+
+	private const float LootClickReach = 1.5f;
+
+	/// <summary>
+	///     Finds the resource node a right-click landed on. A static prop is drawn by a multimesh and has no node of its
+	///     own to hit, so the click is resolved against the replicated props around the point it landed on.
+	/// </summary>
+	/// <param name="worldPosition">The point on the ground the click landed at.</param>
+	/// <param name="nodeEntity">The resource node nearest that point, or <see cref="Entity.Null" />.</param>
+	/// <returns>True when a resource node stands within reach of the click.</returns>
+	public bool TryFindResourceNodeAt(Vector3 worldPosition, out Entity nodeEntity)
+	{
+		Entity found = Entity.Null;
+		var clickPosition = new System.Numerics.Vector3(worldPosition.X, worldPosition.Y, worldPosition.Z);
+		float closestDistance = ResourceNodeClickReach;
+
+		var query = QueryCache.AllPropIdentityAndPositionQuery;
+		World.Query(in query, (Entity entity, ref Position position, ref PropIdentity identity) =>
+		{
+			if (GetPropResourceType(identity.PropId) == null) return;
+
+			float distance = System.Numerics.Vector3.Distance(position.Value, clickPosition);
+			if (distance >= closestDistance) return;
+
+			closestDistance = distance;
+			found = entity;
+		});
+
+		nodeEntity = found;
+		return nodeEntity != Entity.Null;
+	}
+
+	/// <summary>
+	///     Sends a gather order for a click that landed on a resource node, which is how a right-click on a mine or a tree
+	///     line reaches the selected workers without a node to hit.
+	/// </summary>
+	/// <param name="worldPosition">The point on the ground the click landed at.</param>
+	/// <param name="isQueued">Whether the order is appended behind the units' current ones.</param>
+	/// <returns>True when the click named a resource node and a selected unit can gather from it.</returns>
+	/// <summary>
+	///     Finds the ground item a click landed on, which is the item the order is about. A drop is small, so the reach
+	///     is tighter than a resource node's: clicking the ground beside a mine should gather, not pick something up.
+	/// </summary>
+	/// <param name="worldPosition">The point on the ground the click landed at.</param>
+	/// <param name="lootItem">The nearest ground item within reach of that point, or nothing.</param>
+	/// <returns>True when a dropped item lies within reach of the click.</returns>
+	public bool TryFindLootItemAt(Vector3 worldPosition, out LootItem3D? lootItem)
+	{
+		LootItem3D? closest = null;
+		float closestDistance = LootClickReach;
+
+		foreach (LootItem3D candidate in AllLootItems)
+		{
+			if (candidate == null || !GodotObject.IsInstanceValid(candidate) || !candidate.Visible) continue;
+
+			Vector3 candidatePosition = candidate.GlobalPosition;
+			float distance = new Vector2(candidatePosition.X - worldPosition.X, candidatePosition.Z - worldPosition.Z).Length();
+			if (distance >= closestDistance) continue;
+
+			closestDistance = distance;
+			closest = candidate;
+		}
+
+		lootItem = closest;
+		return lootItem != null;
+	}
+
+	/// <summary>
+	///     Sends a pickup order for a click that landed beside a ground item rather than on it, which is the same
+	///     forgiveness a click beside a resource node gets.
+	/// </summary>
+	/// <param name="worldPosition">The point on the ground the click landed at.</param>
+	/// <param name="isQueued">Whether the order is appended behind the units' current ones.</param>
+	/// <returns>True when the click named a ground item and a selected unit can walk to it.</returns>
+	public bool TryIssuePickupCommandAt(Vector3 worldPosition, bool isQueued = false)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return false;
+		if (!TryFindLootItemAt(worldPosition, out LootItem3D? lootItem) || lootItem == null) return false;
+
+		IssuePickupCommand(lootItem, isQueued);
+		return true;
+	}
+
+	/// <summary>
+	///     Sends the selected units to walk over a dropped item and take it. The authority owns the walk and the
+	///     collection, so this only names the item: a unit that cannot carry it stops at it and keeps its hands free.
+	/// </summary>
+	/// <param name="lootItem">The dropped item the units are sent to collect.</param>
+	/// <param name="isQueued">Whether the order is appended behind the units' current ones.</param>
+	public void IssuePickupCommand(LootItem3D lootItem, bool isQueued = false)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (lootItem == null || !GodotObject.IsInstanceValid(lootItem)) return;
+		if (SelectedUnits.Count == 0 || lootItem.Entity == Entity.Null || !World.IsAlive(lootItem.Entity)) return;
+
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		if (localPlayerIndex <= 0) return;
+
+		var targetIds = new List<int>();
+		foreach (Unit3D unit in SelectedUnits)
+		{
+			if (unit.IsBuilding || unit.Player != localPlayerIndex || !CanCommandUnit(unit)) continue;
+			targetIds.Add(GetServerEntityId(unit.Entity));
+		}
+
+		if (targetIds.Count == 0) return;
+
+		Vector3 lootPosition = lootItem.GlobalPosition;
+		SpawnTargetIndicator(lootPosition, new Color(0.85f, 0.75f, 0.25f));
+		GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Picking up"), new Color(0.85f, 0.75f, 0.25f));
+
+		int lootServerEntityId = lootItem.UniqueId > 0 ? lootItem.UniqueId : GetServerEntityId(lootItem.Entity);
+		SubmitOrderCommand(isQueued ? "pickup_queued" : "pickup", targetIds, lootPosition, lootServerEntityId, string.Empty);
+	}
+
+	/// <summary>
+	///     Sends the focused unit to a spot so it can put down the item it was told to drop. The authority owns the walk
+	///     and the handover, so this names the item, the pieces and the spot only: the pieces leave the inventory as one
+	///     ground item at the unit's feet once it arrives.
+	/// </summary>
+	/// <param name="position">The spot the unit walks to before it lets go.</param>
+	/// <param name="itemId">The item the unit carries and should put down.</param>
+	/// <param name="charges">How many pieces of it the clicked slot holds.</param>
+	public void IssueDropItemCommand(Vector3 position, string itemId, int charges)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (string.IsNullOrWhiteSpace(itemId)) return;
+
+		Unit3D? focusedUnit = GetFocusedSelectedUnit();
+		if (focusedUnit == null || !GodotObject.IsInstanceValid(focusedUnit)) return;
+		if (focusedUnit.IsBuilding) return;
+		if (!GameContext.PerspectiveFilter.CanControl(focusedUnit.Player)) return;
+		if (!CanCommandUnit(focusedUnit)) return;
+
+		int serverEntityId = GetServerEntityId(focusedUnit.Entity);
+		if (serverEntityId <= 0) return;
+
+		var targetIds = new List<int> { serverEntityId };
+		SpawnTargetIndicator(position, new Color(0.85f, 0.75f, 0.25f));
+		SubmitOrderCommand("drop_item", targetIds, position, 0, DropItemArgument.Compose(itemId, charges));
+	}
+
+	public bool TryIssueGatherCommandAt(Vector3 worldPosition, bool isQueued = false)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return false;
+		if (!TryFindResourceNodeAt(worldPosition, out Entity nodeEntity)) return false;
+		if (!HasSelectedResourceWorker()) return false;
+
+		IssueGatherCommand(nodeEntity, isQueued);
+		return true;
+	}
+
+	private bool HasSelectedResourceWorker()
+	{
+		foreach (Unit3D unit in SelectedUnits)
+		{
+			if (unit.IsBuilding || !GameContext.PerspectiveFilter.CanControl(unit.Player) || !CanCommandUnit(unit)) continue;
+			if (GameContext.RegistryService.IsResourceWorkerUnit(unit.UnitId)) return true;
+		}
+
+		return false;
+	}
+
 	public void IssueGatherCommand(Entity propEntity, bool isQueued = false)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
@@ -366,7 +546,8 @@ public partial class GameHost
 		var targetIds = new List<int>();
 		foreach (var unit in SelectedUnits)
 		{
-			if (unit.IsBuilding || unit.Player != localPlayerIndex || unit.UnitId != "worker") continue;
+			if (unit.IsBuilding || unit.Player != localPlayerIndex || !CanCommandUnit(unit)) continue;
+			if (!GameContext.RegistryService.IsResourceWorkerUnit(unit.UnitId)) continue;
 			targetIds.Add(GetServerEntityId(unit.Entity));
 		}
 
@@ -381,4 +562,69 @@ public partial class GameHost
 		}
 	}
 
+	/// <summary>
+	///     Answers whether a right-click on this building is the player asking a selected unit to work on it: the building has
+	///     to be a site still being raised or a standing building that has lost health, and one of the selected units has to
+	///     carry the repair rate that makes building work its job.
+	/// </summary>
+	private bool HasSelectedRepairerFor(Unit3D building)
+	{
+		if (building == null || !GodotObject.IsInstanceValid(building) || !building.IsBuilding) return false;
+		if (building.Entity == Entity.Null || !World.IsAlive(building.Entity)) return false;
+		if (!IsBuildingWorkAvailable(building.Entity)) return false;
+
+		foreach (Unit3D unit in SelectedUnits)
+		{
+			if (unit == null || !GodotObject.IsInstanceValid(unit) || unit.IsBuilding || !CanCommandUnit(unit)) continue;
+			if (!World.TryGet(unit.Entity, out RepairWorker repairWorker) || repairWorker.HealthPercentPerSecond <= 0f) continue;
+			if (GameContext.PerspectiveFilter.IsHostileToObserved(building.Player)) continue;
+
+			return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	///     Answers whether a building still has work left in it: a site that has not been raised yet, or a repairable building
+	///     short of its maximum health. A whole building offers no work, so a right-click on it is not a build order.
+	/// </summary>
+	private bool IsBuildingWorkAvailable(Entity buildingEntity)
+	{
+		if (World.Has<UnderConstruction>(buildingEntity)) return World.Has<ConstructionState>(buildingEntity);
+		if (!World.Has<RepairableBuilding>(buildingEntity)) return false;
+
+		return World.TryGet(buildingEntity, out Health health) && health.Current < health.Max;
+	}
+
+	/// <summary>Asks the selected units that can work on buildings to raise a site or mend a standing one.</summary>
+	public void IssueRepairCommand(Unit3D building, bool isQueued = false)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (SelectedUnits.Count == 0 || building == null || !GodotObject.IsInstanceValid(building)) return;
+		if (!World.IsAlive(building.Entity)) return;
+
+		int localPlayerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		if (localPlayerIndex <= 0) return;
+
+		var targetIds = new List<int>();
+		foreach (Unit3D unit in SelectedUnits)
+		{
+			if (unit.IsBuilding || unit.Player != localPlayerIndex || !CanCommandUnit(unit)) continue;
+			if (!World.TryGet(unit.Entity, out RepairWorker repairWorker) || repairWorker.HealthPercentPerSecond <= 0f) continue;
+			targetIds.Add(GetServerEntityId(unit.Entity));
+		}
+
+		if (targetIds.Count == 0) return;
+
+		var waypoint = World.TryGet(building.Entity, out Position position) ? position.Value : System.Numerics.Vector3.Zero;
+		Vector3 buildingPosition = new(waypoint.X, waypoint.Y, waypoint.Z);
+		SpawnTargetIndicator(buildingPosition, new Color(0.45f, 0.85f, 0.95f));
+
+		bool raising = World.Has<UnderConstruction>(building.Entity);
+		string feedback = raising ? TranslationServer.Translate("Raising the site") : TranslationServer.Translate("Repairing");
+		GameContext.InGameHud?.ShowFeedbackText(feedback, new Color(0.45f, 0.85f, 0.95f));
+
+		SubmitOrderCommand(isQueued ? "repair_queued" : "repair", targetIds, buildingPosition, GetServerEntityId(building.Entity), string.Empty);
+	}
 }

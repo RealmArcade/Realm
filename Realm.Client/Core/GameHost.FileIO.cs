@@ -171,7 +171,7 @@ public partial class GameHost
 		// them would arrive twice. The props and decals a map places are never replicated, so they are the scenery this
 		// screen is the only thing drawing: skipping them for a client leaves the world with its pathing but none of the
 		// trees, rocks and crystals that pathing describes.
-		bool unitsFromAuthority = _multiplayerActive && !Multiplayer.IsServer();
+		bool unitsFromAuthority = (_multiplayerActive && !Multiplayer.IsServer()) || GameContext.ServerSession != null;
 		return BeginMapWorldLoad(targetPath, false, true, false, unitsFromAuthority);
 	}
 

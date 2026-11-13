@@ -299,12 +299,78 @@ public partial class GameHost : Node3D
 
 	public Prop3D? SelectedProp { get; set; }
 
+	public LootItem3D? SelectedLootItem { get; private set; }
+
 	private Node3D? _sharedPropSelectionRing;
 	private Node3D? _sharedPropHoverRing;
 	public Entity SelectedPropEntity { get; private set; } = Entity.Null;
 	public string SelectedPropId { get; private set; } = "";
+	public Entity SelectedResourceNodeEntity { get; private set; } = Entity.Null;
+	public string SelectedResourceNodePropId { get; private set; } = "";
 	public Entity HoveredPropEntity { get; private set; } = Entity.Null;
 	public string HoveredPropId { get; private set; } = "";
+
+	/// <summary>
+	///     Selects a placed resource node for inspection. A node is drawn by a shared multi mesh and owns no node of its
+	///     own, so it is named by the entity it is placed as and the shared prop ring marks where it stands.
+	/// </summary>
+	/// <param name="entity">The placed prop entity of the node.</param>
+	/// <param name="propId">The template the node is placed from.</param>
+	public void SelectResourceNode(Entity entity, string propId)
+	{
+		SelectedResourceNodeEntity = entity;
+		SelectedResourceNodePropId = propId;
+
+		if (TryUpdatePropRingState(entity, out var pos, out var scale))
+		{
+			EnsurePropSelectionRing();
+			if (_sharedPropSelectionRing != null)
+			{
+				_sharedPropSelectionRing.Position = pos;
+				_sharedPropSelectionRing.Scale = Vector3.One * scale;
+				_sharedPropSelectionRing.Visible = true;
+			}
+		}
+		else
+		{
+			ClearSelectedResourceNode();
+		}
+	}
+
+	/// <summary>
+	///     Selects a ground item for inspection, which is how a player reads what a drop is worth before sending a unit
+	///     to collect it. The drop marks itself, so no selection ring has to be placed for it.
+	/// </summary>
+	/// <param name="lootItem">The drop that was clicked.</param>
+	public void SelectLootItem(LootItem3D lootItem)
+	{
+		ClearSelectedLootItem();
+
+		if (lootItem == null || !GodotObject.IsInstanceValid(lootItem)) return;
+
+		SelectedLootItem = lootItem;
+		lootItem.IsSelected = true;
+	}
+
+	public void ClearSelectedLootItem()
+	{
+		if (SelectedLootItem != null && GodotObject.IsInstanceValid(SelectedLootItem))
+		{
+			SelectedLootItem.IsSelected = false;
+		}
+
+		SelectedLootItem = null;
+	}
+
+	public void ClearSelectedResourceNode()
+	{
+		SelectedResourceNodeEntity = Entity.Null;
+		SelectedResourceNodePropId = "";
+		if (_sharedPropSelectionRing != null && SelectedPropEntity == Entity.Null)
+		{
+			_sharedPropSelectionRing.Visible = false;
+		}
+	}
 
 	public void SetSelectedPropEntity(Entity entity, string propId)
 	{

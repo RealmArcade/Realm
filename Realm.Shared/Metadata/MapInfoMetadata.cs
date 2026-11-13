@@ -52,6 +52,12 @@ public class MapInfoMetadata
 	/// <summary>Whether units the script gives an overhead badge to draw it to the left of their overhead bars. Off unless the map says otherwise.</summary>
 	public bool? ShowUnitLevel { get; set; }
 
+	/// <summary>
+	///     The number of inventory slots every unit of the match may fill. Relics and other equipment take slots the way a
+	///     gathered piece does, so the number bounds what a unit can carry home. Defaults to six.
+	/// </summary>
+	public int? InventorySlots { get; set; }
+
 	[JsonExtensionData] public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 
 	public int GetPlayablePlayerSlots()

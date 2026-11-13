@@ -6,9 +6,11 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Shared.Maps;
+using Realm.Shared.Metadata;
 using Realm.Shared.Network;
 using Realm.Shared.Simulation;
 using Realm.MapAPI;
@@ -27,12 +29,20 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	private readonly ServerTechLevels _techLevels;
 	private readonly ServerBots _bots;
 	private readonly AbilityEffectRunner _effects;
+	private readonly MatchPlacementService _placements;
+
+	/// <summary>
+	///     The board coordinate each team begins inside, as the lobby's map seated them. It outranks the board's own
+	///     per-slot anchors for a team it names, so a side that shares ground needs nothing from the slot anchors.
+	/// </summary>
+	private readonly string?[] _teamSpawnCoordinates;
 	private readonly PlayerId[] _activePlayersBuffer = new PlayerId[ScriptPlayersState.SlotCount];
 	private int _countingScratch;
 
-	public ServerGameAPI(LoadedMap map, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, ServerMatchPaths paths)
+	public ServerGameAPI(LoadedMap map, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, ServerMatchPaths paths, IReadOnlyList<string?>? teamSpawnCoordinates = null)
 	{
 		_map = map;
+		_teamSpawnCoordinates = teamSpawnCoordinates == null ? Array.Empty<string?>() : CopyTeamSpawnCoordinates(teamSpawnCoordinates);
 		_context = map.Simulation;
 		_log = log;
 		_presentation = presentation;
@@ -43,7 +53,9 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		_abilities = new ScriptAbilityRegistry(map.Catalog);
 		_bots = new ServerBots(_context, paths.MapName, paths.DataDirectory, log);
 		_bots.CustomActionExecuted = ForwardBotCustomAction;
+		_placements = new MatchPlacementService(_context);
 		_effects = new AbilityEffectRunner(_context, ArePlayersAllied, SpawnAbilitySummon);
+		_effects.GatherRequested = RequestGatherAround;
 		Items = items;
 		Loot = loot;
 		_countResourceNodes = CountResourceNodes;
@@ -54,6 +66,15 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	}
 
 	public void Dispose() => _savedData.Dispose();
+
+	private static string?[] CopyTeamSpawnCoordinates(IReadOnlyList<string?> teamSpawnCoordinates)
+	{
+		int length = Math.Min(teamSpawnCoordinates.Count, EcsSharedMemory.MAX_PLAYERS);
+		var copy = new string?[length];
+		for (int index = 0; index < length; index++) copy[index] = teamSpawnCoordinates[index];
+
+		return copy;
+	}
 
 	public EcsWorld World => _context.World;
 
@@ -458,42 +479,6 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		_context.World.SetOrAdd(entity, new CollisionScale(value));
 	}
 
-	public void SetUnitCharges(UnitId unit, int maximumCharges, float rechargeSeconds)
-	{
-		Entity entity = ResolveUnit(unit);
-		if (entity == Entity.Null) return;
-
-		if (maximumCharges <= 0)
-		{
-			if (_context.World.Has<UnitCharges>(entity)) _context.World.Remove<UnitCharges>(entity);
-			return;
-		}
-
-		bool carriesCharges = _context.World.TryGet<UnitCharges>(entity, out UnitCharges existing);
-		int charges = carriesCharges ? Math.Clamp(existing.Charges, 0, maximumCharges) : 0;
-		float rechargeProgress = carriesCharges ? existing.RechargeProgress : 0f;
-
-		_context.World.SetOrAdd(entity, new UnitCharges(charges, maximumCharges, MathF.Max(0f, rechargeSeconds))
-		{
-			RechargeProgress = rechargeProgress
-		});
-	}
-
-	public void SetUnitChargeCount(UnitId unit, int charges)
-	{
-		Entity entity = ResolveUnit(unit);
-		if (entity == Entity.Null) return;
-		if (!_context.World.TryGet<UnitCharges>(entity, out UnitCharges existing)) return;
-
-		int clamped = Math.Clamp(charges, 0, existing.MaximumCharges);
-		if (clamped == existing.Charges) return;
-
-		existing.Charges = clamped;
-		if (clamped == 0) existing.RechargeProgress = 0f;
-
-		_context.World.Set(entity, existing);
-	}
-
 	public void SetPlayerDamageEffectiveness(int attackingPlayerIndex, int defendingPlayerIndex, float multiplier)
 	{
 		Entity playerEntity = _context.GetPlayerEntity(attackingPlayerIndex);
@@ -512,7 +497,42 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return;
 
-		_context.World.SetOrAdd(entity, new Experience(value));
+		_context.World.SetOrAdd(entity, new Experience(Math.Max(0f, value)));
+		AdvanceLevelsFromExperience(entity);
+	}
+
+	/// <summary>
+	///     Spends a unit's accumulated experience on every level its template allows, applying that template's own growth
+	///     curve as each level is reached. A template that states no experience per level never advances, and one that
+	///     states no maximum level is not capped.
+	/// </summary>
+	/// <param name="entity">The unit whose experience is being spent.</param>
+	private void AdvanceLevelsFromExperience(Entity entity)
+	{
+		if (!_context.World.TryGet<DefinitionId>(entity, out DefinitionId definitionId)) return;
+		if (!_context.World.TryGet<Experience>(entity, out Experience experience)) return;
+		if (!_context.World.TryGet<Level>(entity, out Level level)) return;
+
+		UnitMetadata? metadata = _map.Catalog.FindUnitOrBuilding(definitionId.Value);
+		if (metadata == null) return;
+
+		float experiencePerLevel = metadata.ExperiencePerLevel;
+		if (experiencePerLevel <= 0f) return;
+
+		int maximumLevel = metadata.MaxLevel > 0 ? metadata.MaxLevel : int.MaxValue;
+		int gainedLevels = 0;
+		while (experience.Current >= experiencePerLevel && level.Value < maximumLevel)
+		{
+			experience.Current -= experiencePerLevel;
+			level.Value++;
+			gainedLevels++;
+		}
+
+		if (gainedLevels == 0) return;
+
+		_context.World.Set(entity, experience);
+		_context.World.Set(entity, level);
+		LevelService.Apply(_context.World, entity, level.Value, ResolveLevelGrowth(entity));
 	}
 
 	/// <summary>
@@ -539,7 +559,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		if (entity == Entity.Null || seconds <= 0f) return;
 		if (!_context.World.TryGet<ConstructionState>(entity, out ConstructionState construction)) return;
 
-		construction.Progress = MathF.Min(construction.Progress + seconds, construction.TotalBuildTime);
+		construction.Progress = MathF.Min(construction.Progress + seconds, construction.ProgressCeiling);
 		_context.World.Set(entity, construction);
 	}
 
@@ -580,6 +600,110 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	}
 
 	public void SetUnitCommandsFrozen(UnitId unit, bool value) => SetUnitFlag<CommandsFrozen>(unit, value);
+
+	public void SetUnitPlayerOrdersLocked(UnitId unit, bool value) => SetUnitFlag<PlayerOrdersLocked>(unit, value);
+
+	public void SetUnitGatherInterval(UnitId unit, float swingSeconds)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+		if (!_context.World.TryGet<Gatherer>(entity, out Gatherer gather)) return;
+
+		gather.SwingSeconds = MathF.Max(0f, swingSeconds);
+		_context.World.Set(entity, gather);
+	}
+
+	public void SetUnitGatherTaxRate(UnitId unit, float taxRate)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+		if (!_context.World.TryGet<Gatherer>(entity, out Gatherer gather)) return;
+
+		gather.GatherTaxRate = Math.Clamp(taxRate, 0f, 0.99f);
+		_context.World.Set(entity, gather);
+	}
+
+	public void SetUnitRepairRate(UnitId unit, float healthPercentPerSecond)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+
+		if (healthPercentPerSecond <= 0f)
+		{
+			if (_context.World.Has<RepairWorker>(entity)) _context.World.Remove<RepairWorker>(entity);
+			if (_context.World.Has<RepairTask>(entity)) _context.World.Remove<RepairTask>(entity);
+			return;
+		}
+
+		_context.World.SetOrAdd(entity, new RepairWorker { HealthPercentPerSecond = healthPercentPerSecond });
+	}
+
+	public float GetUnitRepairRate(UnitId unit)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return 0f;
+
+		return _context.World.TryGet<RepairWorker>(entity, out RepairWorker repairWorker) ? repairWorker.HealthPercentPerSecond : 0f;
+	}
+
+	public float GetUnitSpellPower(UnitId unit)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return 0f;
+		if (!_context.World.TryGet<Stats>(entity, out Stats stats)) return 0f;
+
+		return stats.TryGetValue(new StatId(StatKeys.SpellPower), out float spellPower) ? spellPower : 0f;
+	}
+
+	public void SetUnitRepairable(UnitId unit, bool repairable)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+
+		if (repairable)
+		{
+			_context.World.SetOrAdd(entity, new RepairableBuilding());
+			return;
+		}
+
+		if (_context.World.Has<RepairableBuilding>(entity)) _context.World.Remove<RepairableBuilding>(entity);
+	}
+
+	public void SetUnitWorker(UnitId unit, bool worker)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+
+		if (worker)
+		{
+			_context.World.SetOrAdd(entity, new Worker());
+			return;
+		}
+
+		if (_context.World.Has<Worker>(entity)) _context.World.Remove<Worker>(entity);
+	}
+
+	public void SetUnitWorkerAssignment(UnitId unit, string resourceType)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return;
+
+		if (string.IsNullOrEmpty(resourceType))
+		{
+			if (_context.World.Has<WorkerAssignment>(entity)) _context.World.Remove<WorkerAssignment>(entity);
+			return;
+		}
+
+		_context.World.SetOrAdd(entity, new WorkerAssignment(resourceType));
+	}
+
+	public string GetUnitWorkerAssignment(UnitId unit)
+	{
+		Entity entity = ResolveUnit(unit);
+		if (entity == Entity.Null) return string.Empty;
+
+		return _context.World.TryGet<WorkerAssignment>(entity, out WorkerAssignment assignment) ? assignment.ResourceType : string.Empty;
+	}
 
 	public void EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
@@ -690,6 +814,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public void TriggerVictory()
 	{
 		_context.IsGameOver = true;
+		_placements.WritePlacements();
 		Metrics?.RecordMatchEnded();
 		_log.Write("the map declared victory");
 	}
@@ -697,6 +822,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public void TriggerDefeat()
 	{
 		_context.IsGameOver = true;
+		_placements.WritePlacements();
 		Metrics?.RecordMatchEnded();
 		_log.Write("the map declared defeat");
 	}
@@ -704,6 +830,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public void TriggerPlayerDefeat(int playerIndex, string reason = "")
 	{
 		SetPlayerActive(playerIndex, false);
+		_placements.RecordPlayerDefeat(playerIndex);
 		_presentation.WriteText(PresentationKind.PlayerDefeated, playerIndex, reason, Vector3.Zero);
 		_log.Write(string.IsNullOrEmpty(reason) ? $"player {playerIndex} defeated" : $"player {playerIndex} defeated ({reason})");
 	}
@@ -711,6 +838,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	public void TriggerPlayerVictory(int playerIndex)
 	{
 		_context.IsGameOver = true;
+		_placements.WritePlacements();
 		Metrics?.RecordVictory(playerIndex);
 		_presentation.Write(PresentationKind.PlayerVictory, playerIndex, Vector3.Zero);
 		_log.Write($"player {playerIndex} victorious");

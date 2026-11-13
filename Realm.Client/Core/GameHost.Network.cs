@@ -10,6 +10,7 @@ using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared.Diagnostics;
+using Realm.Shared.Metadata;
 using Realm.Shared.Network;
 
 namespace Realm.Client.Core;
@@ -272,7 +273,7 @@ public partial class GameHost
 		}
 	}
 
-	private void SubmitRemoteCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString)
+	private void SubmitRemoteCommand(string commandType, List<int> unitIds, Vector3 targetPos, int targetEntityId, string argString, bool allowsNoUnits = false)
 	{
 		for (int index = unitIds.Count - 1; index >= 0; index--)
 		{
@@ -281,7 +282,9 @@ public partial class GameHost
 			unitIds.RemoveAt(index);
 		}
 
-		if (unitIds.Count == 0) return;
+		// A placement the player makes raises its template itself, so it names no unit and is still an order: every other
+		// command that arrives without one asks the match to move nothing.
+		if (unitIds.Count == 0 && !allowsNoUnits) return;
 
 		var targetNumerics = new System.Numerics.Vector3(targetPos.X, targetPos.Y, targetPos.Z);
 		var (commandId, payload) = GameContext.NetworkService.BuildClientCommand(commandType, unitIds, targetNumerics, targetEntityId, argString);
@@ -451,6 +454,11 @@ public partial class GameHost
 			spawnStarted = System.Diagnostics.Stopwatch.GetTimestamp();
 		}
 
+		while (GameContext.NetworkService.TryTakePendingUnitReskin(out int reskinnedServerEntityId, out string reskinnedDefinition))
+		{
+			RedressReplicatedUnit(reskinnedServerEntityId, reskinnedDefinition);
+		}
+
 		// The node is not removed here. A description is applied the tick it arrives, while every other unit is drawn two
 		// to eight sequences behind it, so removing it now made a unit vanish a tenth of a second before the world
 		// reached the moment it died. The removal is held against the sequence the snapshot states and spent by the tick
@@ -535,11 +543,37 @@ public partial class GameHost
 		GameContext.InGameHud?.InvalidateReplicatedOverlays();
 	}
 
+	/// <summary>
+	///     Dresses the unit a description retemplated as the definition it now stands as. The node is the same one it was
+	///     before, so everything the player had attached to it - the selection, the control group, the health bar it wears -
+	///     stays with it while only its model, name and thumbnail change. A construction site revealed as the building it was
+	///     raised as is the case this exists for: the player keeps the site selected and reads what rose there.
+	/// </summary>
+	/// <param name="serverEntityId">The unit whose template changed.</param>
+	/// <param name="definition">The template it now stands as.</param>
+	private void RedressReplicatedUnit(int serverEntityId, string definition)
+	{
+		if (!TryGetLocalEntity(serverEntityId, out Entity entity)) return;
+		if (!TryGetUnit3D(entity, out Unit3D? unit3D) || !GodotObject.IsInstanceValid(unit3D)) return;
+
+		unit3D.UnitId = definition;
+		unit3D.Name = $"{definition}_{entity.Id}";
+
+		if (TryGetUnitOrBuildingMetadata(definition, out UnitMetadata? metadata))
+		{
+			string modelPath = !string.IsNullOrEmpty(metadata.ModelPath) ? metadata.ModelPath : definition;
+			unit3D.LoadModel(GetFallbackModelPath(modelPath, unit3D.IsBuilding));
+			unit3D.UpdatePlayerColorVisual();
+		}
+
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
+	}
+
 	private void SpawnUnitFromSnapshot(UnitSnapshot snap)
 	{
 		var entity = GameContext.NetworkService.SpawnUnitFromSnapshot(snap, GetFallbackModelPath, out string modelPath, out int playerIndex);
 		if (entity == Entity.Null) return;
-		var unit3D = SpawnUnit3D(entity, snap.UnitId, modelPath, new Vector3(snap.Position.X, snap.Position.Y, snap.Position.Z), snap.IsBuilding, playerIndex);
+		var unit3D = SpawnUnit3D(entity, snap.UnitId, modelPath, new Vector3(snap.Position.X, snap.Position.Y, snap.Position.Z), snap.IsBuilding, playerIndex, executeSpawnShader: true);
 		unit3D.Rotation = new Vector3(0f, snap.RotationY, 0f);
 		if (_pendingSelectUnitServerId == snap.EntityId && GodotObject.IsInstanceValid(unit3D))
 		{

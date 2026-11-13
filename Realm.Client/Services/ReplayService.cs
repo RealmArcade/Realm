@@ -169,7 +169,7 @@ public class ReplayService
 			Vector3 pos = posComp.Value;
 			GetUnitState(world, entity, out float rotY, out float currentHp, out float maxHp, out bool isDead, out bool isBuilding, out Vector3 vel);
 
-			string anim = DetermineAnimation(world, entity, pos, isDead, vel);
+			string anim = DetermineAnimation(world, entity, isDead, vel);
 			activeIds.Add(entityId);
 
 			if (isKeyframe || !_lastRecordedUnits.TryGetValue(entityId, out var last) || HasSnapshotChanged(last, unitId, ownerPlayerEntityId, pos, rotY, currentHp, maxHp, isDead, isBuilding, vel, anim))
@@ -237,34 +237,17 @@ public class ReplayService
 		return -1;
 	}
 
-	private static string DetermineAnimation(EcsWorld world, Entity entity, Vector3 pos, bool isDead, Vector3 vel)
+	private static string DetermineAnimation(EcsWorld world, Entity entity, bool isDead, Vector3 vel)
 	{
 		if (isDead) return "Death";
 		if (world.Has<MoveTo>(entity) && vel.LengthSquared() > 0.01f) return "Walk";
 		if (world.Has<AttackTarget>(entity)) return "Attack";
 		if (world.Has<HealingTarget>(entity)) return "Spell_Cast";
 		if (world.Has<Gatherer>(entity) && !world.Get<Gatherer>(entity).ReturningToBase) return "Labor";
-
-		if (world.Has<BuildTask>(entity))
-		{
-			return DetermineBuildAnimation(world, entity, pos);
-		}
+		if (world.Has<BuildTask>(entity)) return "Labor";
+		if (world.Has<RepairTask>(entity)) return "Labor";
 
 		return "Idle";
-	}
-
-	private static string DetermineBuildAnimation(EcsWorld world, Entity entity, Vector3 pos)
-	{
-		var task = world.Get<BuildTask>(entity);
-		var target = task.BuildingEntity;
-		if (world.IsAlive(target) && world.Has<Position>(target))
-		{
-			var tPos = world.Get<Position>(target).Value;
-			if (Vector3.Distance(pos, tPos) < 4.0f) return "Labor";
-			return "Walk";
-		}
-
-		return "Labor";
 	}
 
 	private ReplayUnitSnapshot CreateUnitSnapshot(int entityId, string unitId, int ownerPlayerEntityId, Vector3 pos, float rotY, float currentHp, float maxHp, bool isDead, bool isBuilding, Vector3 vel, string anim)

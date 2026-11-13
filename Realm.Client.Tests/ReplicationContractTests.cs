@@ -26,7 +26,7 @@ public partial class ReplicationContractTests
 		"VFXQueue", "VFXRequest", "ZoneBounds",
 		"Weapon", "Weapons",
 		"TargetIntel", "Ability", "HasAbilities",
-		"AutoCastState", "CastTarget",
+		"CastTarget",
 		"Velocity",
 		"LatestDescription", "RenderPosition", "TraversableTerrain",
 		"WaypointBuffer",
@@ -43,7 +43,9 @@ public partial class ReplicationContractTests
 		"TerrainSwatchConfig",
 		"HealingTarget",
 		"ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset",
-		"SummonedUnit"
+		"SummonedUnit",
+		"Worker", "WorkerAssignment", "RepairTask", "PickupTask", "DropItemTask", "Harvestable", "PreviewMoveTo",
+		"PlayerBuildingLimit", "PlayerDamageEffectiveness", "EffectivenessAgainstPlayers"
 	};
 
 	private static readonly string[] RpcReplicatedComponents =
@@ -64,7 +66,7 @@ public partial class ReplicationContractTests
 
 	private static readonly string[] StorageStructs =
 	{
-		"BuffSlot", "BuffSlotArray", "InventorySlot", "InventorySlotArray",
+		"BuffSlot", "BuffSlotArray", "InventorySlot", "InventorySlotArray", "SoulboundItemIdArray",
 		"ModifierSlotArray", "PlayerSlotArray", "StatSlot", "StatSlotArray",
 		"VFXSlotArray", "OccupiedZoneMask", "CameraLocationSlot",
 		"BuildQueueSlot", "BuildQueueSlots", "AbsorbShieldSlot", "AbsorbShieldSlotArray"

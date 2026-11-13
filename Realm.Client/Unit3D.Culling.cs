@@ -49,6 +49,7 @@ public partial class Unit3D
 		if (_isCulled || !Visible || _animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer))
 			return;
 
+		AdvanceHeldAnimation(fDelta);
 		AdvanceDeferredAnimation(fDelta);
 
 		if (!_animationPlayer.IsPlaying())

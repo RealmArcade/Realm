@@ -14,12 +14,21 @@ using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
 using Realm.Shared.Abilities;
+using Realm.Shared.Metadata;
 
 namespace Realm.Client.Services;
 
 public class RegistryService
 {
 	static RegistryService() => AbilityEffectFactory.WarningSink = GD.PushWarning;
+
+	public RegistryService()
+	{
+		UnitRegistry = new PlaceableView<UnitMetadata>(Placeables, PlaceableKind.Unit);
+		BuildingRegistry = new PlaceableView<UnitMetadata>(Placeables, PlaceableKind.Building);
+		PropRegistry = new PlaceableView<PropMetadata>(Placeables, PlaceableKind.Prop);
+		ResourceRegistry = new PlaceableView<ResourceMetadata>(Placeables, PlaceableKind.Resource);
+	}
 
 	private static MapRulesCatalog Rules => GameContext.Simulation.MapRules;
 
@@ -30,6 +39,8 @@ public class RegistryService
 	public void RegisterResourceDropoffBuilding(string definitionKey) => Rules.RegisterResourceDropoffBuilding(definitionKey);
 
 	public void RegisterResourceWorkerUnit(string unitKey) => Rules.RegisterResourceWorkerUnit(unitKey);
+
+	public bool IsResourceWorkerUnit(string definitionId) => Rules.IsResourceWorkerUnit(definitionId);
 
 	public bool IsResourceDropoffBuilding(string definitionId) => Rules.IsResourceDropoffBuilding(definitionId);
 
@@ -43,39 +54,23 @@ public class RegistryService
 
 	public bool UnitHasAbility(string unitId, string abilityId)
 	{
-		if (GameHost.UnitRegistry.TryGetValue(unitId, out var meta))
-		{
-			if (meta.Abilities != null)
-			{
-				return Array.Exists(meta.Abilities, a => a == abilityId);
-			}
-		}
+		if (Placeables.Find<UnitMetadata>(unitId) is { Abilities: { } abilities }) return Array.Exists(abilities, ability => ability == abilityId);
 
 		return false;
 	}
 
 	public UnitMetadata? FindUnitOrBuildingMetadata(string definitionId)
 	{
-		if (string.IsNullOrEmpty(definitionId)) return null;
-		if (UnitRegistry.TryGetValue(definitionId, out var unitMeta)) return unitMeta;
-		if (BuildingRegistry.TryGetValue(definitionId, out var buildingMeta)) return buildingMeta;
-		return null;
+		return string.IsNullOrEmpty(definitionId) ? null : Placeables.Find<UnitMetadata>(definitionId);
 	}
 
 	public string? GetUnitTargetModel(string unitId, ref bool isBuilding)
 	{
-		if (UnitRegistry.TryGetValue(unitId, out var meta) && !string.IsNullOrEmpty(meta.ModelPath)) return meta.ModelPath;
+		if (!Placeables.TryGet(unitId, out PlaceableTemplate template)) return null;
+		if (string.IsNullOrEmpty(template.Metadata.ModelPath)) return null;
 
-		if (BuildingRegistry.TryGetValue(unitId, out var bldMeta) && !string.IsNullOrEmpty(bldMeta.ModelPath))
-		{
-			isBuilding = true;
-			return bldMeta.ModelPath;
-		}
-
-		if (ResourceRegistry.TryGetValue(unitId, out var resMeta) && !string.IsNullOrEmpty(resMeta.ModelPath)) return resMeta.ModelPath;
-		if (PropRegistry.TryGetValue(unitId, out var propMeta) && !string.IsNullOrEmpty(propMeta.ModelPath)) return propMeta.ModelPath;
-
-		return null;
+		isBuilding = template.Kind == PlaceableKind.Building;
+		return template.Metadata.ModelPath;
 	}
 
 	public static IEnumerable<string> GetNormalizedAbilityIdCandidates(string abilityId)
@@ -111,20 +106,17 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(unitTypeId) || string.IsNullOrEmpty(abilityId)) return;
 
-		void AddToRegistry(Dictionary<StringName, UnitMetadata> reg, string key)
+		void AddToRegistry(PlaceableView<UnitMetadata> registry, string key)
 		{
-			if (reg.TryGetValue((StringName)key, out var meta))
-			{
-				var abilities = meta.Abilities != null
-					? new List<string>(meta.Abilities)
-					: new List<string>();
-				if (!abilities.Contains(abilityId))
-				{
-					abilities.Add(abilityId);
-					meta.Abilities = abilities.ToArray();
-					reg[(StringName)key] = meta;
-				}
-			}
+			if (!registry.TryGetValue((StringName)key, out var meta)) return;
+
+			var abilities = meta.Abilities != null
+				? new List<string>(meta.Abilities)
+				: new List<string>();
+			if (abilities.Contains(abilityId)) return;
+
+			abilities.Add(abilityId);
+			meta.Abilities = abilities.ToArray();
 		}
 
 		foreach (var candidateKey in GetNormalizedAbilityIdCandidates(unitTypeId))
@@ -144,49 +136,49 @@ public class RegistryService
 
 	public bool TryGetRegistryDeathShader(string key, out string shader) => RegistryLookups.TryGetRegistryDeathShader(this, key, out shader);
 
-	public readonly Dictionary<StringName, UnitMetadata> UnitRegistry = new();
-	public readonly Dictionary<StringName, UnitMetadata> BuildingRegistry = new();
-	public readonly Dictionary<StringName, PropMetadata> PropRegistry = new();
-	public readonly Dictionary<StringName, ResourceMetadata> ResourceRegistry = new();
+	public readonly PlaceableTemplates Placeables = new();
+	public readonly PlaceableView<UnitMetadata> UnitRegistry;
+	public readonly PlaceableView<UnitMetadata> BuildingRegistry;
+	public readonly PlaceableView<PropMetadata> PropRegistry;
+	public readonly PlaceableView<ResourceMetadata> ResourceRegistry;
 	public readonly Dictionary<StringName, WeaponMetadata> WeaponRegistry = new();
 	public readonly Dictionary<StringName, AttachmentMetadata> AttachmentRegistry = new();
 	public readonly Dictionary<StringName, ItemMetadata> ItemRegistry = new();
 	public readonly Dictionary<StringName, Realm.Shared.Metadata.UpgradeMetadata> UpgradeRegistry = new();
-	public readonly Dictionary<StringName, Realm.Shared.Metadata.ConsumableMetadata> ConsumableRegistry = new();
-	private readonly Dictionary<string, Realm.Shared.Metadata.ConsumableMetadata> _consumableByCard = new(StringComparer.OrdinalIgnoreCase);
+	private readonly Dictionary<string, ItemMetadata> _itemByCard = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<string, VfxAttachmentConfig> VfxRegistry { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 	public Dictionary<string, AbilityDefinition> AbilityDefinitions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-	public void RegisterConsumable(Realm.Shared.Metadata.ConsumableMetadata consumable)
+	public void RegisterConsumable(ItemMetadata consumable)
 	{
 		if (consumable == null || string.IsNullOrWhiteSpace(consumable.TemplateID)) return;
 
-		ConsumableRegistry[(StringName)consumable.TemplateID] = consumable;
+		ItemRegistry[(StringName)consumable.TemplateID] = consumable;
 		if (consumable.TemplateID.StartsWith("consumable/", StringComparison.OrdinalIgnoreCase))
 		{
-			ConsumableRegistry[(StringName)consumable.TemplateID.Substring(11)] = consumable;
+			ItemRegistry[(StringName)consumable.TemplateID.Substring(11)] = consumable;
 		}
 
-		_consumableByCard[consumable.CardId] = consumable;
+		_itemByCard[consumable.CardId] = consumable;
 		if (consumable.CardId.StartsWith("ability/", StringComparison.OrdinalIgnoreCase))
 		{
-			_consumableByCard[consumable.CardId.Substring(8)] = consumable;
+			_itemByCard[consumable.CardId.Substring(8)] = consumable;
 		}
 	}
 
-	public Realm.Shared.Metadata.ConsumableMetadata? GetConsumable(string consumableId)
+	public ItemMetadata? GetConsumable(string consumableId)
 	{
 		if (string.IsNullOrWhiteSpace(consumableId)) return null;
-		return ConsumableRegistry.TryGetValue((StringName)consumableId, out var consumable) ? consumable : null;
+		return ItemRegistry.TryGetValue((StringName)consumableId, out var consumable) ? consumable : null;
 	}
 
-	public Realm.Shared.Metadata.ConsumableMetadata? GetConsumableForCard(string abilityId)
+	public ItemMetadata? GetConsumableForCard(string abilityId)
 	{
 		if (string.IsNullOrWhiteSpace(abilityId)) return null;
-		if (_consumableByCard.TryGetValue(abilityId, out var consumable)) return consumable;
+		if (_itemByCard.TryGetValue(abilityId, out var consumable)) return consumable;
 
 		int slash = abilityId.LastIndexOf('/');
-		return slash >= 0 && _consumableByCard.TryGetValue(abilityId[(slash + 1)..], out consumable) ? consumable : null;
+		return slash >= 0 && _itemByCard.TryGetValue(abilityId[(slash + 1)..], out consumable) ? consumable : null;
 	}
 
 	public void RegisterVfxConfig(string vfxId, VfxAttachmentConfig config)
@@ -316,73 +308,32 @@ public class RegistryService
 	public bool TryGetRegistryYOffset(string key, out float offset)
 	{
 		offset = 0f;
-		if (UnitRegistry.TryGetValue(key, out var meta) && meta.YOffset != 0f)
-		{
-			offset = meta.YOffset;
-			return true;
-		}
+		if (Placeables.Find(key) is not { } metadata || metadata.YOffset == 0f) return false;
 
-		if (BuildingRegistry.TryGetValue(key, out var bldMeta) && bldMeta.YOffset != 0f)
-		{
-			offset = bldMeta.YOffset;
-			return true;
-		}
-
-		if (ResourceRegistry.TryGetValue(key, out var resMeta) && resMeta.YOffset != 0f)
-		{
-			offset = resMeta.YOffset;
-			return true;
-		}
-
-		if (PropRegistry.TryGetValue(key, out var propMeta) && propMeta.YOffset != 0f)
-		{
-			offset = propMeta.YOffset;
-			return true;
-		}
-
-		return false;
+		offset = metadata.YOffset;
+		return true;
 	}
 
 	public bool TryGetRegistryScale(string key, out float scale)
 	{
 		scale = 1.0f;
-		if (UnitRegistry.TryGetValue(key, out var meta) && meta.Scale > 0f)
-		{
-			scale = meta.Scale;
-			return true;
-		}
+		if (Placeables.Find(key) is not { } metadata || metadata.Scale <= 0f) return false;
 
-		if (BuildingRegistry.TryGetValue(key, out var bldMeta) && bldMeta.Scale > 0f)
-		{
-			scale = bldMeta.Scale;
-			return true;
-		}
-
-		if (ResourceRegistry.TryGetValue(key, out var resMeta) && resMeta.Scale > 0f)
-		{
-			scale = resMeta.Scale;
-			return true;
-		}
-
-		if (PropRegistry.TryGetValue(key, out var propMeta) && propMeta.Scale > 0f)
-		{
-			scale = propMeta.Scale;
-			return true;
-		}
-
-		return false;
+		scale = metadata.Scale;
+		return true;
 	}
 
 	public float GetScaleFromRegistryKey(string key)
 	{
-		if (string.IsNullOrEmpty(key)) return -1f;
+		if (!Placeables.TryGet(key, out PlaceableTemplate template)) return -1f;
 
-		if (ResourceRegistry.ContainsKey(key)) return 2.75f;
-		if (BuildingRegistry.ContainsKey(key)) return 1.5f;
-		if (PropRegistry.ContainsKey(key)) return 1.25f;
-		if (UnitRegistry.ContainsKey(key)) return 1.0f;
-
-		return -1f;
+		return template.Kind switch
+		{
+			PlaceableKind.Resource => 2.75f,
+			PlaceableKind.Building => 1.5f,
+			PlaceableKind.Prop => 1.25f,
+			_ => 1.0f
+		};
 	}
 
 
@@ -567,18 +518,10 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(unitTypeId)) return Array.Empty<string>();
 
-		if (UnitRegistry.TryGetValue((StringName)unitTypeId, out var meta) && meta.Abilities != null)
-			return meta.Abilities;
-
-		if (BuildingRegistry.TryGetValue((StringName)unitTypeId, out var bldMeta) && bldMeta.Abilities != null)
-			return bldMeta.Abilities;
+		if (Placeables.Find<UnitMetadata>(unitTypeId)?.Abilities is { } abilities) return abilities;
 
 		string cleanId = Path.GetFileNameWithoutExtension(unitTypeId);
-		if (UnitRegistry.TryGetValue((StringName)cleanId, out meta) && meta.Abilities != null)
-			return meta.Abilities;
-
-		if (BuildingRegistry.TryGetValue((StringName)cleanId, out bldMeta) && bldMeta.Abilities != null)
-			return bldMeta.Abilities;
+		if (Placeables.Find<UnitMetadata>(cleanId)?.Abilities is { } cleanAbilities) return cleanAbilities;
 
 		return Array.Empty<string>();
 	}
@@ -587,19 +530,11 @@ public class RegistryService
 	{
 		if (string.IsNullOrEmpty(unitTypeId)) return string.Empty;
 
-		// The name a map wrote is map text, so it is read in the player's own language wherever the HUD shows it.
-		if (UnitRegistry.TryGetValue((StringName)unitTypeId, out var meta) && !string.IsNullOrWhiteSpace(meta.Name))
-			return MapText.TranslateName(meta.Name);
-
-		if (BuildingRegistry.TryGetValue((StringName)unitTypeId, out var bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.Name))
-			return MapText.TranslateName(bldMeta.Name);
-
 		string cleanId = Path.GetFileNameWithoutExtension(unitTypeId);
-		if (UnitRegistry.TryGetValue((StringName)cleanId, out meta) && !string.IsNullOrWhiteSpace(meta.Name))
-			return MapText.TranslateName(meta.Name);
 
-		if (BuildingRegistry.TryGetValue((StringName)cleanId, out bldMeta) && !string.IsNullOrWhiteSpace(bldMeta.Name))
-			return MapText.TranslateName(bldMeta.Name);
+		// The name a map wrote is map text, so it is read in the player's own language wherever the HUD shows it.
+		if (Placeables.Find(unitTypeId)?.Name is { Length: > 0 } name) return MapText.TranslateName(name);
+		if (Placeables.Find(cleanId)?.Name is { Length: > 0 } cleanName) return MapText.TranslateName(cleanName);
 
 		return cleanId;
 	}
@@ -634,8 +569,9 @@ public class RegistryService
 				TooltipTemplate = BuildAbilityTooltip(meta),
 				IconPath = meta.IconPath ?? "",
 				IsInstant = string.Equals(meta.AbilityType, "instant_spell", StringComparison.OrdinalIgnoreCase),
-				AutoCastEnabled = meta.AutoCast?.Enabled ?? true,
-				AutoCastRequiresEnemy = meta.AutoCast?.RequiresEnemyTarget ?? true,
+				IsPassive = string.Equals(meta.AbilityType, "passive", StringComparison.OrdinalIgnoreCase),
+				AutoCastEnabled = meta.AutoCast?.Enabled ?? false,
+				AutoCastTargetRule = meta.AutoCast?.TargetRule ?? AutoCastTargetRule.NearestEnemy,
 				AutoCastAllyHealthPercentBelow = meta.AutoCast?.AllyHealthPercentBelow ?? 1f,
 				AutoCastManaReserve = meta.AutoCast?.ManaReserve ?? 0f,
 				AutoCastMinManaPercent = meta.AutoCast?.MinManaPercent ?? 0f,
@@ -648,6 +584,7 @@ public class RegistryService
 				AreaOfEffectRadius = meta.AreaOfEffectRadius,
 				VisualEffect = meta.VisualEffect,
 				CastSound = meta.CastSound,
+				PlacementTemplateId = meta.PlacementTemplateId,
 				GridX = meta.GridX,
 				GridY = meta.GridY,
 				Hotkey = meta.Hotkey ?? ""
@@ -804,16 +741,12 @@ public class RegistryService
 
 	public void ClearAll()
 	{
-		UnitRegistry.Clear();
-		BuildingRegistry.Clear();
-		PropRegistry.Clear();
-		ResourceRegistry.Clear();
+		Placeables.Clear();
 		WeaponRegistry.Clear();
 		AttachmentRegistry.Clear();
 		ItemRegistry.Clear();
 		UpgradeRegistry.Clear();
-		ConsumableRegistry.Clear();
-		_consumableByCard.Clear();
+		_itemByCard.Clear();
 		VfxRegistry.Clear();
 		AbilityDefinitions.Clear();
 		UnitAbilityStates.Clear();

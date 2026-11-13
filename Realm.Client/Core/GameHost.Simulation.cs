@@ -125,7 +125,7 @@ public partial class GameHost
 
 		if (playDeathAnimation)
 		{
-			unit.PlayAnimation("Death");
+			unit.PlayAnimationHeld("Death");
 		}
 
 
@@ -137,19 +137,18 @@ public partial class GameHost
 
 	private bool TryExecuteDeathShader(Unit3D unit, string unitId)
 	{
+		if (unit.HasPlayedDespawnShader) return true;
+
 		string deathShader = GetModelDeathShader(unitId);
 		if (string.IsNullOrEmpty(deathShader))
 		{
 			deathShader = GetModelDeathShader(unit);
 		}
 
-		if (string.IsNullOrEmpty(deathShader)) return false;
-
-		SpawnDeathShaderManager.AnimateTransition(unit, deathShader, false, null, () =>
+		return unit.TryPlayDespawnShader(deathShader, () =>
 		{
 			if (GodotObject.IsInstanceValid(unit)) unit.QueueFree();
 		});
-		return true;
 	}
 
 	private bool TryPlayDeathTween(Unit3D unit)

@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Common;
+using Realm.Ecs.Components.Abilities;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Meta;
@@ -29,11 +30,12 @@ public static class UnitEntityFactory
 		UnitMetadata? metadata = catalog.FindUnitOrBuilding(templateId);
 		if (metadata == null) return Entity.Null;
 
-		return CreateFromMetadata(world, metadata, templateId, catalog.FindUnit(templateId) == null, position, rotationY, scale, owner, bypassPopulation);
+		return CreateFromMetadata(world, catalog, metadata, templateId, catalog.FindUnit(templateId) == null, position, rotationY, scale, owner, bypassPopulation);
 	}
 
-	public static Entity CreateFromMetadata(
+	private static Entity CreateFromMetadata(
 		EcsWorld world,
+		DefinitionCatalog catalog,
 		UnitMetadata metadata,
 		string templateId,
 		bool isBuilding,
@@ -87,6 +89,8 @@ public static class UnitEntityFactory
 		if (metadata.Abilities is { Length: > 0 })
 		{
 			world.SetOrAdd(entity, new AbilityState(metadata.Abilities));
+			uint autoCastSlots = BuildAutoCastSlots(catalog, metadata.Abilities);
+			if (autoCastSlots != 0) world.SetOrAdd(entity, new AutoCastState(true, autoCastSlots));
 		}
 
 		if (metadata.Strength != 0f || metadata.Agility != 0f || metadata.Vitality != 0f || metadata.Intelligence != 0f || metadata.Wisdom != 0f || metadata.Fortune != 0f)
@@ -95,12 +99,14 @@ public static class UnitEntityFactory
 		}
 
 		AttributeStatCalculator.RecalculateEntityStats(world, entity);
+		ApplySpawnLevel(world, entity, metadata);
 
 		float modelScale = scale <= 0.001f ? metadata.Scale : scale;
 		float placedScale = scale <= 0.001f ? 1f : scale;
 		world.SetOrAdd(entity, new RotationY(rotationY));
 		world.SetOrAdd(entity, new ModelScale(modelScale));
 		world.SetOrAdd(entity, new CollisionScale(placedScale));
+		if (metadata.IncludeInDefaultHotkeySelection) world.SetOrAdd(entity, new IncludeInDefaultHotkeySelection());
 
 		if (bypassPopulation) world.Add(entity, new BypassPopulationTag());
 		if (isBuilding)
@@ -114,6 +120,179 @@ public static class UnitEntityFactory
 		}
 
 		return entity;
+	}
+
+	/// <summary>
+	///     Gives a unit that already stands another template: it keeps its identity, its position, its owner and the share
+	///     of its health it had, and everything its template states — name, health, resistances, attack, mana, abilities,
+	///     model scale and whether it is a building — is written from the new template. This is how a site that has not
+	///     said what it is yet becomes the building it was raised as, without a screen ever seeing it leave the board.
+	/// </summary>
+	/// <param name="world">The world the unit belongs to.</param>
+	/// <param name="catalog">The templates the map defines.</param>
+	/// <param name="entity">The unit to write the template onto.</param>
+	/// <param name="templateId">The template the unit becomes.</param>
+	/// <returns>True when the unit now stands as that template, or false when the template is not one the map defines.</returns>
+	public static bool ApplyTemplate(EcsWorld world, DefinitionCatalog catalog, Entity entity, string templateId)
+	{
+		if (world == null || !world.IsAlive(entity) || string.IsNullOrEmpty(templateId)) return false;
+
+		UnitMetadata? metadata = catalog.FindUnitOrBuilding(templateId);
+		if (metadata == null) return false;
+
+		bool isBuilding = catalog.FindUnit(templateId) == null;
+		float healthShare = 1f;
+		if (world.TryGet<Health>(entity, out Health previousHealth) && previousHealth.Max > 0f)
+		{
+			healthShare = Math.Clamp(previousHealth.Current / previousHealth.Max, 0f, 1f);
+		}
+
+		world.SetOrAdd(entity, new DefinitionId(templateId));
+		world.SetOrAdd(entity, new Name(string.IsNullOrEmpty(metadata.Name) ? templateId : metadata.Name));
+
+		ParseCombatTargeting(metadata.Targets, out bool canTargetAir, out bool canTargetGround);
+		world.SetOrAdd(entity, new CombatTargeting(canTargetAir, canTargetGround));
+
+		float scanRadius = metadata.ScanRadius > 0f ? metadata.ScanRadius : 15.0f;
+		world.SetOrAdd(entity, new ScanRadius(scanRadius));
+		world.SetOrAdd(entity, new TargetIntel(scanRadius, scanRadius));
+
+		if (metadata.Damage > 0f)
+		{
+			world.SetOrAdd(entity, new Attack(
+				damage: metadata.Damage,
+				range: metadata.Range,
+				cooldown: metadata.AttackCooldown > 0f ? metadata.AttackCooldown : 1.5f,
+				currentCooldown: 0f,
+				damageVariance: metadata.DamageVariance,
+				damageType: string.IsNullOrEmpty(metadata.DamageType) ? DamageTypes.Physical : metadata.DamageType,
+				flatArmorPenetration: metadata.FlatArmorPenetration,
+				percentArmorPenetration: metadata.PercentArmorPenetration,
+				critChance: metadata.CritChance,
+				critMultiplier: metadata.CritMultiplier > 0f ? metadata.CritMultiplier : 1f,
+				splashType: ParseSplashType(metadata.SplashType),
+				splashInnerRadius: metadata.SplashInnerRadius,
+				splashMediumRadius: metadata.SplashMediumRadius,
+				splashOuterRadius: metadata.SplashOuterRadius,
+				splashInnerRatio: metadata.SplashInnerRatio,
+				splashMediumRatio: metadata.SplashMediumRatio,
+				splashOuterRatio: metadata.SplashOuterRatio,
+				friendlyFire: metadata.FriendlyFire));
+		}
+		else if (world.Has<Attack>(entity))
+		{
+			world.Remove<Attack>(entity);
+		}
+
+		world.SetOrAdd(entity, new UnitAttributes(
+			metadata.Strength, metadata.Agility, metadata.Vitality,
+			metadata.Intelligence, metadata.Wisdom, metadata.Fortune));
+
+		world.SetOrAdd(entity, new UnitBaseStats(
+			BaseMaxHp: metadata.MaxHp,
+			BaseHpRegen: metadata.HpRegen,
+			BaseMaxMana: metadata.MaxMana,
+			BaseManaRegen: metadata.ManaRegen,
+			BaseArmor: metadata.Armor,
+			BaseMagicResistance: metadata.MagicResistance,
+			BaseDamage: metadata.Damage,
+			BaseAttackInterval: metadata.AttackCooldown > 0f ? metadata.AttackCooldown : 1.5f,
+			BaseSpeed: metadata.Speed,
+			BaseCastPoint: 0.3f,
+			BaseCritChance: metadata.CritChance,
+			BaseCritMultiplier: metadata.CritMultiplier > 0f ? metadata.CritMultiplier : 1f,
+			BaseFlatArmorPenetration: metadata.FlatArmorPenetration,
+			BasePercentArmorPenetration: metadata.PercentArmorPenetration,
+			BaseFlatMagicPenetration: metadata.FlatMagicPenetration));
+
+		if (metadata.MaxMana > 0f)
+		{
+			world.SetOrAdd(entity, new Mana(metadata.MaxMana, metadata.MaxMana, metadata.ManaRegen));
+			world.SetOrAdd(entity, new ManaRegen(metadata.ManaRegen));
+		}
+		else
+		{
+			if (world.Has<Mana>(entity)) world.Remove<Mana>(entity);
+			if (world.Has<ManaRegen>(entity)) world.Remove<ManaRegen>(entity);
+		}
+
+		if (metadata.Abilities is { Length: > 0 })
+		{
+			world.SetOrAdd(entity, new AbilityState(metadata.Abilities));
+			uint autoCastSlots = BuildAutoCastSlots(catalog, metadata.Abilities);
+			if (autoCastSlots != 0) world.SetOrAdd(entity, new AutoCastState(true, autoCastSlots));
+			else if (world.Has<AutoCastState>(entity)) world.Remove<AutoCastState>(entity);
+		}
+		else
+		{
+			world.SetOrAdd(entity, new AbilityState(null));
+			if (world.Has<AutoCastState>(entity)) world.Remove<AutoCastState>(entity);
+		}
+
+		world.SetOrAdd(entity, new ModelScale(metadata.Scale));
+		world.SetOrAdd(entity, new CollisionScale(1f));
+
+		if (metadata.IncludeInDefaultHotkeySelection) world.SetOrAdd(entity, new IncludeInDefaultHotkeySelection());
+		else if (world.Has<IncludeInDefaultHotkeySelection>(entity)) world.Remove<IncludeInDefaultHotkeySelection>(entity);
+
+		if (isBuilding)
+		{
+			world.SetOrAdd(entity, new Building());
+			if (BlocksMovement(metadata)) world.SetOrAdd(entity, new CollisionRadius(ResolveCollisionRadius(metadata)));
+			else if (world.Has<CollisionRadius>(entity)) world.Remove<CollisionRadius>(entity);
+
+			if (world.Has<MovementStats>(entity)) world.Remove<MovementStats>(entity);
+			if (world.Has<Movable>(entity)) world.Remove<Movable>(entity);
+			if (world.Has<TraversableTerrain>(entity)) world.Remove<TraversableTerrain>(entity);
+			if (world.Has<Inventory>(entity)) world.Remove<Inventory>(entity);
+		}
+		else
+		{
+			if (world.Has<Building>(entity)) world.Remove<Building>(entity);
+
+			world.SetOrAdd(entity, new CollisionRadius(ResolveUnitCollisionRadius(metadata)));
+			world.SetOrAdd(entity, new MovementStats(
+				metadata.Speed, 0f, 10f, metadata.PushPriority,
+				!string.IsNullOrEmpty(metadata.MovementType) ? metadata.MovementType : "Ground"));
+			world.SetOrAdd(entity, new TraversableTerrain(GetPathingFlags(metadata)));
+			world.SetOrAdd(entity, new Movable());
+			world.SetOrAdd(entity, new Inventory());
+		}
+
+		AttributeStatCalculator.RecalculateEntityStats(world, entity);
+
+		if (world.TryGet<Health>(entity, out Health health) && health.Max > 0f)
+		{
+			health.Current = health.Max * healthShare;
+			world.Set(entity, health);
+		}
+
+		return true;
+	}
+
+	private static void ApplySpawnLevel(EcsWorld world, Entity entity, UnitMetadata metadata)
+	{
+		LevelGrowth growth = metadata.LevelGrowth?.ToLevelGrowth() ?? LevelGrowth.None;
+		int level = Math.Max(1, metadata.Level);
+		if (level <= 1 && growth.IsZero) return;
+
+		world.SetOrAdd(entity, new Level(level));
+		LevelService.Apply(world, entity, level, growth);
+	}
+
+	private static uint BuildAutoCastSlots(DefinitionCatalog catalog, string[] abilities)
+	{
+		uint slots = 0;
+		int limit = Math.Min(abilities.Length, 32);
+		for (int index = 0; index < limit; index++)
+		{
+			AbilityMetadata? ability = catalog.FindAbility(abilities[index]);
+			if (ability?.AutoCast is not { Enabled: true }) continue;
+
+			slots |= 1u << index;
+		}
+
+		return slots;
 	}
 
 	public static bool BlocksMovement(UnitMetadata metadata)

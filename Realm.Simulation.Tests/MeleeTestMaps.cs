@@ -96,12 +96,17 @@ internal static class MeleeTestMaps
 		  ],
 		  "Decals": [],
 		  "Vfx": [],
-		  "Coordinates": [],
+		  "Coordinates": [
+		    { "Name": "seat_1", "MinX": -78, "MinZ": -78, "MaxX": -38, "MaxZ": -38 },
+		    { "Name": "seat_2", "MinX": 38, "MinZ": -78, "MaxX": 78, "MaxZ": -38 },
+		    { "Name": "seat_3", "MinX": -78, "MinZ": 72, "MaxX": -38, "MaxZ": 112 },
+		    { "Name": "seat_4", "MinX": 38, "MinZ": 72, "MaxX": 78, "MaxZ": 112 }
+		  ],
 		  "SpawnAnchors": [
-		    { "Player": 1, "PosX": -58, "PosZ": -58 },
-		    { "Player": 2, "PosX": 58, "PosZ": -58 },
-		    { "Player": 3, "PosX": -58, "PosZ": 92 },
-		    { "Player": 4, "PosX": 58, "PosZ": 92 }
+		    { "Player": 1, "CoordinateName": "seat_1" },
+		    { "Player": 2, "CoordinateName": "seat_2" },
+		    { "Player": 3, "CoordinateName": "seat_3" },
+		    { "Player": 4, "CoordinateName": "seat_4" }
 		  ]
 		}
 		""";
@@ -148,6 +153,7 @@ internal static class MeleeTestMaps
 	public static string PublishScript(string mapFolder)
 	{
 		EnsureEntryPoint(mapFolder);
+		EnsureApiLibraries(mapFolder);
 
 		string? projectPath = Directory.EnumerateFiles(mapFolder, "*.csproj").FirstOrDefault();
 		if (projectPath == null) throw new FileNotFoundException($"A map script project was not found in {mapFolder}.");
@@ -229,6 +235,59 @@ internal static class MeleeTestMaps
 		}
 
 		File.WriteAllText(targetPath, templateText);
+	}
+
+	/// <summary>
+	///     Refreshes the API assemblies a map workspace compiles against, which is what opening the folder in the editor
+	///     does. A checkout whose <c>lib/</c> predates the engine would otherwise compile the map against an older
+	///     <c>IGameAPI</c> than the entry point the engine generates, and fail for a reason that has nothing to do with the
+	///     map.
+	/// </summary>
+	/// <param name="mapFolder">The map folder to repair.</param>
+	private static void EnsureApiLibraries(string mapFolder)
+	{
+		string? templateLibrary = FindTemplatePath("lib");
+		if (templateLibrary == null) return;
+
+		string workspaceLibrary = Path.Combine(mapFolder, "lib");
+		Directory.CreateDirectory(workspaceLibrary);
+
+		string[] libraryFiles =
+		{
+			"Realm.MapAPI.dll", "Realm.MapAPI.pdb", "Realm.MapAPI.xml",
+			"Realm.Ecs.dll", "Realm.Ecs.pdb", "Realm.Ecs.xml",
+			"Realm.EditorAPI.dll", "Realm.EditorAPI.pdb", "Realm.EditorAPI.xml"
+		};
+
+		foreach (string libraryFile in libraryFiles)
+		{
+			string sourcePath = Path.Combine(templateLibrary, libraryFile);
+			if (!File.Exists(sourcePath)) continue;
+
+			string targetPath = Path.Combine(workspaceLibrary, libraryFile);
+			if (File.Exists(targetPath) && File.ReadAllBytes(targetPath).AsSpan().SequenceEqual(File.ReadAllBytes(sourcePath))) continue;
+
+			if (File.Exists(targetPath))
+			{
+				FileAttributes attributes = File.GetAttributes(targetPath);
+				if ((attributes & FileAttributes.ReadOnly) != 0) File.SetAttributes(targetPath, attributes & ~FileAttributes.ReadOnly);
+			}
+
+			File.Copy(sourcePath, targetPath, overwrite: true);
+		}
+	}
+
+	private static string? FindTemplatePath(string relativePath)
+	{
+		DirectoryInfo? directory = new(AppContext.BaseDirectory);
+		while (directory != null)
+		{
+			string candidate = Path.Combine(directory.FullName, "MapTemplate", relativePath);
+			if (Directory.Exists(candidate)) return Path.GetFullPath(candidate);
+			directory = directory.Parent;
+		}
+
+		return null;
 	}
 
 	private static string? FindTemplateEntryPoint()

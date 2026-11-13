@@ -559,6 +559,105 @@ public class BuildTaskCodec : INormalizingComponentCodec
 	}
 }
 
+public class RepairTaskCodec : INormalizingComponentCodec
+{
+	public int ComponentTypeId => ComponentType<RepairTask>.Id;
+	public string ComponentName => nameof(RepairTask);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => 4;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<RepairTask>(entity)) return false;
+		ref var task = ref world.Get<RepairTask>(entity);
+		int buildingEntityId = task.BuildingEntity.Id;
+		MemoryMarshal.Write(destination.Slice(0, sizeof(int)), in buildingEntityId);
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+		int buildingEntityId = MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+		world.SetOrAdd(entity, new RepairTask(ReplicatedEntityReferences.Resolve(new Entity(buildingEntityId))));
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<RepairTask>(entity)) return;
+		world.Remove<RepairTask>(entity);
+	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+	}
+
+	public void Repoint(EcsWorld world, Entity entity, Entity reference)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<RepairTask>(entity)) return;
+		world.SetOrAdd(entity, new RepairTask(reference));
+	}
+}
+
+public class GathererCodec : INormalizingComponentCodec
+{
+	public int ComponentTypeId => ComponentType<Gatherer>.Id;
+	public string ComponentName => nameof(Gatherer);
+	public ReplicatedScope Scope => ReplicatedScope.Unit;
+	public int SizeInBytes => 16;
+
+	public bool TryWrite(EcsWorld world, Entity entity, Span<byte> destination)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Gatherer>(entity)) return false;
+
+		ref var gather = ref world.Get<Gatherer>(entity);
+		int targetEntityId = gather.TargetEntity.Id;
+		MemoryMarshal.Write(destination.Slice(0, sizeof(int)), in targetEntityId);
+		MemoryMarshal.Write(destination.Slice(4, sizeof(int)), in gather.ResourceTypeStringId);
+		MemoryMarshal.Write(destination.Slice(8, sizeof(int)), in gather.ItemStringId);
+		destination[12] = gather.ReturningToBaseByte;
+		destination[13] = 0;
+		destination[14] = 0;
+		destination[15] = 0;
+		return true;
+	}
+
+	public void Apply(EcsWorld world, Entity entity, ReadOnlySpan<byte> source)
+	{
+		if (world == null || !world.IsAlive(entity)) return;
+
+		int targetEntityId = MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+		var gather = new Gatherer
+		{
+			TargetEntity = ReplicatedEntityReferences.Resolve(new Entity(targetEntityId)),
+			ResourceTypeStringId = MemoryMarshal.Read<int>(source.Slice(4, sizeof(int))),
+			ItemStringId = MemoryMarshal.Read<int>(source.Slice(8, sizeof(int))),
+			ReturningToBase = source[12] != 0
+		};
+		world.SetOrAdd(entity, in gather);
+	}
+
+	public void Remove(EcsWorld world, Entity entity)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Gatherer>(entity)) return;
+		world.Remove<Gatherer>(entity);
+	}
+
+	public int ReadReferencedServerEntityId(ReadOnlySpan<byte> source)
+	{
+		return source.Length < sizeof(int) ? -1 : MemoryMarshal.Read<int>(source.Slice(0, sizeof(int)));
+	}
+
+	public void Repoint(EcsWorld world, Entity entity, Entity reference)
+	{
+		if (world == null || !world.IsAlive(entity) || !world.Has<Gatherer>(entity)) return;
+
+		ref var held = ref world.Get<Gatherer>(entity);
+		held.TargetEntity = reference;
+	}
+}
+
 public class FollowCodec : INormalizingComponentCodec
 {
 	public int ComponentTypeId => ComponentType<Follow>.Id;
@@ -741,6 +840,7 @@ public static class ReplicatedComponents
 		Register(new CooldownsCodec());
 		Register(new ReplicatedComponentCodec<ConstructionState>(ReplicatedScope.Unit));
 		Register(new BuildTaskCodec());
+		Register(new GathererCodec());
 		Register(new ReplicatedComponentCodec<BuildQueue>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<MoveTo>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<AttackMove>(ReplicatedScope.Unit));
@@ -752,6 +852,7 @@ public static class ReplicatedComponents
 		Register(new LastAttackerCodec());
 		Register(new ReplicatedComponentCodec<CombatTargeting>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<AutoCombatState>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<Realm.Ecs.Components.Abilities.AutoCastState>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<CombatAlertState>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<UnitAttributes>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<UnitBaseStats>(ReplicatedScope.Unit));
@@ -761,6 +862,8 @@ public static class ReplicatedComponents
 		Register(new TagComponentCodec<MovementSpeed>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<AttackSpeedStat>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Inventory>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<SoulboundItems>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<IncludeInDefaultHotkeySelection>(ReplicatedScope.Unit));
 		Register(new ConsumableAttachmentCodec());
 		Register(new ReplicatedComponentCodec<RallyPoint>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ResourceNode>(ReplicatedScope.Unit));
@@ -786,12 +889,16 @@ public static class ReplicatedComponents
 		Register(new ResistanceNumbersCodec());
 		Register(new TagComponentCodec<Invulnerable>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<CommandsFrozen>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<PlayerOrdersLocked>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<AnimationsFrozen>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<OverheadBarsHidden>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<OverheadBadge>(ReplicatedScope.Unit));
-		Register(new ReplicatedComponentCodec<UnitCharges>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<SpellImmune>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<UnderConstruction>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<Dormant>(ReplicatedScope.Unit));
+		Register(new TagComponentCodec<RepairableBuilding>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<RepairWorker>(ReplicatedScope.Unit));
+		Register(new RepairTaskCodec());
 	}
 
 	public static void Register(IReplicatedComponentCodec codec)

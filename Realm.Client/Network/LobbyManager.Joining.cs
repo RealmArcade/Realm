@@ -218,6 +218,11 @@ public partial class LobbyManager
 		LobbyFactions = state.Factions ?? Array.Empty<string>();
 		LobbyTeamCount = state.TeamCount > 0 ? state.TeamCount : LobbyLimits.DefaultTeamCount;
 		SpectatorDelay = state.SpectatorDelay;
+		if (TeamsTogether != state.TeamsTogether)
+		{
+			TeamsTogether = state.TeamsTogether;
+			TeamsTogetherChanged?.Invoke(TeamsTogether);
+		}
 		if (!string.IsNullOrEmpty(state.HostStability) && !string.Equals(state.HostStability, HostStability, StringComparison.Ordinal))
 		{
 			HostStability = state.HostStability;

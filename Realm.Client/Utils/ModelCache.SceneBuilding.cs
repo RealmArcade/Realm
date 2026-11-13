@@ -204,7 +204,11 @@ namespace Realm.Client.Utils
 				mat.SetShaderParameter("has_normal_texture", true);
 			}
 
+			// The albedo texture and its alpha are the whole point of a ground plane, so the quad keeps the material it
+			// was built with and refreshes only touch its instance parameters.
+			planeMesh.Material = mat;
 			meshInstance.MaterialOverride = mat;
+			ModelShaderManager.MarkGroundPlaneMaterialMesh(meshInstance);
 			rootNode.AddChild(meshInstance);
 
 			try

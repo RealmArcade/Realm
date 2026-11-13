@@ -71,7 +71,7 @@ public partial class ListenServerHost
 			roster = ApplyMapLobbyRules(map, paths, roster, out lobbyScript);
 			MapWorldLoader.Seat(map, roster);
 			preparedScript = lobbyScript?.DetachHost();
-			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, _arguments.Cheats ? 1 : 0, preparedScript, matchOptions: rosterOptions);
+			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, _arguments.Cheats ? 1 : 0, preparedScript, matchOptions: rosterOptions, teamSpawnCoordinates: _mapLobbyRoster?.CopyTeamSpawnCoordinates());
 			preparedScript = null;
 			lobbyScript = null;
 			MarkStartStage("simulation built");
@@ -140,12 +140,15 @@ public partial class ListenServerHost
 	private MatchRosterSeat[] ApplyMapLobbyRules(LoadedMap world, ServerMatchPaths paths, MatchRosterSeat[] roster, out ServerLobbyScript? lobbyScript)
 	{
 		lobbyScript = null;
+		_mapLobbyRoster = null;
 		if (roster.Length == 0) return roster;
 
 		int maximumPlayers = world.Metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
 		var seats = new MatchRosterSeatTable(roster, _log, maximumPlayers);
 		var publishedRoster = new ServerLobbyRoster(seats, _log, roster.Length);
+		publishedRoster.BindBoardCoordinates(world.SaveData.Coordinates);
 		lobbyScript = ServerLobbyScript.Start(world, paths, _log, publishedRoster, _arguments.WasmDebug, _arguments.WorkspacePath);
+		_mapLobbyRoster = publishedRoster;
 
 		return seats.ToMatchRosterSeats(roster).ToArray();
 	}

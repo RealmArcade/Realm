@@ -31,6 +31,13 @@ public class AbilityMetadata
 
 	public string? CastSound { get; set; }
 
+	/// <summary>
+	///     The template this card places on the board instead of casting at a point. Pressing it arms the standard
+	///     construction placement - the coloured silhouette of the template that follows the cursor - and clicking
+	///     finishes the order, so a map that raises a site needs no targeting cross-hair of its own.
+	/// </summary>
+	public string? PlacementTemplateId { get; set; }
+
 	public AutoCastMetadata? AutoCast { get; set; }
 
 	public float AreaOfEffectRadius { get; set; }

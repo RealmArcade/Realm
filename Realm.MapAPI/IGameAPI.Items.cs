@@ -11,7 +11,8 @@ namespace Realm.MapAPI;
 public partial interface IGameAPI
 {
 	/// <summary>
-	/// Adds an item archetype to the specified unit's inventory.
+	/// Adds an item archetype to the specified unit's inventory. An item granted this way is bound to the unit that
+	/// received it: it stays with that unit and cannot be put down, unlike an item collected from the ground.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="itemId">The item definition identifier.</param>
@@ -19,7 +20,8 @@ public partial interface IGameAPI
 	bool AddItemToUnit(UnitId unit, string itemId);
 
 	/// <summary>
-	/// Adds an item archetype to the specified unit's inventory with a stack of the given charge count.
+	/// Adds an item archetype to the specified unit's inventory with a stack of the given charge count. The granted
+	/// pieces are bound to the unit that received them, so they cannot be put down.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="itemId">The item definition identifier.</param>
@@ -44,10 +46,15 @@ public partial interface IGameAPI
 	bool UnitHasItem(UnitId unit, string itemId);
 
 	/// <summary>
-	/// Retrieves the item archetype identifiers currently held in the unit's inventory.
+	/// Retrieves the item archetype identifiers currently held in the unit's inventory, naming each item once even when
+	/// its charges spill across several slots.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
-	/// <returns>A read-only collection of item archetype identifiers.</returns>
+	/// <returns>A read-only collection of the distinct item archetype identifiers, in the order they were first carried.</returns>
+	/// <remarks>
+	/// Read the number of charges of a named item with <see cref="GetUnitItemCharges" />: the total it holds, not what one
+	/// slot of it holds, so copying a unit's items is a walk over this list and one charge read per entry.
+	/// </remarks>
 	IReadOnlyList<string> GetUnitItems(UnitId unit);
 
 	/// <summary>

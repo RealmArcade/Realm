@@ -88,6 +88,8 @@ namespace Realm.Ecs.Services
 				_abandonedTargetCooldown.Remove(targetEntity);
 				if (!_context.World.IsAlive(targetEntity) || _context.World.Has<Dead>(targetEntity)) continue;
 
+				if (TryFallDormant(targetEntity)) continue;
+
 				_context.World.Add<Dead>(targetEntity);
 				ClearReferencesTo(targetEntity);
 				OnKillUnitRequested?.Invoke(targetEntity);

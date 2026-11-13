@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Realm.Ecs;
@@ -24,6 +24,12 @@ public partial class CommandAuthorityService
 
 	public Func<string, AbilityRules?>? AbilityRulesProvider { get; set; }
 
+	/// <summary>
+	///     The abilities a map registers while it runs, which no template declares. A card the script created is a
+	///     real command the player can press, so the authority has to be able to price and range-check it too.
+	/// </summary>
+	public Func<string, AbilityRules?>? ScriptAbilityRulesProvider { get; set; }
+
 	public Func<string, ProductionCosts?>? ProductionCostsProvider { get; set; }
 
 	public Func<string, UpgradeRules?>? UpgradeRulesProvider { get; set; }
@@ -32,7 +38,7 @@ public partial class CommandAuthorityService
 
 	public Action<int, string, int>? TechLevelWriter { get; set; }
 
-	public Func<string, ConsumableMetadata?>? ConsumableProvider { get; set; }
+	public Func<string, ItemMetadata?>? ConsumableProvider { get; set; }
 
 	public Action<string>? DroppedOrderSink { get; set; }
 
@@ -57,9 +63,8 @@ public partial class CommandAuthorityService
 	{
 		rules = default;
 		if (string.IsNullOrEmpty(spellId)) return false;
-		if (AbilityRulesProvider == null) return false;
 
-		AbilityRules? resolved = AbilityRulesProvider(spellId);
+		AbilityRules? resolved = AbilityRulesProvider?.Invoke(spellId) ?? ScriptAbilityRulesProvider?.Invoke(spellId);
 		if (resolved == null) return false;
 
 		rules = resolved.Value;

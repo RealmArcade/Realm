@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Json.Nodes;
 using NUnit.Framework;
 using Realm.Ecs;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Terrain;
 using Realm.Shared;
 using Realm.Shared.Distribution;
@@ -307,6 +308,7 @@ public class MeleeReferenceTests
 			string relativePath = Path.GetRelativePath(Map.Folder, filePath).Replace('\\', '/');
 			if (string.Equals(relativePath, "manifest.json", StringComparison.OrdinalIgnoreCase)) continue;
 			if (string.Equals(relativePath, MapMetadataMerger.MetadataPartialFileName, StringComparison.OrdinalIgnoreCase)) continue;
+			if (MapManifest.IsGeneratedWorkspaceFile(relativePath)) continue;
 			if (relativePath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase)) continue;
 			if (relativePath.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !relativePath.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase)) continue;
 			if (relativePath.EndsWith(".elf", StringComparison.OrdinalIgnoreCase)) continue;
@@ -455,11 +457,47 @@ public class MeleeReferenceTests
 
 		Assert.That(match.IsUnderConstruction(site), Is.False, "The ruleset's construction clock has to finish the drafted site on the composed board.");
 		Assert.That(match.IsAlive(match.Hero(1)), Is.True, $"The hero has to stand through {PlayedTicks} ticks of a composed game.");
-		Assert.That(match.Soldiers(1).Count, Is.GreaterThan(0), "The finished building has to raise its soldier on the board's terrain.");
+		Assert.That(match.StepUntilSoldiers(1), Is.GreaterThan(0), "The finished building has to raise its soldier on the board's terrain.");
 		Assert.That(match.Gold(1) - startingGold + match.Wood(1) - startingWood, Is.GreaterThan(0f), "The drafted building's income has to arrive through the composed metadata.");
 		Assert.That(match.Simulation.IsGameOver, Is.False, "Nothing ends the game while the player only builds.");
 		Assert.That(match.Simulation.Map.SaveData.Props?.Count ?? 0, Is.EqualTo(authoredProps), "The board's props have to stay on the board for the whole game.");
 		Assert.That(match.Simulation.Map.HasNavMesh, Is.True, "The board's height field has to bake into the navmesh the soldier walks from.");
+	}
+
+	/// <summary>
+	///     Gathers on the composed board: the ruleset's resource templates have to arrive through the metadata merge with the
+	///     fields that make a node harvestable, or the board places props that look like nodes and yield nothing.
+	/// </summary>
+	[Test]
+	public void TheComposedBoardsNodesCanBeWorked()
+	{
+		using MeleeMatch match = MeleeMatch.StartOnMap(Map.Folder, new[] { "Vale", "Sable" }, Map.ScriptPath);
+
+		Assert.That(match.TotalResourceAmount(), Is.GreaterThan(0f), "The board's props have to become resource nodes that hold something.");
+		foreach (ResourceNodeId node in match.Api.GetResourceNodes())
+		{
+			string nodeType = match.Api.GetResourceNodeType(node);
+			if (nodeType != "gold" && nodeType != "wood") continue;
+
+			Assert.That(
+				match.World.Has<Harvestable>(new Entity(node.Id)),
+				Is.True,
+				$"The {nodeType} node has to keep the harvestable fields its ruleset template states, or it is mined at a fixed rate instead of by the worker's attack.");
+		}
+
+		UnitId site = DraftBuildingOnTheComposedTerrain(match);
+		Assert.That(match.IsAlive(site), Is.True, "The drafted building has to stand for its worker to be raised.");
+
+		match.Step(MeleeMatch.LongestAuthoredConstructionSeconds + 20f);
+		Assert.That(match.StepUntilWorkers(1), Is.GreaterThan(0), "A finished building raises the worker that works it.");
+
+		float before = match.TotalResourceAmount();
+		match.Step(90f);
+
+		Assert.That(
+			match.TotalResourceAmount(),
+			Is.LessThan(before),
+			"A worker on the composed board has to take resource out of a node, which takes the ruleset's harvestable fields arriving through the merge.");
 	}
 
 	/// <summary>
@@ -510,7 +548,12 @@ public class MeleeReferenceTests
 			match.LockDraftOption(1, offer.AbilityIds[0], sitePosition);
 			foreach (UnitId building in match.Buildings(1))
 			{
-				if (match.IsUnderConstruction(building)) return building;
+				if (!match.IsUnderConstruction(building)) continue;
+
+				// A site is raised by the hero working at it, so the right-click that puts the hero to work is part of
+				// drafting a building, not something the site does on its own.
+				match.Raise(1, match.Hero(1), building);
+				return building;
 			}
 
 			match.AbandonDraft(1);

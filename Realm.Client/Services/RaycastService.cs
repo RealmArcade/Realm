@@ -35,6 +35,9 @@ public class RaycastService
 	public const uint TerrainLayer = RuntimeTerrain.TerrainCollisionLayer;
 	public const uint ObjectLayer = 1u;
 
+	private const float LootPickRadius = 0.45f;
+	private const float LootPickHeight = 1.2f;
+
 	private readonly List<Decal3D> _registeredDecals = new();
 	private readonly List<ProceduralVfxInstance3D> _registeredVfx = new();
 
@@ -121,6 +124,13 @@ public class RaycastService
 			{
 				closestDist = propHit.Distance;
 				closestResult = propHit;
+			}
+
+			var lootHit = RaycastLoot(from, dir, closestDist);
+			if (lootHit != null && lootHit.HasHit && lootHit.Distance < closestDist)
+			{
+				closestDist = lootHit.Distance;
+				closestResult = lootHit;
 			}
 
 			var decalHit = RaycastDecals(from, dir, closestDist);
@@ -324,6 +334,41 @@ public class RaycastService
 						Position = hitPos,
 						Normal = hitNorm,
 						Collider = prop,
+						Distance = t
+					};
+				}
+			}
+		}
+
+		return bestHit;
+	}
+
+	public RaycastResult? RaycastLoot(Vector3 origin, Vector3 dir, float maxDist)
+	{
+		var gameHost = GameContext.Host;
+		if (gameHost == null) return null;
+
+		RaycastResult? bestHit = null;
+		float bestDist = maxDist;
+
+		List<LootItem3D> lootItems = gameHost.AllLootItems;
+		for (int index = 0; index < lootItems.Count; index++)
+		{
+			LootItem3D loot = lootItems[index];
+			if (loot == null || !GodotObject.IsInstanceValid(loot) || !loot.Visible) continue;
+
+			Vector3 center = loot.GlobalPosition;
+			if (RayIntersectVerticalCylinder(origin, dir, center, LootPickRadius, LootPickHeight, out float t, out Vector3 hitPos, out Vector3 hitNorm))
+			{
+				if (t > 0.001f && t < bestDist)
+				{
+					bestDist = t;
+					bestHit = new RaycastResult
+					{
+						HasHit = true,
+						Position = hitPos,
+						Normal = hitNorm,
+						Collider = loot,
 						Distance = t
 					};
 				}

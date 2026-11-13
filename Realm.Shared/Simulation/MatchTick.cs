@@ -21,7 +21,6 @@ public class MatchTick
 	private static readonly QueryDescription AttackQuery = QueryCache.AllAttackQuery;
 	private static readonly QueryDescription HealthQuery = QueryCache.AllHealthNoneDeadQuery;
 	private static readonly QueryDescription ManaQuery = QueryCache.AllManaAndManaRegenNoneDeadQuery;
-	private static readonly QueryDescription ChargesQuery = new QueryDescription().WithAll<UnitCharges>().WithNone<Dead>();
 
 	private readonly SimulationContext _simulation;
 	private readonly EntityCallback<Buffs> _buffsDelegate;
@@ -34,7 +33,6 @@ public class MatchTick
 	private readonly EntityCallback<Attack> _attackDelegate;
 	private readonly EntityCallback<Health> _healthDelegate;
 	private readonly EntityCallback<Mana, ManaRegen> _manaDelegate;
-	private readonly EntityCallback<UnitCharges> _chargesDelegate;
 
 	private float _deltaSeconds;
 	private float _shroudTimer;
@@ -52,7 +50,6 @@ public class MatchTick
 		_attackDelegate = AdvanceAttackCooldown;
 		_healthDelegate = AdvanceHealthRegeneration;
 		_manaDelegate = AdvanceManaRegeneration;
-		_chargesDelegate = AdvanceUnitCharges;
 	}
 
 	public EcsWorld World => _simulation.World;
@@ -98,7 +95,6 @@ public class MatchTick
 		World.Query(in AttackQuery, _attackDelegate);
 		World.Query(in HealthQuery, _healthDelegate);
 		World.Query(in ManaQuery, _manaDelegate);
-		World.Query(in ChargesQuery, _chargesDelegate);
 	}
 
 	private void AdvanceMatchClock(float deltaSeconds)
@@ -202,6 +198,10 @@ public class MatchTick
 
 	private void AdvanceHealthRegeneration(Entity entity, ref Health health)
 	{
+		// A site being raised is dormant: its health is the work done on it, so nothing regenerates it but the building
+		// work itself, and a map cannot hand it health a player has not paid for.
+		if (World.Has<UnderConstruction>(entity)) return;
+
 		health.TimeSinceLastDamage += _deltaSeconds;
 		if (health.HpRegen <= 0f || health.Current >= health.Max) return;
 		if (health.HpRegenCombatDelay > 0f && health.TimeSinceLastDamage < health.HpRegenCombatDelay) return;
@@ -211,10 +211,12 @@ public class MatchTick
 
 	private void AdvanceManaRegeneration(Entity entity, ref Mana mana, ref ManaRegen regen)
 	{
+		// A site being raised is dormant until it is whole, so its pool stands still however the template or the map
+		// states its regeneration. Mana is refilled from the tick the construction completes.
+		if (World.Has<UnderConstruction>(entity)) return;
+
 		if (regen.PerSecond <= 0f || mana.Current >= mana.Max) return;
 
 		mana.Current = MathF.Min(mana.Max, mana.Current + regen.PerSecond * _deltaSeconds);
 	}
-
-	private void AdvanceUnitCharges(Entity entity, ref UnitCharges charges) => charges.Advance(_deltaSeconds);
 }

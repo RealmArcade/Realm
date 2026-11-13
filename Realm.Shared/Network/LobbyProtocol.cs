@@ -40,7 +40,10 @@ public enum LobbyCommandKind : byte
 	SetComputerDifficulty = 16,
 
 	/// <summary>Sets one of the parameters the host configures for the match, in <see cref="LobbyCommand.Option" />.</summary>
-	SetMatchOption = 17
+	SetMatchOption = 17,
+
+	/// <summary>Sets whether the match groups each team's players into consecutive player slots, in <see cref="LobbyCommand.Flag" />.</summary>
+	SetTeamsTogether = 18
 }
 
 /// <summary>
@@ -172,6 +175,12 @@ public partial struct LobbyStateMessage
 	public Realm.Shared.Simulation.MatchOptionValue[] Options;
 
 	public long Revision;
+
+	/// <summary>
+	///     Whether the match groups each team's players into consecutive player slots, which every seat reads to show the
+	///     setting and only the host may change. It is last so the seats a peer already reads keep their wire position.
+	/// </summary>
+	public bool TeamsTogether;
 }
 
 [MemoryPackable]
@@ -299,6 +308,20 @@ public static class LobbyLimits
 	///     so it is not counted against the players a map seats.
 	/// </summary>
 	public const string SpectatorTeamName = "Spectator";
+
+	/// <summary>
+	///     The faction a seat holds while it leaves the choice to the match. The lobby offers it as Random, and the authority
+	///     resolves it to one of the factions the map offers when it seats the match, so nothing that plays the match ever
+	///     reads it as a faction.
+	/// </summary>
+	public const string RandomFactionName = "@random";
+
+	/// <summary>
+	///     Answers whether a seat's faction is the lobby's random choice rather than a faction the map offers.
+	/// </summary>
+	/// <param name="factionName">The faction a seat holds.</param>
+	/// <returns>Whether the seat left its faction to the match.</returns>
+	public static bool IsRandomFaction(string? factionName) => string.Equals(factionName, RandomFactionName, StringComparison.Ordinal);
 
 	public const int MaximumMapBundleBytes = 2 * 1024 * 1024;
 

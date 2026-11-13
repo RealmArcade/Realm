@@ -168,6 +168,133 @@ public partial interface IGameAPI
 	void SetUnitFrozen(UnitId unit, bool value);
 
 	/// <summary>
+	/// Makes a player-owned unit refuse its player's orders while the map script keeps commanding it, or releases it again.
+	/// </summary>
+	/// <remarks>
+	/// A locked unit keeps its owner, its abilities and its position, but its player cannot move, attack, hold, patrol or
+	/// gather with it, and the client draws every ability card it owns as disabled so the player cannot cast from it. The
+	/// map is unaffected: orders and casts it issues itself still apply, which is what lets a ruleset run an autonomous army
+	/// that the player watches and inspects but cannot steer. This differs from <see cref="SetUnitCommandsFrozen"/>, which
+	/// stops the unit acting at all, and from hiding its abilities, which leaves the player able to move it.
+	/// </remarks>
+	/// <param name="unit">The unit to lock to its map.</param>
+	/// <param name="value">True to refuse player orders; false to accept them again.</param>
+	void SetUnitPlayerOrdersLocked(UnitId unit, bool value);
+
+	/// <summary>
+	/// States how long one gathering swing lasts, which is the cadence a worker works a node at.
+	/// </summary>
+	/// <remarks>
+	/// A gather order sets the worker going; this states how long each of its swings takes. What a swing takes from the
+	/// node is decided by the node's yield and the worker's own attack, so a map overrides the rhythm rather than the
+	/// amount, and leaving the seconds at zero falls back to the unit's attack interval. The call does nothing for a unit
+	/// that is not gathering.
+	/// </remarks>
+	/// <param name="unit">The gathering unit.</param>
+	/// <param name="swingSeconds">The seconds one swing lasts, or zero to swing at the unit's own attack interval.</param>
+	void SetUnitGatherInterval(UnitId unit, float swingSeconds);
+
+	/// <summary>
+	/// States the share of each delivered swing the map keeps, so a ruleset can tax a worker's income.
+	/// </summary>
+	/// <remarks>
+	/// The tax is taken from the delivery, never from the swing: the node still loses exactly the amount the building
+/// advertises, and only what reaches the player's purse is reduced. The fraction of a resource a taxed delivery leaves
+/// behind is carried into that worker's next delivery rather than rounded away, so a run pays the total its advertised
+/// rate states. Zero pays every delivery in full, which is what a worker nobody taxed pays; values are clamped between
+/// zero and 0.99 so a delivery always pays something unless the map pays nothing. The call does nothing for a unit that
+/// is not gathering. Taxing each worker at its own building's rank among the player's buildings is what makes a
+/// progressive, marginal income tax: earlier buildings keep the share they were given, and a new building pays less
+/// than the one before it without changing what the earlier ones pay.
+	/// </remarks>
+	/// <param name="unit">The gathering unit whose deliveries are taxed.</param>
+	/// <param name="taxRate">The fraction kept from each delivered swing, from zero to 0.99.</param>
+	void SetUnitGatherTaxRate(UnitId unit, float taxRate);
+
+	/// <summary>
+	/// States how fast a unit mends a building, as a fraction of the building's maximum health per second.
+	/// </summary>
+	/// <remarks>
+	/// A rate above zero is what lets a unit accept a repair order at all, so a ruleset decides which units mend and how
+	/// fast by stating a rate per unit rather than the engine assuming a builder. Because the rate is a share of the
+	/// building's maximum health, a hero spends the same time raising any building from zero to whole, and a rate that a
+	/// buff or a relic raises mends every building faster. A rate of zero, or a call with no rate, takes the ability
+	/// away and ends any mending the unit was doing. The rate belongs to the repairer, so two units can mend the same
+	/// building at different speeds.
+	/// </remarks>
+	/// <param name="unit">The unit that mends buildings.</param>
+	/// <param name="healthPercentPerSecond">The fraction of the building's maximum health restored each second.</param>
+	void SetUnitRepairRate(UnitId unit, float healthPercentPerSecond);
+
+	/// <summary>
+	/// Answers how fast a unit mends buildings, as a fraction of the building's maximum health per second.
+	/// </summary>
+	/// <param name="unit">The unit whose repair rate is read.</param>
+	/// <returns>The fraction restored each second, or zero when the unit cannot repair.</returns>
+	float GetUnitRepairRate(UnitId unit);
+
+	/// <summary>
+	/// Answers a unit's current spell power, the multiplier its ability damage carries after its attributes and buffs
+	/// have been resolved.
+	/// </summary>
+	/// <remarks>
+	/// Spell power belongs to the caster rather than to one ability, so a rule that scales a burn, a heal or a shield
+	/// from it reads the same number every ability reads. It is a multiplier added to one, which is how the engine applies
+	/// it to authored ability damage; a unit with no spell power answers zero.
+	/// </remarks>
+	/// <param name="unit">The unit whose spell power is read.</param>
+	/// <returns>The spell power multiplier, or zero when the unit has none.</returns>
+	float GetUnitSpellPower(UnitId unit);
+
+	/// <summary>
+	/// States whether a building falls dormant when its health runs out instead of being destroyed.
+	/// </summary>
+	/// <remarks>
+	/// A repairable building at zero health stays in the world: it is invulnerable, it earns nothing, it recharges
+	/// nothing, it produces nothing and it attacks nothing, while the charges and the production queue it already holds
+	/// are kept. A repairing unit raises it back toward full health, and the building only starts working again once it
+	/// is whole. A building the map never marked repairable is destroyed at zero health, which is what every building did
+	/// before a map asked for this, so a ruleset that has no repair has nothing to configure.
+	/// </remarks>
+	/// <param name="unit">The building.</param>
+	/// <param name="repairable">True to let the building fall dormant instead of dying at zero health.</param>
+	void SetUnitRepairable(UnitId unit, bool repairable);
+
+	/// <summary>
+	/// States whether a unit is a resource worker for the worker collision rule.
+	/// </summary>
+	/// <remarks>
+	/// Workers body-block the workers of their own player and pass through the workers of every other player, so a
+	/// gathering crew never jams on itself while rival crews walk through one another. Only worker against worker is
+	/// decided here: a worker still collides with soldiers, heroes and buildings like any other unit, and a match that
+	/// never marks a worker keeps every unit blocking every other unit. The flag belongs to the unit, so two workers of
+	/// the same player body-block while two workers of different players ghost, whatever their teams say.
+	/// </remarks>
+	/// <param name="unit">The unit to mark or unmark.</param>
+	/// <param name="worker">True to make the unit a worker; false to give it ordinary unit collision again.</param>
+	void SetUnitWorker(UnitId unit, bool worker);
+
+	/// <summary>
+	///     Assigns the resource a worker gathers, which is how the building that raised it states what its crew works.
+	/// </summary>
+	/// <remarks>
+	///     The assignment is the script's own instruction to the worker, not an order: the map reads it back with
+	///     <see cref="GetUnitWorkerAssignment"/> and issues the gather order to the matching node, so one worker template
+	///     can be sent to gold by one building and to wood by another. A resource name the map never uses is kept as stated,
+	///     which lets a package add its own resource without an engine change. An empty name clears the assignment.
+	/// </remarks>
+	/// <param name="unit">The worker to assign.</param>
+	/// <param name="resourceType">The resource type to gather, such as gold or wood, or an empty string to clear it.</param>
+	void SetUnitWorkerAssignment(UnitId unit, string resourceType);
+
+	/// <summary>
+	///     Answers the resource a worker was assigned to gather.
+	/// </summary>
+	/// <param name="unit">The worker whose assignment is read.</param>
+	/// <returns>The assigned resource type, or an empty string when the unit has no assignment.</returns>
+	string GetUnitWorkerAssignment(UnitId unit);
+
+	/// <summary>
 	/// Shows or hides the overhead health and mana bars for a single unit.
 	/// </summary>
 	/// <remarks>
@@ -196,42 +323,6 @@ public partial interface IGameAPI
 	/// <param name="value">The number to draw, from 0 to 999, or a negative value to draw no badge at all.</param>
 	/// <param name="color">The tint of the badge, in the same 0-1 channel range as every other colour a map gives.</param>
 	void SetUnitOverheadBadge(UnitId unit, int value, System.Numerics.Vector3 color);
-
-	/// <summary>
-	/// States the charges a unit keeps and how long it takes to regain one, which is how a map makes a building hold a
-	/// limited number of what it fields.
-	/// </summary>
-	/// <remarks>
-	/// The engine owns the count: it regains a charge every <paramref name="rechargeSeconds" /> on its own, so a map
-	/// states the parameters once and never advances the timer itself. The count is a component of the unit, read the
-	/// same way by the inspector, the overhead plate and the map, and replicated with the unit, so every screen states
-	/// the same number without the map publishing it.
-	/// <para>
-	/// Stating the parameters again keeps the count the unit holds, clamped to the new maximum, and keeps the recharge it
-	/// has already served, so a rule that raises the cap mid-match does not hand out charges and a rule that lowers the
-	/// recharge time is felt on the charge being regained. Calling it on a unit that carries no charges gives it a count
-	/// of zero, because the maximum stated here is what the charge is worth.
-	/// </para>
-	/// <para>
-	/// A maximum of zero removes the charges from the unit, which is how a map says the rule no longer applies to it.
-	/// </para>
-	/// </remarks>
-	/// <param name="unit">The unit identifier.</param>
-	/// <param name="maximumCharges">The greatest number of charges the unit may hold, or zero to hold none at all.</param>
-	/// <param name="rechargeSeconds">Seconds the unit takes to regain one charge, or zero to regain them at once.</param>
-	void SetUnitCharges(UnitId unit, int maximumCharges, float rechargeSeconds);
-
-	/// <summary>
-	/// Sets how many charges a unit holds right now, which is how a map spends or grants one.
-	/// </summary>
-	/// <remarks>
-	/// The count is clamped to what the unit states through <see cref="SetUnitCharges" />, and a unit that carries no
-	/// charges ignores the call because it has no count to set. Spending the last charge resets the recharge, because the
-	/// time served toward a charge the unit already held is not time served toward the next one.
-	/// </remarks>
-	/// <param name="unit">The unit identifier.</param>
-	/// <param name="charges">The number of charges the unit holds, which is clamped to the maximum it states.</param>
-	void SetUnitChargeCount(UnitId unit, int charges);
 
 	/// <summary>
 	/// States the multiplier the damage one player deals carries against another, which is how a rule makes a side of a

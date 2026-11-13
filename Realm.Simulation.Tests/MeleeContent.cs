@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 
 namespace Realm.Simulation.Tests;
@@ -8,6 +9,8 @@ namespace Realm.Simulation.Tests;
 /// </summary>
 internal static class MeleeContent
 {
+	public const float ProductionMana = 100f;
+
 	public const string Shieldbearer = "unit/shieldbearer";
 	public const string Axeman = "unit/axeman";
 
@@ -27,6 +30,12 @@ internal static class MeleeContent
 		"building/vigil_bastion"
 	};
 
+	/// <summary>
+	///     Every soldier template the deck can raise. A building's worker is not one of them: it carries the economy and
+	///     never joins the army, so a test that counts what a building fields must not count it.
+	/// </summary>
+	public static readonly string[] SoldierTemplateIds = DraftableBuildings.Select(SoldierFor).Distinct().ToArray();
+
 	public static string SoldierFor(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
@@ -41,6 +50,40 @@ internal static class MeleeContent
 			"building/signal_post" => "unit/standard_bearer",
 			"building/vigil_bastion" => "unit/warder",
 			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no soldier profile grants.")
+		};
+	}
+
+	public static string SoldierAbilityFor(string buildingTemplateId)
+	{
+		return buildingTemplateId switch
+		{
+			"building/bulwark_hall" => "ability/raise_shieldbearer",
+			"building/warband_yard" => "ability/raise_axeman",
+			"building/spear_lodge" => "ability/raise_spear_militia",
+			"building/archery_range" => "ability/raise_bowman",
+			"building/sling_camp" => "ability/raise_slinger",
+			"building/bolt_foundry" => "ability/raise_bolt_thrower",
+			"building/mender_shrine" => "ability/raise_mender",
+			"building/signal_post" => "ability/raise_standard_bearer",
+			"building/vigil_bastion" => "ability/raise_warder",
+			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no soldier profile grants.")
+		};
+	}
+
+	public static string WorkerAbilityFor(string buildingTemplateId)
+	{
+		return buildingTemplateId switch
+		{
+			"building/bulwark_hall" => "ability/raise_worker_bulwark_hall",
+			"building/warband_yard" => "ability/raise_worker_warband_yard",
+			"building/spear_lodge" => "ability/raise_worker_spear_lodge",
+			"building/archery_range" => "ability/raise_worker_archery_range",
+			"building/sling_camp" => "ability/raise_worker_sling_camp",
+			"building/bolt_foundry" => "ability/raise_worker_bolt_foundry",
+			"building/mender_shrine" => "ability/raise_worker_mender_shrine",
+			"building/signal_post" => "ability/raise_worker_signal_post",
+			"building/vigil_bastion" => "ability/raise_worker_vigil_bastion",
+			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no worker profile serves.")
 		};
 	}
 
@@ -61,7 +104,13 @@ internal static class MeleeContent
 		};
 	}
 
-	public static int MaximumChargesOf(string buildingTemplateId)
+	/// <summary>The mana pool a building of that package holds at whole, which is one production per stored soldier and worker.</summary>
+	public static int MaximumManaOf(string buildingTemplateId)
+	{
+		return (int)((SoldierProductionsOf(buildingTemplateId) + WorkerProductionsOf(buildingTemplateId)) * ProductionMana);
+	}
+
+	public static int SoldierProductionsOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{
@@ -78,7 +127,7 @@ internal static class MeleeContent
 		};
 	}
 
-	public static float RechargeSecondsOf(string buildingTemplateId)
+	public static float SoldierProductionSecondsOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{
@@ -95,37 +144,70 @@ internal static class MeleeContent
 		};
 	}
 
-	public static float GoldPerMinuteOf(string buildingTemplateId)
+	public static int WorkerCapacityOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{
-			"building/bulwark_hall" => 30f,
-			"building/warband_yard" => 16f,
-			"building/spear_lodge" => 10f,
-			"building/archery_range" => 0f,
-			"building/bolt_foundry" => 0f,
-			"building/sling_camp" => 0f,
-			"building/mender_shrine" => 14f,
-			"building/signal_post" => 6f,
-			"building/vigil_bastion" => 10f,
-			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no building profile pays.")
+			"building/bulwark_hall" => 2,
+			"building/warband_yard" => 2,
+			"building/spear_lodge" => 2,
+			"building/archery_range" => 3,
+			"building/sling_camp" => 3,
+			"building/bolt_foundry" => 1,
+			"building/mender_shrine" => 1,
+			"building/signal_post" => 2,
+			"building/vigil_bastion" => 2,
+			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no worker profile serves.")
 		};
 	}
 
-	public static float WoodPerMinuteOf(string buildingTemplateId)
+	public static int WorkerProductionsOf(string buildingTemplateId)
 	{
 		return buildingTemplateId switch
 		{
-			"building/bulwark_hall" => 0f,
-			"building/warband_yard" => 0f,
-			"building/spear_lodge" => 0f,
-			"building/archery_range" => 22f,
-			"building/bolt_foundry" => 8f,
-			"building/sling_camp" => 16f,
-			"building/mender_shrine" => 0f,
-			"building/signal_post" => 0f,
-			"building/vigil_bastion" => 0f,
-			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no building profile pays.")
+			"building/bulwark_hall" => 1,
+			"building/warband_yard" => 2,
+			"building/spear_lodge" => 1,
+			"building/archery_range" => 2,
+			"building/sling_camp" => 3,
+			"building/bolt_foundry" => 1,
+			"building/mender_shrine" => 1,
+			"building/signal_post" => 1,
+			"building/vigil_bastion" => 1,
+			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no worker profile serves.")
 		};
 	}
+
+	public static float WorkerProductionSecondsOf(string buildingTemplateId)
+	{
+		return buildingTemplateId switch
+		{
+			"building/bulwark_hall" => 45f,
+			"building/warband_yard" => 30f,
+			"building/spear_lodge" => 35f,
+			"building/archery_range" => 25f,
+			"building/sling_camp" => 20f,
+			"building/bolt_foundry" => 50f,
+			"building/mender_shrine" => 40f,
+			"building/signal_post" => 30f,
+			"building/vigil_bastion" => 35f,
+			_ => throw new AssertionException($"The draw offered '{buildingTemplateId}', which no worker profile serves.")
+		};
+	}
+
+	public static string WorkerResourceOf(string buildingTemplateId)
+	{
+		return buildingTemplateId switch
+		{
+			"building/archery_range" or "building/bolt_foundry" or "building/sling_camp" => "wood",
+			_ => "gold"
+		};
+	}
+
+	public static string WorkerItemOf(string buildingTemplateId)
+	{
+		return WorkerResourceOf(buildingTemplateId) == "wood" ? "item/wood" : "item/gold";
+	}
+
+	public const string WorkerTemplateId = "unit/worker";
 }

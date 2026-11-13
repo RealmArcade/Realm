@@ -273,7 +273,8 @@ namespace Realm.Client.UI
 
 				if (GameContext.SessionState.SavedActiveTool == EditorTool.PlaceUnit ||
 				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceProp ||
-				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceDecal)
+				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceDecal ||
+				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceItem)
 				{
 					_entityPaletteController?.SelectCategoryItemExternal(GameContext.SessionState.SavedEntityCategory, GameContext.SessionState.SavedActivePlaceId);
 				}
@@ -422,7 +423,7 @@ namespace Realm.Client.UI
 			_toolPanel.Build(new ToolAccordionHooks(
 				this, StyleAccordionHeader, SetupAccordion, SetupButton, SetupOptionButton, (tool, btn) => TriggerToolSelection(tool, btn),
 				GetFontAwesomeFont, () => _entityPaletteController?.TriggerAddObjectMode(), DeleteSelectedObjectAction,
-				ShowFeedback, RefreshCoordinateListExternal, OpenInstanceManagerDialog));
+				ShowFeedback, RefreshCoordinateListExternal, OpenInstanceManagerDialog, OpenSpawnAnchorDialog));
 		}
 
 
@@ -597,6 +598,16 @@ namespace Realm.Client.UI
 				EditSelectedTemplate, EditSelectedVfx, () => IsUpdatingInspectorUI));
 		}
 
+
+		/// <summary>
+		/// Opens the item template editor, which is where a selected drop's ground model, icon, name and grants live. The
+		/// visual inspector has no item controls, so an item is never handed to it.
+		/// </summary>
+		/// <param name="templateId">The item template the selected drop is spawned from.</param>
+		public void OpenItemTemplateEditor(string templateId)
+		{
+			_templateManagerDialog?.OpenItemEditor(templateId);
+		}
 
 		/// <summary>Opens the visual template editor for the object selected in the inspector.</summary>
 		private void EditSelectedTemplate()

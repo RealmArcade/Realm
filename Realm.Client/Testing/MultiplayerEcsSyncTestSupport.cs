@@ -260,7 +260,7 @@ public static partial class MultiplayerEcsSyncTestSupport
         {
             if (entry.Value.Kind != TileKind.Hero) continue;
 
-            api.SpawnLootItem(ItemIds.VitalityRing, entry.Value.AnchorPosition + new Vector3(6f, 0f, 0f), 1, 0f);
+            api.SpawnLootItem(ItemIds.VitalityRing, new Vector2(entry.Value.AnchorPosition.X + 6f, entry.Value.AnchorPosition.Z), 1, 0f);
             spawned++;
             if (spawned >= 4) break;
         }

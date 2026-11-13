@@ -40,7 +40,6 @@ public partial class EntityVisualEditDialog
 			"buildings" => "building",
 			"resources" => "resource",
 			"props" => "prop",
-			"items" => "item",
 			_ => "unit"
 		};
 	}

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Realm.Ecs;
 
 namespace Realm.Client.Services;
 
@@ -14,6 +15,18 @@ public class TooltipValueStore
 	public static string OwnerKey(string kind, string id) => $"{kind}:{id}";
 
 	public static string OwnerKey(string kind, int id) => $"{kind}:{id}";
+
+	/// <summary>
+	///     Names the unit a map published tooltip values for. A map addresses a unit by the authority entity id it was
+	///     handed, while the replicated world names it by a local id, so the authority id is the key both sides share.
+	/// </summary>
+	/// <param name="entity">The replicated unit whose published values are being read.</param>
+	/// <returns>The key the unit's published values are stored under.</returns>
+	public static string UnitOwnerKey(Entity entity)
+	{
+		int serverEntityId = GameContext.NetworkService?.GetServerEntityId(entity.Id) ?? -1;
+		return OwnerKey("unit", serverEntityId > 0 ? serverEntityId : entity.Id);
+	}
 
 	public void SetNumber(string owner, string? key, float value)
 	{

@@ -32,13 +32,43 @@ public partial class GameHost
 		var hit = RaycastFromMouse(clickPos);
 		Node? collider = null;
 		Unit3D? clickedUnit = null;
+		LootItem3D? clickedLootItem = null;
 		if (hit != null && hit.ContainsKey("collider"))
 		{
 			collider = hit["collider"].As<Node>();
 			clickedUnit = FindUnit3DInParentChain(collider);
+			if (clickedUnit == null)
+			{
+				clickedLootItem = FindLootItemInParentChain(collider);
+			}
+		}
+
+		if (clickedUnit == null && clickedLootItem == null && TryRaycastTerrainFromMousePosition(clickPos, out Vector3 groundPoint))
+		{
+			TryFindLootItemAt(groundPoint, out clickedLootItem);
+		}
+
+		if (clickedLootItem != null)
+		{
+			ClearSelection();
+			SelectLootItem(clickedLootItem);
+			GameContext.InGameHud?.RefreshUI(SelectedUnits);
+			return;
 		}
 
 		clickedUnit ??= FindUnitNearScreenPoint(clickPos);
+
+		if (clickedUnit == null)
+		{
+			var camera = GetViewport()?.GetCamera3D();
+			if (camera != null && TryPickResourceNodeAtScreenPoint(camera, clickPos, out Entity nodeEntity, out string nodePropId))
+			{
+				ClearSelection();
+				SelectResourceNode(nodeEntity, nodePropId);
+				GameContext.InGameHud?.RefreshUI(SelectedUnits);
+				return;
+			}
+		}
 
 		if (clickedUnit == null && collider == null)
 		{
@@ -67,6 +97,8 @@ public partial class GameHost
 		}
 
 		SelectedProp = null;
+		ClearSelectedResourceNode();
+		ClearSelectedLootItem();
 	}
 
 	private void HandleSingleUnitSelection(Unit3D clickedUnit, Vector2 clickPos)
@@ -164,8 +196,13 @@ public partial class GameHost
 		}
 		else
 		{
+			// A box that sweeps no unit reaches for the things standing on the ground instead: a mine or a tree first,
+			// then a dropped item, since both are read the same way and neither can be ordered anywhere.
 			ClearSelection();
-			SelectResourcePropInRect(camera, dragRect);
+			if (!SelectResourcePropInRect(camera, dragRect))
+			{
+				SelectLootItemInRect(camera, dragRect);
+			}
 		}
 
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
@@ -236,21 +273,121 @@ public partial class GameHost
 		}
 	}
 
-	private void SelectResourcePropInRect(Camera3D camera, Rect2 dragRect)
+	/// <summary>
+	///     Selects the resource node a box swept, which is the node the drag was drawn around. A node is drawn by a shared
+	///     multi mesh, so it is matched against the screen position of every live node rather than through a collider.
+	/// </summary>
+	/// <param name="camera">The camera the board is seen through.</param>
+	/// <param name="dragRect">The box the pointer was dragged out, in screen coordinates.</param>
+	/// <returns>True when the box caught a node, which is what leaves a dropped item the only thing left to look for.</returns>
+	private bool SelectResourcePropInRect(Camera3D camera, Rect2 dragRect)
 	{
-		foreach (var prop in AllProps)
+		Entity selectedEntity = Entity.Null;
+		string selectedPropId = string.Empty;
+		var query = QueryCache.AllPositionAndResourceNodeAndPropIdentityQuery;
+		World.Query(in query, (Entity entity, ref Position position, ref PropIdentity identity) =>
 		{
-			if (prop == null || !GodotObject.IsInstanceValid(prop) || !prop.Visible || !prop.IsResource) continue;
+			if (selectedEntity != Entity.Null) return;
 
-			var screenPos = camera.UnprojectPosition(prop.GlobalPosition);
-			if (dragRect.HasPoint(screenPos))
-			{
-				ClearSelection();
-				SelectedProp = prop;
-				SelectedProp.IsSelected = true;
-				return;
-			}
+			var worldPoint = new Vector3(position.Value.X, position.Value.Y + ResourceNodePickHeight, position.Value.Z);
+			if (camera.IsPositionBehind(worldPoint)) return;
+
+			var screenPos = camera.UnprojectPosition(worldPoint);
+			if (!dragRect.HasPoint(screenPos)) return;
+
+			selectedEntity = entity;
+			selectedPropId = identity.PropId;
+		});
+
+		if (selectedEntity == Entity.Null) return false;
+
+		ClearSelection();
+		SelectResourceNode(selectedEntity, selectedPropId);
+		return true;
+	}
+
+	/// <summary>
+	///     Selects the dropped item a box swept, which lets a player read a drop the same way a click on it does. A box
+	///     is aimed at where the drop stands rather than at its silhouette, and the nearest one to the pointer's end of
+	///     the drag is taken so a crowded pile answers with a single item.
+	/// </summary>
+	/// <param name="camera">The camera the board is seen through.</param>
+	/// <param name="dragRect">The box the pointer was dragged out, in screen coordinates.</param>
+	private void SelectLootItemInRect(Camera3D camera, Rect2 dragRect)
+	{
+		LootItem3D? closest = null;
+		float closestScreenDistance = float.MaxValue;
+		Vector2 pointer = dragRect.GetCenter();
+
+		foreach (LootItem3D candidate in AllLootItems)
+		{
+			if (candidate == null || !GodotObject.IsInstanceValid(candidate) || !candidate.Visible) continue;
+			if (camera.IsPositionBehind(candidate.GlobalPosition)) continue;
+
+			Vector2 screenPosition = camera.UnprojectPosition(candidate.GlobalPosition);
+			if (!dragRect.HasPoint(screenPosition)) continue;
+
+			float screenDistance = screenPosition.DistanceSquaredTo(pointer);
+			if (screenDistance >= closestScreenDistance) continue;
+
+			closestScreenDistance = screenDistance;
+			closest = candidate;
 		}
+
+		if (closest == null) return;
+
+		SelectLootItem(closest);
+	}
+
+	private const float ResourceNodePickPixels = 26f;
+	private const float ResourceNodePickHeight = 1.5f;
+
+	/// <summary>
+	///     Finds the resource node a click landed on. A node is drawn by a shared multi mesh, so it has no collider to
+	///     hit; the click is matched against the screen position of every live node instead, and the nearest node within a
+	///     small pixel radius is taken. A click on the ground at a node's feet is matched through the same reach the gather
+	///     order uses, so clicking either the trunk or the ground beside it selects the node.
+	/// </summary>
+	/// <param name="camera">The camera the board is seen through.</param>
+	/// <param name="screenPosition">The click, in screen coordinates.</param>
+	/// <param name="nodeEntity">The node the click landed on, or <see cref="Entity.Null" />.</param>
+	/// <param name="propId">The template the node is placed from.</param>
+	/// <returns>True when the click found a resource node.</returns>
+	private bool TryPickResourceNodeAtScreenPoint(Camera3D camera, Vector2 screenPosition, out Entity nodeEntity, out string propId)
+	{
+		nodeEntity = Entity.Null;
+		propId = string.Empty;
+		Entity foundEntity = Entity.Null;
+		string foundPropId = string.Empty;
+		float closestWorldDistance = float.MaxValue;
+
+		var query = QueryCache.AllPositionAndResourceNodeAndPropIdentityQuery;
+		World.Query(in query, (Entity entity, ref Position position, ref PropIdentity identity) =>
+		{
+			var worldPoint = new Vector3(position.Value.X, position.Value.Y + ResourceNodePickHeight, position.Value.Z);
+			if (camera.IsPositionBehind(worldPoint)) return;
+			if (camera.UnprojectPosition(worldPoint).DistanceTo(screenPosition) > ResourceNodePickPixels) return;
+
+			float worldDistance = camera.GlobalPosition.DistanceSquaredTo(worldPoint);
+			if (worldDistance >= closestWorldDistance) return;
+
+			closestWorldDistance = worldDistance;
+			foundEntity = entity;
+			foundPropId = identity.PropId;
+		});
+
+		if (foundEntity != Entity.Null)
+		{
+			nodeEntity = foundEntity;
+			propId = foundPropId;
+			return true;
+		}
+		if (!TryRaycastTerrainFromMousePosition(screenPosition, out Vector3 groundPoint)) return false;
+		if (!TryFindResourceNodeAt(groundPoint, out Entity groundNode)) return false;
+
+		nodeEntity = groundNode;
+		propId = World.Has<PropIdentity>(groundNode) ? World.Get<PropIdentity>(groundNode).PropId : string.Empty;
+		return nodeEntity != Entity.Null;
 	}
 
 	private void UpdateTemporarySelection(Vector2 start, Vector2 end)
@@ -357,6 +494,8 @@ public partial class GameHost
 		}
 
 		SelectedProp = null;
+		ClearSelectedResourceNode();
+		ClearSelectedLootItem();
 
 		foreach (var u in SelectedUnits)
 		{

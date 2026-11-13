@@ -62,6 +62,9 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	private LineEdit _txtName = null!;
 	private LineEdit _txtDescription = null!;
 
+	private VBoxContainer _transformSection = null!;
+	private VBoxContainer _shaderSection = null!;
+
 	private HSlider _sldScale = null!;
 	private Label _lblScale = null!;
 	private HSlider _sldYOffset = null!;
@@ -100,8 +103,18 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 		scrollBody.AddChild(contentVBox);
 
 		BuildIdentitySection(contentVBox);
-		BuildTransformSection(contentVBox);
-		BuildProceduralAnimationSection(contentVBox);
+
+		_transformSection = new VBoxContainer();
+		_transformSection.Name = "TransformSection_VBoxContainer";
+		_transformSection.AddThemeConstantOverride("separation", 6);
+		contentVBox.AddChild(_transformSection);
+		BuildTransformSection(_transformSection);
+
+		_shaderSection = new VBoxContainer();
+		_shaderSection.Name = "ShaderSection_VBoxContainer";
+		_shaderSection.AddThemeConstantOverride("separation", 6);
+		contentVBox.AddChild(_shaderSection);
+		BuildProceduralAnimationSection(_shaderSection);
 
 		UpdateStudioButtonVisibility();
 	}
@@ -594,6 +607,11 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	}
 
 
+	private static bool IsItemCategory(string? category)
+	{
+		return string.Equals(category, "items", StringComparison.OrdinalIgnoreCase);
+	}
+
 	private void SyncVisualModeControl()
 	{
 		if (_optVisualMode == null) return;
@@ -652,6 +670,15 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 	public void OpenForObject(Node selectedObject)
 	{
 		if (selectedObject == null || !GodotObject.IsInstanceValid(selectedObject) || GameContext.Host == null) return;
+
+		// An item is edited by the item template dialog, which owns the ground model, the icon and the grants, so a drop
+		// selected on the terrain is handed there rather than given this dialog's transform and shader controls.
+		if (selectedObject is LootItem3D lootItem)
+		{
+			if (!string.IsNullOrEmpty(lootItem.ItemTypeId)) Hud?.OpenItemTemplateEditor(lootItem.ItemTypeId);
+			return;
+		}
+
 		var (category, objectId) = ResolveObjectCategoryAndId(selectedObject);
 		if (string.IsNullOrEmpty(objectId)) return;
 		OpenForObject(category, objectId, null, selectedObject);
@@ -664,6 +691,12 @@ public partial class EntityVisualEditDialog : FloatingDialogBase
 
 	public void OpenForObject(string? category, string objectId, Action<string, string>? onApplied, Node? selectedObject)
 	{
+		if (IsItemCategory(category))
+		{
+			Hud?.OpenItemTemplateEditor(objectId);
+			return;
+		}
+
 		InitializeDialogState(category, objectId, selectedObject, onApplied);
 
 		object targetLookup = selectedObject is { } selectedNode ? selectedNode : _originalTemplateID;

@@ -45,6 +45,13 @@ public partial class CommandPanel
 			? MapText.TranslateTemplate(abilityDef.TooltipTemplate)
 			: GetDefaultAbilityTooltip(abilityId);
 
+		// An ability the engine can auto-cast says so, because a right-click on the card is the only place that switch
+		// exists and nothing else on the card would tell a player it is there.
+		if (abilityDef?.AutoCastEnabled == true)
+		{
+			body = $"{body}\n\n" + TranslationServer.Translate("Right-click to toggle auto-cast.");
+		}
+
 		return UIHelper.PrependAbilityHeader(abilityId, abilityDef, body, manaCost, disabled);
 	}
 
@@ -82,21 +89,33 @@ public partial class CommandPanel
 		return HotkeySpec.None;
 	}
 
-	private Action GetAbilityCallback(string abilityId, bool isInstant)
+	private Action GetAbilityCallback(string abilityId, AbilityDefinition? abilityDef)
 	{
-		if (isInstant) return () => GameContext.Host?.CastInstantAbility(abilityId);
+		// A card that places a template arms the standard construction placement, so the player picks the ground from the
+		// silhouette of what is going there rather than from a targeting cross-hair. Nothing is cast, and no worker is
+		// named: the player's own order raises the template.
+		if (!string.IsNullOrWhiteSpace(abilityDef?.PlacementTemplateId))
+		{
+			string placementTemplateId = abilityDef.PlacementTemplateId;
+			return () => GameContext.Host?.EnterBuildingPlacement(placementTemplateId, needsBuilder: false);
+		}
+
+		// A passive card is a description with an icon: there is no cast to start, so pressing it is deliberately inert
+		// rather than entering targeting or being greyed out like an unaffordable active.
+		if (abilityDef?.IsPassive ?? false) return static () => { };
+		if (abilityDef?.IsInstant ?? false) return () => GameContext.Host?.CastInstantAbility(abilityId);
 		return () => GameContext.Host?.EnterSpellTargeting(abilityId);
 	}
 
 	private bool IsAbilityDisabled(GameHost? host, Unit_WasmRuntime? unitWrapper, Entity casterEntity, string abilityId, float manaCost)
 	{
 		if (host == null) return false;
-		if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;
 
-		int casterPlayer = GameContext.World != null && GameContext.World.IsAlive(casterEntity) && GameContext.World.Has<UnitOwnerPlayer>(casterEntity)
-			? GameContext.World.Get<UnitOwnerPlayer>(casterEntity).PlayerIndex
-			: GameContext.PerspectiveFilter.ControlledPlayerIndex;
-		if (host.GetPlayerSpellCooldown(casterPlayer, abilityId) > 0f) return true;
+		// A unit the map drives keeps its cards, so a player can read what the army does, but the cards are disabled:
+		// casting is the map's decision for that unit, and a click here would either be refused or fight the script.
+		if (GameContext.World != null && casterEntity != Entity.Null && GameContext.World.Has<PlayerOrdersLocked>(casterEntity)) return true;
+
+		if (GameContext.RegistryService.IsAbilityDisabledForUnit(unitWrapper, abilityId)) return true;
 
 		var world = GameContext.World;
 		if (world == null || casterEntity == Entity.Null || !world.IsAlive(casterEntity)) return false;

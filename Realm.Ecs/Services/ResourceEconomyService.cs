@@ -38,6 +38,12 @@ public class ResourceEconomyService
 	private ResourceId _stoneResourceId;
 
 	public Action<int, string, float>? OnResourceDepositedForPlayer;
+
+	/// <summary>
+	///     States the number of pieces one inventory slot holds for an item. The map's catalog answers it, so the engine
+	///     needs no knowledge of which items exist, and a worker with a full slot opens another before it stops gathering.
+	/// </summary>
+	public Func<string, int>? ItemMaxStacksProvider;
 	public Action<Entity> OnClearUnitOrdersRequested = null!;
 	public Action<Entity> OnStopGatheringMovementRequested = null!;
 	public Action<Entity> OnPropDepleted = null!;
@@ -155,8 +161,9 @@ public class ResourceEconomyService
 		_context.World.Query(in query, (Entity entity, ref Position nodePos, ref PropIdentity identity) =>
 		{
 			string? pType = _context.MapRules.GetResourceTypeForNode(identity.PropId);
+			if (!_context.World.Has<Harvestable>(entity)) return;
 
-			if (pType == type)
+			if (pType == type && _context.World.Get<ResourceNode>(entity).Amount > 0f)
 			{
 				float d = Vector3.Distance(pos, nodePos.Value);
 				if (d < closestDist)
@@ -196,8 +203,8 @@ public class ResourceEconomyService
 
 		if (Vector3.Distance(currentPos, nearestDropoffPos) <= dropoffRadius)
 		{
-			DepositResources(entity, ref gather);
-			HandleNodeAfterDeposit(entity, ref gather);
+			SellCarriedItems(entity, ref gather);
+			ReturnToNodeAfterSale(entity, ref gather);
 		}
 		else if (!_context.World.Has<MoveTo>(entity))
 		{
@@ -209,15 +216,35 @@ public class ResourceEconomyService
 	{
 		var newState = gather;
 		newState.ReturningToBase = false;
-		newState.CarriedAmount = 0;
 		newState.TargetEntity = Entity.Null;
+		newState.ItemStringId = 0;
+		newState.HarvestRemainder = 0f;
 		_tickGatherersToUpdate.Add((entity, newState, null));
 	}
 
-	private void DepositResources(Entity entity, ref Gatherer gather)
+	private void SellCarriedItems(Entity entity, ref Gatherer gather)
 	{
-		float carry = gather.CarriedAmount;
 		var ownerEntity = _context.World.Get<Owner>(entity).PlayerEntity.Value;
+
+		// A worker hauls the node's own item, so selling is spending that item: the inventory empties as the purse
+		// fills, and what the node lost is exactly what the player may be paid for.
+		string itemId = StringRegistry.Get(gather.ItemStringId);
+		int sold = 0;
+		if (!string.IsNullOrEmpty(itemId) && _context.World.Has<Inventory>(entity))
+		{
+			ref var inventory = ref _context.World.Get<Inventory>(entity);
+			sold = inventory.GetItemCount(itemId);
+			if (sold > 0) inventory.RemoveItem(itemId, sold);
+		}
+
+		// A map may tax what a worker sells, and the tax is taken here rather than out of the hit: the node still
+		// loses exactly what the worker took, and only the pay into the purse is reduced. The fraction of a resource the
+		// tax leaves behind rides on the worker into its next sale instead of being rounded away, so a taxed economy
+		// pays the same total over a run that its advertised rate states.
+		float taxRate = Math.Clamp(gather.GatherTaxRate, 0f, 0.99f);
+		float earned = sold * (1f - taxRate) + gather.PendingIncomeRemainder;
+		int paid = (int)MathF.Floor(earned);
+		gather.PendingIncomeRemainder = earned - paid;
 
 		if (_context.World.Has<PlayerResources>(ownerEntity))
 		{
@@ -225,24 +252,32 @@ public class ResourceEconomyService
 			var resId = gather.ResourceType.AsResourceId(_definitionManagerRef);
 			if (playerRes.TryGetValue(resId, out var currentAmount))
 			{
-				playerRes[resId] = (int)Math.Min(ResourceCap, currentAmount + carry);
+				float room = ResourceCap - currentAmount;
+				if (paid > room)
+				{
+					paid = (int)MathF.Max(0f, MathF.Floor(room));
+					gather.PendingIncomeRemainder = 0f;
+				}
+
+				playerRes[resId] = currentAmount + paid;
 			}
 		}
 
 		int depositPlayer = _context.World.Has<UnitOwnerPlayer>(ownerEntity)
 			? _context.World.Get<UnitOwnerPlayer>(ownerEntity).PlayerIndex
 			: 0;
-		OnResourceDepositedForPlayer?.Invoke(depositPlayer, gather.ResourceType, carry);
+		OnResourceDepositedForPlayer?.Invoke(depositPlayer, gather.ResourceType, paid);
 	}
 
-	private void HandleNodeAfterDeposit(Entity entity, ref Gatherer gather)
+	private void ReturnToNodeAfterSale(Entity entity, ref Gatherer gather)
 	{
 		Entity targetNode = gather.TargetEntity;
-		bool nodeAlive = _context.World.IsAlive(targetNode) && _context.World.Has<Position>(targetNode);
+		bool nodeAlive = _context.World.IsAlive(targetNode)
+		                && _context.World.Has<Position>(targetNode)
+		                && (!_context.World.TryGet<ResourceNode>(targetNode, out ResourceNode node) || node.Amount > 0f);
 
 		var newState = gather;
 		newState.ReturningToBase = false;
-		newState.CarriedAmount = 0f;
 
 		if (nodeAlive)
 		{
@@ -252,6 +287,7 @@ public class ResourceEconomyService
 		else
 		{
 			newState.TargetEntity = Entity.Null;
+			newState.ItemStringId = 0;
 			_tickGatherersToUpdate.Add((entity, newState, null));
 		}
 	}
@@ -260,7 +296,7 @@ public class ResourceEconomyService
 	{
 		var currentPos = pos.Value;
 		Entity targetNode = gather.TargetEntity;
-		bool nodeAlive = _context.World.IsAlive(targetNode) && _context.World.Has<Position>(targetNode) && _context.World.Has<ResourceNode>(targetNode);
+		bool nodeAlive = _context.World.IsAlive(targetNode) && _context.World.Has<Position>(targetNode) && _context.World.Has<ResourceNode>(targetNode) && _context.World.Has<Harvestable>(targetNode);
 
 		if (!nodeAlive)
 		{
@@ -270,7 +306,8 @@ public class ResourceEconomyService
 
 		var targetPos = _context.World.Get<Position>(targetNode).Value;
 		float dist = Vector3.Distance(currentPos, targetPos);
-		float gatherRange = 3.5f;
+		float gatherRange = GatherReach;
+		if (_context.World.TryGet(targetNode, out CollisionRadius nodeCollision)) gatherRange = Math.Max(gatherRange, nodeCollision.Value + 2.5f);
 
 		if (dist <= gatherRange)
 		{
@@ -298,6 +335,13 @@ public class ResourceEconomyService
 		}
 	}
 
+	/// <summary>
+	///     Works the node the worker is standing at, one hit at a time. The hit is the unit's own attack, resolved against
+	///     the node's resistances, so the resource a node loses is the damage the worker would have dealt in combat and the
+	///     pieces it yields are the items the worker acquires into its inventory. A worker that cannot hold another piece
+	///     takes what it has to a drop-off and sells it, which is what makes the walk, the hit rate and the damage all
+	///     show up in income.
+	/// </summary>
 	private void MineResource(Entity entity, ref Gatherer gather, Entity targetNode, Vector3 currentPos)
 	{
 		if (_context.World.Has<MoveTo>(entity))
@@ -305,44 +349,68 @@ public class ResourceEconomyService
 			OnStopGatheringMovementRequested?.Invoke(entity);
 		}
 
+		if (!_context.World.Has<Inventory>(entity)) return;
+		if (!_context.World.TryGet<Harvestable>(targetNode, out Harvestable harvestable)) return;
+
+		string itemId = harvestable.ItemId;
+		int maxStacks = MaxStacksOf(itemId);
+		int slotLimit = _context.MapRules.InventorySlotLimit;
+
 		var newState = gather;
-		float mineRate = CalculateMineRate(entity);
+		newState.ItemStringId = harvestable.ItemStringId;
+		if (newState.SwingSeconds <= 0f) newState.SwingSeconds = _context.CombatDamageService.GetGatherInterval(entity);
+		newState.SwingProgress += _fDelta;
+		bool acquiredAnything = false;
 
-		ref var resNode = ref _context.World.Get<ResourceNode>(targetNode);
-		mineRate = Math.Min(mineRate, resNode.Amount);
-
-		resNode.Amount -= mineRate;
-		_context.World.Set(targetNode, resNode);
-		OnResourceHarvested?.Invoke(targetNode);
-
-		newState.CarriedAmount = Math.Min(gather.MaxCapacity, gather.CarriedAmount + mineRate);
-
-		if (resNode.Amount <= 0f)
+		while (newState.SwingProgress >= newState.SwingSeconds)
 		{
-			OnPropDepleted?.Invoke(targetNode);
+			float nodeAmount = _context.World.Get<ResourceNode>(targetNode).Amount;
+			if (nodeAmount <= 0f) break;
+
+			int room = _context.World.Get<Inventory>(entity).AvailableRoom(itemId, maxStacks, slotLimit);
+			if (room <= 0) break;
+
+			float taken = _context.CombatDamageService.HarvestFromNode(entity, targetNode, ref newState.HarvestRemainder, room);
+			newState.SwingProgress -= newState.SwingSeconds;
+			if (taken <= 0f) continue;
+
+			int pieces = Math.Min((int)MathF.Floor(taken), room);
+			if (pieces <= 0) continue;
+
+			ref var inventory = ref _context.World.Get<Inventory>(entity);
+			inventory.AddItem(itemId, pieces, maxStacks, slotLimit);
+			acquiredAnything = true;
 		}
 
-		if (newState.CarriedAmount >= gather.MaxCapacity)
+		float remaining = _context.World.TryGet<ResourceNode>(targetNode, out ResourceNode node) ? node.Amount : 0f;
+		if (acquiredAnything) OnResourceHarvested?.Invoke(targetNode);
+		if (remaining <= 0f) OnPropDepleted?.Invoke(targetNode);
+
+		bool inventoryFull = !CanHoldMore(entity, itemId, maxStacks, slotLimit);
+
+		if (inventoryFull || remaining <= 0f)
 		{
 			newState.ReturningToBase = true;
 			FindNearestDropoffAndReturn(entity, ref newState, currentPos);
 		}
 		else
 		{
+			// The hit in progress is part of the state: without writing it back each tick the worker would restart
+			// the same hit forever and a node would never be touched.
 			_tickGatherersToUpdate.Add((entity, newState, null));
 		}
 	}
 
-	private float CalculateMineRate(Entity entity)
+	private int MaxStacksOf(string itemId)
 	{
-		float mineRate = 4.0f * _fDelta;
-		var ownerPlayerEntity = _context.World.Has<Owner>(entity) ? _context.World.Get<Owner>(entity).PlayerEntity.Value : Entity.Null;
-		if (ownerPlayerEntity != Entity.Null && GetHarvestingUpgrade(ownerPlayerEntity))
-		{
-			mineRate *= 1.5f;
-		}
+		return ItemMaxStacksProvider != null ? ItemMaxStacksProvider(itemId) : 1;
+	}
 
-		return mineRate;
+	private bool CanHoldMore(Entity entity, string itemId, int maxStacks, int slotLimit)
+	{
+		if (!_context.World.Has<Inventory>(entity)) return false;
+
+		return _context.World.Get<Inventory>(entity).AvailableRoom(itemId, maxStacks, slotLimit) > 0;
 	}
 
 	private void FindNearestDropoff(Vector3 currentPos, PlayerEntity wOwner, out Entity nearestDropoff, out Vector3 nearestDropoffPos, out float dropoffRadius)
@@ -385,6 +453,7 @@ public class ResourceEconomyService
 		bool candidate = _dropoffRequireDropoffBuilding
 			? _context.MapRules.IsResourceDropoffBuilding(definitionId.Value)
 			: _context.World.Has<Building>(buildingEntity) && !_context.World.Has<ConstructionState>(buildingEntity);
+		if (candidate && _context.World.Has<Dormant>(buildingEntity)) candidate = false;
 		if (!candidate) return;
 
 		float distance = Vector3.Distance(_dropoffSearchOrigin, buildingPos.Value);

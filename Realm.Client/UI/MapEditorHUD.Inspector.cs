@@ -100,6 +100,15 @@ namespace Realm.Client.UI
 				else
 					nameStr = idStr;
 			}
+			else if (selected is LootItem3D lootItem)
+			{
+				typeStr = "ITEM";
+				idStr = Path.GetFileName(lootItem.ItemTypeId).ToUpper();
+				if (GameContext.RegistryService != null && GameContext.RegistryService.ItemRegistry.TryGetValue(lootItem.ItemTypeId, out var itemMeta) && !string.IsNullOrEmpty(itemMeta.Name))
+					nameStr = itemMeta.Name.ToUpper();
+				else
+					nameStr = idStr;
+			}
 			else if (selected is Decal decal)
 			{
 				typeStr = "DECAL";

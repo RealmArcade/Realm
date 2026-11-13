@@ -1,4 +1,4 @@
-namespace Realm.Client.Services;
+namespace Realm.Shared.Simulation;
 
 public enum CheatResult
 {
@@ -10,5 +10,6 @@ public enum CheatResult
 	EzClap,
 	NoCap,
 	WarpSpeed,
-	UnlimitedPower
+	UnlimitedPower,
+	Sacrifice
 }

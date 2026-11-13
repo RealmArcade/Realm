@@ -7,8 +7,8 @@ using Realm.Shared.Simulation;
 namespace Realm.Simulation.Tests;
 
 /// <summary>
-///     Plays a match with the parameters a lobby's host configured: how many building options a draw offers, how many
-///     copies of one building a player may hold, the capacity and charge multipliers, and the vision mode the authority
+///     Plays a match with the parameters a lobby's host configured: how many building options a draw offers, how much
+///     building supply a player holds, the capacity and production multipliers, and the vision mode the authority
 ///     publishes with. A lobby that configures nothing plays the ruleset as it was authored, which the default tests cover.
 /// </summary>
 [TestFixture]
@@ -40,10 +40,10 @@ public class MeleeLobbyOptionTests
 	}
 
 	[Test]
-	public void TheHostSetsHowManyCopiesOfOneBuildingAPlayerMayHold()
+	public void TheHostSetsTheBuildingSupply()
 	{
 		var options = new MatchOptionSet();
-		options.Set(MatchOption.MaximumUniqueBuildingInstances, 1);
+		options.Set(MatchOption.MaximumBuildingSupply, 1);
 		MeleeTestMaps.RequireMaps();
 		_match = MeleeMatch.StartDuel(matchOptions: options);
 
@@ -53,23 +53,25 @@ public class MeleeLobbyOptionTests
 		_match.SetWood(1, 500f);
 		DraftOffer second = _match.BeginConstruction(1, SecondSite);
 
-		Assert.That(second.AbilityIds, Is.Empty, "A player at the host's building limit may not be offered another draw.");
-		Assert.That(_match.DraftOptions(1), Is.Empty, "The command grid stays closed at the host's building limit.");
+		Assert.That(second.AbilityIds, Is.Empty, "A player at the host's building supply may not be offered another draw.");
+		Assert.That(_match.DraftOptions(1), Is.Empty, "The command grid stays closed at the host's building supply.");
+		Assert.That(_match.LastFeedbackText(1), Does.Contain("1 building locations"), "The refusal has to name the supply the host stated.");
 	}
 
 	[Test]
-	public void TheHostMultipliesChargeCapacity()
+	public void TheHostMultipliesStoredProductions()
 	{
 		var options = new MatchOptionSet();
-		options.Set(MatchOption.ChargeMultiplierPercent, 200);
+		options.Set(MatchOption.ProductionMultiplierPercent, 200);
 		MeleeTestMaps.RequireMaps();
 		_match = MeleeMatch.StartDuel(matchOptions: options);
 
 		UnitId building = _match.PlaceCompletedBuilding(FirstSite);
 		string templateId = _match.TemplateOf(building);
-		int authoredCharges = MeleeContent.MaximumChargesOf(templateId);
+		int authoredProductions = MeleeContent.SoldierProductionsOf(templateId);
 
-		Assert.That(_match.MaximumChargesOf(building), Is.EqualTo(authoredCharges * 2), "Doubling the charge multiplier doubles the charges a building holds.");
+		Assert.That(_match.MaxManaOf(building), Is.EqualTo((authoredProductions * 2 + MeleeContent.WorkerProductionsOf(templateId)) * MeleeContent.ProductionMana),
+			"Doubling the production multiplier doubles the production mana a building stores, so it can hold twice the soldiers' worth.");
 	}
 
 	[Test]
@@ -86,13 +88,12 @@ public class MeleeLobbyOptionTests
 		int authoredCapacity = MeleeContent.CapacityOf(templateId);
 
 		int produced = _match.StepUntilSoldiers(1);
-		Assert.That(produced, Is.EqualTo(1), "The building raises its first soldier from its starting charge.");
+		Assert.That(produced, Is.EqualTo(1), "The building raises its first soldier from its starting production.");
 
 		float waited = 0f;
 		while (waited < 120f)
 		{
-			_match.Api.SetUnitCharges(building, 4, 0.1f);
-			_match.Api.SetUnitChargeCount(building, 4);
+			_match.Api.SetUnitMana(building, _match.MaxManaOf(building));
 			_match.Step(1f);
 			waited += 1f;
 		}
@@ -104,6 +105,45 @@ public class MeleeLobbyOptionTests
 		{
 			Assert.That(_match.TemplateOf(soldiers[index]), Is.EqualTo(soldierType), "Every soldier the building raises is the one its profile states.");
 		}
+	}
+
+	[Test]
+	public void OpenPoolDraftingKeepsAPickedBuildingAvailable()
+	{
+		var options = new MatchOptionSet();
+		options.Set(MatchOption.OpenPoolDrafting, 1);
+		MeleeTestMaps.RequireMaps();
+		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match.SetWood(1, 500f);
+		_match.SetWood(2, 500f);
+
+		DraftOffer firstDraw = _match.BeginConstruction(1, FirstSite);
+		string picked = firstDraw.AbilityIds[0];
+		_match.LockDraftOption(1, picked, FirstSite);
+
+		DraftOffer secondDraw = _match.BeginConstruction(2, SecondSite);
+
+		Assert.That(secondDraw.AbilityIds, Does.Contain(picked), "Open-pool drafting has to leave a picked building in the shared deck.");
+		_match.AbandonDraft(2);
+	}
+
+	[Test]
+	public void MirroredDraftOffersEveryPlayerTheSameBuildings()
+	{
+		var options = new MatchOptionSet();
+		options.Set(MatchOption.MirroredAutoDraft, 1);
+		options.Set(MatchOption.MaximumBuildingDraftCount, 2);
+		MeleeTestMaps.RequireMaps();
+		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match.SetWood(1, 500f);
+		_match.SetWood(2, 500f);
+
+		DraftOffer first = _match.BeginConstruction(1, FirstSite);
+		DraftOffer second = _match.BeginConstruction(2, SecondSite);
+
+		Assert.That(second.AbilityIds, Is.EquivalentTo(first.AbilityIds), "A mirrored draw has to offer the same buildings to every player.");
+		_match.AbandonDraft(1);
+		_match.AbandonDraft(2);
 	}
 
 	[Test]
