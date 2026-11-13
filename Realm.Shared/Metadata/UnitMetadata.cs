@@ -57,7 +57,7 @@ public class UnitMetadata : PlaceableMetadata
 	public float RespawnSeconds { get; set; }
 	public string[]? BuildOptions { get; set; }
 	public bool IsHero { get; set; }
-	public bool IncludeInDefaultHotkeySelection { get; set; }
+	public bool IncludeInDefaultHotkeySelection { get; set; } = true;
 	public string[]? Abilities { get; set; }
 	public float XpBounty { get; set; }
 	public float ExperiencePerLevel { get; set; }
