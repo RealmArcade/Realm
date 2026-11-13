@@ -265,7 +265,7 @@ HOST_TYPES = {
 # Generated debugger script metadata
 REALM_LLDB_SCRIPT_VERSION = "1"
 REALM_LLDB_SCRIPT_HASH = "f683cd830eee2a946494ad66b004576a1e69bd91fef15b6693299a1f07a1a26b"
-REALM_LLDB_SOURCE_COMMIT = "8938e5694c737e5345354a0e1d47d034cd12f131"
+REALM_LLDB_SOURCE_COMMIT = "4bf75ef65ec218f9429e571feff30723ff96c19c"
 
 INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"
 
@@ -566,6 +566,22 @@ def read_array_state(target, array_host_address, array_type):
                 element_size = 4
 
     return length, data_host, element_size, element_type
+
+def read_utf16_string(process, address, length):
+    if length <= 0 or length > 1000000:
+        return ""
+    data = read_bytes(process, address, length * 2)
+    if data is None:
+        return ""
+    return data.decode("utf-16-le", errors="replace")
+
+def quote_string(text):
+    escaped = text.replace(chr(92), chr(92) + chr(92))
+    escaped = escaped.replace('"', chr(92) + '"')
+    escaped = escaped.replace(chr(10), chr(92) + "n")
+    escaped = escaped.replace(chr(13), chr(92) + "r")
+    escaped = escaped.replace(chr(9), chr(92) + "t")
+    return '"' + escaped + '"'
 
 def make_element_value(valobj, name, address, element_type, element_is_class):
     if not element_type or not element_type.IsValid():
@@ -1393,7 +1409,10 @@ class WebAssemblyRefWrapperSyntheticProvider:
             return
 
         type_name = self.inner_type.GetName()
-        if type_name.startswith("__Array<"):
+        if type_name == "System_String":
+            self.mode = "string"
+            self.build_string()
+        elif type_name.startswith("__Array<"):
             self.mode = "array"
             self.build_array()
         elif "System_Collections_Generic_List_1<" in type_name:
@@ -1402,6 +1421,15 @@ class WebAssemblyRefWrapperSyntheticProvider:
         else:
             self.mode = "object"
             self.build_object()
+
+    def build_string(self):
+        length_offset = get_type_field_offset(self.inner_type, "_stringLength", 4)
+        char_offset = get_type_field_offset(self.inner_type, "_firstChar", 8)
+        process = self.target.GetProcess()
+        length = read_int(process, self.host_pointer + length_offset)
+        text = read_utf16_string(process, self.host_pointer + char_offset, length)
+        self.children.append(("Value", "string", text))
+        self.children.append(("Length", "int", length))
 
     def build_list(self):
         count, capacity, data_host, element_size, element_type = read_list_state(self.target, self.host_pointer, self.inner_type)
@@ -1456,6 +1484,8 @@ class WebAssemblyRefWrapperSyntheticProvider:
         kind = child[1]
         if kind == "int":
             return make_int_value(self.valobj, name, child[2])
+        if kind == "string":
+            return make_string_value(self.valobj, name, child[2])
         if kind == "element":
             return make_element_value(self.valobj, name, child[2], child[3], child[4])
         if kind == "field":
@@ -1551,6 +1581,63 @@ class ManagedArraySyntheticProvider:
             return make_element_value(self.valobj, child[0], child[2], child[3], child[4])
         return None
 
+class ManagedStringSyntheticProvider:
+    def __init__(self, valobj, internal_dict):
+        self.valobj = valobj
+        self.target = valobj.GetTarget()
+        self.string_type = valobj.GetType()
+        self.string_host = valobj.GetLoadAddress()
+        self.children = []
+        self.build()
+
+    def build(self):
+        if not self.string_host or self.string_host == lldb.LLDB_INVALID_ADDRESS:
+            return
+        length_offset = get_type_field_offset(self.string_type, "_stringLength", 4)
+        char_offset = get_type_field_offset(self.string_type, "_firstChar", 8)
+        process = self.target.GetProcess()
+        length = read_int(process, self.string_host + length_offset)
+        text = read_utf16_string(process, self.string_host + char_offset, length)
+        self.children.append(("Value", "string", text))
+        self.children.append(("Length", "int", length))
+
+    def update(self):
+        return False
+
+    def num_children(self):
+        return len(self.children)
+
+    def has_children(self):
+        return len(self.children) > 0
+
+    def get_child_index(self, name):
+        for index, child in enumerate(self.children):
+            if child[0] == name:
+                return index
+        return -1
+
+    def get_child_at_index(self, index):
+        if index < 0 or index >= len(self.children):
+            return None
+        child = self.children[index]
+        if child[1] == "string":
+            return make_string_value(self.valobj, child[0], child[2])
+        if child[1] == "int":
+            return make_int_value(self.valobj, child[0], child[2])
+        return None
+
+def ManagedStringSummaryProvider(valobj, internal_dict):
+    string_type = valobj.GetType()
+    string_host = valobj.GetLoadAddress()
+    if not string_host or string_host == lldb.LLDB_INVALID_ADDRESS:
+        return '""'
+    length_offset = get_type_field_offset(string_type, "_stringLength", 4)
+    char_offset = get_type_field_offset(string_type, "_firstChar", 8)
+    process = valobj.GetTarget().GetProcess()
+    length = read_int(process, string_host + length_offset)
+    text = read_utf16_string(process, string_host + char_offset, length)
+    return quote_string(text)
+
 def friendly_type_name(name):
     if not name:
         return "?"
@@ -1570,6 +1657,14 @@ def WebAssemblyRefWrapperSummaryProvider(valobj, internal_dict):
     host_pointer = guest_pointer_to_host(target, guest_pointer)
     if host_pointer == 0:
         return f"{friendly_type_name(inner_name)} (guest 0x{guest_pointer:X})"
+
+    if inner_name == "System_String":
+        length_offset = get_type_field_offset(inner_type, "_stringLength", 4)
+        char_offset = get_type_field_offset(inner_type, "_firstChar", 8)
+        process = target.GetProcess()
+        length = read_int(process, host_pointer + length_offset)
+        text = read_utf16_string(process, host_pointer + char_offset, length)
+        return quote_string(text)
 
     if inner_name.startswith("__Array<"):
         length, _, _, _ = read_array_state(target, host_pointer, inner_type)
@@ -1702,6 +1797,8 @@ def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand(f"type summary add -F realm_lldb.ManagedListSummaryProvider -x \"(^|.*[.:_ ])S_P_CoreLib_System_Collections_Generic_List_1\" -w {category}")
     debugger.HandleCommand(f"type synthetic add -l realm_lldb.ManagedArraySyntheticProvider -x \"(^|.*[.:_ ])__Array\" -w {category}")
     debugger.HandleCommand(f"type summary add -F realm_lldb.ManagedArraySummaryProvider -x \"(^|.*[.:_ ])__Array\" -w {category}")
+    debugger.HandleCommand(f"type synthetic add -l realm_lldb.ManagedStringSyntheticProvider -x \"(^|.*[.:_ ])System_String$\" -w {category}")
+    debugger.HandleCommand(f"type summary add -F realm_lldb.ManagedStringSummaryProvider -x \"(^|.*[.:_ ])System_String$\" -w {category}")
 
     debugger.HandleCommand(f"type summary add -s \"(${{var.X}}, ${{var.Y}}, ${{var.Z}})\" -x \"(^|.*[.:_ ])Vector3$\" -w {category}")
 

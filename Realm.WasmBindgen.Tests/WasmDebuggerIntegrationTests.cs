@@ -152,6 +152,8 @@ public class WasmDebuggerIntegrationTests
 		Assert.That(script, Does.Contain("WebAssemblyRefWrapperSyntheticProvider"));
 		Assert.That(script, Does.Contain("ManagedListSyntheticProvider"));
 		Assert.That(script, Does.Contain("ManagedArraySyntheticProvider"));
+		Assert.That(script, Does.Contain("ManagedStringSyntheticProvider"));
+		Assert.That(script, Does.Contain("read_utf16_string"));
 		Assert.That(script, Does.Contain("guest_pointer_to_host"));
 		Assert.That(script, Does.Contain("read_list_state"));
 		Assert.That(script, Does.Contain("read_array_state"));

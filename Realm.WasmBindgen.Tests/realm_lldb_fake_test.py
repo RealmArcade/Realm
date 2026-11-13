@@ -672,6 +672,42 @@ def main():
     expect("Count = " in inspect_list_output, "realm_inspect did not print the list count")
     expect("[0] = " in inspect_list_output, "realm_inspect did not print list element 0")
 
+    string_type = FakeType(
+        "System_String",
+        fields=[
+            FakeField("_stringLength", int_type, 4),
+            FakeField("_firstChar", FakeType("char16_t", byte_size=2), 8),
+        ],
+        byte_size=12,
+        base_count=1)
+    wrapper_string_type = FakeType(
+        "WebAssemblyRefWrapper<System_String>",
+        template_argument=string_type,
+        byte_size=4)
+    types[string_type.name] = string_type
+    types[wrapper_string_type.name] = wrapper_string_type
+
+    string_guest = 0x5000
+    string_host = BASE + string_guest
+    string_text = "unit/chad"
+    write_int(MEMORY, string_host + 4, len(string_text))
+    encoded = string_text.encode("utf-16-le")
+    MEMORY[string_host + 8:string_host + 8 + len(encoded)] = encoded
+    string_wrapper_host = BASE + 0x5100
+    write_int(MEMORY, string_wrapper_host, string_guest)
+
+    string_wrapper_value = FakeValue(generic_target, "templateId", wrapper_string_type.GetName(), address=string_wrapper_host, type_obj=wrapper_string_type)
+    string_provider = module.WebAssemblyRefWrapperSyntheticProvider(string_wrapper_value, {})
+    expect(string_provider.mode == "string", "the generic wrapper provider did not recognize System_String")
+    expect(string_provider.get_child_at_index(0).GetValue() == string_text, "the wrapper string provider did not decode Value")
+    expect(string_provider.get_child_at_index(1).GetValueAsSigned() == len(string_text), "the wrapper string provider did not read Length")
+    expect(module.WebAssemblyRefWrapperSummaryProvider(string_wrapper_value, {}) == '"unit/chad"', "the wrapper string summary did not quote the value")
+
+    direct_string_value = FakeValue(generic_target, "templateId", string_type.GetName(), address=string_host, type_obj=string_type)
+    direct_string_provider = module.ManagedStringSyntheticProvider(direct_string_value, {})
+    expect(direct_string_provider.get_child_at_index(0).GetValue() == string_text, "the direct string provider did not decode Value")
+    expect(module.ManagedStringSummaryProvider(direct_string_value, {}) == '"unit/chad"', "the direct string summary did not quote the value")
+
     print("OK")
     return 0
 
