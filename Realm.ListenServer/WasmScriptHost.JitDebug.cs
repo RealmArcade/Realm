@@ -106,7 +106,8 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 			string? workspaceDirectory = ResolveWorkspaceDirectory(wasmPath);
 			string? directoryName = Path.GetDirectoryName(wasmPath);
 			string pidStr = System.Environment.ProcessId.ToString();
-			string debugJson = $"{{\"pid\":{System.Environment.ProcessId},\"sharedMemoryPointer\":{_sharedMemoryPointer.ToInt64()}}}";
+			long wasmMemoryBase = _sharedMemoryPointer == IntPtr.Zero ? 0 : _sharedMemoryPointer.ToInt64() - _sharedMemoryOffset;
+			string debugJson = $"{{\"pid\":{System.Environment.ProcessId},\"sharedMemoryPointer\":{_sharedMemoryPointer.ToInt64()},\"guestBaseOffset\":{_sharedMemoryOffset},\"wasmMemoryBase\":{wasmMemoryBase}}}";
 
 			if (!string.IsNullOrEmpty(workspaceDirectory) && Directory.Exists(workspaceDirectory))
 			{

@@ -7,6 +7,8 @@ import struct
 INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"
 
 _CACHED_BASE_ADDR = 0
+_CACHED_DEBUG_METADATA = None
+_CACHED_DEBUG_METADATA_PID = 0
 
 def get_shared_memory_base(target):
     global _CACHED_BASE_ADDR
@@ -17,34 +19,15 @@ def get_shared_memory_base(target):
             return _CACHED_BASE_ADDR
         _CACHED_BASE_ADDR = 0
 
-    import os, json
-    search_dirs = [os.getcwd()]
-    if target and target.IsValid():
-        exe = target.GetExecutable()
-        if exe and exe.IsValid():
-            search_dirs.append(exe.GetDirectory())
-    if "__file__" in globals():
-        search_dirs.append(os.path.dirname(__file__))
-
-    for d in search_dirs:
-        if not d:
-            continue
-        debug_json = os.path.join(d, "MapScript.debug.json")
-        if os.path.exists(debug_json):
-            try:
-                with open(debug_json, "r") as f:
-                    data = json.load(f)
-                if data.get("pid") != target.GetProcess().GetProcessID():
-                    continue
-                ptr = data.get("sharedMemoryPointer", 0)
-                if ptr != 0:
-                    err = lldb.SBError()
-                    target.GetProcess().ReadMemory(ptr, 4, err)
-                    if err.Success():
-                        _CACHED_BASE_ADDR = ptr
-                        return ptr
-            except Exception:
-                pass
+    metadata = get_debug_metadata(target)
+    if metadata:
+        ptr = metadata.get("sharedMemoryPointer", 0)
+        if ptr != 0:
+            err = lldb.SBError()
+            target.GetProcess().ReadMemory(ptr, 4, err)
+            if err.Success():
+                _CACHED_BASE_ADDR = ptr
+                return ptr
 
     candidate_names = [
         "g_realmSharedMemoryBase",
@@ -155,6 +138,183 @@ def resolve_component_stride(process, base_addr, comp_id, default_stride):
         if val > 0:
             return val
     return default_stride
+
+def get_debug_metadata(target):
+    global _CACHED_DEBUG_METADATA, _CACHED_DEBUG_METADATA_PID
+    if not target or not target.IsValid():
+        return None
+
+    process = target.GetProcess()
+    pid = process.GetProcessID()
+    if _CACHED_DEBUG_METADATA is not None and _CACHED_DEBUG_METADATA_PID == pid:
+        return _CACHED_DEBUG_METADATA
+
+    import json
+    import os
+    for directory in workspace_search_dirs(target):
+        path = os.path.join(directory, "MapScript.debug.json")
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r") as debug_file:
+                data = json.load(debug_file)
+            if data.get("pid") != pid:
+                continue
+            _CACHED_DEBUG_METADATA = data
+            _CACHED_DEBUG_METADATA_PID = pid
+            return data
+        except Exception:
+            pass
+
+    return None
+
+def get_wasm_memory_base(target):
+    metadata = get_debug_metadata(target)
+    if metadata:
+        wasm_base = metadata.get("wasmMemoryBase", 0)
+        if wasm_base:
+            return wasm_base
+        shared_pointer = metadata.get("sharedMemoryPointer", 0)
+        guest_offset = metadata.get("guestBaseOffset", 0)
+        if shared_pointer and guest_offset is not None:
+            return shared_pointer - guest_offset
+
+    return get_shared_memory_base(target)
+
+def guest_pointer_to_host(target, guest_pointer):
+    if guest_pointer == 0:
+        return 0
+    wasm_base = get_wasm_memory_base(target)
+    if wasm_base == 0:
+        return 0
+    return wasm_base + guest_pointer
+
+def extract_template_inner_type(type_name):
+    if not type_name:
+        return None
+    start = type_name.find("<")
+    end = type_name.rfind(">")
+    if start < 0 or end <= start:
+        return None
+    return type_name[start + 1:end]
+
+def extract_array_element_type(type_name):
+    if not type_name or not type_name.startswith("__Array<"):
+        return None
+    return extract_template_inner_type(type_name)
+
+def get_type_field(type_obj, field_name):
+    if not type_obj or not type_obj.IsValid():
+        return None
+    try:
+        for index in range(type_obj.GetNumberOfFields()):
+            field = type_obj.GetFieldAtIndex(index)
+            if field and field.GetName() == field_name:
+                return field
+    except Exception:
+        pass
+    return None
+
+def get_type_field_offset(type_obj, field_name, fallback):
+    field = get_type_field(type_obj, field_name)
+    if field:
+        try:
+            return field.GetOffsetInBytes()
+        except Exception:
+            pass
+    return fallback
+
+def type_is_managed_class(type_obj):
+    if not type_obj or not type_obj.IsValid():
+        return False
+    try:
+        return type_obj.GetNumberOfDirectBaseClasses() > 0
+    except Exception:
+        return False
+
+def get_pointer_pointee_type(target, wrapper_type):
+    try:
+        inner = wrapper_type.GetTemplateArgumentType(0)
+        if inner and inner.IsValid():
+            return inner
+    except Exception:
+        pass
+
+    inner_name = extract_template_inner_type(wrapper_type.GetName())
+    if not inner_name:
+        return None
+    return target.FindFirstType(inner_name)
+
+def read_wrapper_guest_pointer(valobj):
+    child = valobj.GetChildMemberWithName("__ptr")
+    if child and child.IsValid():
+        return child.GetValueAsUnsigned(0)
+
+    address = valobj.GetLoadAddress()
+    if address and address != lldb.LLDB_INVALID_ADDRESS:
+        return read_int(valobj.GetTarget().GetProcess(), address)
+    return 0
+
+def read_list_state(target, list_host_address, list_type):
+    process = target.GetProcess()
+    size_offset = get_type_field_offset(list_type, "_size", 8)
+    items_offset = get_type_field_offset(list_type, "_items", 4)
+    count = read_int(process, list_host_address + size_offset)
+    items_guest_pointer = read_int(process, list_host_address + items_offset)
+    if items_guest_pointer == 0:
+        return count, 0, 0, 4, None
+
+    items_host = guest_pointer_to_host(target, items_guest_pointer)
+    if items_host == 0:
+        return count, 0, 0, 4, None
+
+    capacity = read_int(process, items_host + 4)
+    data_host = items_host + 8
+    element_type_name = extract_template_inner_type(list_type.GetName())
+    element_type = target.FindFirstType(element_type_name) if element_type_name else None
+    element_size = 4
+    if element_type and element_type.IsValid():
+        if type_is_managed_class(element_type):
+            element_size = 4
+        else:
+            try:
+                element_size = element_type.GetByteSize() or 4
+            except Exception:
+                element_size = 4
+
+    return count, capacity, data_host, element_size, element_type
+
+def read_array_state(target, array_host_address, array_type):
+    process = target.GetProcess()
+    length_offset = get_type_field_offset(array_type, "Length", 4)
+    data_offset = get_type_field_offset(array_type, "Data", 8)
+    length = read_int(process, array_host_address + length_offset)
+    data_host = array_host_address + data_offset
+    element_type_name = extract_array_element_type(array_type.GetName())
+    element_type = target.FindFirstType(element_type_name) if element_type_name else None
+    element_size = 4
+    if element_type and element_type.IsValid():
+        if type_is_managed_class(element_type):
+            element_size = 4
+        else:
+            try:
+                element_size = element_type.GetByteSize() or 4
+            except Exception:
+                element_size = 4
+
+    return length, data_host, element_size, element_type
+
+def make_element_value(valobj, name, address, element_type, element_is_class):
+    if not element_type or not element_type.IsValid():
+        return None
+    if element_is_class:
+        guest_pointer = read_int(valobj.GetTarget().GetProcess(), address)
+        host_address = guest_pointer_to_host(valobj.GetTarget(), guest_pointer)
+        if host_address == 0:
+            return None
+        return valobj.CreateValueFromAddress(name, host_address, element_type)
+
+    return valobj.CreateValueFromAddress(name, address, element_type)
 
 def read_bytes(process, address, size):
     if address <= 0:
@@ -569,6 +729,18 @@ def realm_inspect(debugger, command, result, internal_dict):
         return
 
     type_name = valobj.GetType().GetName()
+    if "WebAssemblyRefWrapper<" in type_name or "WebAssemblyPtrWrapper<" in type_name:
+        provider = WebAssemblyRefWrapperSyntheticProvider(valobj, {})
+        result.AppendMessage(f"{expression} = {WebAssemblyRefWrapperSummaryProvider(valobj, {})}")
+        for index in range(provider.num_children()):
+            child = provider.get_child_at_index(index)
+            if child:
+                value = child.GetValue()
+                if value is None:
+                    value = child.GetSummary()
+                result.AppendMessage(f"  {provider.children[index][0]} = {value}")
+        return
+
     handle_spec = find_handle_spec(type_name)
     if handle_spec:
         result.AppendMessage(f"{expression} = {RealmHandleSummaryProvider(valobj, {})}")
@@ -937,6 +1109,223 @@ class RealmHandleSyntheticProvider:
             return None
         return make_value(self.valobj, field.get("name", "Value"), field.get("type", "int"), value)
 
+class WebAssemblyRefWrapperSyntheticProvider:
+    def __init__(self, valobj, internal_dict):
+        self.valobj = valobj
+        self.target = valobj.GetTarget()
+        self.inner_type = get_pointer_pointee_type(self.target, valobj.GetType())
+        self.guest_pointer = 0
+        self.host_pointer = 0
+        self.mode = "invalid"
+        self.children = []
+        self.update()
+
+    def update(self):
+        self.guest_pointer = read_wrapper_guest_pointer(self.valobj)
+        self.host_pointer = guest_pointer_to_host(self.target, self.guest_pointer)
+        self.children = []
+        self.mode = "invalid"
+
+        if not self.inner_type or not self.inner_type.IsValid() or self.host_pointer == 0:
+            return
+
+        type_name = self.inner_type.GetName()
+        if type_name.startswith("__Array<"):
+            self.mode = "array"
+            self.build_array()
+        elif "System_Collections_Generic_List_1<" in type_name:
+            self.mode = "list"
+            self.build_list()
+        else:
+            self.mode = "object"
+            self.build_object()
+
+    def build_list(self):
+        count, capacity, data_host, element_size, element_type = read_list_state(self.target, self.host_pointer, self.inner_type)
+        self.children.append(("Count", "int", count))
+        self.children.append(("Capacity", "int", capacity))
+        if data_host and element_type and element_type.IsValid():
+            element_is_class = type_is_managed_class(element_type)
+            for index in range(min(count, 1000)):
+                self.children.append((f"[{index}]", "element", data_host + index * element_size, element_type, element_is_class))
+
+    def build_array(self):
+        length, data_host, element_size, element_type = read_array_state(self.target, self.host_pointer, self.inner_type)
+        self.children.append(("Length", "int", length))
+        if element_type and element_type.IsValid():
+            element_is_class = type_is_managed_class(element_type)
+            for index in range(min(length, 1000)):
+                self.children.append((f"[{index}]", "element", data_host + index * element_size, element_type, element_is_class))
+
+    def build_object(self):
+        try:
+            field_count = self.inner_type.GetNumberOfFields()
+        except Exception:
+            field_count = 0
+
+        for index in range(field_count):
+            field = self.inner_type.GetFieldAtIndex(index)
+            if not field:
+                continue
+            name = field.GetName()
+            field_type = field.GetType()
+            offset = field.GetOffsetInBytes()
+            self.children.append((name, "field", self.host_pointer + offset, field_type))
+
+    def num_children(self):
+        return len(self.children)
+
+    def has_children(self):
+        return len(self.children) > 0
+
+    def get_child_index(self, name):
+        for index, child in enumerate(self.children):
+            if child[0] == name:
+                return index
+        return -1
+
+    def get_child_at_index(self, index):
+        if index < 0 or index >= len(self.children):
+            return None
+
+        child = self.children[index]
+        name = child[0]
+        kind = child[1]
+        if kind == "int":
+            return make_int_value(self.valobj, name, child[2])
+        if kind == "element":
+            return make_element_value(self.valobj, name, child[2], child[3], child[4])
+        if kind == "field":
+            return self.valobj.CreateValueFromAddress(name, child[2], child[3])
+        return None
+
+class ManagedListSyntheticProvider:
+    def __init__(self, valobj, internal_dict):
+        self.valobj = valobj
+        self.target = valobj.GetTarget()
+        self.list_type = valobj.GetType()
+        self.list_host = valobj.GetLoadAddress()
+        self.children = []
+        self.build()
+
+    def build(self):
+        if not self.list_host or self.list_host == lldb.LLDB_INVALID_ADDRESS:
+            return
+        count, capacity, data_host, element_size, element_type = read_list_state(self.target, self.list_host, self.list_type)
+        self.children.append(("Count", "int", count))
+        self.children.append(("Capacity", "int", capacity))
+        if data_host and element_type and element_type.IsValid():
+            element_is_class = type_is_managed_class(element_type)
+            for index in range(min(count, 1000)):
+                self.children.append((f"[{index}]", "element", data_host + index * element_size, element_type, element_is_class))
+
+    def update(self):
+        return False
+
+    def num_children(self):
+        return len(self.children)
+
+    def has_children(self):
+        return len(self.children) > 0
+
+    def get_child_index(self, name):
+        for index, child in enumerate(self.children):
+            if child[0] == name:
+                return index
+        return -1
+
+    def get_child_at_index(self, index):
+        if index < 0 or index >= len(self.children):
+            return None
+        child = self.children[index]
+        if child[1] == "int":
+            return make_int_value(self.valobj, child[0], child[2])
+        if child[1] == "element":
+            return make_element_value(self.valobj, child[0], child[2], child[3], child[4])
+        return None
+
+class ManagedArraySyntheticProvider:
+    def __init__(self, valobj, internal_dict):
+        self.valobj = valobj
+        self.target = valobj.GetTarget()
+        self.array_type = valobj.GetType()
+        self.array_host = valobj.GetLoadAddress()
+        self.children = []
+        self.build()
+
+    def build(self):
+        if not self.array_host or self.array_host == lldb.LLDB_INVALID_ADDRESS:
+            return
+        length, data_host, element_size, element_type = read_array_state(self.target, self.array_host, self.array_type)
+        self.children.append(("Length", "int", length))
+        if element_type and element_type.IsValid():
+            element_is_class = type_is_managed_class(element_type)
+            for index in range(min(length, 1000)):
+                self.children.append((f"[{index}]", "element", data_host + index * element_size, element_type, element_is_class))
+
+    def update(self):
+        return False
+
+    def num_children(self):
+        return len(self.children)
+
+    def has_children(self):
+        return len(self.children) > 0
+
+    def get_child_index(self, name):
+        for index, child in enumerate(self.children):
+            if child[0] == name:
+                return index
+        return -1
+
+    def get_child_at_index(self, index):
+        if index < 0 or index >= len(self.children):
+            return None
+        child = self.children[index]
+        if child[1] == "int":
+            return make_int_value(self.valobj, child[0], child[2])
+        if child[1] == "element":
+            return make_element_value(self.valobj, child[0], child[2], child[3], child[4])
+        return None
+
+def friendly_type_name(name):
+    if not name:
+        return "?"
+    return (name
+        .replace("S_P_CoreLib_System_Collections_Generic_", "")
+        .replace("Realm_Ecs_Realm_Ecs_", "")
+        .replace("S_P_CoreLib_", ""))
+
+def WebAssemblyRefWrapperSummaryProvider(valobj, internal_dict):
+    target = valobj.GetTarget()
+    guest_pointer = read_wrapper_guest_pointer(valobj)
+    inner_type = get_pointer_pointee_type(target, valobj.GetType())
+    if not inner_type or not inner_type.IsValid():
+        return f"WebAssemblyRefWrapper<...> (guest 0x{guest_pointer:X})"
+
+    inner_name = inner_type.GetName()
+    host_pointer = guest_pointer_to_host(target, guest_pointer)
+    if host_pointer == 0:
+        return f"{friendly_type_name(inner_name)} (guest 0x{guest_pointer:X})"
+
+    if inner_name.startswith("__Array<"):
+        length, _, _, _ = read_array_state(target, host_pointer, inner_type)
+        return f"Array<{friendly_type_name(extract_array_element_type(inner_name))}> ({length} items, host 0x{host_pointer:X})"
+
+    if "System_Collections_Generic_List_1<" in inner_name:
+        count, capacity, _, _, _ = read_list_state(target, host_pointer, inner_type)
+        return f"List<{friendly_type_name(extract_template_inner_type(inner_name))}> ({count}/{capacity} items, host 0x{host_pointer:X})"
+
+    return f"{friendly_type_name(inner_name)} (host 0x{host_pointer:X})"
+
+def ManagedListSummaryProvider(valobj, internal_dict):
+    address = valobj.GetLoadAddress()
+    return f"List (host 0x{address:X})" if address and address != lldb.LLDB_INVALID_ADDRESS else "List"
+
+def ManagedArraySummaryProvider(valobj, internal_dict):
+    address = valobj.GetLoadAddress()
+    return f"Array (host 0x{address:X})" if address and address != lldb.LLDB_INVALID_ADDRESS else "Array"
+
 class HostTypeSyntheticProvider:
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
@@ -1043,6 +1432,13 @@ def __lldb_init_module(debugger, internal_dict):
         regex = f"(^|.*[.:_ ]){type_name}(\\s*[*&])?$"
         debugger.HandleCommand(f"type synthetic add -l realm_lldb.HostTypeSyntheticProvider -x \"{regex}\" -w {category}")
         debugger.HandleCommand(f"type summary add -F realm_lldb.HostTypeSummaryProvider -x \"{regex}\" -w {category}")
+
+    debugger.HandleCommand(f"type synthetic add -l realm_lldb.WebAssemblyRefWrapperSyntheticProvider -x \"(^|.*[.:_ ])WebAssembly(Ref|Ptr)Wrapper\" -w {category}")
+    debugger.HandleCommand(f"type summary add -F realm_lldb.WebAssemblyRefWrapperSummaryProvider -x \"(^|.*[.:_ ])WebAssembly(Ref|Ptr)Wrapper\" -w {category}")
+    debugger.HandleCommand(f"type synthetic add -l realm_lldb.ManagedListSyntheticProvider -x \"(^|.*[.:_ ])S_P_CoreLib_System_Collections_Generic_List_1\" -w {category}")
+    debugger.HandleCommand(f"type summary add -F realm_lldb.ManagedListSummaryProvider -x \"(^|.*[.:_ ])S_P_CoreLib_System_Collections_Generic_List_1\" -w {category}")
+    debugger.HandleCommand(f"type synthetic add -l realm_lldb.ManagedArraySyntheticProvider -x \"(^|.*[.:_ ])__Array\" -w {category}")
+    debugger.HandleCommand(f"type summary add -F realm_lldb.ManagedArraySummaryProvider -x \"(^|.*[.:_ ])__Array\" -w {category}")
 
     debugger.HandleCommand(f"type summary add -s \"(${{var.X}}, ${{var.Y}}, ${{var.Z}})\" -x \"(^|.*[.:_ ])Vector3$\" -w {category}")
 

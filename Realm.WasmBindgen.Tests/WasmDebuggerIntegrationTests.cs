@@ -145,6 +145,28 @@ public class WasmDebuggerIntegrationTests
 	}
 
 	[Test]
+	public void GenericManagedObjectProvidersAreGenerated()
+	{
+		string script = File.ReadAllText(_generatedScriptPath);
+
+		Assert.That(script, Does.Contain("WebAssemblyRefWrapperSyntheticProvider"));
+		Assert.That(script, Does.Contain("ManagedListSyntheticProvider"));
+		Assert.That(script, Does.Contain("ManagedArraySyntheticProvider"));
+		Assert.That(script, Does.Contain("guest_pointer_to_host"));
+		Assert.That(script, Does.Contain("read_list_state"));
+		Assert.That(script, Does.Contain("read_array_state"));
+	}
+
+	[Test]
+	public void DebugMetadataIncludesGuestMemoryBase()
+	{
+		string source = File.ReadAllText(Path.Combine(_repoRoot, "Realm.ListenServer", "WasmScriptHost.JitDebug.cs"));
+
+		Assert.That(source, Does.Contain("guestBaseOffset"));
+		Assert.That(source, Does.Contain("wasmMemoryBase"));
+	}
+
+	[Test]
 	public void MapApiComponentsAreDiscoveredFromMarkerAttribute()
 	{
 		string generated = WasmEcsComponentEmitter.GenerateEcsComponents(_repoRoot);

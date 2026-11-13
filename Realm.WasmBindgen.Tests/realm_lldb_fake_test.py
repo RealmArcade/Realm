@@ -18,9 +18,29 @@ class FakeError:
         return self.ok
 
 
-class FakeType:
-    def __init__(self, name):
+class FakeField:
+    def __init__(self, name, field_type, offset):
         self.name = name
+        self.field_type = field_type
+        self.offset = offset
+
+    def GetName(self):
+        return self.name
+
+    def GetType(self):
+        return self.field_type
+
+    def GetOffsetInBytes(self):
+        return self.offset
+
+
+class FakeType:
+    def __init__(self, name, fields=None, byte_size=4, template_argument=None, base_count=0):
+        self.name = name
+        self.fields = fields or []
+        self.byte_size = byte_size
+        self.template_argument = template_argument
+        self.base_count = base_count
 
     def IsValid(self):
         return True
@@ -35,7 +55,22 @@ class FakeType:
         return False
 
     def GetArrayType(self, count):
-        return FakeType(f"{self.name}[{count}]")
+        return FakeType(f"{self.name}[{count}]", byte_size=self.byte_size * count)
+
+    def GetNumberOfFields(self):
+        return len(self.fields)
+
+    def GetFieldAtIndex(self, index):
+        return self.fields[index]
+
+    def GetByteSize(self):
+        return self.byte_size
+
+    def GetTemplateArgumentType(self, index):
+        return self.template_argument if index == 0 else None
+
+    def GetNumberOfDirectBaseClasses(self):
+        return self.base_count
 
 
 class FakeProcess:
@@ -63,8 +98,9 @@ class FakeProcess:
 
 
 class FakeTarget:
-    def __init__(self, process):
+    def __init__(self, process, types=None):
         self.process = process
+        self.types = types or {}
 
     def IsValid(self):
         return True
@@ -73,7 +109,7 @@ class FakeTarget:
         return self.process
 
     def FindFirstType(self, name):
-        return FakeType(name)
+        return self.types.get(name, FakeType(name))
 
     def GetBasicType(self, kind):
         return FakeType(str(kind))
@@ -105,13 +141,14 @@ class FakeData:
 
 
 class FakeValue:
-    def __init__(self, target, name, type_name, value=None, address=None, valid=True):
+    def __init__(self, target, name, type_name, value=None, address=None, valid=True, type_obj=None):
         self.target = target
         self.name = name
         self.type_name = type_name
         self.value = value
         self.address = address
         self.valid = valid
+        self.type_obj = type_obj
 
     def IsValid(self):
         return self.valid
@@ -120,15 +157,22 @@ class FakeValue:
         return self.target
 
     def GetType(self):
-        return FakeType(self.type_name)
+        return self.type_obj or FakeType(self.type_name)
+
+    def GetLoadAddress(self):
+        return self.address or 0
 
     def GetChildMemberWithName(self, name):
         if name in ("Value", "value", "<Value>k__BackingField", "_value"):
             return FakeValue(self.target, name, "int", self.value)
+        if name == "__ptr" and self.address is not None:
+            return FakeValue(self.target, name, "int", address=self.address, type_obj=FakeType("int"))
         return FakeValue(self.target, name, "int", None, valid=False)
 
     def GetValueAsSigned(self, default=0):
         if self.value is not None:
+            if isinstance(self.value, (list, tuple)):
+                return self.value[0] if self.value else default
             return self.value
         if self.address is not None and self.target is not None:
             process = self.target.GetProcess()
@@ -139,8 +183,22 @@ class FakeValue:
             return struct.unpack_from("<i", process.memory, self.address)[0]
         return default
 
+    def GetValue(self):
+        if self.value is not None:
+            if isinstance(self.value, (list, tuple)):
+                return str(self.value[0]) if self.value else "0"
+            return str(self.value)
+        if self.address is not None and self.target is not None:
+            return str(self.GetValueAsSigned(0))
+        return None
+
+    def GetSummary(self):
+        return self.GetValue()
+
     def GetValueAsDouble(self):
         if self.value is not None:
+            if isinstance(self.value, (list, tuple)):
+                return float(self.value[0]) if self.value else 0.0
             return float(self.value)
         if self.address is not None and self.target is not None:
             process = self.target.GetProcess()
@@ -155,11 +213,15 @@ class FakeValue:
     def GetData(self):
         return None
 
+    def GetValueAsUnsigned(self, default=0):
+        value = self.GetValueAsSigned(default)
+        return value if value >= 0 else 0
+
     def CreateValueFromData(self, name, data, value_type):
-        return FakeValue(self.target, name, value_type.GetName(), data)
+        return FakeValue(self.target, name, value_type.GetName(), data, type_obj=value_type)
 
     def CreateValueFromAddress(self, name, address, value_type):
-        return FakeValue(self.target, name, value_type.GetName(), address=address)
+        return FakeValue(self.target, name, value_type.GetName(), address=address, type_obj=value_type)
 
     def Dereference(self):
         return self
@@ -504,6 +566,111 @@ def main():
     step_result = FakeResult()
     module.realm_step(FakeDebugger(step_target), "", step_result, {})
     expect(step_thread.stepped, "realm_step did not issue a step-over")
+
+    int_type = FakeType("int", byte_size=4)
+    unit_type = FakeType("Realm_Ecs_Realm_Ecs_UnitId", byte_size=4)
+    array_data_type = FakeType("Realm_Ecs_Realm_Ecs_UnitId[0]", byte_size=4)
+    array_type = FakeType(
+        "__Array<Realm_Ecs_Realm_Ecs_UnitId>",
+        fields=[FakeField("Length", int_type, 4), FakeField("Data", array_data_type, 8)],
+        byte_size=8)
+    wrapper_array_type = FakeType(
+        "WebAssemblyRefWrapper<__Array<Realm_Ecs_Realm_Ecs_UnitId>>",
+        template_argument=array_type,
+        byte_size=4)
+    list_type = FakeType(
+        "S_P_CoreLib_System_Collections_Generic_List_1<Realm_Ecs_Realm_Ecs_UnitId>",
+        fields=[
+            FakeField("_items", wrapper_array_type, 4),
+            FakeField("_size", int_type, 8),
+            FakeField("_version", int_type, 12),
+        ],
+        byte_size=16,
+        base_count=1)
+    wrapper_type = FakeType(
+        "WebAssemblyRefWrapper<S_P_CoreLib_System_Collections_Generic_List_1<Realm_Ecs_Realm_Ecs_UnitId>>",
+        template_argument=list_type,
+        byte_size=4)
+    types = {item.name: item for item in [int_type, unit_type, array_type, wrapper_array_type, list_type, wrapper_type]}
+
+    generic_process = FakeProcess(MEMORY)
+    generic_target = FakeTarget(generic_process, types)
+    wrapper_host = BASE + 0x3000
+    list_host = BASE + 0x1000
+    array_host = BASE + 0x2000
+    write_int(MEMORY, wrapper_host, 0x1000)
+    write_int(MEMORY, list_host + 4, 0x2000)
+    write_int(MEMORY, list_host + 8, 2)
+    write_int(MEMORY, list_host + 12, 1)
+    write_int(MEMORY, array_host + 4, 2)
+    write_int(MEMORY, array_host + 8, 10)
+    write_int(MEMORY, array_host + 12, 20)
+
+    wrapper_value = FakeValue(generic_target, "units", wrapper_type.GetName(), address=wrapper_host, type_obj=wrapper_type)
+    provider = module.WebAssemblyRefWrapperSyntheticProvider(wrapper_value, {})
+    expect(provider.mode == "list", "the generic wrapper provider did not recognize List<UnitId>")
+    expect(provider.num_children() == 4, "the generic list provider did not expose Count, Capacity and two elements")
+    expect(provider.get_child_at_index(0).GetValueAsSigned() == 2, "the generic list provider did not read Count")
+    expect(provider.get_child_at_index(1).GetValueAsSigned() == 2, "the generic list provider did not read Capacity")
+    expect(provider.get_child_at_index(2).GetValueAsSigned() == 10, "the generic list provider did not read element 0")
+    expect(provider.get_child_at_index(3).GetValueAsSigned() == 20, "the generic list provider did not read element 1")
+
+    class_type = FakeType("SomeClass", byte_size=8, base_count=1)
+    class_data_type = FakeType("SomeClass[0]", byte_size=4)
+    class_array_type = FakeType(
+        "__Array<SomeClass>",
+        fields=[FakeField("Length", int_type, 4), FakeField("Data", class_data_type, 8)],
+        byte_size=8)
+    class_wrapper_array_type = FakeType(
+        "WebAssemblyRefWrapper<__Array<SomeClass>>",
+        template_argument=class_array_type,
+        byte_size=4)
+    class_list_type = FakeType(
+        "S_P_CoreLib_System_Collections_Generic_List_1<SomeClass>",
+        fields=[
+            FakeField("_items", class_wrapper_array_type, 4),
+            FakeField("_size", int_type, 8),
+            FakeField("_version", int_type, 12),
+        ],
+        byte_size=16,
+        base_count=1)
+    class_wrapper_type = FakeType(
+        "WebAssemblyRefWrapper<S_P_CoreLib_System_Collections_Generic_List_1<SomeClass>>",
+        template_argument=class_list_type,
+        byte_size=4)
+    types[class_type.name] = class_type
+    types[class_array_type.name] = class_array_type
+    types[class_wrapper_array_type.name] = class_wrapper_array_type
+    types[class_list_type.name] = class_list_type
+    types[class_wrapper_type.name] = class_wrapper_type
+
+    class_wrapper_host = BASE + 0x4000
+    class_list_host = BASE + 0x4100
+    class_array_host = BASE + 0x4200
+    write_int(MEMORY, class_wrapper_host, 0x4100)
+    write_int(MEMORY, class_list_host + 4, 0x4200)
+    write_int(MEMORY, class_list_host + 8, 2)
+    write_int(MEMORY, class_list_host + 12, 1)
+    write_int(MEMORY, class_array_host + 4, 2)
+    write_int(MEMORY, class_array_host + 8, 0x4300)
+    write_int(MEMORY, class_array_host + 12, 0x4400)
+
+    class_wrapper_value = FakeValue(generic_target, "classes", class_wrapper_type.GetName(), address=class_wrapper_host, type_obj=class_wrapper_type)
+    class_provider = module.WebAssemblyRefWrapperSyntheticProvider(class_wrapper_value, {})
+    expect(class_provider.mode == "list", "the generic wrapper provider did not recognize List<SomeClass>")
+    expect(class_provider.get_child_at_index(2).GetLoadAddress() == BASE + 0x4300, "the generic list provider did not translate class element 0")
+    expect(class_provider.get_child_at_index(3).GetLoadAddress() == BASE + 0x4400, "the generic list provider did not translate class element 1")
+
+    inspect_list_frame = FakeFrame({"units": wrapper_value})
+    inspect_list_process = FakeProcess(MEMORY)
+    inspect_list_process.thread = FakeThread(inspect_list_frame)
+    inspect_list_target = FakeTarget(inspect_list_process, types)
+    inspect_list_result = FakeResult()
+    module.realm_inspect(FakeDebugger(inspect_list_target), "units", inspect_list_result, {})
+    inspect_list_output = chr(10).join(inspect_list_result.messages)
+    expect("List<UnitId>" in inspect_list_output, "realm_inspect did not summarize the list")
+    expect("Count = " in inspect_list_output, "realm_inspect did not print the list count")
+    expect("[0] = " in inspect_list_output, "realm_inspect did not print list element 0")
 
     print("OK")
     return 0
