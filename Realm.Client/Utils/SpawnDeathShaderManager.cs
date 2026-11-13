@@ -194,11 +194,13 @@ public static class SpawnDeathShaderManager
 	private static bool IsExcludedMesh(Node node)
 	{
 		if (node == null) return true;
+		if (node.HasMeta(ModelShaderManager.OverlayMaterialMetaName)) return true;
 		string nodeName = node.Name.ToString();
 		return nodeName.StartsWith("_selection", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("Selection", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("_hover", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("Hover", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("PlayerColorGlow", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("BrushIndicator", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("DropShadow", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.Contains("SelectionRing", StringComparison.OrdinalIgnoreCase)
