@@ -67,11 +67,7 @@ public class ModelOverrideService
 
 		if (!string.IsNullOrEmpty(primaryKey))
 		{
-			var registry = GameContext.RegistryService;
-			if (registry.UnitRegistry.TryGetValue(primaryKey, out var meta)) return meta.DespillPlayerColor;
-			if (registry.BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta)) return buildingMeta.DespillPlayerColor;
-			if (registry.ResourceRegistry.TryGetValue(primaryKey, out var resMeta)) return resMeta.DespillPlayerColor;
-			if (registry.PropRegistry.TryGetValue(primaryKey, out var propMeta)) return propMeta.DespillPlayerColor;
+			if (GameContext.RegistryService?.Placeables.Find(primaryKey) is { } placeable) return placeable.DespillPlayerColor;
 		}
 
 		return false;
@@ -87,11 +83,7 @@ public class ModelOverrideService
 
 		if (!string.IsNullOrEmpty(primaryKey))
 		{
-			var registry = GameContext.RegistryService;
-			if (registry.UnitRegistry.TryGetValue(primaryKey, out var meta)) return meta.NormalizeLuminance;
-			if (registry.BuildingRegistry.TryGetValue(primaryKey, out var buildingMeta)) return buildingMeta.NormalizeLuminance;
-			if (registry.ResourceRegistry.TryGetValue(primaryKey, out var resMeta)) return resMeta.NormalizeLuminance;
-			if (registry.PropRegistry.TryGetValue(primaryKey, out var propMeta)) return propMeta.NormalizeLuminance;
+			if (GameContext.RegistryService?.Placeables.Find(primaryKey) is { } placeable) return placeable.NormalizeLuminance;
 		}
 
 		return true;

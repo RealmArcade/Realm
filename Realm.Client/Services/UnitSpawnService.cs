@@ -103,8 +103,7 @@ public class UnitSpawnService
 		var world = GameContext.World;
 		if (world == null) return Entity.Null;
 
-		Realm.Shared.Metadata.UnitMetadata? regMeta = null;
-		if (!GameContext.RegistryService.UnitRegistry.TryGetValue(unitTypeId, out regMeta)) GameContext.RegistryService.BuildingRegistry.TryGetValue(unitTypeId, out regMeta);
+		GameContext.RegistryService.Placeables.TryGetUnitOrBuilding(unitTypeId, out Realm.Shared.Metadata.UnitMetadata? regMeta);
 
 		var pos = new Godot.Vector3(position.X, position.Y, position.Z);
 		Entity entity;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -210,10 +210,7 @@ public partial class GameHost
 		// bar, no level badge and the wrong carry capacity until the authority's own catalog reached it.
 		MapWorldLoader.ApplyMapRules(GameContext.Simulation.MapRules, metadata.MapProperties);
 
-		UnitRegistry.Clear();
-		BuildingRegistry.Clear();
-		PropRegistry.Clear();
-		ResourceRegistry.Clear();
+		GameContext.RegistryService?.Placeables.Clear();
 		WeaponRegistry.Clear();
 		AttachmentRegistry.Clear();
 		ItemRegistry.Clear();
@@ -333,7 +330,7 @@ public partial class GameHost
 		RegisterTemplates(PropRegistry, catalog.Props);
 	}
 
-	private static void RegisterTemplates<T>(Dictionary<StringName, T> registry, IReadOnlyDictionary<string, T> templates)
+	private static void RegisterTemplates<T>(PlaceableView<T> registry, IReadOnlyDictionary<string, T> templates) where T : PlaceableMetadata
 	{
 		foreach (KeyValuePair<string, T> entry in templates)
 		{

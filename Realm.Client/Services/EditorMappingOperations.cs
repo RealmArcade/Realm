@@ -115,7 +115,7 @@ public static class EditorMappingOperations
 	}
 
 
-	public static void CollectMatchingRegistryIds<TMetadata>(Dictionary<StringName, TMetadata> registry, string[] keywords, List<string> matches) where TMetadata : Realm.Shared.Metadata.PlaceableMetadata
+	public static void CollectMatchingRegistryIds<TMetadata>(PlaceableView<TMetadata> registry, string[] keywords, List<string> matches) where TMetadata : Realm.Shared.Metadata.PlaceableMetadata
 	{
 		foreach (KeyValuePair<StringName, TMetadata> entry in registry)
 		{

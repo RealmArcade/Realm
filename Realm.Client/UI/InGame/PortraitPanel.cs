@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Realm.Ecs;
@@ -307,10 +307,8 @@ public class PortraitPanel
 	private string GetPropDisplayName(string propId)
 	{
 		string propDisplayName = propId.ToUpper();
-		if (GameHost.ResourceRegistry.TryGetValue(propId, out var rMeta) && !string.IsNullOrEmpty(rMeta.Name))
-			propDisplayName = rMeta.Name.ToUpper();
-		else if (GameHost.PropRegistry.TryGetValue(propId, out var pMeta) && !string.IsNullOrEmpty(pMeta.Name))
-			propDisplayName = pMeta.Name.ToUpper();
+		if (GameHost.Placeables.Find(propId)?.Name is { Length: > 0 } name) propDisplayName = name.ToUpper();
+
 		return propDisplayName;
 	}
 

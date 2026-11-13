@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Godot;
@@ -177,7 +177,7 @@ public partial class GameHost
 		AllLootItems.Clear();
 	}
 
-	private bool CheckIfInRegistry<T>(Dictionary<StringName, T> registry, string id, string cleanId)
+	private bool CheckIfInRegistry<T>(PlaceableView<T> registry, string id, string cleanId) where T : PlaceableMetadata
 	{
 		return registry.ContainsKey(id) || (!string.IsNullOrEmpty(cleanId) && registry.ContainsKey(cleanId));
 	}

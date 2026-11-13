@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Realm.Ecs;
@@ -50,18 +50,9 @@ public partial class GameHost
 		}
 		_buildingPreviewMesh = null;
 
-		bool isBuilding = false;
-		if (TryGetUnitOrBuildingMetadata(type, out var meta))
-		{
-			if (BuildingRegistry != null && (BuildingRegistry.ContainsKey(type) || (meta.TemplateID != null && BuildingRegistry.ContainsKey(meta.TemplateID))))
-			{
-				isBuilding = true;
-			}
-		}
-		else if (BuildingRegistry != null && BuildingRegistry.TryGetValue(type, out meta))
-		{
-			isBuilding = true;
-		}
+		TryGetUnitOrBuildingMetadata(type, out var meta);
+		bool isBuilding = Placeables.TryGet(type, out PlaceableTemplate placementTemplate) && placementTemplate.Kind == PlaceableKind.Building;
+		if (!isBuilding && meta?.TemplateID != null) isBuilding = Placeables.ContainsKey(meta.TemplateID, PlaceableKind.Building);
 
 		Node3D? previewNode = null;
 		if (meta != null && meta.TemplateID != null && !string.IsNullOrEmpty(meta.ModelPath))

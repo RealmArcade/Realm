@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Ecs;
@@ -97,15 +97,13 @@ namespace Realm.Client.Core
 
 		private void CreateOrUpdatePreviewUnit(string reqId, bool reqIsEnemy)
 		{
-			if (!UnitRegistry.ContainsKey(reqId) && !BuildingRegistry.ContainsKey(reqId))
+			if (!Placeables.TryGetUnitOrBuilding(reqId, out _))
 			{
 				LoadUnitMetadata(!string.IsNullOrEmpty(GameContext.MapStorageService.CurrentMapDirectory) ? GameContext.MapStorageService.CurrentMapDirectory : GameContext.EditorService._editingDirectory);
 			}
 
-			bool isBuilding = false;
-			UnitMetadata? meta;
-			if (!UnitRegistry.TryGetValue(reqId, out meta) && BuildingRegistry.TryGetValue(reqId, out meta))
-				isBuilding = true;
+			bool isBuilding = Placeables.TryGet(reqId, out PlaceableTemplate requestTemplate) && requestTemplate.Kind == PlaceableKind.Building;
+			Placeables.TryGetUnitOrBuilding(reqId, out UnitMetadata? meta);
 
 			if (meta?.TemplateID != null)
 			{

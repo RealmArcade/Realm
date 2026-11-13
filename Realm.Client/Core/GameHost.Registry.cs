@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -97,10 +97,11 @@ public partial class GameHost
 			World.Set(GameContext.Simulation.WorldEntity, new WorldState(s.GameElapsedTime, s.TimeOfDayIndex, value, s.DayNightCycleEnabled)));
 	}
 
-	public static Dictionary<StringName, UnitMetadata> UnitRegistry => GameContext.RegistryService?.UnitRegistry ?? new();
-	public static Dictionary<StringName, UnitMetadata> BuildingRegistry => GameContext.RegistryService?.BuildingRegistry ?? new();
-	public static Dictionary<StringName, PropMetadata> PropRegistry => GameContext.RegistryService?.PropRegistry ?? new();
-	public static Dictionary<StringName, ResourceMetadata> ResourceRegistry => GameContext.RegistryService?.ResourceRegistry ?? new();
+	public static PlaceableTemplates Placeables => GameContext.RegistryService?.Placeables ?? new PlaceableTemplates();
+	public static PlaceableView<UnitMetadata> UnitRegistry => GameContext.RegistryService?.UnitRegistry ?? new(PlaceableKind.Unit);
+	public static PlaceableView<UnitMetadata> BuildingRegistry => GameContext.RegistryService?.BuildingRegistry ?? new(PlaceableKind.Building);
+	public static PlaceableView<PropMetadata> PropRegistry => GameContext.RegistryService?.PropRegistry ?? new(PlaceableKind.Prop);
+	public static PlaceableView<ResourceMetadata> ResourceRegistry => GameContext.RegistryService?.ResourceRegistry ?? new(PlaceableKind.Resource);
 	public static Dictionary<StringName, WeaponMetadata> WeaponRegistry => GameContext.RegistryService?.WeaponRegistry ?? new();
 	public static Dictionary<StringName, AttachmentMetadata> AttachmentRegistry => GameContext.RegistryService?.AttachmentRegistry ?? new();
 	public static Dictionary<StringName, ItemMetadata> ItemRegistry => GameContext.RegistryService?.ItemRegistry ?? new();
@@ -110,9 +111,7 @@ public partial class GameHost
 	{
 		meta = default;
 		if (objectId.IsEmpty) return false;
-		if (UnitRegistry.TryGetValue(objectId, out meta)) return true;
-		if (BuildingRegistry != null && BuildingRegistry.TryGetValue(objectId, out meta)) return true;
-		return false;
+		return Placeables.TryGetUnitOrBuilding(objectId, out meta);
 	}
 
 	public static bool TryGetUnitOrBuildingMetadata(string? objectId, [NotNullWhen(true)] out UnitMetadata? meta)

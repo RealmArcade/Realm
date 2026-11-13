@@ -59,7 +59,7 @@ public class ReplicatedUnitLifecycle
 			return Entity.Null;
 		}
 
-		if (!GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta) && !GameHost.BuildingRegistry.TryGetValue(snap.UnitId, out meta))
+		if (!GameHost.Placeables.TryGetUnitOrBuilding(snap.UnitId, out var meta))
 		{
 			GD.PushWarning($"[Network] Cannot spawn replicated entity {snap.EntityId}: unit id '{snap.UnitId}' is not registered on this client.");
 			return Entity.Null;
@@ -206,7 +206,7 @@ public class ReplicatedUnitLifecycle
 
 		// Attack, resistances and the display name are written from the template rather than described, so a retemplated
 		// unit has to take them from its new one here or it keeps the numbers of what it used to be.
-		if (GameHost.UnitRegistry.TryGetValue(snap.UnitId, out var meta) || GameHost.BuildingRegistry.TryGetValue(snap.UnitId, out meta))
+		if (GameHost.Placeables.TryGetUnitOrBuilding(snap.UnitId, out var meta))
 		{
 			world.SetOrAdd(localEntity, new Name(meta.Name));
 			world.SetOrAdd(localEntity, new Resistances(meta.Armor, meta.MagicResistance));

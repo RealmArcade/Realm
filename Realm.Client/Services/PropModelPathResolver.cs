@@ -101,20 +101,11 @@ public static class PropModelPathResolver
 
 	private static string? FindRegistryModelPath(string propId, string cleanId)
 	{
-		var registries = GameContext.RegistryService;
-		if (registries == null) return null;
+		var registry = GameContext.RegistryService;
+		if (registry == null) return null;
 
-		if (registries.PropRegistry.TryGetValue(propId, out var propMeta) && !string.IsNullOrEmpty(propMeta.ModelPath)) return propMeta.ModelPath;
-		if (!string.IsNullOrEmpty(cleanId) && registries.PropRegistry.TryGetValue(cleanId, out propMeta) && !string.IsNullOrEmpty(propMeta.ModelPath)) return propMeta.ModelPath;
-
-		if (registries.ResourceRegistry.TryGetValue(propId, out var resourceMeta) && !string.IsNullOrEmpty(resourceMeta.ModelPath)) return resourceMeta.ModelPath;
-		if (!string.IsNullOrEmpty(cleanId) && registries.ResourceRegistry.TryGetValue(cleanId, out resourceMeta) && !string.IsNullOrEmpty(resourceMeta.ModelPath)) return resourceMeta.ModelPath;
-
-		if (registries.UnitRegistry.TryGetValue(propId, out var unitMeta) && !string.IsNullOrEmpty(unitMeta.ModelPath)) return unitMeta.ModelPath;
-		if (!string.IsNullOrEmpty(cleanId) && registries.UnitRegistry.TryGetValue(cleanId, out unitMeta) && !string.IsNullOrEmpty(unitMeta.ModelPath)) return unitMeta.ModelPath;
-
-		if (registries.BuildingRegistry.TryGetValue(propId, out var buildingMeta) && !string.IsNullOrEmpty(buildingMeta.ModelPath)) return buildingMeta.ModelPath;
-		if (!string.IsNullOrEmpty(cleanId) && registries.BuildingRegistry.TryGetValue(cleanId, out buildingMeta) && !string.IsNullOrEmpty(buildingMeta.ModelPath)) return buildingMeta.ModelPath;
+		if (registry.Placeables.Find(propId)?.ModelPath is { Length: > 0 } modelPath) return modelPath;
+		if (!string.IsNullOrEmpty(cleanId) && registry.Placeables.Find(cleanId)?.ModelPath is { Length: > 0 } cleanModelPath) return cleanModelPath;
 
 		return null;
 	}
