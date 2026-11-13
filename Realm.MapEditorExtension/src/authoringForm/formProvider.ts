@@ -44,6 +44,7 @@ interface PendingCommit {
 
 interface Session {
     document: vscode.TextDocument;
+    referenceSubscription: vscode.Disposable | undefined;
     panel: vscode.WebviewPanel;
     expanded: string[];
     sections: FormNode[];
@@ -113,6 +114,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             sectionsVersion: -1,
             state: 'ok',
             reference: undefined,
+            referenceSubscription: undefined,
             pending: undefined,
             layoutTimer: undefined,
             disposed: false,
@@ -129,6 +131,13 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
         const documentKey = document.uri.toString();
         session.subscriptions.push(
             panel.webview.onDidReceiveMessage(message => this.handleMessage(session, message as WebviewToHostMessage)),
+            this.services.registry.onDidChangeSchema(() => {
+                session.sectionsVersion = -1;
+                this.postProjection(session);
+                if (session.reference) {
+                    this.postReference(session);
+                }
+            }),
             vscode.workspace.onDidChangeTextDocument(event => {
                 if (event.document.uri.toString() === documentKey) {
                     this.postProjection(session);
@@ -145,6 +154,8 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
 
     private close(session: Session): void {
         this.flush(session);
+        session.referenceSubscription?.dispose();
+        session.referenceSubscription = undefined;
         session.disposed = true;
         for (const subscription of session.subscriptions) {
             subscription.dispose();
@@ -192,6 +203,8 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
                     void this.pickReference(session);
                     return;
                 case 'closeCompare':
+                    session.referenceSubscription?.dispose();
+                    session.referenceSubscription = undefined;
                     session.reference = undefined;
                     this.post(session, { type: 'reference', projection: undefined });
                     return;
@@ -378,7 +391,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             this.postProjection(session);
             return;
         }
-        await this.apply(session, edits);
+        await this.apply(session, edits, context.snapshot.text);
     }
 
     private async structural(session: Session, requestPath: PathSegments, operation: 'addEntry' | 'renameEntry' | 'removeEntry' | 'addItem' | 'removeItem', keyName?: string): Promise<void> {
@@ -433,10 +446,15 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             this.postProjection(session);
             return;
         }
-        await this.apply(session, edits);
+        await this.apply(session, edits, context.snapshot.text);
     }
 
-    private async apply(session: Session, edits: vscode.TextEdit[]): Promise<void> {
+    private async apply(session: Session, edits: vscode.TextEdit[], snapshotText: string): Promise<void> {
+        if (session.document.getText() !== snapshotText) {
+            this.post(session, { type: 'info', message: 'The document changed while that edit was being made, so it was dropped and the form was re-read.' });
+            this.postProjection(session);
+            return;
+        }
         const edit = new vscode.WorkspaceEdit();
         for (const textEdit of edits) {
             edit.replace(session.document.uri, textEdit.range, textEdit.newText);
@@ -489,7 +507,19 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             return;
         }
         const referenceDocument = await vscode.workspace.openTextDocument(picked[0]);
+        if (this.services.registry.schemaFileNameFor(referenceDocument) !== 'metadata.schema.json') {
+            await vscode.window.showWarningMessage(`${path.basename(picked[0].fsPath)} is not a map metadata document, so it cannot be compared with this one.`);
+            return;
+        }
+
+        session.referenceSubscription?.dispose();
         session.reference = { name: path.basename(picked[0].fsPath), document: referenceDocument };
+        const referenceKey = referenceDocument.uri.toString();
+        session.referenceSubscription = vscode.workspace.onDidChangeTextDocument(event => {
+            if (event.document.uri.toString() === referenceKey) {
+                this.postReference(session);
+            }
+        });
         this.postReference(session);
     }
 

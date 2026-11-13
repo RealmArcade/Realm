@@ -385,3 +385,14 @@ button.missing-toggle {
     text-decoration: underline;
     font-size: 90%;
 }
+
+.row.differs .row-label {
+    font-weight: 600;
+}
+
+.differs-mark {
+    flex: 0 0 auto;
+    font-family: var(--vscode-editor-font-family);
+    color: var(--vscode-charts-orange, var(--vscode-editorWarning-foreground));
+    opacity: 0.9;
+}

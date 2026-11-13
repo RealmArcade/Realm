@@ -439,13 +439,24 @@ class FormView {
     }
 
     private toggle(key: string): void {
-        if (this.expanded.has(key)) {
-            this.expanded.delete(key);
-        } else {
-            this.expanded.add(key);
+        const keys = [key];
+        if (this.reference) {
+            const counterpart = key.startsWith('edited:') ? `reference:${key.slice('edited:'.length)}` : `edited:${key.slice('reference:'.length)}`;
+            keys.push(counterpart);
+        }
+        const opening = !this.expanded.has(key);
+        for (const candidate of keys) {
+            if (opening) {
+                this.expanded.add(candidate);
+            } else {
+                this.expanded.delete(candidate);
+            }
         }
         api.setState({ expanded: [...this.expanded] });
-        api.postMessage({ type: 'layout', expanded: [...this.expanded] } satisfies WebviewToHostMessage);
+        api.postMessage({
+            type: 'layout',
+            expanded: [...this.expanded].filter(entry => entry.startsWith('edited:'))
+        } satisfies WebviewToHostMessage);
         api.postMessage({ type: 'flush' } satisfies WebviewToHostMessage);
         this.render();
         this.requestOpenContainers();
@@ -472,6 +483,22 @@ class FormView {
         };
         walk(this.projection?.sections ?? [], 'edited');
         walk(this.reference?.sections ?? [], 'reference');
+    }
+
+    private counterpartValue(node: LeafNode, side: FormSide): { known: boolean; value: unknown } {
+        if (!this.projection || !this.reference) {
+            return { known: false, value: undefined };
+        }
+        const other: FormSide = side === 'edited' ? 'reference' : 'edited';
+        const page = this.pages.get(pageKey(other, node.path.slice(0, -1)));
+        if (!page) {
+            return { known: false, value: undefined };
+        }
+        const match = page.nodes.find(entry => entry.kind === 'leaf' && pathKey(entry.path) === pathKey(node.path));
+        if (!match || match.kind !== 'leaf') {
+            return { known: false, value: undefined };
+        }
+        return { known: true, value: match.present ? match.value : undefined };
     }
 
     private renderLeaf(node: LeafNode, side: FormSide): HTMLElement {
@@ -643,10 +670,11 @@ class FormView {
                 input.disabled = readOnly;
                 input.dataset.path = pathKey(path);
                 input.placeholder = 'comma separated';
-                input.addEventListener('change', () => {
-                    const entries = input.value.split(',').map(entry => entry.trim()).filter(entry => entry.length > 0);
-                    this.commit(path, entries, 'tags', 'end');
-                });
+                const tags = () => input.value.split(',').map(entry => entry.trim()).filter(entry => entry.length > 0);
+                const tagGesture = `tags:${pathKey(path)}`;
+                input.addEventListener('input', () => this.commit(path, tags(), tagGesture, 'change'));
+                input.addEventListener('change', () => this.commit(path, tags(), tagGesture, 'end'));
+                input.addEventListener('blur', () => this.commit(path, tags(), tagGesture, 'end'));
                 return input;
             }
             case 'number': {
@@ -662,7 +690,7 @@ class FormView {
                 input.step = 'any';
                 input.disabled = readOnly;
                 input.dataset.path = pathKey(path);
-                input.addEventListener('change', () => this.commit(path, input.value, 'number', 'end'));
+                this.bindContinuous(input, path, 'number');
                 return input;
             }
             case 'color': {
@@ -674,7 +702,7 @@ class FormView {
                 input.value = String(node.value ?? '');
                 input.disabled = readOnly;
                 input.dataset.path = pathKey(path);
-                input.addEventListener('change', () => this.commit(path, input.value, 'color', 'end'));
+                this.bindContinuous(input, path, 'color');
 
                 const picker = document.createElement('input');
                 picker.type = 'color';
@@ -717,7 +745,7 @@ class FormView {
                     list.appendChild(option);
                 }
                 input.setAttribute('list', listId);
-                input.addEventListener('change', () => this.commit(path, input.value, 'suggestion', 'end'));
+                this.bindContinuous(input, path, 'suggestion');
                 wrapper.appendChild(input);
                 wrapper.appendChild(list);
 
@@ -738,7 +766,7 @@ class FormView {
                 if (node.monospace) {
                     input.classList.add('monospace');
                 }
-                input.addEventListener('change', () => this.commit(path, input.value, 'textarea', 'end'));
+                this.bindContinuous(input, path, 'textarea');
                 return input;
             }
             default: {
@@ -750,10 +778,24 @@ class FormView {
                 if (node.monospace) {
                     input.classList.add('monospace');
                 }
-                input.addEventListener('change', () => this.commit(path, input.value, 'text', 'end'));
+                this.bindContinuous(input, path, 'text');
                 return input;
             }
         }
+    }
+
+    private bindContinuous(input: HTMLInputElement | HTMLTextAreaElement, path: PathSegments, name: string): void {
+        const gesture = `${name}:${pathKey(path)}`;
+        const send = (phase: 'change' | 'end') => this.commit(path, input.value, gesture, phase);
+        input.addEventListener('input', () => send('change'));
+        input.addEventListener('change', () => send('end'));
+        input.addEventListener('blur', () => send('end'));
+        input.addEventListener('keydown', event => {
+            const key = (event as KeyboardEvent).key;
+            if (key === 'Enter' && !(input instanceof HTMLTextAreaElement)) {
+                send('end');
+            }
+        });
     }
 
     private commit(path: PathSegments, value: unknown, gesture: string, phase: 'change' | 'end'): void {

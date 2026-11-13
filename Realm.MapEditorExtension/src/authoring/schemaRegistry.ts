@@ -44,6 +44,9 @@ export class MapSchemaRegistry implements vscode.Disposable {
     private readonly contributions: ValidationContribution[] = [];
     private readonly schemas = new Map<string, SchemaDocument | undefined>();
     private readonly disposables: vscode.Disposable[] = [];
+    private readonly schemaChanged = new vscode.EventEmitter<void>();
+
+    readonly onDidChangeSchema: vscode.Event<void> = this.schemaChanged.event;
 
     constructor(extensionUri: vscode.Uri, packageJson: unknown) {
         const contributes = (packageJson as { contributes?: { jsonValidation?: unknown } } | undefined)?.contributes;
@@ -113,6 +116,7 @@ export class MapSchemaRegistry implements vscode.Disposable {
             disposable.dispose();
         }
         this.disposables.length = 0;
+        this.schemaChanged.dispose();
     }
 
     private watchSchemas(): void {
@@ -123,7 +127,10 @@ export class MapSchemaRegistry implements vscode.Disposable {
             const watcher = vscode.workspace.createFileSystemWatcher(
                 new vscode.RelativePattern(vscode.Uri.file(path.dirname(contribution.schemaPath)), path.basename(contribution.schemaPath))
             );
-            const invalidate = () => this.schemas.delete(contribution.schemaPath);
+            const invalidate = () => {
+                this.schemas.delete(contribution.schemaPath);
+                this.schemaChanged.fire();
+            };
             this.disposables.push(watcher, watcher.onDidChange(invalidate), watcher.onDidCreate(invalidate), watcher.onDidDelete(invalidate));
         }
     }
