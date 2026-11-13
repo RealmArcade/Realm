@@ -17,6 +17,8 @@ public class MetadataService
 
 	public event Action<string>? MetadataSaved;
 
+	private readonly Dictionary<string, long> _canonicalizedWriteTimes = new(StringComparer.OrdinalIgnoreCase);
+
 	private static readonly JsonSerializerOptions SerializerOptions = new()
 	{
 		PropertyNameCaseInsensitive = true,
@@ -56,9 +58,45 @@ public class MetadataService
 	public MapMetadata LoadMetadata(string pathOrDirectory)
 	{
 		string targetPath = ResolveMetadataPath(pathOrDirectory);
+		CanonicalizeBeforeEditorRead(targetPath);
 		var metadata = MapFileService.LoadMetadata(targetPath);
 		CleanMetadata(metadata);
 		return metadata;
+	}
+
+	/// <summary>
+	///     The editor is the one surface allowed to change a map's document, and it does so before reading it: a metadata
+	///     file that was edited by hand or written by another build is brought to this build's shape the first time anything
+	///     in the editor reads it. Every editor path therefore repairs before it reads - the properties form, the water
+	///     profiles, the texture swatches, an external-change reload and a playtest - instead of only the folder-open path,
+	///     which is how a map whose file changed after it was opened reached the strict reader and left the terrain
+	///     untextured. A path outside the editing folder, including everything a running match reads, is never written.
+	/// </summary>
+	private void CanonicalizeBeforeEditorRead(string targetPath)
+	{
+		string editingDirectory = GameContext.EditorService._editingDirectory;
+		if (string.IsNullOrEmpty(editingDirectory) || !File.Exists(targetPath)) return;
+		if (!AreSamePath(targetPath, Path.Combine(editingDirectory, "metadata.json"))) return;
+
+		long writeTimeTicks = File.GetLastWriteTimeUtc(targetPath).Ticks;
+		if (_canonicalizedWriteTimes.TryGetValue(targetPath, out long canonicalizedTicks) && canonicalizedTicks == writeTimeTicks) return;
+
+		var result = CanonicalizeMetadataFile(targetPath);
+		if (!result.Success) return;
+
+		_canonicalizedWriteTimes[targetPath] = File.GetLastWriteTimeUtc(targetPath).Ticks;
+	}
+
+	private static bool AreSamePath(string firstPath, string secondPath)
+	{
+		try
+		{
+			return string.Equals(Path.GetFullPath(firstPath), Path.GetFullPath(secondPath), StringComparison.OrdinalIgnoreCase);
+		}
+		catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+		{
+			return false;
+		}
 	}
 
 	public bool TryLoadMetadata(string pathOrDirectory, out MapMetadata metadata)
@@ -84,6 +122,7 @@ public class MetadataService
 		try
 		{
 			MapFileService.SaveMetadata(targetPath, metadata);
+			_canonicalizedWriteTimes[targetPath] = File.GetLastWriteTimeUtc(targetPath).Ticks;
 			string? targetDir = Path.GetDirectoryName(targetPath);
 			if (!string.IsNullOrEmpty(targetDir))
 			{
@@ -112,6 +151,8 @@ public class MetadataService
 			GameLog.LogError($"[MetadataService] {result.ErrorMessage}");
 			return result;
 		}
+
+		_canonicalizedWriteTimes[targetPath] = File.GetLastWriteTimeUtc(targetPath).Ticks;
 
 		if (!result.Changed) return result;
 
