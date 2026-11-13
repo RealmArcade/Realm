@@ -140,7 +140,8 @@ public struct Inventory
 		int limit = Math.Max(1, maxStacks);
 		int usableSlots = Math.Clamp(slotLimit, 0, InventorySlotArray.Capacity);
 		int remaining = Math.Max(1, count);
-		int itemStringId = StringRegistry.GetOrAdd(itemId);
+		int carriedIndex = IndexOf(itemId);
+		int itemStringId = carriedIndex >= 0 ? Slots[carriedIndex].ItemStringId : StringRegistry.GetOrAdd(itemId);
 		if (itemStringId == 0) return false;
 
 		long capacity = 0;
