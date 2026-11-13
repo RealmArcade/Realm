@@ -188,8 +188,8 @@
                      },
     "scripts":  {
                     "vscode:prepublish":  "npm run compile",
-                    "compile":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node",
-                    "watch":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --watch"
+                    "compile":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --main-fields=module,main",
+                    "watch":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --main-fields=module,main --watch"
                 },
     "devDependencies":  {
                             "@types/node":  "^20.19.43",
