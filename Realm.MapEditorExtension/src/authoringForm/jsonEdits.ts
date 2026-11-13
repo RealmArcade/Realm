@@ -172,11 +172,10 @@ function insertPropertyInSchemaOrder(
     const eol = formattingOptionsOf(document).eol;
     const members = objectNode.children ?? [];
     const declared = schemaDocument.propertyNames(schemaForPath(schemaDocument, objectPath));
-    const orderedKeys = [...declared, ...members
-        .map(member => member.children?.[0]?.value)
-        .filter((name): name is string => typeof name === 'string' && !declared.includes(name))
-        .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))];
-    const desiredIndex = orderedKeys.indexOf(keyName);
+    const keyOf = (member: Node): string | undefined => {
+        const keyNode = member.children?.[0];
+        return keyNode && typeof keyNode.value === 'string' ? keyNode.value : undefined;
+    };
 
     const memberIndent = members.length > 0
         ? lineIndentation(document, members[0].offset)
@@ -189,21 +188,42 @@ function insertPropertyInSchemaOrder(
         return [vscode.TextEdit.replace(rangeOf(document, objectNode), body)];
     }
 
-    for (const member of members) {
-        const keyNode = member.children?.[0];
-        if (!keyNode || typeof keyNode.value !== 'string') {
-            continue;
-        }
-        const memberIndex = orderedKeys.indexOf(keyNode.value);
-        const insertBefore = desiredIndex < 0
-            ? memberIndex < 0 && keyNode.value > keyName
-            : memberIndex < 0 || memberIndex > desiredIndex;
-        if (!insertBefore) {
-            continue;
-        }
+    const insertBeforeMember = (member: Node): vscode.TextEdit[] => {
         const targetIndent = lineIndentation(document, member.offset);
         const at = new vscode.Position(document.positionAt(member.offset).line, targetIndent.length);
         return [vscode.TextEdit.insert(at, `${rendered},${eol}${targetIndent}`)];
+    };
+
+    const desiredIndex = declared.indexOf(keyName);
+    if (desiredIndex >= 0) {
+        let lastDeclared: Node | undefined;
+        for (const member of members) {
+            const name = keyOf(member);
+            if (name === undefined) {
+                continue;
+            }
+            const memberIndex = declared.indexOf(name);
+            if (memberIndex < 0) {
+                continue;
+            }
+            if (memberIndex > desiredIndex) {
+                return insertBeforeMember(member);
+            }
+            lastDeclared = member;
+        }
+        if (lastDeclared) {
+            return [vscode.TextEdit.insert(
+                document.positionAt(lastDeclared.offset + lastDeclared.length),
+                `,${eol}${memberIndent}${rendered}`
+            )];
+        }
+    } else {
+        for (const member of members) {
+            const name = keyOf(member);
+            if (name !== undefined && !declared.includes(name) && name > keyName) {
+                return insertBeforeMember(member);
+            }
+        }
     }
 
     const last = members[members.length - 1];
