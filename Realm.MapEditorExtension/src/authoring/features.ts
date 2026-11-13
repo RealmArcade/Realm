@@ -13,6 +13,7 @@ import { AuthoringCodeLensProvider } from './codeLensProvider';
 import { SchemaFormattingProvider } from './formatting';
 import { AuthoringDecorations } from './decorations';
 import { registerAuthoringCommands } from './commands';
+import { MetadataFormProvider } from '../authoringForm/formProvider';
 
 export interface AuthoringServices {
     snapshots: JsonSnapshotCache;
@@ -87,6 +88,13 @@ export function registerAuthoringFeatures(context: vscode.ExtensionContext, serv
     context.subscriptions.push(lenses, ...lenses.register());
     context.subscriptions.push(decorations, ...decorations.register());
     context.subscriptions.push(...registerAuthoringCommands(services.snapshots, services.registry, services.swatches));
+
+    context.subscriptions.push(MetadataFormProvider.register(context, {
+        snapshots: services.snapshots,
+        registry: services.registry,
+        documentIndex: services.documentIndex,
+        assets: services.assets
+    }));
 
     context.subscriptions.push(onAuthoringSettingsChanged((settings: AuthoringSettings) => {
         lenses.updateSettings(settings);

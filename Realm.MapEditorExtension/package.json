@@ -82,6 +82,16 @@
                                        ],
                         "customEditors":  [
                                               {
+                                                  "viewType":  "realm.metadataForm",
+                                                  "displayName":  "Metadata Form",
+                                                  "selector":  [
+                                                                   {
+                                                                       "filenamePattern":  "**/metadata.json"
+                                                                   }
+                                                               ],
+                                                  "priority":  "option"
+                                              },
+                                              {
                                                   "viewType":  "realm.rtexViewer",
                                                   "displayName":  "Realm RTEX Texture Viewer",
                                                   "selector":  [
@@ -123,6 +133,11 @@
                                               }
                                           ],
                         "commands":  [
+                                         {
+                                             "command":  "realm.openMetadataForm",
+                                             "title":  "Open Metadata as Form",
+                                             "category":  "Realm"
+                                         },
                                          {
                                              "command":  "realm.openRmesh3D",
                                              "title":  "Open in 3D GLB Viewer",
@@ -188,7 +203,7 @@
                      },
     "scripts":  {
                     "vscode:prepublish":  "npm run compile",
-                    "compile":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node",
+                    "compile":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node \u0026\u0026 esbuild src/authoringForm/webview/main.ts --bundle --outfile=dist/form.js --platform=browser --format=iife",
                     "watch":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --watch"
                 },
     "devDependencies":  {

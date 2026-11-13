@@ -74,12 +74,22 @@ export class MapSchemaRegistry implements vscode.Disposable {
     }
 
     forDocument(document: vscode.TextDocument): SchemaDocument | undefined {
-        const normalizedPath = document.uri.fsPath.replace(/\\/g, '/');
+        const normalizedPath = document.uri.fsPath.replace(new RegExp(String.fromCharCode(92) + String.fromCharCode(92), 'g'), '/');
         for (const contribution of this.contributions) {
             if (!contribution.patterns.some(pattern => pattern.test(normalizedPath))) {
                 continue;
             }
             return this.load(contribution.schemaPath);
+        }
+        return undefined;
+    }
+
+    schemaFileNameFor(document: vscode.TextDocument): string | undefined {
+        const normalizedPath = document.uri.fsPath.replace(/\\/g, '/');
+        for (const contribution of this.contributions) {
+            if (contribution.patterns.some(pattern => pattern.test(normalizedPath))) {
+                return path.basename(contribution.schemaPath);
+            }
         }
         return undefined;
     }

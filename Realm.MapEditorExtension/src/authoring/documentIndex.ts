@@ -19,7 +19,7 @@ export interface DocumentIndex {
     dictionaries: Map<string, string[]>;
 }
 
-function isPlainObject(value: unknown): value is { [key: string]: any } {
+export function isPlainObject(value: unknown): value is { [key: string]: any } {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
@@ -39,7 +39,7 @@ function candidateIdentityKeys(
     return ordered;
 }
 
-function detectIdentityKey(
+export function detectIdentityKey(
     records: { [key: string]: any }[],
     schemaDocument: SchemaDocument,
     recordSchema: JsonSchema | undefined
