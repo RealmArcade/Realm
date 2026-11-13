@@ -108,6 +108,9 @@ class FakeTarget:
     def GetProcess(self):
         return self.process
 
+    def GetNumModules(self):
+        return 0
+
     def FindFirstType(self, name):
         return self.types.get(name, FakeType(name))
 
@@ -288,6 +291,9 @@ class FakeFrame:
 
     def GetFunctionName(self):
         return self.function_name
+
+    def GetPC(self):
+        return 0
 
     def GetLineEntry(self):
         return FakeLineEntry(self.path, self.line)
@@ -739,6 +745,14 @@ def main():
     direct_string_provider = module.ManagedStringSyntheticProvider(direct_string_value, {})
     expect(direct_string_provider.get_child_at_index(0).GetValue() == string_text, "the direct string provider did not decode Value")
     expect(module.ManagedStringSummaryProvider(direct_string_value, {}) == '"unit/chad"', "the direct string summary did not quote the value")
+
+    line_entries = [
+        ("C:/map/MapScript.cs", 15, 0x100),
+        ("C:/map/MapScript.cs", 15, 0x200),
+        ("C:/map/MapScript.cs", 16, 0x300),
+        ("C:/host/Other.cs", 15, 0x400),
+    ]
+    expect(module.select_statement_addresses(line_entries, "MapScript.cs", 15) == [0x100, 0x200], "address-based breakpoint selection did not filter by file and line")
 
     module._STEP_UNTIL_USER = False
     just_my_code_debugger = FakeDebugger(generic_target)

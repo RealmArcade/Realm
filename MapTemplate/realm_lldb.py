@@ -265,7 +265,7 @@ HOST_TYPES = {
 # Generated debugger script metadata
 REALM_LLDB_SCRIPT_VERSION = "1"
 REALM_LLDB_SCRIPT_HASH = "f683cd830eee2a946494ad66b004576a1e69bd91fef15b6693299a1f07a1a26b"
-REALM_LLDB_SOURCE_COMMIT = "db1dff65bb78d9606f10b407661a1ecb26c6bae8"
+REALM_LLDB_SOURCE_COMMIT = "e59afed19cfcdc7dacc3d754bfe6fdc18acc1e5a"
 
 INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"
 
@@ -1220,6 +1220,50 @@ def format_frame(frame):
 
     return function_name
 
+def collect_statement_entries(target):
+    entries = []
+    for module_index in range(target.GetNumModules()):
+        module = target.GetModuleAtIndex(module_index)
+        if not module or not module.IsValid():
+            continue
+        for compile_unit_index in range(module.GetNumCompileUnits()):
+            compile_unit = module.GetCompileUnitAtIndex(compile_unit_index)
+            if not compile_unit or not compile_unit.IsValid():
+                continue
+            try:
+                line_entry_count = compile_unit.GetNumLineEntries()
+            except Exception:
+                continue
+            for line_entry_index in range(line_entry_count):
+                line_entry = compile_unit.GetLineEntryAtIndex(line_entry_index)
+                if not line_entry or not line_entry.IsValid():
+                    continue
+                try:
+                    if not line_entry.IsStatement():
+                        continue
+                except Exception:
+                    continue
+                file_spec = line_entry.GetFileSpec()
+                path = file_spec.fullpath if file_spec and file_spec.IsValid() else ""
+                if not path:
+                    continue
+                address = line_entry.GetStartAddress().GetLoadAddress(target)
+                if not address or address == lldb.LLDB_INVALID_ADDRESS:
+                    continue
+                entries.append((path, line_entry.GetLine(), address))
+    return entries
+
+def select_statement_addresses(entries, file_name, line_number):
+    import os
+    addresses = []
+    for path, line, address in entries:
+        if line != line_number:
+            continue
+        if os.path.basename(path) != file_name:
+            continue
+        addresses.append(address)
+    return sorted(set(addresses))
+
 class RealmStepStopHook:
     def handle_stop(self, exe_ctx, stream):
         global _STEP_UNTIL_USER, _STEP_RETRIES
@@ -1308,6 +1352,8 @@ def realm_just_my_code(debugger, command, result, internal_dict):
 
 def realm_step(debugger, command, result, internal_dict):
     global _STEP_UNTIL_USER, _STEP_RETRIES
+    import os
+
     target = debugger.GetSelectedTarget()
     if not target or not target.IsValid():
         result.SetError("no target is selected")
@@ -1318,10 +1364,80 @@ def realm_step(debugger, command, result, internal_dict):
         result.SetError("no thread is selected")
         return
 
+    frame = thread.GetSelectedFrame()
+    if not frame or not frame.IsValid():
+        result.SetError("no frame is selected")
+        return
+
+    line_entry = frame.GetLineEntry()
+    if line_entry and line_entry.IsValid():
+        file_spec = line_entry.GetFileSpec()
+        path = file_spec.fullpath if file_spec and file_spec.IsValid() else ""
+        current_line = line_entry.GetLine()
+        if path and current_line > 0:
+            entries = collect_statement_entries(target)
+            addresses = select_statement_addresses(entries, os.path.basename(path), current_line + 1)
+            current_pc = frame.GetPC()
+            addresses = [address for address in addresses if address > current_pc]
+            if addresses:
+                debugger.HandleCommand("breakpoint delete --force realm_step")
+                for address in addresses:
+                    debugger.HandleCommand(f"breakpoint set --one-shot true --name realm_step --address 0x{address:X}")
+                debugger.HandleCommand("continue")
+                return
+
     install_step_hook(debugger)
     _STEP_UNTIL_USER = True
     _STEP_RETRIES = 0
     thread.StepOver()
+
+def realm_break(debugger, command, result, internal_dict):
+    import os
+
+    parts = command.strip().rsplit(None, 1)
+    if len(parts) != 2 or not parts[1].isdigit():
+        result.SetError("usage: realm_break <file> <line>")
+        return
+
+    file_name = os.path.basename(parts[0].strip('"'))
+    line_number = int(parts[1])
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        result.SetError("no target is selected")
+        return
+
+    entries = collect_statement_entries(target)
+    addresses = select_statement_addresses(entries, file_name, line_number)
+    if not addresses:
+        result.SetError(f"no statement address for {file_name}:{line_number}")
+        return
+
+    for address in addresses:
+        debugger.HandleCommand(f"breakpoint set --address 0x{address:X}")
+    result.AppendMessage(f"realm_break: {file_name}:{line_number} at {len(addresses)} address(es), first 0x{addresses[0]:X}")
+
+def realm_recover(debugger, command, result, internal_dict):
+    global _JUST_MY_CODE_ENABLED
+
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        result.SetError("no target is selected")
+        return
+
+    thread = target.GetProcess().GetSelectedThread()
+    if not thread or not thread.IsValid():
+        result.SetError("no thread is selected")
+        return
+
+    frame = thread.GetSelectedFrame()
+    if is_user_frame(frame):
+        result.AppendMessage(f"realm_recover: already in user code: {format_frame(frame)}")
+        return
+
+    install_just_my_code_hook(debugger)
+    _JUST_MY_CODE_ENABLED = True
+    result.AppendMessage("realm_recover: stepping out of non-user frames")
+    thread.StepOut()
 
 def realm_reload(debugger, command, result, internal_dict):
     import importlib
@@ -1887,6 +2003,8 @@ def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand("command script add -f realm_lldb.realm_plot realm_plot")
     debugger.HandleCommand("command script add -f realm_lldb.realm_export realm_export")
     debugger.HandleCommand("command script add -f realm_lldb.realm_step realm_step")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_break realm_break")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_recover realm_recover")
     debugger.HandleCommand("command script add -f realm_lldb.realm_reload realm_reload")
     debugger.HandleCommand("command script add -f realm_lldb.realm_where realm_where")
     debugger.HandleCommand("command script add -f realm_lldb.realm_exception realm_exception")

@@ -146,6 +146,10 @@ public class WasmDebuggerIntegrationTests
 		Assert.That(script, Does.Contain("def realm_exception"));
 		Assert.That(script, Does.Contain("def realm_just_my_code"));
 		Assert.That(script, Does.Contain("RealmJustMyCodeStopHook"));
+		Assert.That(script, Does.Contain("def realm_break"));
+		Assert.That(script, Does.Contain("def realm_recover"));
+		Assert.That(script, Does.Contain("def collect_statement_entries"));
+		Assert.That(script, Does.Contain("def select_statement_addresses"));
 		Assert.That(script, Does.Contain("def find_authority_pid"));
 	}
 
