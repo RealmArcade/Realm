@@ -153,6 +153,15 @@ public class WasmDebuggerIntegrationTests
 		Assert.That(script, Does.Contain("def find_authority_pid"));
 		Assert.That(script, Does.Contain("preserved_names"));
 		Assert.That(script, Does.Contain("type category delete Realm"));
+		Assert.That(script, Does.Contain("target stop-hook add -o"));
+		Assert.That(script, Does.Not.Contain("target stop-hook add -P"));
+		Assert.That(script, Does.Not.Contain("thread.StepOver"));
+		Assert.That(script, Does.Not.Contain("thread.StepOut"));
+		Assert.That(script, Does.Not.Contain("SetModuleLoadAddress(mod, 0)"));
+		Assert.That(script, Does.Contain("def realm_just_my_code_tick"));
+		Assert.That(script, Does.Contain("def realm_step_tick"));
+		Assert.That(script, Does.Contain("def realm_watch_tick"));
+		Assert.That(script, Does.Contain("def resolve_line_addresses"));
 	}
 
 	[Test]

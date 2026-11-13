@@ -97,6 +97,39 @@ class FakeProcess:
         return struct.unpack_from("<Q", self.memory, address)[0]
 
 
+class FakeAddress:
+    def __init__(self, address):
+        self.address = address
+
+    def GetLoadAddress(self, target):
+        return self.address
+
+
+class FakeBreakpointLocation:
+    def __init__(self, address):
+        self.address = address
+
+    def GetAddress(self):
+        return FakeAddress(self.address)
+
+
+class FakeBreakpoint:
+    def __init__(self):
+        self.locations = [FakeBreakpointLocation(BASE + 0x100)]
+
+    def IsValid(self):
+        return True
+
+    def GetNumLocations(self):
+        return len(self.locations)
+
+    def GetLocationAtIndex(self, index):
+        return self.locations[index]
+
+    def GetID(self):
+        return 1
+
+
 class FakeTarget:
     def __init__(self, process, types=None):
         self.process = process
@@ -110,6 +143,12 @@ class FakeTarget:
 
     def GetNumModules(self):
         return 0
+
+    def BreakpointCreateByLocation(self, file_spec, line_number):
+        return FakeBreakpoint()
+
+    def BreakpointDelete(self, breakpoint_id):
+        pass
 
     def FindFirstType(self, name):
         return self.types.get(name, FakeType(name))
@@ -312,6 +351,7 @@ class FakeThread:
         self.stepped = False
         self.stepped_out = False
         self.stop_reason = None
+        self.selected_frame_index = -1
 
     def IsValid(self):
         return True
@@ -334,6 +374,9 @@ class FakeThread:
     def StepOut(self):
         self.stepped_out = True
 
+    def SetSelectedFrame(self, index):
+        self.selected_frame_index = index
+
 
 class FakeExecutionContext:
     def __init__(self, frame):
@@ -353,6 +396,24 @@ class FakeStream:
 
     def Print(self, message):
         self.messages.append(message)
+
+
+class FakeSBFileSpec:
+    def __init__(self, path, resolve=True):
+        self.path = path
+
+    def IsValid(self):
+        return True
+
+    def GetFilename(self):
+        return os.path.basename(self.path)
+
+    def GetDirectory(self):
+        return os.path.dirname(self.path)
+
+    @property
+    def fullpath(self):
+        return self.path
 
 
 class FakeSBData:
@@ -377,6 +438,7 @@ def install_fake_lldb():
     lldb = types.ModuleType("lldb")
     lldb.SBError = FakeError
     lldb.SBData = FakeSBData
+    lldb.SBFileSpec = FakeSBFileSpec
     lldb.eByteOrderLittle = 1
     lldb.eBasicTypeInt = 1
     lldb.eBasicTypeFloat = 2
@@ -603,8 +665,9 @@ def main():
     step_process.thread = step_thread
     step_target = FakeTarget(step_process)
     step_result = FakeResult()
-    module.realm_step(FakeDebugger(step_target), "", step_result, {})
-    expect(step_thread.stepped, "realm_step did not issue a step-over")
+    step_debugger = FakeDebugger(step_target)
+    module.realm_step(step_debugger, "", step_result, {})
+    expect(any(command == "continue" for command in step_debugger.commands), "realm_step did not continue to the next-line breakpoint")
 
     int_type = FakeType("int", byte_size=4)
     unit_type = FakeType("Realm_Ecs_Realm_Ecs_UnitId", byte_size=4)
@@ -779,19 +842,20 @@ def main():
 
     host_frame = FakeFrame({}, function_name="Realm.MapAPI.GameAPI_WasmModule.get_PlayerCount", path="D:/realm/Realm.MapAPI/WasmWrappers.g.cs", line=10)
     host_context = FakeExecutionContext(host_frame)
+    host_context.thread.frames = [host_frame, user_frame]
     host_context.thread.stop_reason = module.lldb.eStopReasonPlanComplete
     module.RealmJustMyCodeStopHook().handle_stop(host_context, FakeStream())
-    expect(host_context.thread.stepped_out is True, "just-my-code did not step out of a host wrapper frame")
+    expect(host_context.thread.selected_frame_index == 1, "just-my-code did not select the user frame")
 
     user_context = FakeExecutionContext(user_frame)
     user_context.thread.stop_reason = module.lldb.eStopReasonPlanComplete
     module.RealmJustMyCodeStopHook().handle_stop(user_context, FakeStream())
-    expect(user_context.thread.stepped_out is False, "just-my-code stepped out of a user frame")
+    expect(user_context.thread.selected_frame_index == 0, "just-my-code did not keep the user frame selected")
 
     breakpoint_context = FakeExecutionContext(host_frame)
     breakpoint_context.thread.stop_reason = 2
     module.RealmJustMyCodeStopHook().handle_stop(breakpoint_context, FakeStream())
-    expect(breakpoint_context.thread.stepped_out is False, "just-my-code interfered with a breakpoint stop")
+    expect(breakpoint_context.thread.selected_frame_index == -1, "just-my-code interfered with a breakpoint stop")
 
     module._JUST_MY_CODE_ENABLED = True
     module._JUST_MY_CODE_INSTALLED = True

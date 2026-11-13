@@ -978,7 +978,7 @@ def install_watch_hook(debugger):
     target = debugger.GetSelectedTarget()
     if not target or not target.IsValid():
         return
-    debugger.HandleCommand("target stop-hook add -P realm_lldb.RealmWatchStopHook")
+    debugger.HandleCommand('target stop-hook add -o "realm_watch_tick"')
     _WATCH_HOOK_INSTALLED = True
 
 def realm_inspect(debugger, command, result, internal_dict):
@@ -1264,42 +1264,41 @@ def select_statement_addresses(entries, file_name, line_number):
         addresses.append(address)
     return sorted(set(addresses))
 
-class RealmStepStopHook:
-    def handle_stop(self, exe_ctx, stream):
-        global _STEP_UNTIL_USER, _STEP_RETRIES
-        if not _STEP_UNTIL_USER:
-            return
+def resolve_line_addresses(target, file_name, line_number):
+    addresses = []
 
-        frame = exe_ctx.GetFrame()
-        if is_user_frame(frame):
-            _STEP_UNTIL_USER = False
-            _STEP_RETRIES = 0
-            stream.Print(f"realm_step: {format_frame(frame)}\n")
-            return
+    try:
+        breakpoint = target.BreakpointCreateByLocation(lldb.SBFileSpec(file_name), line_number)
+        if breakpoint and breakpoint.IsValid():
+            for index in range(breakpoint.GetNumLocations()):
+                location = breakpoint.GetLocationAtIndex(index)
+                address = location.GetAddress().GetLoadAddress(target)
+                if address and address != lldb.LLDB_INVALID_ADDRESS:
+                    addresses.append(address)
+            target.BreakpointDelete(breakpoint.GetID())
+    except Exception:
+        pass
 
-        _STEP_RETRIES += 1
-        if _STEP_RETRIES > 20:
-            _STEP_UNTIL_USER = False
-            _STEP_RETRIES = 0
-            stream.Print("realm_step: gave up after 20 host frames\n")
-            return
+    if addresses:
+        return sorted(set(addresses))
 
-        thread = exe_ctx.GetThread()
-        if thread and thread.IsValid():
-            thread.StepOver()
-
-def install_step_hook(debugger):
-    global _STEP_HOOK_INSTALLED
-    if _STEP_HOOK_INSTALLED:
-        return
-    target = debugger.GetSelectedTarget()
-    if not target or not target.IsValid():
-        return
-    debugger.HandleCommand("target stop-hook add -P realm_lldb.RealmStepStopHook")
-    _STEP_HOOK_INSTALLED = True
+    entries = collect_statement_entries(target)
+    return select_statement_addresses(entries, file_name, line_number)
 
 _JUST_MY_CODE_ENABLED = False
 _JUST_MY_CODE_INSTALLED = False
+
+def select_user_frame(thread):
+    if not thread or not thread.IsValid():
+        return None
+
+    for index in range(thread.GetNumFrames()):
+        frame = thread.GetFrameAtIndex(index)
+        if is_user_frame(frame):
+            thread.SetSelectedFrame(index)
+            return frame
+
+    return None
 
 class RealmJustMyCodeStopHook:
     def handle_stop(self, exe_ctx, stream):
@@ -1310,15 +1309,37 @@ class RealmJustMyCodeStopHook:
         if not thread or not thread.IsValid():
             return
 
-        plan_complete = getattr(lldb, "eStopReasonPlanComplete", None)
-        if plan_complete is not None and thread.GetStopReason() != plan_complete:
-            return
+        select_user_frame(thread)
 
-        frame = exe_ctx.GetFrame()
-        if is_user_frame(frame):
-            return
+def realm_just_my_code_tick(debugger, command, result, internal_dict):
+    if not _JUST_MY_CODE_ENABLED or _STEP_UNTIL_USER:
+        return
 
-        thread.StepOut()
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        return
+
+    thread = target.GetProcess().GetSelectedThread()
+    if thread and thread.IsValid():
+        select_user_frame(thread)
+
+def realm_step_tick(debugger, command, result, internal_dict):
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        return
+
+    thread = target.GetProcess().GetSelectedThread()
+    if thread and thread.IsValid():
+        select_user_frame(thread)
+
+def realm_watch_tick(debugger, command, result, internal_dict):
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        return
+
+    thread = target.GetProcess().GetSelectedThread()
+    if thread and thread.IsValid():
+        record_watch_samples(thread.GetSelectedFrame())
 
 def install_just_my_code_hook(debugger):
     global _JUST_MY_CODE_INSTALLED
@@ -1327,7 +1348,7 @@ def install_just_my_code_hook(debugger):
     target = debugger.GetSelectedTarget()
     if not target or not target.IsValid():
         return
-    debugger.HandleCommand("target stop-hook add -P realm_lldb.RealmJustMyCodeStopHook")
+    debugger.HandleCommand('target stop-hook add -o "realm_just_my_code_tick"')
     _JUST_MY_CODE_INSTALLED = True
 
 def realm_just_my_code(debugger, command, result, internal_dict):
@@ -1375,8 +1396,7 @@ def realm_step(debugger, command, result, internal_dict):
         path = file_spec.fullpath if file_spec and file_spec.IsValid() else ""
         current_line = line_entry.GetLine()
         if path and current_line > 0:
-            entries = collect_statement_entries(target)
-            addresses = select_statement_addresses(entries, os.path.basename(path), current_line + 1)
+            addresses = resolve_line_addresses(target, os.path.basename(path), current_line + 1)
             current_pc = frame.GetPC()
             addresses = [address for address in addresses if address > current_pc]
             if addresses:
@@ -1386,10 +1406,7 @@ def realm_step(debugger, command, result, internal_dict):
                 debugger.HandleCommand("continue")
                 return
 
-    install_step_hook(debugger)
-    _STEP_UNTIL_USER = True
-    _STEP_RETRIES = 0
-    thread.StepOver()
+    result.SetError("no next statement address found; use realm_break or F10")
 
 def realm_break(debugger, command, result, internal_dict):
     import os
@@ -1406,8 +1423,7 @@ def realm_break(debugger, command, result, internal_dict):
         result.SetError("no target is selected")
         return
 
-    entries = collect_statement_entries(target)
-    addresses = select_statement_addresses(entries, file_name, line_number)
+    addresses = resolve_line_addresses(target, file_name, line_number)
     if not addresses:
         result.SetError(f"no statement address for {file_name}:{line_number}")
         return
@@ -1429,15 +1445,12 @@ def realm_recover(debugger, command, result, internal_dict):
         result.SetError("no thread is selected")
         return
 
-    frame = thread.GetSelectedFrame()
-    if is_user_frame(frame):
-        result.AppendMessage(f"realm_recover: already in user code: {format_frame(frame)}")
+    frame = select_user_frame(thread)
+    if frame is None:
+        result.SetError("realm_recover: no user map-script frame found")
         return
 
-    install_just_my_code_hook(debugger)
-    _JUST_MY_CODE_ENABLED = True
-    result.AppendMessage("realm_recover: stepping out of non-user frames")
-    thread.StepOut()
+    result.AppendMessage(f"realm_recover: selected {format_frame(frame)}")
 
 def realm_reload(debugger, command, result, internal_dict):
     import importlib
@@ -1983,7 +1996,7 @@ def realm_load_modules(debugger, command, result, internal_dict):
         if not mod or not mod.IsValid():
             mod = target.AddModule(norm, "x86_64", "")
         if mod and mod.IsValid():
-            target.SetModuleLoadAddress(mod, 0)
+            debugger.HandleCommand(f'target modules load --file "{norm}" --slide 0')
             return True
         return False
 
@@ -2045,4 +2058,7 @@ def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand("command script add -o -f realm_lldb.realm_where realm_where")
     debugger.HandleCommand("command script add -o -f realm_lldb.realm_exception realm_exception")
     debugger.HandleCommand("command script add -o -f realm_lldb.realm_just_my_code realm_just_my_code")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_just_my_code_tick realm_just_my_code_tick")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_step_tick realm_step_tick")
+    debugger.HandleCommand("command script add -o -f realm_lldb.realm_watch_tick realm_watch_tick")
     debugger.HandleCommand(f"type category enable {category}")
