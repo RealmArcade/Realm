@@ -115,6 +115,20 @@ public static class MetadataDocumentRepair
 		};
 	}
 
+	/// <summary>
+	///     Removes every member this build does not state from a document already in memory, which is what a writer that
+	///     assembles a document from another map needs before it can hand the result to the model.
+	/// </summary>
+	public static List<string> RemoveUnknownMembers(JsonObject document)
+	{
+		var removedMembers = new List<string>();
+		JsonObject? schema = LoadSchema();
+		if (schema == null) return removedMembers;
+
+		RemoveUnknownMembers(document, schema, schema, string.Empty, removedMembers);
+		return removedMembers;
+	}
+
 	private static MetadataDocumentRepairResult Failed(string message) => new() { Success = false, ErrorMessage = message };
 
 	private static string DescribeLocation(JsonException exception)
