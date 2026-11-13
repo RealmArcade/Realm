@@ -7630,6 +7630,65 @@
         },
         "additionalProperties": false
       }
+    },
+    "Contributors": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "title": "Contributors",
+      "description": "Everybody whose work this map carries, gathered from the authors of the assets it ships and of the assets it imported. It is written when the map is signed.",
+      "x-realm-derived": "publish",
+      "items": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "Attributions": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "title": "Attributions",
+      "description": "The same authors ordered by how much of the imported content each one contributed, most first, so the credit a map shows matches what it borrowed. It is written when the map is signed.",
+      "x-realm-derived": "publish",
+      "items": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "EngineVersion": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "title": "EngineVersion",
+      "description": "The engine binary that published this map, which the registry reports beside the map. It is written when the map is signed.",
+      "x-realm-derived": "publish"
+    },
+    "author_key": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "title": "author_key",
+      "description": "The public half of the authorship key that signed this map, stored so the claim can be checked against the signature. It is written when the map is signed.",
+      "x-realm-sensitive": true,
+      "x-realm-derived": "publish"
+    },
+    "signature": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "title": "signature",
+      "description": "The authorship signature over this map's metadata as it stood before signing, base64 encoded. It is written when the map is signed and dropped by every other save, because a save changes the bytes it covers.",
+      "x-realm-sensitive": true,
+      "x-realm-derived": "publish"
     }
   },
   "additionalProperties": false

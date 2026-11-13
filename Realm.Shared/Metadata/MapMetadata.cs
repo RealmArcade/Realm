@@ -87,6 +87,38 @@ public class MapMetadata
 	[SchemaDescription("Shader configurations keyed by the name a weapon or effect refers to them by. Keys are data and are not fixed by the model.")]
 	public Dictionary<string, ShaderMetadata> GdShaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+	[JsonPropertyName("Contributors")]
+	[SchemaDescription("Everybody whose work this map carries, gathered from the authors of the assets it ships and of the assets it imported. It is written when the map is signed.")]
+	[SchemaDerived("publish")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public List<string>? Contributors { get; set; }
+
+	[JsonPropertyName("Attributions")]
+	[SchemaDescription("The same authors ordered by how much of the imported content each one contributed, most first, so the credit a map shows matches what it borrowed. It is written when the map is signed.")]
+	[SchemaDerived("publish")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public List<string>? Attributions { get; set; }
+
+	[JsonPropertyName("EngineVersion")]
+	[SchemaDescription("The engine binary that published this map, which the registry reports beside the map. It is written when the map is signed.")]
+	[SchemaDerived("publish")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public string? EngineVersion { get; set; }
+
+	[JsonPropertyName("author_key")]
+	[SchemaDescription("The public half of the authorship key that signed this map, stored so the claim can be checked against the signature. It is written when the map is signed.")]
+	[SchemaDerived("publish")]
+	[SchemaSensitive]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public string? AuthorKey { get; set; }
+
+	[JsonPropertyName("signature")]
+	[SchemaDescription("The authorship signature over this map's metadata as it stood before signing, base64 encoded. It is written when the map is signed and dropped by every other save, because a save changes the bytes it covers.")]
+	[SchemaDerived("publish")]
+	[SchemaSensitive]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public string? Signature { get; set; }
+
 	public UnitMetadata? GetUnit(string objectId) => Templates?.Units?.FirstOrDefault(u => string.Equals(u.TemplateID, objectId, StringComparison.OrdinalIgnoreCase));
 	public UnitMetadata? FindUnit(string objectId) => GetUnit(objectId);
 

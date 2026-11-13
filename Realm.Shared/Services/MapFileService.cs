@@ -139,9 +139,15 @@ public static class MapFileService
 		return JsonSerializer.Deserialize<MapMetadata>(json, MetadataJsonOptions) ?? new MapMetadata();
 	}
 
+	/// <summary>
+	///     Writes a metadata document, dropping any authorship signature it carried. A save rewrites the bytes the
+	///     signature covers, so it can no longer prove anything about the file; <see cref="SaveSignedMetadata"/> is the
+	///     only write that puts one back.
+	/// </summary>
 	public static void SaveMetadata(string pathOrDirectory, MapMetadata metadata)
 	{
 		if (metadata == null) return;
+		metadata.Signature = null;
 		string targetPath = ResolvePath(pathOrDirectory, "metadata.json");
 		string? dir = Path.GetDirectoryName(targetPath);
 		if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
@@ -156,6 +162,43 @@ public static class MapFileService
 	public static string SaveMetadataToJson(MapMetadata metadata)
 	{
 		return JsonSerializer.Serialize(metadata, MetadataJsonOptions);
+	}
+
+	/// <summary>
+	///     The exact text an authorship signature covers: the document as this build serializes it, with no signature
+	///     member in it. Signing hashes this text and the signed file is written from <see cref="SaveSignedMetadata"/>.
+	/// </summary>
+	public static string SaveUnsignedMetadataToJson(MapMetadata metadata)
+	{
+		if (metadata == null) return string.Empty;
+		string? signature = metadata.Signature;
+		metadata.Signature = null;
+		try
+		{
+			return SaveMetadataToJson(metadata);
+		}
+		finally
+		{
+			metadata.Signature = signature;
+		}
+	}
+
+	/// <summary>
+	///     Writes a metadata document together with the signature computed over its unsigned text, which is the only way a
+	///     signature reaches a file. The caller signs <see cref="SaveUnsignedMetadataToJson"/> for the same document.
+	/// </summary>
+	public static void SaveSignedMetadata(string pathOrDirectory, MapMetadata metadata, string signatureBase64)
+	{
+		if (metadata == null || string.IsNullOrWhiteSpace(signatureBase64)) return;
+		metadata.Signature = signatureBase64;
+		string targetPath = ResolvePath(pathOrDirectory, "metadata.json");
+		string? dir = Path.GetDirectoryName(targetPath);
+		if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+		{
+			Directory.CreateDirectory(dir);
+		}
+
+		WriteAllTextAtomically(targetPath, SaveMetadataToJson(metadata));
 	}
 
 	public static MapSaveData LoadTerrain(string pathOrDirectory)
