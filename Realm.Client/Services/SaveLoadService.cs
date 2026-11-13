@@ -344,6 +344,7 @@ public class SaveLoadService
 			float rotY = World.Has<RotationY>(entity) ? World.Get<RotationY>(entity).Value : 0f;
 			float scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1f;
 			int playerIndex = World.Has<UnitOwnerPlayer>(entity) ? World.Get<UnitOwnerPlayer>(entity).PlayerIndex : 0;
+			int level = World.Has<Level>(entity) ? World.Get<Level>(entity).Value : 0;
 
 			units.Add(new UnitSaveData
 			{
@@ -353,7 +354,8 @@ public class SaveLoadService
 				PosZ = pos.Value.Z,
 				RotationY = rotY,
 				Scale = scale,
-				Player = playerIndex
+				Player = playerIndex,
+				Level = level
 			});
 		});
 
@@ -372,10 +374,11 @@ public class SaveLoadService
 
 			float rotY = World.Has<RotationY>(entity) ? World.Get<RotationY>(entity).Value : 0f;
 			float scale = World.Has<ModelScale>(entity) ? World.Get<ModelScale>(entity).Value : 1f;
+			int level = World.Has<Level>(entity) ? World.Get<Level>(entity).Value : 0;
 
 			// One placement is one entry. Two props that agree on everything the file records are the same thing drawn
 			// twice, and writing both would double it again the next time the file is read.
-			if (!savedPlacements.Add(PropPlacementKey(propId.PropId, pos.Value.X, pos.Value.Y, pos.Value.Z, scale))) return;
+			if (!savedPlacements.Add(PropPlacementKey(propId.PropId, pos.Value.X, pos.Value.Y, pos.Value.Z, scale, level))) return;
 
 			props.Add(new PropSaveData
 			{
@@ -384,7 +387,8 @@ public class SaveLoadService
 				PosY = pos.Value.Y,
 				PosZ = pos.Value.Z,
 				RotationY = rotY,
-				Scale = scale
+				Scale = scale,
+				Level = level
 			});
 		});
 
@@ -791,7 +795,7 @@ public class SaveLoadService
 				continue;
 			}
 
-			World.Add(World.Create(), new UnitSpawnRequest(u.TemplateId, new Vector3(u.PosX, u.PosY, u.PosZ), u.RotationY, u.Scale, u.Player));
+			World.Add(World.Create(), new UnitSpawnRequest(u.TemplateId, new Vector3(u.PosX, u.PosY, u.PosZ), u.RotationY, u.Scale, u.Player, u.Level));
 		}
 	}
 
@@ -822,9 +826,9 @@ public class SaveLoadService
 				continue;
 			}
 
-			if (!loadedPlacements.Add(PropPlacementKey(p.TemplateId, p.PosX, p.PosY, p.PosZ, p.Scale))) continue;
+			if (!loadedPlacements.Add(PropPlacementKey(p.TemplateId, p.PosX, p.PosY, p.PosZ, p.Scale, p.Level))) continue;
 
-			World.Add(World.Create(), new PropSpawnRequest(p.TemplateId, new Vector3(p.PosX, p.PosY, p.PosZ), p.RotationY, p.Scale));
+			World.Add(World.Create(), new PropSpawnRequest(p.TemplateId, new Vector3(p.PosX, p.PosY, p.PosZ), p.RotationY, p.Scale, p.Level));
 		}
 	}
 
@@ -832,9 +836,9 @@ public class SaveLoadService
 	///     Names one prop placement by everything a save records about it. A second entry that names the same placement is
 	///     the same prop, so the file and the world hold it once however many times a restore read it.
 	/// </summary>
-	private static string PropPlacementKey(string templateId, float x, float y, float z, float scale)
+	private static string PropPlacementKey(string templateId, float x, float y, float z, float scale, int level)
 	{
-		return $"{templateId}_{x:F3}_{y:F3}_{z:F3}_{scale:F3}";
+		return $"{templateId}_{x:F3}_{y:F3}_{z:F3}_{scale:F3}_{level}";
 	}
 
 	private void SpawnDecals(List<DecalSaveData>? decals)

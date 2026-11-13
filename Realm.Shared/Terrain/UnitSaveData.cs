@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Realm.Shared.Terrain;
 
 public class UnitSaveData
@@ -9,4 +11,6 @@ public class UnitSaveData
 	public float RotationY { get; set; }
 	public float Scale { get; set; } = 1.0f;
 	public int Player { get; set; }
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	public int Level { get; set; }
 }

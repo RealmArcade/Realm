@@ -7,6 +7,8 @@ using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.VFX;
+using Realm.Ecs;
+using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client;
@@ -132,12 +134,12 @@ public class MapStateSnapshot
 	{
 		foreach (var unit in snapshot.Units)
 		{
-			host.SpawnUnitExternal(unit.Id, unit.Position, unit.RotationY, unit.Scale, unit.Player);
+			host.SpawnUnitExternal(unit.Id, unit.Position, unit.RotationY, unit.Scale, unit.Player, unit.Level);
 		}
 
 		foreach (var prop in snapshot.Props)
 		{
-			host.SpawnPropExternalWithParams(prop.Id, prop.Position, prop.RotationY, prop.Scale);
+			host.SpawnPropExternalWithParams(prop.Id, prop.Position, prop.RotationY, prop.Scale, prop.Level);
 		}
 
 		foreach (var decal in snapshot.Decals)
@@ -253,7 +255,8 @@ public class MapStateSnapshot
 				Position = unit.Position,
 				RotationY = unit.RotationDegrees.Y,
 				Scale = unit.Scale.X,
-				Player = unit.Player
+				Player = unit.Player,
+				Level = ReadEntityLevel(unit.Entity)
 			});
 		}
 	}
@@ -268,9 +271,18 @@ public class MapStateSnapshot
 				Id = prop.PropId,
 				Position = prop.Position,
 				RotationY = prop.RotationDegrees.Y,
-				Scale = prop.Scale.X
+				Scale = prop.Scale.X,
+				Level = ReadEntityLevel(prop.Entity)
 			});
 		}
+	}
+
+	private static int ReadEntityLevel(Entity entity)
+	{
+		var world = GameContext.World;
+		if (world == null || !world.IsAlive(entity) || !world.Has<Level>(entity)) return 0;
+
+		return world.Get<Level>(entity).Value;
 	}
 
 	private static void SaveDecalsToSnapshot(GameHost host, MapStateSnapshot snapshot)

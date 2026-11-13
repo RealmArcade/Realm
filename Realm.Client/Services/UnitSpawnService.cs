@@ -54,7 +54,7 @@ public class UnitSpawnService
 	}
 
 
-	public void ProcessPropSpawnRequests(Action<string, System.Numerics.Vector3, float, float> spawnAction)
+	public void ProcessPropSpawnRequests(Action<string, System.Numerics.Vector3, float, float, int> spawnAction)
 	{
 		var world = GameContext.World;
 		if (world == null) return;
@@ -65,7 +65,7 @@ public class UnitSpawnService
 		foreach (var reqEnt in propRequests)
 		{
 			ref var req = ref world.Get<PropSpawnRequest>(reqEnt);
-			spawnAction(req.PropId, req.Position, req.RotationY, req.Scale);
+			spawnAction(req.PropId, req.Position, req.RotationY, req.Scale, req.Level);
 			world.Destroy(reqEnt);
 		}
 	}
@@ -184,7 +184,7 @@ public class UnitSpawnService
 	}
 
 
-	public void ProcessUnitSpawnRequestsDomain(Action<string, System.Numerics.Vector3, float, float, int> spawnAction)
+	public void ProcessUnitSpawnRequestsDomain(Action<string, System.Numerics.Vector3, float, float, int, int> spawnAction)
 	{
 		var world = GameContext.World;
 		if (world == null) return;
@@ -195,7 +195,7 @@ public class UnitSpawnService
 		foreach (var reqEnt in unitRequests)
 		{
 			ref var req = ref world.Get<UnitSpawnRequest>(reqEnt);
-			spawnAction(req.UnitId, req.Position, req.RotationY, req.Scale, req.Player);
+			spawnAction(req.UnitId, req.Position, req.RotationY, req.Scale, req.Player, req.Level);
 			world.Destroy(reqEnt);
 		}
 	}

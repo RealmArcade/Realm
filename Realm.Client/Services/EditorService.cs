@@ -559,7 +559,7 @@ public partial class EditorService : IEditorAPI
 		_clump.Reset();
 	}
 
-	public Entity SpawnPropDomain(string propId, System.Numerics.Vector3 position, float rotationY, float scale, string cleanId, float defaultAmount, float terrainHeight, float collisionRadius)
+	public Entity SpawnPropDomain(string propId, System.Numerics.Vector3 position, float rotationY, float scale, string cleanId, float defaultAmount, float terrainHeight, float collisionRadius, int level = 0)
 	{
 		var entity = PropEntityFactory.CreateCore(
 			World,
@@ -569,7 +569,7 @@ public partial class EditorService : IEditorAPI
 			scale,
 			collisionRadius);
 
-		GameContext.RegistryService.TryAddResourceNodeComponent(entity, propId, cleanId, defaultAmount);
+		GameContext.RegistryService.TryAddResourceNodeComponent(entity, propId, cleanId, defaultAmount, level);
 		return entity;
 	}
 

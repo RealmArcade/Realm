@@ -41,6 +41,9 @@
           },
           "Player": {
             "type": "integer"
+          },
+          "Level": {
+            "type": "integer"
           }
         }
       }
@@ -73,6 +76,9 @@
           },
           "Scale": {
             "type": "number"
+          },
+          "Level": {
+            "type": "integer"
           }
         }
       }
