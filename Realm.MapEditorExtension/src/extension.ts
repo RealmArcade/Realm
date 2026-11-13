@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
-import { RealmMapEditorProvider } from './editorProvider';
 import { RealmRtexViewerProvider } from './rtexEditorProvider';
 import { RealmRanimViewerProvider } from './ranimEditorProvider';
 import { RealmRmeshViewerProvider, RmeshGlbFileSystemProvider, openRmeshInGlbViewer } from './rmeshEditorProvider';
@@ -10,7 +9,6 @@ import { RealmRaudViewerProvider } from './raudEditorProvider';
 import { MIXAMO_EXPORT_LICENSING_WARNING } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
-    context.subscriptions.push(RealmMapEditorProvider.register(context));
     context.subscriptions.push(RealmRtexViewerProvider.register(context));
     context.subscriptions.push(RealmRanimViewerProvider.register(context));
     context.subscriptions.push(RealmRmeshViewerProvider.register(context));
@@ -136,7 +134,7 @@ function startGodotIpcListener(context: vscode.ExtensionContext): void {
                         if (cmd === 'saveAll') {
                             await handleSaveAllCommand();
                         } else if (cmd === 'reloadWorkspaceMetadata' && data.workspaceMetadataPath) {
-                            await openWorkspaceMetadata(data.workspaceMetadataPath);
+                            await openWorkspaceMetadata(data.workspaceMetadataPath, false);
                         }
                     }
                 }
@@ -187,7 +185,7 @@ function httpGetJson(urlStr: string): Promise<any> {
     });
 }
 
-async function openWorkspaceMetadata(metadataPath: string): Promise<void> {
+async function openWorkspaceMetadata(metadataPath: string, preserveFocus: boolean): Promise<void> {
     if (!fs.existsSync(metadataPath)) { return; }
 
     try {
@@ -211,7 +209,7 @@ async function openWorkspaceMetadata(metadataPath: string): Promise<void> {
             await document.save();
         }
 
-        await vscode.commands.executeCommand('vscode.openWith', metadataUri, 'realm.mapEditor', { preview: false });
+        await vscode.window.showTextDocument(document, { preview: false, preserveFocus });
     } catch (err) {
         console.error('[RealmExtension] Failed to reload active workspace metadata:', err);
     }
@@ -230,7 +228,7 @@ async function openStartupFiles(context: vscode.ExtensionContext): Promise<void>
     if (!fs.existsSync(scriptPath) || !fs.existsSync(metadataPath)) { return; }
 
     try {
-        await openWorkspaceMetadata(metadataPath);
+        await openWorkspaceMetadata(metadataPath, true);
 
         const scriptUri = vscode.Uri.file(scriptPath);
         const scriptDoc = await vscode.workspace.openTextDocument(scriptUri);

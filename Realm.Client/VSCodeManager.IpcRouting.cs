@@ -85,8 +85,6 @@ public partial class VSCodeManager
 		JsonNode? node = JsonNode.Parse(body);
 		string? action = GetActionFromNode(node);
 
-		CheckFocusGodotWindow(action, node);
-
 		var responseObj = new JsonObject();
 		await RouteIpcAction(action, node, responseObj);
 
@@ -96,25 +94,6 @@ public partial class VSCodeManager
 	private string? GetActionFromNode(JsonNode? node)
 	{
 		return node?["action"]?.ToString() ?? node?["type"]?.ToString();
-	}
-
-	private void CheckFocusGodotWindow(string? action, JsonNode? node)
-	{
-		if (ShouldFocusGodot(action, node))
-		{
-			EditorWindowIntegration.RestoreAndFocusGodotWindow();
-		}
-	}
-
-	private bool ShouldFocusGodot(string? action, JsonNode? node)
-	{
-		return action == "openVfxDialog" ||
-		       action == "openModelPicker" ||
-		       action == "openAbilityVfxDialog" ||
-		       action == "openAnimationStudio" ||
-		       action == "openAnimationPreview" ||
-		       action == "openEditAnimations" ||
-		       (node?["focusGodot"]?.GetValue<bool>() ?? false);
 	}
 
 	private async Task RouteIpcAction(string? action, JsonNode? node, JsonObject responseObj)
@@ -127,32 +106,8 @@ public partial class VSCodeManager
 			return;
 		}
 
-		if (TryRouteDialogAction(action, node, responseObj)) return;
 		if (TryRouteFileAction(action, node, responseObj)) return;
 		if (TryRouteConversionAction(action, node, responseObj)) return;
-	}
-
-	private bool TryRouteDialogAction(string? action, JsonNode? node, JsonObject responseObj)
-	{
-		switch (action)
-		{
-			case "openVfxDialog":
-				HandleOpenVfxDialog(node, responseObj);
-				return true;
-			case "openModelPicker":
-				HandleOpenModelPicker(node, responseObj);
-				return true;
-			case "openAbilityVfxDialog":
-				HandleOpenAbilityVfxDialog(node, responseObj);
-				return true;
-			case "openAnimationStudio":
-			case "openAnimationPreview":
-			case "openEditAnimations":
-				HandleOpenAnimationStudio(node, responseObj);
-				return true;
-		}
-
-		return false;
 	}
 
 	private bool TryRouteFileAction(string? action, JsonNode? node, JsonObject responseObj)
