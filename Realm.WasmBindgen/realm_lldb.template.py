@@ -1696,10 +1696,12 @@ def realm_load_modules(debugger, command, result, internal_dict):
         norm = os.path.abspath(elf_path).replace("\\", "/")
         fs = lldb.SBFileSpec(norm)
         mod = target.FindModule(fs)
+        if not mod or not mod.IsValid():
+            mod = target.AddModule(norm, "x86_64", "")
         if mod and mod.IsValid():
+            debugger.HandleCommand(f'target modules load --file "{norm}" --slide 0')
             return True
-        mod = target.AddModule(norm, "x86_64", "")
-        return bool(mod and mod.IsValid())
+        return False
 
     loaded = 0
     seen = set()
