@@ -649,6 +649,15 @@ public partial class GameHost
 		ClearRampPreviewVisuals();
 	}
 
+	private void CancelRampInteraction()
+	{
+		_rampPressActive = false;
+		_rampPressDragging = false;
+		_rampPressStartedNewRamp = false;
+		GameContext.EditorService.SetRampStartPos(null);
+		ClearRampPreviewVisuals();
+	}
+
 	private Vector3 SnapEditorHitToGrid(Vector3 hitPosition)
 	{
 		if (!EditorSnapToGrid || GroundTerrain == null) return hitPosition;
