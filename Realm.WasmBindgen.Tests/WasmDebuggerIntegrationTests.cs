@@ -162,8 +162,6 @@ public class WasmDebuggerIntegrationTests
 		Assert.That(script, Does.Contain("def realm_step_tick"));
 		Assert.That(script, Does.Contain("def realm_watch_tick"));
 		Assert.That(script, Does.Contain("def resolve_line_addresses"));
-		Assert.That(script, Does.Contain("def repair_jit_elf_ranges"));
-		Assert.That(script, Does.Contain("repaired {repaired} DWARF range"));
 	}
 
 	[Test]
@@ -231,7 +229,6 @@ public class WasmDebuggerIntegrationTests
 		Assert.That(launch, Does.Contain("process handle SIGTRAP"));
 		Assert.That(launch, Does.Contain("step-in-avoid-nodebug"));
 		Assert.That(launch, Does.Contain("step-out-avoid-nodebug"));
-		Assert.That(launch, Does.Contain("realm_just_my_code on"));
 	}
 
 	[Test]

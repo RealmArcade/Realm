@@ -69,6 +69,12 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 
 					if (elfBytes.Length >= 4 && elfBytes[0] == 0x7F && elfBytes[1] == 0x45 && elfBytes[2] == 0x4C && elfBytes[3] == 0x46)
 					{
+						int repairedRanges = JitDebugElfRangeRepair.Repair(elfBytes);
+						if (repairedRanges > 0)
+						{
+							LogToConsole($"[WASM DEBUG] Repaired {repairedRanges} DWARF range(s) in the JIT ELF of pid {System.Environment.ProcessId}.");
+						}
+
 						string suffix = exportedCount == 0 ? string.Empty : $"_{exportedCount}";
 						string publishElfPath = Path.Combine(directoryName ?? string.Empty, $"{baseFileName}{suffix}.jit.elf");
 						File.WriteAllBytes(publishElfPath, elfBytes);

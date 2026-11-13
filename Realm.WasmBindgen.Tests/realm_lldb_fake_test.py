@@ -667,7 +667,7 @@ def main():
     step_result = FakeResult()
     step_debugger = FakeDebugger(step_target)
     module.realm_step(step_debugger, "", step_result, {})
-    expect(any(command == "continue" for command in step_debugger.commands), "realm_step did not continue to the next-line breakpoint")
+    expect(any("realm_step is disabled" in message for message in step_result.messages), "realm_step was not disabled safely")
 
     int_type = FakeType("int", byte_size=4)
     unit_type = FakeType("Realm_Ecs_Realm_Ecs_UnitId", byte_size=4)

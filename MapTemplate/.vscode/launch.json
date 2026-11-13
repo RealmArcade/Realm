@@ -28,13 +28,11 @@
 			],
 			"postAttachCommands": [
 				"process handle SIGTRAP -s false -n false -p false",
-				"realm_just_my_code on",
 				"realm_load_modules",
 				"continue"
 			],
 			"postRunCommands": [
 				"process handle SIGTRAP -s false -n false -p false",
-				"realm_just_my_code on",
 				"realm_load_modules",
 				"continue"
 			],
