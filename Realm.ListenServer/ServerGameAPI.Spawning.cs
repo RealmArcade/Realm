@@ -152,6 +152,7 @@ public partial class ServerGameAPI
 		}
 
 		_context.World.SetOrAdd(spawned, new UnitOwnerPlayer(playerIndex));
+		AutoCast?.Grant(spawned);
 		_log.Write($"spawned '{unitTypeId}' as entity {spawned.Id} for player {playerIndex}");
 
 		if (Metrics != null)

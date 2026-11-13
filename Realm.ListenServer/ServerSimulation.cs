@@ -19,6 +19,7 @@ public class ServerSimulation : IDisposable
 	private readonly LoadedMap _map;
 	private readonly ServerLog _log;
 	private readonly MatchTick _matchTick;
+	private readonly AutoCastSystem _autoCast;
 	private readonly CommandAuthorityService _commands;
 	private readonly Dictionary<int, int> _peerPlayerSlots = new();
 	private readonly Dictionary<int, int> _lastAnsweredCommandIdPerPeer = new();
@@ -80,6 +81,8 @@ public class ServerSimulation : IDisposable
 		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, MatchOptions);
 		if (roster != null) ApplyRosterBotDifficulties(roster);
 		_script.Api.Metrics = Metrics;
+		_autoCast = new AutoCastSystem(map.Simulation, _script.Api.Abilities, _script.Api);
+		_script.Api.AutoCast = _autoCast;
 		if (!MatchOptions.IsEmpty) log.Write($"the lobby configured this match: {MatchOptions.Describe()}");
 		_commands.ConsumableChangedSink = (unitId, consumableId) => _script.Api.RaiseConsumableChanged(unitId, consumableId);
 		_snapshots.Abilities = _script.Api.Abilities;
@@ -156,6 +159,7 @@ public class ServerSimulation : IDisposable
 
 		float deltaSeconds = (float)MatchTiming.FixedTickSeconds;
 		_matchTick.AdvanceCooldowns(deltaSeconds);
+		_autoCast.Step();
 		_map.Simulation.MovementPathfindingService.StepMovement(deltaSeconds);
 		_map.Simulation.CombatDamageService.StepCombat(deltaSeconds, _map.Simulation.MovementPathfindingService);
 		_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);

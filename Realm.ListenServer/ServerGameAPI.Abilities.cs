@@ -19,6 +19,8 @@ public partial class ServerGameAPI
 
 	public ScriptAbilityRegistry Abilities => _abilities;
 
+	public AutoCastSystem? AutoCast { get; set; }
+
 	public void AddUnitTypeAbility(string unitTypeId, string abilityId)
 	{
 		if (string.IsNullOrWhiteSpace(unitTypeId) || string.IsNullOrWhiteSpace(abilityId)) return;

@@ -27,6 +27,7 @@ public class AbilityDefinition
 
 	public float Healing { get; set; } = 0f;
 	public bool AutoCastEnabled { get; set; } = true;
+	public bool AutoCastDeclared { get; set; }
 	public bool AutoCastRequiresEnemy { get; set; } = true;
 	public float AutoCastAllyHealthPercentBelow { get; set; } = 1f;
 	public float AutoCastManaReserve { get; set; }
