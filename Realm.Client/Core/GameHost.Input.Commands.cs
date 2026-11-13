@@ -68,7 +68,7 @@ public partial class GameHost
 		if (IsFocusedUnitHoldingItemSoulbound(itemId))
 		{
 			GameContext.InGameHud?.ShowFeedbackText(
-				TranslationServer.Translate("That item is bound to this unit and cannot be put down."),
+				TranslationServer.Translate("This item cannot be dropped, it is soul-bound"),
 				new Color(0.9f, 0.4f, 0.1f));
 			return;
 		}
