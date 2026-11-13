@@ -862,6 +862,7 @@ public static class ReplicatedComponents
 		Register(new TagComponentCodec<MovementSpeed>(ReplicatedScope.Unit));
 		Register(new TagComponentCodec<AttackSpeedStat>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<Inventory>(ReplicatedScope.Unit));
+		Register(new ReplicatedComponentCodec<SoulboundItems>(ReplicatedScope.Unit));
 		Register(new ConsumableAttachmentCodec());
 		Register(new ReplicatedComponentCodec<RallyPoint>(ReplicatedScope.Unit));
 		Register(new ReplicatedComponentCodec<ResourceNode>(ReplicatedScope.Unit));

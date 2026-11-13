@@ -181,7 +181,8 @@ public static class ComponentTypeRegistry
 			typeof(RepairTask),
 			typeof(Worker),
 			typeof(PickupTask),
-			typeof(DropItemTask)
+			typeof(DropItemTask),
+			typeof(SoulboundItems)
 		};
 
 		for (int i = 0; i < canonicalTypes.Length; i++)

@@ -68,7 +68,16 @@ public class ItemGrantService
 		return item.MaxStacks > 0 ? item.MaxStacks : 1;
 	}
 
-	public bool Equip(Entity entity, string itemId, int charges = 1)
+	/// <summary>
+	///     Puts an item into a unit's inventory. An item granted rather than collected is bound to the unit that was given
+	///     it, so it stays with that unit and cannot be put down.
+	/// </summary>
+	/// <param name="entity">The unit receiving the item.</param>
+	/// <param name="itemId">The item definition identifier to add.</param>
+	/// <param name="charges">How many pieces to add.</param>
+	/// <param name="soulbound">Whether the pieces are bound to this unit for as long as it holds them.</param>
+	/// <returns>True when the inventory took the item; otherwise false.</returns>
+	public bool Equip(Entity entity, string itemId, int charges = 1, bool soulbound = false)
 	{
 		if (!World.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId)) return false;
 		if (!CanCarry(entity, itemId)) return false;
@@ -82,7 +91,25 @@ public class ItemGrantService
 		if (!inventory.AddItem(itemId, added, limit, SlotLimit)) return false;
 
 		ApplyGrants(entity, itemId);
+		if (soulbound) BindItem(entity, itemId);
 		return true;
+	}
+
+	/// <summary>
+	///     Binds an item the unit already holds to that unit, which is what stops it being put down.
+	/// </summary>
+	/// <param name="entity">The unit holding the item.</param>
+	/// <param name="itemId">The item definition identifier to bind.</param>
+	/// <returns>True when the item became bound; false when it was already bound or the unit does not carry it.</returns>
+	public bool BindItem(Entity entity, string itemId)
+	{
+		if (!World.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId)) return false;
+		if (!World.Has<Inventory>(entity) || !World.Get<Inventory>(entity).HasItem(itemId)) return false;
+
+		if (!World.Has<SoulboundItems>(entity)) World.Add(entity, default(SoulboundItems));
+
+		ref SoulboundItems bound = ref World.Get<SoulboundItems>(entity);
+		return bound.Add(itemId);
 	}
 
 	public bool Unequip(Entity entity, string itemId)
@@ -93,6 +120,7 @@ public class ItemGrantService
 		if (!WriteCharges(entity, itemId, 0)) return false;
 
 		WithdrawGrants(entity, itemId);
+		ReleaseItemIfGone(entity, itemId);
 		return true;
 	}
 
@@ -115,10 +143,26 @@ public class ItemGrantService
 
 		inventory.RemoveItem(itemId, taken);
 
-		if (inventory.HasItem(itemId)) ApplyGrants(entity, itemId);
-		else WithdrawGrants(entity, itemId);
+		if (inventory.HasItem(itemId))
+		{
+			ApplyGrants(entity, itemId);
+		}
+		else
+		{
+			WithdrawGrants(entity, itemId);
+			ReleaseItemIfGone(entity, itemId);
+		}
 
 		return taken;
+	}
+
+	private void ReleaseItemIfGone(Entity entity, string itemId)
+	{
+		if (!World.IsAlive(entity) || !World.Has<SoulboundItems>(entity)) return;
+		if (World.Has<Inventory>(entity) && World.Get<Inventory>(entity).HasItem(itemId)) return;
+
+		ref SoulboundItems bound = ref World.Get<SoulboundItems>(entity);
+		bound.Remove(itemId);
 	}
 
 	public bool Carries(Entity entity, string itemId)
@@ -152,8 +196,15 @@ public class ItemGrantService
 		int wanted = Math.Max(0, charges);
 		if (!WriteCharges(entity, itemId, wanted)) return false;
 
-		if (wanted == 0) WithdrawGrants(entity, itemId);
-		else ApplyGrants(entity, itemId);
+		if (wanted == 0)
+		{
+			WithdrawGrants(entity, itemId);
+			ReleaseItemIfGone(entity, itemId);
+		}
+		else
+		{
+			ApplyGrants(entity, itemId);
+		}
 
 		return true;
 	}

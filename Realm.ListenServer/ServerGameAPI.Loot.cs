@@ -85,7 +85,7 @@ public partial class ServerGameAPI
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return false;
 
-		return Items.Equip(entity, itemId, charges);
+		return Items.Equip(entity, itemId, charges, soulbound: true);
 	}
 
 	public bool RemoveItemFromUnit(UnitId unit, string itemId)

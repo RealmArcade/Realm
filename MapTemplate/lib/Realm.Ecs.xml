@@ -769,6 +769,17 @@
             Holds the spatial trigger zones a map registered, as positions into one immutable content id payload.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Components.Core.SoulboundItemIdArray">
+            <summary>
+            Holds the item string identifiers a unit's soulbound set names, sized to the number of slots a unit can fill.
+            </summary>
+        </member>
+        <member name="T:Realm.Ecs.Components.Core.SoulboundItems">
+            <summary>
+                Holds the items a unit holds that are bound to it, so they stay with that unit instead of being put down or
+                handed to another unit.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.Components.Core.SpectatorPerspective">
             <summary>
                 Represents the active player perspective ID being viewed by a live spectator.

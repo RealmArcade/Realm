@@ -66,7 +66,7 @@ public partial class ReplicationContractTests
 
 	private static readonly string[] StorageStructs =
 	{
-		"BuffSlot", "BuffSlotArray", "InventorySlot", "InventorySlotArray",
+		"BuffSlot", "BuffSlotArray", "InventorySlot", "InventorySlotArray", "SoulboundItemIdArray",
 		"ModifierSlotArray", "PlayerSlotArray", "StatSlot", "StatSlotArray",
 		"VFXSlotArray", "OccupiedZoneMask", "CameraLocationSlot",
 		"BuildQueueSlot", "BuildQueueSlots", "AbsorbShieldSlot", "AbsorbShieldSlotArray"

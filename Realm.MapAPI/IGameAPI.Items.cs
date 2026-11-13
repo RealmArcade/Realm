@@ -11,7 +11,8 @@ namespace Realm.MapAPI;
 public partial interface IGameAPI
 {
 	/// <summary>
-	/// Adds an item archetype to the specified unit's inventory.
+	/// Adds an item archetype to the specified unit's inventory. An item granted this way is bound to the unit that
+	/// received it: it stays with that unit and cannot be put down, unlike an item collected from the ground.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="itemId">The item definition identifier.</param>
@@ -19,7 +20,8 @@ public partial interface IGameAPI
 	bool AddItemToUnit(UnitId unit, string itemId);
 
 	/// <summary>
-	/// Adds an item archetype to the specified unit's inventory with a stack of the given charge count.
+	/// Adds an item archetype to the specified unit's inventory with a stack of the given charge count. The granted
+	/// pieces are bound to the unit that received them, so they cannot be put down.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>
 	/// <param name="itemId">The item definition identifier.</param>

@@ -48,6 +48,13 @@ public partial class CommandAuthorityService
 				continue;
 			}
 
+			if (_context.World.TryGet<SoulboundItems>(entity, out SoulboundItems bound) && bound.Contains(itemId))
+			{
+				RecordCommandRejection(rejectedServerEntityIds, serverId, $"entity {serverId} has '{itemId}' bound to it");
+				if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = $"entity {serverId} has '{itemId}' bound to it";
+				continue;
+			}
+
 			ApplyDropOrder(entity, itemId, charges, targetPosition);
 		}
 	}

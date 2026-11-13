@@ -65,6 +65,14 @@ public partial class GameHost
 		if (string.IsNullOrWhiteSpace(itemId)) return;
 		if (GameContext.InputService == null) return;
 
+		if (IsFocusedUnitHoldingItemSoulbound(itemId))
+		{
+			GameContext.InGameHud?.ShowFeedbackText(
+				TranslationServer.Translate("That item is bound to this unit and cannot be put down."),
+				new Color(0.9f, 0.4f, 0.1f));
+			return;
+		}
+
 		ActiveSpellTargeting = null;
 		GameContext.InputService.ActiveDropItemId = itemId;
 		GameContext.InputService.ActiveDropItemCharges = Math.Max(1, charges);
@@ -79,6 +87,16 @@ public partial class GameHost
 		Hud.ShowFeedbackText(
 			string.Format(TranslationServer.Translate("Dropping {0}: click the ground to put it down"), itemName),
 			new Color(0.85f, 0.75f, 0.25f));
+	}
+
+	private bool IsFocusedUnitHoldingItemSoulbound(string itemId)
+	{
+		Unit3D? focusedUnit = GetFocusedSelectedUnit();
+		if (focusedUnit == null || !GodotObject.IsInstanceValid(focusedUnit)) return false;
+		if (!World.IsAlive(focusedUnit.Entity)) return false;
+		if (!World.TryGet<SoulboundItems>(focusedUnit.Entity, out SoulboundItems bound)) return false;
+
+		return bound.Contains(itemId);
 	}
 
 	public void IssueMoveCommand(Vector3 targetPos, bool isQueued = false)
