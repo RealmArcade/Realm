@@ -147,6 +147,28 @@ public partial class GameHost
 			}
 		}
 
+		if (@event is InputEventKey vehicleKey && !vehicleKey.Echo)
+		{
+			bool isTyping = GetViewport()?.GuiGetFocusOwner() is LineEdit or TextEdit;
+			bool isChatActive = GameContext.InGameHud != null && GameContext.InGameHud.IsChatActive;
+			if (!isTyping && !isChatActive && MainCamera != null && MainCamera.HasScriptFollowConfig && MainCamera.FollowTarget != null)
+			{
+				if (vehicleKey.Keycode == Key.A)
+				{
+					CastScriptVehicleAbility(vehicleKey.Pressed ? "ability/steer_left" : "ability/steer_left_stop");
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+
+				if (vehicleKey.Keycode == Key.D)
+				{
+					CastScriptVehicleAbility(vehicleKey.Pressed ? "ability/steer_right" : "ability/steer_right_stop");
+					GetViewport().SetInputAsHandled();
+					return;
+				}
+			}
+		}
+
 		if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo)
 		{
 			if (keyEvent.Keycode >= Key.Key0 && keyEvent.Keycode <= Key.Key9)

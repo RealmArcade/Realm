@@ -112,7 +112,7 @@ public partial class CameraControl : Camera3D
 		float tgtYawRad = Mathf.DegToRad(state.TargetYaw);
 		float yawDiffRad = Mathf.AngleDifference(curYawRad, tgtYawRad);
 
-		float maxYawStepRad = Mathf.DegToRad(150.0f) * fDelta;
+		float maxYawStepRad = Mathf.DegToRad(360.0f) * fDelta;
 		float yawStepRad = Mathf.Clamp(yawDiffRad * rotAlpha, -maxYawStepRad, maxYawStepRad);
 
 		state.CurrentYaw = Mathf.RadToDeg(curYawRad + yawStepRad);

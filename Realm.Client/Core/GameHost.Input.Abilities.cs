@@ -187,6 +187,15 @@ public partial class GameHost
 		}
 	}
 
+	public void CastScriptVehicleAbility(string abilityId)
+	{
+		if (MainCamera?.FollowTarget is not Unit3D unit || !World.IsAlive(unit.Entity)) return;
+		if (!GameContext.PerspectiveFilter.CanControl(unit.Player)) return;
+
+		var targetIds = new List<int> { GetServerEntityId(unit.Entity) };
+		SubmitRemoteCommand("spell", targetIds, unit.GlobalPosition, 0, abilityId);
+	}
+
 	public void BuyItem(string itemId, Entity buildingEntity)
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;

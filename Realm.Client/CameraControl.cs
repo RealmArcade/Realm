@@ -358,6 +358,7 @@ public partial class CameraControl : Camera3D
 
 	private bool _isAltRightDragging = false;
 	private bool _hasScriptFollowConfig = false;
+	public bool HasScriptFollowConfig => _hasScriptFollowConfig;
 	private bool _hasScriptViewActive = false;
 	private float _scriptFollowDistance = 18.0f;
 	private float _scriptFollowHeightOffset = 8.0f;
