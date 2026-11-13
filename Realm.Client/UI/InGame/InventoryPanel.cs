@@ -139,6 +139,7 @@ public class InventoryPanel
 
 			int slotIndex = i;
 			btn.Pressed += () => OnSlotPressed(slotIndex);
+			btn.GuiInput += @event => OnSlotGuiInput(slotIndex, @event);
 
 			_slots[i] = new SlotControls
 			{
@@ -169,6 +170,32 @@ public class InventoryPanel
 		{
 			host.UseItem(selected[focusIdx], itemId);
 		}
+	}
+
+	/// <summary>
+	///     Starts a drop from the clicked slot: the next left-click on the ground walks the focused unit there and puts
+	///     the pieces that slot holds down as one ground item. A consumable is a card rather than an inventory item, so it
+	///     has nothing to put down and keeps its card behaviour only.
+	/// </summary>
+	/// <param name="slotIndex">The inventory slot the pointer was over.</param>
+	/// <param name="@event">The input event the slot received.</param>
+	private void OnSlotGuiInput(int slotIndex, InputEvent @event)
+	{
+		if (@event is not InputEventMouseButton mouseButton) return;
+		if (mouseButton.ButtonIndex != MouseButton.Right || !mouseButton.Pressed) return;
+		if (_slots[slotIndex].LastIsCarriedConsumable) return;
+
+		string? itemId = _slots[slotIndex].LastItemId;
+		if (string.IsNullOrEmpty(itemId)) return;
+		if (GameContext.Host is not { } host) return;
+
+		var selected = host.SelectedUnits;
+		int focusIdx = _currentFocusIdx;
+		if (selected.Count <= focusIdx) return;
+		if (selected[focusIdx].Player != GameContext.PerspectiveFilter.ControlledPlayerIndex) return;
+
+		host.EnterItemDropTargeting(itemId, _slots[slotIndex].LastCount);
+		_slots[slotIndex].ItemButton.AcceptEvent();
 	}
 
 	public void Update(InGameHUDViewModel viewModel)

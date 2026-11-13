@@ -435,6 +435,19 @@ public partial class GameHost
 						Input.SetCustomMouseCursor(null);
 						Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
 					}
+					else if (ActiveCommandTargeting == DropItemTargetingMode)
+					{
+						var hit = RaycastTerrainFromMouse(mouseBtn.Position) ?? RaycastFromMouse(mouseBtn.Position);
+						if (hit != null && hit.ContainsKey("position"))
+						{
+							var hitPos = hit["position"].AsVector3();
+							hitPos.Y = GetTerrainHeightAt(hitPos);
+							IssueDropItemCommand(hitPos, GameContext.InputService?.ActiveDropItemId ?? string.Empty, GameContext.InputService?.ActiveDropItemCharges ?? 0);
+						}
+
+						ActiveCommandTargeting = null;
+						Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
+					}
 					else if (ActiveCommandTargeting != null)
 					{
 						var hit = RaycastFromMouse(mouseBtn.Position);

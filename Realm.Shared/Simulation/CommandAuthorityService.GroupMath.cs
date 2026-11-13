@@ -111,6 +111,7 @@ private void ClearActionOrders(Entity entity)
 		if (_context.World.Has<Gatherer>(entity)) _context.World.Remove<Gatherer>(entity);
 		if (_context.World.Has<RepairTask>(entity)) _context.World.Remove<RepairTask>(entity);
 		if (_context.World.Has<PickupTask>(entity)) _context.World.Remove<PickupTask>(entity);
+		if (_context.World.Has<DropItemTask>(entity)) _context.World.Remove<DropItemTask>(entity);
 
 		// A move or an attack is a new order, so work at a building ends with the orders it was given under. Leaving the
 		// build task behind let the construction tick walk the unit back to the site on the next frame, which made a site

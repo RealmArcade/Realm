@@ -40,6 +40,7 @@ public static class UnitOrderService
 		RemoveIfPresent<Gatherer>(world, entity);
 		RemoveIfPresent<RepairTask>(world, entity);
 		RemoveIfPresent<PickupTask>(world, entity);
+		RemoveIfPresent<DropItemTask>(world, entity);
 		RemoveIfPresent<BuildTask>(world, entity);
 		RemoveIfPresent<BuildQueue>(world, entity);
 	}

@@ -24,6 +24,8 @@ using Realm.Shared.Abilities;
 namespace Realm.Client.Core;
 public partial class GameHost
 {
+	public const string DropItemTargetingMode = "drop";
+
 	public void EnterCommandTargeting(string mode)
 	{
 		ActiveCommandTargeting = mode;
@@ -49,6 +51,34 @@ public partial class GameHost
 				Hud.ShowFeedbackText("Rally Command: Click ground to set building Rally Point", new Color(1.0f, 0.85f, 0.5f));
 			}
 		}
+	}
+
+	/// <summary>
+	///     Starts a drop: the next left-click on the ground sends the focused unit there to put the named item down.
+	///     Only the item and the spot travel, because the authority owns both the walk and the handover.
+	/// </summary>
+	/// <param name="itemId">The item the focused unit carries and should put down.</param>
+	/// <param name="charges">How many pieces of it the slot holds, which is what leaves the inventory.</param>
+	public void EnterItemDropTargeting(string itemId, int charges)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (string.IsNullOrWhiteSpace(itemId)) return;
+		if (GameContext.InputService == null) return;
+
+		ActiveSpellTargeting = null;
+		GameContext.InputService.ActiveDropItemId = itemId;
+		GameContext.InputService.ActiveDropItemCharges = Math.Max(1, charges);
+		ActiveCommandTargeting = DropItemTargetingMode;
+		Input.SetDefaultCursorShape(Input.CursorShape.PointingHand);
+
+		if (GameContext.InGameHud == null) return;
+
+		string itemName = itemId.ToUpper();
+		if (ItemRegistry.TryGetValue(itemId, out var itemMeta) && !string.IsNullOrEmpty(itemMeta.Name)) itemName = MapText.TranslateName(itemMeta.Name);
+
+		Hud.ShowFeedbackText(
+			string.Format(TranslationServer.Translate("Dropping {0}: click the ground to put it down"), itemName),
+			new Color(0.85f, 0.75f, 0.25f));
 	}
 
 	public void IssueMoveCommand(Vector3 targetPos, bool isQueued = false)

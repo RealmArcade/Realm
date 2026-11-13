@@ -21,11 +21,16 @@ public class GroundLootService
 
 	private const int PickupHolderCapacity = 2048;
 
+	private const int DropHolderCapacity = 2048;
+
 	private readonly record struct PickupHolder(Entity Unit, int LootItemId, Vector3 Position);
+
+	private readonly record struct DropHolder(Entity Unit, string ItemId, int Charges, Vector3 Target, Vector3 Position);
 
 	private static readonly QueryDescription AllLootQuery = new QueryDescription().WithAll<GroundLoot, Position>();
 	private static readonly QueryDescription CandidateQuery = new QueryDescription().WithAll<Position, Owner, Health>().WithNone<Dead, Building>();
 	private static readonly QueryDescription PickupHolderQuery = new QueryDescription().WithAll<PickupTask, Position>();
+	private static readonly QueryDescription DropHolderQuery = new QueryDescription().WithAll<DropItemTask, Position>();
 
 	private readonly SimulationContext _context;
 	private readonly ItemGrantService _items;
@@ -34,9 +39,11 @@ public class GroundLootService
 	private readonly List<Entity> _expired = new();
 	private readonly List<Entity> _sweepResult = new();
 	private readonly List<PickupHolder> _pickupHolders = new();
+	private readonly List<DropHolder> _dropHolders = new();
 	private readonly EntityCallback<GroundLoot, Position> _collectAll;
 	private readonly EntityCallback<Position, Owner, Health> _pickupCandidates;
 	private readonly EntityCallback<PickupTask, Position> _collectPickupHolders;
+	private readonly EntityCallback<DropItemTask, Position> _collectDropHolders;
 
 	private Vector3 _pickupCenter;
 	private float _pickupRadiusSquared;
@@ -51,6 +58,7 @@ public class GroundLootService
 		_collectAll = CollectAll;
 		_pickupCandidates = CollectPickupCandidates;
 		_collectPickupHolders = CollectPickupHolders;
+		_collectDropHolders = CollectDropHolders;
 	}
 
 	public EcsWorld World => _context.World;
@@ -162,6 +170,7 @@ public class GroundLootService
 
 	public void Step(float deltaSeconds)
 	{
+		StepDropOrders();
 		StepPickupOrders();
 
 		_expired.Clear();
@@ -209,6 +218,37 @@ public class GroundLootService
 		}
 	}
 
+	private void StepDropOrders()
+	{
+		_dropHolders.Clear();
+		World.Query(in DropHolderQuery, _collectDropHolders);
+		if (_dropHolders.Count == 0) return;
+
+		for (int index = 0; index < _dropHolders.Count; index++)
+		{
+			DropHolder holder = _dropHolders[index];
+			if (!World.IsAlive(holder.Unit) || !World.Has<DropItemTask>(holder.Unit)) continue;
+
+			if (World.Has<Dead>(holder.Unit))
+			{
+				World.Remove<DropItemTask>(holder.Unit);
+				continue;
+			}
+
+			bool atDropSpot = Vector3.DistanceSquared(holder.Position, holder.Target) <= DefaultPickupRadius * DefaultPickupRadius;
+		if (!atDropSpot && World.Has<MoveTo>(holder.Unit)) continue;
+
+			World.Remove<DropItemTask>(holder.Unit);
+			if (World.Has<MoveTo>(holder.Unit)) World.Remove<MoveTo>(holder.Unit);
+			if (World.Has<PathFollow>(holder.Unit)) World.Remove<PathFollow>(holder.Unit);
+
+			int dropped = _items.TakeCharges(holder.Unit, holder.ItemId, holder.Charges);
+			if (dropped <= 0) continue;
+
+			Spawn(holder.ItemId, holder.Position, dropped, pickupRadius: DefaultPickupRadius, autoPickup: false, ownerPlayerIndex: OwnerPlayerIndex(holder.Unit));
+		}
+	}
+
 	/// <summary>
 	///     Walks every unit that carries a pickup order: the item is taken once the unit stands within the item's own
 	///     pickup radius, and the order is dropped when the item is gone or the unit has stopped short of it, so an
@@ -253,6 +293,13 @@ public class GroundLootService
 		if (_pickupHolders.Count == PickupHolderCapacity) return;
 
 		_pickupHolders.Add(new PickupHolder(entity, task.LootEntity.Id, position.Value));
+	}
+
+	private void CollectDropHolders(Entity entity, ref DropItemTask task, ref Position position)
+	{
+		if (_dropHolders.Count == DropHolderCapacity) return;
+
+		_dropHolders.Add(new DropHolder(entity, task.ItemId, task.Charges, task.Target, position.Value));
 	}
 
 	private int OwnerPlayerIndex(Entity unit)

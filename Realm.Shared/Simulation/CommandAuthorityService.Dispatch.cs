@@ -87,6 +87,9 @@ public partial class CommandAuthorityService
 			case "pickup_queued":
 				HandlePickupCommand(peerId, cmd, isQueued, rejectedServerEntityIds, ref rejectionReason);
 				return true;
+			case "drop_item":
+				HandleDropItemCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason);
+				return true;
 		}
 
 		return false;

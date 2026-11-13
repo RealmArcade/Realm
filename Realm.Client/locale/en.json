@@ -685,6 +685,7 @@
   "Drag to define a named coordinate box exposed as C# variables": "Drag to define a named coordinate box exposed as C# variables",
   "Drag to draw a box on the terrain, then name it and create.": "Drag to draw a box on the terrain, then name it and create.",
   "Draw a coloured outline around units that terrain, cliffs or buildings hide from view. Disabled automatically on the Low quality preset.": "Draw a coloured outline around units that terrain, cliffs or buildings hide from view. Disabled automatically on the Low quality preset.",
+  "Dropping {0}: click the ground to put it down": "Dropping {0}: click the ground to put it down",
   "Duplicate / clone selected object": "Duplicate / clone selected object",
   "Duplicate Object": "Duplicate Object",
   "Duplicate selected entity": "Duplicate selected entity",

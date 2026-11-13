@@ -123,6 +123,8 @@ public class InputService
 			state.ActiveSpellTargeting = null;
 			state.ActiveCommandTargeting = null;
 			state.ActiveBuildingPlacementType = null;
+			state.ActiveDropItemId = null;
+			state.DropItemCharges = 0;
 			state.ActivePingMode = false;
 		}
 	}
@@ -713,6 +715,46 @@ public class InputService
 			if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
 			ref var state = ref World.Get<InputState>(worldEntity);
 			state.ActiveCommandTargeting = value;
+			if (!string.IsNullOrEmpty(value)) return;
+
+			state.ActiveDropItemId = null;
+			state.DropItemCharges = 0;
+		}
+	}
+
+	public string? ActiveDropItemId
+	{
+		get
+		{
+			var worldEntity = GetWorldEntity();
+			return worldEntity != Entity.Null && World.Has<InputState>(worldEntity)
+				? World.Get<InputState>(worldEntity).ActiveDropItemId
+				: null;
+		}
+		set
+		{
+			var worldEntity = GetWorldEntity();
+			if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
+			ref var state = ref World.Get<InputState>(worldEntity);
+			state.ActiveDropItemId = value;
+		}
+	}
+
+	public int ActiveDropItemCharges
+	{
+		get
+		{
+			var worldEntity = GetWorldEntity();
+			return worldEntity != Entity.Null && World.Has<InputState>(worldEntity)
+				? World.Get<InputState>(worldEntity).DropItemCharges
+				: 0;
+		}
+		set
+		{
+			var worldEntity = GetWorldEntity();
+			if (worldEntity == Entity.Null || !World.Has<InputState>(worldEntity)) return;
+			ref var state = ref World.Get<InputState>(worldEntity);
+			state.DropItemCharges = value;
 		}
 	}
 

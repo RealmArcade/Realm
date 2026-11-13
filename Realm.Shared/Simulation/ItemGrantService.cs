@@ -96,6 +96,31 @@ public class ItemGrantService
 		return true;
 	}
 
+	/// <summary>
+	///     Takes up to the stated number of pieces of one item out of a unit's inventory, which is how an item leaves
+	///     the unit for the ground. What is left of the item keeps its grants; the unit drops them with its last piece.
+	/// </summary>
+	/// <param name="entity">The unit giving the item up.</param>
+	/// <param name="itemId">The item definition identifier to take.</param>
+	/// <param name="charges">How many pieces to take, clamped to what the unit carries.</param>
+	/// <returns>The number of pieces actually taken, which is zero when the unit carries none.</returns>
+	public int TakeCharges(Entity entity, string itemId, int charges)
+	{
+		if (!World.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId)) return 0;
+		if (!World.Has<Inventory>(entity)) return 0;
+
+		ref Inventory inventory = ref World.Get<Inventory>(entity);
+		int taken = Math.Min(inventory.GetItemCount(itemId), Math.Max(1, charges));
+		if (taken <= 0) return 0;
+
+		inventory.RemoveItem(itemId, taken);
+
+		if (inventory.HasItem(itemId)) ApplyGrants(entity, itemId);
+		else WithdrawGrants(entity, itemId);
+
+		return taken;
+	}
+
 	public bool Carries(Entity entity, string itemId)
 	{
 		if (!World.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId)) return false;

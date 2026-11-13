@@ -28,6 +28,7 @@ using Realm.Ecs.Components.Stats;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
+using Realm.Shared.Network;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
 using Environment = Godot.Environment;
@@ -461,6 +462,33 @@ public partial class GameHost
 
 		int lootServerEntityId = lootItem.UniqueId > 0 ? lootItem.UniqueId : GetServerEntityId(lootItem.Entity);
 		SubmitOrderCommand(isQueued ? "pickup_queued" : "pickup", targetIds, lootPosition, lootServerEntityId, string.Empty);
+	}
+
+	/// <summary>
+	///     Sends the focused unit to a spot so it can put down the item it was told to drop. The authority owns the walk
+	///     and the handover, so this names the item, the pieces and the spot only: the pieces leave the inventory as one
+	///     ground item at the unit's feet once it arrives.
+	/// </summary>
+	/// <param name="position">The spot the unit walks to before it lets go.</param>
+	/// <param name="itemId">The item the unit carries and should put down.</param>
+	/// <param name="charges">How many pieces of it the clicked slot holds.</param>
+	public void IssueDropItemCommand(Vector3 position, string itemId, int charges)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (string.IsNullOrWhiteSpace(itemId)) return;
+
+		Unit3D? focusedUnit = GetFocusedSelectedUnit();
+		if (focusedUnit == null || !GodotObject.IsInstanceValid(focusedUnit)) return;
+		if (focusedUnit.IsBuilding) return;
+		if (!GameContext.PerspectiveFilter.CanControl(focusedUnit.Player)) return;
+		if (!CanCommandUnit(focusedUnit)) return;
+
+		int serverEntityId = GetServerEntityId(focusedUnit.Entity);
+		if (serverEntityId <= 0) return;
+
+		var targetIds = new List<int> { serverEntityId };
+		SpawnTargetIndicator(position, new Color(0.85f, 0.75f, 0.25f));
+		SubmitOrderCommand("drop_item", targetIds, position, 0, DropItemArgument.Compose(itemId, charges));
 	}
 
 	public bool TryIssueGatherCommandAt(Vector3 worldPosition, bool isQueued = false)
