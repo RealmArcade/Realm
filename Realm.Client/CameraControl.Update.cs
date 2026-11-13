@@ -128,16 +128,7 @@ public partial class CameraControl : Camera3D
 			if (desiredPos.Y < camGroundY + 1.5f) desiredPos.Y = camGroundY + 1.5f;
 		}
 
-		if ((Position - desiredPos).LengthSquared() > 400.0f)
-		{
-			Position = desiredPos;
-		}
-		else
-		{
-			float posSmoothing = _scriptFollowSmoothing * 1.5f;
-			float posAlpha = 1.0f - Mathf.Exp(-posSmoothing * fDelta);
-			Position = Position.Lerp(desiredPos, posAlpha);
-		}
+		Position = desiredPos;
 
 		state.CurrentHeight = Position.Y;
 		state.TargetHeight = Position.Y;

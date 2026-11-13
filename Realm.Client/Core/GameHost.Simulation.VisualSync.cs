@@ -86,14 +86,15 @@ public partial class GameHost
 		float prevRot = world.Has<PreviousRotationY>(entity) ? world.Get<PreviousRotationY>(entity).Value : currRot;
 		float interpRotY = Mathf.LerpAngle(prevRot, currRot, fraction);
 
-		if (hasDir)
+		bool hasMoveTo = world.Has<MoveTo>(entity);
+		if (hasDir && hasMoveTo)
 		{
 			return ComputeDirectionalRotationBasisParallel(ref item, entity, nextPos, dir, fDelta, out targetRotY);
 		}
 		else if (world.Has<LatestDescription>(entity))
 		{
 			var interp = world.Get<LatestDescription>(entity);
-			targetRotY = Mathf.LerpAngle(item.CachedRotationY, interp.RotationY, 10f * fDelta);
+			targetRotY = interp.RotationY;
 
 			if (world.Has<RotationY>(entity))
 			{
@@ -105,12 +106,16 @@ public partial class GameHost
 				}
 			}
 
-			return Basis.FromEuler(new Godot.Vector3(0f, targetRotY, 0f));
+			bool isFlying = world.Has<TraversableTerrain>(entity)
+			                && ((TerrainPathingFlags)world.Get<TraversableTerrain>(entity).Value & TerrainPathingFlags.Flying) != 0;
+			return BuildOrientedBasis(ref item, targetRotY, nextPos, isFlying, fDelta);
 		}
 		else
 		{
 			targetRotY = interpRotY;
-			return Basis.FromEuler(new Godot.Vector3(0f, targetRotY, 0f));
+			bool isFlying = world.Has<TraversableTerrain>(entity)
+			                && ((TerrainPathingFlags)world.Get<TraversableTerrain>(entity).Value & TerrainPathingFlags.Flying) != 0;
+			return BuildOrientedBasis(ref item, targetRotY, nextPos, isFlying, fDelta);
 		}
 	}
 
@@ -173,10 +178,15 @@ public partial class GameHost
 			}
 		}
 
+		return BuildOrientedBasis(ref item, targetRotY, nextPos, isFlying, fDelta);
+	}
+
+	private Basis BuildOrientedBasis(ref UnitRenderWorkItem item, float targetRotY, Godot.Vector3 nextPos, bool isFlying, float fDelta)
+	{
 		Basis currentBasis = Basis.FromEuler(new Godot.Vector3(0f, targetRotY, 0f));
 
-		Godot.Vector3 normal = Godot.Vector3.Up;
 		TerrainCell[,]? groundCells = _renderGroundCells;
+		Godot.Vector3 normal = Godot.Vector3.Up;
 		if (!isFlying && groundCells != null)
 		{
 			RuntimeTerrain.SampleHeightAndNormal(groundCells, _renderGroundQuadSize, nextPos.X, nextPos.Z, out _, out normal);
@@ -205,5 +215,4 @@ public partial class GameHost
 
 		return currentBasis;
 	}
-
 }
