@@ -8,6 +8,7 @@ import { RealmRmeshViewerProvider, RmeshGlbFileSystemProvider, openRmeshInGlbVie
 import { RealmRaudViewerProvider } from './raudEditorProvider';
 import { MIXAMO_EXPORT_LICENSING_WARNING } from './constants';
 import { createAuthoringServices, registerAuthoringFeatures } from './authoring/features';
+import { computeFormattingEdits } from './authoring/formatting';
 
 export function activate(context: vscode.ExtensionContext) {
     const authoring = createAuthoringServices(context);
@@ -69,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
                     } catch (err) {
                         console.error('[RealmExtension] onWillSaveTextDocument IPC error:', err);
                     }
-                    return [];
+                    return computeFormattingEdits(event.document, authoring.snapshots, authoring.registry);
                 })());
             }
         })

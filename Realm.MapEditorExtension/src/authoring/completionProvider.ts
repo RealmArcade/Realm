@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { Node } from 'jsonc-parser';
-import { AssetDeclaration, JsonSchema } from './schemaKeywords';
+import { AssetDeclaration } from './schemaKeywords';
 import { assetKindOfPath } from './schemaKeywords';
 import { CursorLocation, JsonSnapshotCache, nodeRange, objectPropertyNames, resolveCursorLocation } from './jsonDocument';
 import { MapSchemaRegistry } from './schemaRegistry';
@@ -36,7 +36,9 @@ export class SchemaCompletionProvider implements vscode.CompletionItemProvider {
         }
 
         try {
-            const items = location.onKey
+            const atKey = location.onKey
+                || (location.containerNode?.type === 'object' && location.valueNode === location.containerNode);
+            const items = atKey
                 ? this.keyCompletions(document, location)
                 : this.valueCompletions(document, location);
             if (items.length === 0) {
@@ -107,7 +109,7 @@ export class SchemaCompletionProvider implements vscode.CompletionItemProvider {
         if (enumValues) {
             const enumDescriptions = schemaDocument.enumDescriptions(valueSchema);
             enumValues.forEach((value, index) => {
-                const item = this.textItem(document, location, value);
+                const item = this.textItem(location, value);
                 item.kind = vscode.CompletionItemKind.EnumMember;
                 item.sortText = `1${index.toString().padStart(4, '0')}`;
                 const enumDescription = enumDescriptions[index];
@@ -278,7 +280,7 @@ export class SchemaCompletionProvider implements vscode.CompletionItemProvider {
         return new vscode.Range(cursor, cursor);
     }
 
-    private textItem(document: vscode.TextDocument, location: CursorLocation, value: string): vscode.CompletionItem {
+    private textItem(location: CursorLocation, value: string): vscode.CompletionItem {
         const item = new vscode.CompletionItem(value, vscode.CompletionItemKind.Value);
         item.range = this.stringContentRange(location);
         item.insertText = escapeForStringContent(value);
