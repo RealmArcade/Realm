@@ -25,7 +25,6 @@ public class MapInfoMetadata
 	public string? SuggestedPlayers { get; set; }
 
 	[SchemaDescription("Path to the image drawn in the lobby's minimap panel for this map.")]
-	[SchemaControl(RealmSchemaControl.Asset)]
 	[SchemaAsset(new[] { "png", "rtex" }, new[] { "." })]
 	public string? MinimapImage { get; set; }
 
@@ -76,7 +75,6 @@ public class MapInfoMetadata
 	public float? CameraBoundsBottom { get; set; }
 
 	[SchemaDescription("Path to the picture the loading screen shows while this map loads.")]
-	[SchemaControl(RealmSchemaControl.Asset)]
 	[SchemaAsset(new[] { "png", "rtex" }, new[] { "." })]
 	public string? LoadingImage { get; set; }
 

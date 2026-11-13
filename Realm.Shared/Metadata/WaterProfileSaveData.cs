@@ -130,12 +130,10 @@ public class WaterProfileSaveData
 	public float DetailStochasticTileSize { get; set; } = 1.0f;
 
 	[SchemaDescription("How softly two stochastic detail tiles blend where they meet.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float DetailCrossFade { get; set; } = 0.0f;
 
 	[SchemaDescription("How strongly the detail texture shows through the water's own colour.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float DetailAlpha { get; set; } = 0.5f;
 
@@ -143,7 +141,6 @@ public class WaterProfileSaveData
 	public int DetailBlendMode { get; set; } = 0;
 
 	[SchemaDescription("The pathing the water provides to units crossing it, declared as named bits.")]
-	[SchemaControl(RealmSchemaControl.Flags)]
 	[SchemaFlag(1, "ShallowWater")]
 	[SchemaFlag(2, "DeepWater")]
 	[SchemaFlag(4, "Flying")]

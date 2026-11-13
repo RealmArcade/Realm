@@ -55,7 +55,6 @@ public abstract class PlaceableMetadata
 	public bool DespillPlayerColor { get; set; } = false;
 
 	[SchemaDescription("The pathing the placeable's footprint provides to units crossing it, declared as named bits.")]
-	[SchemaControl(RealmSchemaControl.Flags)]
 	[SchemaFlag(1, "ShallowWater")]
 	[SchemaFlag(2, "DeepWater")]
 	[SchemaFlag(4, "Flying")]

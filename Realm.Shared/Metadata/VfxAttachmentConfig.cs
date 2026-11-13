@@ -89,7 +89,6 @@ public class VfxAttachmentConfig
 	public string CoreColor { get; set; } = "#ffffff";
 
 	[SchemaDescription("How far the effect is mixed towards its secondary colour rather than its base colour.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float ColorMixRatio { get; set; } = 1.0f;
 
@@ -125,12 +124,10 @@ public class VfxAttachmentConfig
 	public bool EnableRadialFalloff { get; set; } = true;
 
 	[SchemaDescription("How far out the effect stays fully drawn before its radial fade begins.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float RadialFalloffStart { get; set; } = 0.65f;
 
 	[SchemaDescription("How far out the effect has faded away completely.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float RadialFalloffEnd { get; set; } = 1.0f;
 
@@ -138,17 +135,14 @@ public class VfxAttachmentConfig
 	public bool EnableLengthFade { get; set; } = false;
 
 	[SchemaDescription("How far along its length the effect stays fully drawn before its length fade begins.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float LengthFadeStart { get; set; } = 0.0f;
 
 	[SchemaDescription("How far along its length the effect has faded away completely.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float LengthFadeEnd { get; set; } = 1.0f;
 
 	[SchemaDescription("How much the effect has eroded away, from whole to gone.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float ErosionProgress { get; set; } = 0.0f;
 

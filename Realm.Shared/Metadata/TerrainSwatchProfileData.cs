@@ -7,7 +7,6 @@ namespace Realm.Shared.Metadata;
 public class TerrainSwatchProfileData
 {
 	[SchemaDescription("The pathing the ground inherits from the swatch, declared as named bits.")]
-	[SchemaControl(RealmSchemaControl.Flags)]
 	[SchemaFlag(1, "ShallowWater")]
 	[SchemaFlag(2, "DeepWater")]
 	[SchemaFlag(4, "Flying")]

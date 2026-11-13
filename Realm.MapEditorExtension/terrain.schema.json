@@ -444,16 +444,14 @@
                     "title": "Explosiveness",
                     "description": "How much of the emission is released at the very start rather than over the effect's life, which turns a stream into a burst.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   },
                   "Randomness": {
                     "type": "number",
                     "title": "Randomness",
                     "description": "How much each particle's start is randomised, so a burst does not read as one wave.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   },
                   "LocalCoords": {
                     "type": "boolean",
@@ -648,8 +646,7 @@
                   "EndScaleRatio": {
                     "type": "number",
                     "title": "EndScaleRatio",
-                    "description": "The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes.",
-                    "x-realm-unit": "%"
+                    "description": "The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes."
                   },
                   "ColorStart": {
                     "type": "string",
@@ -674,24 +671,21 @@
                     "title": "AlphaStart",
                     "description": "How opaque a particle is when it starts its life.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   },
                   "AlphaMid": {
                     "type": "number",
                     "title": "AlphaMid",
                     "description": "How opaque a particle is halfway through its life.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   },
                   "AlphaEnd": {
                     "type": "number",
                     "title": "AlphaEnd",
                     "description": "How opaque a particle is when its life ends.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   },
                   "EmissionEnergy": {
                     "type": "number",
@@ -863,16 +857,14 @@
                           "title": "Explosiveness",
                           "description": "How much of the emission is released at the very start rather than over the effect's life, which turns a stream into a burst.",
                           "minimum": 0,
-                          "maximum": 1,
-                          "x-realm-unit": "%"
+                          "maximum": 1
                         },
                         "Randomness": {
                           "type": "number",
                           "title": "Randomness",
                           "description": "How much each particle's start is randomised, so a burst does not read as one wave.",
                           "minimum": 0,
-                          "maximum": 1,
-                          "x-realm-unit": "%"
+                          "maximum": 1
                         },
                         "LocalCoords": {
                           "type": "boolean",
@@ -995,8 +987,7 @@
                         "EndScaleRatio": {
                           "type": "number",
                           "title": "EndScaleRatio",
-                          "description": "The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes.",
-                          "x-realm-unit": "%"
+                          "description": "The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes."
                         },
                         "ColorStart": {
                           "type": "string",
@@ -1021,24 +1012,21 @@
                           "title": "AlphaStart",
                           "description": "How opaque a particle is when it starts its life.",
                           "minimum": 0,
-                          "maximum": 1,
-                          "x-realm-unit": "%"
+                          "maximum": 1
                         },
                         "AlphaMid": {
                           "type": "number",
                           "title": "AlphaMid",
                           "description": "How opaque a particle is halfway through its life.",
                           "minimum": 0,
-                          "maximum": 1,
-                          "x-realm-unit": "%"
+                          "maximum": 1
                         },
                         "AlphaEnd": {
                           "type": "number",
                           "title": "AlphaEnd",
                           "description": "How opaque a particle is when its life ends.",
                           "minimum": 0,
-                          "maximum": 1,
-                          "x-realm-unit": "%"
+                          "maximum": 1
                         },
                         "EmissionEnergy": {
                           "type": "number",
@@ -1317,8 +1305,7 @@
                 "title": "ColorMixRatio",
                 "description": "How far the effect is mixed towards its secondary colour rather than its base colour.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "EmissionBoost": {
                 "type": "number",
@@ -1378,16 +1365,14 @@
                 "title": "RadialFalloffStart",
                 "description": "How far out the effect stays fully drawn before its radial fade begins.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "RadialFalloffEnd": {
                 "type": "number",
                 "title": "RadialFalloffEnd",
                 "description": "How far out the effect has faded away completely.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "EnableLengthFade": {
                 "type": "boolean",
@@ -1399,24 +1384,21 @@
                 "title": "LengthFadeStart",
                 "description": "How far along its length the effect stays fully drawn before its length fade begins.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "LengthFadeEnd": {
                 "type": "number",
                 "title": "LengthFadeEnd",
                 "description": "How far along its length the effect has faded away completely.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "ErosionProgress": {
                 "type": "number",
                 "title": "ErosionProgress",
                 "description": "How much the effect has eroded away, from whole to gone.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "EnableFresnel": {
                 "type": "boolean",

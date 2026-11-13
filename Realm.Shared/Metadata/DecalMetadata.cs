@@ -23,12 +23,10 @@ public class DecalMetadata
 	public float Saturation { get; set; } = 1.0f;
 
 	[SchemaDescription("How opaque the decal is. Zero makes it invisible.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float Opacity { get; set; } = 1.0f;
 
 	[SchemaDescription("How much of the ground's own colour shows through the decal, from the decal alone to the ground alone.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float AlbedoMix { get; set; }
 
@@ -66,12 +64,10 @@ public class DecalMetadata
 	public float OpacityPulseSpeed { get; set; }
 
 	[SchemaDescription("The lowest opacity the decal's pulse reaches.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float MinOpacity { get; set; }
 
 	[SchemaDescription("The highest opacity the decal's pulse reaches.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float MaxOpacity { get; set; }
 
@@ -94,11 +90,9 @@ public class DecalMetadata
 	public float ScalePulseSpeed { get; set; }
 
 	[SchemaDescription("The smallest size the decal's pulse reaches, as a fraction of its placed size.")]
-	[SchemaUnit("%")]
 	public float MinScaleRatio { get; set; }
 
 	[SchemaDescription("The largest size the decal's pulse reaches, as a fraction of its placed size.")]
-	[SchemaUnit("%")]
 	public float MaxScaleRatio { get; set; }
 
 	[SchemaDescription("How far up a vertical surface the decal fades out, so it does not stop in a hard line where the ground climbs.")]

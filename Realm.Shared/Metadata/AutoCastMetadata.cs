@@ -12,7 +12,6 @@ public class AutoCastMetadata
 	public AutoCastTargetRule TargetRule { get; set; } = AutoCastTargetRule.NearestEnemy;
 
 	[SchemaDescription("How wounded a friendly unit has to be before a healing auto cast picks it, as a fraction of its maximum health.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float AllyHealthPercentBelow { get; set; } = 1f;
 
@@ -20,7 +19,6 @@ public class AutoCastMetadata
 	public float ManaReserve { get; set; }
 
 	[SchemaDescription("The share of the unit's maximum mana below which it stops casting on its own, as a fraction of one.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float MinManaPercent { get; set; }
 }

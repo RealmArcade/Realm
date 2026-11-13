@@ -13,13 +13,11 @@ public class CombatTuningMetadata
 
 	[JsonPropertyName("MaxResistMitigation")]
 	[SchemaDescription("The most damage armour or magic resistance may ever remove, as a fraction of one. Absent means one, which allows total immunity.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float? MaxResistMitigation { get; set; }
 
 	[JsonPropertyName("MinDamageFloor")]
 	[SchemaDescription("The smallest share of its damage an attack always deals, however well armoured the target is.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float? MinDamageFloor { get; set; }
 
@@ -37,7 +35,6 @@ public class CombatTuningMetadata
 
 	[JsonPropertyName("MaxTenacity")]
 	[SchemaDescription("The most tenacity a unit may reach, as a fraction of one.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float? MaxTenacity { get; set; }
 
@@ -81,7 +78,6 @@ public class CombatTuningMetadata
 
 	[JsonPropertyName("MaxCooldownReduction")]
 	[SchemaDescription("The most cooldown reduction a unit may reach, as a fraction of one.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float? MaxCooldownReduction { get; set; }
 
@@ -99,7 +95,6 @@ public class CombatTuningMetadata
 
 	[JsonPropertyName("MaxLifeSteal")]
 	[SchemaDescription("The most life steal a unit may reach, as a fraction of the damage it deals.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float? MaxLifeSteal { get; set; }
 
@@ -125,7 +120,6 @@ public class CombatTuningMetadata
 
 	[JsonPropertyName("MaxPercentMagicPenetration")]
 	[SchemaDescription("The most magic penetration a unit may reach, as a fraction of the target's resistance.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float? MaxPercentMagicPenetration { get; set; }
 
@@ -147,7 +141,6 @@ public class CombatTuningMetadata
 
 	[JsonPropertyName("MaxCritChance")]
 	[SchemaDescription("The highest crit chance a unit may reach, as a fraction of one.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float? MaxCritChance { get; set; }
 
@@ -157,7 +150,6 @@ public class CombatTuningMetadata
 
 	[JsonPropertyName("MaxEvasion")]
 	[SchemaDescription("The highest evasion a unit may reach, as a fraction of one.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float? MaxEvasion { get; set; }
 
@@ -167,7 +159,6 @@ public class CombatTuningMetadata
 
 	[JsonPropertyName("MaxProcRateBonus")]
 	[SchemaDescription("The highest bonus an on-hit effect's chance may reach, as a fraction of one.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float? MaxProcRateBonus { get; set; }
 

@@ -21,12 +21,10 @@ public class SpellParticleConfig
 	public float Lifetime { get; set; } = 1.0f;
 
 	[SchemaDescription("How much of the emission is released at the very start rather than over the effect's life, which turns a stream into a burst.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float Explosiveness { get; set; } = 0.0f;
 
 	[SchemaDescription("How much each particle's start is randomised, so a burst does not read as one wave.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float Randomness { get; set; } = 0.0f;
 
@@ -95,7 +93,6 @@ public class SpellParticleConfig
 	public float InitialScaleMax { get; set; } = 0.4f;
 
 	[SchemaDescription("The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes.")]
-	[SchemaUnit("%")]
 	public float EndScaleRatio { get; set; } = 0.0f;
 
 	[SchemaDescription("The colour a particle starts its life in.")]
@@ -111,17 +108,14 @@ public class SpellParticleConfig
 	public string ColorEnd { get; set; } = "#220000";
 
 	[SchemaDescription("How opaque a particle is when it starts its life.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float AlphaStart { get; set; } = 1.0f;
 
 	[SchemaDescription("How opaque a particle is halfway through its life.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float AlphaMid { get; set; } = 0.8f;
 
 	[SchemaDescription("How opaque a particle is when its life ends.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float AlphaEnd { get; set; } = 0.0f;
 

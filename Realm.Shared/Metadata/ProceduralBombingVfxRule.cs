@@ -10,7 +10,6 @@ public class ProceduralBombingVfxRule
 	public string VfxId { get; set; } = "";
 
 	[SchemaDescription("How densely the effects are scattered over the ground, as a share of the available spots.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float Density { get; set; } = 0.5f;
 

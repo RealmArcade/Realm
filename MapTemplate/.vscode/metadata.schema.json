@@ -66,7 +66,6 @@
           ],
           "title": "MinimapImage",
           "description": "Path to the image drawn in the lobby's minimap panel for this map.",
-          "x-realm-control": "asset",
           "x-realm-asset": {
             "kinds": [
               "png",
@@ -191,7 +190,6 @@
           ],
           "title": "LoadingImage",
           "description": "Path to the picture the loading screen shows while this map loads.",
-          "x-realm-control": "asset",
           "x-realm-asset": {
             "kinds": [
               "png",
@@ -738,8 +736,7 @@
               "PercentArmorPenetration": {
                 "type": "number",
                 "title": "PercentArmorPenetration",
-                "description": "The share of the target's armour the unit's attacks ignore.",
-                "x-realm-unit": "%"
+                "description": "The share of the target's armour the unit's attacks ignore."
               },
               "FlatMagicPenetration": {
                 "type": "number",
@@ -759,8 +756,7 @@
               "CritChance": {
                 "type": "number",
                 "title": "CritChance",
-                "description": "The chance an attack crits, as a fraction of one.",
-                "x-realm-unit": "%"
+                "description": "The chance an attack crits, as a fraction of one."
               },
               "CritMultiplier": {
                 "type": "number",
@@ -793,20 +789,17 @@
               "SplashInnerRatio": {
                 "type": "number",
                 "title": "SplashInnerRatio",
-                "description": "The share of the attack's damage dealt to targets inside the inner splash radius.",
-                "x-realm-unit": "%"
+                "description": "The share of the attack's damage dealt to targets inside the inner splash radius."
               },
               "SplashMediumRatio": {
                 "type": "number",
                 "title": "SplashMediumRatio",
-                "description": "The share of the attack's damage dealt to targets between the inner and medium splash radii.",
-                "x-realm-unit": "%"
+                "description": "The share of the attack's damage dealt to targets between the inner and medium splash radii."
               },
               "SplashOuterRatio": {
                 "type": "number",
                 "title": "SplashOuterRatio",
-                "description": "The share of the attack's damage dealt to targets between the medium and outer splash radii.",
-                "x-realm-unit": "%"
+                "description": "The share of the attack's damage dealt to targets between the medium and outer splash radii."
               },
               "FriendlyFire": {
                 "type": "boolean",
@@ -1647,8 +1640,7 @@
                     "value": 32,
                     "label": "Buildable"
                   }
-                ],
-                "x-realm-control": "flags"
+                ]
               },
               "SpawnShader": {
                 "type": [
@@ -2009,8 +2001,7 @@
                     "value": 32,
                     "label": "Buildable"
                   }
-                ],
-                "x-realm-control": "flags"
+                ]
               },
               "SpawnShader": {
                 "type": [
@@ -2234,8 +2225,7 @@
                     "value": 32,
                     "label": "Buildable"
                   }
-                ],
-                "x-realm-control": "flags"
+                ]
               },
               "SpawnShader": {
                 "type": [
@@ -2488,8 +2478,7 @@
                     "title": "AllyHealthPercentBelow",
                     "description": "How wounded a friendly unit has to be before a healing auto cast picks it, as a fraction of its maximum health.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   },
                   "ManaReserve": {
                     "type": "number",
@@ -2501,8 +2490,7 @@
                     "title": "MinManaPercent",
                     "description": "The share of the unit's maximum mana below which it stops casting on its own, as a fraction of one.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   }
                 },
                 "additionalProperties": false
@@ -4155,16 +4143,14 @@
                     "title": "Explosiveness",
                     "description": "How much of the emission is released at the very start rather than over the effect's life, which turns a stream into a burst.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   },
                   "Randomness": {
                     "type": "number",
                     "title": "Randomness",
                     "description": "How much each particle's start is randomised, so a burst does not read as one wave.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   },
                   "LocalCoords": {
                     "type": "boolean",
@@ -4359,8 +4345,7 @@
                   "EndScaleRatio": {
                     "type": "number",
                     "title": "EndScaleRatio",
-                    "description": "The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes.",
-                    "x-realm-unit": "%"
+                    "description": "The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes."
                   },
                   "ColorStart": {
                     "type": "string",
@@ -4385,24 +4370,21 @@
                     "title": "AlphaStart",
                     "description": "How opaque a particle is when it starts its life.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   },
                   "AlphaMid": {
                     "type": "number",
                     "title": "AlphaMid",
                     "description": "How opaque a particle is halfway through its life.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   },
                   "AlphaEnd": {
                     "type": "number",
                     "title": "AlphaEnd",
                     "description": "How opaque a particle is when its life ends.",
                     "minimum": 0,
-                    "maximum": 1,
-                    "x-realm-unit": "%"
+                    "maximum": 1
                   },
                   "EmissionEnergy": {
                     "type": "number",
@@ -4574,16 +4556,14 @@
                           "title": "Explosiveness",
                           "description": "How much of the emission is released at the very start rather than over the effect's life, which turns a stream into a burst.",
                           "minimum": 0,
-                          "maximum": 1,
-                          "x-realm-unit": "%"
+                          "maximum": 1
                         },
                         "Randomness": {
                           "type": "number",
                           "title": "Randomness",
                           "description": "How much each particle's start is randomised, so a burst does not read as one wave.",
                           "minimum": 0,
-                          "maximum": 1,
-                          "x-realm-unit": "%"
+                          "maximum": 1
                         },
                         "LocalCoords": {
                           "type": "boolean",
@@ -4706,8 +4686,7 @@
                         "EndScaleRatio": {
                           "type": "number",
                           "title": "EndScaleRatio",
-                          "description": "The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes.",
-                          "x-realm-unit": "%"
+                          "description": "The size a particle ends at, as a fraction of the size it started at. Zero shrinks away, one never changes."
                         },
                         "ColorStart": {
                           "type": "string",
@@ -4732,24 +4711,21 @@
                           "title": "AlphaStart",
                           "description": "How opaque a particle is when it starts its life.",
                           "minimum": 0,
-                          "maximum": 1,
-                          "x-realm-unit": "%"
+                          "maximum": 1
                         },
                         "AlphaMid": {
                           "type": "number",
                           "title": "AlphaMid",
                           "description": "How opaque a particle is halfway through its life.",
                           "minimum": 0,
-                          "maximum": 1,
-                          "x-realm-unit": "%"
+                          "maximum": 1
                         },
                         "AlphaEnd": {
                           "type": "number",
                           "title": "AlphaEnd",
                           "description": "How opaque a particle is when its life ends.",
                           "minimum": 0,
-                          "maximum": 1,
-                          "x-realm-unit": "%"
+                          "maximum": 1
                         },
                         "EmissionEnergy": {
                           "type": "number",
@@ -5028,8 +5004,7 @@
                 "title": "ColorMixRatio",
                 "description": "How far the effect is mixed towards its secondary colour rather than its base colour.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "EmissionBoost": {
                 "type": "number",
@@ -5089,16 +5064,14 @@
                 "title": "RadialFalloffStart",
                 "description": "How far out the effect stays fully drawn before its radial fade begins.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "RadialFalloffEnd": {
                 "type": "number",
                 "title": "RadialFalloffEnd",
                 "description": "How far out the effect has faded away completely.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "EnableLengthFade": {
                 "type": "boolean",
@@ -5110,24 +5083,21 @@
                 "title": "LengthFadeStart",
                 "description": "How far along its length the effect stays fully drawn before its length fade begins.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "LengthFadeEnd": {
                 "type": "number",
                 "title": "LengthFadeEnd",
                 "description": "How far along its length the effect has faded away completely.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "ErosionProgress": {
                 "type": "number",
                 "title": "ErosionProgress",
                 "description": "How much the effect has eroded away, from whole to gone.",
                 "minimum": 0,
-                "maximum": 1,
-                "x-realm-unit": "%"
+                "maximum": 1
               },
               "EnableFresnel": {
                 "type": "boolean",
@@ -5269,8 +5239,7 @@
           "title": "MaxResistMitigation",
           "description": "The most damage armour or magic resistance may ever remove, as a fraction of one. Absent means one, which allows total immunity.",
           "minimum": 0,
-          "maximum": 1,
-          "x-realm-unit": "%"
+          "maximum": 1
         },
         "MinDamageFloor": {
           "type": [
@@ -5280,8 +5249,7 @@
           "title": "MinDamageFloor",
           "description": "The smallest share of its damage an attack always deals, however well armoured the target is.",
           "minimum": 0,
-          "maximum": 1,
-          "x-realm-unit": "%"
+          "maximum": 1
         },
         "StrengthAttackPerPoint": {
           "type": [
@@ -5315,8 +5283,7 @@
           "title": "MaxTenacity",
           "description": "The most tenacity a unit may reach, as a fraction of one.",
           "minimum": 0,
-          "maximum": 1,
-          "x-realm-unit": "%"
+          "maximum": 1
         },
         "AgilityHastePerPoint": {
           "type": [
@@ -5400,8 +5367,7 @@
           "title": "MaxCooldownReduction",
           "description": "The most cooldown reduction a unit may reach, as a fraction of one.",
           "minimum": 0,
-          "maximum": 1,
-          "x-realm-unit": "%"
+          "maximum": 1
         },
         "VitalityHpPerPoint": {
           "type": [
@@ -5435,8 +5401,7 @@
           "title": "MaxLifeSteal",
           "description": "The most life steal a unit may reach, as a fraction of the damage it deals.",
           "minimum": 0,
-          "maximum": 1,
-          "x-realm-unit": "%"
+          "maximum": 1
         },
         "IntelligenceSpellAmpPerPoint": {
           "type": [
@@ -5486,8 +5451,7 @@
           "title": "MaxPercentMagicPenetration",
           "description": "The most magic penetration a unit may reach, as a fraction of the target's resistance.",
           "minimum": 0,
-          "maximum": 1,
-          "x-realm-unit": "%"
+          "maximum": 1
         },
         "WisdomHealingAmpPerPoint": {
           "type": [
@@ -5529,8 +5493,7 @@
           "title": "MaxCritChance",
           "description": "The highest crit chance a unit may reach, as a fraction of one.",
           "minimum": 0,
-          "maximum": 1,
-          "x-realm-unit": "%"
+          "maximum": 1
         },
         "FortuneEvasionK": {
           "type": [
@@ -5548,8 +5511,7 @@
           "title": "MaxEvasion",
           "description": "The highest evasion a unit may reach, as a fraction of one.",
           "minimum": 0,
-          "maximum": 1,
-          "x-realm-unit": "%"
+          "maximum": 1
         },
         "FortuneProcRateK": {
           "type": [
@@ -5567,8 +5529,7 @@
           "title": "MaxProcRateBonus",
           "description": "The highest bonus an on-hit effect's chance may reach, as a fraction of one.",
           "minimum": 0,
-          "maximum": 1,
-          "x-realm-unit": "%"
+          "maximum": 1
         },
         "FortuneBountyPerPoint": {
           "type": [
@@ -6140,16 +6101,14 @@
             "title": "DetailCrossFade",
             "description": "How softly two stochastic detail tiles blend where they meet.",
             "minimum": 0,
-            "maximum": 1,
-            "x-realm-unit": "%"
+            "maximum": 1
           },
           "DetailAlpha": {
             "type": "number",
             "title": "DetailAlpha",
             "description": "How strongly the detail texture shows through the water's own colour.",
             "minimum": 0,
-            "maximum": 1,
-            "x-realm-unit": "%"
+            "maximum": 1
           },
           "DetailBlendMode": {
             "type": "integer",
@@ -6181,8 +6140,7 @@
                 "value": 32,
                 "label": "Buildable"
               }
-            ],
-            "x-realm-control": "flags"
+            ]
           },
           "DecalBombingRules": {
             "type": "array",
@@ -6208,8 +6166,7 @@
                   "title": "Density",
                   "description": "How densely the decals are scattered over the ground, as a share of the available spots.",
                   "minimum": 0,
-                  "maximum": 1,
-                  "x-realm-unit": "%"
+                  "maximum": 1
                 },
                 "MinScale": {
                   "type": "number",
@@ -6269,8 +6226,7 @@
                   "title": "Density",
                   "description": "How densely the effects are scattered over the ground, as a share of the available spots.",
                   "minimum": 0,
-                  "maximum": 1,
-                  "x-realm-unit": "%"
+                  "maximum": 1
                 },
                 "MinScale": {
                   "type": "number",
@@ -6531,8 +6487,7 @@
                       "title": "ColorMixRatio",
                       "description": "How far the effect is mixed towards its secondary colour rather than its base colour.",
                       "minimum": 0,
-                      "maximum": 1,
-                      "x-realm-unit": "%"
+                      "maximum": 1
                     },
                     "EmissionBoost": {
                       "type": "number",
@@ -6592,16 +6547,14 @@
                       "title": "RadialFalloffStart",
                       "description": "How far out the effect stays fully drawn before its radial fade begins.",
                       "minimum": 0,
-                      "maximum": 1,
-                      "x-realm-unit": "%"
+                      "maximum": 1
                     },
                     "RadialFalloffEnd": {
                       "type": "number",
                       "title": "RadialFalloffEnd",
                       "description": "How far out the effect has faded away completely.",
                       "minimum": 0,
-                      "maximum": 1,
-                      "x-realm-unit": "%"
+                      "maximum": 1
                     },
                     "EnableLengthFade": {
                       "type": "boolean",
@@ -6613,24 +6566,21 @@
                       "title": "LengthFadeStart",
                       "description": "How far along its length the effect stays fully drawn before its length fade begins.",
                       "minimum": 0,
-                      "maximum": 1,
-                      "x-realm-unit": "%"
+                      "maximum": 1
                     },
                     "LengthFadeEnd": {
                       "type": "number",
                       "title": "LengthFadeEnd",
                       "description": "How far along its length the effect has faded away completely.",
                       "minimum": 0,
-                      "maximum": 1,
-                      "x-realm-unit": "%"
+                      "maximum": 1
                     },
                     "ErosionProgress": {
                       "type": "number",
                       "title": "ErosionProgress",
                       "description": "How much the effect has eroded away, from whole to gone.",
                       "minimum": 0,
-                      "maximum": 1,
-                      "x-realm-unit": "%"
+                      "maximum": 1
                     },
                     "EnableFresnel": {
                       "type": "boolean",
@@ -6998,8 +6948,7 @@
             "title": "CrossFade",
             "description": "How softly two stochastic tiles blend where they meet.",
             "minimum": 0,
-            "maximum": 1,
-            "x-realm-unit": "%"
+            "maximum": 1
           },
           "Contrast": {
             "type": "number",
@@ -7051,8 +7000,7 @@
                 "value": 32,
                 "label": "Buildable"
               }
-            ],
-            "x-realm-control": "flags"
+            ]
           },
           "DecalBombingRules": {
             "type": "array",
@@ -7140,16 +7088,14 @@
             "title": "Opacity",
             "description": "How opaque the decal is. Zero makes it invisible.",
             "minimum": 0,
-            "maximum": 1,
-            "x-realm-unit": "%"
+            "maximum": 1
           },
           "AlbedoMix": {
             "type": "number",
             "title": "AlbedoMix",
             "description": "How much of the ground's own colour shows through the decal, from the decal alone to the ground alone.",
             "minimum": 0,
-            "maximum": 1,
-            "x-realm-unit": "%"
+            "maximum": 1
           },
           "NormalStrength": {
             "type": "number",
@@ -7242,16 +7188,14 @@
             "title": "MinOpacity",
             "description": "The lowest opacity the decal's pulse reaches.",
             "minimum": 0,
-            "maximum": 1,
-            "x-realm-unit": "%"
+            "maximum": 1
           },
           "MaxOpacity": {
             "type": "number",
             "title": "MaxOpacity",
             "description": "The highest opacity the decal's pulse reaches.",
             "minimum": 0,
-            "maximum": 1,
-            "x-realm-unit": "%"
+            "maximum": 1
           },
           "AnimateEmission": {
             "type": "boolean",
@@ -7286,14 +7230,12 @@
           "MinScaleRatio": {
             "type": "number",
             "title": "MinScaleRatio",
-            "description": "The smallest size the decal's pulse reaches, as a fraction of its placed size.",
-            "x-realm-unit": "%"
+            "description": "The smallest size the decal's pulse reaches, as a fraction of its placed size."
           },
           "MaxScaleRatio": {
             "type": "number",
             "title": "MaxScaleRatio",
-            "description": "The largest size the decal's pulse reaches, as a fraction of its placed size.",
-            "x-realm-unit": "%"
+            "description": "The largest size the decal's pulse reaches, as a fraction of its placed size."
           },
           "UpperFade": {
             "type": "number",
@@ -7632,8 +7574,7 @@
             "title": "AlphaFade",
             "description": "How much the model fades as it appears. One fades from invisible; zero never fades.",
             "minimum": 0,
-            "maximum": 1,
-            "x-realm-unit": "%"
+            "maximum": 1
           },
           "Duration": {
             "type": "number",

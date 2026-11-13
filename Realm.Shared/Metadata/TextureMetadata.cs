@@ -57,7 +57,6 @@ public class TextureMetadata
 	public float StochasticTileSize { get; set; } = 1.0f;
 
 	[SchemaDescription("How softly two stochastic tiles blend where they meet.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float CrossFade { get; set; } = 0.0f;
 
@@ -77,7 +76,6 @@ public class TextureMetadata
 	public float Metallic { get; set; }
 
 	[SchemaDescription("The pathing the ground inherits from this swatch, declared as named bits.")]
-	[SchemaControl(RealmSchemaControl.Flags)]
 	[SchemaFlag(1, "ShallowWater")]
 	[SchemaFlag(2, "DeepWater")]
 	[SchemaFlag(4, "Flying")]

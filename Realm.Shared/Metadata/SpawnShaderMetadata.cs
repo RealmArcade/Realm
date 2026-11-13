@@ -39,7 +39,6 @@ public class SpawnShaderMetadata
 	public float VertexDisplacement { get; set; } = 0.0f;
 
 	[SchemaDescription("How much the model fades as it appears. One fades from invisible; zero never fades.")]
-	[SchemaUnit("%")]
 	[SchemaRange(0, 1)]
 	public float AlphaFade { get; set; } = 1.0f;
 

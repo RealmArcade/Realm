@@ -94,7 +94,6 @@ public class UnitMetadata : PlaceableMetadata
 	public float FlatArmorPenetration { get; set; }
 
 	[SchemaDescription("The share of the target's armour the unit's attacks ignore.")]
-	[SchemaUnit("%")]
 	public float PercentArmorPenetration { get; set; }
 
 	[SchemaDescription("Magic resistance points the unit's spells ignore outright.")]
@@ -107,7 +106,6 @@ public class UnitMetadata : PlaceableMetadata
 	public string DamageType { get; set; } = "physical";
 
 	[SchemaDescription("The chance an attack crits, as a fraction of one.")]
-	[SchemaUnit("%")]
 	public float CritChance { get; set; }
 
 	[SchemaDescription("What a crit multiplies the attack's damage by.")]
@@ -129,15 +127,12 @@ public class UnitMetadata : PlaceableMetadata
 	public float SplashOuterRadius { get; set; }
 
 	[SchemaDescription("The share of the attack's damage dealt to targets inside the inner splash radius.")]
-	[SchemaUnit("%")]
 	public float SplashInnerRatio { get; set; } = 1.0f;
 
 	[SchemaDescription("The share of the attack's damage dealt to targets between the inner and medium splash radii.")]
-	[SchemaUnit("%")]
 	public float SplashMediumRatio { get; set; } = 0.5f;
 
 	[SchemaDescription("The share of the attack's damage dealt to targets between the medium and outer splash radii.")]
-	[SchemaUnit("%")]
 	public float SplashOuterRatio { get; set; } = 0.25f;
 
 	[SchemaDescription("Whether the unit's splash damages its own side as well as the enemy's.")]

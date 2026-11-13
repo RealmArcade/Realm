@@ -120,8 +120,16 @@ public class RealmSchemaDocument
 ///     </para>
 ///     <para>
 ///         Numeric enum labels are derived by one rule: the label of a value is the name of the enum member that declares
-///         it, in declaration order, and the value is the number the member stores. A label is declared explicitly only
-///         where the meaning is not obvious from the member name, which for the metadata model is the pathing bitmasks.
+///         it, and the value is the number the member stores. A label is declared explicitly only where the meaning is not
+///         obvious from the member name, which for the metadata model is the pathing bitmasks. Labels are written in
+///         ascending value order rather than in the order reflection happens to return the members, because that order is
+///         not part of the runtime's contract and a reordering would silently rewrite every label list.
+///     </para>
+///     <para>
+///         <c>x-realm-unit</c> names the unit of the number as it is stored. <c>%</c> is therefore reserved for a number
+///         already expressed in percent, between zero and a hundred; a proportion stored as a fraction of one carries no
+///         unit and declares its scale with <c>minimum</c> and <c>maximum</c> instead, so a consumer that writes the unit
+///         beside the value cannot be wrong by a factor of a hundred.
 ///     </para>
 ///     <para>
 ///         Determinism is a contract, not a coincidence. Property order follows model declaration order, keywords are
@@ -433,7 +441,7 @@ public static class RealmJsonSchemaExporter
 
 	private static JsonArray BuildLabels(FieldInfo[] fields)
 	{
-		var labels = new JsonArray();
+		var entries = new List<(long Value, string Label)>();
 		foreach (FieldInfo field in fields)
 		{
 			object? raw = field.GetRawConstantValue();
@@ -442,12 +450,21 @@ public static class RealmJsonSchemaExporter
 				continue;
 			}
 
-			var entry = new JsonObject
+			entries.Add((Convert.ToInt64(raw), field.Name));
+		}
+
+		entries.Sort((left, right) => left.Value != right.Value
+			? left.Value.CompareTo(right.Value)
+			: string.CompareOrdinal(left.Label, right.Label));
+
+		var labels = new JsonArray();
+		foreach ((long value, string label) in entries)
+		{
+			labels.Add(new JsonObject
 			{
-				["value"] = Convert.ToInt64(raw),
-				["label"] = field.Name
-			};
-			labels.Add(entry);
+				["value"] = value,
+				["label"] = label
+			});
 		}
 
 		return labels;
