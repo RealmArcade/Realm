@@ -106,6 +106,7 @@ public static class UnitEntityFactory
 		world.SetOrAdd(entity, new RotationY(rotationY));
 		world.SetOrAdd(entity, new ModelScale(modelScale));
 		world.SetOrAdd(entity, new CollisionScale(placedScale));
+		if (metadata.IncludeInDefaultHotkeySelection) world.SetOrAdd(entity, new IncludeInDefaultHotkeySelection());
 
 		if (bypassPopulation) world.Add(entity, new BypassPopulationTag());
 		if (isBuilding)
