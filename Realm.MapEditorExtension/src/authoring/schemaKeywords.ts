@@ -257,6 +257,11 @@ export class SchemaDocument {
         return typeof value === 'number' ? value : undefined;
     }
 
+    derivedSource(node: JsonSchema | undefined): string | undefined {
+        const value = this.resolve(node)?.['x-realm-derived'];
+        return typeof value === 'string' ? value : undefined;
+    }
+
     sensitivity(node: JsonSchema | undefined): boolean {
         return this.resolve(node)?.['x-realm-sensitive'] === true;
     }
