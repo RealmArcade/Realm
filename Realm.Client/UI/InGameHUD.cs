@@ -12,6 +12,7 @@ using Realm.Client.Services;
 using Realm.Client.UI.InGame;
 using Realm.Client.Utils;
 using Realm.Ecs.Common;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Vector3 = Godot.Vector3;
@@ -535,14 +536,47 @@ public partial class InGameHUD : Control
 		if (_unitVitalsBars == null) return;
 
 		List<SelectedUnitInfo> selectedUnits = _viewModel.SelectedUnits;
-		if (selectedUnits == null || selectedUnits.Count != 1)
+		if (selectedUnits != null && selectedUnits.Count == 1)
 		{
-			_unitVitalsBars.Hide();
+			int index = _viewModel.CycleSelectionIndex < selectedUnits.Count ? _viewModel.CycleSelectionIndex : 0;
+			_unitVitalsBars.UpdateSingleSelection(selectedUnits[index]);
 			return;
 		}
 
-		int index = _viewModel.CycleSelectionIndex < selectedUnits.Count ? _viewModel.CycleSelectionIndex : 0;
-		_unitVitalsBars.UpdateSingleSelection(selectedUnits[index]);
+		if (selectedUnits == null || selectedUnits.Count == 0)
+		{
+			Entity selectedResourceNode = ResolveSelectedResourceNodeEntity();
+			if (selectedResourceNode != Entity.Null)
+			{
+				_unitVitalsBars.UpdateResourceNode(selectedResourceNode);
+				return;
+			}
+		}
+
+		_unitVitalsBars.Hide();
+	}
+
+	/// <summary>
+	///     Names the resource node the local player is reading, whether it was picked out of the shared multimesh every
+	///     mine and tree is drawn by or clicked as a placed prop of its own. Its capacity is what its health bar states, so
+	///     the bottom console reads a node the same way it reads a unit.
+	/// </summary>
+	/// <returns>The selected node's entity, or <see cref="Entity.Null" /> when nothing selected is a node.</returns>
+	private Entity ResolveSelectedResourceNodeEntity()
+	{
+		if (GameContext.World is not { } world) return Entity.Null;
+
+		Entity nodeEntity = _viewModel.SelectedResourceNode;
+		if (nodeEntity != Entity.Null && world.IsAlive(nodeEntity) && world.Has<ResourceNode>(nodeEntity)) return nodeEntity;
+
+		Prop3D? selectedProp = _viewModel.SelectedProp;
+		if (selectedProp != null && GodotObject.IsInstanceValid(selectedProp))
+		{
+			Entity propEntity = selectedProp.Entity;
+			if (propEntity != Entity.Null && world.IsAlive(propEntity) && world.Has<ResourceNode>(propEntity)) return propEntity;
+		}
+
+		return Entity.Null;
 	}
 
 	public void RefreshUI(List<Unit3D>? selectedUnits)
