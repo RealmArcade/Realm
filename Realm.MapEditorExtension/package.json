@@ -1,7 +1,7 @@
 {
     "name":  "realm-map-editor",
     "displayName":  "Realm Map Editor",
-    "description":  "Map project asset viewers and JSON schema validation for Realm maps",
+    "description":  "Map project asset viewers, JSON schema validation and schema-driven authoring for Realm maps",
     "version":  "0.0.1",
     "publisher":  "speige",
     "engines":  {

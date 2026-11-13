@@ -68,7 +68,7 @@ export function activate(context: vscode.ExtensionContext) {
                             return [vscode.TextEdit.replace(fullRange, response.formattedContent)];
                         }
                     } catch (err) {
-                        console.error('[RealmExtension] onWillSaveTextDocument IPC error:', err);
+                        console.debug('[RealmExtension] formatting the document without the running map editor:', err);
                     }
                     return computeFormattingEdits(event.document, authoring.snapshots, authoring.registry);
                 })());
