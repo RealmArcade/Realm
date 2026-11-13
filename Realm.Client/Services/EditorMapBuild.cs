@@ -58,6 +58,8 @@ public static class EditorMapBuild
 
 		if (!string.Equals(MapWorkspaceService.ReadBuildFlavorDomain(workspace), isDebug ? MapWorkspaceService.DebugBuildFlavor : MapWorkspaceService.ReleaseBuildFlavor, StringComparison.OrdinalIgnoreCase)) return false;
 
+		if (!isDebug && MapScriptArtifacts.ContainsDebugInformation(existingWasm)) return false;
+
 		DateTime wasmTime = File.GetLastWriteTimeUtc(existingWasm);
 		if (hasNewerSourceFiles(workspace, wasmTime)) return false;
 
