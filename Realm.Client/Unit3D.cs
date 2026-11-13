@@ -101,28 +101,6 @@ public partial class Unit3D : Node3D
 	}
 
 	private float _cachedBaseModelScale = 1.0f;
-	private bool _isLaborPulsing = false;
-
-	public void SetLaborPulseScale(float pulse)
-	{
-		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
-		{
-			_isLaborPulsing = true;
-			float baseModelScale = _cachedBaseModelScale;
-			_modelNode.Scale = new Vector3(pulse * 0.9f * baseModelScale, (2.0f - pulse) * 0.9f * baseModelScale, pulse * 0.9f * baseModelScale);
-		}
-	}
-
-	public void ResetLaborPulseScale()
-	{
-		if (!_isLaborPulsing) return;
-		_isLaborPulsing = false;
-		if (_modelNode != null && GodotObject.IsInstanceValid(_modelNode))
-		{
-			float baseModelScale = _cachedBaseModelScale;
-			_modelNode.Scale = new Vector3(baseModelScale, baseModelScale, baseModelScale);
-		}
-	}
 
 	private bool _isRuinSilhouette = false;
 
