@@ -7,8 +7,12 @@ import { RealmRanimViewerProvider } from './ranimEditorProvider';
 import { RealmRmeshViewerProvider, RmeshGlbFileSystemProvider, openRmeshInGlbViewer } from './rmeshEditorProvider';
 import { RealmRaudViewerProvider } from './raudEditorProvider';
 import { MIXAMO_EXPORT_LICENSING_WARNING } from './constants';
+import { createAuthoringServices, registerAuthoringFeatures } from './authoring/features';
 
 export function activate(context: vscode.ExtensionContext) {
+    const authoring = createAuthoringServices(context);
+    registerAuthoringFeatures(context, authoring);
+
     context.subscriptions.push(RealmRtexViewerProvider.register(context));
     context.subscriptions.push(RealmRanimViewerProvider.register(context));
     context.subscriptions.push(RealmRmeshViewerProvider.register(context));

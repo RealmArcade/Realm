@@ -161,14 +161,38 @@
                                                    "fileMatch":  "**/terrain.json",
                                                    "url":  "./terrain.schema.json"
                                                }
-                                           ]
+                                           ],
+                        "configuration":  {
+                                              "title":  "Realm Map Authoring",
+                                              "properties":  {
+                                                                 "realm.mapAuthoring.hover":  {
+                                                                                                  "type":  "boolean",
+                                                                                                  "default":  true,
+                                                                                                  "description":  "Explain schema-driven values in map documents when the pointer rests on them."
+                                                                                              },
+                                                                 "realm.mapAuthoring.decorations":  {
+                                                                                                        "type":  "boolean",
+                                                                                                        "default":  true,
+                                                                                                        "description":  "Draw inline colour swatches and asset kind glyphs in map documents."
+                                                                                                    },
+                                                                 "realm.mapAuthoring.codeLens":  {
+                                                                                                     "type":  "boolean",
+                                                                                                     "default":  true,
+                                                                                                     "description":  "Offer preview lenses above asset and colour values in map documents."
+                                                                                                 }
+                                                             }
+                                          }
                     },
+    "dependencies":  {
+                         "jsonc-parser":  "^3.3.1"
+                     },
     "scripts":  {
                     "vscode:prepublish":  "npm run compile",
                     "compile":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node",
                     "watch":  "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --watch"
                 },
     "devDependencies":  {
+                            "@types/node":  "^20.19.43",
                             "@types/vscode":  "^1.75.0",
                             "esbuild":  "^0.20.0",
                             "typescript":  "^5.0.0"
