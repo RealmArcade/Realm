@@ -265,7 +265,7 @@ HOST_TYPES = {
 # Generated debugger script metadata
 REALM_LLDB_SCRIPT_VERSION = "1"
 REALM_LLDB_SCRIPT_HASH = "f683cd830eee2a946494ad66b004576a1e69bd91fef15b6693299a1f07a1a26b"
-REALM_LLDB_SOURCE_COMMIT = "ffa1fe96adde3ed7e0bc4789ee5fd57b2be9d734"
+REALM_LLDB_SOURCE_COMMIT = "8938e5694c737e5345354a0e1d47d034cd12f131"
 
 INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"
 
