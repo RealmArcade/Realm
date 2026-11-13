@@ -265,7 +265,7 @@ HOST_TYPES = {
 # Generated debugger script metadata
 REALM_LLDB_SCRIPT_VERSION = "1"
 REALM_LLDB_SCRIPT_HASH = "f683cd830eee2a946494ad66b004576a1e69bd91fef15b6693299a1f07a1a26b"
-REALM_LLDB_SOURCE_COMMIT = "4bf75ef65ec218f9429e571feff30723ff96c19c"
+REALM_LLDB_SOURCE_COMMIT = "cb5acd25bd8d2458ffd1be6738930df699354e3a"
 
 INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"
 
@@ -1231,6 +1231,58 @@ def install_step_hook(debugger):
     debugger.HandleCommand("target stop-hook add -P realm_lldb.RealmStepStopHook")
     _STEP_HOOK_INSTALLED = True
 
+_JUST_MY_CODE_ENABLED = False
+_JUST_MY_CODE_INSTALLED = False
+
+class RealmJustMyCodeStopHook:
+    def handle_stop(self, exe_ctx, stream):
+        if not _JUST_MY_CODE_ENABLED or _STEP_UNTIL_USER:
+            return
+
+        thread = exe_ctx.GetThread()
+        if not thread or not thread.IsValid():
+            return
+
+        plan_complete = getattr(lldb, "eStopReasonPlanComplete", None)
+        if plan_complete is not None and thread.GetStopReason() != plan_complete:
+            return
+
+        frame = exe_ctx.GetFrame()
+        if is_user_frame(frame):
+            return
+
+        thread.StepOut()
+
+def install_just_my_code_hook(debugger):
+    global _JUST_MY_CODE_INSTALLED
+    if _JUST_MY_CODE_INSTALLED:
+        return
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        return
+    debugger.HandleCommand("target stop-hook add -P realm_lldb.RealmJustMyCodeStopHook")
+    _JUST_MY_CODE_INSTALLED = True
+
+def realm_just_my_code(debugger, command, result, internal_dict):
+    global _JUST_MY_CODE_ENABLED
+    argument = command.strip().lower()
+    if argument == "status":
+        result.AppendMessage(f"realm_just_my_code: {'on' if _JUST_MY_CODE_ENABLED else 'off'}")
+        return
+
+    if argument == "on":
+        _JUST_MY_CODE_ENABLED = True
+        install_just_my_code_hook(debugger)
+        result.AppendMessage("realm_just_my_code: on")
+        return
+
+    if argument == "off":
+        _JUST_MY_CODE_ENABLED = False
+        result.AppendMessage("realm_just_my_code: off")
+        return
+
+    result.SetError("usage: realm_just_my_code [on|off|status]")
+
 def realm_step(debugger, command, result, internal_dict):
     global _STEP_UNTIL_USER, _STEP_RETRIES
     target = debugger.GetSelectedTarget()
@@ -1815,4 +1867,5 @@ def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand("command script add -f realm_lldb.realm_reload realm_reload")
     debugger.HandleCommand("command script add -f realm_lldb.realm_where realm_where")
     debugger.HandleCommand("command script add -f realm_lldb.realm_exception realm_exception")
+    debugger.HandleCommand("command script add -f realm_lldb.realm_just_my_code realm_just_my_code")
     debugger.HandleCommand(f"type category enable {category}")

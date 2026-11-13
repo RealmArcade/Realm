@@ -304,6 +304,8 @@ class FakeThread:
         self.frame = frame
         self.frames = [frame]
         self.stepped = False
+        self.stepped_out = False
+        self.stop_reason = None
 
     def IsValid(self):
         return True
@@ -317,8 +319,34 @@ class FakeThread:
     def GetFrameAtIndex(self, index):
         return self.frames[index]
 
+    def GetStopReason(self):
+        return self.stop_reason
+
     def StepOver(self):
         self.stepped = True
+
+    def StepOut(self):
+        self.stepped_out = True
+
+
+class FakeExecutionContext:
+    def __init__(self, frame):
+        self.frame = frame
+        self.thread = FakeThread(frame)
+
+    def GetFrame(self):
+        return self.frame
+
+    def GetThread(self):
+        return self.thread
+
+
+class FakeStream:
+    def __init__(self):
+        self.messages = []
+
+    def Print(self, message):
+        self.messages.append(message)
 
 
 class FakeSBData:
@@ -348,6 +376,7 @@ def install_fake_lldb():
     lldb.eBasicTypeFloat = 2
     lldb.eBasicTypeBool = 3
     lldb.eBasicTypeChar = 4
+    lldb.eStopReasonPlanComplete = 7
     lldb.LLDB_INVALID_ADDRESS = 0
     sys.modules["lldb"] = lldb
 
@@ -707,6 +736,29 @@ def main():
     direct_string_provider = module.ManagedStringSyntheticProvider(direct_string_value, {})
     expect(direct_string_provider.get_child_at_index(0).GetValue() == string_text, "the direct string provider did not decode Value")
     expect(module.ManagedStringSummaryProvider(direct_string_value, {}) == '"unit/chad"', "the direct string summary did not quote the value")
+
+    module._STEP_UNTIL_USER = False
+    just_my_code_debugger = FakeDebugger(generic_target)
+    just_my_code_result = FakeResult()
+    module.realm_just_my_code(just_my_code_debugger, "on", just_my_code_result, {})
+    expect(module._JUST_MY_CODE_ENABLED is True, "realm_just_my_code did not enable the mode")
+    expect(any("target stop-hook add" in command for command in just_my_code_debugger.commands), "realm_just_my_code did not install the stop hook")
+
+    host_frame = FakeFrame({}, function_name="Realm.MapAPI.GameAPI_WasmModule.get_PlayerCount", path="D:/realm/Realm.MapAPI/WasmWrappers.g.cs", line=10)
+    host_context = FakeExecutionContext(host_frame)
+    host_context.thread.stop_reason = module.lldb.eStopReasonPlanComplete
+    module.RealmJustMyCodeStopHook().handle_stop(host_context, FakeStream())
+    expect(host_context.thread.stepped_out is True, "just-my-code did not step out of a host wrapper frame")
+
+    user_context = FakeExecutionContext(user_frame)
+    user_context.thread.stop_reason = module.lldb.eStopReasonPlanComplete
+    module.RealmJustMyCodeStopHook().handle_stop(user_context, FakeStream())
+    expect(user_context.thread.stepped_out is False, "just-my-code stepped out of a user frame")
+
+    breakpoint_context = FakeExecutionContext(host_frame)
+    breakpoint_context.thread.stop_reason = 2
+    module.RealmJustMyCodeStopHook().handle_stop(breakpoint_context, FakeStream())
+    expect(breakpoint_context.thread.stepped_out is False, "just-my-code interfered with a breakpoint stop")
 
     print("OK")
     return 0

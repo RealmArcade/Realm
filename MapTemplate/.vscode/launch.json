@@ -24,15 +24,17 @@
 				"settings set target.process.run-all-threads false",
 				"settings set target.process.thread.step-out-avoid-nodebug true",
 				"settings set target.process.thread.step-in-avoid-nodebug true",
-				"settings set target.process.thread.step-avoid-regexp ^(__wasm|wasmtime|cabi_|[rR]hp|System\\.|System_|System_Private_CoreLib|S_P_CoreLib_|Internal\\.|GameClientWorld|Realm\\.MapAPI\\.|Realm_MapAPI_|Realm\\.Ecs\\.|Realm_Ecs_|Microsoft\\.|GameAPI_WasmModule|.*_WasmModule|wasmImport|wasm_import|__import|dotnet_|mono_|wasi_|env\\.)"
+				"settings set target.process.thread.step-avoid-regexp ^(__wasm|wasmtime|cabi_|[rR]hp|System\\.|System_|System_Private_CoreLib|S_P_CoreLib_|Internal\\.|GameClientWorld|Realm\\.Ecs\\.|Realm_Ecs_|Microsoft\\.|wasmImport|wasm_import|__import|dotnet_|mono_|wasi_|env\\.)"
 			],
 			"postAttachCommands": [
 				"process handle SIGTRAP -s false -n false -p false",
+				"realm_just_my_code on",
 				"realm_load_modules",
 				"continue"
 			],
 			"postRunCommands": [
 				"process handle SIGTRAP -s false -n false -p false",
+				"realm_just_my_code on",
 				"realm_load_modules",
 				"continue"
 			],

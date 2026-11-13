@@ -141,6 +141,8 @@ public class WasmDebuggerIntegrationTests
 		Assert.That(script, Does.Contain("def realm_reload"));
 		Assert.That(script, Does.Contain("def realm_where"));
 		Assert.That(script, Does.Contain("def realm_exception"));
+		Assert.That(script, Does.Contain("def realm_just_my_code"));
+		Assert.That(script, Does.Contain("RealmJustMyCodeStopHook"));
 		Assert.That(script, Does.Contain("def find_authority_pid"));
 	}
 
@@ -194,11 +196,12 @@ public class WasmDebuggerIntegrationTests
 		string launch = File.ReadAllText(launchPath);
 
 		Assert.That(launch, Does.Contain("step-avoid-regexp"));
-		Assert.That(launch, Does.Contain("GameAPI_WasmModule"));
+		Assert.That(launch, Does.Not.Contain("GameAPI_WasmModule"), "the step-avoid regex must let F10 stop at the C# wrapper so just-my-code can step out");
 		Assert.That(launch, Does.Contain("wasmImport"));
 		Assert.That(launch, Does.Contain("process handle SIGTRAP"));
 		Assert.That(launch, Does.Contain("step-in-avoid-nodebug"));
 		Assert.That(launch, Does.Contain("step-out-avoid-nodebug"));
+		Assert.That(launch, Does.Contain("realm_just_my_code on"));
 	}
 
 	[Test]
