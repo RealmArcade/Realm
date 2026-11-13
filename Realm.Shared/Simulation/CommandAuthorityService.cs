@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Realm.Ecs;
@@ -38,7 +38,7 @@ public partial class CommandAuthorityService
 
 	public Action<int, string, int>? TechLevelWriter { get; set; }
 
-	public Func<string, ConsumableMetadata?>? ConsumableProvider { get; set; }
+	public Func<string, ItemMetadata?>? ConsumableProvider { get; set; }
 
 	public Action<string>? DroppedOrderSink { get; set; }
 

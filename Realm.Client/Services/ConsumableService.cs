@@ -16,7 +16,7 @@ public class ConsumableService
 
 	public PurchaseResult TryPurchase(UnitId building, string abilityId, System.Numerics.Vector3 targetPosition)
 	{
-		ConsumableMetadata? consumable = GameContext.RegistryService?.GetConsumableForCard(abilityId);
+		ItemMetadata? consumable = GameContext.RegistryService?.GetConsumableForCard(abilityId);
 		if (consumable == null) return PurchaseResult.NotConsumable;
 
 		string displayName = GameContext.Host?.GetAbilityDefinition(abilityId)?.DisplayName ?? abilityId;

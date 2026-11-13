@@ -21,7 +21,7 @@ public class TemplateContainer
 
 	[JsonPropertyName("Items")] public List<ItemMetadata> Items { get; set; } = new();
 
-	[JsonPropertyName("Consumables")] public List<ConsumableMetadata> Consumables { get; set; } = new();
+	[JsonPropertyName("Consumables")] public List<ItemMetadata> Consumables { get; set; } = new();
 
 	[JsonPropertyName("Attachments")] public List<AttachmentMetadata> Attachments { get; set; } = new();
 

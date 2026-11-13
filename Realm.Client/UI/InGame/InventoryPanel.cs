@@ -1,4 +1,4 @@
-﻿using Realm.Client.Services;
+using Realm.Client.Services;
 using System;
 using Godot;
 using Realm.Client.Core;
@@ -375,7 +375,7 @@ public class InventoryPanel
 		string tooltip = string.Empty;
 
 		var registry = GameContext.RegistryService;
-		ConsumableMetadata? consumable = registry?.GetConsumable(definitionId);
+		ItemMetadata? consumable = registry?.GetConsumable(definitionId);
 		if (consumable != null)
 		{
 			AbilityDefinition? card = registry?.GetAbilityDefinition(consumable.CardId);
