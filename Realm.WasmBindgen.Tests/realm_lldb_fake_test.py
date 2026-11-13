@@ -722,7 +722,7 @@ def main():
     expect(list_provider.num_children() == 4, "the direct list provider did not expose the initial elements")
     write_int(MEMORY, list_host + 8, 3)
     write_int(MEMORY, array_host + 16, 30)
-    expect(list_provider.update() is True, "the direct list provider did not report a change")
+    list_provider.update()
     expect(list_provider.num_children() == 5, "the direct list provider did not refresh after the list grew")
     expect(list_provider.get_child_at_index(4).GetValueAsSigned() == 30, "the direct list provider did not read the new element")
 
@@ -822,7 +822,7 @@ def main():
     string_provider = module.ManagedStringSyntheticProvider(direct_string_value, {})
     write_int(MEMORY, string_host + 4, 4)
     MEMORY[string_host + 8:string_host + 16] = "hero".encode("utf-16-le")
-    expect(string_provider.update() is True, "the direct string provider did not report a change")
+    string_provider.update()
     expect(string_provider.get_child_at_index(0).GetValue() == "hero", "the direct string provider did not refresh the decoded text")
 
     line_entries = [

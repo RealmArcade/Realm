@@ -1002,7 +1002,8 @@ def select_statement_addresses(entries, file_name, line_number):
     return sorted(set(addresses))
 
 def resolve_line_addresses(target, file_name, line_number):
-    addresses = []
+    entries = collect_statement_entries(target)
+    addresses = select_statement_addresses(entries, file_name, line_number)
 
     try:
         breakpoint = target.BreakpointCreateByLocation(lldb.SBFileSpec(file_name), line_number)
@@ -1010,17 +1011,16 @@ def resolve_line_addresses(target, file_name, line_number):
             for index in range(breakpoint.GetNumLocations()):
                 location = breakpoint.GetLocationAtIndex(index)
                 address = location.GetAddress().GetLoadAddress(target)
-                if address and address != lldb.LLDB_INVALID_ADDRESS:
+                if not address or address == lldb.LLDB_INVALID_ADDRESS:
+                    continue
+                resolved_line = location.GetAddress().GetLineEntry().GetLine()
+                if resolved_line == line_number and address not in addresses:
                     addresses.append(address)
             target.BreakpointDelete(breakpoint.GetID())
     except Exception:
         pass
 
-    if addresses:
-        return sorted(set(addresses))
-
-    entries = collect_statement_entries(target)
-    return select_statement_addresses(entries, file_name, line_number)
+    return sorted(set(addresses))
 
 _JUST_MY_CODE_ENABLED = False
 _JUST_MY_CODE_INSTALLED = False
@@ -1328,14 +1328,13 @@ class WebAssemblyRefWrapperSyntheticProvider:
         self.update()
 
     def update(self):
-        previous_children = self.children
         self.guest_pointer = read_wrapper_guest_pointer(self.valobj)
         self.host_pointer = guest_pointer_to_host(self.target, self.guest_pointer)
         self.children = []
         self.mode = "invalid"
 
         if not self.inner_type or not self.inner_type.IsValid() or self.host_pointer == 0:
-            return self.children != previous_children
+            return False
 
         type_name = self.inner_type.GetName()
         if type_name == "System_String":
@@ -1351,7 +1350,7 @@ class WebAssemblyRefWrapperSyntheticProvider:
             self.mode = "object"
             self.build_object()
 
-        return self.children != previous_children
+        return False
 
     def build_string(self):
         length_offset = get_type_field_offset(self.inner_type, "_stringLength", 4)
@@ -1444,11 +1443,10 @@ class ManagedListSyntheticProvider:
                 self.children.append((f"[{index}]", "element", data_host + index * element_size, element_type, element_is_class))
 
     def update(self):
-        previous_children = self.children
         self.list_host = self.valobj.GetLoadAddress()
         self.children = []
         self.build()
-        return self.children != previous_children
+        return False
 
     def num_children(self):
         return len(self.children)
@@ -1492,11 +1490,10 @@ class ManagedArraySyntheticProvider:
                 self.children.append((f"[{index}]", "element", data_host + index * element_size, element_type, element_is_class))
 
     def update(self):
-        previous_children = self.children
         self.array_host = self.valobj.GetLoadAddress()
         self.children = []
         self.build()
-        return self.children != previous_children
+        return False
 
     def num_children(self):
         return len(self.children)
@@ -1541,11 +1538,10 @@ class ManagedStringSyntheticProvider:
         self.children.append(("Length", "int", length))
 
     def update(self):
-        previous_children = self.children
         self.string_host = self.valobj.GetLoadAddress()
         self.children = []
         self.build()
-        return self.children != previous_children
+        return False
 
     def num_children(self):
         return len(self.children)
