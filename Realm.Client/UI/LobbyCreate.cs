@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -623,6 +623,11 @@ public partial class LobbyCreate : Control
 	private void ShowHostErrorModal(string errorMessage)
 	{
 		GameContext.UserInterface?.ShowPopupMessage("LOBBY CREATION ERROR", errorMessage);
+	}
+
+	public void PreselectMap(string mapName, string? mapVersion = null)
+	{
+		RefreshAvailableMaps(mapName, mapVersion);
 	}
 
 	private void RefreshAvailableMaps(string? selectMapName = null, string? selectMapVersion = null)

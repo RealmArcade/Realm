@@ -28,6 +28,8 @@
 
   <ItemGroup>
     <Compile Include="LagPerceptionTests.cs" />
+    <Compile Include="CreatorDiscoveryTests.cs" />
+    <Compile Include="DiscoveryTests.cs" />
     <Compile Include="MapEditorUxTests.cs" />
     <Compile Include="MapProjectFileNormalizerTests.cs" />
     <Compile Include="MapImportVerificationTests.cs" />

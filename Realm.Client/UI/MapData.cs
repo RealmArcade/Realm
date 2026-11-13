@@ -15,64 +15,74 @@ public class MapData
 	public string ManifestHash { get; set; } = string.Empty;
 	public List<MapData> AvailableVersions { get; set; } = new();
 	public string Creator { get; set; } = null!;
+	public bool IsGreenlit { get; set; }
+	public string ThumbnailHash { get; set; } = string.Empty;
 	public string ThumbnailPath { get; set; } = null!;
 	public string Description { get; set; } = null!;
+	public string[] ScreenshotHashes { get; set; } = Array.Empty<string>();
 	public string[] Screenshots { get; set; } = null!;
 	public string[] Features { get; set; } = null!;
 
-
 	public float RatingStars { get; set; }
+	public int TotalReviews { get; set; }
+	public int VerifiedGoodReviews { get; set; }
+	public int GamesPlayed { get; set; }
+	public int PlaytimeMinutes { get; set; }
+	public long TotalSizeBytes { get; set; }
 	public string Votes5Star { get; set; } = null!;
 	public string Votes3Star { get; set; } = null!;
 	public string Votes1Star { get; set; } = null!;
 	public string AvgRating { get; set; } = null!;
 
-
 	public string AvgPlaytime { get; set; } = null!;
 	public string PlayerCount { get; set; } = null!;
 	public string CompletionRate { get; set; } = null!;
-
 
 	public string FileSize { get; set; } = null!;
 	public string EngineVersion { get; set; } = null!;
 	public string MaxPlayers { get; set; } = null!;
 	public string Genre { get; set; } = null!;
 
-
 	public string[] Awards { get; set; } = null!;
 	public List<string> Attribution_SourceMap { get; set; } = new();
-
 
 	public static MapData FromDto(DiscoveryMapDto dto, string? serverBaseUrl = null)
 	{
 		float rating = GetCalculatedRating(dto);
-		var (v5, v3, v1) = CalculateVotes(dto.TotalReviews, rating);
 		string version = GetSafeVersion(dto);
 
 		var mapData = new MapData
 		{
 			MapId = GetMapId(dto, version),
-			Title = dto.Title,
+			Title = dto.Title ?? string.Empty,
 			Version = version,
 			IsTestVersion = dto.IsTestVersion,
-			Creator = dto.Creator,
+			IsGreenlit = dto.IsGreenlit,
+			Creator = !string.IsNullOrWhiteSpace(dto.Creator) ? dto.Creator.Trim() : "Unknown",
+			ThumbnailHash = dto.ThumbnailHash ?? string.Empty,
 			ThumbnailPath = GetThumbnailPath(dto),
-			Description = GetDescription(dto),
+			Description = dto.Description?.Trim() ?? string.Empty,
+			ScreenshotHashes = dto.Screenshots != null ? dto.Screenshots.ToArray() : Array.Empty<string>(),
 			Screenshots = GetScreenshots(dto),
 			Features = GetFeatures(dto),
 			RatingStars = rating,
-			Votes5Star = $"{v5:N0} Votes",
-			Votes3Star = $"{v3:N0} Votes",
-			Votes1Star = $"{v1:N0} Votes",
-			AvgRating = $"{rating:F1} / 5.0",
+			TotalReviews = dto.TotalReviews,
+			VerifiedGoodReviews = dto.VerifiedGoodReviews,
+			GamesPlayed = dto.GamesPlayed,
+			PlaytimeMinutes = dto.PlaytimeMinutes,
+			TotalSizeBytes = dto.TotalSizeBytes,
+			Votes5Star = dto.TotalReviews > 0 ? $"{dto.TotalReviews:N0}" : "0",
+			Votes3Star = dto.VerifiedGoodReviews > 0 ? $"{dto.VerifiedGoodReviews:N0}" : "0",
+			Votes1Star = "0",
+			AvgRating = dto.TotalReviews > 0 ? $"{rating:F1} / 5.0" : string.Empty,
 			AvgPlaytime = GetAvgPlaytime(dto),
-			PlayerCount = GetPlayerCount(dto),
-			CompletionRate = GetCompletionRate(dto),
+			PlayerCount = GetGamesPlayedLabel(dto),
+			CompletionRate = dto.TotalReviews > 0 ? $"{dto.VerifiedGoodReviews:N0} / {dto.TotalReviews:N0}" : string.Empty,
 			FileSize = GetFileSize(dto),
-			EngineVersion = GetEngineVersion(dto),
-			MaxPlayers = GetMaxPlayersSafe(dto),
+			EngineVersion = dto.EngineVersion?.Trim() ?? string.Empty,
+			MaxPlayers = dto.MaxPlayers?.Trim() ?? string.Empty,
 			Genre = GetGenre(dto),
-			Awards = GetAwardsFallback(dto),
+			Awards = dto.Awards != null ? dto.Awards.ToArray() : Array.Empty<string>(),
 			Attribution_SourceMap = dto.Attribution_SourceMap != null ? new List<string>(dto.Attribution_SourceMap) : new List<string>()
 		};
 
@@ -82,9 +92,14 @@ public class MapData
 
 	private static float GetCalculatedRating(DiscoveryMapDto dto)
 	{
+		if (dto.TotalReviews <= 0)
+		{
+			return 0f;
+		}
+
 		if (dto.RatingStars > 0) return dto.RatingStars;
 		if (dto.AverageRating > 0) return (float)dto.AverageRating;
-		return 5.0f;
+		return 0f;
 	}
 
 	private static string GetSafeVersion(DiscoveryMapDto dto)
@@ -99,48 +114,9 @@ public class MapData
 		return $"{dto.Title}_{version}";
 	}
 
-	private static string GetDescription(DiscoveryMapDto dto)
+	private static string GetGamesPlayedLabel(DiscoveryMapDto dto)
 	{
-		if (!string.IsNullOrEmpty(dto.Description)) return dto.Description;
-		return "A custom map package published to the Realm network.";
-	}
-
-	private static string GetPlayerCount(DiscoveryMapDto dto)
-	{
-		if (dto.GamesPlayed > 0) return $"{dto.GamesPlayed:N0} Played";
-		return "New Release";
-	}
-
-	private static string GetCompletionRate(DiscoveryMapDto dto)
-	{
-		if (dto.GamesPlayed > 0) return "100%";
-		return "N/A";
-	}
-
-	private static string GetEngineVersion(DiscoveryMapDto dto)
-	{
-		if (!string.IsNullOrWhiteSpace(dto.EngineVersion)) return dto.EngineVersion;
-		return "Godot Realm Engine v1.0";
-	}
-
-	private static string GetMaxPlayersSafe(DiscoveryMapDto dto)
-	{
-		if (!string.IsNullOrWhiteSpace(dto.MaxPlayers)) return dto.MaxPlayers;
-		return "8 Players";
-	}
-
-	private static string[] GetAwardsFallback(DiscoveryMapDto dto)
-	{
-		if (dto.Awards != null)
-		{
-			if (dto.Awards.Count > 0) return dto.Awards.ToArray();
-		}
-
-		return new string[]
-		{
-			"res://Assets/UI/gold_coin.webp",
-			"res://Assets/UI/battle_shield.webp"
-		};
+		return dto.GamesPlayed > 0 ? $"{dto.GamesPlayed:N0}" : "0";
 	}
 
 	private static string GetThumbnailPath(DiscoveryMapDto dto)
@@ -154,30 +130,22 @@ public class MapData
 			}
 		}
 
-		return !string.IsNullOrEmpty(dto.ThumbnailUrl) ? dto.ThumbnailUrl : "";
+		return !string.IsNullOrEmpty(dto.ThumbnailUrl) ? dto.ThumbnailUrl : string.Empty;
 	}
 
 	private static string[] GetScreenshots(DiscoveryMapDto dto)
 	{
 		var screenshots = new List<string>();
-
 		if (dto.Screenshots != null && dto.Screenshots.Count > 0)
 		{
 			foreach (var s in dto.Screenshots)
 			{
 				string? localCas = MapAssetManager.Storage.FindAssetFilePath(s);
-				if (localCas == null || !File.Exists(localCas))
-					continue;
-
-				screenshots.Add(localCas);
+				if (localCas != null && File.Exists(localCas))
+				{
+					screenshots.Add(localCas);
+				}
 			}
-		}
-
-		if (screenshots.Count == 0)
-		{
-			screenshots.Add("res://Assets/UI/moonlit_castle.webp");
-			screenshots.Add("res://Assets/UI/moonlit_forest.webp");
-			screenshots.Add("res://Assets/UI/forest_path.webp");
 		}
 
 		return screenshots.ToArray();
@@ -191,25 +159,15 @@ public class MapData
 		if (dto.Tags != null && dto.Tags.Count > 0)
 			return dto.Tags.ToArray();
 
-		return new string[] { "Custom Assets", "Verified Map", "Community Rated" };
-	}
-
-	private static (int v5, int v3, int v1) CalculateVotes(int totalVotes, float rating)
-	{
-		if (totalVotes <= 0)
-			return (0, 0, 0);
-
-		int v5 = Math.Clamp((int)Math.Round(totalVotes * Math.Max(0.0, (rating - 3.0) / 2.0)), 0, totalVotes);
-		int v1 = Math.Clamp((int)Math.Round(totalVotes * Math.Max(0.0, (3.0 - rating) / 2.0)), 0, totalVotes - v5);
-		int v3 = totalVotes - v5 - v1;
-
-		return (v5, v3, v1);
+		return Array.Empty<string>();
 	}
 
 	private static string GetAvgPlaytime(DiscoveryMapDto dto)
 	{
 		if (dto.PlaytimeMinutes <= 0)
-			return "N/A";
+		{
+			return string.Empty;
+		}
 
 		if (dto.GamesPlayed > 0)
 		{

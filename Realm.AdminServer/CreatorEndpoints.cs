@@ -130,9 +130,13 @@ public static class CreatorEndpoints
 			return Results.NotFound(new { Registered = false, Message = "Creator key not registered." });
 		});
 
-		app.MapGet("/api/creators", (DataStoreService db) =>
+		app.MapGet("/api/creators", (DataStoreService db, ContentAddressableStorage cas) =>
 		{
-			var creators = db.GetAll<JsonDocument>("creators").Select(doc =>
+			var catalog = PublishedMapCatalogHelper.GroupLatestByTitle(
+				PublishedMapCatalogHelper.BuildCatalog(db, cas, includeTestVersions: false));
+			var allSignatures = db.GetAll<JsonDocument>("asset_signatures");
+
+			var rawCreators = db.GetAll<JsonDocument>("creators").Select(doc =>
 			{
 				var root = doc.RootElement;
 				return new
@@ -142,7 +146,27 @@ public static class CreatorEndpoints
 					DonationLink = root.TryGetProperty("donation_link", out var dl) ? dl.GetString() ?? "" : "",
 					ContactInfo = root.TryGetProperty("contact_info", out var ci) ? ci.GetString() ?? "" : ""
 				};
-			}).Where(c => !string.IsNullOrEmpty(c.PublicKey)).ToList();
+			}).Where(c => !string.IsNullOrEmpty(c.PublicKey) && !string.IsNullOrWhiteSpace(c.Username)).ToList();
+
+			var creators = rawCreators
+				.GroupBy(c => c.PublicKey, StringComparer.OrdinalIgnoreCase)
+				.Select(g => g.First())
+				.Select(c =>
+				{
+					int mapCount = catalog.Count(entry => PublishedMapCatalogHelper.MatchesCreator(entry, c.PublicKey, c.Username));
+					int assetCount = CollectCreatorAssetHashes(allSignatures, c.PublicKey, c.Username).Count;
+					return new CreatorSummaryDto
+					{
+						PublicKey = c.PublicKey,
+						Username = c.Username,
+						DonationLink = c.DonationLink,
+						ContactInfo = c.ContactInfo,
+						PublishedMapCount = mapCount,
+						AssetCount = assetCount
+					};
+				})
+				.OrderBy(c => c.Username, StringComparer.OrdinalIgnoreCase)
+				.ToList();
 
 			return Results.Ok(creators);
 		});
@@ -153,7 +177,7 @@ public static class CreatorEndpoints
 			return creator != null ? Results.Ok(creator) : Results.NotFound();
 		});
 
-		app.MapGet("/api/creators/{pubKey}/portfolio", (string pubKey, DataStoreService db) =>
+		app.MapGet("/api/creators/{pubKey}/portfolio", (string pubKey, DataStoreService db, ContentAddressableStorage cas) =>
 		{
 			var creator = db.Get<JsonDocument>("creators", pubKey);
 			string creatorName = "";
@@ -162,27 +186,86 @@ public static class CreatorEndpoints
 				creatorName = uProp.GetString() ?? "";
 			}
 
-			var assets = new List<object>();
-			var allSignatures = db.GetAll<JsonDocument>("asset_signatures");
-			foreach (var sig in allSignatures)
-			{
-				var root = sig.RootElement;
-				string sigPubKey = root.TryGetProperty("PublicKey", out var pkProp) ? pkProp.GetString() ?? "" : "";
-				string author = root.TryGetProperty("AuthorUsername", out var aProp) ? aProp.GetString() ?? "" : "";
-				string hash = root.TryGetProperty("Hash", out var hProp) ? hProp.GetString() ?? "" : "";
+			var catalog = PublishedMapCatalogHelper.GroupLatestByTitle(
+				PublishedMapCatalogHelper.BuildCatalog(db, cas, includeTestVersions: false));
+			var creatorMaps = catalog
+				.Where(entry => PublishedMapCatalogHelper.MatchesCreator(entry, pubKey, creatorName))
+				.Select(entry => entry.Dto)
+				.OrderByDescending(m => m.GamesPlayed)
+				.ThenBy(m => m.Title, StringComparer.OrdinalIgnoreCase)
+				.ToList();
 
-				if (string.Equals(sigPubKey, pubKey, StringComparison.OrdinalIgnoreCase) ||
-				    (!string.IsNullOrEmpty(creatorName) && string.Equals(author, creatorName, StringComparison.OrdinalIgnoreCase)))
+			var allSignatures = db.GetAll<JsonDocument>("asset_signatures");
+			var uniqueHashes = CollectCreatorAssetHashes(allSignatures, pubKey, creatorName);
+
+			CreatorAssetPackDto? assetPack = null;
+			if (uniqueHashes.Count > 0)
+			{
+				string displayName = string.IsNullOrWhiteSpace(creatorName) ? "Creator" : creatorName.Trim();
+				long totalBytes = 0;
+				string representativeHash = "";
+				foreach (string hash in uniqueHashes)
 				{
-					assets.Add(new
+					if (string.IsNullOrEmpty(representativeHash))
 					{
-						Hash = hash,
-						AuthorUsername = author
-					});
+						representativeHash = hash;
+					}
+
+					string? filePath = cas.FindAssetFilePath(hash);
+					if (filePath != null && File.Exists(filePath))
+					{
+						totalBytes += new FileInfo(filePath).Length;
+					}
 				}
+
+				assetPack = new CreatorAssetPackDto
+				{
+					Title = $"{displayName} Asset Pack",
+					AuthorUsername = creatorName,
+					AuthorPublicKey = pubKey,
+					RepresentativeHash = representativeHash,
+					AssetCount = uniqueHashes.Count,
+					TotalSizeBytes = totalBytes
+				};
 			}
 
-			return Results.Ok(assets);
+			return Results.Ok(new CreatorPortfolioDto
+			{
+				PublicKey = pubKey,
+				Username = creatorName,
+				Maps = creatorMaps,
+				AssetPack = assetPack
+			});
 		});
+	}
+
+	private static HashSet<string> CollectCreatorAssetHashes(
+		IEnumerable<JsonDocument> allSignatures,
+		string pubKey,
+		string creatorName)
+	{
+		var uniqueHashes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		foreach (var sig in allSignatures)
+		{
+			var root = sig.RootElement;
+			string sigPubKey = root.TryGetProperty("PublicKey", out var pkProp) ? pkProp.GetString() ?? "" : "";
+			string author = root.TryGetProperty("AuthorUsername", out var aProp) ? aProp.GetString() ?? "" : "";
+			string rawHash = root.TryGetProperty("Hash", out var hProp) ? hProp.GetString() ?? "" : "";
+
+			bool matches = (!string.IsNullOrWhiteSpace(pubKey) && string.Equals(sigPubKey, pubKey, StringComparison.OrdinalIgnoreCase)) ||
+			               (!string.IsNullOrWhiteSpace(creatorName) && string.Equals(author, creatorName, StringComparison.OrdinalIgnoreCase));
+			if (!matches || string.IsNullOrWhiteSpace(rawHash))
+			{
+				continue;
+			}
+
+			string normHash = ContentAddressableStorage.NormalizeBlake3Hash(rawHash);
+			if (!string.IsNullOrWhiteSpace(normHash))
+			{
+				uniqueHashes.Add(normHash);
+			}
+		}
+
+		return uniqueHashes;
 	}
 }

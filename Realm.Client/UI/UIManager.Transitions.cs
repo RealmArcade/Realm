@@ -1,4 +1,4 @@
-﻿// Screen transitions end to end: the fade overlay, the pre-transition state fixups, the screen music,
+// Screen transitions end to end: the fade overlay, the pre-transition state fixups, the screen music,
 // clearing the old screen, instancing and configuring the new one, and the scene lookups that decide
 // what to instantiate. The fade callbacks sit at both ends because that is where the order matters.
 
@@ -281,6 +281,14 @@ public partial class UIManager
 		else if (_currentScreen is MapDetails mapDetails)
 		{
 			mapDetails.SetMapData(_selectedMapData);
+		}
+		else if (_currentScreen is LobbyCreate lobbyCreate && !string.IsNullOrWhiteSpace(_preselectedLobbyMapName))
+		{
+			string mapName = _preselectedLobbyMapName;
+			string? mapVersion = _preselectedLobbyMapVersion;
+			_preselectedLobbyMapName = null;
+			_preselectedLobbyMapVersion = null;
+			lobbyCreate.PreselectMap(mapName, mapVersion);
 		}
 	}
 

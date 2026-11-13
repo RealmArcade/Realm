@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 using Godot;
@@ -49,6 +49,10 @@ public partial class UIManager : Control
 	private bool _queuedIsVictory;
 
 	private MapData _selectedMapData = null!;
+	private string? _preselectedLobbyMapName;
+	private string? _preselectedLobbyMapVersion;
+
+	public GameScreen MapDetailsReturnScreen { get; private set; } = GameScreen.MapDiscovery;
 
 	/// <summary>
 	///     Whether the first screen has been built. A screen named before this point races the startup transition that shows
@@ -56,10 +60,18 @@ public partial class UIManager : Control
 	/// </summary>
 	public bool HasVisibleScreen => _currentScreen != null && GodotObject.IsInstanceValid(_currentScreen);
 
-	public void TransitionToMapDetails(MapData mapData)
+	public void TransitionToMapDetails(MapData mapData, GameScreen returnScreen = GameScreen.MapDiscovery)
 	{
 		_selectedMapData = mapData;
+		MapDetailsReturnScreen = returnScreen;
 		TransitionTo(GameScreen.MapDetails);
+	}
+
+	public void TransitionToLobbyCreateWithMap(string mapName, string? mapVersion = null)
+	{
+		_preselectedLobbyMapName = mapName;
+		_preselectedLobbyMapVersion = mapVersion;
+		TransitionTo(GameScreen.LobbyCreate);
 	}
 
 	private AudioStreamPlayer _musicPlayer = null!;

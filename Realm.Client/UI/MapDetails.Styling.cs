@@ -1,4 +1,4 @@
-﻿// The published-map page is styled as a whole rather than per widget: one pass wraps the sections,
+// The published-map page is styled as a whole rather than per widget: one pass wraps the sections,
 // applies the panel styleboxes, title metrics and map frame, then dresses the carousel arrows.
 
 using System;
@@ -26,7 +26,11 @@ public partial class MapDetails
 		ApplyWrapperStyles();
 		ApplyTextStyles();
 
-		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface?.TransitionTo(GameScreen.MapDiscovery));
+		UIStyle.ApplyBackButton(_backButton, () =>
+		{
+			GameScreen target = GameContext.UserInterface?.MapDetailsReturnScreen ?? GameScreen.MapDiscovery;
+			GameContext.UserInterface?.TransitionTo(target);
+		});
 
 		UIStyle.ApplyButtonStyleBoxes(_downloadButton);
 		_downloadButton.AddThemeStyleboxOverride("disabled", UIStyle.CreateButtonPressed());
@@ -135,17 +139,17 @@ public partial class MapDetails
 
 	private void ApplyTextStyles()
 	{
-		ApplyTitleStyle(_descTitle, "MAP DESCRIPTION", 15);
+		ApplyTitleStyle(_descTitle, TranslationServer.Translate("MAP DESCRIPTION"), 15);
 		_descText.AddThemeColorOverride("font_color", new Color(0.92f, 0.94f, 0.98f));
 		_descText.AddThemeFontSizeOverride("font_size", 13);
 		_descText.AddThemeConstantOverride("line_spacing", 4);
 
-		ApplyTitleStyle(_featuresTitle, "MAP FEATURES", 16);
-		ApplyTitleStyle(_statsTitle, "MAP INFO & STATS", 20);
-		ApplyTitleStyle(_ratingTitle, "RATINGS & COMMUNITY", 13);
-		ApplyTitleStyle(_awardsTitle, "AWARDS", 13);
-		ApplyTitleStyle(_gameplayTitle, "GAMEPLAY STATS", 13);
-		ApplyTitleStyle(_techTitle, "TECHNICAL INFO", 13);
+		ApplyTitleStyle(_featuresTitle, TranslationServer.Translate("MAP FEATURES"), 16);
+		ApplyTitleStyle(_statsTitle, TranslationServer.Translate("MAP INFO & STATS"), 20);
+		ApplyTitleStyle(_ratingTitle, TranslationServer.Translate("RATINGS & COMMUNITY"), 13);
+		ApplyTitleStyle(_awardsTitle, TranslationServer.Translate("AWARDS"), 13);
+		ApplyTitleStyle(_gameplayTitle, TranslationServer.Translate("GAMEPLAY STATS"), 13);
+		ApplyTitleStyle(_techTitle, TranslationServer.Translate("TECHNICAL INFO"), 13);
 
 		var contentVBox = _statsPanel.GetNodeOrNull<VBoxContainer>("VBoxContainer/ScrollContainer/ContentVBox");
 		if (contentVBox != null)
@@ -161,7 +165,7 @@ public partial class MapDetails
 
 	private void ApplyTitleStyle(Label label, string text, int fontSize)
 	{
-		label.Text = Tr(text);
+		label.Text = text;
 		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		label.AddThemeFontSizeOverride("font_size", fontSize);
 	}

@@ -1,4 +1,4 @@
-﻿// Filling the page from the map data: feature rows, the star rating, awards, gameplay stats, the
+// Filling the page from the map data: feature rows, the star rating, awards, gameplay stats, the
 // tech-info table, and the card wrapper plus hover animation that seat each group.
 
 using System;
@@ -21,28 +21,31 @@ public partial class MapDetails
 {
 	private void PopulateFeatures()
 	{
-		foreach (Node child in _featuresList.GetChildren())
-		{
-			child.QueueFree();
-		}
+		ClearNodeChildren(_featuresList);
 
 		if (_mapData == null) return;
 
-		var featureSet = new HashSet<string>(_mapData.Features ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
-		var displayList = new List<string>(_mapData.Features ?? Array.Empty<string>());
-		string[] standardFeatures = { "Custom Units", "Custom Buildings", "Custom Abilities", "Custom Weapons", "Custom Upgrades", "Boss Waves", "Achievements", "Hardcore Mode" };
-
-		foreach (var sf in standardFeatures)
+		var features = _mapData.Features ?? Array.Empty<string>();
+		if (features.Length == 0)
 		{
-			if (!featureSet.Contains(sf) && displayList.Count < 8)
-			{
-				displayList.Add(sf);
-			}
+			var emptyLbl = new Label();
+			emptyLbl.Name = "NoFeaturesLbl_Label";
+			emptyLbl.Text = TranslationServer.Translate("No tags or features listed.");
+			emptyLbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			emptyLbl.CustomMinimumSize = new Vector2(180, 0);
+			emptyLbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			emptyLbl.AddThemeColorOverride("font_color", new Color(0.65f, 0.68f, 0.74f));
+			emptyLbl.AddThemeFontSizeOverride("font_size", 13);
+			_featuresList.AddChild(emptyLbl);
+			return;
 		}
 
-		foreach (var feat in displayList)
+		foreach (var feat in features)
 		{
-			CreateFeatureRow(feat, featureSet.Contains(feat));
+			if (!string.IsNullOrWhiteSpace(feat))
+			{
+				CreateFeatureRow(feat.Trim(), true);
+			}
 		}
 	}
 
@@ -86,35 +89,65 @@ public partial class MapDetails
 
 	private void PopulateRatings()
 	{
-		FillStarsRow(_starsRow1, 5);
-		_votesRow1.Text = $"{_mapData.Votes5Star}   {_mapData.AvgRating} Stars";
-		_votesRow1.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
+		if (_mapData == null) return;
+
+		if (_mapData.TotalReviews > 0)
+		{
+			int filledStars = Math.Clamp((int)Math.Round(_mapData.RatingStars), 0, 5);
+			FillStarsRow(_starsRow1, filledStars);
+			_votesRow1.Visible = true;
+			_votesRow1.Text = $"{_mapData.RatingStars:F1} / 5.0  ({string.Format(TranslationServer.Translate("{0} reviews"), _mapData.TotalReviews)})";
+			_votesRow1.AddThemeColorOverride("font_color", new Color(0.90f, 0.90f, 0.95f));
+			_votesRow1.AddThemeFontSizeOverride("font_size", 12);
+
+			_starsRow2.Visible = false;
+			_votesRow2.Visible = true;
+			_votesRow2.Text = string.Format(TranslationServer.Translate("{0} verified positive reviews"), _mapData.VerifiedGoodReviews);
+			_votesRow2.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+			_votesRow2.AddThemeFontSizeOverride("font_size", 12);
+
+			_starsRow3.Visible = false;
+			_votesRow3.Visible = false;
+			return;
+		}
+
+		bool hasLegacyCustomRating = !string.IsNullOrWhiteSpace(_mapData.Votes5Star) && _mapData.Votes5Star != "0" && _mapData.RatingStars > 0;
+		if (hasLegacyCustomRating)
+		{
+			int filledStars = Math.Clamp((int)Math.Round(_mapData.RatingStars), 0, 5);
+			FillStarsRow(_starsRow1, filledStars);
+			_votesRow1.Visible = true;
+			_votesRow1.Text = $"{_mapData.Votes5Star}  •  {_mapData.AvgRating}";
+			_votesRow1.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
+			_votesRow1.AddThemeFontSizeOverride("font_size", 12);
+			_starsRow2.Visible = false;
+			_votesRow2.Visible = false;
+			_starsRow3.Visible = false;
+			_votesRow3.Visible = false;
+			return;
+		}
+
+		FillStarsRow(_starsRow1, 0);
+		_votesRow1.Visible = true;
+		_votesRow1.Text = TranslationServer.Translate("No player reviews yet");
+		_votesRow1.AddThemeColorOverride("font_color", new Color(0.70f, 0.72f, 0.78f));
 		_votesRow1.AddThemeFontSizeOverride("font_size", 12);
-
-		FillStarsRow(_starsRow2, 3);
-		_votesRow2.Text = $"{_mapData.Votes3Star}   3.0/5 Stars";
-		_votesRow2.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
-		_votesRow2.AddThemeFontSizeOverride("font_size", 12);
-
-		FillStarsRow(_starsRow3, 1);
-		_votesRow3.Text = $"{_mapData.Votes1Star}   1.0/5 Stars";
-		_votesRow3.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
-		_votesRow3.AddThemeFontSizeOverride("font_size", 12);
+		_starsRow2.Visible = false;
+		_votesRow2.Visible = false;
+		_starsRow3.Visible = false;
+		_votesRow3.Visible = false;
 	}
 
 	private void FillStarsRow(HBoxContainer container, int filledStars)
 	{
-		foreach (Node child in container.GetChildren())
-		{
-			child.QueueFree();
-		}
+		ClearNodeChildren(container);
 
 		for (int i = 0; i < 5; i++)
 		{
 			var star = new Label();
 			star.Name = "Star_Label";
 			star.Text = i < filledStars ? "★" : "☆";
-			star.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			star.AddThemeColorOverride("font_color", i < filledStars ? UIStyle.ColorGold : new Color(0.45f, 0.45f, 0.52f));
 			star.AddThemeFontSizeOverride("font_size", 16);
 			container.AddChild(star);
 		}
@@ -122,17 +155,30 @@ public partial class MapDetails
 
 	private void PopulateAwards()
 	{
-		foreach (Node child in _awardsContainer.GetChildren())
-		{
-			child.QueueFree();
-		}
+		ClearNodeChildren(_awardsContainer);
 
-		if (_mapData?.Awards == null) return;
+		if (_mapData?.Awards == null || _mapData.Awards.Length == 0)
+		{
+			var emptyLbl = new Label();
+			emptyLbl.Name = "NoAwardsLbl_Label";
+			emptyLbl.Text = TranslationServer.Translate("No awards earned yet.");
+			emptyLbl.AddThemeColorOverride("font_color", new Color(0.65f, 0.68f, 0.74f));
+			emptyLbl.AddThemeFontSizeOverride("font_size", 12);
+			_awardsContainer.AddChild(emptyLbl);
+			return;
+		}
 
 		foreach (var awardPath in _mapData.Awards)
 		{
+			Texture2D? tex = LoadTextureSafe(awardPath);
+			if (tex == null)
+			{
+				continue;
+			}
+
 			var badgePanel = new PanelContainer();
 			badgePanel.Name = "BadgePanel_PanelContainer";
+			badgePanel.TooltipText = GetAwardTooltip(awardPath);
 			badgePanel.AddThemeStyleboxOverride("panel",
 				UIStyle.CreateCardPlate(new Color(0.08f, 0.09f, 0.12f, 0.85f), UIStyle.ColorGoldDull, 1, 6));
 
@@ -141,37 +187,83 @@ public partial class MapDetails
 			rect.CustomMinimumSize = new Vector2(36, 36);
 			rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
 			rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			rect.Texture = LoadTextureSafe(awardPath) ?? LoadTextureSafe("res://Assets/UI/gold_coin.webp");
+			rect.Texture = tex;
 
 			badgePanel.AddChild(rect);
 			AttachHoverAnimation(badgePanel, 1.10f, UIStyle.ColorGold, UIStyle.ColorGoldDull);
 			_awardsContainer.AddChild(badgePanel);
 		}
+
+		if (_awardsContainer.GetChildCount() == 0)
+		{
+			var emptyLbl = new Label();
+			emptyLbl.Name = "NoAwardsLbl_Label";
+			emptyLbl.Text = TranslationServer.Translate("No awards earned yet.");
+			emptyLbl.AddThemeColorOverride("font_color", new Color(0.65f, 0.68f, 0.74f));
+			emptyLbl.AddThemeFontSizeOverride("font_size", 12);
+			_awardsContainer.AddChild(emptyLbl);
+		}
 	}
 
 	private void PopulateGameplayStats()
 	{
-		foreach (Node child in _gameplayStatsContainer.GetChildren())
-		{
-			child.QueueFree();
-		}
+		ClearNodeChildren(_gameplayStatsContainer);
 
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/clock.webp", $"AVG PLAYTIME: {_mapData.AvgPlaytime}");
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/alliance_flag.webp", $"PLAYER COUNT: {_mapData.PlayerCount}");
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/victory_flag.webp", $"COMPLETION RATE: {_mapData.CompletionRate}");
+		string playtimeDisplay = string.IsNullOrWhiteSpace(_mapData.AvgPlaytime)
+			? TranslationServer.Translate("Not recorded")
+			: _mapData.AvgPlaytime;
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/clock.webp", $"{TranslationServer.Translate("AVG PLAYTIME")}: {playtimeDisplay}");
+
+		string matchesDisplay = _mapData.GamesPlayed > 0
+			? $"{_mapData.GamesPlayed:N0}"
+			: TranslationServer.Translate("No matches recorded");
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/alliance_flag.webp", $"{TranslationServer.Translate("MATCHES PLAYED")}: {matchesDisplay}");
+
+		if (_mapData.TotalReviews > 0)
+		{
+			AddStatRow(_gameplayStatsContainer, "res://Assets/UI/victory_flag.webp", $"{TranslationServer.Translate("VERIFIED POSITIVE")}: {_mapData.VerifiedGoodReviews:N0} / {_mapData.TotalReviews:N0}");
+		}
 	}
 
 	private void PopulateTechInfo()
 	{
-		foreach (Node child in _techInfoContainer.GetChildren())
+		ClearNodeChildren(_techInfoContainer);
+
+		AddStatRow(_techInfoContainer, "res://Assets/UI/wood_logs.webp", $"{TranslationServer.Translate("FILE SIZE")}: {_mapData.FileSize}");
+
+		if (!string.IsNullOrWhiteSpace(_mapData.EngineVersion))
 		{
-			child.QueueFree();
+			AddStatRow(_techInfoContainer, "res://Assets/UI/gold_g.webp", $"{TranslationServer.Translate("ENGINE VERSION")}: {_mapData.EngineVersion}");
 		}
 
-		AddStatRow(_techInfoContainer, "res://Assets/UI/wood_logs.webp", $"FILE SIZE: {_mapData.FileSize}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/gold_g.webp", $"ENGINE VERSION: {_mapData.EngineVersion}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_shield.webp", $"MAX PLAYERS: {_mapData.MaxPlayers}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_axe.webp", $"GENRE: {_mapData.Genre}");
+		if (!string.IsNullOrWhiteSpace(_mapData.MaxPlayers))
+		{
+			AddStatRow(_techInfoContainer, "res://Assets/UI/battle_shield.webp", $"{TranslationServer.Translate("MAX PLAYERS")}: {_mapData.MaxPlayers}");
+		}
+
+		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_axe.webp", $"{TranslationServer.Translate("GENRE")}: {_mapData.Genre}");
+	}
+
+	private static string GetAwardTooltip(string awardPath)
+	{
+		if (awardPath.Contains("victory_flag", StringComparison.OrdinalIgnoreCase))
+			return TranslationServer.Translate("Greenlit Map");
+		if (awardPath.Contains("gold_coin", StringComparison.OrdinalIgnoreCase))
+			return TranslationServer.Translate("Top Rated (4.5+ Stars)");
+		if (awardPath.Contains("battle_shield", StringComparison.OrdinalIgnoreCase))
+			return TranslationServer.Translate("Community Verified Reviews");
+		if (awardPath.Contains("battle_axe", StringComparison.OrdinalIgnoreCase))
+			return TranslationServer.Translate("Popular Battleground");
+		return TranslationServer.Translate("Community Award");
+	}
+
+	private static void ClearNodeChildren(Node container)
+	{
+		foreach (Node child in container.GetChildren())
+		{
+			container.RemoveChild(child);
+			child.QueueFree();
+		}
 	}
 
 	private void AddStatRow(VBoxContainer container, string iconPath, string text)
