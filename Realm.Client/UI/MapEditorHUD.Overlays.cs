@@ -758,17 +758,6 @@ namespace Realm.Client.UI
 		private void ShowAgreementModal(Action? onAccepted = null) => Agreement.Show(onAccepted);
 
 
-		public void OpenAbilityVfxDialog(string abilityId, JsonObject? abilityData, Action<JsonObject>? onApplied = null)
-		{
-			if (_abilityVfxDialog == null)
-			{
-				_abilityVfxDialog = new AbilityVfxDialog(this);
-			}
-
-			_abilityVfxDialog.OpenForAbility(abilityId, abilityData, onApplied);
-		}
-
-
 		private MapEditorOverlayDismissal? _overlayDismissal;
 
 		private MapEditorOverlayDismissal OverlayDismissal => _overlayDismissal ??= new MapEditorOverlayDismissal(

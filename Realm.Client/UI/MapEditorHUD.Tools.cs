@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -641,9 +641,6 @@ namespace Realm.Client.UI
 		{
 			_entityVisualEditDialog = new EntityVisualEditDialog(this);
 			_animationPreviewDialog = new AnimationPreviewDialog(this);
-			_weaponVfxDialog = new WeaponVfxDialog(this);
-			_modelPickerDialog = new ModelPickerDialog(this);
-			_abilityVfxDialog = new AbilityVfxDialog(this);
 			_assetManagerDialog = new AssetManagerDialog(this);
 			_importFromMapDialog = new ImportFromMapDialog(this);
 			_templateManagerDialog = new TemplateManagerDialog(this);

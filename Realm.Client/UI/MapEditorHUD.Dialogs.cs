@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -40,16 +40,6 @@ namespace Realm.Client.UI
 {
 	public partial class MapEditorHUD
 	{
-		public void OpenWeaponVfxDialog(string weaponId, WeaponMetadata? weapon, Action<WeaponMetadata>? onApplied = null)
-		{
-			if (_weaponVfxDialog == null)
-			{
-				_weaponVfxDialog = new WeaponVfxDialog(this);
-			}
-
-			_weaponVfxDialog.OpenForWeapon(weaponId, weapon, onApplied);
-		}
-
 		public void OpenVfxStudioDialog(VfxAttachmentConfig? initialConfig = null, Action<VfxAttachmentConfig>? onApplied = null)
 		{
 			if (_vfxStudioDialog == null)
@@ -201,16 +191,6 @@ namespace Realm.Client.UI
 			}
 
 			_proceduralAnimationStudioDialog.OpenForConfig(initialConfig, onApplied, previewModelKey);
-		}
-
-		public void OpenModelPickerDialog(string entityId, string fieldName, string domain, string currentPath, Action<string>? onApplied = null)
-		{
-			if (_modelPickerDialog == null)
-			{
-				_modelPickerDialog = new ModelPickerDialog(this);
-			}
-
-			_modelPickerDialog.OpenForEntity(entityId, fieldName, domain, currentPath, onApplied);
 		}
 
 		public void OpenAnimationPreviewDialog(string unitId, string? modelPath = null)
