@@ -89,7 +89,7 @@
                                                                        "filenamePattern":  "**/metadata.json"
                                                                    }
                                                                ],
-                                                  "priority":  "option"
+                                                  "priority":  "default"
                                               },
                                               {
                                                   "viewType":  "realm.rtexViewer",

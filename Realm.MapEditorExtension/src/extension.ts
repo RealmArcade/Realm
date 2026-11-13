@@ -214,9 +214,27 @@ async function openWorkspaceMetadata(metadataPath: string, preserveFocus: boolea
             await document.save();
         }
 
-        await vscode.window.showTextDocument(document, { preview: false, preserveFocus });
+        await revealMetadataDocument(document, preserveFocus);
     } catch (err) {
         console.error('[RealmExtension] Failed to reload active workspace metadata:', err);
+    }
+}
+
+async function revealMetadataDocument(document: vscode.TextDocument, preserveFocus: boolean): Promise<void> {
+    const textEditor = vscode.window.visibleTextEditors.find(editor => editor.document.uri.toString() === document.uri.toString());
+    if (textEditor) {
+        await vscode.window.showTextDocument(textEditor.document, {
+            viewColumn: textEditor.viewColumn,
+            preview: false,
+            preserveFocus
+        });
+        return;
+    }
+
+    try {
+        await vscode.commands.executeCommand('vscode.openWith', document.uri, 'realm.metadataForm', vscode.ViewColumn.Active);
+    } catch {
+        await vscode.window.showTextDocument(document, { preview: false, preserveFocus });
     }
 }
 

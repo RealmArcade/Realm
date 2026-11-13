@@ -54,6 +54,8 @@ interface Session {
     pending: PendingCommit | undefined;
     layoutTimer: ReturnType<typeof setTimeout> | undefined;
     disposed: boolean;
+    applying: number;
+    foreignEdits: boolean;
     subscriptions: vscode.Disposable[];
 }
 
@@ -118,6 +120,8 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             pending: undefined,
             layoutTimer: undefined,
             disposed: false,
+            applying: 0,
+            foreignEdits: false,
             subscriptions: []
         };
         this.sessions.set(key, session);
@@ -139,13 +143,22 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
                 }
             }),
             vscode.workspace.onDidChangeTextDocument(event => {
-                if (event.document.uri.toString() === documentKey) {
-                    this.postProjection(session);
+                if (event.document.uri.toString() !== documentKey) {
+                    return;
+                }
+                if (session.applying === 0) {
+                    session.foreignEdits = true;
+                }
+                this.postProjection(session);
+            }),
+            vscode.workspace.onDidSaveTextDocument(saved => {
+                if (saved.uri.toString() === documentKey) {
+                    session.foreignEdits = false;
                 }
             }),
             panel.onDidChangeViewState(state => {
                 if (!state.webviewPanel.visible) {
-                    this.flush(session);
+                    this.flush(session, true);
                 }
             }),
             panel.onDidDispose(() => this.close(session))
@@ -153,7 +166,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
     }
 
     private close(session: Session): void {
-        this.flush(session);
+        this.flush(session, true);
         session.referenceSubscription?.dispose();
         session.referenceSubscription = undefined;
         session.disposed = true;
@@ -212,8 +225,8 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
                     void this.reveal(session, message.path ?? []);
                     return;
                 case 'openText':
-                    this.flush(session);
-                    void vscode.commands.executeCommand('vscode.openWith', session.document.uri, 'default');
+                    this.flush(session, true);
+                    void vscode.window.showTextDocument(session.document.uri, { preview: false, viewColumn: vscode.ViewColumn.Active });
                     return;
                 case 'addEntry':
                     void this.structural(session, message.path ?? [], 'addEntry', message.keyName ?? '');
@@ -342,7 +355,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             session.pending = undefined;
         }
         if (endOfGesture) {
-            void this.commit(session, requestPath, value);
+            void this.commit(session, requestPath, value, true);
             return;
         }
         session.pending = {
@@ -352,17 +365,31 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
         };
     }
 
-    private flush(session: Session): void {
+    private flush(session: Session, save = false): void {
         const pending = session.pending;
         if (!pending) {
+            if (save) {
+                void this.saveIfOurs(session);
+            }
             return;
         }
         session.pending = undefined;
         clearTimeout(pending.timer);
-        void this.commit(session, pending.path, pending.value);
+        void this.commit(session, pending.path, pending.value, save);
     }
 
-    private async commit(session: Session, requestPath: PathSegments, rawValue: unknown): Promise<void> {
+    private async saveIfOurs(session: Session): Promise<void> {
+        if (!session.document.isDirty || session.foreignEdits) {
+            return;
+        }
+        try {
+            await session.document.save();
+        } catch (error) {
+            this.post(session, { type: 'error', message: `The document could not be saved: ${describeError(error)}` });
+        }
+    }
+
+    private async commit(session: Session, requestPath: PathSegments, rawValue: unknown, save: boolean): Promise<void> {
         const context = this.contextFor(session.document);
         if (!context) {
             return;
@@ -391,7 +418,9 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             this.postProjection(session);
             return;
         }
-        await this.apply(session, edits, context.snapshot.text);
+        if (await this.apply(session, edits, context.snapshot.text) && save) {
+            await this.saveIfOurs(session);
+        }
     }
 
     private async structural(session: Session, requestPath: PathSegments, operation: 'addEntry' | 'renameEntry' | 'removeEntry' | 'addItem' | 'removeItem', keyName?: string): Promise<void> {
@@ -446,34 +475,40 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
             this.postProjection(session);
             return;
         }
-        await this.apply(session, edits, context.snapshot.text);
+        if (await this.apply(session, edits, context.snapshot.text)) {
+            await this.saveIfOurs(session);
+        }
     }
 
-    private async apply(session: Session, edits: vscode.TextEdit[], snapshotText: string): Promise<void> {
+    private async apply(session: Session, edits: vscode.TextEdit[], snapshotText: string): Promise<boolean> {
         if (session.document.getText() !== snapshotText) {
             this.post(session, { type: 'info', message: 'The document changed while that edit was being made, so it was dropped and the form was re-read.' });
             this.postProjection(session);
-            return;
+            return false;
         }
         const edit = new vscode.WorkspaceEdit();
         for (const textEdit of edits) {
             edit.replace(session.document.uri, textEdit.range, textEdit.newText);
         }
         let applied = false;
+        session.applying += 1;
         try {
             applied = await vscode.workspace.applyEdit(edit);
         } catch (error) {
             applied = false;
             this.post(session, { type: 'error', message: describeError(error) });
+        } finally {
+            session.applying -= 1;
         }
         if (!applied) {
             this.post(session, { type: 'error', message: 'The edit was rejected by the editor. The form was re-read from the document.' });
             this.postProjection(session);
         }
+        return applied;
     }
 
     private async reveal(session: Session, requestPath: PathSegments): Promise<void> {
-        this.flush(session);
+        this.flush(session, true);
         const snapshot = this.services.snapshots.get(session.document);
         const target = requestPath.length === 0 ? undefined : findNode(snapshot, requestPath);
         const editor = await vscode.window.showTextDocument(session.document.uri, {
@@ -493,7 +528,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
     }
 
     private async pickReference(session: Session): Promise<void> {
-        this.flush(session);
+        this.flush(session, true);
         const mapFolder = mapFolderOfDocument(session.document);
         const picked = await vscode.window.showOpenDialog({
             canSelectFiles: true,
