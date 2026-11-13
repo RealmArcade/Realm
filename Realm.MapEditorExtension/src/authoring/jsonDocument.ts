@@ -156,13 +156,8 @@ export function resolveCursorLocation(
         jsonPath = [...containerPath, keyName];
         keySchema = schemaDocument.property(containerSchema, keyName);
         valueSchema = keySchema;
-    } else if (containerNode && containerNode.type === 'array' && containerPath.length > 0) {
-        jsonPath = containerPath;
-        valueSchema = schemaAtPath(schemaDocument, containerPath);
-    } else if (containerPath.length > 0) {
-        jsonPath = containerPath;
-        valueSchema = schemaAtPath(schemaDocument, containerPath);
     } else if (containerNode) {
+        jsonPath = containerPath;
         valueSchema = containerSchema;
     }
 
@@ -171,7 +166,7 @@ export function resolveCursorLocation(
         snapshot,
         schemaDocument,
         jsonPath,
-        valueNode: valueNode ?? undefined,
+        valueNode,
         valueSchema,
         containerNode,
         containerSchema,

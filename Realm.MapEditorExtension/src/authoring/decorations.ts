@@ -4,7 +4,7 @@ import { JsonSchema, assetKindOfPath } from './schemaKeywords';
 import { JsonSnapshot, JsonSnapshotCache, nodeRange } from './jsonDocument';
 import { MapSchemaRegistry } from './schemaRegistry';
 import { AuthoringSettings } from './settings';
-import { ColourSwatchStore, parseColourLiteral } from './colourSwatch';
+import { ColourSwatchStore, formatColourLiteral, parseColourLiteral } from './colourSwatch';
 
 const glyphKinds = new Set(['rmesh', 'rtex', 'raud', 'ranim']);
 const refreshDelayMilliseconds = 120;
@@ -226,7 +226,7 @@ export class AuthoringDecorations implements vscode.Disposable {
         if (!parsed) {
             return undefined;
         }
-        const key = literal.toLowerCase();
+        const key = formatColourLiteral(parsed, parsed.hasAlpha).toLowerCase();
         const cached = this.colourTypes.get(key);
         if (cached) {
             return cached;
