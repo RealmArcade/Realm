@@ -120,10 +120,6 @@ public partial class VSCodeManager
 			case "saveTerrain":
 				HandleFormatAndSaveJson(node, action, responseObj);
 				return true;
-			case "reloadMetadata":
-			case "updateMetadata":
-				HandleReloadMetadata(responseObj);
-				return true;
 		}
 
 		return false;
