@@ -47,6 +47,7 @@ export interface LeafNode {
     multiline?: boolean;
     value: unknown;
     present: boolean;
+    nullable?: boolean;
 }
 
 export interface ContainerNode {

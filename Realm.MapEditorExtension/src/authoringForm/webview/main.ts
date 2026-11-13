@@ -502,7 +502,7 @@ class FormView {
             row.appendChild(unit);
         }
 
-        if (side === 'reference' && !node.readOnly) {
+        if (side === 'reference' && !node.readOnly && node.present && this.projection?.state === 'ok') {
             const copy = this.button('Copy \u2192', () => {
                 api.postMessage({
                     type: 'set',
@@ -547,10 +547,12 @@ class FormView {
                 select.disabled = readOnly;
                 select.dataset.path = pathKey(path);
                 const options = node.options ?? [];
-                const emptyOption = document.createElement('option');
-                emptyOption.value = '';
-                emptyOption.textContent = node.present ? '(none)' : '(not set)';
-                select.appendChild(emptyOption);
+                if (node.nullable) {
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = '(none)';
+                    select.appendChild(emptyOption);
+                }
                 for (const option of options) {
                     const element = document.createElement('option');
                     element.value = String(option.value);

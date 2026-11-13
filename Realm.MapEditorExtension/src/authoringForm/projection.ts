@@ -194,6 +194,7 @@ export function describeLeaf(
         unit,
         value: value === undefined && !present ? undefined : value,
         present,
+        nullable: types.includes('null'),
         readOnly: derived,
         monospace: sensitive
     };
