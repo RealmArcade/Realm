@@ -101,7 +101,7 @@ export class MetadataFormProvider implements vscode.CustomTextEditorProvider, vs
     ): void {
         const schemaFileName = this.services.registry.schemaFileNameFor(document);
         if (schemaFileName !== 'metadata.schema.json') {
-            panel.webview.html = renderUnsupportedDocument(panel.webview, document);
+            panel.webview.html = renderUnsupportedDocument(panel.webview, document, schemaFileName);
             return;
         }
 
@@ -591,12 +591,21 @@ function describeError(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
-function renderUnsupportedDocument(webview: vscode.Webview, document: vscode.TextDocument): string {
-    const nonce = 'metadataform';
-    void nonce;
+function unsupportedReason(schemaFileName: string | undefined): string {
+    if (schemaFileName === 'manifest.schema.json') {
+        return "The map manifest is written by the map editor when it registers a map's assets, so its settings are changed there rather than here.";
+    }
+    if (schemaFileName === 'terrain.schema.json') {
+        return "The terrain document is written from the map editor's own world, and a change made here could be overwritten by it.";
+    }
+    return 'Only the metadata document of a map is edited as a form.';
+}
+
+function renderUnsupportedDocument(webview: vscode.Webview, document: vscode.TextDocument, schemaFileName: string | undefined): string {
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource};">
-</head><body><p>The metadata form edits <code>metadata.json</code> only, so ${escapeHtml(path.basename(document.uri.fsPath))} is not shown here.</p>
+<style>body{font-family:var(--vscode-font-family);color:var(--vscode-foreground);padding:16px;}code{font-family:var(--vscode-editor-font-family);}</style>
+</head><body><p><code>${escapeHtml(path.basename(document.uri.fsPath))}</code> is not edited as a form. ${unsupportedReason(schemaFileName)}</p>
 <p>Open it as text instead.</p></body></html>`;
 }
 
@@ -626,9 +635,16 @@ async function resolveFormTarget(context: vscode.ExtensionContext, services: For
         canSelectFolders: false,
         canSelectMany: false,
         openLabel: 'Open as form',
-        filters: { 'Metadata': ['json'] }
+        filters: { 'Map metadata': ['**/metadata.json'] }
     });
     if (!picked || picked.length === 0) {
+        return undefined;
+    }
+
+    const chosen = await vscode.workspace.openTextDocument(picked[0]);
+    const schemaFileName = services.registry.schemaFileNameFor(chosen);
+    if (schemaFileName !== 'metadata.schema.json') {
+        await vscode.window.showWarningMessage(`${path.basename(picked[0].fsPath)} is not a map metadata document. ${unsupportedReason(schemaFileName)}`);
         return undefined;
     }
     return picked[0];

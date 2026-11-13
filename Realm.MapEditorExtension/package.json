@@ -152,6 +152,11 @@
                         "menus":  {
                                       "explorer/context":  [
                                                                {
+                                                                   "command":  "realm.openMetadataForm",
+                                                                   "when":  "resourceFilename == metadata.json",
+                                                                   "group":  "navigation"
+                                                               },
+                                                               {
                                                                    "command":  "realm.openRmesh3D",
                                                                    "when":  "resourceExtname == .rmesh",
                                                                    "group":  "navigation"

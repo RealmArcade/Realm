@@ -544,6 +544,14 @@ class FormView {
             row.appendChild(copy);
         }
 
+        if (side === 'edited' && node.declared === false) {
+            const remove = this.button('Remove', () => {
+                api.postMessage({ type: 'removeEntry', path: node.path } satisfies WebviewToHostMessage);
+            }, 'Remove this key, which the schema does not declare');
+            remove.classList.add('copy');
+            row.appendChild(remove);
+        }
+
         if (side === 'edited' && node.widget === 'readonly') {
             const reveal = this.button('Reveal', () => {
                 api.postMessage({ type: 'reveal', path: node.path } satisfies WebviewToHostMessage);

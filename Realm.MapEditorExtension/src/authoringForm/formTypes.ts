@@ -48,6 +48,7 @@ export interface LeafNode {
     value: unknown;
     present: boolean;
     nullable?: boolean;
+    declared?: boolean;
 }
 
 export interface ContainerNode {

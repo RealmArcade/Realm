@@ -174,7 +174,8 @@ export function describeLeaf(
     schema: JsonSchema | undefined,
     semanticSchema: JsonSchema | undefined,
     value: unknown,
-    present: boolean
+    present: boolean,
+    declared: boolean
 ): LeafNode {
     const schemaDocument = context.schemaDocument;
     const widgetSource = semanticSchema ?? schema;
@@ -195,6 +196,7 @@ export function describeLeaf(
         value: value === undefined && !present ? undefined : value,
         present,
         nullable: types.includes('null'),
+        declared,
         readOnly: derived,
         monospace: sensitive
     };
@@ -313,7 +315,7 @@ function nodeForProperty(
 ): FormNode {
     const path = [...parentPath, key];
     if (!present) {
-        return describeLeaf(context, path, key, schema, undefined, undefined, false);
+        return describeLeaf(context, path, key, schema, undefined, undefined, false, schema !== undefined);
     }
 
     if (Array.isArray(value)) {
@@ -345,7 +347,7 @@ function nodeForProperty(
         };
     }
 
-    return describeLeaf(context, path, key, schema, undefined, value, true);
+    return describeLeaf(context, path, key, schema, undefined, value, true, schema !== undefined);
 }
 
 function isScalarList(context: ProjectionContext, entries: unknown[], itemSchema: JsonSchema | undefined): boolean {
@@ -393,7 +395,7 @@ export function buildSections(context: ProjectionContext): FormNode[] {
 
     for (const key of missing) {
         const schema = context.schemaDocument.property(context.schemaDocument.root, key);
-        nodes.push(describeLeaf(context, [key], key, schema, undefined, undefined, false));
+        nodes.push(describeLeaf(context, [key], key, schema, undefined, undefined, false, true));
     }
 
     return nodes;
@@ -431,7 +433,7 @@ export function buildChildren(
                 });
                 continue;
             }
-            nodes.push(describeLeaf(context, entryPath, undefined, itemSchema, schema, entry, true));
+            nodes.push(describeLeaf(context, entryPath, undefined, itemSchema, schema, entry, true, true));
         }
 
         return { nodes, offset: start, total: value.length };
@@ -462,7 +464,7 @@ export function buildChildren(
                     });
                     continue;
                 }
-                nodes.push(describeLeaf(context, entryPath, key, entrySchema, undefined, entry, true));
+                nodes.push(describeLeaf(context, entryPath, key, entrySchema, undefined, entry, true, true));
             }
             return { nodes, offset: start, total: keys.length };
         }
@@ -474,7 +476,7 @@ export function buildChildren(
             all.push(nodeForProperty(context, path, key, context.schemaDocument.property(schema, key), value[key], true));
         }
         for (const key of missing) {
-            all.push(describeLeaf(context, [...path, key], key, context.schemaDocument.property(schema, key), undefined, undefined, false));
+            all.push(describeLeaf(context, [...path, key], key, context.schemaDocument.property(schema, key), undefined, undefined, false, true));
         }
 
         const start = Math.max(0, offset);
