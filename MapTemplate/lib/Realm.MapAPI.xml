@@ -3327,6 +3327,12 @@
             ground of the loaded terrain, so it is a position a starting building can be placed at and a camera can be moved to
             without the script reading a height field itself. A slot the map declares no usable anchor for is seated anywhere on
             the board, so this never answers a point a match cannot use.
+            <para>
+            The lobby's map may seat a whole team inside one coordinate instead, through
+            <see cref="M:Realm.MapAPI.ILobbyAPI.SetTeamSpawnCoordinate(System.Int32,System.String)" />. That assignment outranks the board's own anchor for every slot on
+            the team it names, so a side that shares ground begins together inside that coordinate while each of its players
+            still picks its own point there.
+            </para>
             </summary>
             <param name="playerSlot">The one-based player slot the lobby seats a player in, as the map's own slot numbering states it.</param>
             <returns>The ground position of that slot's anchor, or a point anywhere on the board when the map declares none for it.</returns>
@@ -3427,6 +3433,12 @@
                     A lock is what a map offers a player as a choice it may not change: a script sets a slot's faction, team or
                     colour and locks it, and the lobby stops offering that field for that seat. A map that sets nothing leaves the
                     lobby's own assignment of colours and teams in place, which is what the default lobby rules do.
+                </para>
+                <para>
+                    The two settings beyond the roster are the ones a map states once and a host may still overrule: whether the
+                    lobby groups a team's players into consecutive player slots when the match starts, and which board coordinate
+                    each team begins inside. Both are placed as orders here and only take effect when the match starts, so a map
+                    states them while its lobby fills and never has to read them back.
                 </para>
             </remarks>
         </member>
@@ -3552,6 +3564,28 @@
                 count smaller than the players already sitting in it.
             </summary>
             <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetTeamsTogetherDefault(System.Boolean)">
+            <summary>
+                States whether the lobby's Teams Together checkbox starts checked, which is what a map that plays its teams as
+                sides states: a checked lobby groups every team's players into consecutive player slots when the match starts, so
+                a team's members sit next to each other rather than wherever they happened to join. The host may still clear the
+                checkbox, and a host that has changed it keeps its own choice rather than being overruled by this order.
+            </summary>
+            <param name="teamsTogether">Whether the checkbox starts checked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetTeamSpawnCoordinate(System.Int32,System.String)">
+            <summary>
+                Assigns a board coordinate to a team, which is how a map that seats its teams apart states where each side
+                begins: every player of that team starts at a random point inside the coordinate rather than at the anchor the
+                board states for that player slot. An assignment replaces the board's own anchors for that team's players, so a
+                team whose members share ground needs nothing from the board's per-slot anchors, and a team with no assignment
+                keeps them. A name the board does not author is refused, because a team seated nowhere is a team the match cannot
+                start; an empty name clears the team's assignment.
+            </summary>
+            <param name="teamIndex">The team number, from one up to the teams this lobby offers.</param>
+            <param name="coordinateName">The board coordinate the team begins inside, or empty to clear the assignment.</param>
+            <returns>Whether the authority took the order.</returns>
         </member>
         <member name="T:Realm.MapAPI.ILobbyScript">
             <summary>
@@ -3856,6 +3890,24 @@
             </summary>
             <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
         </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetTeamsTogetherDefault(System.Boolean)">
+            <summary>
+                States whether the lobby's Teams Together checkbox starts checked, which is how a map that plays its teams as
+                sides says so. The host keeps the last word, so an order placed after the host has changed the checkbox leaves
+                the host's choice alone.
+            </summary>
+            <param name="teamsTogether">Whether the checkbox starts checked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetTeamSpawnCoordinate(System.Int32,System.String)">
+            <summary>
+                Assigns a board coordinate to a team, so every player of that team starts at a random point inside it instead of
+                at the anchor the board states for that player slot. A team outside the lobby's teams and a coordinate this
+                board does not author are both refused, and an empty name clears the team's assignment.
+            </summary>
+            <param name="teamIndex">The team number, from one up to the teams this lobby offers.</param>
+            <param name="coordinateName">The board coordinate the team begins inside, or empty to clear the assignment.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
         <member name="T:Realm.MapAPI.LobbyImports">
             <summary>
                 The roster orders a map script places with the authority, declared by hand because the roster itself is published
@@ -3907,6 +3959,16 @@
             <summary>Places the order that locks or unlocks a slot's colour.</summary>
             <param name="playerIndex">The player slot.</param>
             <param name="locked">Whether the field is locked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetTeamsTogetherDefault(System.Boolean)">
+            <summary>Places the order that states whether the lobby's Teams Together checkbox starts checked.</summary>
+            <param name="teamsTogether">Whether the checkbox starts checked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetTeamSpawnCoordinate(System.Int32,System.String)">
+            <summary>Places the order that assigns a board coordinate to a team, or clears the team's assignment when the name is empty.</summary>
+            <param name="teamIndex">The team number.</param>
+            <param name="coordinateName">The board coordinate the team begins inside, passed as UTF-8 with its byte length.</param>
+            <returns>Whether the authority accepted the order.</returns>
         </member>
         <member name="T:Realm.MapAPI.LootItemIdScriptExtensions">
             <summary>

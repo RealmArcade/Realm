@@ -1,5 +1,6 @@
 using Realm.Ecs;
 using Realm.Shared.Network;
+using Realm.Shared.Terrain;
 
 namespace Realm.ListenServer;
 
@@ -17,9 +18,13 @@ public class ServerLobbyRoster
 	private readonly bool[] _factionLocked = new bool[EcsSharedMemory.MAX_PLAYERS];
 	private readonly bool[] _teamLocked = new bool[EcsSharedMemory.MAX_PLAYERS];
 	private readonly bool[] _colorLocked = new bool[EcsSharedMemory.MAX_PLAYERS];
+	private readonly string?[] _teamSpawnCoordinates = new string?[EcsSharedMemory.MAX_PLAYERS];
+	private readonly List<string> _boardCoordinates = new();
 	private IntPtr _sharedMemoryBase = IntPtr.Zero;
 	private uint _revision;
 	private int _teamCount = LobbyLimits.DefaultTeamCount;
+	private bool _teamsTogether;
+	private bool _hostChoseTeamsTogether;
 
 	public ServerLobbyRoster(ILobbySeatTable lobby, ServerLog log, int teamCount = LobbyLimits.DefaultTeamCount)
 	{
@@ -31,6 +36,12 @@ public class ServerLobbyRoster
 	public int FactionCount => _factions.Count;
 
 	public int TeamCount => _teamCount;
+
+	/// <summary>
+	///     Whether the match groups each team's players into consecutive player slots when it starts. It begins at the
+	///     default the map states and follows the host from the moment the host changes it.
+	/// </summary>
+	public bool TeamsTogether => _teamsTogether;
 
 	public int MaximumPlayerCount => _lobby.MaximumPlayers;
 
@@ -139,6 +150,108 @@ public class ServerLobbyRoster
 	public bool TrySetMaximumPlayerCount(int maximumPlayerCount)
 	{
 		return _lobby.TrySetMaximumPlayers(maximumPlayerCount);
+	}
+
+	/// <summary>
+	///     Points the roster at the coordinates this board authors, which is what a team's spawn assignment is checked
+	///     against: a team seated in ground the board does not describe is a team the match could not place.
+	/// </summary>
+	/// <param name="coordinates">The board's coordinates, or nothing when the board authors none.</param>
+	public void BindBoardCoordinates(IReadOnlyList<CoordinateSaveData>? coordinates)
+	{
+		_boardCoordinates.Clear();
+		if (coordinates == null) return;
+
+		for (int index = 0; index < coordinates.Count; index++)
+		{
+			string name = coordinates[index].Name;
+			if (string.IsNullOrWhiteSpace(name)) continue;
+			if (_boardCoordinates.Contains(name, StringComparer.OrdinalIgnoreCase)) continue;
+
+			_boardCoordinates.Add(name);
+		}
+	}
+
+	/// <summary>
+	///     States the value the lobby's Teams Together checkbox starts at. The host keeps the last word: a default stated
+	///     after the host has changed the checkbox is remembered for the next lobby rather than undoing the host's choice.
+	/// </summary>
+	/// <param name="teamsTogether">Whether the checkbox starts checked.</param>
+	public void SetTeamsTogetherDefault(bool teamsTogether)
+	{
+		if (_hostChoseTeamsTogether) return;
+		if (_teamsTogether == teamsTogether) return;
+
+		_teamsTogether = teamsTogether;
+		_log.Write($"the lobby's map states teams together: {(teamsTogether ? "on" : "off")}");
+		_lobby.BroadcastState();
+	}
+
+	/// <summary>
+	///     Takes the host's own answer for the Teams Together checkbox, which overrules the default its map stated and
+	///     holds for the rest of the lobby.
+	/// </summary>
+	/// <param name="teamsTogether">Whether the match should group each team's players.</param>
+	/// <returns>Whether the lobby now holds that setting.</returns>
+	public bool TrySetTeamsTogether(bool teamsTogether)
+	{
+		_hostChoseTeamsTogether = true;
+		if (_teamsTogether == teamsTogether) return true;
+
+		_teamsTogether = teamsTogether;
+		_log.Write($"the lobby's host set teams together {(teamsTogether ? "on" : "off")}");
+		_lobby.BroadcastState();
+		return true;
+	}
+
+	/// <summary>
+	///     Assigns a team the board coordinate its players begin inside, or clears that assignment when the name is empty.
+	///     A team the lobby does not offer and a coordinate this board does not author are both refused.
+	/// </summary>
+	/// <param name="teamIndex">The team number.</param>
+	/// <param name="coordinateName">The board coordinate, or empty to clear the team's assignment.</param>
+	/// <returns>Whether the lobby holds that assignment afterwards.</returns>
+	public bool SetTeamSpawnCoordinate(int teamIndex, string? coordinateName)
+	{
+		if (teamIndex <= 0 || teamIndex >= EcsSharedMemory.MAX_PLAYERS) return false;
+
+		string name = (coordinateName ?? string.Empty).Trim();
+		if (name.Length == 0)
+		{
+			_teamSpawnCoordinates[teamIndex] = null;
+			return true;
+		}
+
+		string? authored = FindBoardCoordinate(name);
+		if (authored == null)
+		{
+			_log.Write($"team {teamIndex} was seated in coordinate '{name}', which this board does not author; the order is refused");
+			return false;
+		}
+
+		_teamSpawnCoordinates[teamIndex] = authored;
+		_log.Write($"team {teamIndex} begins inside coordinate '{authored}'");
+		return true;
+	}
+
+	/// <summary>
+	///     Reads the coordinate every team begins inside, as the match seats them, so a match that starts from this lobby
+	///     places each team on the ground the map stated for it.
+	/// </summary>
+	/// <returns>One entry per team number, null for a team the map seated at the board's own anchors.</returns>
+	public string?[] CopyTeamSpawnCoordinates()
+	{
+		return (string?[])_teamSpawnCoordinates.Clone();
+	}
+
+	private string? FindBoardCoordinate(string coordinateName)
+	{
+		for (int index = 0; index < _boardCoordinates.Count; index++)
+		{
+			if (string.Equals(_boardCoordinates[index], coordinateName, StringComparison.OrdinalIgnoreCase)) return _boardCoordinates[index];
+		}
+
+		return null;
 	}
 
 	/// <summary>

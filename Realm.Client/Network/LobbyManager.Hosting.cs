@@ -379,6 +379,7 @@ public partial class LobbyManager
 		HostStability = HostStabilityTracker.GetOverallStability();
 		IsGameStarted = false;
 		SpectatorDelay = false;
+		TeamsTogether = false;
 		LastHostError = null;
 		_downloadingMapName = null;
 		PlayerList.Clear();

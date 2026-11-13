@@ -42,7 +42,7 @@ public class ServerSimulation : IDisposable
 	private bool _disposed;
 	private long _navMeshRebakeTick = -1;
 
-	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null, MatchOptionSet? matchOptions = null)
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null, MatchOptionSet? matchOptions = null, IReadOnlyList<string?>? teamSpawnCoordinates = null)
 	{
 		MatchOptions = matchOptions ?? new MatchOptionSet();
 		_map = map;
@@ -80,7 +80,7 @@ public class ServerSimulation : IDisposable
 		_repair = new BuildingRepairTick(map.Simulation, map.Catalog);
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
-		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, MatchOptions);
+		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, MatchOptions, teamSpawnCoordinates);
 		_commands.ScriptAbilityRulesProvider = spellId =>
 			_script.Api.Abilities.TryGetRules(spellId, out AbilityRules scriptRules) ? scriptRules : null;
 		if (roster != null) ApplyRosterBotDifficulties(roster);

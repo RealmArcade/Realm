@@ -250,11 +250,41 @@ public partial class ServerGameAPI
 	{
 		if (_resolvedSpawnAnchors.TryGetValue(playerSlot, out Vector3 resolved)) return resolved;
 
-		CoordinateSaveData? seat = FindSpawnAnchorCoordinate(playerSlot);
+		CoordinateSaveData? seat = FindTeamSpawnCoordinate(playerSlot) ?? FindSpawnAnchorCoordinate(playerSlot);
 		Vector3 point = seat == null ? RandomPointOnBoard() : RandomPointInCoordinate(seat);
 		_resolvedSpawnAnchors[playerSlot] = point;
 
 		return point;
+	}
+
+	/// <summary>
+	///     Finds the coordinate the lobby's map seated one player's team in, which is what a board that plays its teams
+	///     as sides states instead of seating each player itself. Every player of a team reads the same coordinate, so a
+	///     side begins together inside it while each seat still picks its own point there.
+	/// </summary>
+	/// <param name="playerSlot">The one-based player slot the map's own numbering states.</param>
+	/// <returns>The coordinate that slot's team begins inside, or nothing when the lobby assigned its team none.</returns>
+	private CoordinateSaveData? FindTeamSpawnCoordinate(int playerSlot)
+	{
+		if (_teamSpawnCoordinates.Length == 0) return null;
+
+		int team = ReadPlayerTeam(playerSlot);
+		if (team <= 0 || team >= _teamSpawnCoordinates.Length) return null;
+
+		return FindCoordinate(_teamSpawnCoordinates[team]);
+	}
+
+	/// <summary>
+	///     Reads the team a player slot plays on out of the world's player table, which is what the lobby seats a slot on
+	///     before any script runs.
+	/// </summary>
+	/// <param name="playerSlot">The one-based player slot.</param>
+	/// <returns>The team number, or zero when the slot plays on no team or is not a player.</returns>
+	private int ReadPlayerTeam(int playerSlot)
+	{
+		if (!TryReadPlayersState(out ScriptPlayersState players)) return 0;
+
+		return players.IsValidSlot(playerSlot) ? players.Get(playerSlot).Team : 0;
 	}
 
 	/// <summary>

@@ -30,12 +30,19 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	private readonly ServerBots _bots;
 	private readonly AbilityEffectRunner _effects;
 	private readonly MatchPlacementService _placements;
+
+	/// <summary>
+	///     The board coordinate each team begins inside, as the lobby's map seated them. It outranks the board's own
+	///     per-slot anchors for a team it names, so a side that shares ground needs nothing from the slot anchors.
+	/// </summary>
+	private readonly string?[] _teamSpawnCoordinates;
 	private readonly PlayerId[] _activePlayersBuffer = new PlayerId[ScriptPlayersState.SlotCount];
 	private int _countingScratch;
 
-	public ServerGameAPI(LoadedMap map, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, ServerMatchPaths paths)
+	public ServerGameAPI(LoadedMap map, ServerLog log, ServerPresentationQueue presentation, ItemGrantService items, GroundLootService loot, ServerMatchPaths paths, IReadOnlyList<string?>? teamSpawnCoordinates = null)
 	{
 		_map = map;
+		_teamSpawnCoordinates = teamSpawnCoordinates == null ? Array.Empty<string?>() : CopyTeamSpawnCoordinates(teamSpawnCoordinates);
 		_context = map.Simulation;
 		_log = log;
 		_presentation = presentation;
@@ -59,6 +66,15 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 	}
 
 	public void Dispose() => _savedData.Dispose();
+
+	private static string?[] CopyTeamSpawnCoordinates(IReadOnlyList<string?> teamSpawnCoordinates)
+	{
+		int length = Math.Min(teamSpawnCoordinates.Count, EcsSharedMemory.MAX_PLAYERS);
+		var copy = new string?[length];
+		for (int index = 0; index < length; index++) copy[index] = teamSpawnCoordinates[index];
+
+		return copy;
+	}
 
 	public EcsWorld World => _context.World;
 

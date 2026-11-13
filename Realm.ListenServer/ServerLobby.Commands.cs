@@ -54,6 +54,10 @@ public partial class ServerLobby
 				if (!RequireAdmin(peerId, isAdmin, out _, "change the spectator delay")) return;
 				SetSpectatorDelay(command.Flag);
 				break;
+			case LobbyCommandKind.SetTeamsTogether:
+				if (!RequireAdmin(peerId, isAdmin, out _, "change whether teams sit together")) return;
+				Roster?.TrySetTeamsTogether(command.Flag);
+				break;
 			case LobbyCommandKind.SetComputerDifficulty:
 				if (!RequireAdmin(peerId, isAdmin, out _, "change a computer player's difficulty")) return;
 				SetComputerDifficulty(command.TargetPeerId, command.Progress);

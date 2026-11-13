@@ -589,6 +589,15 @@ The host may also enable any combination of the following modes. The standard lo
 
 These parameters and modes modify the game's underlying formulas rather than selecting different hard-coded rulesets. The default lobby configuration establishes the intended standard experience.
 
+### 14.1 Seating
+
+Seating is a separate concern from the parameters above: it decides which player index a seat plays as and where that seat begins, not what the match's formulas are. Both seating rules are stated by the map and answered by the host, and both take effect when the match starts rather than while the lobby fills.
+
+- **Teams Together.** The lobby offers one checkbox, shown to every seat and editable only by the host, that groups each team's players into consecutive player slots. With it on, the match re-sorts the seats by team and then by the order they joined within their team, so team 1 holds the first run of player indices, team 2 the next run, and so on. Seats are permuted, never added or removed, and a seat on no team keeps the index it already held. With it off, every seat keeps the player index it joined with. The standard lobby has it off.
+- **Default.** A map states the value the checkbox starts at, because a map that plays its teams as sides wants it on. The host keeps the last word: from the moment the host changes the checkbox, that choice stands for the rest of the lobby and the map's default never overrules it.
+- **Team spawn assignments.** A map may seat a whole team inside one of the board's own coordinates instead of seating its members one at a time. Every player of an assigned team then begins at a random point inside that team's coordinate, so teammates share ground while each still starts somewhere different. An assignment replaces the board's per-slot spawn anchors for the team it names, a team with no assignment keeps the board's anchors, and a coordinate the board does not author is refused rather than reseating the team somewhere else.
+- **Why the host still chooses.** Seating changes who is adjacent on the board and in the player index, which is reading information a player can act on. It is therefore visible to every seat and changed only by the host, like the parameters above.
+
 ## 15. Balance Methodology
 
 The game is not balanced mathematically. Win rates are measured, not derived.

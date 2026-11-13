@@ -152,6 +152,12 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool SpectatorDelay { get; set; } = false;
 
 	/// <summary>
+	///     Whether the match groups each team's players into consecutive player slots. It starts at the value the lobby's
+	///     map states and follows the host from the moment the host changes it; every seat reads it to show the setting.
+	/// </summary>
+	public bool TeamsTogether { get; set; } = false;
+
+	/// <summary>
 	///     The parameters the lobby's host configured for the match, as the lobby last published them. Every seat shows the
 	///     same list; only the host may change it.
 	/// </summary>
@@ -263,6 +269,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	public event Action? MapDownloadCompleted;
 	public event Action? MapDownloadFailed;
 	public event Action<bool>? SpectatorDelayChanged;
+	public event Action<bool>? TeamsTogetherChanged;
 	public event Action<string, int>? CountdownStarted;
 	public event Action<int>? CountdownTick;
 	public event Action? CountdownCancelled;

@@ -155,6 +155,12 @@ public partial interface IGameAPI
 	/// ground of the loaded terrain, so it is a position a starting building can be placed at and a camera can be moved to
 	/// without the script reading a height field itself. A slot the map declares no usable anchor for is seated anywhere on
 	/// the board, so this never answers a point a match cannot use.
+	/// <para>
+	/// The lobby's map may seat a whole team inside one coordinate instead, through
+	/// <see cref="ILobbyAPI.SetTeamSpawnCoordinate" />. That assignment outranks the board's own anchor for every slot on
+	/// the team it names, so a side that shares ground begins together inside that coordinate while each of its players
+	/// still picks its own point there.
+	/// </para>
 	/// </summary>
 	/// <param name="playerSlot">The one-based player slot the lobby seats a player in, as the map's own slot numbering states it.</param>
 	/// <returns>The ground position of that slot's anchor, or a point anywhere on the board when the map declares none for it.</returns>

@@ -58,6 +58,7 @@ public partial class LobbyRoom : Control
 	private readonly Dictionary<int, PanelContainer> _playerRowsByPeerId = new();
 	private Label _inviteFeedback = null!;
 	private CheckBox _spectatorDelayCheck = null!;
+	private CheckBox _teamsTogetherCheck = null!;
 	private Panel? _countdownPopup;
 	private Label? _countdownTextLabel;
 	private Panel? _connectingPopup;
@@ -237,6 +238,8 @@ public partial class LobbyRoom : Control
 
 		CreateSpectatorDelayUI();
 		Lobby.SpectatorDelayChanged += OnSpectatorDelayChanged;
+		CreateTeamsTogetherUI();
+		Lobby.TeamsTogetherChanged += OnTeamsTogetherChanged;
 		CreateMatchSettingsUI();
 		Lobby.MatchOptionsChanged += OnMatchOptionsChanged;
 
@@ -391,6 +394,7 @@ public partial class LobbyRoom : Control
 			Lobby.KickReceived -= OnLobbyKickReceived;
 
 			Lobby.SpectatorDelayChanged -= OnSpectatorDelayChanged;
+			Lobby.TeamsTogetherChanged -= OnTeamsTogetherChanged;
 			Lobby.MatchOptionsChanged -= OnMatchOptionsChanged;
 
 			Lobby.MapDownloadProgressChanged -= OnMapDownloadProgress;
@@ -698,6 +702,11 @@ public partial class LobbyRoom : Control
 			_spectatorDelayCheck.Visible = false;
 		}
 
+		if (_teamsTogetherCheck != null && GodotObject.IsInstanceValid(_teamsTogetherCheck))
+		{
+			_teamsTogetherCheck.Visible = false;
+		}
+
 		_connectingPopup = new Panel();
 		_connectingPopup.Name = "ConnectingPopup_Panel";
 		_connectingPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -751,6 +760,11 @@ public partial class LobbyRoom : Control
 		{
 			_spectatorDelayCheck.Visible = true;
 		}
+
+		if (_teamsTogetherCheck != null && GodotObject.IsInstanceValid(_teamsTogetherCheck))
+		{
+			_teamsTogetherCheck.Visible = true;
+		}
 	}
 	/// <summary>
 	///     Offers the lobby's host the parameters it may set for the match: how many players are seated, how many building
@@ -764,7 +778,7 @@ public partial class LobbyRoom : Control
 
 		_matchSettingsButton = new Button();
 		_matchSettingsButton.Name = "MatchSettingsButton_Button";
-		_matchSettingsButton.Position = new Vector2(1450, 720);
+		_matchSettingsButton.Position = new Vector2(1450, 660);
 		_matchSettingsButton.Size = new Vector2(340, 40);
 		_matchSettingsButton.AddThemeConstantOverride("icon_max_width", 20);
 		_matchSettingsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());

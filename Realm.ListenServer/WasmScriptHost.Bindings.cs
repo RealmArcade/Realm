@@ -59,5 +59,11 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 
 		_linker.DefineFunction(LobbyImportModule, "set-lobby-color-locked", (int playerIndex, int locked) =>
 			LobbyApi?.SetColorLocked(playerIndex, locked != 0));
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-teams-together-default", (int teamsTogether) =>
+			LobbyApi?.SetTeamsTogetherDefault(teamsTogether != 0));
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-team-spawn-coordinate", (Caller caller, int teamIndex, int namePtr, int nameLength) =>
+			LobbyApi?.SetTeamSpawnCoordinate(teamIndex, ReadGuestString(caller, namePtr, nameLength)) == true ? 1 : 0);
 	}
 }
