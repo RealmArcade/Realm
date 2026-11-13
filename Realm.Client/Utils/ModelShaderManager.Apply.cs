@@ -52,10 +52,29 @@ public static partial class ModelShaderManager
 
 	public const string OverlayMaterialMetaName = "realm_overlay_material";
 
+	public const string GroundPlaneMaterialMetaName = "realm_ground_plane_material";
+
 	public static void MarkOverlayMaterialMesh(GeometryInstance3D geometryInstance)
 	{
 		if (geometryInstance == null || !GodotObject.IsInstanceValid(geometryInstance)) return;
 		geometryInstance.SetMeta(OverlayMaterialMetaName, true);
+	}
+
+	/// <summary>
+	///     Marks a quad whose material already samples its albedo texture with the shared shader. Such a quad is drawn
+	///     with the material it was built with, so a refresh may change its instance parameters but must not replace the
+	///     material: a replacement built from the mesh would drop the albedo and the alpha blend the ground plane needs.
+	/// </summary>
+	/// <param name="geometryInstance">The textured ground plane instance.</param>
+	public static void MarkGroundPlaneMaterialMesh(GeometryInstance3D geometryInstance)
+	{
+		if (geometryInstance == null || !GodotObject.IsInstanceValid(geometryInstance)) return;
+		geometryInstance.SetMeta(GroundPlaneMaterialMetaName, true);
+	}
+
+	public static bool HasGroundPlaneMaterial(GeometryInstance3D geometryInstance)
+	{
+		return geometryInstance != null && GodotObject.IsInstanceValid(geometryInstance) && geometryInstance.HasMeta(GroundPlaneMaterialMetaName);
 	}
 
 	private static bool IsExcludedMesh(GeometryInstance3D geomInst)
@@ -84,8 +103,11 @@ public static partial class ModelShaderManager
 	{
 		if (IsExcludedMesh(meshInst)) return;
 
-		ApplyPlayerColorShaderToSurfaces(meshInst, normalizeLuminance);
-		ApplyPlayerColorShaderToOverrideMaterial(meshInst, normalizeLuminance);
+		if (!HasGroundPlaneMaterial(meshInst))
+		{
+			ApplyPlayerColorShaderToSurfaces(meshInst, normalizeLuminance);
+			ApplyPlayerColorShaderToOverrideMaterial(meshInst, normalizeLuminance);
+		}
 
 		meshInst.SetInstanceShaderParameter(_paramPlayerColor, playerColor);
 		meshInst.SetInstanceShaderParameter(_paramIgnorePlayerColor, ignorePlayerColor ? 1.0f : 0.0f);

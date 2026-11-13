@@ -76,6 +76,7 @@ public partial class GameHost
 	private static bool ShouldSkipMeshInstance(MeshInstance3D meshInst)
 	{
 		if (meshInst.HasMeta(ModelShaderManager.OverlayMaterialMetaName)) return true;
+		if (ModelShaderManager.HasGroundPlaneMaterial(meshInst)) return true;
 
 		string nameStr = meshInst.Name.ToString();
 		return nameStr.StartsWith("_selection", StringComparison.OrdinalIgnoreCase)

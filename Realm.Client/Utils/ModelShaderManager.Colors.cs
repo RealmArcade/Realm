@@ -16,6 +16,7 @@ public static partial class ModelShaderManager
 	private static void RefreshMeshInstanceMaterials(MeshInstance3D meshInst, bool normalizeLuminance)
 	{
 		if (IsExcludedMesh(meshInst)) return;
+		if (HasGroundPlaneMaterial(meshInst)) return;
 
 		int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
 		for (int i = 0; i < surfaceCount; i++)
