@@ -256,7 +256,7 @@ public class MapStateSnapshot
 				RotationY = unit.RotationDegrees.Y,
 				Scale = unit.Scale.X,
 				Player = unit.Player,
-				Level = ReadEntityLevel(unit.Entity)
+				Level = SaveLoadService.ReadStatedPlacementLevel(unit.Entity, unit.UnitId)
 			});
 		}
 	}
@@ -272,17 +272,9 @@ public class MapStateSnapshot
 				Position = prop.Position,
 				RotationY = prop.RotationDegrees.Y,
 				Scale = prop.Scale.X,
-				Level = ReadEntityLevel(prop.Entity)
+				Level = SaveLoadService.ReadStatedPlacementLevel(prop.Entity, prop.PropId)
 			});
 		}
-	}
-
-	private static int ReadEntityLevel(Entity entity)
-	{
-		var world = GameContext.World;
-		if (world == null || !world.IsAlive(entity) || !world.Has<Level>(entity)) return 0;
-
-		return world.Get<Level>(entity).Value;
 	}
 
 	private static void SaveDecalsToSnapshot(GameHost host, MapStateSnapshot snapshot)

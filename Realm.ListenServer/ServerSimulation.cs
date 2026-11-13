@@ -269,7 +269,6 @@ public class ServerSimulation : IDisposable
 		UnitId killerId = killer == Entity.Null ? UnitId.Invalid : new UnitId(killer.Id);
 		_neutralRespawns.OnPlacementDestroyed(victimId);
 		_bounties.PayKill(victimId, killerId);
-		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
 
 		// A peer learns a unit died from a description that says so, and it builds the death effect from that description
 		// rather than from the unit leaving the world. Destroying the body in the tick it died meant the next description
@@ -282,6 +281,11 @@ public class ServerSimulation : IDisposable
 		// that held it would be read as the new unit's own: neither the state it withheld nor who was told about it
 		// belongs to whoever takes the identifier next. That is answered with the identifier, so it is answered now.
 		_script.Api.Abilities.ForgetUnit(entity.Id);
+
+		// The death is announced last, once the body is already marked and queued: a handler that retires the corpse and
+		// creates a unit frees this identifier during the call, and the unit that takes it must not inherit a removal or
+		// a forgotten ability list that were decided for the unit before it.
+		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
 	}
 
 	/// <summary>
@@ -291,8 +295,15 @@ public class ServerSimulation : IDisposable
 	/// </summary>
 	private const int DeathPublishGraceTicks = 3;
 
+	/// <summary>
+	///     Whether this is the body whose kill was already paid. An identifier is recycled the moment the body holding it
+	///     is destroyed, so the queued entity only answers for the kill while it is still the dead body that was queued: a
+	///     unit that took the identifier afterwards is a different unit and has to have its own death answered.
+	/// </summary>
 	private bool IsKillAlreadyAnswered(Entity entity)
 	{
+		if (!_map.World.IsAlive(entity) || !_map.World.Has<Dead>(entity)) return false;
+
 		for (int index = 0; index < _pendingKilledUnitRemovals.Count; index++)
 		{
 			if (_pendingKilledUnitRemovals[index].Entity == entity) return true;
@@ -309,8 +320,26 @@ public class ServerSimulation : IDisposable
 			if (TickCount < destroyAtTick) continue;
 
 			_pendingKilledUnitRemovals.RemoveAt(index);
-			if (_map.World.IsAlive(entity)) _map.World.Destroy(entity);
+
+			// Only the body that was queued is retired. An identifier is handed to the next unit the match creates, so a
+			// body that is not marked dead is a unit this removal knows nothing about, and an entry queued later for the
+			// same identifier means that identifier has died again since and answers to that later entry.
+			if (!_map.World.IsAlive(entity) || !_map.World.Has<Dead>(entity)) continue;
+			if (HasNewerPendingRemoval(entity, destroyAtTick)) continue;
+
+			_map.World.Destroy(entity);
 		}
+	}
+
+	private bool HasNewerPendingRemoval(Entity entity, long destroyAtTick)
+	{
+		for (int index = 0; index < _pendingKilledUnitRemovals.Count; index++)
+		{
+			(Entity pendingEntity, long pendingDestroyAtTick) = _pendingKilledUnitRemovals[index];
+			if (pendingEntity == entity && pendingDestroyAtTick > destroyAtTick) return true;
+		}
+
+		return false;
 	}
 
 	private const int ObstacleScanIntervalTicks = 20;

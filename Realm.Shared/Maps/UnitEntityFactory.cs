@@ -282,12 +282,16 @@ public static class UnitEntityFactory
 	/// <param name="level">The level the unit is placed at, or zero to stand at the level its template states.</param>
 	public static void ApplySpawnLevel(EcsWorld world, Entity entity, UnitMetadata metadata, int level = 0)
 	{
+		bool statedLevel = level > 0;
 		LevelGrowth growth = metadata.LevelGrowth?.ToLevelGrowth() ?? LevelGrowth.None;
-		int spawnLevel = Math.Max(1, level > 0 ? level : metadata.Level);
-		if (spawnLevel <= 1 && growth.IsZero) return;
+		int spawnLevel = Math.Max(1, statedLevel ? level : metadata.Level);
+
+		// A placement that states a level keeps the statement even when it earns no growth from it, so the level it was
+		// placed at is still on the unit when the map is saved. Only a level that changes the unit's stats is applied.
+		if (!statedLevel && spawnLevel <= 1 && growth.IsZero) return;
 
 		world.SetOrAdd(entity, new Level(spawnLevel));
-		LevelService.Apply(world, entity, spawnLevel, growth);
+		if (spawnLevel > 1 || !growth.IsZero) LevelService.Apply(world, entity, spawnLevel, growth);
 	}
 
 	private static uint BuildAutoCastSlots(DefinitionCatalog catalog, string[] abilities)
