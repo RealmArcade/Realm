@@ -434,6 +434,56 @@ public static class ModelConverter
 		return null;
 	}
 
+	public static ModelConversionResult ExtractSourceProfileImageFromRmesh(string inputRmeshPath, string? outputImagePath = null)
+	{
+		string fullInput = Path.GetFullPath(inputRmeshPath);
+		var result = new ModelConversionResult { InputPath = fullInput };
+
+		if (!File.Exists(fullInput))
+		{
+			result.Success = false;
+			result.ErrorMessage = $"Input RMESH file not found: {inputRmeshPath}";
+			return result;
+		}
+
+		string targetImage = !string.IsNullOrEmpty(outputImagePath)
+			? Path.GetFullPath(outputImagePath)
+			: Path.Combine(Path.GetDirectoryName(fullInput) ?? string.Empty, $"{Path.GetFileNameWithoutExtension(fullInput)}.source.webp");
+		result.OutputPath = targetImage;
+
+		try
+		{
+			byte[] rmeshBytes = File.ReadAllBytes(fullInput);
+			result.OriginalSize = rmeshBytes.Length;
+
+			if (!RmeshFile.TryGetSourceProfileImageWebp(rmeshBytes, out byte[] imageWebpBytes) || imageWebpBytes.Length == 0)
+			{
+				result.Success = false;
+				result.ErrorMessage = "The RMESH file carries no embedded source reference image.";
+				return result;
+			}
+
+			string? targetDir = Path.GetDirectoryName(targetImage);
+			if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+			{
+				Directory.CreateDirectory(targetDir);
+			}
+
+			File.WriteAllBytes(targetImage, imageWebpBytes);
+
+			result.Success = true;
+			result.OutputBytes = imageWebpBytes;
+			result.OptimizedSize = imageWebpBytes.Length;
+			return result;
+		}
+		catch (Exception ex)
+		{
+			result.Success = false;
+			result.ErrorMessage = ex.Message;
+			return result;
+		}
+	}
+
 	public static byte[]? ExtractGlbFromRmesh(ReadOnlySpan<byte> rmeshBytes)
 	{
 		byte[]? glbBytes = RmeshFile.GetGlbBytes(rmeshBytes);

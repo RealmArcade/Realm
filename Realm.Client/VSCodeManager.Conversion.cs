@@ -164,6 +164,32 @@ public partial class VSCodeManager
 		}
 	}
 
+	private void HandleExtractRmeshSourceImage(JsonNode? node, JsonObject responseObj)
+	{
+		string inputPath = node?["inputPath"]?.ToString() ?? node?["filePath"]?.ToString() ?? "";
+		string outputPath = node?["outputPath"]?.ToString() ?? "";
+
+		try
+		{
+			var res = ModelConverter.ExtractSourceProfileImageFromRmesh(inputPath, outputPath);
+			responseObj["action"] = "extractRmeshSourceImageResult";
+			responseObj["type"] = "extractRmeshSourceImageResult";
+			responseObj["success"] = res.Success;
+
+			if (!res.Success)
+			{
+				responseObj["error"] = res.ErrorMessage;
+				return;
+			}
+
+			responseObj["outputPath"] = res.OutputPath;
+		}
+		catch (Exception ex)
+		{
+			PopulateErrorResponse(responseObj, "extractRmeshSourceImageResult", ex.Message);
+		}
+	}
+
 	private void SaveGlbBytes(string outputPath, byte[] glbBytes)
 	{
 		if (string.IsNullOrEmpty(outputPath)) return;

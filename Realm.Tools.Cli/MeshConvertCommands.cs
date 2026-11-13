@@ -96,28 +96,17 @@ public static class MeshConvertCommands
 			return 1;
 		}
 
-		byte[]? imageBytes = RmeshFile.GetSourceProfileImageWebpFromFile(inputFile);
-		if (imageBytes == null || imageBytes.Length == 0)
+		CliAssetAgreement.EnsureAccepted();
+
+		var result = ModelConverter.ExtractSourceProfileImageFromRmesh(inputFile, targetPath);
+		if (!result.Success)
 		{
-			Console.Error.WriteLine($"Error: '{inputFile}' has no embedded source reference image.");
+			Console.Error.WriteLine($"Error: {result.ErrorMessage}");
 			return 1;
 		}
 
-		try
-		{
-			string fullTargetPath = Path.GetFullPath(targetPath);
-			string? targetDirectory = Path.GetDirectoryName(fullTargetPath);
-			if (!string.IsNullOrEmpty(targetDirectory)) Directory.CreateDirectory(targetDirectory);
-
-			File.WriteAllBytes(fullTargetPath, imageBytes);
-			Console.WriteLine($"Successfully extracted source reference image: {inputFile} -> {fullTargetPath} ({imageBytes.Length} bytes)");
-			return 0;
-		}
-		catch (Exception ex)
-		{
-			Console.Error.WriteLine($"Failed to write source reference image '{targetPath}': {ex.Message}");
-			return 1;
-		}
+		Console.WriteLine($"Successfully extracted source reference image: {inputFile} -> {result.OutputPath} ({result.OptimizedSize} bytes)");
+		return 0;
 	}
 
 	public static int ExtractGlbFromRmesh(string inputFile, string targetFile)

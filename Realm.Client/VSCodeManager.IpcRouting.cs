@@ -138,6 +138,9 @@ public partial class VSCodeManager
 			case "convertRmesh":
 				HandleConvertRmesh(node, responseObj);
 				return true;
+			case "extractRmeshSourceImage":
+				HandleExtractRmeshSourceImage(node, responseObj);
+				return true;
 			case "convertRaud":
 				HandleConvertRaud(node, responseObj);
 				return true;
