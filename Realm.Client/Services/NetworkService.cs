@@ -227,7 +227,7 @@ public class NetworkService
 		Entity worldEntity = FindWorldEntity();
 		if (worldEntity == Entity.Null || !shroudWorld.IsAlive(worldEntity)) return false;
 		if (!shroudWorld.Has<ShroudState>(worldEntity)) return false;
-		return shroudWorld.Get<ShroudState>(worldEntity).VisibilityMode == ShroudVisibilityMode.Revealed;
+		return shroudWorld.Get<ShroudState>(worldEntity).VisibilityMode == ShroudVisibilityMode.None;
 	}
 
 	public bool IsServerEntityVisibleToEveryRemoteClient(int serverEntityId)

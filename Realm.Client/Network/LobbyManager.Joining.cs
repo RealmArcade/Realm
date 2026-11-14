@@ -211,15 +211,13 @@ public partial class LobbyManager
 		if (state.Revision < _lobbyRevision) return;
 		_lobbyRevision = state.Revision;
 
-		MaxPlayers = state.MaxPlayers > 0 ? state.MaxPlayers : MaxPlayers;
+		ApplyOpenSlots(state);
 
-		MatchOptions.CopyFrom(state.Options);
-		MatchOptionsChanged?.Invoke();
+		ApplyMatchSettings(state);
 		LobbyFactions = state.Factions ?? Array.Empty<string>();
 		LobbyTeamCount = state.TeamCount > 0 ? state.TeamCount : LobbyLimits.DefaultTeamCount;
 		SpectatorDelay = state.SpectatorDelay;
 		ShroudMode = Enum.IsDefined(typeof(MatchShroudMode), state.ShroudMode) ? (MatchShroudMode)state.ShroudMode : MatchShroudMode.FromMap;
-		HiddenSettings = state.HiddenSettings;
 
 		if (TeamsTogether != state.TeamsTogether)
 		{
@@ -245,6 +243,57 @@ public partial class LobbyManager
 		MakeSureThisSeatReportsItsMap();
 		StartMatchPreparationForCurrentMap();
 		PlayerListUpdated?.Invoke();
+	}
+
+	/// <summary>
+	///     Reads which player slots the lobby leaves open, which is the whole of how the lobby is sized: every row it
+	///     published is drawn, and only the open ones accept a player.
+	/// </summary>
+	/// <param name="state">The lobby state the authority published.</param>
+	private void ApplyOpenSlots(LobbyStateMessage state)
+	{
+		SlotCount = state.SlotCount > 0 ? Math.Min(state.SlotCount, LobbyLimits.MaximumSeats) : LobbyLimits.MaximumSeats;
+
+		for (int slot = 0; slot < _openSlots.Length; slot++) _openSlots[slot] = false;
+
+		int openSlots = 0;
+		for (int slot = 1; slot <= SlotCount; slot++)
+		{
+			bool open = state.OpenSlots != null && slot < state.OpenSlots.Length ? state.OpenSlots[slot] : true;
+			_openSlots[slot] = open;
+			if (open) openSlots++;
+		}
+
+		OpenSlotCount = openSlots;
+	}
+
+	/// <summary>Reads the match settings the lobby's map declared, which the panel that edits them is drawn from.</summary>
+	/// <param name="state">The lobby state the authority published.</param>
+	private void ApplyMatchSettings(LobbyStateMessage state)
+	{
+		LobbyMatchSettingMessage[] published = state.Settings ?? Array.Empty<LobbyMatchSettingMessage>();
+
+		MatchSettings.Clear();
+
+		for (int index = 0; index < published.Length; index++)
+		{
+			LobbyMatchSettingMessage message = published[index];
+			var setting = new LobbyMatchSetting
+			{
+				SettingId = message.SettingId,
+				Label = message.Label ?? string.Empty,
+				Tooltip = message.Tooltip ?? string.Empty,
+				Control = Enum.IsDefined(typeof(LobbySettingControl), message.Control) ? (LobbySettingControl)message.Control : LobbySettingControl.Toggle,
+				Value = message.Value,
+				Minimum = message.Minimum,
+				Maximum = message.Maximum,
+				Options = message.Options ?? Array.Empty<string>()
+			};
+
+			MatchSettings.Add(setting);
+		}
+
+		MatchSettingsChanged?.Invoke();
 	}
 
 	private void StartMatchPreparationForCurrentMap()

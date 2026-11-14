@@ -61,30 +61,6 @@ public partial class ServerLobby
 		return true;
 	}
 
-	/// <summary>
-	///     Seats a different number of players, which is what a map's roster states once its lobby is open.
-	/// </summary>
-	/// <param name="maximumPlayers">The number of player slots to seat.</param>
-	/// <returns>Whether the lobby seats that many players afterwards.</returns>
-	public bool TrySetMaximumPlayers(int maximumPlayers)
-	{
-		int clamped = Math.Clamp(maximumPlayers, 1, LobbyLimits.MaximumSeats);
-		if (clamped == _maximumPlayers) return true;
-
-		foreach (var pair in _seats)
-		{
-			if (pair.Value.Team < 1) continue;
-			if (pair.Key <= clamped) continue;
-			_log.Write($"the lobby cannot seat {clamped} player(s) while seat {pair.Key} is playing; the count is refused");
-			return false;
-		}
-
-		_maximumPlayers = clamped;
-		_log.Write($"the lobby now seats {_maximumPlayers} player(s)");
-		BroadcastState();
-		return true;
-	}
-
 	public bool HasHumanSeat
 	{
 		get

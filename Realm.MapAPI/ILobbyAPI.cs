@@ -1,15 +1,15 @@
 namespace Realm.MapAPI;
 
 /// <summary>
-///     The roster a map script owns while its lobby is filling: which factions the map offers, how many players it seats,
-///     and what faction, team and colour each player slot holds. It is handed to <see cref="ILobbyScript" /> while the
-///     authority sits at tick zero, before any match exists.
+///     The lobby a map script owns while it fills: which factions the map offers, which player slots are open, and what
+///     faction, team and colour each player slot holds. It is handed to <see cref="ILobbyScript" /> while the authority sits
+///     at tick zero, before any match exists.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         Reads are taken straight out of the shared roster the authority publishes, so they cost no host call and never
 ///         allocate. Writes are orders to the authority, which applies them to the lobby the players are sitting in, so a
-///         write can be refused - a locked slot, a slot nobody holds, a faction the map does not offer, or a full lobby -
+///         write can be refused - a locked slot, a slot nobody holds, a faction the map does not offer, or a closed slot -
 ///         and reports whether it was accepted.
 ///     </para>
 ///     <para>
@@ -18,18 +18,22 @@ namespace Realm.MapAPI;
 ///         lobby's own assignment of colours and teams in place, which is what the default lobby rules do.
 ///     </para>
 ///     <para>
-///         The two settings beyond the roster are the ones a map states once and a host may still overrule: whether the
-///         lobby groups a team's players into consecutive player slots when the match starts, and which board coordinate
-///         each team begins inside. Both are placed as orders here and only take effect when the match starts, so a map
-///         states them while its lobby fills and never has to read them back.
+///         Every lobby carries the core game's three match settings - the shroud the board is played with, whether a team's
+///         players sit together, and whether a late joiner waits before the board is described - and a map states the
+///         values those settings start on. Everything else a match may be configured with belongs to the map, so a map
+///         declares its own settings here, with the label, the kind of control and the range it wants the host offered, and
+///         the host's choices are read back through <see cref="GetMatchSettingValue" />. The engine never learns what any of
+///         those settings mean: a map that declares none offers its host the core settings alone.
+///     </para>
+///     <para>
+///         A map states the values it starts on rather than reading them back where it can avoid it: a setting it declared
+///         with a default is that default until the host changes it, and the value the match plays is read once when the
+///         match starts.
 ///     </para>
 /// </remarks>
 public interface ILobbyAPI
 {
-	/// <summary>How many player slots this lobby currently seats. Slots are indexed from one; slot zero is not a player.</summary>
-	int MaximumPlayerCount { get; }
-
-	/// <summary>The number of slots the shared roster carries, which is the highest player index this API accepts.</summary>
+	/// <summary>The number of slots the shared roster carries, which is every player index this API accepts.</summary>
 	int SlotCount { get; }
 
 	/// <summary>How many factions the map offers, in the order <see cref="GetFactionName" /> reports them.</summary>
@@ -86,17 +90,17 @@ public interface ILobbyAPI
 
 	/// <summary>
 	///     States how many teams the lobby offers, which is what its players are offered as choices and what a slot's
-	///     team may be numbered up to. A lobby that states nothing offers two.
+	///     team may be numbered up to. A lobby whose map states nothing offers one team per player slot.
 	/// </summary>
 	/// <param name="teamCount">The number of teams, from one up to the seats this lobby may serve.</param>
 	void SetTeamCount(int teamCount);
 
 	/// <summary>
 	///     Puts a player slot on a team. A slot whose team is locked, a slot nobody holds and a team number outside the
-	///     lobby's seats are all refused.
+	///     lobby's teams are all refused.
 	/// </summary>
 	/// <param name="playerIndex">The player slot.</param>
-	/// <param name="teamIndex">The team number, from 1 up to the lobby's seats, or 0 for no team.</param>
+	/// <param name="teamIndex">The team number, from 1 up to the lobby's teams, or 0 for no team.</param>
 	/// <returns>Whether the authority took the order.</returns>
 	bool SetPlayerTeam(int playerIndex, int teamIndex);
 
@@ -143,11 +147,74 @@ public interface ILobbyAPI
 	bool IsHost(int playerIndex);
 
 	/// <summary>
-	///     Sets how many players the lobby seats. The authority clamps it to the seats its map may serve and refuses a
-	///     count smaller than the players already sitting in it.
+	///     Whether the slot is open to a player. A seat is only ever placed in an open slot, and a closed slot is one the
+	///     host removed from the board the lobby offers while keeping the row on screen.
 	/// </summary>
-	/// <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
-	void SetMaximumPlayerCount(int maximumPlayerCount);
+	/// <param name="playerIndex">The player slot.</param>
+	/// <returns>Whether the slot is open.</returns>
+	bool IsSlotOpen(int playerIndex);
+
+	/// <summary>
+	///     Opens or closes one player slot, which is how a map states the seats its board is authored for: a lobby whose
+	///     map closes nothing offers every slot it has. A slot somebody already holds stays occupied either way, and the
+	///     order is refused for a slot outside the roster.
+	/// </summary>
+	/// <param name="playerIndex">The player slot.</param>
+	/// <param name="open">Whether the slot accepts a player.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	bool SetSlotOpen(int playerIndex, bool open);
+
+	/// <summary>
+	///     Opens the first slots up to a count and closes the rest, which is the short way for a map to state the number
+	///     of players its board seats. A slot somebody already holds is not closed by this order.
+	/// </summary>
+	/// <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	bool SetOpenSlotCount(int count);
+
+	/// <summary>
+	///     Declares one match setting of the map's own, which is how a map offers its host a rule the core game has no
+	///     concept of - how many building options a draw offers, whether every player drafts the same deck, how much of
+	///     its board a map seats. The authority keeps the declaration and publishes it to every screen in the lobby, and
+	///     the value of it is read back through <see cref="GetMatchSettingValue" />. Declaring a setting the lobby already
+	///     holds is how a map restates it after changing its wording, and keeps the value the host chose.
+	/// </summary>
+	/// <param name="settingId">
+	///     The identifier the map declares the setting under. It is the map's own number and never leaves the map, so any
+	///     positive value it likes will do; two settings may not share one.
+	/// </param>
+	/// <param name="control">How the host edits the setting.</param>
+	/// <param name="label">The label the host reads, at most 48 characters.</param>
+	/// <param name="tooltip">The sentence that explains the setting, or empty for none, at most 200 characters.</param>
+	/// <param name="defaultValue">The value the setting holds until the host changes it.</param>
+	/// <returns>Whether the authority holds the declaration afterwards.</returns>
+	bool AddMatchSetting(int settingId, Realm.Ecs.LobbySettingControl control, string label, string tooltip, int defaultValue);
+
+	/// <summary>
+	///     Adds one option to a setting declared as a choice. The option's index is the value the setting holds while it
+	///     is chosen, so the first option added is zero.
+	/// </summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="optionLabel">The text the host reads in the dropdown, at most 48 characters.</param>
+	/// <returns>Whether the option is part of the setting afterwards.</returns>
+	bool AddMatchSettingOption(int settingId, string optionLabel);
+
+	/// <summary>
+	///     States the values a count setting may hold. A count declared without a range offers zero to one.
+	/// </summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="minimum">The lowest value the host may choose.</param>
+	/// <param name="maximum">The highest value the host may choose.</param>
+	/// <returns>Whether the authority holds the range afterwards.</returns>
+	bool SetMatchSettingRange(int settingId, int minimum, int maximum);
+
+	/// <summary>
+	///     Reads the value the host chose for one of the map's own settings, which is what a map reads to act on it. A
+	///     setting the map never declared, or one the lobby holds no value for, answers zero.
+	/// </summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <returns>The value the setting holds.</returns>
+	int GetMatchSettingValue(int settingId);
 
 	/// <summary>
 	///     States whether the lobby's Teams Together checkbox starts checked, which is what a map that plays its teams as
@@ -157,15 +224,6 @@ public interface ILobbyAPI
 	/// </summary>
 	/// <param name="teamsTogether">Whether the checkbox starts checked.</param>
 	void SetTeamsTogetherDefault(bool teamsTogether);
-
-	/// <summary>
-	///     Hides one match setting from the lobby's host, or shows it again. A map hides the settings its board does not play
-	///     with, so the host is offered only the ones that mean something on it, and the same setting is refused if an order
-	///     tries to change it anyway. A setting a map does not hide is offered to the host in the lobby's match settings.
-	/// </summary>
-	/// <param name="setting">The setting being hidden or shown.</param>
-	/// <param name="hidden">Whether the setting is hidden from the host.</param>
-	void SetMatchSettingHidden(LobbySetting setting, bool hidden);
 
 	/// <summary>
 	///     States whether a player who joins after the match has started waits for a delay before the board is described to
@@ -181,7 +239,7 @@ public interface ILobbyAPI
 	///     for the match it starts, and a mode stated here is the answer the lobby returns to when the host clears theirs.
 	/// </summary>
 	/// <param name="shroudMode">The mode the lobby starts on.</param>
-	void SetShroudModeDefault(MatchShroudMode shroudMode);
+	void SetShroudModeDefault(Realm.Ecs.MatchShroudMode shroudMode);
 
 	/// <summary>
 	///     Assigns a board coordinate to a team, which is how a map that seats its teams apart states where each side

@@ -38,7 +38,7 @@ internal sealed class MeleeMatch : IDisposable
 	private readonly List<ServerPresentationEvent> _events = new();
 	private int _nextCommandId = 1;
 
-	private MeleeMatch(string[] factions, int seed, string mapFolder, string scriptPath, MatchOptionSet? matchOptions = null, int[]? teams = null, bool cheatsEnabled = false)
+	private MeleeMatch(string[] factions, int seed, string mapFolder, string scriptPath, LobbySettingSet? lobbySettings = null, int[]? teams = null, bool cheatsEnabled = false, MatchShroudMode shroudMode = MatchShroudMode.FromMap)
 	{
 		Factions = factions;
 		_workDirectory = Path.Combine(Path.GetTempPath(), "realm-melee-simulation", $"{Environment.ProcessId}-{seed}-{Guid.NewGuid():N}");
@@ -68,7 +68,8 @@ internal sealed class MeleeMatch : IDisposable
 			hostPlayerSlot: 1,
 			preparedScriptHost: null,
 			scriptPathOverride: scriptPath,
-			matchOptions: matchOptions);
+			shroudMode: shroudMode,
+			lobbySettings: lobbySettings);
 
 		for (int slot = 1; slot <= factions.Length; slot++)
 		{
@@ -88,9 +89,9 @@ internal sealed class MeleeMatch : IDisposable
 
 	public int PlayerCount => Factions.Length;
 
-	public static MeleeMatch Start(string[] factions, int seed = 1, MatchOptionSet? matchOptions = null, int[]? teams = null, bool cheatsEnabled = false)
+	public static MeleeMatch Start(string[] factions, int seed = 1, LobbySettingSet? lobbySettings = null, int[]? teams = null, bool cheatsEnabled = false, MatchShroudMode shroudMode = MatchShroudMode.FromMap)
 	{
-		return new MeleeMatch(factions, seed, MeleeTestMaps.BoardFolder, MeleeTestMaps.ScriptPath, matchOptions, teams, cheatsEnabled);
+		return new MeleeMatch(factions, seed, MeleeTestMaps.BoardFolder, MeleeTestMaps.ScriptPath, lobbySettings, teams, cheatsEnabled, shroudMode);
 	}
 
 	/// <summary>
@@ -102,12 +103,12 @@ internal sealed class MeleeMatch : IDisposable
 	/// <returns>The match, seated and ready to step.</returns>
 	public static MeleeMatch StartWithTeams(string[] factions, int[] teams, int seed = 1)
 	{
-		return new MeleeMatch(factions, seed, MeleeTestMaps.BoardFolder, MeleeTestMaps.ScriptPath, matchOptions: null, teams: teams);
+		return new MeleeMatch(factions, seed, MeleeTestMaps.BoardFolder, MeleeTestMaps.ScriptPath, lobbySettings: null, teams: teams);
 	}
 
-	public static MeleeMatch StartDuel(string firstFaction = "Vale", string secondFaction = "Sable", int seed = 1, MatchOptionSet? matchOptions = null, bool cheatsEnabled = false)
+	public static MeleeMatch StartDuel(string firstFaction = "Vale", string secondFaction = "Sable", int seed = 1, LobbySettingSet? lobbySettings = null, bool cheatsEnabled = false, MatchShroudMode shroudMode = MatchShroudMode.FromMap)
 	{
-		return Start(new[] { firstFaction, secondFaction }, seed, matchOptions, cheatsEnabled: cheatsEnabled);
+		return Start(new[] { firstFaction, secondFaction }, seed, lobbySettings, cheatsEnabled: cheatsEnabled, shroudMode: shroudMode);
 	}
 
 	/// <summary>
@@ -116,7 +117,7 @@ internal sealed class MeleeMatch : IDisposable
 	/// </summary>
 	public static MeleeMatch StartOnMap(string mapFolder, string[] factions, string scriptPath, int seed = 1, int[]? teams = null)
 	{
-		return new MeleeMatch(factions, seed, mapFolder, scriptPath, matchOptions: null, teams: teams);
+		return new MeleeMatch(factions, seed, mapFolder, scriptPath, lobbySettings: null, teams: teams);
 	}
 
 	public static int PeerFor(int slot) => PeerIdBase + slot;

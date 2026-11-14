@@ -94,14 +94,14 @@ public class MapPropertiesLoader
 		if (!mapProps.TryGetProperty("ShroudType", out var shroudTypeProp)) return;
 		if (shroudTypeProp.ValueKind != JsonValueKind.String)
 		{
-			GD.PushError("[MapPropertiesLoader] ShroudType must be the string ExplorationShroud, VisionShroud, or Revealed.");
+			GD.PushError("[MapPropertiesLoader] ShroudType must be the string None, Partial, or Full.");
 			return;
 		}
 
 		string shroudType = shroudTypeProp.GetString() ?? string.Empty;
 		if (!TryParseShroudVisibilityMode(shroudType, out ShroudVisibilityMode mode))
 		{
-			GD.PushError($"[MapPropertiesLoader] Unknown ShroudType '{shroudType}'. Expected ExplorationShroud, VisionShroud, or Revealed.");
+			GD.PushError($"[MapPropertiesLoader] Unknown ShroudType '{shroudType}'. Expected None, Partial, or Full.");
 			return;
 		}
 
@@ -122,9 +122,9 @@ public class MapPropertiesLoader
 
 		ShroudVisibilityMode visibilityMode = mode switch
 		{
-			MatchShroudMode.Revealed => ShroudVisibilityMode.Revealed,
-			MatchShroudMode.VisionShroud => ShroudVisibilityMode.VisionShroud,
-			_ => ShroudVisibilityMode.ExplorationShroud
+			MatchShroudMode.None => ShroudVisibilityMode.None,
+			MatchShroudMode.Partial => ShroudVisibilityMode.Partial,
+			_ => ShroudVisibilityMode.Full
 		};
 
 		GameContext.World.Mutate<ShroudState>(worldEntity, (ref ShroudState s) => s.VisibilityMode = visibilityMode);
@@ -154,9 +154,9 @@ public class MapPropertiesLoader
 
 			return mode switch
 			{
-				ShroudVisibilityMode.Revealed => MatchShroudMode.Revealed,
-				ShroudVisibilityMode.VisionShroud => MatchShroudMode.VisionShroud,
-				_ => MatchShroudMode.ExplorationShroud
+				ShroudVisibilityMode.None => MatchShroudMode.None,
+				ShroudVisibilityMode.Partial => MatchShroudMode.Partial,
+				_ => MatchShroudMode.Full
 			};
 		}
 		catch (Exception exception) when (exception is System.IO.IOException or JsonException or InvalidDataException)
@@ -167,25 +167,25 @@ public class MapPropertiesLoader
 
 	private static bool TryParseShroudVisibilityMode(string shroudType, out ShroudVisibilityMode mode)
 	{
-		if (shroudType == "ExplorationShroud")
+		if (shroudType == "Full")
 		{
-			mode = ShroudVisibilityMode.ExplorationShroud;
+			mode = ShroudVisibilityMode.Full;
 			return true;
 		}
 
-		if (shroudType == "VisionShroud")
+		if (shroudType == "Partial")
 		{
-			mode = ShroudVisibilityMode.VisionShroud;
+			mode = ShroudVisibilityMode.Partial;
 			return true;
 		}
 
-		if (shroudType == "Revealed")
+		if (shroudType == "None")
 		{
-			mode = ShroudVisibilityMode.Revealed;
+			mode = ShroudVisibilityMode.None;
 			return true;
 		}
 
-		mode = ShroudVisibilityMode.ExplorationShroud;
+		mode = ShroudVisibilityMode.Full;
 		return false;
 	}
 

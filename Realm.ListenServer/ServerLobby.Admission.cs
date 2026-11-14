@@ -57,8 +57,6 @@ public partial class ServerLobby
 		if (!restored)
 		{
 			int slot = FindFreePlayingSlot(isAdmin ? 1 : 0);
-			bool playingSeat = slot > 0;
-			if (!playingSeat) slot = FindFreeSpectatorSlot();
 			if (slot <= 0) return "server_rejected_no_free_slot";
 
 			seat = new LobbySeat
@@ -67,7 +65,7 @@ public partial class ServerLobby
 				AccountId = accountId,
 				Name = DefaultName(name, slot, isAdmin),
 				Faction = Roster?.GetFactionName(0) ?? string.Empty,
-				TeamName = playingSeat ? ResolveJoinTeamName() : LobbyLimits.SpectatorTeamName,
+				TeamName = ResolveJoinTeamName(),
 				ColorRgba = ResolveJoinColorRgba(slot),
 				IsHost = isAdmin,
 				LatencyMilliseconds = -1,

@@ -57,6 +57,7 @@ interface game-api {
     get-current-environment-preset: func() -> string;
     get-game-elapsed-time: func() -> f32;
     get-idle-units-owned-by-player: func(player-index: s32) -> list<s32>;
+    get-lobby-setting: func(setting-id: s32) -> s32;
     get-loot-item-by-id: func(unique-id: s32) -> s32;
     get-loot-item-charges: func(item-id: s32) -> s32;
     get-loot-item-lifetime: func(item-id: s32) -> f32;
@@ -67,7 +68,6 @@ interface game-api {
     get-loot-item-position-z: func(item-id: s32) -> f32;
     get-loot-item-type-id: func(item-id: s32) -> string;
     get-loot-items-in-radius: func(center-x: f32, center-y: f32, center-z: f32, radius: f32) -> list<s32>;
-    get-match-option: func(match-option: s32) -> s32;
     get-modifiers-count: func(unit-id: s32) -> s32;
     get-modifiers-get: func(unit-id: s32, index: s32) -> string;
     get-player-bot-genre: func(player-index: s32) -> string;

@@ -2429,19 +2429,19 @@
             <param name="playerIndex">Zero-based player slot index.</param>
             <param name="limit">The maximum number of buildings, or zero for no limit.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetMatchOption(Realm.Ecs.MatchOption)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetLobbySetting(System.Int32)">
             <summary>
-            Reads a parameter the lobby's host configured for this match, which is how a map lets a host change a limit or a
-            mode it would otherwise have stated as a constant.
+            Reads the value the lobby's host chose for one of the match settings the map declared, which is how a map acts on
+            the rule it offered rather than on the constant it authored.
             </summary>
             <remarks>
-            Every option modifies a value the game already evaluates rather than selecting a different set of rules, so a map
-            reads it once while it starts and falls back to its own default when the host left the option alone. A host that
-            left an option alone answers zero, which is the value no option treats as a real setting, and a map that reads an
-            option it does not act on simply ignores it.
+            A setting the map declared through <see cref="M:Realm.MapAPI.ILobbyAPI.AddMatchSetting(System.Int32,Realm.Ecs.LobbySettingControl,System.String,System.String,System.Int32)" /> carries the value it was declared with
+            until the host changes it, so a map reads it once while it starts and uses that value in place of its own default.
+            A setting the map never declared, or one no lobby held a value for, answers zero; a map that reads a setting it does
+            not act on simply ignores it.
             </remarks>
-            <param name="matchOption">The option being read, named by <see cref="T:Realm.Ecs.MatchOption" />.</param>
-            <returns>The value the host set, or zero when the host left the option to the map.</returns>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <returns>The value the setting holds, or zero when the lobby held no value for it.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerGold(System.Int32,System.Single)">
             <summary>
@@ -3758,15 +3758,15 @@
         </member>
         <member name="T:Realm.MapAPI.ILobbyAPI">
             <summary>
-                The roster a map script owns while its lobby is filling: which factions the map offers, how many players it seats,
-                and what faction, team and colour each player slot holds. It is handed to <see cref="T:Realm.MapAPI.ILobbyScript" /> while the
-                authority sits at tick zero, before any match exists.
+                The lobby a map script owns while it fills: which factions the map offers, which player slots are open, and what
+                faction, team and colour each player slot holds. It is handed to <see cref="T:Realm.MapAPI.ILobbyScript" /> while the authority sits
+                at tick zero, before any match exists.
             </summary>
             <remarks>
                 <para>
                     Reads are taken straight out of the shared roster the authority publishes, so they cost no host call and never
                     allocate. Writes are orders to the authority, which applies them to the lobby the players are sitting in, so a
-                    write can be refused - a locked slot, a slot nobody holds, a faction the map does not offer, or a full lobby -
+                    write can be refused - a locked slot, a slot nobody holds, a faction the map does not offer, or a closed slot -
                     and reports whether it was accepted.
                 </para>
                 <para>
@@ -3775,18 +3775,22 @@
                     lobby's own assignment of colours and teams in place, which is what the default lobby rules do.
                 </para>
                 <para>
-                    The two settings beyond the roster are the ones a map states once and a host may still overrule: whether the
-                    lobby groups a team's players into consecutive player slots when the match starts, and which board coordinate
-                    each team begins inside. Both are placed as orders here and only take effect when the match starts, so a map
-                    states them while its lobby fills and never has to read them back.
+                    Every lobby carries the core game's three match settings - the shroud the board is played with, whether a team's
+                    players sit together, and whether a late joiner waits before the board is described - and a map states the
+                    values those settings start on. Everything else a match may be configured with belongs to the map, so a map
+                    declares its own settings here, with the label, the kind of control and the range it wants the host offered, and
+                    the host's choices are read back through <see cref="M:Realm.MapAPI.ILobbyAPI.GetMatchSettingValue(System.Int32)" />. The engine never learns what any of
+                    those settings mean: a map that declares none offers its host the core settings alone.
+                </para>
+                <para>
+                    A map states the values it starts on rather than reading them back where it can avoid it: a setting it declared
+                    with a default is that default until the host changes it, and the value the match plays is read once when the
+                    match starts.
                 </para>
             </remarks>
         </member>
-        <member name="P:Realm.MapAPI.ILobbyAPI.MaximumPlayerCount">
-            <summary>How many player slots this lobby currently seats. Slots are indexed from one; slot zero is not a player.</summary>
-        </member>
         <member name="P:Realm.MapAPI.ILobbyAPI.SlotCount">
-            <summary>The number of slots the shared roster carries, which is the highest player index this API accepts.</summary>
+            <summary>The number of slots the shared roster carries, which is every player index this API accepts.</summary>
         </member>
         <member name="P:Realm.MapAPI.ILobbyAPI.FactionCount">
             <summary>How many factions the map offers, in the order <see cref="M:Realm.MapAPI.ILobbyAPI.GetFactionName(System.Int32)" /> reports them.</summary>
@@ -3843,17 +3847,17 @@
         <member name="M:Realm.MapAPI.ILobbyAPI.SetTeamCount(System.Int32)">
             <summary>
                 States how many teams the lobby offers, which is what its players are offered as choices and what a slot's
-                team may be numbered up to. A lobby that states nothing offers two.
+                team may be numbered up to. A lobby whose map states nothing offers one team per player slot.
             </summary>
             <param name="teamCount">The number of teams, from one up to the seats this lobby may serve.</param>
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.SetPlayerTeam(System.Int32,System.Int32)">
             <summary>
                 Puts a player slot on a team. A slot whose team is locked, a slot nobody holds and a team number outside the
-                lobby's seats are all refused.
+                lobby's teams are all refused.
             </summary>
             <param name="playerIndex">The player slot.</param>
-            <param name="teamIndex">The team number, from 1 up to the lobby's seats, or 0 for no team.</param>
+            <param name="teamIndex">The team number, from 1 up to the lobby's teams, or 0 for no team.</param>
             <returns>Whether the authority took the order.</returns>
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.IsTeamLocked(System.Int32)">
@@ -3898,12 +3902,75 @@
             <summary>Whether the slot belongs to the player administering the lobby.</summary>
             <param name="playerIndex">The player slot.</param>
         </member>
-        <member name="M:Realm.MapAPI.ILobbyAPI.SetMaximumPlayerCount(System.Int32)">
+        <member name="M:Realm.MapAPI.ILobbyAPI.IsSlotOpen(System.Int32)">
             <summary>
-                Sets how many players the lobby seats. The authority clamps it to the seats its map may serve and refuses a
-                count smaller than the players already sitting in it.
+                Whether the slot is open to a player. A seat is only ever placed in an open slot, and a closed slot is one the
+                host removed from the board the lobby offers while keeping the row on screen.
             </summary>
-            <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
+            <param name="playerIndex">The player slot.</param>
+            <returns>Whether the slot is open.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetSlotOpen(System.Int32,System.Boolean)">
+            <summary>
+                Opens or closes one player slot, which is how a map states the seats its board is authored for: a lobby whose
+                map closes nothing offers every slot it has. A slot somebody already holds stays occupied either way, and the
+                order is refused for a slot outside the roster.
+            </summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="open">Whether the slot accepts a player.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetOpenSlotCount(System.Int32)">
+            <summary>
+                Opens the first slots up to a count and closes the rest, which is the short way for a map to state the number
+                of players its board seats. A slot somebody already holds is not closed by this order.
+            </summary>
+            <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.AddMatchSetting(System.Int32,Realm.Ecs.LobbySettingControl,System.String,System.String,System.Int32)">
+            <summary>
+                Declares one match setting of the map's own, which is how a map offers its host a rule the core game has no
+                concept of - how many building options a draw offers, whether every player drafts the same deck, how much of
+                its board a map seats. The authority keeps the declaration and publishes it to every screen in the lobby, and
+                the value of it is read back through <see cref="M:Realm.MapAPI.ILobbyAPI.GetMatchSettingValue(System.Int32)" />. Declaring a setting the lobby already
+                holds is how a map restates it after changing its wording, and keeps the value the host chose.
+            </summary>
+            <param name="settingId">
+                The identifier the map declares the setting under. It is the map's own number and never leaves the map, so any
+                positive value it likes will do; two settings may not share one.
+            </param>
+            <param name="control">How the host edits the setting.</param>
+            <param name="label">The label the host reads, at most 48 characters.</param>
+            <param name="tooltip">The sentence that explains the setting, or empty for none, at most 200 characters.</param>
+            <param name="defaultValue">The value the setting holds until the host changes it.</param>
+            <returns>Whether the authority holds the declaration afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.AddMatchSettingOption(System.Int32,System.String)">
+            <summary>
+                Adds one option to a setting declared as a choice. The option's index is the value the setting holds while it
+                is chosen, so the first option added is zero.
+            </summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="optionLabel">The text the host reads in the dropdown, at most 48 characters.</param>
+            <returns>Whether the option is part of the setting afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetMatchSettingRange(System.Int32,System.Int32,System.Int32)">
+            <summary>
+                States the values a count setting may hold. A count declared without a range offers zero to one.
+            </summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="minimum">The lowest value the host may choose.</param>
+            <param name="maximum">The highest value the host may choose.</param>
+            <returns>Whether the authority holds the range afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.GetMatchSettingValue(System.Int32)">
+            <summary>
+                Reads the value the host chose for one of the map's own settings, which is what a map reads to act on it. A
+                setting the map never declared, or one the lobby holds no value for, answers zero.
+            </summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <returns>The value the setting holds.</returns>
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.SetTeamsTogetherDefault(System.Boolean)">
             <summary>
@@ -3913,15 +3980,6 @@
                 checkbox, and a host that has changed it keeps its own choice rather than being overruled by this order.
             </summary>
             <param name="teamsTogether">Whether the checkbox starts checked.</param>
-        </member>
-        <member name="M:Realm.MapAPI.ILobbyAPI.SetMatchSettingHidden(Realm.Ecs.LobbySetting,System.Boolean)">
-            <summary>
-                Hides one match setting from the lobby's host, or shows it again. A map hides the settings its board does not play
-                with, so the host is offered only the ones that mean something on it, and the same setting is refused if an order
-                tries to change it anyway. A setting a map does not hide is offered to the host in the lobby's match settings.
-            </summary>
-            <param name="setting">The setting being hidden or shown.</param>
-            <param name="hidden">Whether the setting is hidden from the host.</param>
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.SetSpectatorDelayDefault(System.Boolean)">
             <summary>
@@ -4113,9 +4171,6 @@
                 they cost no host call, and writes are placed as orders the authority applies to the lobby it is holding.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.LobbyAPI_WasmModule.MaximumPlayerCount">
-            <summary>How many player slots this lobby currently seats, as the authority last published it.</summary>
-        </member>
         <member name="P:Realm.MapAPI.LobbyAPI_WasmModule.SlotCount">
             <summary>
                 The number of slots the shared roster carries, which is the highest player index this API accepts. Slots are
@@ -4248,20 +4303,52 @@
             <param name="playerIndex">The player slot.</param>
             <returns>Whether the slot is the host's, or false for a slot outside the roster.</returns>
         </member>
-        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetMaximumPlayerCount(System.Int32)">
-            <summary>
-                Sets how many players the lobby seats. A count of zero or less places no order; the authority clamps it to the
-                seats its map may serve and refuses a count smaller than the players already sitting in it.
-            </summary>
-            <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.IsSlotOpen(System.Int32)">
+            <summary>Whether the slot is open to a player, as the authority last published the roster.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>Whether the slot is open, or false for a slot outside the roster.</returns>
         </member>
-        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetMatchSettingHidden(Realm.Ecs.LobbySetting,System.Boolean)">
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetSlotOpen(System.Int32,System.Boolean)">
             <summary>
-                States whether the lobby's Teams Together checkbox starts checked, which is how a map that plays its teams as
-                sides says so. The host keeps the last word, so an order placed after the host has changed the checkbox leaves
-                the host's choice alone.
+                Opens or closes one player slot. A slot outside the roster places no order.
             </summary>
-            <param name="teamsTogether">Whether the checkbox starts checked.</param>
+            <param name="playerIndex">The player slot.</param>
+            <param name="open">Whether the slot accepts a player.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetOpenSlotCount(System.Int32)">
+            <summary>
+                Opens the first slots up to a count and closes the rest. A count outside the roster places no order.
+            </summary>
+            <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.AddMatchSetting(System.Int32,Realm.Ecs.LobbySettingControl,System.String,System.String,System.Int32)">
+            <summary>Declares one match setting of the map's own, with the control and default it is offered with.</summary>
+            <param name="settingId">The identifier the map declares the setting under.</param>
+            <param name="control">How the host edits the setting.</param>
+            <param name="label">The label the host reads.</param>
+            <param name="tooltip">The sentence that explains the setting, or empty for none.</param>
+            <param name="defaultValue">The value the setting holds until the host changes it.</param>
+            <returns>Whether the authority holds the declaration afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.AddMatchSettingOption(System.Int32,System.String)">
+            <summary>Adds one option to a setting declared as a choice.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="optionLabel">The text the host reads in the dropdown.</param>
+            <returns>Whether the option is part of the setting afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetMatchSettingRange(System.Int32,System.Int32,System.Int32)">
+            <summary>States the values a count setting may hold.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="minimum">The lowest value the host may choose.</param>
+            <param name="maximum">The highest value the host may choose.</param>
+            <returns>Whether the authority holds the range afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.GetMatchSettingValue(System.Int32)">
+            <summary>Reads the value the host chose for one of the map's own settings.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <returns>The value the setting holds, or zero for a setting the lobby holds no value for.</returns>
         </member>
         <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetTeamSpawnCoordinate(System.Int32,System.String)">
             <summary>
@@ -4283,10 +4370,6 @@
             <summary>Places the order that adds a named faction to the lobby roster.</summary>
             <param name="factionName">The faction's name, passed to the authority as UTF-8 with its byte length.</param>
             <returns>Whether the authority accepted the order.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.LobbyImports.SetMaximumPlayerCount(System.Int32)">
-            <summary>Places the order that states how many players the lobby seats.</summary>
-            <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
         </member>
         <member name="M:Realm.MapAPI.LobbyImports.SetTeamCount(System.Int32)">
             <summary>Places the order that states how many teams the lobby offers.</summary>
@@ -4325,10 +4408,43 @@
             <param name="playerIndex">The player slot.</param>
             <param name="locked">Whether the field is locked.</param>
         </member>
-        <member name="M:Realm.MapAPI.LobbyImports.SetMatchSettingHidden(System.Int32,System.Int32)">
-            <summary>Places the order that hides or shows one match setting.</summary>
-            <param name="setting">The setting, as the value of the lobby setting enum.</param>
-            <param name="hidden">Whether the setting is hidden.</param>
+        <member name="M:Realm.MapAPI.LobbyImports.SetSlotOpen(System.Int32,System.Boolean)">
+            <summary>Places the order that opens or closes one player slot.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="open">Whether the slot accepts a player.</param>
+            <returns>Whether the authority accepted the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetOpenSlotCount(System.Int32)">
+            <summary>Places the order that opens the first slots up to a count and closes the rest.</summary>
+            <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+            <returns>Whether the authority accepted the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.AddMatchSetting(System.Int32,System.Int32,System.String,System.String,System.Int32)">
+            <summary>Places the order that declares one match setting of the map's own.</summary>
+            <param name="settingId">The identifier the map declares the setting under.</param>
+            <param name="control">The control kind, as the value of the lobby setting control enum.</param>
+            <param name="label">The label the host reads, passed as UTF-8 with its byte length.</param>
+            <param name="tooltip">The sentence that explains the setting, or empty, passed as UTF-8 with its byte length.</param>
+            <param name="defaultValue">The value the setting holds until the host changes it.</param>
+            <returns>Whether the authority accepted the declaration.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.AddMatchSettingOption(System.Int32,System.String)">
+            <summary>Places the order that adds one option to a setting declared as a choice.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="optionLabel">The text the host reads in the dropdown, passed as UTF-8 with its byte length.</param>
+            <returns>Whether the authority accepted the option.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetMatchSettingRange(System.Int32,System.Int32,System.Int32)">
+            <summary>Places the order that states the values a count setting may hold.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="minimum">The lowest value the host may choose.</param>
+            <param name="maximum">The highest value the host may choose.</param>
+            <returns>Whether the authority accepted the range.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.GetMatchSettingValue(System.Int32)">
+            <summary>Reads the value the host chose for one of the map's own settings.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <returns>The value the setting holds, or zero for a setting the lobby holds no value for.</returns>
         </member>
         <member name="M:Realm.MapAPI.LobbyImports.SetSpectatorDelayDefault(System.Int32)">
             <summary>Places the order that states whether late joiners wait before they see the board.</summary>

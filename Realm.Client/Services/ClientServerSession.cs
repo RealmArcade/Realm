@@ -15,7 +15,7 @@ using Realm.Shared.Simulation;
 
 namespace Realm.Client.Services;
 
-public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null, bool LoopbackOnly = false, MatchOptionSet? Options = null);
+public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null, bool LoopbackOnly = false, Realm.Ecs.MatchShroudMode ShroudMode = Realm.Ecs.MatchShroudMode.FromMap, LobbySettingSet? Settings = null);
 
 public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false, bool Cheats = false, bool LoopbackOnly = false);
 
@@ -247,7 +247,7 @@ public class ClientServerSession : IDisposable
 		if (start.Roster is { Count: > 0 })
 		{
 			rosterPath = Path.Combine(start.LogDirectory, $"{logName}{MatchRosterFile.FileSuffix}");
-			MatchRosterFile.Write(rosterPath, start.Roster, start.Options);
+			MatchRosterFile.Write(rosterPath, start.Roster, start.ShroudMode, start.Settings);
 		}
 
 		var command = new ServerControlCommand

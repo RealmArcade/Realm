@@ -20,10 +20,10 @@ public class MeleeCheatTests
 {
 	private static IEnumerable<string> ChatWords => CheatCatalog.Words;
 
-	private static MeleeMatch StartCheats(MatchOptionSet? matchOptions = null)
+	private static MeleeMatch StartCheats(MatchShroudMode shroudMode = MatchShroudMode.FromMap)
 	{
 		MeleeTestMaps.RequireMaps();
-		return MeleeMatch.StartDuel(matchOptions: matchOptions, cheatsEnabled: true);
+		return MeleeMatch.StartDuel(cheatsEnabled: true, shroudMode: shroudMode);
 	}
 
 	[TestCaseSource(nameof(ChatWords))]
@@ -166,9 +166,7 @@ public class MeleeCheatTests
 	[Test]
 	public void AuraRevealsTheBoard()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.ShroudMode, (int)MatchShroudMode.ExplorationShroud);
-		using MeleeMatch match = StartCheats(options);
+		using MeleeMatch match = StartCheats(MatchShroudMode.Full);
 
 		Assert.That(match.ShroudDisabled, Is.False, "Shroud is on before the cheat.");
 

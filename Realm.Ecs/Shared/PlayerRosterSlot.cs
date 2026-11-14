@@ -4,8 +4,8 @@ namespace Realm.Ecs;
 
 /// <summary>
 ///     The roster slot a lobby player occupies: the faction, team and colour the authority gave it, whether the player may
-///     still change each of those, and whether anyone occupies it at all. It is published in shared memory so a map script
-///     reads a slot without crossing the host boundary.
+///     still change each of those, whether the slot is open to a player at all, and whether anyone occupies it. It is
+///     published in shared memory so a map script reads a slot without crossing the host boundary.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 public struct PlayerRosterSlot
@@ -37,6 +37,9 @@ public struct PlayerRosterSlot
 	/// <summary>Whether the slot belongs to the player administering the lobby.</summary>
 	public byte Host;
 
-	/// <summary>Keeps the following slot four-byte aligned.</summary>
-	public ushort Reserved;
+	/// <summary>Whether the slot accepts a player, which is false for a slot the lobby's host closed.</summary>
+	public byte Open;
+
+	/// <summary>Keeps the slot four-byte aligned.</summary>
+	public byte Reserved;
 }

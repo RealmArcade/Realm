@@ -105,14 +105,10 @@ public partial class ServerLobby
 			_log.Write("this lobby groups each team's players into consecutive player slots");
 		}
 
-		// The shroud the lobby plays is a match parameter, so it is written into the options the match reads before the
-		// match exists: the host's own choice when it made one, and otherwise the mode the map's lobby script stated.
+		// The shroud the lobby plays is a core setting, so the match is told which mode it plays before the match exists: the
+		// host's own choice when it made one, and otherwise the mode the map's lobby script stated.
 		MatchShroudMode shroudMode = EffectiveShroudMode;
-		if (shroudMode != MatchShroudMode.FromMap && _matchOptions.Get(MatchOption.ShroudMode) == 0)
-		{
-			_matchOptions.Set(MatchOption.ShroudMode, (int)shroudMode);
-			_log.Write($"this lobby plays with the shroud mode its map states: {shroudMode}");
-		}
+		if (shroudMode != MatchShroudMode.FromMap) _log.Write($"this lobby plays with the shroud mode {shroudMode}");
 
 		rejection = _startMatch(roster, assignments, sessionSeats, seed);
 		if (rejection != null) return rejection;

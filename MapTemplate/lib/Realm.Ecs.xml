@@ -1374,7 +1374,7 @@
         </member>
         <member name="T:Realm.Ecs.Components.Terrain.ShroudVisibilityMode">
             <summary>
-            Selects how unseen terrain is hidden: ExplorationShroud keeps a permanent exploration memory, VisionShroud starts with the whole map explored so only live vision dims terrain, and Revealed disables the shroud entirely.
+            Selects how unseen terrain is hidden: None disables the shroud entirely, Partial keeps every explored place remembered and hides only what nobody is watching, and Full keeps only the ground a player has explored.
             </summary>
         </member>
         <member name="T:Realm.Ecs.Components.Terrain.TerrainCell">
@@ -3722,13 +3722,13 @@
         </member>
         <member name="T:Realm.Ecs.LobbyRosterHeader">
             <summary>
-                The head of the lobby roster a map script reads from shared memory: how many players the lobby seats, how many
-                factions its map offers, how many teams its seats are numbered up to, and a counter that moves every time the
-                authority restates the roster.
+                The head of the lobby roster a map script reads from shared memory: how many player slots the lobby leaves open,
+                how many factions its map offers, how many teams its seats are numbered up to, and a counter that moves every time
+                the authority restates the roster.
             </summary>
         </member>
-        <member name="F:Realm.Ecs.LobbyRosterHeader.MaximumPlayerCount">
-            <summary>The number of player slots this lobby seats.</summary>
+        <member name="F:Realm.Ecs.LobbyRosterHeader.OpenSlotCount">
+            <summary>The number of player slots this lobby leaves open to a player.</summary>
         </member>
         <member name="F:Realm.Ecs.LobbyRosterHeader.FactionCount">
             <summary>The number of factions in the lobby's faction table.</summary>
@@ -3742,72 +3742,20 @@
         <member name="F:Realm.Ecs.LobbyRosterHeader.SlotCount">
             <summary>The number of player slots shared memory carries, which is what a reader may index up to.</summary>
         </member>
-        <member name="T:Realm.Ecs.LobbySetting">
+        <member name="T:Realm.Ecs.LobbySettingControl">
             <summary>
-                One row of a lobby's match settings, named so a map can say which rows its board is played with. The first nine
-                members mirror <see cref="T:Realm.Ecs.MatchOption" /> value for value, because those rows are the match options themselves; the
-                last two are the lobby switches a map states through their own orders rather than through an option.
+                The kind of control a lobby offers a host for one match setting a map declared, which decides how that setting is
+                edited on screen and what its value means.
             </summary>
         </member>
-        <member name="F:Realm.Ecs.LobbySetting.MaximumPlayers">
-            <summary>How many players the lobby seats, which is <see cref="F:Realm.Ecs.MatchOption.MaximumPlayers" />.</summary>
+        <member name="F:Realm.Ecs.LobbySettingControl.Toggle">
+            <summary>A checkbox; the value is zero for unchecked and one for checked.</summary>
         </member>
-        <member name="F:Realm.Ecs.LobbySetting.MaximumBuildingDraftCount">
-            <summary>How many building options a draft offers at once.</summary>
+        <member name="F:Realm.Ecs.LobbySettingControl.Choice">
+            <summary>A dropdown; the value is the index of the option the host chose.</summary>
         </member>
-        <member name="F:Realm.Ecs.LobbySetting.MaximumUniqueBuildingInstances">
-            <summary>How many unique instances of one building a player may own.</summary>
-        </member>
-        <member name="F:Realm.Ecs.LobbySetting.ShroudMode">
-            <summary>Whether vision is limited, and which shroud mode applies.</summary>
-        </member>
-        <member name="F:Realm.Ecs.LobbySetting.MirroredAutoDraft">
-            <summary>Whether every player draws the same heroes and building options.</summary>
-        </member>
-        <member name="F:Realm.Ecs.LobbySetting.OpenPoolDrafting">
-            <summary>Whether a drafted building stays in the deck instead of leaving it.</summary>
-        </member>
-        <member name="F:Realm.Ecs.LobbySetting.CapacityMultiplierPercent">
-            <summary>The percentage every player's capacity ceiling is multiplied by.</summary>
-        </member>
-        <member name="F:Realm.Ecs.LobbySetting.ProductionMultiplierPercent">
-            <summary>The percentage every player's stored production mana is multiplied by.</summary>
-        </member>
-        <member name="F:Realm.Ecs.LobbySetting.MaximumBuildingSupply">
-            <summary>How many buildings a player may construct and hold.</summary>
-        </member>
-        <member name="F:Realm.Ecs.LobbySetting.TeamsTogether">
-            <summary>Whether a team's players sit in consecutive player slots in the match.</summary>
-        </member>
-        <member name="F:Realm.Ecs.LobbySetting.SpectatorDelay">
-            <summary>Whether players who join late watch for a delay before they see the board.</summary>
-        </member>
-        <member name="T:Realm.Ecs.LobbySettings">
-            <summary>Reads and writes a set of settings as the bit mask a lobby publishes.</summary>
-        </member>
-        <member name="F:Realm.Ecs.LobbySettings.HighestSetting">
-            <summary>The highest member of <see cref="T:Realm.Ecs.LobbySetting" />, which is also how many bits the mask uses.</summary>
-        </member>
-        <member name="M:Realm.Ecs.LobbySettings.With(System.Int32,Realm.Ecs.LobbySetting,System.Boolean)">
-            <summary>Marks one setting hidden, or shows it again.</summary>
-            <param name="mask">The mask being changed.</param>
-            <param name="setting">The setting to change.</param>
-            <param name="hidden">Whether the setting is hidden.</param>
-            <returns>The mask with the change applied.</returns>
-        </member>
-        <member name="M:Realm.Ecs.LobbySettings.IsHidden(System.Int32,Realm.Ecs.LobbySetting)">
-            <summary>Answers whether one setting is hidden in a published mask.</summary>
-            <param name="mask">The published mask.</param>
-            <param name="setting">The setting being read.</param>
-            <returns>Whether the lobby hides the setting from its host.</returns>
-        </member>
-        <member name="M:Realm.Ecs.LobbySettings.IsHidden(System.Int32,Realm.Ecs.MatchOption)">
-            <summary>
-                Answers whether the setting a match option states is hidden, which is the rule a host's order is measured by.
-            </summary>
-            <param name="mask">The published mask.</param>
-            <param name="option">The match option being read.</param>
-            <returns>Whether the lobby hides the option.</returns>
+        <member name="F:Realm.Ecs.LobbySettingControl.Count">
+            <summary>A number spinner; the value lies between the setting's own minimum and maximum.</summary>
         </member>
         <member name="T:Realm.Ecs.LootItemId">
             <summary>
@@ -3857,56 +3805,23 @@
             </summary>
             <returns>A string representation of the loot item identifier.</returns>
         </member>
-        <member name="T:Realm.Ecs.MatchOption">
-            <summary>
-                A parameter a lobby's host may set for the match it is about to start. Every option names a value the game's own
-                formulas already read, so a host changes how much of something a match allows without selecting a different ruleset.
-            </summary>
-        </member>
-        <member name="F:Realm.Ecs.MatchOption.MaximumPlayers">
-            <summary>How many players the lobby seats, which is also the ceiling on the seats a map fills.</summary>
-        </member>
-        <member name="F:Realm.Ecs.MatchOption.MaximumBuildingDraftCount">
-            <summary>How many building options a draft offers at once.</summary>
-        </member>
-        <member name="F:Realm.Ecs.MatchOption.MaximumUniqueBuildingInstances">
-            <summary>How many unique instances of one building a player may own.</summary>
-        </member>
-        <member name="F:Realm.Ecs.MatchOption.ShroudMode">
-            <summary>Whether vision is limited to sight ranges, and which of the two shroud modes applies.</summary>
-        </member>
-        <member name="F:Realm.Ecs.MatchOption.MirroredAutoDraft">
-            <summary>Whether every player draws the same heroes and the same building options.</summary>
-        </member>
-        <member name="F:Realm.Ecs.MatchOption.OpenPoolDrafting">
-            <summary>Whether a drafted building stays in the deck instead of leaving it when taken.</summary>
-        </member>
-        <member name="F:Realm.Ecs.MatchOption.CapacityMultiplierPercent">
-            <summary>The percentage every player's capacity ceiling is multiplied by.</summary>
-        </member>
-        <member name="F:Realm.Ecs.MatchOption.ProductionMultiplierPercent">
-            <summary>The percentage every player's stored production mana is multiplied by.</summary>
-        </member>
-        <member name="F:Realm.Ecs.MatchOption.MaximumBuildingSupply">
-            <summary>How many buildings a player may construct and hold, which is the player's building supply.</summary>
-        </member>
         <member name="T:Realm.Ecs.MatchShroudMode">
             <summary>
-                How much of the world a match shows. A lobby's host may override the mode the map states, and
-                <see cref="F:Realm.Ecs.MatchShroudMode.FromMap" /> is the absence of an override rather than a mode of its own.
+                How much of the world a match shows. The core game offers this setting to every lobby, a map states the mode its
+                board starts on, and the lobby's host may choose another one for the match it starts.
             </summary>
         </member>
         <member name="F:Realm.Ecs.MatchShroudMode.FromMap">
-            <summary>Leaves the mode to the map, which is what a lobby that was not told anything plays.</summary>
+            <summary>Leaves the mode to the map's board properties, which is what a lobby whose map stated nothing plays.</summary>
         </member>
-        <member name="F:Realm.Ecs.MatchShroudMode.Revealed">
+        <member name="F:Realm.Ecs.MatchShroudMode.None">
             <summary>Shows the whole board to every player.</summary>
         </member>
-        <member name="F:Realm.Ecs.MatchShroudMode.VisionShroud">
-            <summary>Shows what a player's units can see, on ground the player has not walked.</summary>
+        <member name="F:Realm.Ecs.MatchShroudMode.Partial">
+            <summary>Hides what nobody is watching while keeping every explored place remembered.</summary>
         </member>
-        <member name="F:Realm.Ecs.MatchShroudMode.ExplorationShroud">
-            <summary>Shows what a player's units can see, on ground the player has not explored.</summary>
+        <member name="F:Realm.Ecs.MatchShroudMode.Full">
+            <summary>Hides the ground itself until one of a player's units has walked over it.</summary>
         </member>
         <member name="T:Realm.Ecs.PlayerId">
             <summary>
@@ -3994,8 +3909,8 @@
         <member name="T:Realm.Ecs.PlayerRosterSlot">
             <summary>
                 The roster slot a lobby player occupies: the faction, team and colour the authority gave it, whether the player may
-                still change each of those, and whether anyone occupies it at all. It is published in shared memory so a map script
-                reads a slot without crossing the host boundary.
+                still change each of those, whether the slot is open to a player at all, and whether anyone occupies it. It is
+                published in shared memory so a map script reads a slot without crossing the host boundary.
             </summary>
         </member>
         <member name="F:Realm.Ecs.PlayerRosterSlot.FactionIndex">
@@ -4025,8 +3940,11 @@
         <member name="F:Realm.Ecs.PlayerRosterSlot.Host">
             <summary>Whether the slot belongs to the player administering the lobby.</summary>
         </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.Open">
+            <summary>Whether the slot accepts a player, which is false for a slot the lobby's host closed.</summary>
+        </member>
         <member name="F:Realm.Ecs.PlayerRosterSlot.Reserved">
-            <summary>Keeps the following slot four-byte aligned.</summary>
+            <summary>Keeps the slot four-byte aligned.</summary>
         </member>
         <member name="T:Realm.Ecs.ResourceNodeId">
             <summary>

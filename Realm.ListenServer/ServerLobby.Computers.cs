@@ -14,16 +14,10 @@ public partial class ServerLobby
 	{
 	private void AddComputer(int adminSlot)
 	{
-		if (PlayingSeatCount >= _maximumPlayers)
-		{
-			AddSystemChat($"Cannot add an AI player: all {_maximumPlayers} player seats are taken.");
-			return;
-		}
-
 		int slot = FindFreePlayingSlot(0);
 		if (slot <= 0)
 		{
-			AddSystemChat($"Cannot add an AI player: all {_maximumPlayers} player seats are taken.");
+			AddSystemChat($"Cannot add an AI player: all {_openSlotCount} open player seats are taken.");
 			return;
 		}
 

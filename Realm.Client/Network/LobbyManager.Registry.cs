@@ -329,7 +329,7 @@ public partial class LobbyManager
 					NatType = LocalNatType.ToString(),
 					ReportedHostIP = reachability.PublicIp,
 					PasswordHash = "",
-					MaxPlayers = MaxPlayers,
+					MaxPlayers = OpenSlotCount,
 					SlotsUsed = PlayerList.Count,
 					HostPingBaseline = hostPingBaseline,
 					GameVersion = RealmVersion.GameBinaryVersion,

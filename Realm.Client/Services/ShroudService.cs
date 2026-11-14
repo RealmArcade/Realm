@@ -140,7 +140,7 @@ public class ShroudService
 		bool isOmniscient = observedPlayerIndex < 0
 		                    || (uint)observedPlayerIndex >= ShroudGrid.MaxGroups
 		                    || GameContext.SessionState.IsMapEditorMode
-		                    || shroud.VisibilityMode == ShroudVisibilityMode.Revealed;
+		                    || shroud.VisibilityMode == ShroudVisibilityMode.None;
 
 		if (grid == null || !grid.IsAllocated || isOmniscient)
 		{

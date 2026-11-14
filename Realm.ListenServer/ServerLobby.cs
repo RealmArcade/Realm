@@ -35,11 +35,14 @@ public partial class ServerLobby : ILobbySeatTable
 	private readonly string _mapFolder;
 	private readonly string _mapName;
 	private readonly string _mapVersion;
-	private readonly int _mapMaximumPlayers;
-	private readonly MatchOptionSet _matchOptions = new();
-	private int _hiddenSettings;
+
+	/// <summary>Every player slot the lobby carries, where true means the slot accepts a player.</summary>
+	private readonly bool[] _openSlots = new bool[EcsSharedMemory.MAX_PLAYERS];
+
+	private readonly SortedDictionary<int, LobbyMatchSetting> _matchSettings = new();
+	private int _openSlotCount;
+	private MatchShroudMode _hostShroudMode = MatchShroudMode.FromMap;
 	private bool _hostChoseSpectatorDelay;
-	private int _maximumPlayers;
 
 	private readonly SortedDictionary<int, LobbySeat> _seats = new();
 	private readonly Dictionary<int, int> _slotByPeer = new();
@@ -84,8 +87,12 @@ public partial class ServerLobby : ILobbySeatTable
 		_mapFolder = arguments.MapPath;
 		_mapName = ResolveMapName(arguments);
 		_mapVersion = ResolveMapVersion(arguments);
-		_mapMaximumPlayers = ResolveMaximumPlayers(arguments);
-		_maximumPlayers = _mapMaximumPlayers;
+
+		// The core game starts every lobby with every slot it has open. A map that its board seats fewer players closes the
+		// rest, and the host may close and reopen any of them from the lobby, which is the whole of how a lobby's size is
+		// decided - there is no player count to set and no count to disagree with the rows on screen.
+		for (int slot = 1; slot < _openSlots.Length; slot++) _openSlots[slot] = true;
+		_openSlotCount = LobbyLimits.MaximumSeats;
 	}
 
 	public bool MatchStarted => _matchStarted;
@@ -96,13 +103,187 @@ public partial class ServerLobby : ILobbySeatTable
 
 	public string MapVersion => _mapVersion;
 
-	public int MaximumPlayers => _maximumPlayers;
+	public int OpenSlotCount => _openSlotCount;
+
+	/// <summary>Every player slot the lobby carries, which is the number of rows its screens draw.</summary>
+	public int SlotCount => _openSlots.Length - 1;
+
+	/// <summary>Whether a player slot accepts a player.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>Whether the slot is open.</returns>
+	public bool IsSlotOpen(int slot) => slot > 0 && slot < _openSlots.Length && _openSlots[slot];
 
 	/// <summary>
-	///     The parameters the host configured for the match this lobby starts. They are read once, when the match is put on
-	///     the authority, so a change the host makes after the countdown has begun does not reach the match already built.
+	///     Opens or closes one player slot, which is how the lobby's host decides which seats the board offers. A slot the
+	///     host closes keeps its row on screen and stops accepting a player.
 	/// </summary>
-	public MatchOptionSet MatchOptions => _matchOptions;
+	/// <param name="slot">The player slot.</param>
+	/// <param name="open">Whether the slot accepts a player.</param>
+	/// <returns>Whether the lobby offers that slot afterwards.</returns>
+	public bool TrySetSlotOpen(int slot, bool open)
+	{
+		if (slot <= 0 || slot >= _openSlots.Length) return false;
+		if (_openSlots[slot] == open) return true;
+
+		_openSlots[slot] = open;
+		_openSlotCount = CountOpenSlots();
+		_log.Write($"the lobby's host {(open ? "opened" : "closed")} player slot {slot}");
+		BroadcastState();
+		return true;
+	}
+
+	/// <summary>
+	///     Opens the first slots up to a count and closes the rest, which is how a map states the number of players its
+	///     board seats. A slot somebody already holds is left as it is.
+	/// </summary>
+	/// <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+	/// <returns>Whether the lobby offers those slots afterwards.</returns>
+	public bool TrySetOpenSlotCount(int count)
+	{
+		if (count <= 0 || count >= _openSlots.Length) return false;
+
+		bool changed = false;
+		for (int slot = 1; slot < _openSlots.Length; slot++)
+		{
+			bool open = slot <= count && !_seats.ContainsKey(slot);
+			if (_openSlots[slot] == open) continue;
+
+			_openSlots[slot] = open;
+			changed = true;
+		}
+
+		if (!changed) return true;
+
+		_openSlotCount = CountOpenSlots();
+		_log.Write($"the lobby's map offers the first {count} player slot(s)");
+		BroadcastState();
+		return true;
+	}
+
+	/// <summary>
+	///     The match settings the lobby's map declared, keyed by the identifier the map named them under. They are read once,
+	///     when the match is put on the authority, so a change the host makes after the countdown has begun does not reach
+	///     the match already built.
+	/// </summary>
+	public IReadOnlyDictionary<int, LobbyMatchSetting> MatchSettings => _matchSettings;
+
+	/// <summary>
+	///     The values the host chose for the settings the map declared, which is what the match reads back through its own
+	///     API and what the roster file carries to a match started without a lobby.
+	/// </summary>
+	public LobbySettingSet MatchSettingValues
+	{
+		get
+		{
+			var values = new LobbySettingSet();
+			foreach (KeyValuePair<int, LobbyMatchSetting> pair in _matchSettings) values.Set(pair.Key, pair.Value.Value);
+			return values;
+		}
+	}
+
+	/// <summary>
+	///     Sets one of the settings the lobby's map declared. A setting the map never declared, and a value outside the range
+	///     the map stated, are both refused, so a host is never shown a setting the match would not play.
+	/// </summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="value">The value to play.</param>
+	/// <returns>Whether the lobby now holds that value.</returns>
+	public bool TrySetLobbySetting(int settingId, int value)
+	{
+		if (!_matchSettings.TryGetValue(settingId, out LobbyMatchSetting? setting))
+		{
+			_log.Write($"the lobby's host set match setting {settingId}, which this lobby's map does not declare; the order is refused");
+			return false;
+		}
+
+		int clamped = Math.Clamp(value, setting.Minimum, setting.Maximum);
+		if (clamped != value)
+		{
+			_log.Write($"match setting {settingId} was set to {value}, outside the {setting.Minimum} to {setting.Maximum} its map states; the order is refused");
+			return false;
+		}
+
+		if (setting.Value == value) return true;
+
+		setting.Value = value;
+		_log.Write($"the lobby's host set '{setting.Label}' to {value}");
+		BroadcastState();
+		return true;
+	}
+
+	/// <summary>Declares one match setting of the map's own, or restates one the lobby already holds.</summary>
+	/// <param name="settingId">The identifier the map declares the setting under.</param>
+	/// <param name="control">How the host edits the setting.</param>
+	/// <param name="label">The label the host reads.</param>
+	/// <param name="tooltip">The sentence that explains the setting, or empty for none.</param>
+	/// <param name="defaultValue">The value the setting holds until the host changes it.</param>
+	public void DeclareMatchSetting(int settingId, LobbySettingControl control, string label, string tooltip, int defaultValue)
+	{
+		if (settingId <= 0) return;
+
+		if (_matchSettings.TryGetValue(settingId, out LobbyMatchSetting? existing))
+		{
+			existing.Label = label;
+			existing.Tooltip = tooltip;
+			existing.Control = control;
+			return;
+		}
+
+		var setting = new LobbyMatchSetting
+		{
+			SettingId = settingId,
+			Label = label,
+			Tooltip = tooltip,
+			Control = control,
+			Value = control == LobbySettingControl.Toggle ? Math.Clamp(defaultValue, 0, 1) : defaultValue,
+			Minimum = 0,
+			Maximum = control == LobbySettingControl.Toggle ? 1 : defaultValue
+		};
+
+		_matchSettings[settingId] = setting;
+		_log.Write($"the lobby's map declared the '{label}' match setting ({control}, default {setting.Value})");
+		BroadcastState();
+	}
+
+	/// <summary>Adds one option to a setting the map declared as a choice, or shows a setting it already holds.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="optionLabel">The text the host reads in the dropdown.</param>
+	public void DeclareMatchSettingOption(int settingId, string optionLabel)
+	{
+		if (!_matchSettings.TryGetValue(settingId, out LobbyMatchSetting? setting)) return;
+
+		var options = new List<string>(setting.Options.Length + 1);
+		options.AddRange(setting.Options);
+		options.Add(optionLabel);
+
+		setting.Options = options.ToArray();
+		setting.Maximum = setting.Options.Length - 1;
+		if (setting.Value > setting.Maximum) setting.Value = setting.Maximum;
+		BroadcastState();
+	}
+
+	/// <summary>States the values a count setting the map declared may hold.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="minimum">The lowest value the host may choose.</param>
+	/// <param name="maximum">The highest value the host may choose.</param>
+	public void DeclareMatchSettingRange(int settingId, int minimum, int maximum)
+	{
+		if (!_matchSettings.TryGetValue(settingId, out LobbyMatchSetting? setting)) return;
+		if (minimum < 0 || maximum < minimum) return;
+
+		setting.Minimum = minimum;
+		setting.Maximum = maximum;
+		setting.Value = Math.Clamp(setting.Value, minimum, maximum);
+		BroadcastState();
+	}
+
+	/// <summary>Reads the value one of the settings the lobby's map declared currently holds.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <returns>The value the setting holds, or zero when the map declared no such setting.</returns>
+	public int GetMatchSettingValue(int settingId)
+	{
+		return _matchSettings.TryGetValue(settingId, out LobbyMatchSetting? setting) ? setting.Value : 0;
+	}
 
 	/// <summary>
 	///     The shroud mode this lobby will play: the mode its host chose, the mode its map's lobby script states, or
@@ -113,69 +294,38 @@ public partial class ServerLobby : ILobbySeatTable
 	{
 		get
 		{
-			MatchShroudMode chosen = _matchOptions.GetShroudMode();
-			if (chosen != MatchShroudMode.FromMap) return chosen;
+			if (_hostShroudMode != MatchShroudMode.FromMap) return _hostShroudMode;
 			return Roster?.ShroudMode ?? MatchShroudMode.FromMap;
 		}
 	}
 
 	/// <summary>
-	///     Sets one parameter the host configures for the match. Every value the option range refuses is dropped rather than
-	///     clamped, so a host is never shown a setting the match would not play.
+	///     Takes the host's own choice of shroud mode, which overrules the default its map stated and holds for the rest of
+	///     the lobby. Clearing it returns the lobby to the mode the map states.
 	/// </summary>
-	/// <param name="option">The option being configured.</param>
-	/// <param name="value">The value to play, where zero returns the option to the map's own default.</param>
-	/// <returns>Whether the lobby now holds that setting.</returns>
-	public bool TrySetMatchOption(MatchOption option, int value)
+	/// <param name="shroudMode">The mode the match should play.</param>
+	/// <returns>Whether the lobby now holds that mode.</returns>
+	public bool TrySetShroudMode(MatchShroudMode shroudMode)
 	{
-		if (LobbySettings.IsHidden(_hiddenSettings, option))
-		{
-			_log.Write($"the lobby's map hides {option}, so the host's order is refused");
-			return false;
-		}
+		if (!Enum.IsDefined(shroudMode)) return false;
+		if (_hostShroudMode == shroudMode) return true;
 
-		if (option == MatchOption.MaximumPlayers)
-		{
-			if (!_matchOptions.Set(option, value)) return false;
-
-			int players = value == 0 ? _mapMaximumPlayers : value;
-			if (!TrySetMaximumPlayers(players))
-			{
-				_matchOptions.Set(option, 0);
-				return false;
-			}
-
-			BroadcastState();
-			return true;
-		}
-
-		if (!_matchOptions.Set(option, value)) return false;
-
-		_log.Write($"the lobby's host set {option} to {(value == 0 ? "the map's default" : value.ToString(System.Globalization.CultureInfo.InvariantCulture))}");
+		_hostShroudMode = shroudMode;
+		_log.Write($"the lobby's host set the shroud mode to {shroudMode}");
 		BroadcastState();
 		return true;
 	}
 
-	/// <summary>
-	///     Hides one setting from the lobby's host, or shows it again. A map states this for the settings its board does not
-	///     play with, so the host is offered only the ones that mean something on it.
-	/// </summary>
-	/// <param name="setting">The setting being hidden or shown.</param>
-	/// <param name="hidden">Whether the setting is hidden.</param>
-	public void SetSettingHidden(LobbySetting setting, bool hidden)
+	private int CountOpenSlots()
 	{
-		int updated = LobbySettings.With(_hiddenSettings, setting, hidden);
-		if (updated == _hiddenSettings) return;
+		int count = 0;
+		for (int slot = 1; slot < _openSlots.Length; slot++)
+		{
+			if (_openSlots[slot]) count++;
+		}
 
-		_hiddenSettings = updated;
-		_log.Write($"the lobby's map {(hidden ? "hides" : "shows")} the {setting} setting");
-		BroadcastState();
+		return count;
 	}
-
-	/// <summary>Whether this lobby's map hid one setting from its host.</summary>
-	/// <param name="setting">The setting being read.</param>
-	/// <returns>Whether the setting is hidden.</returns>
-	public bool IsSettingHidden(LobbySetting setting) => LobbySettings.IsHidden(_hiddenSettings, setting);
 
 	/// <summary>
 	///     How many seats are playing rather than watching. A spectator holds no player seat, so the players a lobby seats

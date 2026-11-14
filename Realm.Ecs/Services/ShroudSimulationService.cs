@@ -16,10 +16,10 @@ public static class ShroudSimulationService
 
 		ref var shroud = ref world.Get<ShroudState>(worldEntity);
 
-		if (shroud.VisibilityMode == ShroudVisibilityMode.Revealed)
+		if (shroud.VisibilityMode == ShroudVisibilityMode.None)
 		{
 			var revealedGrid = ShroudGridRegistry.Get(shroud.GridHandle);
-			if (revealedGrid != null) revealedGrid.AppliedVisibilityMode = ShroudVisibilityMode.Revealed;
+			if (revealedGrid != null) revealedGrid.AppliedVisibilityMode = ShroudVisibilityMode.None;
 			return;
 		}
 

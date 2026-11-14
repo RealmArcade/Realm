@@ -7,9 +7,9 @@ using Realm.Shared.Simulation;
 namespace Realm.Simulation.Tests;
 
 /// <summary>
-///     Walks a match that is started from a roster file alone, with no lobby to carry the host's settings: the options the
-///     host configured are written beside the seats, read back by the authority that plays the match, and reach the script
-///     as the draw size and vision mode the host stated.
+///     Walks a match that is started from a roster file alone, with no lobby to carry the host's settings: the settings
+///     the host configured and the shroud mode it chose are written beside the seats, read back by the authority that plays
+///     the match, and reach the script as the draw size and vision mode the host stated.
 /// </summary>
 [TestFixture]
 [NonParallelizable]
@@ -42,16 +42,15 @@ public class MatchRosterOptionTests
 	public void TheRosterStatesTheOptionsTheHostConfigured()
 	{
 		string path = Path.Combine(_workDirectory, $"match{MatchRosterFile.FileSuffix}");
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.MaximumBuildingDraftCount, 2);
-		options.Set(MatchOption.ShroudMode, (int)MatchShroudMode.ExplorationShroud);
+		var settings = new LobbySettingSet();
+		settings.Set(MeleeLobbySettings.DraftOptions, 2);
 
-		MatchRosterFile.Write(path, new[] { new MatchRosterSeat(1, 1001, "Host", 1, "Team 1", false) }, options);
+		MatchRosterFile.Write(path, new[] { new MatchRosterSeat(1, 1001, "Host", 1, "Team 1", false) }, MatchShroudMode.Full, settings);
 
-		Assert.That(MatchRosterFile.TryRead(path, out MatchRosterSeat[] seats, out MatchOptionSet read, out string error), Is.True, error);
+		Assert.That(MatchRosterFile.TryRead(path, out MatchRosterSeat[] seats, out MatchShroudMode shroudMode, out LobbySettingSet read, out string error), Is.True, error);
 		Assert.That(seats.Length, Is.EqualTo(1), "The seat the host wrote is read back.");
-		Assert.That(read.Get(MatchOption.MaximumBuildingDraftCount), Is.EqualTo(2), "The draw size the host configured survives the file.");
-		Assert.That(read.Get(MatchOption.ShroudMode), Is.EqualTo((int)MatchShroudMode.ExplorationShroud), "The vision mode the host configured survives the file.");
+		Assert.That(read.Get(MeleeLobbySettings.DraftOptions), Is.EqualTo(2), "The draw size the host configured survives the file.");
+		Assert.That(shroudMode, Is.EqualTo(MatchShroudMode.Full), "The shroud mode the host configured survives the file.");
 	}
 
 	[Test]
@@ -61,34 +60,35 @@ public class MatchRosterOptionTests
 
 		MatchRosterFile.Write(path, new[] { new MatchRosterSeat(1, 1001, "Host", 1, "Team 1", false) });
 
-		Assert.That(MatchRosterFile.TryRead(path, out _, out MatchOptionSet read, out string error), Is.True, error);
+		Assert.That(MatchRosterFile.TryRead(path, out _, out MatchShroudMode shroudMode, out LobbySettingSet read, out string error), Is.True, error);
 		Assert.That(read.IsEmpty, Is.True, "A roster written without settings states none, so the map's own defaults apply.");
+		Assert.That(shroudMode, Is.EqualTo(MatchShroudMode.FromMap), "A roster that states no shroud mode leaves it to the map.");
 	}
 
 	[Test]
 	public void ARosterThatOmitsTheOptionLineIsRefused()
 	{
 		string path = Path.Combine(_workDirectory, $"stale{MatchRosterFile.FileSuffix}");
-		File.WriteAllText(path, "realm-match-roster 5\n1\t1001\tHost\t1\tTeam 1\t0\t2\tVale\n");
+		File.WriteAllText(path, "realm-match-roster 6\nshroud\t0\n1\t1001\tHost\t1\tTeam 1\t0\t2\tVale\n");
 
 		Assert.That(
-			MatchRosterFile.TryRead(path, out _, out _, out string error),
+			MatchRosterFile.TryRead(path, out _, out _, out _, out string error),
 			Is.False,
-			"A roster that does not state its options is refused rather than played with the map's defaults, so a file written by an older build is never mistaken for one that configured nothing.");
-		Assert.That(error, Does.Contain("second line"), "The refusal names the line it is missing.");
+			"A roster that does not state its settings is refused rather than played with the map's defaults, so a file written by an older build is never mistaken for one that configured nothing.");
+		Assert.That(error, Does.Contain("third line"), "The refusal names the line it is missing.");
 	}
 
 	[Test]
-	public void ARosterStatingAnOptionTheMatchCouldNotPlayIsRefused()
+	public void ARosterStatingAnOptionThatIsNotAnIdentifierAndAValueIsRefused()
 	{
 		string path = Path.Combine(_workDirectory, $"impossible{MatchRosterFile.FileSuffix}");
-		File.WriteAllText(path, "realm-match-roster 5\noptions\t2=99\n1\t1001\tHost\t1\tTeam 1\t0\t2\tVale\n");
+		File.WriteAllText(path, "realm-match-roster 6\nshroud\t0\nsettings\t2-99\n1\t1001\tHost\t1\tTeam 1\t0\t2\tVale\n");
 
 		Assert.That(
-			MatchRosterFile.TryRead(path, out _, out _, out string error),
+			MatchRosterFile.TryRead(path, out _, out _, out _, out string error),
 			Is.False,
-			"A setting no match could play is refused rather than clamped into a number the host never asked for.");
-		Assert.That(error, Does.Contain("could not play"), "The refusal says the value is outside what the option allows.");
+			"A setting entry that is not an identifier and a value is refused rather than read as a setting nobody stated.");
+		Assert.That(error, Does.Contain("not an identifier and a value"), "The refusal says what the entry was missing.");
 	}
 
 	[Test]
@@ -97,17 +97,16 @@ public class MatchRosterOptionTests
 		MeleeTestMaps.RequireMaps();
 
 		string path = Path.Combine(_workDirectory, $"match{MatchRosterFile.FileSuffix}");
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.MaximumBuildingDraftCount, 1);
-		options.Set(MatchOption.ShroudMode, (int)MatchShroudMode.Revealed);
-		MatchRosterFile.Write(path, new[] { new MatchRosterSeat(1, 1001, "Vale", 1, "Team 1", false), new MatchRosterSeat(2, 1002, "Sable", 2, "Team 2", false) }, options);
+		var settings = new LobbySettingSet();
+		settings.Set(MeleeLobbySettings.DraftOptions, 1);
+		MatchRosterFile.Write(path, new[] { new MatchRosterSeat(1, 1001, "Vale", 1, "Team 1", false), new MatchRosterSeat(2, 1002, "Sable", 2, "Team 2", false) }, MatchShroudMode.None, settings);
 
-		Assert.That(MatchRosterFile.TryRead(path, out _, out MatchOptionSet read, out string error), Is.True, error);
+		Assert.That(MatchRosterFile.TryRead(path, out _, out MatchShroudMode readShroudMode, out LobbySettingSet read, out string error), Is.True, error);
 
-		using MeleeMatch match = MeleeMatch.StartDuel(matchOptions: read);
+		using MeleeMatch match = MeleeMatch.StartDuel(lobbySettings: read, shroudMode: readShroudMode);
 
-		Assert.That(match.Api.GetMatchOption(MatchOption.MaximumBuildingDraftCount), Is.EqualTo(1), "The script reads the draw size the roster states.");
-		Assert.That(match.Simulation.Map.Simulation.ShroudDisabled, Is.True, "The vision mode the roster states stands over the one the map states.");
+		Assert.That(match.Api.GetLobbySetting(MeleeLobbySettings.DraftOptions), Is.EqualTo(1), "The script reads the draw size the roster states.");
+		Assert.That(match.Simulation.Map.Simulation.ShroudDisabled, Is.True, "The shroud mode the roster states stands over the one the map states.");
 
 		DraftOffer offer = match.BeginConstruction(1, FirstSite);
 		Assert.That(offer.AbilityIds.Length, Is.EqualTo(1), "The draw the roster configured offers exactly one building.");

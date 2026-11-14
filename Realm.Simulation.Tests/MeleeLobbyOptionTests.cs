@@ -29,10 +29,10 @@ public class MeleeLobbyOptionTests
 	[Test]
 	public void TheHostSetsHowManyBuildingOptionsADrawOffers()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.MaximumBuildingDraftCount, 1);
+		var options = new LobbySettingSet();
+		options.Set(MeleeLobbySettings.DraftOptions, 1);
 		MeleeTestMaps.RequireMaps();
-		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match = MeleeMatch.StartDuel(lobbySettings: options);
 
 		DraftOffer offer = _match.BeginConstruction(1, FirstSite);
 
@@ -42,10 +42,10 @@ public class MeleeLobbyOptionTests
 	[Test]
 	public void TheHostSetsTheBuildingSupply()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.MaximumBuildingSupply, 1);
+		var options = new LobbySettingSet();
+		options.Set(MeleeLobbySettings.BuildingSupply, 1);
 		MeleeTestMaps.RequireMaps();
-		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match = MeleeMatch.StartDuel(lobbySettings: options);
 
 		UnitId firstBuilding = _match.PlaceDraftBuilding(FirstSite);
 		Assert.That(_match.IsAlive(firstBuilding), Is.True, "The first construction has to be placed.");
@@ -61,10 +61,10 @@ public class MeleeLobbyOptionTests
 	[Test]
 	public void TheHostMultipliesStoredProductions()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.ProductionMultiplierPercent, 200);
+		var options = new LobbySettingSet();
+		options.Set(MeleeLobbySettings.ProductionPercent, 200);
 		MeleeTestMaps.RequireMaps();
-		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match = MeleeMatch.StartDuel(lobbySettings: options);
 
 		UnitId building = _match.PlaceCompletedBuilding(FirstSite);
 		string templateId = _match.TemplateOf(building);
@@ -77,10 +77,10 @@ public class MeleeLobbyOptionTests
 	[Test]
 	public void TheHostMultipliesSoldierCapacity()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.CapacityMultiplierPercent, 200);
+		var options = new LobbySettingSet();
+		options.Set(MeleeLobbySettings.CapacityPercent, 200);
 		MeleeTestMaps.RequireMaps();
-		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match = MeleeMatch.StartDuel(lobbySettings: options);
 
 		UnitId building = _match.PlaceCompletedBuilding(FirstSite);
 		string templateId = _match.TemplateOf(building);
@@ -110,10 +110,10 @@ public class MeleeLobbyOptionTests
 	[Test]
 	public void OpenPoolDraftingKeepsAPickedBuildingAvailable()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.OpenPoolDrafting, 1);
+		var options = new LobbySettingSet();
+		options.Set(MeleeLobbySettings.OpenPoolDrafting, 1);
 		MeleeTestMaps.RequireMaps();
-		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match = MeleeMatch.StartDuel(lobbySettings: options);
 		_match.SetWood(1, 500f);
 		_match.SetWood(2, 500f);
 
@@ -130,11 +130,11 @@ public class MeleeLobbyOptionTests
 	[Test]
 	public void MirroredDraftOffersEveryPlayerTheSameBuildings()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.MirroredAutoDraft, 1);
-		options.Set(MatchOption.MaximumBuildingDraftCount, 2);
+		var options = new LobbySettingSet();
+		options.Set(MeleeLobbySettings.MirroredDraft, 1);
+		options.Set(MeleeLobbySettings.DraftOptions, 2);
 		MeleeTestMaps.RequireMaps();
-		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match = MeleeMatch.StartDuel(lobbySettings: options);
 		_match.SetWood(1, 500f);
 		_match.SetWood(2, 500f);
 
@@ -149,10 +149,8 @@ public class MeleeLobbyOptionTests
 	[Test]
 	public void TheHostRevealsTheBoardToEveryPlayer()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.ShroudMode, (int)MatchShroudMode.Revealed);
 		MeleeTestMaps.RequireMaps();
-		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match = MeleeMatch.StartDuel(shroudMode: MatchShroudMode.None);
 
 		Assert.That(_match.Simulation.Map.Simulation.ShroudDisabled, Is.True, "A host that revealed the board leaves the authority publishing every unit to every peer.");
 	}
@@ -163,7 +161,7 @@ public class MeleeLobbyOptionTests
 		MeleeTestMaps.RequireMaps();
 		_match = MeleeMatch.StartDuel();
 
-		Assert.That(_match.Simulation.MatchOptions.IsEmpty, Is.True, "A lobby that configured nothing states no option at all.");
+		Assert.That(_match.Simulation.LobbySettings.IsEmpty, Is.True, "A lobby that configured nothing states no setting at all.");
 		Assert.That(_match.Simulation.Map.Simulation.ShroudDisabled, Is.False, "The map's own shroud mode applies when the host states none.");
 
 		DraftOffer offer = _match.BeginConstruction(1, FirstSite);
@@ -173,13 +171,13 @@ public class MeleeLobbyOptionTests
 	[Test]
 	public void TheAuthorityReportsAnOptionBackToTheScript()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.MaximumUniqueBuildingInstances, 4);
+		var options = new LobbySettingSet();
+		options.Set(MeleeLobbySettings.BuildingCopies, 4);
 		MeleeTestMaps.RequireMaps();
-		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match = MeleeMatch.StartDuel(lobbySettings: options);
 
-		Assert.That(_match.Api.GetMatchOption(MatchOption.MaximumUniqueBuildingInstances), Is.EqualTo(4), "The script reads the value the host set.");
-		Assert.That(_match.Api.GetMatchOption(MatchOption.CapacityMultiplierPercent), Is.Zero, "An option the host left alone answers zero, so the map's own default applies.");
-		Assert.That(_match.Api.MatchOptions.Get(MatchOption.MaximumUniqueBuildingInstances), Is.EqualTo(4), "The authority holds the options the lobby configured.");
+		Assert.That(_match.Api.GetLobbySetting(MeleeLobbySettings.BuildingCopies), Is.EqualTo(4), "The script reads the value the host set.");
+		Assert.That(_match.Api.GetLobbySetting(MeleeLobbySettings.CapacityPercent), Is.Zero, "A setting the host left alone answers zero, so the map's own default applies.");
+		Assert.That(_match.Simulation.LobbySettings.Get(MeleeLobbySettings.BuildingCopies), Is.EqualTo(4), "The authority holds the settings the lobby configured.");
 	}
 }

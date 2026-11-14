@@ -17,8 +17,6 @@ public class ServerLobbyAPI : ILobbyAPI
 		_roster = roster;
 	}
 
-	public int MaximumPlayerCount => _roster.MaximumPlayerCount;
-
 	public int SlotCount => EcsSharedMemory.MAX_PLAYERS;
 
 	public int FactionCount => _roster.FactionCount;
@@ -83,13 +81,41 @@ public class ServerLobbyAPI : ILobbyAPI
 		return _roster.TryGetSeat(playerIndex, out LobbySeat seat) && seat.IsHost;
 	}
 
-	public void SetMaximumPlayerCount(int maximumPlayerCount) => _roster.TrySetMaximumPlayerCount(maximumPlayerCount);
+	public bool IsSlotOpen(int playerIndex) => _roster.IsSlotOpen(playerIndex);
+
+	public bool SetSlotOpen(int playerIndex, bool open) => _roster.TrySetSlotOpen(playerIndex, open);
+
+	public bool SetOpenSlotCount(int count) => _roster.TrySetOpenSlotCount(count);
+
+	public bool AddMatchSetting(int settingId, LobbySettingControl control, string label, string tooltip, int defaultValue)
+	{
+		if (settingId <= 0 || string.IsNullOrWhiteSpace(label)) return false;
+
+		_roster.DeclareMatchSetting(settingId, control, label, tooltip ?? string.Empty, defaultValue);
+		return true;
+	}
+
+	public bool AddMatchSettingOption(int settingId, string optionLabel)
+	{
+		if (settingId <= 0 || string.IsNullOrWhiteSpace(optionLabel)) return false;
+
+		_roster.DeclareMatchSettingOption(settingId, optionLabel);
+		return true;
+	}
+
+	public bool SetMatchSettingRange(int settingId, int minimum, int maximum)
+	{
+		if (settingId <= 0 || minimum < 0 || maximum < minimum) return false;
+
+		_roster.DeclareMatchSettingRange(settingId, minimum, maximum);
+		return true;
+	}
+
+	public int GetMatchSettingValue(int settingId) => _roster.GetMatchSettingValue(settingId);
 
 	public void SetTeamsTogetherDefault(bool teamsTogether) => _roster.SetTeamsTogetherDefault(teamsTogether);
 
 	public void SetShroudModeDefault(MatchShroudMode shroudMode) => _roster.SetShroudModeDefault(shroudMode);
-
-	public void SetMatchSettingHidden(LobbySetting setting, bool hidden) => _roster.SetMatchSettingHidden(setting, hidden);
 
 	public void SetSpectatorDelayDefault(bool enabled) => _roster.SetSpectatorDelayDefault(enabled);
 

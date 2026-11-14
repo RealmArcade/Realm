@@ -100,10 +100,10 @@ public class MeleeInteractionTests
 	[Test]
 	public void CouriersKnotShortensTheWorkerChargeClock()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.MirroredAutoDraft, 1);
-		using MeleeMatch plain = MeleeMatch.StartDuel(matchOptions: options);
-		using MeleeMatch knotted = MeleeMatch.StartDuel(matchOptions: options);
+		var options = new LobbySettingSet();
+		options.Set(MeleeLobbySettings.MirroredDraft, 1);
+		using MeleeMatch plain = MeleeMatch.StartDuel(lobbySettings: options);
+		using MeleeMatch knotted = MeleeMatch.StartDuel(lobbySettings: options);
 		Assert.That(AddFirstWorkerAndSpendIt(plain), Is.True, "The plain match has to reach its first worker.");
 		Assert.That(AddFirstWorkerAndSpendIt(knotted), Is.True, "The relic match has to reach its first worker.");
 		Assert.That(knotted.AddRelic(1, CouriersKnot), Is.True, "The hero has to be able to carry the Courier's Knot.");
@@ -153,12 +153,12 @@ public class MeleeInteractionTests
 	[Test]
 	public void TheHostSetsHowManyCopiesOfOneBuildingAPlayerMayHold()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.OpenPoolDrafting, 1);
-		options.Set(MatchOption.MirroredAutoDraft, 1);
-		options.Set(MatchOption.MaximumUniqueBuildingInstances, 2);
+		var options = new LobbySettingSet();
+		options.Set(MeleeLobbySettings.OpenPoolDrafting, 1);
+		options.Set(MeleeLobbySettings.MirroredDraft, 1);
+		options.Set(MeleeLobbySettings.BuildingCopies, 2);
 		_match.Dispose();
-		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match = MeleeMatch.StartDuel(lobbySettings: options);
 
 		UnitId first = _match.PlaceCompletedBuilding(SitePosition);
 		string templateId = _match.TemplateOf(first);
@@ -181,10 +181,10 @@ public class MeleeInteractionTests
 	[Test]
 	public void TheDefaultCopyLimitKeepsAnOwnedBuildingOutOfTheNextDraw()
 	{
-		var options = new MatchOptionSet();
-		options.Set(MatchOption.MirroredAutoDraft, 1);
+		var options = new LobbySettingSet();
+		options.Set(MeleeLobbySettings.MirroredDraft, 1);
 		_match.Dispose();
-		_match = MeleeMatch.StartDuel(matchOptions: options);
+		_match = MeleeMatch.StartDuel(lobbySettings: options);
 
 		UnitId first = _match.PlaceCompletedBuilding(SitePosition);
 		string templateId = _match.TemplateOf(first);

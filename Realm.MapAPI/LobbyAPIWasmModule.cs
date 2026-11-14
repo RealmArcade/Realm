@@ -11,9 +11,6 @@ public unsafe class LobbyAPI_WasmModule : ILobbyAPI
 {
 	private static IntPtr SharedMemory => EcsSharedMemory.g_realmSharedMemoryBase;
 
-	/// <summary>How many player slots this lobby currently seats, as the authority last published it.</summary>
-	public int MaximumPlayerCount => EcsSharedMemory.LobbyRosterHeaderAt(SharedMemory)->MaximumPlayerCount;
-
 	/// <summary>
 	///     The number of slots the shared roster carries, which is the highest player index this API accepts. Slots are
 	///     indexed from one, so slot zero is never a player and every index outside one to this value minus one is refused.
@@ -223,26 +220,78 @@ public unsafe class LobbyAPI_WasmModule : ILobbyAPI
 		return slot != null && slot->Host != 0;
 	}
 
-	/// <summary>
-	///     Sets how many players the lobby seats. A count of zero or less places no order; the authority clamps it to the
-	///     seats its map may serve and refuses a count smaller than the players already sitting in it.
-	/// </summary>
-	/// <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
-	public void SetMaximumPlayerCount(int maximumPlayerCount)
+	/// <summary>Whether the slot is open to a player, as the authority last published the roster.</summary>
+	/// <param name="playerIndex">The player slot.</param>
+	/// <returns>Whether the slot is open, or false for a slot outside the roster.</returns>
+	public bool IsSlotOpen(int playerIndex)
 	{
-		if (maximumPlayerCount <= 0) return;
-		LobbyImports.SetMaximumPlayerCount(maximumPlayerCount);
+		PlayerRosterSlot* slot = ResolveSlot(playerIndex);
+		return slot != null && slot->Open != 0;
 	}
 
 	/// <summary>
-	///     States whether the lobby's Teams Together checkbox starts checked, which is how a map that plays its teams as
-	///     sides says so. The host keeps the last word, so an order placed after the host has changed the checkbox leaves
-	///     the host's choice alone.
+	///     Opens or closes one player slot. A slot outside the roster places no order.
 	/// </summary>
-	/// <param name="teamsTogether">Whether the checkbox starts checked.</param>
-	public void SetMatchSettingHidden(LobbySetting setting, bool hidden)
+	/// <param name="playerIndex">The player slot.</param>
+	/// <param name="open">Whether the slot accepts a player.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	public bool SetSlotOpen(int playerIndex, bool open)
 	{
-		LobbyImports.SetMatchSettingHidden((int)setting, hidden ? 1 : 0);
+		if (!IsSlotIndex(playerIndex)) return false;
+		return LobbyImports.SetSlotOpen(playerIndex, open);
+	}
+
+	/// <summary>
+	///     Opens the first slots up to a count and closes the rest. A count outside the roster places no order.
+	/// </summary>
+	/// <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	public bool SetOpenSlotCount(int count)
+	{
+		if (count <= 0 || count >= EcsSharedMemory.LobbyRosterHeaderAt(SharedMemory)->SlotCount) return false;
+		return LobbyImports.SetOpenSlotCount(count);
+	}
+
+	/// <summary>Declares one match setting of the map's own, with the control and default it is offered with.</summary>
+	/// <param name="settingId">The identifier the map declares the setting under.</param>
+	/// <param name="control">How the host edits the setting.</param>
+	/// <param name="label">The label the host reads.</param>
+	/// <param name="tooltip">The sentence that explains the setting, or empty for none.</param>
+	/// <param name="defaultValue">The value the setting holds until the host changes it.</param>
+	/// <returns>Whether the authority holds the declaration afterwards.</returns>
+	public bool AddMatchSetting(int settingId, LobbySettingControl control, string label, string tooltip, int defaultValue)
+	{
+		if (settingId <= 0 || string.IsNullOrWhiteSpace(label)) return false;
+		return LobbyImports.AddMatchSetting(settingId, (int)control, label, tooltip ?? string.Empty, defaultValue);
+	}
+
+	/// <summary>Adds one option to a setting declared as a choice.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="optionLabel">The text the host reads in the dropdown.</param>
+	/// <returns>Whether the option is part of the setting afterwards.</returns>
+	public bool AddMatchSettingOption(int settingId, string optionLabel)
+	{
+		if (settingId <= 0 || string.IsNullOrWhiteSpace(optionLabel)) return false;
+		return LobbyImports.AddMatchSettingOption(settingId, optionLabel);
+	}
+
+	/// <summary>States the values a count setting may hold.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="minimum">The lowest value the host may choose.</param>
+	/// <param name="maximum">The highest value the host may choose.</param>
+	/// <returns>Whether the authority holds the range afterwards.</returns>
+	public bool SetMatchSettingRange(int settingId, int minimum, int maximum)
+	{
+		if (settingId <= 0 || minimum < 0 || maximum < minimum) return false;
+		return LobbyImports.SetMatchSettingRange(settingId, minimum, maximum);
+	}
+
+	/// <summary>Reads the value the host chose for one of the map's own settings.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <returns>The value the setting holds, or zero for a setting the lobby holds no value for.</returns>
+	public int GetMatchSettingValue(int settingId)
+	{
+		return settingId <= 0 ? 0 : LobbyImports.GetMatchSettingValue(settingId);
 	}
 
 	public void SetSpectatorDelayDefault(bool enabled)

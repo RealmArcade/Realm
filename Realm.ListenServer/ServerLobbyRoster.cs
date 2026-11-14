@@ -50,7 +50,6 @@ public class ServerLobbyRoster
 	/// </summary>
 	public MatchShroudMode ShroudMode => _shroudMode;
 
-	public int MaximumPlayerCount => _lobby.MaximumPlayers;
 
 	public void SetTeamCount(int teamCount)
 	{
@@ -154,17 +153,59 @@ public class ServerLobbyRoster
 		return _lobby.ApplyRosterColor(slot, colorRgba);
 	}
 
-	public bool TrySetMaximumPlayerCount(int maximumPlayerCount)
+	/// <summary>Answers whether one player slot accepts a player.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>Whether the slot is open.</returns>
+	public bool IsSlotOpen(int slot) => _lobby.IsSlotOpen(slot);
+
+	/// <summary>Reads the value one of the settings the lobby's map declared currently holds.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <returns>The value the setting holds, or zero when the map declared no such setting.</returns>
+	public int GetMatchSettingValue(int settingId) => _lobby.GetMatchSettingValue(settingId);
+
+	/// <summary>Opens or closes one player slot, which is how a map states the seats its board is authored for.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="open">Whether the slot accepts a player.</param>
+	/// <returns>Whether the lobby offers that slot afterwards.</returns>
+	public bool TrySetSlotOpen(int slot, bool open)
 	{
-		return _lobby.TrySetMaximumPlayers(maximumPlayerCount);
+		return _lobby.TrySetSlotOpen(slot, open);
 	}
 
-	/// <summary>Hides one match setting from the lobby's host, or shows it again.</summary>
-	/// <param name="setting">The setting being hidden or shown.</param>
-	/// <param name="hidden">Whether the setting is hidden.</param>
-	public void SetMatchSettingHidden(LobbySetting setting, bool hidden)
+	/// <summary>Opens the first slots up to a count and closes the rest.</summary>
+	/// <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+	/// <returns>Whether the lobby offers those slots afterwards.</returns>
+	public bool TrySetOpenSlotCount(int count)
 	{
-		_lobby.SetSettingHidden(setting, hidden);
+		return _lobby.TrySetOpenSlotCount(count);
+	}
+
+	/// <summary>Declares one match setting of the map's own, which is what its host is then offered.</summary>
+	/// <param name="settingId">The identifier the map declares the setting under.</param>
+	/// <param name="control">How the host edits the setting.</param>
+	/// <param name="label">The label the host reads.</param>
+	/// <param name="tooltip">The sentence that explains the setting, or empty for none.</param>
+	/// <param name="defaultValue">The value the setting holds until the host changes it.</param>
+	public void DeclareMatchSetting(int settingId, LobbySettingControl control, string label, string tooltip, int defaultValue)
+	{
+		_lobby.DeclareMatchSetting(settingId, control, label, tooltip, defaultValue);
+	}
+
+	/// <summary>Adds one option to a setting the map declared as a choice.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="optionLabel">The text the host reads in the dropdown.</param>
+	public void DeclareMatchSettingOption(int settingId, string optionLabel)
+	{
+		_lobby.DeclareMatchSettingOption(settingId, optionLabel);
+	}
+
+	/// <summary>States the values a count setting the map declared may hold.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="minimum">The lowest value the host may choose.</param>
+	/// <param name="maximum">The highest value the host may choose.</param>
+	public void DeclareMatchSettingRange(int settingId, int minimum, int maximum)
+	{
+		_lobby.DeclareMatchSettingRange(settingId, minimum, maximum);
 	}
 
 	/// <summary>States whether late joiners wait before the board is described to them.</summary>
@@ -313,7 +354,7 @@ public class ServerLobbyRoster
 		if (sharedMemoryBase == IntPtr.Zero) return;
 
 		LobbyRosterHeader* header = EcsSharedMemory.LobbyRosterHeaderAt(sharedMemoryBase);
-		header->MaximumPlayerCount = _lobby.MaximumPlayers;
+		header->OpenSlotCount = _lobby.OpenSlotCount;
 		header->FactionCount = _factions.Count;
 		header->TeamCount = _teamCount;
 		header->SlotCount = EcsSharedMemory.MAX_PLAYERS;
@@ -341,6 +382,7 @@ public class ServerLobbyRoster
 			entry->FactionLocked = (byte)(_factionLocked[slot] ? 1 : 0);
 			entry->TeamLocked = (byte)(_teamLocked[slot] ? 1 : 0);
 			entry->ColorLocked = (byte)(_colorLocked[slot] ? 1 : 0);
+			entry->Open = (byte)(_lobby.IsSlotOpen(slot) ? 1 : 0);
 
 			if (!_lobby.TryGetSeatBySlot(slot, out LobbySeat seat))
 			{

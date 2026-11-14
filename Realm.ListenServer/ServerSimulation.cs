@@ -44,9 +44,9 @@ public class ServerSimulation : IDisposable
 	private bool _disposed;
 	private long _navMeshRebakeTick = -1;
 
-	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null, MatchOptionSet? matchOptions = null, IReadOnlyList<string?>? teamSpawnCoordinates = null)
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null, MatchShroudMode shroudMode = MatchShroudMode.FromMap, LobbySettingSet? lobbySettings = null, IReadOnlyList<string?>? teamSpawnCoordinates = null)
 	{
-		MatchOptions = matchOptions ?? new MatchOptionSet();
+		LobbySettings = lobbySettings ?? new LobbySettingSet();
 		_map = map;
 		_hasRoster = roster is { Count: > 0 };
 		if (roster != null)
@@ -60,10 +60,9 @@ public class ServerSimulation : IDisposable
 		map.Simulation.CheatsEnabled = cheatsEnabled;
 		map.Simulation.HostPlayerSlot = hostPlayerSlot;
 
-		// Shroud is the one option the authority evaluates itself rather than handing to the map: a host that revealed the
-		// board leaves the authority publishing every unit to every peer instead of only what each peer can see.
-		MatchShroudMode shroudMode = MatchOptions.GetShroudMode();
-		if (shroudMode != MatchShroudMode.FromMap) map.Simulation.ShroudDisabled = shroudMode == MatchShroudMode.Revealed;
+		// Shroud is the one core setting the authority evaluates itself rather than handing to the map: a lobby that revealed
+		// the board leaves the authority publishing every unit to every peer instead of only what each peer can see.
+		if (shroudMode != MatchShroudMode.FromMap) map.Simulation.ShroudDisabled = shroudMode == MatchShroudMode.None;
 
 		// The stream the simulation and its script draw from is established here, by the owner of the match, before
 		// anything can step or describe it.
@@ -82,12 +81,12 @@ public class ServerSimulation : IDisposable
 		_repair = new BuildingRepairTick(map.Simulation, map.Catalog);
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
-		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, MatchOptions, teamSpawnCoordinates);
+		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, LobbySettings, teamSpawnCoordinates);
 		_commands.ScriptAbilityRulesProvider = spellId =>
 			_script.Api.Abilities.TryGetRules(spellId, out AbilityRules scriptRules) ? scriptRules : null;
 		if (roster != null) ApplyRosterBotDifficulties(roster);
 		_script.Api.Metrics = Metrics;
-		if (!MatchOptions.IsEmpty) log.Write($"the lobby configured this match: {MatchOptions.Describe()}");
+		if (!LobbySettings.IsEmpty) log.Write($"the lobby configured this match: {LobbySettings.Describe()}");
 		_commands.ConsumableChangedSink = (unitId, consumableId) => _script.Api.RaiseConsumableChanged(unitId, consumableId);
 		_commands.ConstructionCancelledSink = site => _script.Api.Abilities.ForgetUnit(site.Id);
 		_snapshots.Abilities = _script.Api.Abilities;
@@ -142,8 +141,8 @@ public class ServerSimulation : IDisposable
 		if (!map.World.Has<ScriptZonesState>(worldEntity)) map.World.Add(worldEntity, new ScriptZonesState(null));
 	}
 
-	/// <summary>Gets the parameters the lobby's host configured for this match.</summary>
-	public MatchOptionSet MatchOptions { get; }
+	/// <summary>Gets the values the lobby's host chose for the match settings the map declared.</summary>
+	public LobbySettingSet LobbySettings { get; }
 
 	public LoadedMap Map => _map;
 

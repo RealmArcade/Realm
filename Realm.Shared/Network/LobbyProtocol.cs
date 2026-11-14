@@ -39,11 +39,17 @@ public enum LobbyCommandKind : byte
 
 	SetComputerDifficulty = 16,
 
-	/// <summary>Sets one of the parameters the host configures for the match, in <see cref="LobbyCommand.Option" />.</summary>
-	SetMatchOption = 17,
+	/// <summary>Sets one match setting the lobby's map declared, named by <see cref="LobbyCommand.SettingId" />.</summary>
+	SetLobbySetting = 17,
 
 	/// <summary>Sets whether the match groups each team's players into consecutive player slots, in <see cref="LobbyCommand.Flag" />.</summary>
-	SetTeamsTogether = 18
+	SetTeamsTogether = 18,
+
+	/// <summary>Opens or closes one player slot, named by <see cref="LobbyCommand.Slot" /> and opened when <see cref="LobbyCommand.Flag" /> is set.</summary>
+	SetSlotOpen = 19,
+
+	/// <summary>Chooses the shroud mode the match plays, in <see cref="LobbyCommand.Progress" />.</summary>
+	SetShroudMode = 20
 }
 
 /// <summary>
@@ -170,7 +176,16 @@ public partial struct LobbyStateMessage
 	public LobbySeat[] Seats;
 	public string MapName;
 	public string MapVersion;
-	public int MaxPlayers;
+
+	/// <summary>How many player slots the lobby carries, which is every row its screens draw.</summary>
+	public int SlotCount;
+
+	/// <summary>
+	///     Which player slots the host left open, indexed by slot. A closed slot holds no player and accepts none, and a
+	///     map that stated no slot closed leaves every slot open.
+	/// </summary>
+	public bool[] OpenSlots;
+
 	public string[] Factions;
 	public int TeamCount;
 	public bool SpectatorDelay;
@@ -178,8 +193,11 @@ public partial struct LobbyStateMessage
 	public bool CountdownActive;
 	public int CountdownRemainingSeconds;
 
-	/// <summary>The parameters the host configured for the match, which every seat reads to show them.</summary>
-	public Realm.Shared.Simulation.MatchOptionValue[] Options;
+	/// <summary>
+	///     The match settings this lobby's map declared, which every seat reads to show them and only the host may change.
+	///     A map that declared none leaves the list empty, and the lobby then offers the core settings alone.
+	/// </summary>
+	public LobbyMatchSettingMessage[] Settings;
 
 	public long Revision;
 
@@ -195,13 +213,37 @@ public partial struct LobbyStateMessage
 	///     fields a peer already reads keep their wire position.
 	/// </summary>
 	public int ShroudMode;
+}
 
-	/// <summary>
-	///     The settings this lobby's map hid, as the mask <see cref="Realm.Ecs.LobbySettings" /> reads. A hidden setting is
-	///     not offered to the host and an order that changes it is refused, because a map that hides a setting is a map whose
-	///     board the setting does not apply to.
-	/// </summary>
-	public int HiddenSettings;
+/// <summary>
+///     One match setting a lobby's map declared, as the lobby publishes it to the screens sitting in it.
+/// </summary>
+[MemoryPackable]
+public partial struct LobbyMatchSettingMessage
+{
+	/// <summary>The identifier the map declared the setting under.</summary>
+	public int SettingId;
+
+	/// <summary>The label the host reads.</summary>
+	public string Label;
+
+	/// <summary>The sentence that explains the setting, empty when the map offered none.</summary>
+	public string Tooltip;
+
+	/// <summary>The <see cref="Realm.Ecs.LobbySettingControl" /> the setting is edited with.</summary>
+	public int Control;
+
+	/// <summary>The value the host chose, or the value the map stated while nobody changed it.</summary>
+	public int Value;
+
+	/// <summary>The lowest value a count may hold.</summary>
+	public int Minimum;
+
+	/// <summary>The highest value a count may hold.</summary>
+	public int Maximum;
+
+	/// <summary>The options a choice offers, in the order their indices name them.</summary>
+	public string[] Options;
 }
 
 [MemoryPackable]
@@ -229,13 +271,14 @@ public partial struct LobbyCommand
 
 	public int Progress;
 
-	/// <summary>The <see cref="Realm.Ecs.MatchOption" /> a <see cref="LobbyCommandKind.SetMatchOption" /> sets.</summary>
-	public int Option;
+	/// <summary>The identifier a <see cref="LobbyCommandKind.SetLobbySetting" /> sets, as the map declared it.</summary>
+	public int SettingId;
 
-	/// <summary>
-	///     The value the option is set to, where zero returns the option to the map's own default.
-	/// </summary>
-	public int OptionValue;
+	/// <summary>The value the setting is set to.</summary>
+	public int SettingValue;
+
+	/// <summary>The player slot a <see cref="LobbyCommandKind.SetSlotOpen" /> opens or closes.</summary>
+	public int Slot;
 }
 
 [MemoryPackable]
@@ -318,11 +361,19 @@ public static class LobbyLimits
 	/// <summary>The ceiling on the warning a map may ask its lobby's host to read before the match starts.</summary>
 	public const int MaximumStartWarningLength = 300;
 
-	public const int MaximumSeats = 16;
+	/// <summary>
+	///     How many player slots a lobby carries. It is the shared roster's own ceiling minus the neutral slot, so the
+	///     default lobby shows one row per player a match could ever seat.
+	/// </summary>
+	public const int MaximumSeats = Realm.Ecs.EcsSharedMemory.MAX_PLAYERS - 1;
+
 	public const int CountdownSeconds = 5;
 
-	/// <summary>The number of teams a lobby whose map states none offers, which is the two teams lobbies have always had.</summary>
-	public const int DefaultTeamCount = 2;
+	/// <summary>
+	///     The number of teams a lobby whose map states none offers. Every seat sits on its own team, which is what the
+	///     default free-for-all board offers.
+	/// </summary>
+	public const int DefaultTeamCount = MaximumSeats;
 
 	/// <summary>
 	///     The team name a seat carries while it watches the match instead of playing it. Such a seat holds no player seat,

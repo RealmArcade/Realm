@@ -107,7 +107,48 @@ public partial class LobbyManager : BaseMapTransferNode
 	private const int StunPort = 19302;
 
 	public int ENetPort { get; private set; } = DefaultGamePort;
+
+	/// <summary>
+	///     The player slots the lobby's map states in its metadata, which is the shape a match started from this screen is
+	///     seated with. The lobby itself is sized by the slots it leaves open, which its own rows show.
+	/// </summary>
 	public int MaxPlayers { get; private set; } = MapInfoMetadata.DefaultPlayablePlayerSlots;
+
+	/// <summary>Every player slot the lobby carries, which is the number of rows its screen draws.</summary>
+	public int SlotCount { get; private set; } = LobbyLimits.MaximumSeats;
+
+	/// <summary>How many player slots the lobby leaves open to a player.</summary>
+	public int OpenSlotCount { get; private set; } = LobbyLimits.MaximumSeats;
+
+	/// <summary>Whether one player slot accepts a player, as the lobby last published it.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>Whether the slot is open.</returns>
+	public bool IsSlotOpen(int slot) => slot > 0 && slot < _openSlots.Length && _openSlots[slot];
+
+	/// <summary>
+	///     Answers whether the slot holds nobody and accepts a player, which is where a joining peer or a new computer
+	///     seat is placed.
+	/// </summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>Whether the slot is open and free.</returns>
+	public bool IsSlotFree(int slot) => IsSlotOpen(slot) && !PlayerList.Exists(player => player.Slot == slot);
+
+	/// <summary>How many player slots are open and hold nobody.</summary>
+	public int FreeSlotCount
+	{
+		get
+		{
+			int count = 0;
+			for (int slot = 1; slot < _openSlots.Length; slot++)
+			{
+				if (IsSlotFree(slot)) count++;
+			}
+
+			return count;
+		}
+	}
+
+	private readonly bool[] _openSlots = new bool[Realm.Ecs.EcsSharedMemory.MAX_PLAYERS];
 
 	/// <summary>
 	///     How many seats in this lobby are playing rather than watching. A spectator holds no player seat, so it is not
@@ -188,17 +229,6 @@ public partial class LobbyManager : BaseMapTransferNode
 	///     properties state, which is what a map that never runs a lobby script plays.
 	/// </summary>
 	/// <summary>
-	///     The settings this lobby's map hid, as the mask <see cref="LobbySettings" /> reads. A hidden setting is not offered
-	///     to the host, because the map stated that its board does not play with it.
-	/// </summary>
-	public int HiddenSettings { get; private set; }
-
-	/// <summary>Whether this lobby's map hid one match setting from its host.</summary>
-	/// <param name="setting">The setting being read.</param>
-	/// <returns>Whether the setting is hidden.</returns>
-	public bool IsSettingHidden(LobbySetting setting) => LobbySettings.IsHidden(HiddenSettings, setting);
-
-	/// <summary>
 	///     The display name the lobby waiting to be published was opened with, which is what the registry lists it as.
 	/// </summary>
 	public string HostedMapDisplayName { get; private set; } = string.Empty;
@@ -212,12 +242,12 @@ public partial class LobbyManager : BaseMapTransferNode
 			: MapPropertiesLoader.ReadMapShroudMode(ActiveMapName);
 
 	/// <summary>
-	///     The parameters the lobby's host configured for the match, as the lobby last published them. Every seat shows the
-	///     same list; only the host may change it.
+	///     The match settings this lobby's map declared, as the lobby last published them. Every seat shows the same list;
+	///     only the host may change one, and the map that declared them reads the values.
 	/// </summary>
-	public MatchOptionSet MatchOptions { get; } = new();
+	public List<LobbyMatchSetting> MatchSettings { get; } = new();
 
-	public event Action? MatchOptionsChanged;
+	public event Action? MatchSettingsChanged;
 	public string? LobbyJoinError { get; set; }
 	public string HostStability { get; set; } = "Excellent";
 	public event Action<string>? HostStabilityUpdated;

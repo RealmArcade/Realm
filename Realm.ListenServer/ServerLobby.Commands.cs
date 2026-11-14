@@ -52,22 +52,27 @@ public partial class ServerLobby
 				break;
 			case LobbyCommandKind.SetSpectatorDelay:
 				if (!RequireAdmin(peerId, isAdmin, out _, "change the spectator delay")) return;
-				if (IsSettingHidden(LobbySetting.SpectatorDelay)) return;
 				SetSpectatorDelay(command.Flag);
 				break;
 			case LobbyCommandKind.SetTeamsTogether:
 				if (!RequireAdmin(peerId, isAdmin, out _, "change whether teams sit together")) return;
-				if (IsSettingHidden(LobbySetting.TeamsTogether)) return;
 				Roster?.TrySetTeamsTogether(command.Flag);
+				break;
+			case LobbyCommandKind.SetShroudMode:
+				if (!RequireAdmin(peerId, isAdmin, out _, "change the shroud mode")) return;
+				if (Enum.IsDefined(typeof(MatchShroudMode), command.Progress)) TrySetShroudMode((MatchShroudMode)command.Progress);
+				break;
+			case LobbyCommandKind.SetSlotOpen:
+				if (!RequireAdmin(peerId, isAdmin, out _, "open or close a player slot")) return;
+				TrySetSlotOpen(command.Slot, command.Flag);
 				break;
 			case LobbyCommandKind.SetComputerDifficulty:
 				if (!RequireAdmin(peerId, isAdmin, out _, "change a computer player's difficulty")) return;
 				SetComputerDifficulty(command.TargetPeerId, command.Progress);
 				break;
-			case LobbyCommandKind.SetMatchOption:
+			case LobbyCommandKind.SetLobbySetting:
 				if (!RequireAdmin(peerId, isAdmin, out _, "change the match settings")) return;
-				if (!Enum.IsDefined(typeof(MatchOption), command.Option)) return;
-				TrySetMatchOption((MatchOption)command.Option, command.OptionValue);
+				TrySetLobbySetting(command.SettingId, command.SettingValue);
 				break;
 			case LobbyCommandKind.ReportMapReady:
 				ReportMapReady(sender, command.Flag);

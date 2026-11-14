@@ -55,7 +55,7 @@ public partial class LobbyRoom : Control
 	private ColorPickerPopover? _colorPickerPopover;
 	private RichTextLabel _chatLog = null!;
 	private VBoxContainer _playersContainer = null!;
-	private readonly Dictionary<int, PanelContainer> _playerRowsByPeerId = new();
+	private readonly Dictionary<int, PanelContainer> _playerRowsBySlot = new();
 	private Label _inviteFeedback = null!;
 	private Panel? _countdownPopup;
 	private Label? _countdownTextLabel;
@@ -105,7 +105,6 @@ public partial class LobbyRoom : Control
 
 	private static int TeamCount => Math.Max(1, GameContext.Lobby?.LobbyTeamCount ?? LobbyLimits.DefaultTeamCount);
 
-	private int _renderedTeamCount = -1;
 
 	public override void _Ready()
 	{
@@ -226,7 +225,7 @@ public partial class LobbyRoom : Control
 		}
 
 		CreateMatchSettingsUI();
-		Lobby.MatchOptionsChanged += OnMatchOptionsChanged;
+		Lobby.MatchSettingsChanged += OnMatchSettingsChanged;
 		Lobby.TeamsTogetherChanged += OnTeamsTogetherChanged;
 		Lobby.SpectatorDelayChanged += OnSpectatorDelayChanged;
 
@@ -382,7 +381,7 @@ public partial class LobbyRoom : Control
 
 			Lobby.SpectatorDelayChanged -= OnSpectatorDelayChanged;
 			Lobby.TeamsTogetherChanged -= OnTeamsTogetherChanged;
-			Lobby.MatchOptionsChanged -= OnMatchOptionsChanged;
+			Lobby.MatchSettingsChanged -= OnMatchSettingsChanged;
 
 			Lobby.MapDownloadProgressChanged -= OnMapDownloadProgress;
 			Lobby.MapDownloadCompleted -= OnMapDownloadCompleted;
@@ -516,18 +515,28 @@ public partial class LobbyRoom : Control
 		UpdateFactionColumnVisibility();
 
 		var existingRows = GetExistingPlayerRows();
-		if (_renderedTeamCount != TeamCount)
-		{
-			foreach (var row in existingRows.Values) ReleasePlayerRow(row);
+		int slotCount = Lobby.SlotCount;
 
-			existingRows.Clear();
-			_playerRowsByPeerId.Clear();
-			_renderedTeamCount = TeamCount;
+		for (int slot = 1; slot <= slotCount; slot++)
+		{
+			PlayerInfo? player = FindPlayerInSlot(slot);
+			if (existingRows.TryGetValue(slot, out var row))
+			{
+				UpdatePlayerRow(row, slot, player);
+				_playersContainer.MoveChild(row, slot - 1);
+			}
+			else
+			{
+				var newRow = CreatePlayerRow(slot, player);
+				newRow.Name = $"PlayerRow_Slot{slot}";
+				_playersContainer.AddChild(newRow);
+				_playersContainer.MoveChild(newRow, slot - 1);
+				existingRows[slot] = newRow;
+				_playerRowsBySlot[slot] = newRow;
+			}
 		}
 
-		var activePeerIds = SyncPlayerRows(existingRows);
-
-		CleanupStalePlayerRows(existingRows, activePeerIds);
+		ReleaseStalePlayerRows(existingRows, slotCount);
 
 		UpdateAddBotAvailability();
 		SetupStartButton();
@@ -535,12 +544,12 @@ public partial class LobbyRoom : Control
 
 	private void UpdateAddBotAvailability()
 	{
-		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({Lobby.PlayingPlayerCount}/{Lobby.MaxPlayers})";
+		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({Lobby.PlayingPlayerCount}/{Lobby.OpenSlotCount})";
 
 		if (_addBotButton == null || !GodotObject.IsInstanceValid(_addBotButton)) return;
 		if (!Lobby.IsHost) return;
 
-		_addBotButton.Disabled = Lobby.PlayingPlayerCount >= Lobby.MaxPlayers;
+		_addBotButton.Disabled = Lobby.FreeSlotCount == 0;
 	}
 
 	private bool CheckHostVersionMismatch()
@@ -569,15 +578,15 @@ public partial class LobbyRoom : Control
 
 	private Dictionary<int, PanelContainer> GetExistingPlayerRows()
 	{
-		var existingRows = new Dictionary<int, PanelContainer>(_playerRowsByPeerId.Count);
-		foreach (var pair in _playerRowsByPeerId)
+		var existingRows = new Dictionary<int, PanelContainer>(_playerRowsBySlot.Count);
+		foreach (var pair in _playerRowsBySlot)
 		{
 			if (!GodotObject.IsInstanceValid(pair.Value)) continue;
 			existingRows[pair.Key] = pair.Value;
 		}
 
-		_playerRowsByPeerId.Clear();
-		foreach (var pair in existingRows) _playerRowsByPeerId[pair.Key] = pair.Value;
+		_playerRowsBySlot.Clear();
+		foreach (var pair in existingRows) _playerRowsBySlot[pair.Key] = pair.Value;
 
 		return existingRows;
 	}
@@ -590,44 +599,31 @@ public partial class LobbyRoom : Control
 		row.QueueFree();
 	}
 
-	private HashSet<int> SyncPlayerRows(Dictionary<int, PanelContainer> existingRows)
+	/// <summary>Releases every row above the number of slots the lobby now carries.</summary>
+	/// <param name="existingRows">The rows that were on screen, keyed by slot.</param>
+	/// <param name="slotCount">The number of slots the lobby carries.</param>
+	private void ReleaseStalePlayerRows(Dictionary<int, PanelContainer> existingRows, int slotCount)
 	{
-		var activePeerIds = new HashSet<int>();
-
-		for (int i = 0; i < Lobby.PlayerList.Count; i++)
+		var stale = new List<int>();
+		foreach (var pair in existingRows)
 		{
-			var player = Lobby.PlayerList[i];
-			activePeerIds.Add(player.PeerId);
-
-			if (existingRows.TryGetValue(player.PeerId, out var row))
-			{
-				UpdatePlayerRow(row, player);
-				_playersContainer.MoveChild(row, i);
-			}
-			else
-			{
-				var newRow = CreatePlayerRow(player);
-				newRow.Name = $"PlayerRow_{player.PeerId}";
-				_playersContainer.AddChild(newRow);
-				_playersContainer.MoveChild(newRow, i);
-				existingRows[player.PeerId] = newRow;
-				_playerRowsByPeerId[player.PeerId] = newRow;
-			}
+			if (pair.Key <= slotCount) continue;
+			stale.Add(pair.Key);
 		}
 
-		return activePeerIds;
+		for (int index = 0; index < stale.Count; index++)
+		{
+			_playerRowsBySlot.Remove(stale[index]);
+			ReleasePlayerRow(existingRows[stale[index]]);
+		}
 	}
 
-	private void CleanupStalePlayerRows(Dictionary<int, PanelContainer> existingRows, HashSet<int> activePeerIds)
+	/// <summary>Answers the seat one player slot holds, or nothing while nobody sits in it.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>The seat in that slot, when one is seated.</returns>
+	private static PlayerInfo? FindPlayerInSlot(int slot)
 	{
-		foreach (var kvp in existingRows)
-		{
-			if (!activePeerIds.Contains(kvp.Key))
-			{
-				_playerRowsByPeerId.Remove(kvp.Key);
-				ReleasePlayerRow(kvp.Value);
-			}
-		}
+		return Lobby.PlayerList.Find(candidate => candidate.Slot == slot);
 	}
 
 
@@ -780,7 +776,7 @@ public partial class LobbyRoom : Control
 		_matchSettingsPanel = new MatchSettingsPanel();
 		_matchSettingsPanel.Closed += CloseMatchSettingsPanel;
 		AddChild(_matchSettingsPanel);
-		_matchSettingsPanel.Open(MatchSettingsPanel.MatchSettingsMode.Edit);
+		_matchSettingsPanel.Open();
 	}
 
 	private void CloseMatchSettingsPanel()
@@ -795,7 +791,7 @@ public partial class LobbyRoom : Control
 	///     A setting the lobby changed is redrawn in the panel, which is the only surface those settings are edited on: the
 	///     host's own change and another seat's arrive the same way, so the panel always reads what the match will play.
 	/// </summary>
-	private void OnMatchOptionsChanged()
+	private void OnMatchSettingsChanged()
 	{
 		if (_matchSettingsPanel != null && GodotObject.IsInstanceValid(_matchSettingsPanel)) _matchSettingsPanel.RefreshFromLobby();
 	}

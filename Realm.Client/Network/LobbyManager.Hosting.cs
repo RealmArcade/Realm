@@ -161,7 +161,8 @@ public partial class LobbyManager
 			openToOthers,
 			wasmDebug,
 			BuildMatchRoster(),
-			Options: MatchOptions);
+			ShroudMode: ShroudMode > MatchShroudMode.FromMap ? ShroudMode : EffectiveShroudMode,
+			Settings: BuildLobbySettingSet());
 
 		MatchStartResult started = await session.TryStartAsync(start, authorityPort);
 		LastAuthorityLogPath = started.LogPath;
@@ -202,7 +203,6 @@ public partial class LobbyManager
 		LastHostFailure = null;
 		LastFirewallGrant = default;
 		LobbyPort = 0;
-		HiddenSettings = 0;
 		HostedMapDisplayName = mapDisplayName;
 		HostedMapVersion = string.IsNullOrWhiteSpace(explicitVersion) ? "1.0.0" : explicitVersion;
 
@@ -446,6 +446,22 @@ public partial class LobbyManager
 		LastHostError = $"this screen's own seat could not be confirmed over loopback on port {session.Port}: {loopback.Detail}";
 		GameLog.LogError($"[LobbyManager] {LastHostError}");
 		return false;
+	}
+
+	/// <summary>
+	///     Collects the values of the match settings the lobby's map declared, which is what a match started from this screen
+	///     plays with. A map that declared none hands over nothing and uses its own constants.
+	/// </summary>
+	/// <returns>The values the settings hold.</returns>
+	private LobbySettingSet BuildLobbySettingSet()
+	{
+		var settings = new LobbySettingSet();
+		for (int index = 0; index < MatchSettings.Count; index++)
+		{
+			settings.Set(MatchSettings[index].SettingId, MatchSettings[index].Value);
+		}
+
+		return settings;
 	}
 
 	private void InitializeHostState(string mapPathName, string? explicitVersion)

@@ -8,9 +8,9 @@ using Realm.Shared.Simulation;
 namespace Realm.Simulation.Tests;
 
 /// <summary>
-///     Walks the path a host's match settings take before a match exists: the lobby admits the host, the host's command
-///     is applied to the lobby's own state, a member's command is refused, the lobby republishes the settings to every
-///     seat, and the authority that starts the match hands those settings to the map script that plays it.
+///     Walks the path a host's match settings take before a match exists: the map declares them, the lobby admits the host,
+///     the host's command is applied to the lobby's own state, a member's command is refused, the lobby republishes the
+///     settings to every seat, and the authority that starts the match hands those settings to the map script that plays it.
 /// </summary>
 [TestFixture]
 [NonParallelizable]
@@ -49,6 +49,11 @@ public class MeleeLobbyTransportTests
 			_ => null,
 			() => null);
 
+		// The map's lobby script declares its own settings when it runs; this stands in for that, because the script is
+		// started by the host rather than by the lobby a test builds directly.
+		DeclareDraftCount();
+		DeclareMirroredDraft();
+
 		Assert.That(_lobby.AdmitPeer(1, "Host", 1001, string.Empty, steamId: 0, proveAdmin: true, out bool hostAdministers), Is.Empty, "The host has to be admitted.");
 		Assert.That(hostAdministers, Is.True, "The peer that proved the ticket administers the lobby.");
 
@@ -68,6 +73,17 @@ public class MeleeLobbyTransportTests
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
 		}
+	}
+
+	private void DeclareDraftCount()
+	{
+		_lobby.DeclareMatchSetting(MeleeLobbySettings.DraftOptions, LobbySettingControl.Count, "Buildings per draft", "How many buildings a draw offers.", 3);
+		_lobby.DeclareMatchSettingRange(MeleeLobbySettings.DraftOptions, 1, 6);
+	}
+
+	private void DeclareMirroredDraft()
+	{
+		_lobby.DeclareMatchSetting(MeleeLobbySettings.MirroredDraft, LobbySettingControl.Toggle, "Mirrored draft", "Whether every player is offered the same buildings.", 0);
 	}
 
 	/// <summary>
@@ -119,7 +135,7 @@ public class MeleeLobbyTransportTests
 		_lobby.HandleCommand(1, SetDraftCount(1));
 
 		Assert.That(
-			_lobby.MatchOptions.Get(MatchOption.MaximumBuildingDraftCount),
+			_lobby.MatchSettingValues.Get(MeleeLobbySettings.DraftOptions),
 			Is.EqualTo(1),
 			"The command a host sends is applied to the lobby's own state, which is what the match is built from.");
 	}
@@ -131,7 +147,7 @@ public class MeleeLobbyTransportTests
 		_lobby.HandleCommand(2, SetDraftCount(6));
 
 		Assert.That(
-			_lobby.MatchOptions.Get(MatchOption.MaximumBuildingDraftCount),
+			_lobby.MatchSettingValues.Get(MeleeLobbySettings.DraftOptions),
 			Is.EqualTo(2),
 			"A member may not change the settings the host stated.");
 	}
@@ -142,16 +158,24 @@ public class MeleeLobbyTransportTests
 		_lobby.HandleCommand(1, SetDraftCount(25));
 
 		Assert.That(
-			_lobby.MatchOptions.Get(MatchOption.MaximumBuildingDraftCount),
-			Is.Zero,
-			"A value past the option's range leaves the option at the map's own default rather than being clamped into a number the host never asked for.");
+			_lobby.MatchSettingValues.Get(MeleeLobbySettings.DraftOptions),
+			Is.EqualTo(3),
+			"A value past the range the map stated leaves the setting at the map's own default rather than being clamped into a number the host never asked for.");
+	}
+
+	[Test]
+	public void ASettingTheMapNeverDeclaredIsRefused()
+	{
+		_lobby.HandleCommand(1, new LobbyCommand { Kind = LobbyCommandKind.SetLobbySetting, SettingId = 99, SettingValue = 1 });
+
+		Assert.That(_lobby.MatchSettings.ContainsKey(99), Is.False, "A lobby only holds the settings its own map declared.");
 	}
 
 	[Test]
 	public void EverySeatIsToldTheSettingsTheHostStated()
 	{
-		_lobby.HandleCommand(1, SetDraftCount(3));
-		_lobby.HandleCommand(1, SetShroudMode(MatchShroudMode.Revealed));
+		_lobby.HandleCommand(1, SetDraftCount(5));
+		_lobby.HandleCommand(1, new LobbyCommand { Kind = LobbyCommandKind.SetShroudMode, Progress = (int)MatchShroudMode.None });
 
 		_frames.Clear();
 		_lobby.SendStateTo(2);
@@ -161,25 +185,41 @@ public class MeleeLobbyTransportTests
 
 		LobbyStateMessage state = MemoryPackSerializer.Deserialize<LobbyStateMessage>(frame.Payload);
 		Assert.That(
-			state.Options,
-			Has.Some.Matches<MatchOptionValue>(value => value.Option == MatchOption.MaximumBuildingDraftCount && value.Value == 3),
+			state.Settings,
+			Has.Some.Matches<LobbyMatchSettingMessage>(setting => setting.SettingId == MeleeLobbySettings.DraftOptions && setting.Value == 5),
 			"A seat reads the draft size the host stated, which is how it shows the setting back to the host.");
 		Assert.That(
-			state.Options,
-			Has.Some.Matches<MatchOptionValue>(value => value.Option == MatchOption.ShroudMode && value.Value == (int)MatchShroudMode.Revealed),
-			"A seat reads the vision mode the host stated.");
+			state.Settings,
+			Has.Some.Matches<LobbyMatchSettingMessage>(setting => setting.SettingId == MeleeLobbySettings.MirroredDraft && setting.Control == (int)LobbySettingControl.Toggle),
+			"A setting the map declared as a toggle travels with the control it is edited by, so the panel draws it as a checkbox.");
+		Assert.That(state.ShroudMode, Is.EqualTo((int)MatchShroudMode.None), "A seat reads the shroud mode the host stated.");
+	}
+
+	[Test]
+	public void TheHostClosesAndReopensAPlayerSlot()
+	{
+		_frames.Clear();
+		_lobby.HandleCommand(1, new LobbyCommand { Kind = LobbyCommandKind.SetSlotOpen, Slot = 5, Flag = false });
+
+		Assert.That(_lobby.IsSlotOpen(5), Is.False, "The host closes a player slot directly, with no player count to set.");
+
+		LobbyStateMessage? published = LatestStateSentTo(2);
+		Assert.That(published, Is.Not.Null, "The seats are told the slot closed.");
+		Assert.That(published!.Value.OpenSlots[5], Is.False, "A closed slot keeps its row and stops accepting a player.");
+
+		_lobby.HandleCommand(1, new LobbyCommand { Kind = LobbyCommandKind.SetSlotOpen, Slot = 5, Flag = true });
+		Assert.That(_lobby.IsSlotOpen(5), Is.True, "The host reopens the slot it closed.");
 	}
 
 	[Test]
 	public void TheSettingsTheLobbyHoldsAreTheOnesTheScriptPlays()
 	{
 		_lobby.HandleCommand(1, SetDraftCount(1));
-		_lobby.HandleCommand(1, SetShroudMode(MatchShroudMode.Revealed));
 
-		using MeleeMatch match = MeleeMatch.StartDuel(matchOptions: _lobby.MatchOptions);
+		using MeleeMatch match = MeleeMatch.StartDuel(lobbySettings: _lobby.MatchSettingValues, shroudMode: MatchShroudMode.None);
 
-		Assert.That(match.Api.GetMatchOption(MatchOption.MaximumBuildingDraftCount), Is.EqualTo(1), "The script reads the draft size the host stated.");
-		Assert.That(match.Simulation.Map.Simulation.ShroudDisabled, Is.True, "The host's vision mode stands over the one the map states.");
+		Assert.That(match.Api.GetLobbySetting(MeleeLobbySettings.DraftOptions), Is.EqualTo(1), "The script reads the draft size the host stated.");
+		Assert.That(match.Simulation.Map.Simulation.ShroudDisabled, Is.True, "The host's shroud mode stands over the one the map states.");
 
 		DraftOffer offer = match.BeginConstruction(1, new System.Numerics.Vector3(-50f, 0f, -50f));
 		Assert.That(offer.AbilityIds.Length, Is.EqualTo(1), "The draw the host configured offers exactly one building.");
@@ -189,19 +229,9 @@ public class MeleeLobbyTransportTests
 	{
 		return new LobbyCommand
 		{
-			Kind = LobbyCommandKind.SetMatchOption,
-			Option = (int)MatchOption.MaximumBuildingDraftCount,
-			OptionValue = value
-		};
-	}
-
-	private static LobbyCommand SetShroudMode(MatchShroudMode shroudMode)
-	{
-		return new LobbyCommand
-		{
-			Kind = LobbyCommandKind.SetMatchOption,
-			Option = (int)MatchOption.ShroudMode,
-			OptionValue = (int)shroudMode
+			Kind = LobbyCommandKind.SetLobbySetting,
+			SettingId = MeleeLobbySettings.DraftOptions,
+			SettingValue = value
 		};
 	}
 }
