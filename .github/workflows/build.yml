@@ -33,8 +33,6 @@ jobs:
 
       - name: Apply Version
         id: apply_version
-        # The script also writes version.txt, the plain-text stamp of this build. It is here to name the build in a bug
-        # report; nothing in the game reads it, and the game keeps taking its version from the assembly it was built into.
         run: |
           $publish = "${{ inputs.publish }}" -eq "true" -or "${{ github.event.inputs.publish }}" -eq "true"
           # The script runs in this shell rather than through powershell -File, because -File passes every argument as
@@ -46,15 +44,6 @@ jobs:
 
       - name: Build
         run: dotnet build Realm.slnx --configuration Release --no-restore
-
-      - name: Upload Build Stamp
-        # The stamp is a few hundred bytes, so every run keeps it: a build can then be named from the run page without
-        # downloading the archive it belongs to.
-        uses: actions/upload-artifact@v6
-        with:
-          name: version-stamp
-          path: version.txt
-          if-no-files-found: ignore
 
       - name: Setup Godot
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
