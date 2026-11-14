@@ -10,7 +10,8 @@ Repositories touched in this batch:
 | --- | --- | --- |
 | `Realm` (this repo) | `network_host` | lobby reachability verification, Steam friend request, localisation retranslation, warning hints, unit card icons, ground offset on re-import, shroud vision/allies/lobby mode, melee draft harness repair |
 | `ugc-ChaosArena` | `main` | Spanish instruction pages, hero and blacksmith icons, hero ground offsets |
-| `MeleeRuleset` | `master` | board plays visible by default, 3× sight on soldiers/workers/buildings, metadata upgraded to this build |
+| `MeleeRuleset` | `master` | board plays visible by default, 3× sight on soldiers/workers/buildings, building-limit and refused-placement fixes, hero level cap, metadata upgraded to this build |
+| `ugc-SecludedCrest` | `main` | metadata upgraded to this build (a test-player field and a per-model table the engine no longer reads) |
 
 ---
 
@@ -152,28 +153,48 @@ options and cheat tests pass (22/22).
 
 ## 8. Melee acceptance suite (`Realm.Simulation.Tests`)
 
-**State: 206 of 240 pass.** Before this batch the suite could not run at all in this checkout, because
-`MeleeRuleset/metadata.json` still carried a field the engine removed. After upgrading the map, 90 of the 240 failed; my repair of
-the draft harness reduced that to **34, with no test regressing** (the same run, before and after, compared test by test).
+**State: 217 of 240 pass.** Before this batch the suite could not run at all in this checkout: three maps stated metadata
+this build does not read (`MeleeRuleset` a briefing list, `ugc-SecludedCrest` a test-player count and a per-model table),
+so the world files failed strict parsing. After upgrading those maps, 90 of the 240 failed; repairing the draft harness
+took that to 34 with no test regressing, and fixing the rules the failures exposed (below) took it to **23**.
+
+**Rules fixed in `MeleeRuleset` along the way** (each one was a real defect the suite caught, not a test edit):
+
+- a player holding every building they may own was refused the last legal draw, because the count the map measured
+  already held the Nexus and the site just placed;
+- a refused placement kept the 100 wood the placement had charged, and its site went on offering packages for the tick
+  before it was removed;
+- a board that declares no spawn anchors was seated anyway, because the engine answers a point on the board for maps
+  that place their players themselves - the map now reads the anchor count;
+- heroes state `MaxLevel: 6`. **This one is a judgement call**: the progression and the requisition/scaling tests are
+  all authored around six levels, and the cap was absent from the metadata, so level 6 was unreachable and one
+  requisition case could not pass. If six is not the intended cap, that number is the thing to change.
 
 **What the harness repair changed:** `BeginConstruction` now sends the placement order a player's click sends instead of
 casting the card's ability (the card arms placement; nothing is cast), the site is read from the ability's
 `PlacementTemplateId` instead of a hardcoded `unit/blueprint`, a seat's open sites are counted separately from raised
 buildings, and draft tooltips have their `{{Ability.*}}` placeholders resolved the way the client resolves them.
 
-**The 34 that still fail, by category — none of these are caused by the shroud work:**
+**The 23 that still fail, by category — each asserts a literal number the content no longer states, so each needs a
+decision on which side is wrong:**
 
 | Category | Tests |
 | --- | --- |
-| Hero ability scaling by level | `EmberLanceDamageGrowsWithTheHerosIntelligence`, `BackdraftDamageGrowsWithTheHerosIntelligence`, `CinderfieldBurnsItsAuthoredDamageForTheDurationItsLevelStates`, `GroundingShoutDamageGrowsWithTheHerosIntelligence`, `HoldFastDurationGrowsWithTheHerosIntelligence`, `ShieldBashStunGrowsWithTheHerosIntelligence` (6 tests, each 2 cases) |
-| Composed board (MeleeRuleset templates on SecludedCrest terrain) | `TheComposedMapIsSeatedWithBothMapsContent`, `TheComposedMatchPlaysItsRulesetOnTheBoardTerrain`, `TheComposedMatchPlaysOutOnItsTerrain`, `TheComposedBoardsNodesCanBeWorked`, `TheBoardPlacesTheCreepCampsItsRulesetAuthors`, `TheBoardHoldsTheInstancesAndTheRulesHoldTheTemplates`, `TheRulesetSeatsNobodyOnABoardThatDeclaresNoAnchors`, `HeroOrderedOntoAnEnemyAcrossTheComposedBoardChasesIt`, `RevivedHeroOrderedOntoAnEnemyAcrossTheComposedBoardChasesIt` |
-| Bounty and income | `KillingTheMonsterPaysItsBountyToTheKillingTeam`, `AlliedSeatsSplitTheBountyANeutralMonsterPays`, `KillingAnEnemyHeroPaysItsLargerBounty`, `ADormantBuildingStopsPayingItsIncome`, `DeepGranariesRaisesTheGoldIncomeByATenth`, `ExperienceRaisesTheHeroAndEverySoldierToTheAuthoredCap` |
-| Building limit and supply | `TheBuildingLimitLeavesRoomForTheAuthoredBuildingsAndTheNexus`, `ConstructionCostsWoodAndStopsAtTheAuthoredBuildingLimit`, `TheHostSetsTheBuildingSupply`, `ABuildingPublishesTheSoldiersItMaintainsAgainstItsCapacity` |
-| Draft details | `PickingTheDrawLeavesASiteThatWaitsForTheHero` (a site gains 6.7% construction just because the hero stands near it — the map or the engine's repair/autowork path, not the harness), `RequisitionCompletionGrowsWithCorvussFortune(6, 0.5)` (the other two Fortune cases pass), `OpenPoolDraftingKeepsAPickedBuildingAvailable` |
+| Hero ability scaling by level (expects +3 Intelligence and fixed damage/duration literals; the heroes now grow by 2.2/4.4/2.5 Int per level and the abilities scale from that) | `EmberLanceDamageGrowsWithTheHerosIntelligence`, `BackdraftDamageGrowsWithTheHerosIntelligence`, `CinderfieldBurnsItsAuthoredDamageForTheDurationItsLevelStates`, `GroundingShoutDamageGrowsWithTheHerosIntelligence`, `HoldFastDurationGrowsWithTheHerosIntelligence`, `ShieldBashStunGrowsWithTheHerosIntelligence` (12 cases) |
+| Bounty and income literals | `KillingTheMonsterPaysItsBountyToTheKillingTeam`, `AlliedSeatsSplitTheBountyANeutralMonsterPays`, `KillingAnEnemyHeroPaysItsLargerBounty`, `ADormantBuildingStopsPayingItsIncome`, `DeepGranariesRaisesTheGoldIncomeByATenth` |
+| Composed board instance counts and the removed model table | `TheBoardHoldsTheInstancesAndTheRulesHoldTheTemplates` (the board now places 19 nodes where the test expects 12), `TheBoardPlacesTheCreepCampsItsRulesetAuthors`, `TheComposedMatchPlaysOutOnItsTerrain`, `TheComposedMetadataHoldsBothMapsUnderThisBoardsIdentity` (asserts the merged metadata keeps a `Models` table this build does not read) |
+| Draft and production literals | `OpenPoolDraftingKeepsAPickedBuildingAvailable`, `ABuildingPublishesTheSoldiersItMaintainsAgainstItsCapacity` |
 
 Each of those needs a **design decision** (is the authored number wrong, is the rule wrong, or is the test stale?) and
-that decision is yours. My judgement: the building-limit pair and the site-progress test look like genuine rules
-regressions; the level-scaling and bounty ones look like the map's numbers drifting away from the tests.
+that decision is yours. My judgement: all 23 read as tests holding older authored numbers, so the cheapest path is to
+derive the expected values from the metadata the way the harness already derives the draft tooltips and the placement
+template. I stopped short of rewriting them because that decides what the map's tuning is supposed to be.
+
+**Map metadata dropped to make the maps loadable at all** (nothing in this build reads either table, and the values they
+carried are stated on the templates that use them):
+
+- `MeleeRuleset`: `MapProperties.HowToPlayInstructions` (folded into `HowToPlayObjective`).
+- `ugc-SecludedCrest`: `MapProperties.MaxTestPlayers` and the top-level `Models` table.
 
 ## 9. Smaller decisions made without asking
 
