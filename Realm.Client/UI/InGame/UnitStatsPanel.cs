@@ -776,11 +776,7 @@ public class UnitStatsPanel
 			signature = Mix(signature, ReadUpgradeLevel(info.Player, metadata.Upgrades[index]));
 		}
 
-		if (signature == _lastUpgradesSignature && _upgradesStrip.GetChildCount() > 0)
-		{
-			_upgradesSection.Visible = true;
-			return;
-		}
+		if (signature == _lastUpgradesSignature) return;
 
 		_lastUpgradesSignature = signature;
 		ClearStrip(_upgradesStrip);
@@ -790,15 +786,17 @@ public class UnitStatsPanel
 			string upgradeId = metadata.Upgrades[index];
 			if (string.IsNullOrEmpty(upgradeId)) continue;
 
-			UpgradeMetadata? upgrade = ResolveUpgrade(upgradeId);
 			int upgradeLevel = ReadUpgradeLevel(info.Player, upgradeId);
+			if (upgradeLevel <= 0) continue;
+
+			UpgradeMetadata? upgrade = ResolveUpgrade(upgradeId);
 			string upgradeName = upgrade != null && !string.IsNullOrEmpty(upgrade.Name) ? upgrade.Name : ToDisplayName(upgradeId);
 			string tooltip = TranslationServer.Translate(upgradeName);
 			if (!string.IsNullOrEmpty(upgrade?.Description)) tooltip += "\n" + TranslationServer.Translate(upgrade.Description);
-			if (upgradeLevel > 0) tooltip += $"\n{TranslationServer.Translate("Level")}: {upgradeLevel}";
+			tooltip += $"\n{TranslationServer.Translate("Level")}: {upgradeLevel}";
 
 			string iconPath = upgrade != null && !string.IsNullOrEmpty(upgrade.IconPath) ? upgrade.IconPath : "res://Assets/UI/magic_upgrade_arrow.webp";
-			_upgradesStrip.AddChild(CreateTextureIcon(iconPath, tooltip, upgradeLevel > 0));
+			_upgradesStrip.AddChild(CreateTextureIcon(iconPath, tooltip));
 		}
 
 		_upgradesSection.Visible = _upgradesStrip.GetChildCount() > 0;
@@ -1213,7 +1211,7 @@ public class UnitStatsPanel
 		return label;
 	}
 
-	private static Control CreateTextureIcon(string iconPath, string tooltip, bool researched)
+	private static Control CreateTextureIcon(string iconPath, string tooltip)
 	{
 		var icon = new TextureRect();
 		icon.Name = "UnitStatsUpgrade_TextureRect";
@@ -1223,7 +1221,6 @@ public class UnitStatsPanel
 		icon.TooltipText = tooltip;
 		icon.MouseFilter = Control.MouseFilterEnum.Pass;
 		icon.CustomMinimumSize = new Vector2(StripIconSize, StripIconSize);
-		icon.Modulate = researched ? Colors.White : new Color(1f, 1f, 1f, 0.55f);
 		return icon;
 	}
 
