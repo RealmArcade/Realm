@@ -218,6 +218,8 @@ public partial class LobbyManager
 		LobbyFactions = state.Factions ?? Array.Empty<string>();
 		LobbyTeamCount = state.TeamCount > 0 ? state.TeamCount : LobbyLimits.DefaultTeamCount;
 		SpectatorDelay = state.SpectatorDelay;
+		ShroudMode = Enum.IsDefined(typeof(MatchShroudMode), state.ShroudMode) ? (MatchShroudMode)state.ShroudMode : MatchShroudMode.FromMap;
+
 		if (TeamsTogether != state.TeamsTogether)
 		{
 			TeamsTogether = state.TeamsTogether;

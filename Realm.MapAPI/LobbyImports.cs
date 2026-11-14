@@ -47,6 +47,10 @@ public static class LobbyImports
 	[WasmImportLinkage]
 	private static extern void ImportSetLobbyColorLocked(int playerIndex, int locked);
 
+	[DllImport(Module, EntryPoint = "set-lobby-shroud-mode-default")]
+	[WasmImportLinkage]
+	private static extern void ImportSetLobbyShroudModeDefault(int shroudMode);
+
 	[DllImport(Module, EntryPoint = "set-lobby-teams-together-default")]
 	[WasmImportLinkage]
 	private static extern void ImportSetLobbyTeamsTogetherDefault(int teamsTogether);
@@ -128,6 +132,13 @@ public static class LobbyImports
 	public static void SetColorLocked(int playerIndex, bool locked)
 	{
 		ImportSetLobbyColorLocked(playerIndex, locked ? 1 : 0);
+	}
+
+	/// <summary>Places the order that states which shroud the lobby starts with.</summary>
+	/// <param name="shroudMode">The mode, as the value of the match option the lobby publishes.</param>
+	public static void SetShroudModeDefault(int shroudMode)
+	{
+		ImportSetLobbyShroudModeDefault(shroudMode);
 	}
 
 	/// <summary>Places the order that states whether the lobby's Teams Together checkbox starts checked.</summary>

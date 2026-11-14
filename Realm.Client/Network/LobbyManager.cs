@@ -177,6 +177,21 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool TeamsTogether { get; set; } = false;
 
 	/// <summary>
+	///     The shroud this lobby will play, as the lobby published it: the host's own choice, or the mode the map's lobby
+	///     script states, or <see cref="MatchShroudMode.FromMap" /> while neither has said anything.
+	/// </summary>
+	public MatchShroudMode ShroudMode { get; private set; } = MatchShroudMode.FromMap;
+
+	/// <summary>
+	///     The shroud the next match will actually play. A lobby that states no mode falls back to the mode the board's
+	///     properties state, which is what a map that never runs a lobby script plays.
+	/// </summary>
+	public MatchShroudMode EffectiveShroudMode =>
+		ShroudMode != MatchShroudMode.FromMap
+			? ShroudMode
+			: MapPropertiesLoader.ReadMapShroudMode(ActiveMapName);
+
+	/// <summary>
 	///     The parameters the lobby's host configured for the match, as the lobby last published them. Every seat shows the
 	///     same list; only the host may change it.
 	/// </summary>

@@ -103,6 +103,21 @@ public partial class ServerLobby : ILobbySeatTable
 	public MatchOptionSet MatchOptions => _matchOptions;
 
 	/// <summary>
+	///     The shroud mode this lobby will play: the mode its host chose, the mode its map's lobby script states, or
+	///     <see cref="MatchShroudMode.FromMap" /> while neither has said anything. The lobby publishes it, so a peer shows
+	///     the mode the match will play rather than the mode the board's properties alone describe.
+	/// </summary>
+	public MatchShroudMode EffectiveShroudMode
+	{
+		get
+		{
+			MatchShroudMode chosen = _matchOptions.GetShroudMode();
+			if (chosen != MatchShroudMode.FromMap) return chosen;
+			return Roster?.ShroudMode ?? MatchShroudMode.FromMap;
+		}
+	}
+
+	/// <summary>
 	///     Sets one parameter the host configures for the match. Every value the option range refuses is dropped rather than
 	///     clamped, so a host is never shown a setting the match would not play.
 	/// </summary>

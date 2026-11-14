@@ -68,6 +68,7 @@ public partial class ServerLobby
 			TeamCount = Roster?.TeamCount ?? LobbyLimits.DefaultTeamCount,
 			SpectatorDelay = SpectatorDelay,
 			TeamsTogether = Roster?.TeamsTogether ?? false,
+			ShroudMode = (int)EffectiveShroudMode,
 			HostStability = HostStability,
 			CountdownActive = _countdownActive,
 			CountdownRemainingSeconds = _countdownActive ? Math.Max(0, _lastCountdownSeconds) : 0,

@@ -188,6 +188,13 @@ public partial struct LobbyStateMessage
 	///     setting and only the host may change. It is last so the seats a peer already reads keep their wire position.
 	/// </summary>
 	public bool TeamsTogether;
+
+	/// <summary>
+	///     The <see cref="Realm.Ecs.MatchShroudMode" /> this lobby will play: the host's own choice when it made one, the
+	///     mode the map's lobby script states otherwise, and <c>FromMap</c> when neither says anything. It is last so the
+	///     fields a peer already reads keep their wire position.
+	/// </summary>
+	public int ShroudMode;
 }
 
 [MemoryPackable]

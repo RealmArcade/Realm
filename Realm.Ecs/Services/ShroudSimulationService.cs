@@ -86,15 +86,18 @@ public static class ShroudSimulationService
 			int playerIndex = owner.PlayerIndex;
 			if ((uint)playerIndex >= (uint)ShroudGrid.MaxGroups) continue;
 
-			float scanRadius = world.Has<ScanRadius>(entity) ? world.Get<ScanRadius>(entity).Value : 0f;
-			if (scanRadius <= 0f) continue;
+			// Sight is what lifts the shroud, and it is the one number a template states for it: a unit that only stated a
+			// scan radius is measured by that, because before sight was separated from scanning it was the same number.
+			float sightRange = world.Has<TargetIntel>(entity) ? world.Get<TargetIntel>(entity).SightRange : 0f;
+			if (sightRange <= 0f) sightRange = world.Has<ScanRadius>(entity) ? world.Get<ScanRadius>(entity).Value : 0f;
+			if (sightRange <= 0f) continue;
 
 			if (!grid.TryGetCellIndex(position.Value.X, position.Value.Z, out int cellIndex)) continue;
 
 			int groupIndex = grid.GetGroupIndex(playerIndex);
 			if (groupIndex < 0) continue;
 
-			int radiusCells = (int)MathF.Ceiling(scanRadius / grid.CellSize);
+			int radiusCells = (int)MathF.Ceiling(sightRange / grid.CellSize);
 			if (radiusCells < 1) radiusCells = 1;
 			if (radiusCells > ShroudGrid.MaxVisionRadiusCells) radiusCells = ShroudGrid.MaxVisionRadiusCells;
 

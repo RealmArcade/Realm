@@ -25,6 +25,7 @@ public class ServerLobbyRoster
 	private int _teamCount = LobbyLimits.DefaultTeamCount;
 	private bool _teamsTogether;
 	private bool _hostChoseTeamsTogether;
+	private MatchShroudMode _shroudMode = MatchShroudMode.FromMap;
 
 	public ServerLobbyRoster(ILobbySeatTable lobby, ServerLog log, int teamCount = LobbyLimits.DefaultTeamCount)
 	{
@@ -42,6 +43,12 @@ public class ServerLobbyRoster
 	///     default the map states and follows the host from the moment the host changes it.
 	/// </summary>
 	public bool TeamsTogether => _teamsTogether;
+
+	/// <summary>
+	///     The shroud mode the lobby plays unless its host chooses another: the mode the map's lobby script stated, or
+	///     <see cref="MatchShroudMode.FromMap" /> while the map has stated nothing.
+	/// </summary>
+	public MatchShroudMode ShroudMode => _shroudMode;
 
 	public int MaximumPlayerCount => _lobby.MaximumPlayers;
 
@@ -202,6 +209,22 @@ public class ServerLobbyRoster
 		_log.Write($"the lobby's host set teams together {(teamsTogether ? "on" : "off")}");
 		_lobby.BroadcastState();
 		return true;
+	}
+
+	/// <summary>
+	///     States the shroud mode a lobby starts on, which is how a map says whether its board is played with vision limited
+	///     or with the whole thing visible. The host keeps the last word: a mode the host chose is what the lobby plays, and
+	///     this is the answer the lobby returns to when the host clears that choice.
+	/// </summary>
+	/// <param name="mode">The mode the lobby should start on.</param>
+	public void SetShroudModeDefault(MatchShroudMode mode)
+	{
+		if (!Enum.IsDefined(mode)) return;
+		if (_shroudMode == mode) return;
+
+		_shroudMode = mode;
+		_log.Write($"the lobby's map states the shroud mode: {mode}");
+		_lobby.BroadcastState();
 	}
 
 	/// <summary>

@@ -159,6 +159,14 @@ public interface ILobbyAPI
 	void SetTeamsTogetherDefault(bool teamsTogether);
 
 	/// <summary>
+	///     States which shroud the lobby starts with, which is how a map says whether its board is played with the whole
+	///     thing visible or with vision limited to what each player's units can see. The host may still choose another mode
+	///     for the match it starts, and a mode stated here is the answer the lobby returns to when the host clears theirs.
+	/// </summary>
+	/// <param name="shroudMode">The mode the lobby starts on.</param>
+	void SetShroudModeDefault(MatchShroudMode shroudMode);
+
+	/// <summary>
 	///     Assigns a board coordinate to a team, which is how a map that seats its teams apart states where each side
 	///     begins: every player of that team starts at a random point inside the coordinate rather than at the anchor the
 	///     board states for that player slot. An assignment replaces the board's own anchors for that team's players, so a

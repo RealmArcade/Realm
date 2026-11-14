@@ -76,6 +76,7 @@ public partial class AuthoritativeSnapshotBuilder
 	private byte[] _writeScratch = Array.Empty<byte>();
 	private Entity[] _playerEntities = Array.Empty<Entity>();
 	private Entity _viewer = Entity.Null;
+	private int _viewerPlayerIndex = -1;
 
 	/// <summary>
 	///     The deltas a match without a scripted ability registry has. A peer is described every tick, and an empty list

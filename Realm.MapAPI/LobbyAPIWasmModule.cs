@@ -240,6 +240,11 @@ public unsafe class LobbyAPI_WasmModule : ILobbyAPI
 	///     the host's choice alone.
 	/// </summary>
 	/// <param name="teamsTogether">Whether the checkbox starts checked.</param>
+	public void SetShroudModeDefault(MatchShroudMode shroudMode)
+	{
+		LobbyImports.SetShroudModeDefault((int)shroudMode);
+	}
+
 	public void SetTeamsTogetherDefault(bool teamsTogether)
 	{
 		LobbyImports.SetTeamsTogetherDefault(teamsTogether);

@@ -874,11 +874,10 @@ public partial class LobbyRoom : Control
 		_shroudModeOption.Name = "ShroudMode_OptionButton";
 		_shroudModeOption.AddThemeConstantOverride("icon_max_width", 20);
 		_shroudModeOption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_shroudModeOption.AddItem(TranslationServer.Translate("Map default"), (int)MatchShroudMode.FromMap);
-		_shroudModeOption.AddItem(TranslationServer.Translate("Revealed"), (int)MatchShroudMode.Revealed);
-		_shroudModeOption.AddItem(TranslationServer.Translate("Vision shroud"), (int)MatchShroudMode.VisionShroud);
-		_shroudModeOption.AddItem(TranslationServer.Translate("Exploration shroud"), (int)MatchShroudMode.ExplorationShroud);
-		_shroudModeOption.TooltipText = TranslationServer.Translate("Whether this match is played with the whole board visible or with vision limited to what each player's units can see.");
+		_shroudModeOption.AddItem(TranslationServer.Translate("Visible"), (int)MatchShroudMode.Revealed);
+		_shroudModeOption.AddItem(TranslationServer.Translate("Explored"), (int)MatchShroudMode.VisionShroud);
+		_shroudModeOption.AddItem(TranslationServer.Translate("Full"), (int)MatchShroudMode.ExplorationShroud);
+		_shroudModeOption.TooltipText = TranslationServer.Translate("Visible shows the whole board. Explored keeps every place on the map remembered while hiding what nobody is watching. Full hides the ground itself until one of your units has walked over it.");
 		_shroudModeOption.ItemSelected += index => GameContext.Lobby.SetMatchOption(MatchOption.ShroudMode, (int)_shroudModeOption.GetItemId((int)index));
 		grid.AddChild(_shroudModeOption);
 
@@ -965,7 +964,10 @@ public partial class LobbyRoom : Control
 
 		if (_shroudModeOption != null && GodotObject.IsInstanceValid(_shroudModeOption))
 		{
-			int shroudMode = options.Get(MatchOption.ShroudMode);
+			// The lobby publishes the mode the match will play, which is the host's choice when it made one and the mode the
+			// map's own lobby script states otherwise, so the dropdown shows what the match plays rather than the value the
+			// host happens to have typed.
+			int shroudMode = (int)GameContext.Lobby.EffectiveShroudMode;
 			for (int index = 0; index < _shroudModeOption.ItemCount; index++)
 			{
 				if (_shroudModeOption.GetItemId(index) != shroudMode) continue;
