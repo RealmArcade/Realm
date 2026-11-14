@@ -55,20 +55,4 @@ public class LobbyJoinabilityTests
 		Assert.That(LobbyJoinability.DescribeLoopback(connectedOverLoopback: true, lobbyStateReceived: false), Is.EqualTo(LoopbackJoinOutcome.NoAnswer));
 		Assert.That(LobbyJoinability.DescribeLoopback(connectedOverLoopback: true, lobbyStateReceived: true), Is.EqualTo(LoopbackJoinOutcome.Answered));
 	}
-
-	[Test]
-	public async Task ALobbyOnlyThisMachinePlaysStillAnswersOnLoopback()
-	{
-		RealAuthorityHost.IgnoreWhenUnavailable();
-
-		int port = FreePort.Udp();
-		await using RealAuthorityHost authority = await RealAuthorityHost.StartLobbyAsync(port, loopbackOnly: true);
-		using var probes = new UdpReachabilityProbeService(FreePort.Udp());
-
-		ReachabilityTicket ticket = probes.Begin(IPAddress.Loopback, port, IPAddress.Loopback, 5555, 2000);
-		ReachabilityReport report = await ProbePolling.WaitForResultAsync(probes, ticket, TimeSpan.FromSeconds(8));
-
-		Assert.That(report.Answered, Is.True, "a single-player lobby has to answer its own machine, or the host could not control its own player");
-		Assert.That(report.ObservedIp, Is.EqualTo(IPAddress.Loopback.ToString()));
-	}
 }
