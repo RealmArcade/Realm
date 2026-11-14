@@ -14,7 +14,7 @@ public class ServerSteamCloud
 {
 	private const int PlayerSlots = Realm.Ecs.EcsSharedMemory.MAX_PLAYERS;
 
-	private sealed class SeatCloud
+	private class SeatCloud
 	{
 		public bool Synced;
 		public int RequestId;
@@ -172,15 +172,21 @@ public class ServerSteamCloud
 		return true;
 	}
 
+	/// <summary>
+	///     Deletes one file from the copy this match reads, if it holds one. The delete itself is always accepted, because a
+	///     map may delete a file this match has not been sent yet: the copy holds nothing until the map asks for it.
+	/// </summary>
+	/// <param name="playerSlot">The seat the file belongs to.</param>
+	/// <param name="fileName">The file's name.</param>
+	/// <returns>True when the name and the seat are ones this store accepts.</returns>
 	public bool Delete(int playerSlot, string fileName)
 	{
 		if (!IsKnownSlot(playerSlot) || !SteamCloudLimits.IsAcceptableFileName(fileName)) return false;
 
 		List<(string Name, string Content)> files = _seats[playerSlot].Files;
 		int index = IndexOf(files, fileName);
-		if (index < 0) return false;
+		if (index >= 0) files.RemoveAt(index);
 
-		files.RemoveAt(index);
 		return true;
 	}
 

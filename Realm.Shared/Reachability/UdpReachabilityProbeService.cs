@@ -31,6 +31,15 @@ public class UdpReachabilityProbeService : IDisposable
 
 	public const int MaximumWindowMilliseconds = 15000;
 
+	/// <summary>
+	///     How many checks this node runs at once. The route that starts one takes no credentials, so the work one caller
+	///     can make the node do is bounded here rather than by who is calling.
+	/// </summary>
+	public const int MaximumLiveProbes = 512;
+
+	/// <summary>How many checks one source may have running at once, which is more than a host retrying registration needs.</summary>
+	public const int MaximumLiveProbesPerSource = 8;
+
 	private const int AttemptIntervalMilliseconds = 250;
 
 	private const int PendingLifetimeMilliseconds = 120_000;
@@ -100,12 +109,16 @@ public class UdpReachabilityProbeService : IDisposable
 	{
 		if (!TryStart(out string failure)) throw new InvalidOperationException(failure);
 
+		long now = _clock.ElapsedMilliseconds;
+		ForgetStale(now);
+		if (!HasCapacityFor(requestSourceAddress, now, out string refusal)) throw new InvalidOperationException(refusal);
+
 		int window = Math.Clamp(windowMilliseconds <= 0 ? DefaultWindowMilliseconds : windowMilliseconds, MinimumWindowMilliseconds, MaximumWindowMilliseconds);
 		ProbeTarget[] targets = BuildTargets(advertisedAddress, advertisedPort, requestSourceAddress);
 		string probeId = Guid.NewGuid().ToString("N");
 		uint connectId = (uint)Random.Shared.NextInt64(1, uint.MaxValue);
 
-		var probe = new PendingProbe(probeId, connectId, targets, requestSourceAddress, requestSourcePort, _clock.ElapsedMilliseconds + window);
+		var probe = new PendingProbe(probeId, connectId, targets, requestSourceAddress, requestSourcePort, now + window);
 		_pending[probeId] = probe;
 		_pendingByConnectId[connectId] = probeId;
 
@@ -119,6 +132,7 @@ public class UdpReachabilityProbeService : IDisposable
 	/// </summary>
 	public ReachabilityReport? Read(string probeId)
 	{
+		ForgetStale();
 		if (string.IsNullOrEmpty(probeId) || !_pending.TryGetValue(probeId, out PendingProbe? probe)) return null;
 
 		long now = _clock.ElapsedMilliseconds;
@@ -135,7 +149,8 @@ public class UdpReachabilityProbeService : IDisposable
 
 	/// <summary>
 	///     Reports the check a lobby names as one this node answered, and the endpoint it measured. A lobby that names a
-	///     check this node did not run, or one that never answered, is refused with this method's false.
+	///     check this node did not run, or one that never answered, is refused with this method's false. The record is taken
+	///     by the check that reads it, so one answered check publishes one lobby.
 	/// </summary>
 	public bool TryReadVerified(string probeId, out ReachabilityReport report)
 	{
@@ -144,6 +159,37 @@ public class UdpReachabilityProbeService : IDisposable
 		if (!probe.HasAnswered) return false;
 
 		report = Describe(probe, ReachabilityStates.Answered);
+		Forget(probe);
+		return true;
+	}
+
+	private bool HasCapacityFor(IPAddress requestSourceAddress, long now, out string refusal)
+	{
+		refusal = string.Empty;
+		int live = 0;
+		int liveFromSource = 0;
+
+		foreach (KeyValuePair<string, PendingProbe> entry in _pending)
+		{
+			PendingProbe probe = entry.Value;
+			if (probe.IsExpired(now)) continue;
+
+			live++;
+			if (probe.RequestSourceAddress.Equals(requestSourceAddress)) liveFromSource++;
+		}
+
+		if (liveFromSource >= MaximumLiveProbesPerSource)
+		{
+			refusal = $"this node is already checking {liveFromSource} lobbies for {requestSourceAddress}; try again when one has finished";
+			return false;
+		}
+
+		if (live >= MaximumLiveProbes)
+		{
+			refusal = $"this node is already checking {live} lobbies, which is as many as it checks at once; try again shortly";
+			return false;
+		}
+
 		return true;
 	}
 
@@ -248,9 +294,10 @@ public class UdpReachabilityProbeService : IDisposable
 		probe.RecordAnswer(remoteEndPoint.Address, remoteEndPoint.Port);
 	}
 
-	private void ForgetStale()
+	private void ForgetStale() => ForgetStale(_clock.ElapsedMilliseconds);
+
+	private void ForgetStale(long now)
 	{
-		long now = _clock.ElapsedMilliseconds;
 		foreach (KeyValuePair<string, PendingProbe> entry in _pending)
 		{
 			if (now - entry.Value.DeadlineMilliseconds < PendingLifetimeMilliseconds) continue;

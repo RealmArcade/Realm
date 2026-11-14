@@ -12,7 +12,7 @@ namespace Realm.Client.Services;
 /// </summary>
 public readonly struct MapTestSeatingPlan
 {
-	internal MapTestSeatingPlan(int humanSlot, int[] computerSlots, bool humanSlotIsCertain)
+	public MapTestSeatingPlan(int humanSlot, int[] computerSlots, bool humanSlotIsCertain)
 	{
 		HumanSlot = humanSlot;
 		ComputerSlots = computerSlots;

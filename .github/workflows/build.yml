@@ -37,7 +37,9 @@ jobs:
         # report; nothing in the game reads it, and the game keeps taking its version from the assembly it was built into.
         run: |
           $publish = "${{ inputs.publish }}" -eq "true" -or "${{ github.event.inputs.publish }}" -eq "true"
-          powershell -ExecutionPolicy Bypass -File scripts/sync-version.ps1 -VersionNumber "${{ inputs.VersionNumber || github.event.inputs.VersionNumber }}" -Publish:$publish
+          # The script runs in this shell rather than through powershell -File, because -File passes every argument as
+          # text: a switch handed a Boolean would arrive as the string "False" and fail to bind.
+          & ./scripts/sync-version.ps1 -VersionNumber "${{ inputs.VersionNumber || github.event.inputs.VersionNumber }}" -Publish:$publish
 
       - name: Restore
         run: dotnet restore Realm.slnx
