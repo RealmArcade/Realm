@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
@@ -292,47 +293,116 @@ public partial class LobbyManager
 		}, token);
 	}
 
-	private async Task<bool> RegisterLobbyWithRegistryAsync(string mapPathName, string mapDisplayName, string? explicitVersion)
+	private async Task<bool> RegisterLobbyWithRegistryAsync(string mapPathName, string mapDisplayName, string? explicitVersion, int lobbyPort)
 	{
-		try
+		int attempts = Math.Max(1, RegistryServers.Count);
+
+		for (int attempt = 0; attempt < attempts; attempt++)
 		{
-			int hostPingBaseline = await MeasurePingToRegistryAsync();
-			var mapInfo = GetMapMetadataInfo(mapPathName, mapDisplayName, explicitVersion);
-
-			var registerPayload = new
+			// The lobby is published only on an endpoint a public node has reached, and every registry node publishes
+			// only what it checked itself, so the rehearsal is run against the node that will accept the lobby.
+			ReportHostLobbyStage(HostLobbyStage.VerifyingNetwork);
+			HostReachabilityResult reachability = await VerifyLobbyReachabilityAsync(RegistryServerUrl, lobbyPort);
+			HostReachabilityFailure decision = LobbyJoinability.Decide(publicLobby: true, LoopbackJoinOutcome.Answered, reachability.Failure);
+			if (decision != HostReachabilityFailure.None)
 			{
-				Map = mapDisplayName,
-				HostPort = _hostPublicPort > 0 ? _hostPublicPort : BoundPort,
-				NatType = LocalNatType.ToString(),
-				ReportedHostIP = _hostPublicIp ?? "127.0.0.1",
-				PasswordHash = "",
-				MaxPlayers = MaxPlayers,
-				SlotsUsed = PlayerList.Count,
-				HostPingBaseline = hostPingBaseline,
-				GameVersion = RealmVersion.GameBinaryVersion,
-				LocalIP = GetLocalIPAddress(),
-				MapVersion = mapInfo.Version,
-				Signature = mapInfo.Signature,
-				PublicKey = mapInfo.PublicKey,
-				MapHash = mapInfo.MapHash,
-				MapSizeBytes = mapInfo.SizeBytes
-			};
-
-			var response = await SendRegisterRequestAsync(registerPayload);
-			if (response == null || !response.IsSuccessStatusCode)
-			{
-				return await HandleRegisterFailureAsync(response);
+				LastHostFailure = reachability;
+				LastHostError = DescribeReachabilityFailure(reachability, lobbyPort);
+				GameLog.LogError($"[LobbyManager] {LastHostError}");
+				return false;
 			}
 
-			await ProcessSuccessfulRegistrationAsync(response);
-			return true;
+			_hostPublicIp = reachability.PublicIp;
+			_hostPublicPort = reachability.PublicPort;
+
+			ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
+
+			try
+			{
+				int hostPingBaseline = await MeasurePingToRegistryAsync();
+				var mapInfo = GetMapMetadataInfo(mapPathName, mapDisplayName, explicitVersion);
+
+				var registerPayload = new
+				{
+					Map = mapDisplayName,
+					HostPort = reachability.PublicPort,
+					NatType = LocalNatType.ToString(),
+					ReportedHostIP = reachability.PublicIp,
+					PasswordHash = "",
+					MaxPlayers = MaxPlayers,
+					SlotsUsed = PlayerList.Count,
+					HostPingBaseline = hostPingBaseline,
+					GameVersion = RealmVersion.GameBinaryVersion,
+					LocalIP = GetLocalIPAddress(),
+					MapVersion = mapInfo.Version,
+					Signature = mapInfo.Signature,
+					PublicKey = mapInfo.PublicKey,
+					MapHash = mapInfo.MapHash,
+					MapSizeBytes = mapInfo.SizeBytes,
+					ReachabilityProbeId = reachability.ProbeId
+				};
+
+				var jsonContent = new StringContent(JsonSerializer.Serialize(registerPayload), Encoding.UTF8, "application/json");
+				using HttpResponseMessage response = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/register", jsonContent);
+
+				if (response.IsSuccessStatusCode)
+				{
+					await ProcessSuccessfulRegistrationAsync(response);
+					return true;
+				}
+
+				if (await ReadRegistrationErrorCodeAsync(response) != ReachabilityErrorCodes.NotVerified)
+				{
+					return await HandleRegisterFailureAsync(response);
+				}
+
+				GameLog.LogToConsole($"[LobbyManager] {RegistryServerUrl} did not accept the reachability check this screen ran, so it is checked again against the next registry node.");
+			}
+			catch (Exception ex)
+			{
+				GameLog.LogError($"[LobbyManager] Registry registration error on {RegistryServerUrl}: {ex.Message}");
+				LastHostError = ex.Message;
+			}
+
+			if (attempt + 1 >= attempts) break;
+			SwitchToNextServer();
 		}
-		catch (Exception ex)
+
+		LastHostError ??= "Registry server registration failed.";
+		return false;
+	}
+
+	private static string DescribeReachabilityFailure(HostReachabilityResult reachability, int lobbyPort)
+	{
+		return reachability.Failure switch
 		{
-			GameLog.LogError($"[LobbyManager] Registry registration error: {ex.Message}");
-			LastHostError = ex.Message;
-			return false;
+			HostReachabilityFailure.RegistryUnreachable => "The lobby server could not be reached, so whether other players can reach this machine was never checked.",
+			HostReachabilityFailure.ProbeSocketUnknown => "The lobby server could not say where its reachability check comes from, so this lobby was not published.",
+			_ => $"Other players could not reach this machine on UDP port {lobbyPort}, so this lobby was not published ({reachability.Detail})."
+		};
+	}
+
+	private static async Task<string> ReadRegistrationErrorCodeAsync(HttpResponseMessage? response)
+	{
+		if (response == null) return string.Empty;
+
+		try
+		{
+			string body = await response.Content.ReadAsStringAsync();
+			using var document = JsonDocument.Parse(body);
+			foreach (string propertyName in new[] { "code", "Code" })
+			{
+				if (document.RootElement.TryGetProperty(propertyName, out JsonElement codeElement) && codeElement.ValueKind == JsonValueKind.String)
+				{
+					return codeElement.GetString() ?? string.Empty;
+				}
+			}
 		}
+		catch (JsonException)
+		{
+		}
+
+		return string.Empty;
 	}
 
 }

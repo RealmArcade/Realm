@@ -131,28 +131,6 @@ public partial class LobbyManager
 		return "";
 	}
 
-	private async Task<HttpResponseMessage?> SendRegisterRequestAsync(object registerPayload)
-	{
-		HttpResponseMessage? response = null;
-		for (int i = 0; i < RegistryServers.Count; i++)
-		{
-			try
-			{
-				var jsonContent = new StringContent(JsonSerializer.Serialize(registerPayload), Encoding.UTF8, "application/json");
-				response = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/register", jsonContent);
-				if (response.IsSuccessStatusCode) break;
-			}
-			catch (Exception ex)
-			{
-				GameLog.LogError($"[LobbyManager] Register failed on {RegistryServerUrl}: {ex.Message}");
-			}
-
-			SwitchToNextServer();
-		}
-
-		return response;
-	}
-
 	private async Task<bool> HandleRegisterFailureAsync(HttpResponseMessage? response)
 	{
 		string errMsg = "Registry server registration failed.";

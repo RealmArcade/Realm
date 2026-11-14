@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Simulation;
 using Realm.Shared.Services;
 using Environment = System.Environment;
@@ -49,6 +50,18 @@ public partial class LobbyManager : BaseMapTransferNode
 	public string LastAuthorityConsoleLogPath { get; private set; } = string.Empty;
 
 	public bool IsRestrictedHost { get; private set; }
+
+	/// <summary>
+	///     Why the last attempt to host was refused before the lobby was published, when it was refused because no other
+	///     player could reach it. The screen states this with the steps that fix it rather than as a bare failure.
+	/// </summary>
+	public HostReachabilityResult? LastHostFailure { get; private set; }
+
+	/// <summary>What the local firewall said when this lobby asked it for an inbound allowance.</summary>
+	public WindowsFirewallGrantResult LastFirewallGrant { get; private set; }
+
+	/// <summary>The UDP port this lobby listens on, which is the port a router and the local firewall must let through.</summary>
+	public int LobbyPort { get; private set; }
 
 	/// <summary>The factions the lobby's map offers, in the order its roster numbers them.</summary>
 	public IReadOnlyList<string> LobbyFactions { get; private set; } = Array.Empty<string>();

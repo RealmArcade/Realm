@@ -90,7 +90,7 @@ public partial class LobbyManager
 		GameContext.UnregisterLobby(this);
 	}
 
-	private static string GetLocalIPAddress()
+	public static string GetLocalIPAddress()
 	{
 		try
 		{

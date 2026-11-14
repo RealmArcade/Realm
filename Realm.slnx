@@ -8,6 +8,7 @@
     <BuildType Solution="Release|*" Project="ExportDebug" />
   </Project>
   <Project Path="Realm.Distribution.Tests/Realm.Distribution.Tests.csproj" />
+  <Project Path="Realm.Network.Tests/Realm.Network.Tests.csproj" />
   <Project Path="Realm.Ecs/Realm.Ecs.csproj" />
   <Project Path="Realm.ListenServer/Realm.ListenServer.csproj" />
   <Project Path="Realm.ListenServerHost/Realm.ListenServerHost.csproj" />

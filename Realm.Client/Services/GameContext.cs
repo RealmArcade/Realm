@@ -85,6 +85,7 @@ namespace Realm.Client.Services
 
 		public static LocalAuthority LocalAuthority => _localAuthority ??= new LocalAuthority();
 		public static UpnpService Upnp { get; } = new();
+		public static WindowsFirewallService WindowsFirewall { get; } = new();
 
 		[SupportedOSPlatform("windows")]
 		public static VSCodeManager VSCode => _vscode ??= new VSCodeManager();

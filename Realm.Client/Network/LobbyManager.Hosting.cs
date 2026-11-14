@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
@@ -207,6 +208,9 @@ public partial class LobbyManager
 	{
 		IsSinglePlayer = false;
 		InitializeHostState(mapPathName, explicitVersion);
+		LastHostFailure = null;
+		LastFirewallGrant = default;
+		LobbyPort = 0;
 
 		ReportHostLobbyStage(HostLobbyStage.TestingNetwork);
 		await RunNatTypeTestAsync();
@@ -278,7 +282,24 @@ public partial class LobbyManager
 
 		IsHost = true;
 
+		LobbyPort = session.Port;
+
+		// First, and before anything is opened or registered: this screen has to be able to play its own seat. A lobby the
+		// host cannot control its own player in is not one anybody else should be shown either. The check waits for the
+		// lobby to be described back over loopback, which is the last step of entering it as host.
+		ReportHostLobbyStage(HostLobbyStage.AdmittingHost);
+		if (!await VerifyLocalSeatBeforePublishingAsync(session))
+		{
+			TeardownHostedLobby(session);
+			return false;
+		}
+
 		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
+
+		// Asked for on every attempt, because a dismissed prompt leaves the port closed and is almost always a misclick
+		// rather than a decision to host unreachable lobbies.
+		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(session.Port);
+
 		await ResolvePublicEndpointAsync(session.Port);
 
 		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(session.Port);
@@ -291,8 +312,9 @@ public partial class LobbyManager
 
 		Diagnostics.StartHostListener(session.Port + 1);
 
-		ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
-		bool registered = await RegisterLobbyWithRegistryAsync(mapPathName, mapDisplayName, explicitVersion);
+		// The lobby is only published once a public node has reached its game port, so nobody sees a lobby that a
+		// timeout is waiting behind.
+		bool registered = await RegisterLobbyWithRegistryAsync(mapPathName, mapDisplayName, explicitVersion, session.Port);
 		if (!registered)
 		{
 			TeardownHostedLobby(session);
@@ -315,6 +337,9 @@ public partial class LobbyManager
 	{
 		IsSinglePlayer = true;
 		InitializeHostState(mapPathName, explicitVersion);
+		LastHostFailure = null;
+		LastFirewallGrant = default;
+		LobbyPort = 0;
 
 		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
 		if (string.IsNullOrEmpty(mapDirectory))
@@ -378,8 +403,33 @@ public partial class LobbyManager
 		}
 
 		IsHost = true;
+		LobbyPort = session.Port;
+
+		if (!await VerifyLocalSeatBeforePublishingAsync(session))
+		{
+			TeardownHostedLobby(session);
+			return false;
+		}
+
 		PlayerListUpdated?.Invoke();
 		return true;
+	}
+
+	/// <summary>
+	///     Checks the local round trip every hosted lobby depends on, whether or not anybody else will see it. A lobby only
+	///     this machine plays still has to answer this machine, and a lobby other players can see has to answer this machine
+	///     before it is worth publishing: the host controls its own player over this path, and nothing between this screen and
+	///     the authority it launched is allowed to break that.
+	/// </summary>
+	private async Task<bool> VerifyLocalSeatBeforePublishingAsync(ClientServerSession session)
+	{
+		HostReachabilityResult loopback = await VerifyLobbyLoopbackAsync(session);
+		if (loopback.Verified) return true;
+
+		LastHostFailure = loopback;
+		LastHostError = $"this screen's own seat could not be confirmed over loopback on port {session.Port}: {loopback.Detail}";
+		GameLog.LogError($"[LobbyManager] {LastHostError}");
+		return false;
 	}
 
 	private void InitializeHostState(string mapPathName, string? explicitVersion)

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
+using Realm.Shared.Reachability;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
@@ -367,6 +368,13 @@ public partial class LobbyCreate : Control
 			}
 
 			GameContext.UserInterface?.PlayWarningSound();
+
+			if (lobby.LastHostFailure is { } loopbackFailure && loopbackFailure.Failure != HostReachabilityFailure.None)
+			{
+				ShowReachabilityHelpModal(loopbackFailure);
+				return;
+			}
+
 			ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to start the match."));
 			return;
 		}
@@ -398,6 +406,12 @@ public partial class LobbyCreate : Control
 			if (lobby.LocalNatType == NatType.Symmetric)
 			{
 				ShowNatErrorModal();
+				return;
+			}
+
+			if (lobby.LastHostFailure is { } reachability && reachability.Failure != HostReachabilityFailure.None)
+			{
+				ShowReachabilityHelpModal(reachability);
 				return;
 			}
 
@@ -564,7 +578,9 @@ public partial class LobbyCreate : Control
 			case HostLobbyStage.AdmittingHost:
 				return (TranslationServer.Translate("Entering the lobby as host..."), 60, 74);
 			case HostLobbyStage.OpeningPort:
-				return (TranslationServer.Translate("Opening your port for other players..."), 74, 88);
+				return (TranslationServer.Translate("Opening your port for other players..."), 74, 84);
+			case HostLobbyStage.VerifyingNetwork:
+				return (TranslationServer.Translate("Checking that other players can reach this computer..."), 84, 92);
 			case HostLobbyStage.RegisteringLobby:
 				return (TranslationServer.Translate("Registering the lobby on the server..."), 88, 99);
 			default:

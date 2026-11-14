@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -12,6 +13,7 @@ using Realm.Shared;
 using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
+using Realm.Shared.Reachability;
 using Realm.AdminServer.Helpers;
 
 namespace Realm.AdminServer;
@@ -19,8 +21,25 @@ namespace Realm.AdminServer;
 /// <summary>Lobby registration, heartbeats, join and the host websocket.</summary>
 public static class LobbyEndpoints
 {
-	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections)
+	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections, UdpReachabilityProbeService reachabilityProbe)
 	{
+	app.MapPost(ReachabilityRoutes.Begin, (ReachabilityBeginRequest req, HttpContext context) =>
+	{
+		string sourceAddress = (context.Connection.RemoteIpAddress?.MapToIPv4() ?? IPAddress.Loopback).ToString();
+		ReachabilityEndpointReply reply = ReachabilityEndpointHandlers.Begin(reachabilityProbe, req, sourceAddress, context.Connection.RemotePort);
+
+		if (reply.StatusCode == 200) Console.WriteLine($"[Reachability] Checking {req.AdvertisedIp}:{req.AdvertisedPort} for a lobby from {sourceAddress}.");
+		else Console.WriteLine($"[Reachability] A lobby check could not start: {sourceAddress}");
+
+		return Results.Json(reply.Body, statusCode: reply.StatusCode);
+	});
+
+	app.MapGet($"{ReachabilityRoutes.Report}/{{probeId}}", (string probeId) =>
+	{
+		ReachabilityEndpointReply reply = ReachabilityEndpointHandlers.Read(reachabilityProbe, probeId);
+		return Results.Json(reply.Body, statusCode: reply.StatusCode);
+	});
+
 	app.MapGet("/lobbies", (LobbyRegistry registry, GeoIpService geoIp, HttpContext context) =>
 	{
 		var clientIpStr = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
@@ -75,12 +94,26 @@ public static class LobbyEndpoints
 			return Results.BadRequest(new { Message = "Lobby creation rejected: Symmetric NAT is not supported." });
 		}
 
+		// A lobby is advertised only on the endpoint this node reached itself, so a host that cannot be reached is told
+		// before it is registered rather than after every player who tries to join has waited out a timeout.
+		if (!ReachabilityEndpointHandlers.IsLobbyVerified(reachabilityProbe, req.ReachabilityProbeId, out ReachabilityReport probeReport))
+		{
+			return Results.Json(ReachabilityEndpointHandlers.NotVerifiedRefusal(), statusCode: StatusCodes.Status400BadRequest);
+		}
+
 		var hostIp = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
 
 
 		if (!string.IsNullOrEmpty(req.ReportedHostIP) && req.ReportedHostIP != "0.0.0.0" && req.ReportedHostIP != "127.0.0.1")
 		{
 			hostIp = req.ReportedHostIP;
+		}
+
+		int hostPort = req.HostPort;
+		if (!string.IsNullOrEmpty(probeReport.ObservedIp) && probeReport.ObservedPort > 0)
+		{
+			hostIp = probeReport.ObservedIp;
+			hostPort = probeReport.ObservedPort;
 		}
 
 		var hostCoords = geoIp.GetCoordinates(hostIp);
@@ -160,7 +193,7 @@ public static class LobbyEndpoints
 			Map = req.Map,
 			MapVersion = mapVersion,
 			HostIP = hostIp,
-			HostPort = req.HostPort,
+			HostPort = hostPort,
 			NatType = req.NatType,
 			PasswordHash = req.PasswordHash ?? "",
 			MaxPlayers = req.MaxPlayers,

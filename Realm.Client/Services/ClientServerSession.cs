@@ -152,6 +152,13 @@ public class ClientServerSession : IDisposable
 
 	public bool IsLocalAuthority => _local;
 
+	/// <summary>
+	///     Whether this screen's own seat is held over the loopback address. A lobby this screen hosts is always reached that
+	///     way, so the host's own commands never depend on the router, the firewall rule or anything else between this machine
+	///     and the authority it launched.
+	/// </summary>
+	public bool ConnectedOverLoopback => System.Net.IPAddress.TryParse(_address, out System.Net.IPAddress? connectedAddress) && System.Net.IPAddress.IsLoopback(connectedAddress);
+
 	public string WireTableHash => _local ? _localWireTableHash : string.Empty;
 
 	public event Action<PeerRosterAssignment>? Seated;

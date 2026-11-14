@@ -6,5 +6,6 @@ public enum HostLobbyStage
 	LoadingMap,
 	AdmittingHost,
 	OpeningPort,
+	VerifyingNetwork,
 	RegisteringLobby
 }
