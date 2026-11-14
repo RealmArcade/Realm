@@ -110,7 +110,7 @@ public sealed class ToolAccordionPanel
 		Header = hooks.Owner.GetNode<Button>(BasePath + "/BtnHeaderTool");
 		Content = hooks.Owner.GetNode<VBoxContainer>(ContentPath);
 		hooks.StyleAccordionHeader(Header);
-		hooks.SetupAccordion(Header, Content, TranslationServer.Translate("Tool"));
+		hooks.SetupAccordion(Header, Content, "Tool");
 
 		TerrainPanel = hooks.Owner.GetNode<VBoxContainer>(ContentPath + "/PanelTerrainVBox");
 		DecoPanel = hooks.Owner.GetNode<VBoxContainer>(ContentPath + "/PanelDecoVBox");

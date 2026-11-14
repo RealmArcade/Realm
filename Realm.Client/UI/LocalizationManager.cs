@@ -56,6 +56,7 @@ public static class LocalizationManager
 		// already holds. Asking the screen for its text again in the language it is showing is what turns those strings into
 		// the map's translations the moment the catalog arrives.
 		RetranslateCurrentScene(BuildTranslationKeyLookup());
+		LocalizedText.RefreshAll();
 	}
 
 	private static void RemoveInstalledTranslations()
@@ -126,6 +127,13 @@ public static class LocalizationManager
 
 	public static event Action<GameLanguage>? LanguageChanged;
 
+	/// <summary>
+	///     Bumped once each time the language actually changes. A screen that draws its own text from state it keeps, and
+	///     so cannot be reached by re-asking the scene for its strings, compares this against the value it last drew with
+	///     and rebuilds when it differs.
+	/// </summary>
+	public static int LanguageRevision { get; private set; }
+
 	public static void UpdateLocale(GameLanguage language)
 	{
 		UpdateLocale(language.ToLocaleCode());
@@ -138,6 +146,7 @@ public static class LocalizationManager
 		Dictionary<string, string>? keysByTranslatedText = languageChanged ? BuildTranslationKeyLookup() : null;
 
 		TranslationServer.SetLocale(locale);
+		if (languageChanged) LanguageRevision++;
 		if (GameContext.UserInterface != null)
 		{
 			GameContext.UserInterface.LayoutDirection = IsLocaleRtl(locale)
@@ -213,6 +222,21 @@ public static class LocalizationManager
 			for (int index = 0; index < popupMenu.ItemCount; index++)
 			{
 				popupMenu.SetItemText(index, TranslateTextForNewLocale(popupMenu.GetItemText(index), keysByTranslatedText));
+			}
+		}
+		else if (node is ItemList itemList)
+		{
+			for (int index = 0; index < itemList.ItemCount; index++)
+			{
+				itemList.SetItemText(index, TranslateTextForNewLocale(itemList.GetItemText(index), keysByTranslatedText));
+			}
+		}
+
+		if (node is TabContainer tabContainer)
+		{
+			for (int index = 0; index < tabContainer.GetTabCount(); index++)
+			{
+				tabContainer.SetTabTitle(index, TranslateTextForNewLocale(tabContainer.GetTabTitle(index), keysByTranslatedText));
 			}
 		}
 

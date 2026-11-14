@@ -11,6 +11,7 @@ using Realm.Client.Services.MapHistory;
 using Realm.Client.UI.MapEditor;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
+using Realm.Client.Utils;
 using Realm.Shared.Distribution;
 using static Godot.Control;
 
@@ -367,37 +368,43 @@ public partial class MapEditorHUD : Control
 	{
 		if (_topToolbar.StatusLabel == null) return;
 
+		LocalizedText.Bind(_topToolbar.StatusLabel, () => FormatActiveToolLabel(tool, shortPlaceName));
+	}
+
+	private static string FormatActiveToolLabel(EditorTool tool, string shortPlaceName)
+	{
 		string toolName = Realm.Client.Services.EditorToolLabels.GetLocalizedToolName(tool);
 		if (!string.IsNullOrEmpty(shortPlaceName)) toolName += $" ({shortPlaceName})";
 
-		_topToolbar.StatusLabel.Text = string.Format(TranslationServer.Translate("ACTIVE TOOL: {0}"), toolName);
+		return string.Format(TranslationServer.Translate("ACTIVE TOOL: {0}"), toolName);
 	}
 
 	private void UpdateToolInfoText(EditorTool tool, string shortPlaceName)
 	{
+		if (_lblInfoText == null) return;
+
+		LocalizedText.Bind(_lblInfoText, () => FormatToolInfoText(tool, shortPlaceName));
+	}
+
+	private static string? FormatToolInfoText(EditorTool tool, string shortPlaceName)
+	{
 		if (tool == EditorTool.PlaceUnit)
 		{
 			string alignment = PlayerColorConfig.GetPaletteLabel(GameContext.EditorService.Tools.PlaceUnitPlayerIndex);
-			_lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Place Unit\n\nLeft-click on the ground to spawn a {0} aligned with {1}."), shortPlaceName, alignment);
-			return;
+			return string.Format(TranslationServer.Translate("TOOL: Place Unit\n\nLeft-click on the ground to spawn a {0} aligned with {1}."), shortPlaceName, alignment);
 		}
 
 		if (tool == EditorTool.PlaceProp)
 		{
-			_lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Place Prop\n\nLeft-click on the ground to spawn static decorative object: {0}."), shortPlaceName);
-			return;
+			return string.Format(TranslationServer.Translate("TOOL: Place Prop\n\nLeft-click on the ground to spawn static decorative object: {0}."), shortPlaceName);
 		}
 
 		if (tool == EditorTool.PlacePropClump)
 		{
-			_lblInfoText.Text = string.Format(TranslationServer.Translate("TOOL: Clump Brush\n\nDrag left click on the ground to paint clumps of static props: {0} based on Density and Scale Variation settings. Uses texture brush shape (Circle/Square)."), shortPlaceName);
-			return;
+			return string.Format(TranslationServer.Translate("TOOL: Clump Brush\n\nDrag left click on the ground to paint clumps of static props: {0} based on Density and Scale Variation settings. Uses texture brush shape (Circle/Square)."), shortPlaceName);
 		}
 
-		if (EditorToolCatalog.ToolInfoTexts.TryGetValue(tool, out var rawText))
-		{
-			_lblInfoText.Text = TranslationServer.Translate(rawText);
-		}
+		return EditorToolCatalog.ToolInfoTexts.TryGetValue(tool, out var rawText) ? TranslationServer.Translate(rawText) : null;
 	}
 
 
@@ -477,7 +484,7 @@ public partial class MapEditorHUD : Control
 	{
 		if (content == null || !isVisible) return;
 		content.Visible = true;
-		if (btn != null) btn.Text = TranslationServer.Translate(translationKey).ToString().ToUpperInvariant() + "  ▼";
+		if (btn != null) LocalizedText.SetUppercase(btn, translationKey, $"  {UnicodeIcons.CARET_DOWN}");
 	}
 
 

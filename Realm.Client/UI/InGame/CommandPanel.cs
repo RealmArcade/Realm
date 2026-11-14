@@ -71,6 +71,7 @@ public partial class CommandPanel
 	private int _lastPageIndex = -1;
 	private bool _lastIsBuildSubMenuOpen = false;
 	private int _lastAbilityStateRevision = int.MinValue;
+	private int _lastLanguageRevision = LocalizationManager.LanguageRevision;
 	private string _lastItemSignature = string.Empty;
 
 	private const string BuildCommandAbilityId = "ability/build";
@@ -316,7 +317,8 @@ public partial class CommandPanel
 			|| focusedUnit.IsUnderConstruction != _lastIsUnderConstruction
 			|| isMobile != _lastIsMobile
 			|| abilityCount != _lastAbilityCount
-			|| GameContext.RegistryService.AbilityStateRevision != _lastAbilityStateRevision;
+			|| GameContext.RegistryService.AbilityStateRevision != _lastAbilityStateRevision
+			|| LocalizationManager.LanguageRevision != _lastLanguageRevision;
 
 		bool subMenuChanged = subMenuOpen != _lastIsBuildSubMenuOpen;
 
@@ -336,6 +338,7 @@ public partial class CommandPanel
 			_lastAbilityCount = abilityCount;
 			_lastIsBuildSubMenuOpen = subMenuOpen;
 			_lastAbilityStateRevision = GameContext.RegistryService.AbilityStateRevision;
+			_lastLanguageRevision = LocalizationManager.LanguageRevision;
 
 			_activeItems = GetCommandCardItems(focusedUnit, subMenuOpen);
 			UpdateItemHotkeys();
@@ -364,6 +367,7 @@ public partial class CommandPanel
 	{
 		var builder = new StringBuilder(64);
 		builder.Append(_pageIndex).Append('|');
+		builder.Append(LocalizationManager.LanguageRevision).Append('|');
 		for (int i = 0; i < _activeItems.Count; i++)
 		{
 			CommandCardItem item = _activeItems[i];

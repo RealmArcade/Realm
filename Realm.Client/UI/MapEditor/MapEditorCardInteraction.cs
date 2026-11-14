@@ -78,8 +78,7 @@ public sealed class MapEditorCardInteraction
 		contentControl.Visible = !contentControl.Visible;
 		if (!string.IsNullOrEmpty(titleText))
 		{
-			string upperTitle = TranslationServer.Translate(titleText).ToString().ToUpperInvariant();
-			headerBtn.Text = upperTitle + (contentControl.Visible ? $"  {UnicodeIcons.CARET_DOWN}" : $"  {UnicodeIcons.CARET_RIGHT}");
+			LocalizedText.SetUppercase(headerBtn, titleText, contentControl.Visible ? $"  {UnicodeIcons.CARET_DOWN}" : $"  {UnicodeIcons.CARET_RIGHT}");
 		}
 
 		SortCardContainers(headerBtn);
