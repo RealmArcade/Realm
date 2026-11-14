@@ -89,10 +89,9 @@ public static class LobbyEndpoints
 
 	app.MapPost("/lobbies/register", async (RegisterRequest req, LobbyRegistry registry, PeerRegistry registeredPeers, GeoIpService geoIp, IHttpClientFactory httpClientFactory, HttpContext context) =>
 	{
-		if (!string.IsNullOrEmpty(req.NatType) && req.NatType.Equals("Symmetric", StringComparison.OrdinalIgnoreCase))
-		{
-			return Results.BadRequest(new { Message = "Lobby creation rejected: Symmetric NAT is not supported." });
-		}
+		// The host's NAT classification is stored with the lobby and handed back to whoever lists it, so the kind of
+		// network a lobby was hosted behind stays measured. It never decides whether the lobby is registered: the probe
+		// below, and the connections players make afterwards, decide whether it can actually be reached.
 
 		// A lobby is advertised only on the endpoint this node reached itself, so a host that cannot be reached is told
 		// before it is registered rather than after every player who tries to join has waited out a timeout.
@@ -238,16 +237,14 @@ public static class LobbyEndpoints
 			}
 		});
 
+		string reportedNatType = string.IsNullOrEmpty(req.NatType) ? "unclassified" : req.NatType;
+		Console.WriteLine($"[Registry] Registered lobby {lobbyId} for map {req.Map} {mapVersion} at {hostIp}:{hostPort} behind {reportedNatType} NAT");
+
 		return Results.Ok(new { LobbyId = lobbyId, Latitude = hostCoords.lat, Longitude = hostCoords.lon, HostToken = hostToken });
 	});
 
 	app.MapPost("/lobbies/propagate", (LobbyInfo propagatedLobby, LobbyRegistry registry) =>
 	{
-		if (!string.IsNullOrEmpty(propagatedLobby.NatType) && propagatedLobby.NatType.Equals("Symmetric", StringComparison.OrdinalIgnoreCase))
-		{
-			return Results.BadRequest(new { Message = "Symmetric NAT lobbies are not supported." });
-		}
-
 		registry.AddOrUpdate(propagatedLobby);
 		Console.WriteLine($"[Registry] Received propagated lobby {propagatedLobby.LobbyId} from {propagatedLobby.OriginServerUri}");
 		return Results.Ok(new { Status = "Propagated" });

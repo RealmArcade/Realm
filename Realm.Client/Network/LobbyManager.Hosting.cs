@@ -208,11 +208,13 @@ public partial class LobbyManager
 
 		ReportHostLobbyStage(HostLobbyStage.TestingNetwork);
 		await RunNatTypeTestAsync();
+
+		// The classification is advisory: it says how hard this network usually is to reach, not whether this lobby can be
+		// reached. Whether anybody can connect is decided by the reachability probe before the lobby is published, and by
+		// the connections players make afterwards, so a symmetric NAT is recorded and hosting goes ahead.
 		if (LocalNatType == NatType.Symmetric)
 		{
-			LastHostError = "Lobby creation rejected: Symmetric NAT is not supported.";
-			GameLog.LogError("[LobbyManager] Lobby creation rejected: Symmetric NAT is not supported.");
-			return false;
+			GameLog.LogToConsole("[LobbyManager] This network reported a symmetric NAT. Hosting continues; the lobby is published only once a public node reaches it.");
 		}
 
 		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
@@ -323,7 +325,7 @@ public partial class LobbyManager
 		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
 		if (IsRestrictedHost)
 		{
-			GameLog.LogToConsole("[LobbyManager] Warning: UPnP port mapping not available on restricted NAT. External players may require Direct Connect.");
+			GameLog.LogToConsole($"[LobbyManager] Warning: UPnP port mapping not available on {LocalNatType} NAT. External players may require Direct Connect.");
 		}
 
 		Diagnostics.StartHostListener(prepared.Port + 1);

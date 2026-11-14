@@ -380,13 +380,6 @@ public partial class LobbyCreate : Control
 			return;
 		}
 
-		if (lobby.LocalNatType == NatType.Symmetric)
-		{
-			GameContext.UserInterface?.PlayWarningSound();
-			ShowNatErrorModal();
-			return;
-		}
-
 		_createButton.Disabled = true;
 		ShowHostProgressOverlay();
 		lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
@@ -411,12 +404,6 @@ public partial class LobbyCreate : Control
 	{
 		GameContext.UserInterface?.PlayWarningSound();
 		GameLog.LogError("[LobbyCreate] Failed to host lobby.");
-
-		if (lobby.LocalNatType == NatType.Symmetric)
-		{
-			ShowNatErrorModal();
-			return;
-		}
 
 		if (lobby.LastHostFailure is { } reachability && reachability.Failure != HostReachabilityFailure.None)
 		{
@@ -656,14 +643,6 @@ public partial class LobbyCreate : Control
 			}
 			}, confirmText: versionExistsLocally ? string.Format(Tr("LAUNCH {0}"), mapBuildNumber) : string.Format(Tr("DOWNLOAD {0}"), mapBuildNumber),
 			cancelText: TranslationServer.Translate("CANCEL"), titleOverride: "MAP BUILD MISMATCH");
-	}
-
-	private void ShowNatErrorModal()
-	{
-		GameContext.UserInterface?.ShowPopupMessage(
-			TranslationServer.Translate("CANNOT HOST A GAME"),
-			TranslationServer.Translate("Your internet provider's network prevents other players from connecting to a game you host.\n\nYou can join another player's lobby, or play single player against AI bots."),
-			() => GameContext.UserInterface?.TransitionTo(GameScreen.LobbyBrowser));
 	}
 
 	private void ShowHostErrorModal(string errorMessage)
