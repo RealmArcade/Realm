@@ -159,6 +159,23 @@ public interface ILobbyAPI
 	void SetTeamsTogetherDefault(bool teamsTogether);
 
 	/// <summary>
+	///     Hides one match setting from the lobby's host, or shows it again. A map hides the settings its board does not play
+	///     with, so the host is offered only the ones that mean something on it, and the same setting is refused if an order
+	///     tries to change it anyway. A setting a map does not hide is offered to the host in the lobby's match settings.
+	/// </summary>
+	/// <param name="setting">The setting being hidden or shown.</param>
+	/// <param name="hidden">Whether the setting is hidden from the host.</param>
+	void SetMatchSettingHidden(LobbySetting setting, bool hidden);
+
+	/// <summary>
+	///     States whether a player who joins after the match has started waits for a delay before the board is described to
+	///     them. The core game starts every lobby with the delay on; the host may still switch it off, and a value stated here
+	///     is the answer the lobby returns to when the host clears theirs.
+	/// </summary>
+	/// <param name="enabled">Whether late joiners wait before they see the board.</param>
+	void SetSpectatorDelayDefault(bool enabled);
+
+	/// <summary>
 	///     States which shroud the lobby starts with, which is how a map says whether its board is played with the whole
 	///     thing visible or with vision limited to what each player's units can see. The host may still choose another mode
 	///     for the match it starts, and a mode stated here is the answer the lobby returns to when the host clears theirs.

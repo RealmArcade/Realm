@@ -1,3 +1,4 @@
+using Realm.Ecs;
 using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
@@ -43,4 +44,13 @@ public interface ILobbySeatTable
 	/// <param name="maximumPlayerCount">The number of player slots to seat.</param>
 	/// <returns>Whether the table seats that many players afterwards.</returns>
 	bool TrySetMaximumPlayers(int maximumPlayerCount);
+
+	/// <summary>Hides one match setting from the lobby's host, or shows it again.</summary>
+	/// <param name="setting">The setting being hidden or shown.</param>
+	/// <param name="hidden">Whether the setting is hidden.</param>
+	void SetSettingHidden(LobbySetting setting, bool hidden);
+
+	/// <summary>States whether late joiners wait before the board is described to them.</summary>
+	/// <param name="enabled">Whether the delay is on.</param>
+	void SetSpectatorDelayDefault(bool enabled);
 }

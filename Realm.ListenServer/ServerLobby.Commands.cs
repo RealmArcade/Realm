@@ -52,10 +52,12 @@ public partial class ServerLobby
 				break;
 			case LobbyCommandKind.SetSpectatorDelay:
 				if (!RequireAdmin(peerId, isAdmin, out _, "change the spectator delay")) return;
+				if (IsSettingHidden(LobbySetting.SpectatorDelay)) return;
 				SetSpectatorDelay(command.Flag);
 				break;
 			case LobbyCommandKind.SetTeamsTogether:
 				if (!RequireAdmin(peerId, isAdmin, out _, "change whether teams sit together")) return;
+				if (IsSettingHidden(LobbySetting.TeamsTogether)) return;
 				Roster?.TrySetTeamsTogether(command.Flag);
 				break;
 			case LobbyCommandKind.SetComputerDifficulty:

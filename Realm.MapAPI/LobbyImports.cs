@@ -47,6 +47,14 @@ public static class LobbyImports
 	[WasmImportLinkage]
 	private static extern void ImportSetLobbyColorLocked(int playerIndex, int locked);
 
+	[DllImport(Module, EntryPoint = "set-lobby-match-setting-hidden")]
+	[WasmImportLinkage]
+	private static extern void ImportSetLobbyMatchSettingHidden(int setting, int hidden);
+
+	[DllImport(Module, EntryPoint = "set-lobby-spectator-delay-default")]
+	[WasmImportLinkage]
+	private static extern void ImportSetLobbySpectatorDelayDefault(int enabled);
+
 	[DllImport(Module, EntryPoint = "set-lobby-shroud-mode-default")]
 	[WasmImportLinkage]
 	private static extern void ImportSetLobbyShroudModeDefault(int shroudMode);
@@ -132,6 +140,21 @@ public static class LobbyImports
 	public static void SetColorLocked(int playerIndex, bool locked)
 	{
 		ImportSetLobbyColorLocked(playerIndex, locked ? 1 : 0);
+	}
+
+	/// <summary>Places the order that hides or shows one match setting.</summary>
+	/// <param name="setting">The setting, as the value of the lobby setting enum.</param>
+	/// <param name="hidden">Whether the setting is hidden.</param>
+	public static void SetMatchSettingHidden(int setting, int hidden)
+	{
+		ImportSetLobbyMatchSettingHidden(setting, hidden);
+	}
+
+	/// <summary>Places the order that states whether late joiners wait before they see the board.</summary>
+	/// <param name="enabled">Whether the delay is on.</param>
+	public static void SetSpectatorDelayDefault(int enabled)
+	{
+		ImportSetLobbySpectatorDelayDefault(enabled);
 	}
 
 	/// <summary>Places the order that states which shroud the lobby starts with.</summary>

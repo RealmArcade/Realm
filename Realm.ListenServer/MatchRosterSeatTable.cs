@@ -108,6 +108,23 @@ public class MatchRosterSeatTable : ILobbySeatTable
 	}
 
 	/// <summary>
+	///     Accepts the order that hides a match setting. A match that was started without an open lobby shows no settings to
+	///     anybody, so the order lands nowhere: it is accepted rather than refused, because a map that runs the same lobby
+	///     rules over a roster it was handed is not doing anything wrong.
+	/// </summary>
+	/// <param name="setting">The setting being hidden or shown.</param>
+	/// <param name="hidden">Whether the setting is hidden.</param>
+	public void SetSettingHidden(LobbySetting setting, bool hidden)
+	{
+	}
+
+	/// <summary>Accepts the map's spectator delay default, which a match without a lobby has no switch to apply it to.</summary>
+	/// <param name="enabled">Whether the delay is on.</param>
+	public void SetSpectatorDelayDefault(bool enabled)
+	{
+	}
+
+	/// <summary>
 	///     Reads the roster the match starts on: the seats this table still holds, with the teams, team names and
 	///     factions the map's lobby rules left them on. A seat the map unseated by seating fewer players is dropped.
 	/// </summary>

@@ -195,6 +195,13 @@ public partial struct LobbyStateMessage
 	///     fields a peer already reads keep their wire position.
 	/// </summary>
 	public int ShroudMode;
+
+	/// <summary>
+	///     The settings this lobby's map hid, as the mask <see cref="Realm.Ecs.LobbySettings" /> reads. A hidden setting is
+	///     not offered to the host and an order that changes it is refused, because a map that hides a setting is a map whose
+	///     board the setting does not apply to.
+	/// </summary>
+	public int HiddenSettings;
 }
 
 [MemoryPackable]

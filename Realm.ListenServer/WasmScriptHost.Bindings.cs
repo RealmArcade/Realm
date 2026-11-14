@@ -60,6 +60,12 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		_linker.DefineFunction(LobbyImportModule, "set-lobby-color-locked", (int playerIndex, int locked) =>
 			LobbyApi?.SetColorLocked(playerIndex, locked != 0));
 
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-match-setting-hidden", (int setting, int hidden) =>
+			LobbyApi?.SetMatchSettingHidden((LobbySetting)setting, hidden != 0));
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-spectator-delay-default", (int enabled) =>
+			LobbyApi?.SetSpectatorDelayDefault(enabled != 0));
+
 		_linker.DefineFunction(LobbyImportModule, "set-lobby-shroud-mode-default", (int shroudMode) =>
 			LobbyApi?.SetShroudModeDefault((global::Realm.Ecs.MatchShroudMode)shroudMode));
 

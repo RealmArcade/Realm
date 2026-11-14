@@ -13,6 +13,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
+using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
@@ -186,6 +187,25 @@ public partial class LobbyManager : BaseMapTransferNode
 	///     The shroud the next match will actually play. A lobby that states no mode falls back to the mode the board's
 	///     properties state, which is what a map that never runs a lobby script plays.
 	/// </summary>
+	/// <summary>
+	///     The settings this lobby's map hid, as the mask <see cref="LobbySettings" /> reads. A hidden setting is not offered
+	///     to the host, because the map stated that its board does not play with it.
+	/// </summary>
+	public int HiddenSettings { get; private set; }
+
+	/// <summary>Whether this lobby's map hid one match setting from its host.</summary>
+	/// <param name="setting">The setting being read.</param>
+	/// <returns>Whether the setting is hidden.</returns>
+	public bool IsSettingHidden(LobbySetting setting) => LobbySettings.IsHidden(HiddenSettings, setting);
+
+	/// <summary>
+	///     The display name the lobby waiting to be published was opened with, which is what the registry lists it as.
+	/// </summary>
+	public string HostedMapDisplayName { get; private set; } = string.Empty;
+
+	/// <summary>The map version the lobby waiting to be published plays.</summary>
+	public string HostedMapVersion { get; private set; } = string.Empty;
+
 	public MatchShroudMode EffectiveShroudMode =>
 		ShroudMode != MatchShroudMode.FromMap
 			? ShroudMode

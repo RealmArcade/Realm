@@ -89,5 +89,9 @@ public class ServerLobbyAPI : ILobbyAPI
 
 	public void SetShroudModeDefault(MatchShroudMode shroudMode) => _roster.SetShroudModeDefault(shroudMode);
 
+	public void SetMatchSettingHidden(LobbySetting setting, bool hidden) => _roster.SetMatchSettingHidden(setting, hidden);
+
+	public void SetSpectatorDelayDefault(bool enabled) => _roster.SetSpectatorDelayDefault(enabled);
+
 	public bool SetTeamSpawnCoordinate(int teamIndex, string coordinateName) => _roster.SetTeamSpawnCoordinate(teamIndex, coordinateName);
 }

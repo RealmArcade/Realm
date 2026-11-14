@@ -37,6 +37,8 @@ public partial class ServerLobby : ILobbySeatTable
 	private readonly string _mapVersion;
 	private readonly int _mapMaximumPlayers;
 	private readonly MatchOptionSet _matchOptions = new();
+	private int _hiddenSettings;
+	private bool _hostChoseSpectatorDelay;
 	private int _maximumPlayers;
 
 	private readonly SortedDictionary<int, LobbySeat> _seats = new();
@@ -126,6 +128,12 @@ public partial class ServerLobby : ILobbySeatTable
 	/// <returns>Whether the lobby now holds that setting.</returns>
 	public bool TrySetMatchOption(MatchOption option, int value)
 	{
+		if (LobbySettings.IsHidden(_hiddenSettings, option))
+		{
+			_log.Write($"the lobby's map hides {option}, so the host's order is refused");
+			return false;
+		}
+
 		if (option == MatchOption.MaximumPlayers)
 		{
 			if (!_matchOptions.Set(option, value)) return false;
@@ -147,6 +155,27 @@ public partial class ServerLobby : ILobbySeatTable
 		BroadcastState();
 		return true;
 	}
+
+	/// <summary>
+	///     Hides one setting from the lobby's host, or shows it again. A map states this for the settings its board does not
+	///     play with, so the host is offered only the ones that mean something on it.
+	/// </summary>
+	/// <param name="setting">The setting being hidden or shown.</param>
+	/// <param name="hidden">Whether the setting is hidden.</param>
+	public void SetSettingHidden(LobbySetting setting, bool hidden)
+	{
+		int updated = LobbySettings.With(_hiddenSettings, setting, hidden);
+		if (updated == _hiddenSettings) return;
+
+		_hiddenSettings = updated;
+		_log.Write($"the lobby's map {(hidden ? "hides" : "shows")} the {setting} setting");
+		BroadcastState();
+	}
+
+	/// <summary>Whether this lobby's map hid one setting from its host.</summary>
+	/// <param name="setting">The setting being read.</param>
+	/// <returns>Whether the setting is hidden.</returns>
+	public bool IsSettingHidden(LobbySetting setting) => LobbySettings.IsHidden(_hiddenSettings, setting);
 
 	/// <summary>
 	///     How many seats are playing rather than watching. A spectator holds no player seat, so the players a lobby seats

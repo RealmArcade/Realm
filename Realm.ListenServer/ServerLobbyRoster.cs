@@ -23,7 +23,7 @@ public class ServerLobbyRoster
 	private IntPtr _sharedMemoryBase = IntPtr.Zero;
 	private uint _revision;
 	private int _teamCount = LobbyLimits.DefaultTeamCount;
-	private bool _teamsTogether;
+	private bool _teamsTogether = true;
 	private bool _hostChoseTeamsTogether;
 	private MatchShroudMode _shroudMode = MatchShroudMode.FromMap;
 
@@ -157,6 +157,21 @@ public class ServerLobbyRoster
 	public bool TrySetMaximumPlayerCount(int maximumPlayerCount)
 	{
 		return _lobby.TrySetMaximumPlayers(maximumPlayerCount);
+	}
+
+	/// <summary>Hides one match setting from the lobby's host, or shows it again.</summary>
+	/// <param name="setting">The setting being hidden or shown.</param>
+	/// <param name="hidden">Whether the setting is hidden.</param>
+	public void SetMatchSettingHidden(LobbySetting setting, bool hidden)
+	{
+		_lobby.SetSettingHidden(setting, hidden);
+	}
+
+	/// <summary>States whether late joiners wait before the board is described to them.</summary>
+	/// <param name="enabled">Whether the delay is on.</param>
+	public void SetSpectatorDelayDefault(bool enabled)
+	{
+		_lobby.SetSpectatorDelayDefault(enabled);
 	}
 
 	/// <summary>

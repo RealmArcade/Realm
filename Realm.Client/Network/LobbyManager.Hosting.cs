@@ -204,13 +204,32 @@ public partial class LobbyManager
 		return true;
 	}
 
+	/// <summary>
+	///     Opens this screen's lobby, takes its seat in it and lets the map state the defaults the lobby starts with, and then
+	///     publishes it: the port is opened, a registry node is asked to reach it, and only then is the lobby registered.
+	/// </summary>
 	public async Task<bool> HostLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
+	{
+		return await PrepareHostedLobbyAsync(mapPathName, mapDisplayName, explicitVersion) && await PublishPreparedLobbyAsync();
+	}
+
+	/// <summary>
+	///     Opens the lobby this screen will host without publishing it. The authority is started, this screen takes the seat
+	///     that administers it, the map's own lobby rules have run, and the settings the match will play are the ones the
+	///     lobby state names - so a host can read them and confirm them before anybody can see the lobby. Nothing about the
+	///     machine's network is touched here: the port is opened, verified and registered by
+	///     <see cref="PublishPreparedLobbyAsync" />.
+	/// </summary>
+	public async Task<bool> PrepareHostedLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
 	{
 		IsSinglePlayer = false;
 		InitializeHostState(mapPathName, explicitVersion);
 		LastHostFailure = null;
 		LastFirewallGrant = default;
 		LobbyPort = 0;
+		HiddenSettings = 0;
+		HostedMapDisplayName = mapDisplayName;
+		HostedMapVersion = string.IsNullOrWhiteSpace(explicitVersion) ? "1.0.0" : explicitVersion;
 
 		ReportHostLobbyStage(HostLobbyStage.TestingNetwork);
 		await RunNatTypeTestAsync();
@@ -294,15 +313,37 @@ public partial class LobbyManager
 			return false;
 		}
 
+		PlayerListUpdated?.Invoke();
+		return true;
+	}
+
+	/// <summary>
+	///     Publishes the lobby <see cref="PrepareHostedLobbyAsync" /> opened: the port is opened in the local firewall and on
+	///     the router, a registry node is asked to reach it, and the lobby is registered only once that node answered. The
+	///     host may have changed any setting the lobby offers in between, and the match plays the settings the lobby holds
+	///     when it starts.
+	/// </summary>
+	public async Task<bool> PublishPreparedLobbyAsync()
+	{
+		ClientServerSession? prepared = _lobbySession;
+		if (prepared == null || !prepared.IsRunning || !IsHost)
+		{
+			LastHostError = "There is no lobby waiting to be published.";
+			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			return false;
+		}
+
+		string mapDisplayName = string.IsNullOrEmpty(HostedMapDisplayName) ? ActiveMapName : HostedMapDisplayName;
+
 		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
 
 		// Asked for on every attempt, because a dismissed prompt leaves the port closed and is almost always a misclick
 		// rather than a decision to host unreachable lobbies.
-		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(session.Port);
+		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(prepared.Port);
 
-		await ResolvePublicEndpointAsync(session.Port);
+		await ResolvePublicEndpointAsync(prepared.Port);
 
-		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(session.Port);
+		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(prepared.Port);
 		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
 		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
 		if (IsRestrictedHost)
@@ -310,14 +351,14 @@ public partial class LobbyManager
 			GameLog.LogToConsole("[LobbyManager] Warning: UPnP port mapping not available on restricted NAT. External players may require Direct Connect.");
 		}
 
-		Diagnostics.StartHostListener(session.Port + 1);
+		Diagnostics.StartHostListener(prepared.Port + 1);
 
 		// The lobby is only published once a public node has reached its game port, so nobody sees a lobby that a
 		// timeout is waiting behind.
-		bool registered = await RegisterLobbyWithRegistryAsync(mapPathName, mapDisplayName, explicitVersion, session.Port);
+		bool registered = await RegisterLobbyWithRegistryAsync(ActiveMapName, mapDisplayName, HostedMapVersion, prepared.Port);
 		if (!registered)
 		{
-			TeardownHostedLobby(session);
+			TeardownHostedLobby(prepared);
 			return false;
 		}
 

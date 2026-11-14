@@ -29,6 +29,8 @@ public partial class LobbyCreate : Control
 
 	private Button _backButton = null!;
 	private Button _createButton = null!;
+
+	private MatchSettingsPanel? _matchSettingsConfirmation;
 	private Button _openMapLibraryButton = null!;
 	private OptionButton _versionSelectButton = null!;
 	private HBoxContainer _versionContainer = null!;
@@ -245,6 +247,13 @@ public partial class LobbyCreate : Control
 			GameContext.Lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
 		}
 
+		// A lobby waiting to be confirmed holds a port and a seat, and leaving this screen is not a confirmation.
+		if (_matchSettingsConfirmation != null)
+		{
+			CloseMatchSettingsConfirmation();
+			GameContext.Lobby?.Disconnect();
+		}
+
 		base._ExitTree();
 	}
 
@@ -389,35 +398,116 @@ public partial class LobbyCreate : Control
 		_createButton.Disabled = true;
 		ShowHostProgressOverlay();
 		lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
-		bool success = await lobby.HostLobbyAsync(pathName, displayName, selectedVersion);
+		bool prepared = await lobby.PrepareHostedLobbyAsync(pathName, displayName, selectedVersion);
 		lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
 		HideHostProgressOverlay();
 		_createButton.Disabled = false;
 
-		if (success)
+		if (!prepared)
+		{
+			ReportLobbyHostingFailure(lobby);
+			return;
+		}
+
+		// The lobby is open and nobody can see it yet: the host confirms the settings its map states, and confirming is what
+		// publishes the lobby. Nothing about this machine's network has been opened or registered at this point.
+		ShowConfirmationOrFail(lobby);
+	}
+
+	private void ReportLobbyHostingFailure(LobbyManager lobby)
+	{
+		GameContext.UserInterface?.PlayWarningSound();
+		GameLog.LogError("[LobbyCreate] Failed to host lobby.");
+
+		if (lobby.LocalNatType == NatType.Symmetric)
+		{
+			ShowNatErrorModal();
+			return;
+		}
+
+		if (lobby.LastHostFailure is { } reachability && reachability.Failure != HostReachabilityFailure.None)
+		{
+			ShowReachabilityHelpModal(reachability);
+			return;
+		}
+
+		string errorMsg = lobby.LastHostError ?? Tr("Failed to host lobby on the registry server.");
+		ShowHostErrorModal(errorMsg);
+	}
+
+	/// <summary>
+	///     Shows the match settings the lobby's map states, which is the confirmation the lobby is not published without. The
+	///     host may change anything there before confirming, and cancelling gives the lobby up rather than leaving an
+	///     unpublished lobby holding a port.
+	/// </summary>
+	private void ShowConfirmationOrFail(LobbyManager lobby)
+	{
+		MatchSettingsPanel panel = OpenMatchSettingsConfirmation();
+		panel.Confirmed += OnHostingSettingsConfirmed;
+		panel.Closed += OnHostingSettingsCancelled;
+	}
+
+	private MatchSettingsPanel OpenMatchSettingsConfirmation()
+	{
+		CloseMatchSettingsConfirmation();
+
+		_matchSettingsConfirmation = new MatchSettingsPanel();
+		_matchSettingsConfirmation.Name = "MatchSettingsConfirmation";
+		AddChild(_matchSettingsConfirmation);
+		_matchSettingsConfirmation.Open(MatchSettingsPanel.MatchSettingsMode.Confirm);
+		return _matchSettingsConfirmation;
+	}
+
+	private void CloseMatchSettingsConfirmation()
+	{
+		if (_matchSettingsConfirmation == null) return;
+
+		_matchSettingsConfirmation.Confirmed -= OnHostingSettingsConfirmed;
+		_matchSettingsConfirmation.Closed -= OnHostingSettingsCancelled;
+		if (GodotObject.IsInstanceValid(_matchSettingsConfirmation)) _matchSettingsConfirmation.QueueFree();
+		_matchSettingsConfirmation = null;
+	}
+
+	private void OnHostingSettingsCancelled()
+	{
+		CloseMatchSettingsConfirmation();
+		GameContext.Lobby?.Disconnect();
+	}
+
+	private async void OnHostingSettingsConfirmed()
+	{
+		try
+		{
+			await PublishConfirmedLobbyAsync();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[LobbyCreate] Publishing the confirmed lobby failed: {exception}");
+		}
+	}
+
+	private async Task PublishConfirmedLobbyAsync()
+	{
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null) return;
+
+		CloseMatchSettingsConfirmation();
+
+		_createButton.Disabled = true;
+		ShowHostProgressOverlay();
+		lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
+		bool published = await lobby.PublishPreparedLobbyAsync();
+		lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
+		HideHostProgressOverlay();
+		_createButton.Disabled = false;
+
+		if (published)
 		{
 			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
+			return;
 		}
-		else
-		{
-			GameContext.UserInterface?.PlayWarningSound();
-			GameLog.LogError("[LobbyCreate] Failed to host lobby.");
 
-			if (lobby.LocalNatType == NatType.Symmetric)
-			{
-				ShowNatErrorModal();
-				return;
-			}
-
-			if (lobby.LastHostFailure is { } reachability && reachability.Failure != HostReachabilityFailure.None)
-			{
-				ShowReachabilityHelpModal(reachability);
-				return;
-			}
-
-			string errorMsg = lobby.LastHostError ?? Tr("Failed to host lobby on the registry server.");
-			ShowHostErrorModal(errorMsg);
-		}
+		ReportLobbyHostingFailure(lobby);
 	}
 
 	private async void EnsureFestivalFeaturedMapInstalledAsync()

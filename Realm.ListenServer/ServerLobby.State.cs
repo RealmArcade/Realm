@@ -69,6 +69,7 @@ public partial class ServerLobby
 			SpectatorDelay = SpectatorDelay,
 			TeamsTogether = Roster?.TeamsTogether ?? false,
 			ShroudMode = (int)EffectiveShroudMode,
+			HiddenSettings = _hiddenSettings,
 			HostStability = HostStability,
 			CountdownActive = _countdownActive,
 			CountdownRemainingSeconds = _countdownActive ? Math.Max(0, _lastCountdownSeconds) : 0,
@@ -77,7 +78,12 @@ public partial class ServerLobby
 		};
 	}
 
-	public bool SpectatorDelay { get; private set; }
+	/// <summary>
+	///     Whether a player who joins while the match is running watches for a delay before the board is described to them.
+	///     It starts at the core game's answer - on - and follows the map's own default and then the host from the moment
+	///     either states one.
+	/// </summary>
+	public bool SpectatorDelay { get; private set; } = true;
 
 	/// <summary>
 	///     Republishes the measured link of every seat on an interval, because nothing else in a quiet lobby changes: the
