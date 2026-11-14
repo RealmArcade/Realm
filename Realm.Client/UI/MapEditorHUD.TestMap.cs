@@ -40,7 +40,7 @@ public partial class MapEditorHUD
 
 			if (!TryLocateCompiledWasm(out string wasmPath)) return;
 
-			AppendWasmConsoleLog($"[WASM] Running {Path.GetFileName(wasmPath)} from {Path.GetDirectoryName(wasmPath)} ({MapWorkspaceService.ReadBuildFlavorDomain(GameContext.EditorService._editingDirectory) ?? "unrecorded"} build)");
+			AppendWasmConsoleLog($"[WASM] Running {Path.GetFileName(wasmPath)} from {Path.GetDirectoryName(wasmPath)} ({(MapScriptArtifacts.ContainsDebugInformation(wasmPath) ? MapWorkspaceService.DebugBuildFlavor : MapWorkspaceService.ReleaseBuildFlavor)} build)");
 
 			await LaunchTestModeEngine();
 		}
@@ -159,19 +159,50 @@ public partial class MapEditorHUD
 		{
 			SetWasmConsoleStatus("❌ WASM Compilation Failed", new Color(1.0f, 0.3f, 0.3f));
 			AppendWasmConsoleLog("[ERROR] Map script compilation failed. Test mode aborted.");
+			return;
+		}
+
+		RetireOptimizedScriptLeftBehind(GameContext.EditorService._editingDirectory);
+	}
+
+	/// <summary>
+	///     Removes the optimized build a playtest has just made older than the sources. Nothing in this workspace may run
+	///     code the author has already changed: a match would otherwise run the previous release while the author watches a
+	///     playtest of the current one, and the two would disagree without saying so. A publish, an export or a release
+	///     compile builds a new one, and until then a match runs the playtest build and says so in its log.
+	/// </summary>
+	/// <param name="editingDirectory">The map workspace the playtest compiled.</param>
+	private void RetireOptimizedScriptLeftBehind(string editingDirectory)
+	{
+		string? optimizedScript = MapWorkspaceService.FindExistingWasmFileDomain(editingDirectory);
+		if (string.IsNullOrEmpty(optimizedScript) || !File.Exists(optimizedScript)) return;
+
+		if (!GameContext.MapStorageService.HasNewerSourceFiles(editingDirectory, File.GetLastWriteTimeUtc(optimizedScript), GameContext.EditorService.CurrentSourceFolder)) return;
+
+		try
+		{
+			File.Delete(optimizedScript);
+			string line = $"[WASM] Removed '{Path.GetFileName(optimizedScript)}' because it was built before the sources this playtest compiled. Publish, export or compile for release to build a new one; until then a match runs the playtest build and reports that it did.";
+			AppendWasmConsoleLog(line);
+			GameLog.LogToConsole(line);
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			AppendWasmConsoleLog($"[WARN] The optimized build '{optimizedScript}' predates these sources and could not be removed: {exception.Message}. A match started from this folder would run it until it is rebuilt for release.");
+			GameLog.LogError($"[MapEditorHUD] The stale optimized map script '{optimizedScript}' could not be removed: {exception.Message}");
 		}
 	}
 
 	private bool TryLocateCompiledWasm(out string wasmPath)
 	{
 		string editingDirectory = GameContext.EditorService._editingDirectory;
-		wasmPath = MapWorkspaceService.SearchForWasmInDirectoryDomain(Path.Combine(editingDirectory, "bin")) ?? string.Empty;
+		wasmPath = MapWorkspaceService.SearchForWasmInDirectoryDomain(Path.Combine(editingDirectory, "bin"), isDebug: true) ?? string.Empty;
 
 		if (string.IsNullOrEmpty(wasmPath) || !File.Exists(wasmPath))
 		{
 			_wasmHasErrors = true;
 			SetWasmConsoleStatus("❌ WASM Compilation Failed: Output binary missing", new Color(1.0f, 0.3f, 0.3f));
-			AppendWasmConsoleLog($"[ERROR] Could not find the compiled WASM in {MapWorkspaceService.GetScriptOutputDirectory(editingDirectory)}. Test mode aborted.");
+			AppendWasmConsoleLog($"[ERROR] Could not find the debug WASM in {MapWorkspaceService.GetScriptOutputDirectory(editingDirectory)}. Test mode aborted.");
 			return false;
 		}
 

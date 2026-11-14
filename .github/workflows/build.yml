@@ -126,6 +126,38 @@ jobs:
           if (-not (Test-Path (Join-Path $authority "Realm.ListenServerHost.exe"))) { throw "The authority was not placed in $authority." }
           Write-Host "The authority is packaged in $authority"
 
+      - name: Keep Only the Symbols a Map Debugger Reads
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
+        run: |
+          # Stepping a map script walks the script's own DWARF plus the line information of the engine API it calls, which
+          # the script compiler reads from the symbols beside the libraries every map workspace is given. Those two files
+          # are the only client-side symbols anything reads: the client's own assembly is exported without symbols, so its
+          # remaining copies describe the client process that nobody steps. The authority keeps its symbols, because the log
+          # it writes names the line a failure came from and that log is what a bug report carries.
+          $clientData = Get-ChildItem -Path "$PWD\publish" -Directory -Filter "data_*_windows_x86_64" | Select-Object -First 1
+          if (-not $clientData) { throw "The client export produced no data folder, so there are no symbols to check." }
+
+          $requiredSymbols = @(
+            (Join-Path $clientData.FullName "MapTemplate\lib\Realm.MapAPI.pdb"),
+            (Join-Path $clientData.FullName "MapTemplate\lib\Realm.Ecs.pdb")
+          )
+
+          foreach ($requiredSymbol in $requiredSymbols) {
+            if (-not (Test-Path $requiredSymbol)) {
+              throw "The map API symbols are missing from the export: $requiredSymbol. A map script compiled from this build would step through the engine API with no line information, so the build is not published."
+            }
+          }
+
+          $authority = Join-Path $clientData.FullName "Realm.ListenServerHost"
+          $kept = $requiredSymbols + @(Get-ChildItem -Path $authority -Filter "*.pdb" -Recurse -File | Select-Object -ExpandProperty FullName)
+
+          Get-ChildItem -Path "$PWD\publish" -Filter "*.pdb" -Recurse -File |
+            Where-Object { $kept -notcontains $_.FullName } |
+            ForEach-Object {
+              Write-Host "Removing $($_.FullName)"
+              Remove-Item $_.FullName -Force
+            }
+
       - name: Copy Realm.Tools.Cli to Publish Directory
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
         run: |

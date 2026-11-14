@@ -53,7 +53,7 @@ public static class MapSmokeRun
 		api.OnUnitDied += (unit, killer) => died.Add(unit.Value);
 		api.OnConstructionFinished += unit => built.Add(unit.Value);
 
-		Console.WriteLine($"script: {(ServerMapScript.TryFindScript(mapPath, out string wasmPath) ? wasmPath : "none")}");
+		Console.WriteLine($"script: {(ServerMapScript.TryFindScript(mapPath, wasmDebug: false, out string wasmPath, out _) ? wasmPath : "none")}");
 		Console.WriteLine($"catalog: {map.Catalog.Units.Count} unit(s), {map.Catalog.Buildings.Count} building(s), map reports {map.UnitCount} placed unit(s) and {map.PropCount} prop(s)");
 		int unitsAfterLoad = CountUnits(map.World);
 		Check(unitsAfterLoad > 0, "the map brought units into the world");

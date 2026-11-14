@@ -261,3 +261,53 @@ stamp). Check after the next publish that `version.txt` inside the archive names
 - **I did not bump any `GameBuildNumber`.** Maps now state fields (`IconPath` on units, no `HowToPlayInstructions`) that
   an older build would reject, so the maps and this build belong together; a release that ships this build should tag
   the map folders with the matching number.
+
+## 13. Map script symbols, the debug build and the optimized build
+
+### What the PDBs are actually for
+
+Measured, not assumed. A map workspace compiles its script against `lib/Realm.MapAPI.dll` and `lib/Realm.Ecs.dll`, and
+the script compiler (ILC) reads a referenced assembly's line information from the symbols beside it. With
+`MapTemplate/lib/Realm.MapAPI.pdb` and `Realm.Ecs.pdb` in place, a `Debug` publish of MeleeRuleset carries
+`GameAPI.cs` and `EcsSharedMemory.cs` in its DWARF; with every matching copy removed from the machine, the same publish
+emits neither file name and is 81 KB smaller, so stepping into `IGameAPI` wrappers or `EcsSharedMemory` shows no source
+line at all. Reproduce with `llvm-dwarfdump --debug-line --debug-info MapScript.wasm` from the WASI SDK and grep for
+`GameAPI.cs`.
+
+- `Realm.MapAPI.pdb` **is** in the archive — at `data_*_windows_x86_64/MapTemplate/lib/Realm.MapAPI.pdb`. It is not
+  beside `Realm.Client.dll` because the client deliberately does not reference `Realm.MapAPI`; Godot copies symbols only
+  for the assemblies the client loads. The map API therefore travels as part of the map template a workspace is built
+  from, which is exactly where a map author's compile reads it (`EnsureApiLib` copies `.dll`, `.pdb` and `.xml` into
+  `lib/`). Nothing was missing from the published archive.
+- `Realm.Ecs.pdb` is needed for the same reason (`EcsSharedMemory` lives in `Realm.Ecs`).
+- `Realm.EditorAPI.pdb` is needed by nothing: no map script references `Realm.EditorAPI`, no `EditorAPI` source appears
+  in the guest DWARF, and `EnsureApiLib` never copies that symbol into a workspace.
+
+### What the workflow now ships
+
+`Keep Only the Symbols a Map Debugger Reads` fails the publish if either of the two symbols above is missing from the
+export, then deletes every other `.pdb` under `publish/` **except** the authority's own. Judgement call: the authority
+keeps its symbols because the log it writes puts file and line in the stack traces a bug report carries, and the editor
+shows that log to map authors. Everything the client side loses describes a process that is never stepped and whose own
+assembly is exported without symbols anyway, so those copies could resolve no client trace either.
+
+### The two builds
+
+`bin/script` now holds two artifacts instead of one: `<Assembly>.wasm` (optimized, what every match runs) and
+`<Assembly>.debug.wasm` (full DWARF, what a playtest debugger steps). Each compile publishes into `bin/.build-<flavor>`
+and is moved into place, so one flavor's build never disturbs the other's artifact, and a failed compile leaves both as
+they were. The flavor is stated by the file name, so the retired `bin/script/.build-flavor` marker is no longer written
+and is removed where found. The authority asks for the flavor the match needs
+(`ServerMapScript.TryFindScript(mapPath, wasmDebug, …)`): `btnTestMap` runs the playtest build, every other match — single
+player, multiplayer, dedicated — runs the optimized one, and a map that lacks the requested flavor runs the other and
+says so in its log. `MeleeRuleset` was used to prove both directions; the packaging filters were proven with a synthetic
+folder that held a debug artifact, a retired marker and a staging folder, none of which reach the manifest or the
+`.rmap`.
+
+**Needs your review:** a playtest whose sources are newer than the optimized build now **deletes** that optimized
+artifact (`MapEditorHUD.RetireOptimizedScriptLeftBehind`), on the principle that nothing in a workspace may run code the
+author has already changed. Publishing or exporting rebuilds it, and until then a match runs the playtest build and its
+log says so. If you would rather keep the stale release and accept it being used, that is a one-line change.
+**Also unproven here:** the two Windows UI paths (`btnTestMap`, export/publish) compile a Godot-side service that cannot
+be exercised outside the game, so they were verified by building and by driving the same publish command and the same
+lookup code directly, not by clicking the buttons.

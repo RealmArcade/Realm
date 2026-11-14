@@ -6,8 +6,7 @@ namespace Realm.Client.Services;
 
 public static class EditorMapBuild
 {
-	public static async Task<bool> PerformCompilationStepAsync(string workspace, Func<string, string?> findProjectFile, Func<string, bool, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)
-	{
+	public static async Task<bool> PerformCompilationStepAsync(string workspace, Func<string, string?> findProjectFile, Func<string, bool, bool> tryBypassCompilation, Func<string, bool> checkMapApiDependency, Func<string, string, bool, Task<bool>> executeDotnetPublishAsync, Action<string> onStatusError, Action<string> onLog, bool isDebug = false)	{
 		try
 		{
 			if (!Directory.Exists(workspace))
@@ -51,12 +50,10 @@ public static class EditorMapBuild
 		return System.Linq.Enumerable.FirstOrDefault(csprojFiles, f => Path.GetFileName(f).Equals("MapScript.csproj", StringComparison.OrdinalIgnoreCase)) ?? csprojFiles[0];
 	}
 
-	public static bool TryBypassCompilation(string workspace, Func<string, string?> findExistingWasmFile, Func<string, DateTime, bool> hasNewerSourceFiles, Action onBypassSuccess, bool isDebug = false)
+	public static bool TryBypassCompilation(string workspace, Func<string, bool, string?> findExistingWasmFile, Func<string, DateTime, bool> hasNewerSourceFiles, Action onBypassSuccess, bool isDebug = false)
 	{
-		string? existingWasm = findExistingWasmFile(workspace);
+		string? existingWasm = findExistingWasmFile(workspace, isDebug);
 		if (string.IsNullOrEmpty(existingWasm) || !File.Exists(existingWasm)) return false;
-
-		if (!string.Equals(MapWorkspaceService.ReadBuildFlavorDomain(workspace), isDebug ? MapWorkspaceService.DebugBuildFlavor : MapWorkspaceService.ReleaseBuildFlavor, StringComparison.OrdinalIgnoreCase)) return false;
 
 		if (!isDebug && MapScriptArtifacts.ContainsDebugInformation(existingWasm)) return false;
 

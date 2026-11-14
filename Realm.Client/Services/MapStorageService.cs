@@ -548,6 +548,7 @@ public class MapStorageService
 			string csprojName = Path.GetFileName(csproj);
 			string configuration = isDebug ? MapWorkspaceService.DebugBuildFlavor : MapWorkspaceService.ReleaseBuildFlavor;
 			string scriptOutputDirectory = MapWorkspaceService.GetScriptOutputDirectory(workspace);
+			string stagingDirectory = MapWorkspaceService.GetScriptStagingDirectory(workspace, isDebug);
 			string dotnetExecutablePath = DotnetSdkResolver.ResolveSdkExecutablePath();
 			if (string.IsNullOrEmpty(dotnetExecutablePath))
 			{
@@ -555,11 +556,11 @@ public class MapStorageService
 				return (false, -1, true);
 			}
 
-			ClearScriptOutput(workspace, scriptOutputDirectory);
+			ClearStagingOutput(stagingDirectory);
 
 			var compileProcess = new Process();
 			compileProcess.StartInfo.FileName = dotnetExecutablePath;
-			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c {configuration} -r wasi-wasm -o \"{scriptOutputDirectory}\" -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"{ResolveBuildPropertyOverrides(isDebug)}";
+			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c {configuration} -r wasi-wasm -o \"{stagingDirectory}\" -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"{ResolveBuildPropertyOverrides(isDebug)}";
 			compileProcess.StartInfo.EnvironmentVariables["WASI_SDK_PATH"] = resolvedWasiSdk;
 			compileProcess.StartInfo.WorkingDirectory = workspace;
 			compileProcess.StartInfo.CreateNoWindow = true;
@@ -605,7 +606,7 @@ public class MapStorageService
 			compileProcess.WaitForExit();
 
 			bool succeeded = compileProcess.ExitCode == 0 && !streamHadErrors;
-			if (succeeded) RecordScriptOutput(workspace, scriptOutputDirectory, isDebug);
+			if (succeeded) succeeded = PublishCompiledScript(scriptOutputDirectory, stagingDirectory, isDebug, onError);
 
 			return (succeeded, compileProcess.ExitCode, streamHadErrors);
 		});
@@ -617,39 +618,80 @@ public class MapStorageService
 
 	private static string ResolveBuildPropertyOverrides(bool isDebug) => isDebug ? DebugBuildPropertyOverrides : ReleaseBuildPropertyOverrides;
 
-	private static void ClearScriptOutput(string workspace, string scriptOutputDirectory)
+	private static void ClearStagingOutput(string stagingDirectory)
 	{
 		try
 		{
-			if (Directory.Exists(scriptOutputDirectory)) Directory.Delete(scriptOutputDirectory, true);
-			string legacyBinRoot = Path.Combine(workspace, "bin");
-			if (!Directory.Exists(legacyBinRoot)) return;
-
-			foreach (string strayScript in Directory.GetFiles(legacyBinRoot, "*.wasm", SearchOption.TopDirectoryOnly))
-			{
-				File.Delete(strayScript);
-			}
+			if (Directory.Exists(stagingDirectory)) Directory.Delete(stagingDirectory, true);
 		}
 		catch (Exception exception)
 		{
-			GameLog.LogError($"[MapStorageService] Could not clear the previous script output: {exception.Message}");
+			GameLog.LogError($"[MapStorageService] Could not clear the previous build folder '{stagingDirectory}': {exception.Message}");
 		}
 	}
 
-	private static void RecordScriptOutput(string workspace, string scriptOutputDirectory, bool isDebug)
+	/// <summary>
+	///     Moves the script a build produced out of its staging folder and into the one the map runs its scripts from,
+	///     under the name that states its flavor. The other flavor's artifact is left exactly as it was, so a playtest and a
+	///     release build of the same workspace both stay available.
+	/// </summary>
+	/// <param name="scriptOutputDirectory">The folder the map's scripts are published into.</param>
+	/// <param name="stagingDirectory">The folder this build wrote into.</param>
+	/// <param name="isDebug">Whether this build carries debug information.</param>
+	/// <param name="onError">Reports why the artifact could not be published.</param>
+	/// <returns>Whether the artifact was published.</returns>
+	private static bool PublishCompiledScript(string scriptOutputDirectory, string stagingDirectory, bool isDebug, Action<string>? onError)
+	{
+		string? builtScript = null;
+		if (Directory.Exists(stagingDirectory))
+		{
+			foreach (string candidate in Directory.GetFiles(stagingDirectory, "*.wasm", SearchOption.TopDirectoryOnly))
+			{
+				builtScript = candidate;
+				break;
+			}
+		}
+
+		if (builtScript == null)
+		{
+			onError?.Invoke("[COMPILER ERROR] The build reported success but wrote no compiled script.");
+			return false;
+		}
+
+		try
+		{
+			Directory.CreateDirectory(scriptOutputDirectory);
+			string publishedName = MapFileService.ScriptFileNameForFlavor(Path.GetFileName(builtScript), isDebug);
+			File.Move(builtScript, Path.Combine(scriptOutputDirectory, publishedName), true);
+			RemoveStaleLibraryCopies(scriptOutputDirectory);
+			return true;
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			onError?.Invoke("[COMPILER ERROR] The compiled script could not be put in place: " + exception.Message);
+			return false;
+		}
+		finally
+		{
+			ClearStagingOutput(stagingDirectory);
+		}
+	}
+
+	private static void RemoveStaleLibraryCopies(string scriptOutputDirectory)
 	{
 		try
 		{
-			MapWorkspaceService.WriteBuildFlavorDomain(workspace, isDebug);
-
 			foreach (string copiedLibraryFile in Directory.GetFiles(scriptOutputDirectory, "Realm.*", SearchOption.TopDirectoryOnly))
 			{
 				File.Delete(copiedLibraryFile);
 			}
+
+			string retiredFlavorMarker = Path.Combine(scriptOutputDirectory, MapFileService.RetiredBuildFlavorFileName);
+			if (File.Exists(retiredFlavorMarker)) File.Delete(retiredFlavorMarker);
 		}
 		catch (Exception exception)
 		{
-			GameLog.LogError($"[MapStorageService] Could not record the script output of '{workspace}': {exception.Message}");
+			GameLog.LogError($"[MapStorageService] Could not clean '{scriptOutputDirectory}': {exception.Message}");
 		}
 	}
 

@@ -71,34 +71,28 @@ public static partial class MapWorkspaceService
 
 	public const string ScriptOutputDirectoryName = MapFileService.ScriptOutputDirectoryName;
 
-	public const string BuildFlavorFileName = MapFileService.BuildFlavorFileName;
-
 	public const string DebugBuildFlavor = MapFileService.DebugBuildFlavor;
 
 	public const string ReleaseBuildFlavor = MapFileService.ReleaseBuildFlavor;
 
 	public static string GetScriptOutputDirectory(string workspace) => MapFileService.ResolveScriptOutputDirectory(workspace);
 
-	public static string GetBuildFlavorPath(string workspace) => MapFileService.ResolveBuildFlavorPath(workspace);
+	public static string GetScriptStagingDirectory(string workspace, bool isDebug) => MapFileService.ResolveScriptStagingDirectory(workspace, isDebug);
 
-	public static string? FindExistingWasmFileDomain(string workspace)
+	/// <summary>
+	///     Finds the compiled script of one flavor in a workspace, which is the artifact that flavor's build produced.
+	/// </summary>
+	/// <param name="workspace">The map workspace.</param>
+	/// <param name="isDebug">Whether the artifact carrying debug information is the one wanted.</param>
+	/// <returns>The compiled script of that flavor, or nothing when the workspace has never been compiled for it.</returns>
+	public static string? FindExistingWasmFileDomain(string workspace, bool isDebug = false)
 	{
-		return MapScriptArtifacts.FindCompiledScript(workspace);
+		return MapScriptArtifacts.FindCompiledScript(workspace, isDebug);
 	}
 
-	public static string? SearchForWasmInDirectoryDomain(string binDirectory)
+	public static string? SearchForWasmInDirectoryDomain(string binDirectory, bool isDebug = false)
 	{
-		return MapScriptArtifacts.FindCompiledScriptInBin(binDirectory);
-	}
-
-	public static string? ReadBuildFlavorDomain(string workspace)
-	{
-		return MapScriptArtifacts.ReadBuildFlavor(workspace);
-	}
-
-	public static void WriteBuildFlavorDomain(string workspace, bool isDebug)
-	{
-		MapScriptArtifacts.WriteBuildFlavor(workspace, isDebug);
+		return MapScriptArtifacts.FindCompiledScriptInBin(binDirectory, isDebug);
 	}
 
 	public static void EnsureSingleScriptOutput(string workspace)

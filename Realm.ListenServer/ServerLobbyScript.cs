@@ -33,16 +33,23 @@ public class ServerLobbyScript : IDisposable
 	/// <returns>The lobby script, or nothing when the authority's own rules apply.</returns>
 	public static ServerLobbyScript? Start(LoadedMap map, ServerMatchPaths paths, ServerLog log, ServerLobbyRoster roster, bool wasmDebug, string? mapWorkspacePath)
 	{
-		if (!ServerMapScript.TryFindScript(paths.MapPath, out string wasmPath))
+		if (!ServerMapScript.TryFindScript(paths.MapPath, wasmDebug, out string wasmPath, out bool flavorMatched))
 		{
 			log.Write("the lobby's map brought no compiled script; its roster states no factions of its own");
 			return null;
 		}
 
+		if (!flavorMatched)
+		{
+			log.Write(wasmDebug
+				? $"the lobby's map script '{wasmPath}' carries debug information, so a debugger can step it, but the map has no optimized build to seat its roster with"
+				: $"the lobby's map script '{wasmPath}' carries debug information because the map has no optimized build, so the lobby runs the build meant for a debugger");
+		}
+
 		try
 		{
 			var api = new ServerLobbyAPI(roster);
-			var host = new WasmScriptHost(wasmPath, paths.MapName, map.Simulation, map.World, 0, paths.LogDirectory, mapWorkspacePath, wasmDebug);
+			var host = new WasmScriptHost(wasmPath, paths.MapName, map.Simulation, map.World, 0, paths.LogDirectory, mapWorkspacePath, wasmDebug && flavorMatched);
 			host.LobbyApi = api;
 			roster.BindSharedMemory(host.SharedMemoryPointer);
 

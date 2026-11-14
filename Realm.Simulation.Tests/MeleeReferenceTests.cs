@@ -322,9 +322,12 @@ public class MeleeReferenceTests
 	[Test]
 	public void TheComposedMapCarriesExactlyOneScript()
 	{
-		string[] scripts = Directory.GetFiles(MapFileService.ResolveScriptOutputDirectory(Map.Folder), "*.wasm", SearchOption.AllDirectories);
-		Assert.That(scripts, Has.Length.EqualTo(1), "A composed map carries exactly one compiled script.");
+		string[] scripts = Directory.GetFiles(MapFileService.ResolveScriptOutputDirectory(Map.Folder), "*.wasm", SearchOption.AllDirectories)
+			.Where(path => !MapFileService.IsDebugScriptFileName(path))
+			.ToArray();
+		Assert.That(scripts, Has.Length.EqualTo(1), "A composed map carries exactly one compiled script, which is the optimized one its matches run.");
 		Assert.That(File.ReadAllBytes(scripts[0]), Is.EqualTo(File.ReadAllBytes(Map.ScriptPath)), "The script the map runs is the one compiled in its own folder.");
+		Assert.That(Directory.GetFiles(MapFileService.ResolveScriptOutputDirectory(Map.Folder), "*.wasm", SearchOption.AllDirectories), Has.None.Matches<string>(MapFileService.IsDebugScriptFileName), "A composed map ships no script built for a debugger.");
 	}
 
 	[Test]

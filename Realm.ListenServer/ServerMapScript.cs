@@ -6,7 +6,7 @@ namespace Realm.ListenServer;
 
 public class ServerMapScript : IDisposable
 {
-	private static readonly string[] ScriptFileNames = ["MapScript.wasm", "CustomMap.wasm"];
+	private static readonly string[] ScriptFileStems = ["MapScript", "CustomMap"];
 
 	private readonly ServerGameAPI _api;
 	private readonly WasmScriptHost? _host;
@@ -57,6 +57,7 @@ public class ServerMapScript : IDisposable
 		}
 
 		string wasmPath;
+		bool scriptCarriesDebugInformation = wasmDebug;
 		if (!string.IsNullOrWhiteSpace(scriptPathOverride))
 		{
 			wasmPath = scriptPathOverride;
@@ -65,18 +66,25 @@ public class ServerMapScript : IDisposable
 				throw new FileNotFoundException($"the match was handed the map script '{wasmPath}' and there is no such file", wasmPath);
 			}
 		}
-		else if (!TryFindScript(paths.MapPath, out wasmPath))
+		else if (!TryFindScript(paths.MapPath, wasmDebug, out wasmPath, out bool flavorMatched))
 		{
 			log.Write("the map brought no compiled script; the match runs on what its files describe");
 			return new ServerMapScript(api, null, string.Empty, log);
 		}
+		else if (!flavorMatched)
+		{
+			scriptCarriesDebugInformation = !wasmDebug;
+			log.Write(wasmDebug
+				? $"the map script '{wasmPath}' carries debug information, so a debugger can step it, but the map has no optimized build of its own to play"
+				: $"the map script '{wasmPath}' carries debug information because the map has no optimized build, so this match runs the build meant for a debugger");
+		}
 
 		GameAPI.Current = api;
 
-		var host = new WasmScriptHost(wasmPath, paths.MapName, map.Simulation, map.World, randomSeed, paths.LogDirectory, mapWorkspacePath, wasmDebug);
+		var host = new WasmScriptHost(wasmPath, paths.MapName, map.Simulation, map.World, randomSeed, paths.LogDirectory, mapWorkspacePath, scriptCarriesDebugInformation);
 		host.Initialize(api);
 
-		log.Write(wasmDebug ? $"map script '{wasmPath}' initialized with debug information kept" : $"map script '{wasmPath}' initialized");
+		log.Write(scriptCarriesDebugInformation ? $"map script '{wasmPath}' initialized with debug information kept" : $"map script '{wasmPath}' initialized");
 		return new ServerMapScript(api, host, wasmPath, log);
 	}
 
@@ -88,14 +96,29 @@ public class ServerMapScript : IDisposable
 	public ServerGameAPI Api => _api;
 
 	/// <summary>
-	///     Finds the compiled script the map ships. A map carries exactly one, in the single folder the editor publishes
-	///     every configuration into, so the match runs the bytes that were built last rather than the newest of several
-	///     candidates.
+	///     Finds the compiled script the map ships for one context. A map carries one artifact per flavor in the folder the
+	///     editor publishes into: the optimized script every match runs, and the script carrying debug information a playtest
+	///     attaches a debugger to. A map whose build of the requested flavor is missing still runs, on the other one, and the
+	///     caller is told so it can say which one was used.
 	/// </summary>
 	/// <param name="mapPath">The map folder.</param>
+	/// <param name="wasmDebug">Whether the script carrying debug information is the one wanted.</param>
 	/// <param name="wasmPath">The compiled script, or nothing when the map ships none.</param>
+	/// <param name="flavorMatched">Whether the script is the flavor that was asked for.</param>
 	/// <returns>Whether the map ships a compiled script.</returns>
-	public static bool TryFindScript(string mapPath, out string wasmPath)
+	public static bool TryFindScript(string mapPath, bool wasmDebug, out string wasmPath, out bool flavorMatched)
+	{
+		if (TryFindScriptOfFlavor(mapPath, wasmDebug, out wasmPath))
+		{
+			flavorMatched = true;
+			return true;
+		}
+
+		flavorMatched = false;
+		return TryFindScriptOfFlavor(mapPath, !wasmDebug, out wasmPath);
+	}
+
+	private static bool TryFindScriptOfFlavor(string mapPath, bool isDebug, out string wasmPath)
 	{
 		wasmPath = string.Empty;
 		if (string.IsNullOrEmpty(mapPath) || !Directory.Exists(mapPath)) return false;
@@ -103,7 +126,7 @@ public class ServerMapScript : IDisposable
 		string scriptDirectory = Path.Combine(mapPath, "bin", "script");
 		if (!Directory.Exists(scriptDirectory)) return false;
 
-		foreach (string scriptFileName in ScriptFileNames)
+		foreach (string scriptFileName in ScriptFileNamesFor(isDebug))
 		{
 			string candidate = Path.Combine(scriptDirectory, scriptFileName);
 			if (!File.Exists(candidate)) continue;
@@ -113,6 +136,14 @@ public class ServerMapScript : IDisposable
 		}
 
 		return false;
+	}
+
+	private static IEnumerable<string> ScriptFileNamesFor(bool isDebug)
+	{
+		foreach (string stem in ScriptFileStems)
+		{
+			yield return Realm.Shared.Services.MapFileService.ScriptFileNameForFlavor(stem + ".wasm", isDebug);
+		}
 	}
 
 	public void Dispose()

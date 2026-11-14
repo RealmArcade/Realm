@@ -10,26 +10,60 @@ namespace Realm.Shared.Services;
 public static class MapFileService
 {
 	/// <summary>
-	///     The folder inside a map's <c>bin</c> that holds the one compiled script the map runs. Every build
-	///     configuration publishes here, so the artifact present is the one built last.
+	///     The folder inside a map's <c>bin</c> that holds the compiled scripts a map can run: the optimized one a match
+	///     plays, and the one carrying debug information a playtest attaches a debugger to. Each build writes its own
+	///     artifact, so a playtest never replaces the script a match runs.
 	/// </summary>
 	public const string ScriptOutputDirectoryName = "script";
 
 	/// <summary>
-	///     The file beside a compiled script that records which build configuration produced it, so a release export can
-	///     tell a stripped artifact from one built to be debugged.
+	///     The marker an older workspace used to record which configuration produced the single artifact it held. Nothing
+	///     writes it now that an artifact's own name states its flavor, and workspace cleanup removes one it finds.
 	/// </summary>
-	public const string BuildFlavorFileName = ".build-flavor";
+	public const string RetiredBuildFlavorFileName = ".build-flavor";
 
 	public const string DebugBuildFlavor = "Debug";
-
 	public const string ReleaseBuildFlavor = "Release";
+
+	/// <summary>
+	///     The part a script's file name gains when it carries debug information, so the two artifacts of one map sit
+	///     beside each other and neither is mistaken for the other: <c>MapScript.wasm</c> is what a match runs and
+	///     <c>MapScript.debug.wasm</c> is what a debugger steps.
+	/// </summary>
+	public const string DebugScriptNameInfix = ".debug";
 
 	public static Action<string>? FileWritten { get; set; }
 
 	public static string ResolveScriptOutputDirectory(string mapFolder) => Path.Combine(mapFolder, "bin", ScriptOutputDirectoryName);
 
-	public static string ResolveBuildFlavorPath(string mapFolder) => Path.Combine(ResolveScriptOutputDirectory(mapFolder), BuildFlavorFileName);
+	/// <summary>
+	///     The folder a build writes into before its artifact is published, one per configuration, so a compile of one
+	///     flavor never disturbs the artifact of the other while it runs.
+	/// </summary>
+	public const string ScriptStagingDirectoryNamePrefix = ".build-";
+
+	public static string ResolveScriptStagingDirectory(string mapFolder, bool isDebug) => Path.Combine(mapFolder, "bin", ScriptStagingDirectoryNamePrefix + (isDebug ? DebugBuildFlavor : ReleaseBuildFlavor).ToLowerInvariant());
+
+	/// <summary>
+	///     States the file name an artifact built in one configuration is published as.
+	/// </summary>
+	/// <param name="scriptFileName">The name the compiler produced, such as <c>MapScript.wasm</c>.</param>
+	/// <param name="isDebug">Whether the artifact was built with debug information in it.</param>
+	/// <returns>The name the artifact is published as.</returns>
+	public static string ScriptFileNameForFlavor(string scriptFileName, bool isDebug)
+	{
+		return isDebug ? Path.GetFileNameWithoutExtension(scriptFileName) + DebugScriptNameInfix + ".wasm" : scriptFileName;
+	}
+
+	/// <summary>
+	///     Reports whether a file name belongs to an artifact built with debug information in it.
+	/// </summary>
+	/// <param name="scriptFileName">The file name to read.</param>
+	/// <returns>Whether the artifact is the one a debugger steps.</returns>
+	public static bool IsDebugScriptFileName(string scriptFileName)
+	{
+		return scriptFileName.EndsWith(DebugScriptNameInfix + ".wasm", StringComparison.OrdinalIgnoreCase);
+	}
 
 	private static readonly JsonSerializerOptions ManifestJsonOptions = new()
 	{

@@ -3713,6 +3713,73 @@
         <member name="F:Realm.Ecs.LobbyRosterHeader.SlotCount">
             <summary>The number of player slots shared memory carries, which is what a reader may index up to.</summary>
         </member>
+        <member name="T:Realm.Ecs.LobbySetting">
+            <summary>
+                One row of a lobby's match settings, named so a map can say which rows its board is played with. The first nine
+                members mirror <see cref="T:Realm.Ecs.MatchOption" /> value for value, because those rows are the match options themselves; the
+                last two are the lobby switches a map states through their own orders rather than through an option.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySetting.MaximumPlayers">
+            <summary>How many players the lobby seats, which is <see cref="F:Realm.Ecs.MatchOption.MaximumPlayers" />.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySetting.MaximumBuildingDraftCount">
+            <summary>How many building options a draft offers at once.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySetting.MaximumUniqueBuildingInstances">
+            <summary>How many unique instances of one building a player may own.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySetting.ShroudMode">
+            <summary>Whether vision is limited, and which shroud mode applies.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySetting.MirroredAutoDraft">
+            <summary>Whether every player draws the same heroes and building options.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySetting.OpenPoolDrafting">
+            <summary>Whether a drafted building stays in the deck instead of leaving it.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySetting.CapacityMultiplierPercent">
+            <summary>The percentage every player's capacity ceiling is multiplied by.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySetting.ProductionMultiplierPercent">
+            <summary>The percentage every player's stored production mana is multiplied by.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySetting.MaximumBuildingSupply">
+            <summary>How many buildings a player may construct and hold.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySetting.TeamsTogether">
+            <summary>Whether a team's players sit in consecutive player slots in the match.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySetting.SpectatorDelay">
+            <summary>Whether players who join late watch for a delay before they see the board.</summary>
+        </member>
+        <member name="T:Realm.Ecs.LobbySettings">
+            <summary>Reads and writes a set of settings as the bit mask a lobby publishes.</summary>
+        </member>
+        <member name="F:Realm.Ecs.LobbySettings.HighestSetting">
+            <summary>The highest member of <see cref="T:Realm.Ecs.LobbySetting" />, which is also how many bits the mask uses.</summary>
+        </member>
+        <member name="M:Realm.Ecs.LobbySettings.With(System.Int32,Realm.Ecs.LobbySetting,System.Boolean)">
+            <summary>Marks one setting hidden, or shows it again.</summary>
+            <param name="mask">The mask being changed.</param>
+            <param name="setting">The setting to change.</param>
+            <param name="hidden">Whether the setting is hidden.</param>
+            <returns>The mask with the change applied.</returns>
+        </member>
+        <member name="M:Realm.Ecs.LobbySettings.IsHidden(System.Int32,Realm.Ecs.LobbySetting)">
+            <summary>Answers whether one setting is hidden in a published mask.</summary>
+            <param name="mask">The published mask.</param>
+            <param name="setting">The setting being read.</param>
+            <returns>Whether the lobby hides the setting from its host.</returns>
+        </member>
+        <member name="M:Realm.Ecs.LobbySettings.IsHidden(System.Int32,Realm.Ecs.MatchOption)">
+            <summary>
+                Answers whether the setting a match option states is hidden, which is the rule a host's order is measured by.
+            </summary>
+            <param name="mask">The published mask.</param>
+            <param name="option">The match option being read.</param>
+            <returns>Whether the lobby hides the option.</returns>
+        </member>
         <member name="T:Realm.Ecs.LootItemId">
             <summary>
             Identifies a dropped loot item by the entity index it occupies in the world.
