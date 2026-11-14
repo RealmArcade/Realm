@@ -67,41 +67,16 @@ public partial class LobbyManager
 			GD.PushWarning($"[LobbyManager] {LastLobbyWarning}");
 		}
 
-		bool randomize = metadata.MapProperties?.TestRandomizeSlots ?? false;
 		int? testSeed = metadata.MapProperties?.TestRandomSeed;
 
 		GameContext.RandomService.SetSeed(testSeed);
 		MatchSeed = GameContext.RandomService.Seed;
 
-		int humanSlot = 1;
-		var aiSlots = new List<int>();
-
-		if (!randomize)
-		{
-			humanSlot = 1;
-			for (int i = 0; i < aiCount; i++)
-			{
-				aiSlots.Add(2 + i);
-			}
-		}
-		else
-		{
-			var available = Enumerable.Range(1, MaxPlayers).ToList();
-			var rng = (testSeed.HasValue && testSeed.Value != 0) ? new Random(testSeed.Value) : new Random();
-			int n = available.Count;
-			while (n > 1)
-			{
-				n--;
-				int k = rng.Next(n + 1);
-				(available[k], available[n]) = (available[n], available[k]);
-			}
-
-			humanSlot = available[0];
-			for (int i = 0; i < aiCount; i++)
-			{
-				aiSlots.Add(available[1 + i]);
-			}
-		}
+		// The seat plan is read from the map's own test settings, which is the same reading the editor warns about what a
+		// run will show with, so a randomized run seats the player where the editor said it would.
+		MapTestSeatingPlan seating = MapTestSeating.Plan(metadata.MapProperties, MaxPlayers);
+		int humanSlot = seating.HumanSlot;
+		var aiSlots = new List<int>(seating.ComputerSlots);
 
 		var hostPlayer = new PlayerInfo
 		{

@@ -372,3 +372,28 @@ shader loads in Godot with the new uniform.
 - **The red site silhouette is derived on the screen**, from the replicated population and the template's own `PopCost`,
   rather than from a new replicated flag. It therefore matches the authority's arithmetic without a wire change, but it
   re-reads two components per unfinished site per rendered frame.
+
+## 16. The shroud warning is read from the seat the test run will seat the player in
+
+The editor warned "You have not placed any units, you won't see anything due to Shroud" whenever the board held no
+unit at all, which never looked at the seat the run gives the player. A map whose test settings randomize the slots can
+seat the player anywhere, so a board full of that seat's units could be called empty, or a board with nothing on the
+player's seat could pass unmentioned.
+
+The seat plan now lives in one place. `MapTestSeating` reads a map's own test settings into a
+`MapTestSeatingPlan` - the player's slot, the computer players' slots, and whether the player's slot is actually known -
+and `LobbyManager.HostSinglePlayerGame` seats its run from that plan instead of its own copy of the shuffle. The warning
+then asks `MapTestSeating.CouldSeatLocalPlayer` for each unit's owner: only a unit on a slot the player could be given
+counts, so a seeded randomized run is warned about the seat it will really take, and a run that randomizes without a
+seed counts every playable slot (the warning then holds only when no seat could show anything, which is never wrong).
+
+**Proven:** the extracted plan was compared against the lobby's previous shuffle for 612 combinations of slot count,
+computer count and seed, and every one matches, including that a seeded run is repeatable and an unseeded one is not.
+`CouldSeatLocalPlayer` was checked for 2870 slot/plan combinations, and the warning's own rule was checked for an empty
+board, a unit on the player's seat, a unit on another seat, gaia-owned units and an unseeded run. The editor click itself
+cannot be driven from here, so `btnTestMap`'s warning is verified by those rules and by building, not by clicking.
+
+**Judgement call:** gaia-owned units count as "something the author placed". Gaia (slot 0) is the placement palette's
+default owner, so a board an author never gave a seat to - scenery and creeps - would otherwise be called unplaced on
+every test. Gaia units do not lift anybody's shroud, so if you want the warning to fire on a gaia-only board as well,
+delete that one line in `MapEditorHUD.Dialogs.LocalTestSeatHasUnits`.
