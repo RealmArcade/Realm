@@ -179,17 +179,25 @@ public static class AdminEndpoints
 			}
 
 			string mapTitle = req.MapTitle.Trim();
-			string payload = $"greenlight:{mapTitle.ToLowerInvariant()}";
+			string creatorUsername = req.CreatorUsername.Trim();
 
-			bool isSigValid = AuthorSignatureHelper.VerifySignature(req.AdminPublicKey, payload, req.Signature)
-			                  || (!string.IsNullOrEmpty(req.MapVersion) && AuthorSignatureHelper.VerifySignature(req.AdminPublicKey, $"greenlight:{mapTitle.ToLowerInvariant()}:{req.MapVersion.ToLowerInvariant()}", req.Signature))
-			                  || (!string.IsNullOrEmpty(req.MapVersion) && AuthorSignatureHelper.VerifySignature(req.AdminPublicKey, $"{mapTitle}:{req.MapVersion}", req.Signature))
-			                  || AuthorSignatureHelper.VerifySignature(req.AdminPublicKey, mapTitle, req.Signature)
-			                  || AdminBypassAuth.VerifyBypassToken(req.AdminPublicKey, mapTitle, req.MapVersion ?? "1.0", req.Signature);
+			// The override names a creator, and the name lock is what turns that name into the one key allowed to publish
+			// the title. Without it the greenlight would be a permission anybody could spend by publishing first.
+			if (!CreatorNamePolicy.TryReadNameLockOwner(db, creatorUsername, out string creatorPublicKey))
+			{
+				return Results.NotFound(new { Message = $"No creator holds the name '{creatorUsername}', so the override cannot name who may publish '{mapTitle}'." });
+			}
 
-			if (!isSigValid)
+			string payload = $"greenlight:{mapTitle.ToLowerInvariant()}:{NameNormalizationHelper.GetCreatorSlug(creatorUsername)}";
+
+			if (!AuthorSignatureHelper.VerifySignature(req.AdminPublicKey, payload, req.Signature))
 			{
 				return Results.BadRequest(new { Message = "Invalid admin signature." });
+			}
+
+			if (!MapMaintainerHelper.TryClaimOwnership(db, mapTitle, creatorPublicKey, out string existingOwner))
+			{
+				return Results.Json(new { Message = $"'{mapTitle}' already belongs to another creator ({existingOwner}). An override cannot take a map from the creator who holds it." }, statusCode: StatusCodes.Status409Conflict);
 			}
 
 			var stats = MapStatsHelper.GetStats(db, mapTitle, req.MapVersion, null) ?? new MapStats();
@@ -213,6 +221,8 @@ public static class AdminEndpoints
 				{
 					MapTitle = mapTitle,
 					MapVersion = req.MapVersion,
+					CreatorUsername = creatorUsername,
+					CreatorPublicKey = creatorPublicKey,
 					AdminPublicKey = req.AdminPublicKey.Trim(),
 					Signature = req.Signature.Trim()
 				})
@@ -224,6 +234,8 @@ public static class AdminEndpoints
 			{
 				Status = "Greenlit",
 				MapTitle = mapTitle,
+				CreatorUsername = creatorUsername,
+				CreatorPublicKey = creatorPublicKey,
 				IsGreenlit = true,
 				AdminOverride = true
 			});

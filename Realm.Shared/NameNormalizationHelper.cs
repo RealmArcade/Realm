@@ -37,6 +37,21 @@ public static class NameNormalizationHelper
 		return stringBuilder.ToString();
 	}
 
+	/// <summary>
+	///     The key a creator name is stored under, which is the name with everything a key cannot express taken out of it. A
+	///     name that normalises to nothing is keyed by its own spelling instead, so two spellings of one unpronounceable name
+	///     still land under one entry.
+	/// </summary>
+	/// <param name="username">The creator name as it was written.</param>
+	/// <returns>The key the name's registration is kept under.</returns>
+	public static string GetCreatorSlug(string? username)
+	{
+		string normalized = NormalizeUsername(username);
+		if (!string.IsNullOrEmpty(normalized)) return normalized;
+
+		return string.IsNullOrWhiteSpace(username) ? string.Empty : username.Trim().ToLowerInvariant().Replace(" ", "-");
+	}
+
 	public static string NormalizeMapName(string? mapName)
 	{
 		if (string.IsNullOrWhiteSpace(mapName))

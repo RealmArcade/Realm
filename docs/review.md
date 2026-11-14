@@ -397,3 +397,29 @@ cannot be driven from here, so `btnTestMap`'s warning is verified by those rules
 default owner, so a board an author never gave a seat to - scenery and creeps - would otherwise be called unplaced on
 every test. Gaia units do not lift anybody's shroud, so if you want the warning to fire on a gaia-only board as well,
 delete that one line in `MapEditorHUD.Dialogs.LocalTestSeatHasUnits`.
+
+## 17. A greenlight override now names the creator it is for
+
+An admin greenlight only marked a map title as approved. Publishing authorizes by maintainer, and a title with no
+maintainers authorizes anybody, so the first key to publish after a greenlight kept the map - the override was a
+permission anyone could spend.
+
+The override now names a creator, and that name is the thing that decides who may publish: `greenlight -c <username>`
+signs `greenlight:<title>:<creator-slug>`, and the server resolves the username through the name locks to the key that
+holds it. The title is then claimed for that key (`MapMaintainerHelper.TryClaimOwnership`, which writes the same
+`map_ownership` spellings the lookups read), so publishing is refused for every other key until an administrator
+releases the title or adds that key as a maintainer. A greenlight naming a name nobody holds is refused (404), a
+signature that does not name the creator is refused (400), and a greenlight for a title another creator already holds is
+refused (409) rather than taking the map away from them. Cluster peers apply the same rule from their own name locks and
+reject an event they cannot resolve, so no server is left with a greenlit title that nobody owns.
+
+**Proven against a real `Realm.AdminServer`** (started on loopback with a generated admin key): the 404 for an unheld
+name, the 400 for a title-only signature, the 200 that names the resolved key, the 409 for a second creator claiming a
+held title, `/api/publish_map/initiate` refusing the stranger's key with "owned by different maintainers", and the named
+creator passing that same check.
+
+**What this does not cover:** the admin tool has no command to release a title or hand it to another key; that is still
+`addmaintainer`/`removemaintainer` plus, for a full transfer, the manifest-removal path. The `admin_greenlight` event's
+signature names the creator, not the resolved key, so a peer resolves the name itself; if a name is re-registered to a
+different key between the two servers seeing the event, each applies the key its own name locks state, which is logged as
+drift rather than merged.

@@ -20,7 +20,11 @@ public static partial class Program
 		if (keyPair == null) return 1;
 
 		string mapTitle = options.Map.Trim();
-		string payload = $"greenlight:{mapTitle.ToLowerInvariant()}";
+		string creatorUsername = options.Creator.Trim();
+
+		// The override is signed for one map and one creator name: the server resolves that name through its name locks
+		// to the key allowed to publish, so a greenlit title cannot be published by whoever hears about it first.
+		string payload = $"greenlight:{mapTitle.ToLowerInvariant()}:{NameNormalizationHelper.GetCreatorSlug(creatorUsername)}";
 		string signature = keyPair.CreateSignature(payload);
 
 		Console.WriteLine("=================================================");
@@ -28,6 +32,7 @@ public static partial class Program
 		Console.WriteLine("=================================================");
 		Console.WriteLine($"Server:     {serverUrl}");
 		Console.WriteLine($"Map Title:  {mapTitle}");
+		Console.WriteLine($"Creator:    {creatorUsername}");
 		Console.WriteLine($"Admin Key:  {keyPair.PublicKeyBase64}");
 		Console.WriteLine();
 
@@ -37,6 +42,7 @@ public static partial class Program
 			var requestBody = new
 			{
 				MapTitle = mapTitle,
+				CreatorUsername = creatorUsername,
 				AdminPublicKey = keyPair.PublicKeyBase64,
 				Signature = signature
 			};
@@ -47,8 +53,8 @@ public static partial class Program
 
 			if (response.IsSuccessStatusCode)
 			{
-				Console.WriteLine($"[SUCCESS] Map '{mapTitle}' has been greenlit!");
-				Console.WriteLine("The map creator may now publish new versions of this map directly through the Map Editor.");
+				Console.WriteLine($"[SUCCESS] Map '{mapTitle}' has been greenlit for {creatorUsername}!");
+				Console.WriteLine($"{creatorUsername} may now publish this map through the Map Editor; no other key can, until you release the title or add them as a maintainer.");
 				return 0;
 			}
 			else

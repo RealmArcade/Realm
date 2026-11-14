@@ -20,8 +20,7 @@ public static class CreatorNamePolicy
 
 	public static string GetSlug(string username)
 	{
-		string slug = NameNormalizationHelper.NormalizeUsername(username);
-		return string.IsNullOrEmpty(slug) ? username.Trim().ToLowerInvariant().Replace(" ", "-") : slug;
+		return NameNormalizationHelper.GetCreatorSlug(username);
 	}
 
 	/// <summary>
