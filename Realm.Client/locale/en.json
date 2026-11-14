@@ -1451,6 +1451,7 @@
   "Normalize Luminance": "Normalize Luminance",
   "Normalize References": "Normalize References",
   "Not all players are ready, start anyway?": "Not all players are ready, start anyway?",
+  "Nothing answered for UDP port {0} from outside your network, so the address above only works on your own network. Forward that port on your router, or have your friends join through a virtual LAN such as Tailscale, to play with them anywhere.": "Nothing answered for UDP port {0} from outside your network, so the address above only works on your own network. Forward that port on your router, or have your friends join through a virtual LAN such as Tailscale, to play with them anywhere.",
   "Nothing was hit. Click directly on the mesh surface of the part you want to animate.": "Nothing was hit. Click directly on the mesh surface of the part you want to animate.",
   "NuGet gallery": "NuGet gallery",
   "OBJECTIVE": "OBJECTIVE",

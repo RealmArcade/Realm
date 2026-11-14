@@ -32,39 +32,68 @@ public partial class LobbyRoom
 		title.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(title);
 
-		var hint = new Label();
-		hint.Name = "DirectConnectHint_Label";
-		hint.Text = TranslationServer.Translate("Send this address to the players you want to join. They open DIRECT CONNECT in the lobby browser and paste it.");
-		hint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		hint.CustomMinimumSize = new Vector2(560, 0);
-		hint.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		hint.HorizontalAlignment = HorizontalAlignment.Center;
-		hint.AddThemeFontSizeOverride("font_size", 12);
-		hint.AddThemeColorOverride("font_color", new Color(0.85f, 0.87f, 0.92f));
-		vbox.AddChild(hint);
+		vbox.AddChild(CreateDirectConnectNote(
+			"DirectConnectHint_Label",
+			TranslationServer.Translate("Send this address to the players you want to join. They open DIRECT CONNECT in the lobby browser and paste it."),
+			560,
+			12,
+			new Color(0.85f, 0.87f, 0.92f)));
 
-		vbox.AddChild(CreateDirectConnectAddressRow("LanAddress", Lobby.DirectConnectAddress));
-
-		if (Lobby.PublicConnectAddress is { Length: > 0 } publicAddress)
-		{
-			var publicHint = new Label();
-			publicHint.Name = "PublicAddressHint_Label";
-			publicHint.Text = TranslationServer.Translate("Players outside your network use this address when the router forwards the port:");
-			publicHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-			publicHint.CustomMinimumSize = new Vector2(560, 0);
-			publicHint.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			publicHint.HorizontalAlignment = HorizontalAlignment.Center;
-			publicHint.AddThemeFontSizeOverride("font_size", 11);
-			publicHint.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-			vbox.AddChild(publicHint);
-
-			vbox.AddChild(CreateDirectConnectAddressRow("PublicAddress", publicAddress));
-		}
+		AddDirectConnectAddresses(vbox, "LanAddress", 560, 17);
 
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(panel);
 	}
 
-	private HBoxContainer CreateDirectConnectAddressRow(string namePrefix, string address)
+	/// <summary>
+	///     Writes the addresses this lobby is played at, and what a host has to know about each: the address on this
+	///     network, the address a player anywhere reaches when a router forward was measured, and - when none was - the
+	///     sentence that stops a host sending that address to somebody it cannot work for.
+	/// </summary>
+	/// <param name="container">The column the addresses are written into.</param>
+	/// <param name="prefix">The name each address row and label is given.</param>
+	/// <param name="width">The width the wrapping text under each address may wrap in.</param>
+	/// <param name="addressFontSize">The size the address itself is drawn at.</param>
+	private void AddDirectConnectAddresses(VBoxContainer container, string prefix, int width, int addressFontSize)
+	{
+		container.AddChild(CreateDirectConnectAddressRow(prefix, Lobby.DirectConnectAddress, width, addressFontSize));
+
+		if (Lobby.PublicConnectAddress is { Length: > 0 } publicAddress)
+		{
+			container.AddChild(CreateDirectConnectNote(
+				$"{prefix}PublicHint_Label",
+				TranslationServer.Translate("Players outside your network use this address when the router forwards the port:"),
+				width,
+				11,
+				UIStyle.ColorGoldDull));
+			container.AddChild(CreateDirectConnectAddressRow($"{prefix}Public", publicAddress, width, addressFontSize));
+			return;
+		}
+
+		container.AddChild(CreateDirectConnectNote(
+			$"{prefix}NoForwardHint_Label",
+			string.Format(
+				TranslationServer.Translate("Nothing answered for UDP port {0} from outside your network, so the address above only works on your own network. Forward that port on your router, or have your friends join through a virtual LAN such as Tailscale, to play with them anywhere."),
+				Lobby.BoundPort),
+			width,
+			11,
+			UIStyle.ColorGoldDull));
+	}
+
+	private Label CreateDirectConnectNote(string name, string text, int width, int fontSize, Color color)
+	{
+		var note = new Label();
+		note.Name = name;
+		note.Text = text;
+		note.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		note.CustomMinimumSize = new Vector2(width, 0);
+		note.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		note.HorizontalAlignment = HorizontalAlignment.Center;
+		note.AddThemeFontSizeOverride("font_size", fontSize);
+		note.AddThemeColorOverride("font_color", color);
+		return note;
+	}
+
+	private HBoxContainer CreateDirectConnectAddressRow(string namePrefix, string address, int width, int fontSize)
 	{
 		var row = new HBoxContainer();
 		row.Name = $"{namePrefix}Row";
@@ -75,8 +104,8 @@ public partial class LobbyRoom
 		value.Name = $"{namePrefix}Label";
 		value.Text = address;
 		value.VerticalAlignment = VerticalAlignment.Center;
-		value.CustomMinimumSize = new Vector2(340, 0);
-		value.AddThemeFontSizeOverride("font_size", 17);
+		value.CustomMinimumSize = new Vector2(width - 160, 0);
+		value.AddThemeFontSizeOverride("font_size", fontSize);
 		value.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		row.AddChild(value);
 
@@ -129,42 +158,22 @@ public partial class LobbyRoom
 		title.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(title);
 
-		var description = new Label();
-		description.Name = "DirectConnectInviteDescription_Label";
-		description.Text = Lobby.IsHost
-			? TranslationServer.Translate("This lobby is not listed anywhere. Send one of these addresses to the players you want to play with.")
-			: TranslationServer.Translate("This lobby is not listed anywhere. This is the address it is played at, and you can pass it on to another player.");
-		description.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		description.CustomMinimumSize = new Vector2(600, 0);
-		description.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		description.HorizontalAlignment = HorizontalAlignment.Center;
-		description.AddThemeFontSizeOverride("font_size", 13);
-		description.AddThemeColorOverride("font_color", new Color(0.85f, 0.87f, 0.92f));
-		vbox.AddChild(description);
+		vbox.AddChild(CreateDirectConnectNote(
+			"DirectConnectInviteDescription_Label",
+			Lobby.IsHost
+				? TranslationServer.Translate("This lobby is not listed anywhere. Send one of these addresses to the players you want to play with.")
+				: TranslationServer.Translate("This lobby is not listed anywhere. This is the address it is played at, and you can pass it on to another player."),
+			600,
+			13,
+			new Color(0.85f, 0.87f, 0.92f)));
 
 		if (Lobby.IsHost)
 		{
-			vbox.AddChild(CreateDirectConnectAddressRow("InviteLanAddress", Lobby.DirectConnectAddress));
-
-			if (Lobby.PublicConnectAddress is { Length: > 0 } publicAddress)
-			{
-				var publicHint = new Label();
-				publicHint.Name = "InvitePublicAddressHint_Label";
-				publicHint.Text = TranslationServer.Translate("Players outside your network use this address when the router forwards the port:");
-				publicHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-				publicHint.CustomMinimumSize = new Vector2(600, 0);
-				publicHint.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				publicHint.HorizontalAlignment = HorizontalAlignment.Center;
-				publicHint.AddThemeFontSizeOverride("font_size", 12);
-				publicHint.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-				vbox.AddChild(publicHint);
-
-				vbox.AddChild(CreateDirectConnectAddressRow("InvitePublicAddress", publicAddress));
-			}
+			AddDirectConnectAddresses(vbox, "InviteLan", 600, 17);
 		}
 		else if (Lobby.JoinedLobbyAddress is { Length: > 0 } joinedAddress)
 		{
-			vbox.AddChild(CreateDirectConnectAddressRow("InviteHostAddress", joinedAddress));
+			vbox.AddChild(CreateDirectConnectAddressRow("InviteHostAddress", joinedAddress, 600, 17));
 		}
 
 		var closeButton = UIStyle.CreateActionButton("DirectConnectInviteClose_Button", TranslationServer.Translate("CLOSE"), 14);

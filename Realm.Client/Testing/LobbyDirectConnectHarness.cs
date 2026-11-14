@@ -314,6 +314,23 @@ public partial class LobbyDirectConnectHarness : Node
 
 		if (!addressShown) return (22, $"the direct connect card does not show '{address}'");
 
+		// A host has to be able to tell the two apart: an address a router forward was measured for works anywhere, and
+		// one that was not is only reachable on this network. The card says which of those it is selling.
+		if (lobby.PublicConnectAddress is { Length: > 0 } publicAddress)
+		{
+			bool publicShown = false;
+			foreach (Node node in panel.FindChildren("LanAddressPublicLabel", string.Empty, true, false))
+			{
+				if (node is Label label && label.Text == publicAddress) publicShown = true;
+			}
+
+			if (!publicShown) return (24, $"the direct connect card does not show the measured public address '{publicAddress}'");
+		}
+		else if (panel.GetNodeOrNull<Control>("DirectConnectVBox/LanAddressNoForwardHint_Label") == null)
+		{
+			return (24, "the direct connect card does not say that no router forward was found");
+		}
+
 		Button? inviteButton = room.GetNodeOrNull<Button>("InviteButton");
 		if (inviteButton == null || !inviteButton.Text.Contains("SHARE ADDRESS", StringComparison.Ordinal))
 		{
