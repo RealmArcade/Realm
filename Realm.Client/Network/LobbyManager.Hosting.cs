@@ -339,6 +339,8 @@ public partial class LobbyManager
 			return false;
 		}
 
+		StartHostReachabilityKeepAlive();
+
 		PlayerListUpdated?.Invoke();
 		return true;
 	}

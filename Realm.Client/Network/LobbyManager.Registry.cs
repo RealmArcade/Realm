@@ -118,6 +118,9 @@ public partial class LobbyManager
 
 	private void ReleaseHostedEndpoint(int port)
 	{
+		StopHostReachabilityKeepAlive();
+		_publishedReachability = null;
+
 		if (!IsHost) return;
 		if (IsSinglePlayer) return;
 
@@ -347,6 +350,7 @@ public partial class LobbyManager
 
 				if (response.IsSuccessStatusCode)
 				{
+					_publishedReachability = reachability;
 					await ProcessSuccessfulRegistrationAsync(response);
 					return true;
 				}

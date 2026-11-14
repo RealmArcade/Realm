@@ -42,6 +42,9 @@ public class ReachabilityRouterTests
 		Assert.That(result.PublicIp, Is.EqualTo(IPAddress.Loopback.ToString()));
 		Assert.That(result.PublicPort, Is.EqualTo(router.PublicPort), "the lobby must be published at the endpoint the host's punch came from, which is the only endpoint a peer can reach");
 
+		Assert.That(result.ProbeIp, Is.EqualTo(IPAddress.Loopback.ToString()), "the lobby has to state the endpoint it punched, because that is the one its mapping is refreshed through");
+		Assert.That(result.ProbePort, Is.EqualTo(probes.ProbePort));
+
 		Assert.That(probes.TryReadVerified(result.ProbeId, out ReachabilityReport report), Is.True);
 		Assert.That(report.ObservedPort, Is.EqualTo(router.PublicPort));
 	}

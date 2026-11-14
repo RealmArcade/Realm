@@ -200,12 +200,17 @@ public partial class LobbyManager
 		ClientServerSession? session = _lobbySession;
 		if (session == null) return false;
 
-		Callable.From(() => session.SendLobbyCommand(new LobbyCommand
+		Callable.From(() =>
 		{
-			Kind = LobbyCommandKind.PunchAddress,
-			Address = address,
-			Port = port
-		})).CallDeferred();
+			if (!ReferenceEquals(session, _lobbySession)) return;
+
+			session.SendLobbyCommand(new LobbyCommand
+			{
+				Kind = LobbyCommandKind.PunchAddress,
+				Address = address,
+				Port = port
+			});
+		}).CallDeferred();
 
 		return true;
 	}
