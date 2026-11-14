@@ -56,7 +56,7 @@ public partial class GameHost
 
 		HologramPreviewState state = blocked
 			? HologramPreviewState.Blocked
-			: CanAffordActivePlacement(activeType) ? HologramPreviewState.Legal : HologramPreviewState.Unaffordable;
+			: CanPlaceWithinFoodCap(activeType) ? CanAffordActivePlacement(activeType) ? HologramPreviewState.Legal : HologramPreviewState.Unaffordable : HologramPreviewState.FoodCapReached;
 
 		if (_hologramPreviewState == state) return;
 
@@ -64,6 +64,7 @@ public partial class GameHost
 		Color targetColor = state switch
 		{
 			HologramPreviewState.Blocked => new Color(0.9f, 0.2f, 0.2f),
+			HologramPreviewState.FoodCapReached => new Color(0.9f, 0.2f, 0.2f),
 			HologramPreviewState.Unaffordable => new Color(0.55f, 0.55f, 0.55f),
 			_ => new Color(0.15f, 0.65f, 1.0f)
 		};
@@ -74,7 +75,25 @@ public partial class GameHost
 	{
 		Legal,
 		Blocked,
+		FoodCapReached,
 		Unaffordable
+	}
+
+	/// <summary>
+	///     Reports whether the armed placement fits under the player's food cap. A placement that would take the player over
+	///     it is refused by the match and raises no site at all, so the silhouette says so in red before the click, with the
+	///     same arithmetic the match refusal is made with.
+	/// </summary>
+	/// <param name="type">The template the armed placement raises.</param>
+	/// <returns>True when the building fits under the cap.</returns>
+	private bool CanPlaceWithinFoodCap(string type)
+	{
+		if (!TryGetUnitOrBuildingMetadata(type, out UnitMetadata? metadata)) return true;
+		if (metadata.PopCost <= 0) return true;
+
+		int playerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		Entity playerEntity = GetPlayerEntityForPlayerIndex(playerIndex);
+		return PlayerPopulationRules.FitsWithinCap(World, playerEntity, metadata.PopCost);
 	}
 
 	/// <summary>

@@ -127,6 +127,23 @@ public partial class GameHost
 		}
 	}
 
+	/// <summary>
+	///     Reports whether a site is held short of completion because its owner has no food cap room for the building it
+	///     would become. The match stops the work at the progress it had reached, so the reading is the same arithmetic the
+	///     authority pauses with, taken from the population the match describes and the template's own cost.
+	/// </summary>
+	/// <param name="site">The entity to read.</param>
+	/// <returns>True when the site cannot be raised yet.</returns>
+	private bool IsConstructionHeldByFoodCap(Entity site)
+	{
+		if (!World.IsAlive(site) || !World.Has<UnderConstruction>(site)) return false;
+		if (!World.TryGet<DefinitionId>(site, out DefinitionId definition)) return false;
+		if (!TryGetUnitOrBuildingMetadata(definition.Value, out UnitMetadata? metadata) || metadata.PopCost <= 0) return false;
+		if (!World.TryGet<UnitOwnerPlayer>(site, out UnitOwnerPlayer owner)) return false;
+
+		return !PlayerPopulationRules.FitsWithinCap(World, GetPlayerEntityForPlayerIndex(owner.Value), metadata.PopCost);
+	}
+
 	private void UpdateBuildingConstructionState(Entity buildingEntity, float progressGain)
 	{
 		if (!World.Has<ConstructionState>(buildingEntity)) return;

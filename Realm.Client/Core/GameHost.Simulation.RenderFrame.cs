@@ -184,6 +184,7 @@ public partial class GameHost
 			}
 
 			unit3D.SetRuinSilhouette(world.Has<Dormant>(item.Entity) || world.Has<UnderConstruction>(item.Entity));
+			unit3D.SetConstructionBlocked(IsConstructionHeldByFoodCap(item.Entity));
 
 			if (item.ShouldSetTransform)
 			{

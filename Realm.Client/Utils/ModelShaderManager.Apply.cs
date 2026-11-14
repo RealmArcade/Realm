@@ -197,6 +197,43 @@ public static partial class ModelShaderManager
 		}
 	}
 
+	/// <summary>
+	///     Colours a silhouette, which is how a site that cannot be raised reads in red while a dormant or ruined building
+	///     keeps the dark fill it has always had.
+	/// </summary>
+	/// <param name="rootNode">The model whose meshes the colour is written to.</param>
+	/// <param name="tint">The fill colour, with its alpha stating how brightly it glows.</param>
+	public static void SetSilhouetteTint(Node rootNode, Color tint)
+	{
+		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
+		SetSilhouetteTintRecursive(rootNode, tint);
+	}
+
+	/// <summary>The dark fill a silhouette wears unless something gives it a reason to wear another.</summary>
+	public static Color DefaultSilhouetteTint { get; } = new(0.030f, 0.028f, 0.040f, 0.0f);
+
+	/// <summary>The red a site that cannot be raised dresses its silhouette in, glowing enough to read at night.</summary>
+	public static Color BlockedSilhouetteTint { get; } = new(0.75f, 0.10f, 0.08f, 1.2f);
+
+	private static void SetSilhouetteTintRecursive(Node node, Color tint)
+	{
+		if (node is GeometryInstance3D geomInst)
+		{
+			if (!IsExcludedMesh(geomInst))
+			{
+				geomInst.SetInstanceShaderParameter(_paramSilhouetteTint, tint);
+			}
+		}
+
+		foreach (var child in node.GetChildren())
+		{
+			if (child is Node childNode && !IsAttachmentNode(childNode))
+			{
+				SetSilhouetteTintRecursive(childNode, tint);
+			}
+		}
+	}
+
 	private static void SetUnitReadabilityRecursive(Node node, float ambientBoost, float rimIntensity)
 	{
 		if (node is GeometryInstance3D geomInst)

@@ -170,6 +170,15 @@ public partial class GameHost
 			return;
 		}
 
+		// A building this player has no food to hold is refused by the match before it is charged for, so the click says
+		// so here rather than paying for a site the match would never raise.
+		if (!CanPlaceWithinFoodCap(type))
+		{
+			GameContext.InGameHud?.ShowFeedbackWarning(TranslationServer.Translate("Cannot construct: food cap exceeded!"));
+			ClearBuildingPlacementState();
+			return;
+		}
+
 		if ((_multiplayerActive && !Multiplayer.IsServer()) || GameContext.ServerSession != null)
 		{
 			// The worker is resolved before the order is announced or paid for: an order the screen cannot name a worker for
@@ -307,6 +316,25 @@ public partial class GameHost
 		}
 
 		GameContext.InGameHud?.ExitBuildSubMenu();
+	}
+
+	/// <summary>
+	///     Takes down one of this player's own unfinished sites and has the match pay back what the placement charged.
+	///     A site is not a building yet, so it is taken down rather than demolished: nothing about it was ever whole, and
+	///     the order gives back the whole price instead of a share of it.
+	/// </summary>
+	/// <param name="buildingEntity">The site the player is looking at.</param>
+	public void CancelConstruction(Entity buildingEntity)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (!World.IsAlive(buildingEntity) || !World.Has<UnderConstruction>(buildingEntity)) return;
+		if (!TryGetUnit3D(buildingEntity, out var siteUnit) || !GameContext.PerspectiveFilter.CanControl(siteUnit.Player)) return;
+
+		SubmitOrderCommand("cancel_construction", new List<int> { GetServerEntityId(buildingEntity) }, Vector3.Zero, 0, string.Empty);
+
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Construction cancelled"), new Color(0.9f, 0.2f, 0.2f));
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	public void CancelLastQueuedUnit(Entity buildingEntity)

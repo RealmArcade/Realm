@@ -255,9 +255,9 @@ public static class MapSmokeRun
 		PlayerEntity playerEntity = map.GetPlayerEntity(workerPlayerIndex);
 		Vector3 position = map.World.Get<Position>(worker).Value + new Vector3(6f, 0f, 0f);
 
-		if (!BuildingPlacementService.TryPlace(map.World, map.Catalog, templateId, position, playerEntity, worker, out Entity site))
+		if (!BuildingPlacementService.TryPlace(map.World, map.Catalog, templateId, position, playerEntity, worker, out Entity site, out BuildingPlacementRefusal placementRefusal))
 		{
-			report = $"'{templateId}' could not be placed";
+			report = $"'{templateId}' could not be placed: {placementRefusal}";
 			return false;
 		}
 

@@ -328,3 +328,47 @@ translation pipeline left them in.
 **Needs your review:** this is a Godot UI path that cannot be driven from here, so it was verified by building and by
 reading the one call chain, not by clicking the button in a running game. `GameOver`'s close button and the editor-return
 harness now call the same method, so a click-through of any one of them exercises the shared code.
+
+## 15. The food cap holds construction, and an unfinished site can be cancelled
+
+The core now owns four rules that used to be nobody's, so a map that uses the engine's own placement and construction
+gets them without asking:
+
+1. **A site takes no food while it is unfinished.** `ResourceEconomyService` counted every entity with a template and an
+   owner, so a building being raised consumed its `PopCost` from the moment it was placed. It is skipped now (like a
+   `BypassPopulationTag` unit), which is what makes the next rule meaningful: a placement that cannot be held is refused
+   *before* anything is charged (`BuildingPlacementService.TryPlace`, new `BuildingPlacementRefusal.FoodCapReached`).
+2. **Work stops where it is when the cap has no room.** `ConstructionTick` asks `PlayerPopulationRules.FitsWithinCap`
+   for the site's owner before it moves progress, and releases the builder when the answer is no, so the worker idles
+   instead of standing at a site that cannot move and the progress stays at the value it had reached. Once room appears
+   the same order can be given again and the site carries on from that value.
+3. **Both silhouettes say so in red.** The placement preview gained a `FoodCapReached` state painted in the same red as
+   terrain blocking (it was blue whenever the ground was clear), and clicking in that state warns instead of charging. An
+   unfinished site whose owner has no room dresses its own silhouette in red through a new `silhouette_tint` shader
+   uniform (default is the old dark fill, so dormant and ruined buildings are unchanged).
+4. **`cancel_construction` takes a site down and refunds its whole cost.** The card that used to sit in an unfinished
+   building's grid with an empty callback now issues this core order, drawn red through a new `CommandCardItem.IconTint`,
+   and the authority pays back the full gold/wood/stone the placement charged before destroying the site. The site is
+   taken down rather than killed: no death, no bounty, and the map's ability state for that id is forgotten.
+
+**What this was verified against:** a scratch harness drove `MeleeRuleset` through the real `ServerSimulation` (the same
+path the smoke verifier uses) and confirmed each step - refusal at the cap charging nothing, a site taking no food, work
+advancing then freezing with the builder's task dropped, and `cancel_construction` destroying the site and returning
+exactly its 100 wood. The melee construction/draft suite (`MeleeConstructionDraftTests`, 20 tests) still passes, and the
+shader loads in Godot with the new uniform.
+
+**Judgement calls and limits:**
+
+- **Maps that raise buildings themselves are outside this.** A map that spawns a site through its own spells and governs
+  its own completion keeps its own rules; the pause and the refund are the engine's, so they apply to the engine's
+  placement order and to sites the engine is raising. This is the caveat you accepted.
+- **The engine's cancel card is offered only on sites the engine is raising** - a map holding a site short of completion
+  (`ConstructionCeilingFraction < 1`, which is how `MeleeRuleset` holds a draft site before the player picks) keeps that
+  site's grid to itself, so the engine cannot take a draft site out from under the map. Those maps keep their own way
+  out, which they already had.
+- **A refused placement is not a paused one.** Clicking with no food room raises nothing at all; only a site that was
+  already placed pauses. If you would rather the click still raised the site so its progress could be seen paused at
+  zero, that is a different rule and a small change.
+- **The red site silhouette is derived on the screen**, from the replicated population and the template's own `PopCost`,
+  rather than from a new replicated flag. It therefore matches the authority's arithmetic without a wire change, but it
+  re-reads two components per unfinished site per rendered frame.

@@ -6,10 +6,33 @@ using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
+using Realm.Ecs.Services;
 using Realm.Shared.Metadata;
 using Realm.Shared.Simulation;
 
 namespace Realm.Shared.Maps;
+
+/// <summary>
+///     Why a placement the match refused was refused, so the order that asked for it can say which rule stopped it
+///     rather than reporting every refusal as the same thing.
+/// </summary>
+public enum BuildingPlacementRefusal
+{
+	/// <summary>The placement was made, or was refused before any rule was weighed.</summary>
+	None,
+
+	/// <summary>The map defines no such unit or building.</summary>
+	TemplateNotDefined,
+
+	/// <summary>The player already holds the buildings their allowance permits.</summary>
+	BuildingSupplyReached,
+
+	/// <summary>The building would take the player over their food cap.</summary>
+	FoodCapReached,
+
+	/// <summary>The player cannot pay the gold, wood and stone the template states.</summary>
+	CannotPay
+}
 
 public static class BuildingPlacementService
 {
@@ -20,16 +43,40 @@ public static class BuildingPlacementService
 		Vector3 position,
 		PlayerEntity ownerPlayer,
 		Entity workerEntity,
-		out Entity buildingEntity)
+		out Entity buildingEntity,
+		out BuildingPlacementRefusal refusal)
 	{
 		buildingEntity = Entity.Null;
+		refusal = BuildingPlacementRefusal.None;
 		if (string.IsNullOrEmpty(templateId)) return false;
 		if (ownerPlayer.Value == Entity.Null || !world.IsAlive(ownerPlayer.Value)) return false;
 
 		UnitMetadata? metadata = catalog.FindUnitOrBuilding(templateId);
-		if (metadata == null) return false;
-		if (!CanPlaceWithinBuildingSupply(world, ownerPlayer)) return false;
-		if (!PlayerResourceCost.TryCharge(world, ownerPlayer.Value, metadata)) return false;
+		if (metadata == null)
+		{
+			refusal = BuildingPlacementRefusal.TemplateNotDefined;
+			return false;
+		}
+
+		if (!CanPlaceWithinBuildingSupply(world, ownerPlayer))
+		{
+			refusal = BuildingPlacementRefusal.BuildingSupplyReached;
+			return false;
+		}
+
+		// A building takes food to hold like a unit does, and a placement that would take the player over the cap is
+		// refused before anything is charged for it, so a site the match will not raise costs the player nothing.
+		if (!PlayerPopulationRules.FitsWithinCap(world, ownerPlayer.Value, metadata.PopCost))
+		{
+			refusal = BuildingPlacementRefusal.FoodCapReached;
+			return false;
+		}
+
+		if (!PlayerResourceCost.TryCharge(world, ownerPlayer.Value, metadata))
+		{
+			refusal = BuildingPlacementRefusal.CannotPay;
+			return false;
+		}
 
 		float buildSeconds = Math.Max(metadata.ProductionTime, 0f);
 

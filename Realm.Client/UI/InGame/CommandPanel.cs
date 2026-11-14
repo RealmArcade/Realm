@@ -656,6 +656,14 @@ public partial class CommandPanel
 		btn.Text = item.GetButtonText?.Invoke() ?? "";
 		btn.ExpandIcon = true;
 		btn.Icon = !string.IsNullOrEmpty(item.IconPath) ? LoadCommandIcon(item.IconPath) : null;
+		bool hasIconTint = item.IconTint.HasValue;
+		if (hasIconTint)
+		{
+			btn.AddThemeColorOverride("icon_normal_color", item.IconTint!.Value);
+			btn.AddThemeColorOverride("icon_hover_color", item.IconTint!.Value);
+			btn.AddThemeColorOverride("icon_pressed_color", item.IconTint!.Value);
+			btn.AddThemeColorOverride("icon_focus_color", item.IconTint!.Value);
+		}
 
 		string transTooltip = TranslationServer.Translate(item.Tooltip);
 		if (string.IsNullOrEmpty(transTooltip)) transTooltip = item.Tooltip;

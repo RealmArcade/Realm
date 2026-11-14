@@ -74,6 +74,14 @@ public class ConstructionTick
 
 		if (!_simulation.World.TryGet<Position>(site, out Position sitePosition)) return;
 
+		if (!FitsUnderFoodCap(site))
+		{
+			// The site cannot be raised while the player holds nothing of their food cap to hold it with, so its work
+			// stands where it is and the builder is let go rather than left walking to a site that will not move.
+			_abandonedWorkers.Add(workerEntity);
+			return;
+		}
+
 		float reach = ReadConstructionRange(workerEntity) + ReadCollisionRadius(site);
 		bool inRange = Vector3.DistanceSquared(workerPosition.Value, sitePosition.Value) <= reach * reach;
 
@@ -166,6 +174,25 @@ public class ConstructionTick
 
 		_simulation.MovementPathfindingService.InvalidateObstacleGrid();
 		Completed?.Invoke(site);
+	}
+
+	/// <summary>
+	///     Reports whether the owner of a site has room under its food cap for the building the site will become. A site
+	///     takes nothing from the cap while it stands unfinished, so this asks only whether the finished building would fit;
+	///     when it would not, the work stops where it is and the site stays a site instead of becoming a building the player
+	///     could not hold. A site whose template costs nothing, or whose owner is gone, is under no rule this can read.
+	/// </summary>
+	/// <param name="site">The site being raised.</param>
+	/// <returns>Whether the building the site will become fits under its owner's food cap.</returns>
+	private bool FitsUnderFoodCap(Entity site)
+	{
+		if (!_simulation.World.TryGet<UnitOwnerPlayer>(site, out UnitOwnerPlayer owner)) return true;
+		if (!_simulation.World.TryGet<DefinitionId>(site, out DefinitionId definition)) return true;
+
+		UnitMetadata? metadata = _catalog.FindUnitOrBuilding(definition.Value);
+		if (metadata == null || metadata.PopCost <= 0) return true;
+
+		return PlayerPopulationRules.FitsWithinCap(_simulation.World, _simulation.GetPlayerEntity(owner.Value), metadata.PopCost);
 	}
 
 	private float ReadConstructionRange(Entity workerEntity)

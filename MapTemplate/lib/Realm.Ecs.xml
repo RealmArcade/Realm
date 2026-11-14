@@ -2345,6 +2345,35 @@
             Caches the pathfinding waypoints for navigation to avoid GC allocations in the tick query loop.
             </summary>
         </member>
+        <member name="T:Realm.Ecs.Services.PlayerPopulationRules">
+            <summary>
+                The food cap as one rule both processes read: a unit or building fits only while what it costs, added to the
+                population the player already holds, stays at or under the cap. It rules only on the arithmetic, so whoever asks
+                decides what counts - a site being raised is not a building yet and takes nothing from the cap while it stands
+                unfinished. The authority refuses orders with it and the screen colours a silhouette with the same answer.
+            </summary>
+        </member>
+        <member name="M:Realm.Ecs.Services.PlayerPopulationRules.TryRead(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.Int32@,System.Int32@)">
+            <summary>
+                Reads the population a player holds and the cap the match allows.
+            </summary>
+            <param name="world">The world the player belongs to.</param>
+            <param name="playerEntity">The player entity, which carries the reading.</param>
+            <param name="current">The population the player holds.</param>
+            <param name="maximum">The cap the map allows.</param>
+            <returns>Whether the player carries a population reading at all.</returns>
+        </member>
+        <member name="M:Realm.Ecs.Services.PlayerPopulationRules.FitsWithinCap(Realm.Ecs.EcsWorld,Realm.Ecs.Entity,System.Int32)">
+            <summary>
+                Reports whether one more entity fits under the player's food cap. A cost of zero fits everywhere, and a player
+                with no population reading is under no cap, so both answer true rather than refusing a rule the world never
+                stated.
+            </summary>
+            <param name="world">The world the player belongs to.</param>
+            <param name="playerEntity">The player asking to hold one more entity.</param>
+            <param name="populationCost">What that entity costs to hold.</param>
+            <returns>Whether the cost fits under the cap.</returns>
+        </member>
         <member name="T:Realm.Ecs.Services.PlayerResourceService">
             <summary>
                 Demonstrates how player-specific resource data is used with archetype definition data.

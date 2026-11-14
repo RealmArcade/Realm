@@ -39,6 +39,9 @@ instance uniform float unit_ambient_boost : hint_range(0.0, 0.5) = 0.0;
 instance uniform float unit_rim_intensity : hint_range(0.0, 1.0) = 0.0;
 instance uniform float hide_in_shroud : hint_range(0.0, 1.0) = 0.0;
 instance uniform float silhouette : hint_range(0.0, 1.0) = 0.0;
+// The colour a silhouette is filled with, and how brightly it glows, so a site that cannot be raised can say
+// why in red while a dormant or ruined building keeps the dark reading it has always had.
+instance uniform vec4 silhouette_tint : source_color = vec4(0.030, 0.028, 0.040, 0.0);
 instance uniform vec4 proc_anim_params1 = vec4(0.0, 0.0, 0.0, 2.0);
 instance uniform vec4 proc_anim_params2 = vec4(1.0, 1.5, 0.15, 5.0);
 instance uniform vec4 proc_anim_params3 = vec4(0.03, 1.0, 1.0, 0.5);
@@ -294,7 +297,7 @@ void fragment() {
 		final_color = mix(final_color, heatmap, 0.75);
 	}
 
-	ALBEDO = mix(final_color * shroud_light, vec3(0.030, 0.028, 0.040), silhouette);
+	ALBEDO = mix(final_color * shroud_light, silhouette_tint.rgb, silhouette);
 
 	if (use_alpha_scissor) {
 		ALPHA_SCISSOR_THRESHOLD = alpha_scissor_threshold;
@@ -328,5 +331,6 @@ void fragment() {
 	}
 
 	vec3 player_color_ambient = final_color * 0.15 * player_mask;
-	EMISSION = (base_emission + terrain_separation_ambient + rim_glow + player_color_ambient) * shroud_light * (1.0 - silhouette);
+	EMISSION = (base_emission + terrain_separation_ambient + rim_glow + player_color_ambient) * shroud_light * (1.0 - silhouette)
+		+ silhouette_tint.rgb * silhouette_tint.a * silhouette;
 }

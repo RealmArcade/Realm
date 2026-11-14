@@ -89,6 +89,7 @@ public class ServerSimulation : IDisposable
 		_script.Api.Metrics = Metrics;
 		if (!MatchOptions.IsEmpty) log.Write($"the lobby configured this match: {MatchOptions.Describe()}");
 		_commands.ConsumableChangedSink = (unitId, consumableId) => _script.Api.RaiseConsumableChanged(unitId, consumableId);
+		_commands.ConstructionCancelledSink = site => _script.Api.Abilities.ForgetUnit(site.Id);
 		_snapshots.Abilities = _script.Api.Abilities;
 		_snapshots.TechLevels = _script.Api.TechLevels;
 		_script.Api.PlayerDroppedSink = DropPlayer;
@@ -711,11 +712,15 @@ public class ServerSimulation : IDisposable
 		}
 
 		var buildPosition = new Vector3(result.BuildPosition.X, result.BuildPosition.Y, result.BuildPosition.Z);
-		if (!BuildingPlacementService.TryPlace(_map.World, _map.Catalog, templateId, buildPosition, new PlayerEntity(playerEntity), workerEntity, out Entity buildingEntity))
+		if (!BuildingPlacementService.TryPlace(_map.World, _map.Catalog, templateId, buildPosition, new PlayerEntity(playerEntity), workerEntity, out Entity buildingEntity, out BuildingPlacementRefusal refusal))
 		{
-			return RefusePlacement(_map.Catalog.FindUnitOrBuilding(templateId) == null
-				? $"'{command.CommandType}' naming '{templateId}' could not be placed: this map defines no such template"
-				: $"'{command.CommandType}' naming '{templateId}' could not be placed: the player cannot pay for it");
+			return RefusePlacement(refusal switch
+			{
+				BuildingPlacementRefusal.TemplateNotDefined => $"'{command.CommandType}' naming '{templateId}' could not be placed: this map defines no such template",
+				BuildingPlacementRefusal.BuildingSupplyReached => $"'{command.CommandType}' naming '{templateId}' could not be placed: the player holds every building their allowance permits",
+				BuildingPlacementRefusal.FoodCapReached => "Cannot construct: food cap exceeded!",
+				_ => $"'{command.CommandType}' naming '{templateId}' could not be placed: the player cannot pay for it"
+			});
 		}
 
 		_log.Write(workerEntity == Entity.Null
