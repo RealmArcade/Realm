@@ -8,9 +8,9 @@ Repositories touched in this batch:
 
 | Repo | Branch | What landed |
 | --- | --- | --- |
-| `Realm` (this repo) | `network_host` | lobby reachability verification, Steam friend request, localisation retranslation, warning hints, unit card icons, ground offset on re-import, shroud vision/allies/lobby mode, melee draft harness repair |
-| `ugc-ChaosArena` | `main` | Spanish instruction pages, hero and blacksmith icons, hero ground offsets |
-| `MeleeRuleset` | `master` | board plays visible by default, 3× sight on soldiers/workers/buildings, building-limit and refused-placement fixes, hero level cap, metadata upgraded to this build |
+| `Realm` (this repo) | `network_host` | lobby reachability verification, Steam friend request, localisation retranslation, warning hints, unit card icons, ground offset on re-import, shroud vision/allies/lobby mode, melee draft harness repair, match-settings panel and lobby defaults |
+| `ugc-ChaosArena` | `main` | Spanish instruction pages, hero and blacksmith icons, hero ground offsets, twelve lobby seats and a visible board |
+| `MeleeRuleset` | `master` | board plays visible by default, 3× sight on soldiers/workers/buildings, building-limit and refused-placement fixes, hero level cap, metadata upgraded to this build, eight lobby seats with both switches on and the deck switches hidden |
 | `ugc-SecludedCrest` | `main` | metadata upgraded to this build (a test-player field and a per-model table the engine no longer reads) |
 
 ---
@@ -196,7 +196,38 @@ carried are stated on the templates that use them):
 - `MeleeRuleset`: `MapProperties.HowToPlayInstructions` (folded into `HowToPlayObjective`).
 - `ugc-SecludedCrest`: `MapProperties.MaxTestPlayers` and the top-level `Models` table.
 
-## 9. Test suites at a glance
+## 9. Match settings panel, hidden settings and the create-lobby confirmation
+
+**What is proven:** the solution builds, the 12 game catalogs validate, both maps compile against the new
+`ILobbyAPI` orders (and their wasm carries the new import names), and a temporary probe against a real `ServerLobby`
+confirmed that a lobby now starts with Teams Together and the spectator delay on, that a map can state the spectator
+delay, and that a **hidden** setting refuses the host's order while a visible one is applied.
+
+**Needs your review — this is the one area I could not look at:**
+
+1. **The panel has never been seen by a person.** No UI suite can run in this checkout, so the sectioned layout, the
+   scroll height (430 px of rows inside a 760 px card), the label column (260 px) and the five section headings were
+   written from the existing style helpers and checked by building, not by looking. Expect to nudge spacing.
+2. **The create-lobby confirmation needs one manual run**: create a lobby on a map whose board is slow to start, change
+   a setting, press CREATE LOBBY, and confirm that the lobby appears in the browser with those settings; then press BACK
+   on another attempt and confirm that no lobby is listed and the port is free afterwards. Single-player lobbies and the
+   editor's Test Map flow skip the confirmation (there is no registration to confirm before), which is deliberate.
+3. **The seat-count error is client-side as well as server-side.** The panel refuses a count below the highest *playing
+   human* seat and names that seat; computers do not block it because the authority does not count them either. If you
+   would rather the panel simply disabled the control, that is a small change.
+4. **Hidden settings keep their value.** A map that hides a row does not change what the match plays for it; the core
+   default applies (for example Melee hides the two draft switches, which stay off). Hiding is a presentation rule plus a
+   refusal, not a deletion.
+5. **`LobbySetting` mirrors `MatchOption`'s numbers 1–9 by hand** and adds the two switches at 10–11, because the two
+   switches are lobby state rather than options. A future `MatchOption` must be mirrored in `LobbySetting` or the panel
+   will not offer it and the authority will not refuse it.
+6. **The 15 new strings are my translations** in all 10 non-English languages (`PLAYERS` existed; `BUILDINGS`,
+   `MULTIPLIERS`, `VISION`, `MATCH RULES`, the five section descriptions, the two subtitles, the zero hint, the seat
+   error and the confirm title are new). Worth a read in German and Japanese at least.
+7. **`IS_AUTOBATTLE_FESTIVAL_ACTIVE` still hides the Match Settings button** in the running lobby (as you said it could
+   stay), but the confirmation panel is shown regardless, because creating a lobby now goes through it.
+
+## 10. Test suites at a glance
 
 | Suite | State | Failures caused by this batch |
 | --- | --- | --- |
@@ -206,7 +237,7 @@ carried are stated on the templates that use them):
 | `Realm.Distribution.Tests` | 21 / 26 | none — the 5 fail identically at the commit this batch started from (`11e8d13`), which I checked in a throwaway worktree: they are the CAS dedup/header-merge and asset-package scenarios, and `Scenario5` reads an external `C:/temp/Asset_Pack` fixture that is out of date |
 | `Realm.Client.Tests` | not run as a UI suite | the scene-based suites cannot run in this checkout (the Godot project root is `Realm.Client/`, the test project is not), so the game-over table, the instructions dialog and the lobby popup were verified by build plus the logic tests only |
 
-## 10. Smaller decisions made without asking
+## 11. Smaller decisions made without asking
 
 - **Warning colour and outline** are constants on the HUD, not theme entries; if you want them in `UIStyle` they move
   cheaply.
