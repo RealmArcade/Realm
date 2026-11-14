@@ -50,6 +50,12 @@ public static class LocalizationManager
 		}
 
 		UpdateLocale(GameSettings.Language);
+
+		// A map's own catalog is installed here, and the text it answers is already on screen: the map's name and
+		// description are read before its catalog exists, and a map page the player is reading is a string this screen
+		// already holds. Asking the screen for its text again in the language it is showing is what turns those strings into
+		// the map's translations the moment the catalog arrives.
+		RetranslateCurrentScene(BuildTranslationKeyLookup());
 	}
 
 	private static void RemoveInstalledTranslations()
@@ -128,8 +134,8 @@ public static class LocalizationManager
 
 	public static void UpdateLocale(string locale)
 	{
-		string previousLocale = TranslationServer.GetLocale();
-		Dictionary<string, string>? keysByTranslatedText = previousLocale == locale ? null : BuildTranslationKeyLookup(previousLocale);
+		bool languageChanged = !string.Equals(TranslationServer.GetLocale(), locale, StringComparison.OrdinalIgnoreCase);
+		Dictionary<string, string>? keysByTranslatedText = languageChanged ? BuildTranslationKeyLookup() : null;
 
 		TranslationServer.SetLocale(locale);
 		if (GameContext.UserInterface != null)
@@ -142,21 +148,35 @@ public static class LocalizationManager
 		if (keysByTranslatedText != null) RetranslateCurrentScene(keysByTranslatedText);
 	}
 
-	private static Dictionary<string, string> BuildTranslationKeyLookup(string locale)
+	/// <summary>
+	///     Every string this screen can be showing, read back to the key it came from. The installed catalogs are the whole
+	///     of the vocabulary, so each entry contributes both the key and the text its language renders for it, and the English
+	///     catalog contributes every key as its own text. A language change can then reach text that was built before it,
+	///     whichever language it was built in: a label holding a translation is read back to its key and asked for again,
+	///     and one holding a key - English, or a language with no entry for it yet - is asked for again as it stands.
+	/// </summary>
+	private static Dictionary<string, string> BuildTranslationKeyLookup()
 	{
 		var lookup = new Dictionary<string, string>(StringComparer.Ordinal);
 
-		foreach (Translation translation in TranslationServer.FindTranslations(locale, false))
+		foreach (Translation translation in InstalledTranslations)
 		{
 			foreach (string key in translation.GetMessageList())
 			{
+				Remember(lookup, key, key);
+
 				string translated = translation.GetMessage(key);
-				if (string.IsNullOrEmpty(translated) || translated == key) continue;
-				if (!lookup.ContainsKey(translated)) lookup[translated] = key;
+				if (!string.IsNullOrEmpty(translated)) Remember(lookup, translated, key);
 			}
 		}
 
 		return lookup;
+	}
+
+	private static void Remember(Dictionary<string, string> lookup, string text, string key)
+	{
+		if (string.IsNullOrEmpty(text)) return;
+		if (!lookup.ContainsKey(text)) lookup[text] = key;
 	}
 
 	private static void RetranslateCurrentScene(Dictionary<string, string> keysByTranslatedText)
