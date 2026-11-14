@@ -40,7 +40,6 @@ public partial class LobbyRoom
 		CreateSlotCell(hBox);
 		CreateNameCell(hBox);
 		CreateFactionCell(hBox);
-		CreateDifficultyCell(hBox);
 		CreateBootCell(hBox);
 
 		ApplyPlayerRow(panel, slot, player);
@@ -69,9 +68,8 @@ public partial class LobbyRoom
 		UpdateTeamCell(hBox, player, canEditSeat);
 		UpdateColorCell(hBox, player, canEditSeat);
 		UpdateSlotCell(hBox, slot, player, isLocalPlayer);
-		UpdateNameCell(hBox, player);
+		UpdateNameCell(hBox, player, canEditSeat);
 		UpdateFactionCell(hBox, player, canEditSeat);
-		UpdateDifficultyCell(hBox, player, canEditSeat);
 		UpdateBootCell(hBox, player, isLocalPlayer);
 
 		hBox.Modulate = occupied ? new Color(1f, 1f, 1f) : new Color(1f, 1f, 1f, Lobby.IsSlotOpen(slot) ? 0.72f : 0.55f);
@@ -310,20 +308,62 @@ public partial class LobbyRoom
 		hBox.AddChild(cell);
 	}
 
-	/// <summary>Creates the cell that names the player in a slot.</summary>
+	/// <summary>
+	///     Creates the cell that names the player in a slot, and the pencil a computer seat's own settings are opened with.
+	/// </summary>
 	/// <param name="hBox">The row's column.</param>
 	private void CreateNameCell(HBoxContainer hBox)
 	{
 		var cell = CreateColumnCell("NameCell", NameCellWidth);
 
-		var lblName = new Label { Name = "LblName", ClipText = true, VerticalAlignment = VerticalAlignment.Center };
+		var nameRow = new HBoxContainer { Name = "NameRow", MouseFilter = MouseFilterEnum.Ignore };
+		nameRow.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		nameRow.AddThemeConstantOverride("separation", 6);
+		cell.AddChild(nameRow);
+
+		var lblName = new Label
+		{
+			Name = "LblName",
+			ClipText = true,
+			VerticalAlignment = VerticalAlignment.Center,
+			SizeFlagsHorizontal = SizeFlags.ExpandFill
+		};
 		lblName.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		lblName.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
 		lblName.AddThemeFontSizeOverride("font_size", 14);
-		lblName.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		cell.AddChild(lblName);
+		nameRow.AddChild(lblName);
+
+		nameRow.AddChild(CreateAiEditButton(hBox));
 
 		hBox.AddChild(cell);
+	}
+
+	/// <summary>Creates the pencil that opens one computer seat's settings, which only a row that holds one draws.</summary>
+	/// <param name="hBox">The row's column.</param>
+	/// <returns>The button the seat's settings are opened with.</returns>
+	private Button CreateAiEditButton(HBoxContainer hBox)
+	{
+		var aiEditBtn = new Button
+		{
+			Name = "AiEditBtn",
+			Text = UnicodeIcons.EDIT,
+			CustomMinimumSize = new Vector2(24, 24),
+			FocusMode = FocusModeEnum.None,
+			MouseDefaultCursorShape = CursorShape.PointingHand,
+			SizeFlagsVertical = SizeFlags.ShrinkCenter,
+			Visible = false
+		};
+		aiEditBtn.AddThemeConstantOverride("icon_max_width", 0);
+		if (UIStyle.FontAwesome != null) aiEditBtn.AddThemeFontOverride("font", UIStyle.FontAwesome);
+		aiEditBtn.AddThemeFontSizeOverride("font_size", 14);
+		aiEditBtn.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		UIStyle.ApplyGoldHoverColors(aiEditBtn);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(aiEditBtn);
+		aiEditBtn.TooltipText = Tr("Change this AI player's settings");
+		aiEditBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		aiEditBtn.Pressed += () => OpenAiSettings(aiEditBtn, ReadCellSlot(hBox));
+
+		return aiEditBtn;
 	}
 
 	/// <summary>Reads which of the three states a slot is in: held by a computer, held by a person, or empty.</summary>
@@ -486,43 +526,49 @@ public partial class LobbyRoom
 		return -1;
 	}
 
-	private void CreateDifficultyCell(HBoxContainer hBox)
+	/// <summary>
+	///     Opens one computer seat's settings next to the pencil of its row, naming the seat so a host with several
+	///     computer seats knows which one it is editing.
+	/// </summary>
+	/// <param name="anchor">The pencil the card is placed beside.</param>
+	/// <param name="slot">The player slot whose seat is edited.</param>
+	private void OpenAiSettings(Control anchor, int slot)
 	{
-		var cell = CreateColumnCell("DifficultyCell", DifficultyColumnWidth);
-
-		var optDifficulty = new OptionButton { Name = "OptDifficulty", CustomMinimumSize = new Vector2(DifficultyColumnWidth, 30), Flat = false, ClipText = true };
-		ApplyTeamOptionStyle(optDifficulty);
-		optDifficulty.ItemSelected += idx => OnDifficultyOptionSelected(idx, ReadCellSlot(hBox));
-		optDifficulty.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-		FillColumnCell(cell, optDifficulty);
-		hBox.AddChild(cell);
-	}
-
-	private static void FillDifficultyOptions(OptionButton optDifficulty, PlayerInfo? p)
-	{
-		optDifficulty.Clear();
-		optDifficulty.AddItem(TranslationServer.Translate("EASY"));
-		optDifficulty.AddItem(TranslationServer.Translate("MEDIUM"));
-		optDifficulty.AddItem(TranslationServer.Translate("HARD"));
-		optDifficulty.Select(p == null ? -1 : GetDifficultyOptionIndex(p));
-	}
-
-	private static int GetDifficultyOptionIndex(PlayerInfo p)
-	{
-		return Math.Clamp((int)p.Difficulty - (int)LobbyBotDifficulty.Easy, 0, 2);
-	}
-
-	private void OnDifficultyOptionSelected(long idx, int slot)
-	{
-		GameContext.UserInterface?.PlayClickSound();
-
 		PlayerInfo? seat = FindSeatInSlot(slot);
+		if (seat == null || !seat.IsComputer) return;
+
+		if (_aiSettingsPopover == null || !GodotObject.IsInstanceValid(_aiSettingsPopover))
+		{
+			_aiSettingsPopover = new AiSettingsPopover();
+			_aiSettingsPopover.Name = "AiSettingsPopover";
+			AddChild(_aiSettingsPopover);
+		}
+
+		GameContext.UserInterface?.PlayClickSound();
+		_aiSettingsPopover.ShowFor(anchor, GetPlayerRowDisplayName(seat), seat.Difficulty, difficulty => OnAiDifficultyChanged(seat.PeerId, difficulty));
+	}
+
+	private void OnAiDifficultyChanged(int peerId, LobbyBotDifficulty difficulty)
+	{
+		PlayerInfo? seat = Lobby.PlayerList.Find(candidate => candidate.PeerId == peerId);
 		if (seat == null) return;
 
-		var difficulty = (LobbyBotDifficulty)((int)idx + (int)LobbyBotDifficulty.Easy);
 		seat.Difficulty = difficulty;
-		Lobby.SetComputerDifficulty(seat.PeerId, difficulty);
+		Lobby.SetComputerDifficulty(peerId, difficulty);
+		PopulatePlayersList();
+	}
+
+	/// <summary>Reads the difficulty a computer seat plays on as the word its row states it with.</summary>
+	/// <param name="p">The computer seat.</param>
+	/// <returns>The difficulty, translated.</returns>
+	private static string GetDifficultyLabel(PlayerInfo p)
+	{
+		return p.Difficulty switch
+		{
+			LobbyBotDifficulty.Easy => TranslationServer.Translate("EASY"),
+			LobbyBotDifficulty.Medium => TranslationServer.Translate("MEDIUM"),
+			_ => TranslationServer.Translate("HARD")
+		};
 	}
 
 	/// <summary>
@@ -666,12 +712,24 @@ public partial class LobbyRoom
 		if (stateSelect.Selected != stateIndex) stateSelect.Select(stateIndex);
 	}
 
-	private static void UpdateNameCell(HBoxContainer hBox, PlayerInfo? p)
+	/// <summary>
+	///     Names the seat a row holds and, for a computer seat, states the settings it plays on in the name's tooltip and
+	///     reveals the pencil that edits them.
+	/// </summary>
+	/// <param name="hBox">The row's column.</param>
+	/// <param name="p">The seat the row holds, or nothing.</param>
+	/// <param name="canEditSeat">Whether this screen may change that seat's settings.</param>
+	private void UpdateNameCell(HBoxContainer hBox, PlayerInfo? p, bool canEditSeat)
 	{
-		var lblName = hBox.GetNodeOrNull<Label>("NameCell/LblName");
-		if (lblName == null) return;
+		var lblName = hBox.GetNodeOrNull<Label>("NameCell/NameRow/LblName");
+		var aiEditBtn = hBox.GetNodeOrNull<Button>("NameCell/NameRow/AiEditBtn");
+		if (lblName == null || aiEditBtn == null) return;
 
 		lblName.Visible = p != null;
+		aiEditBtn.Visible = p != null && p.IsComputer;
+		LocalizedText.BindTooltip(lblName, () => p != null && p.IsComputer
+			? string.Format(TranslationServer.Translate("Difficulty: {0}"), GetDifficultyLabel(p))
+			: string.Empty);
 		if (p == null) return;
 
 		string displayName = GetPlayerRowDisplayName(p);
@@ -679,6 +737,8 @@ public partial class LobbyRoom
 
 		Color nameColor = p.IsDisconnected ? new Color(0.95f, 0.65f, 0.3f) : new Color(0.9f, 0.9f, 0.9f);
 		if (lblName.GetThemeColor("font_color") != nameColor) lblName.AddThemeColorOverride("font_color", nameColor);
+
+		aiEditBtn.Disabled = !canEditSeat;
 	}
 
 	private static string GetPlayerRowDisplayName(PlayerInfo player)
@@ -728,28 +788,6 @@ public partial class LobbyRoom
 		}
 
 		optFaction.Disabled = !canEditSeat;
-	}
-
-	private void UpdateDifficultyCell(HBoxContainer hBox, PlayerInfo? p, bool canEditSeat)
-	{
-		var difficultyCell = hBox.GetNodeOrNull<Control>("DifficultyCell");
-		var optDifficulty = hBox.GetNodeOrNull<OptionButton>("DifficultyCell/CellCenter/OptDifficulty");
-		if (difficultyCell == null || optDifficulty == null) return;
-
-		optDifficulty.Visible = p != null && p.IsComputer;
-		if (p == null || !p.IsComputer) return;
-
-		int optionIndex = GetDifficultyOptionIndex(p);
-		if (optDifficulty.ItemCount != 3)
-		{
-			FillDifficultyOptions(optDifficulty, p);
-		}
-		else if (optDifficulty.Selected != optionIndex)
-		{
-			optDifficulty.Select(optionIndex);
-		}
-
-		optDifficulty.Disabled = !canEditSeat;
 	}
 
 	private void UpdateBootCell(HBoxContainer hBox, PlayerInfo? p, bool isLocalPlayer)

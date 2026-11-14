@@ -52,6 +52,7 @@ public partial class LobbyRoom : Control
 	private Label _mapNameLabel = null!;
 	private LineEdit _chatInput = null!;
 	private ColorPickerPopover? _colorPickerPopover;
+	private AiSettingsPopover? _aiSettingsPopover;
 	private RichTextLabel _chatLog = null!;
 	private VBoxContainer _playersContainer = null!;
 	private readonly Dictionary<int, PanelContainer> _playerRowsBySlot = new();
@@ -91,9 +92,8 @@ public partial class LobbyRoom : Control
 	private const int TeamColumnWidth = 126;
 	private const int ColorColumnWidth = 70;
 	private const int SlotColumnWidth = 104;
-	private const int NameColumnWidth = 90;
+	private const int NameColumnWidth = 226;
 	private const int FactionColumnWidth = 98;
-	private const int DifficultyColumnWidth = 126;
 	private const int BootColumnWidth = 100;
 	private const int RowColumnSeparation = 10;
 	private const int RowContentInset = 8;

@@ -137,7 +137,6 @@ public partial class LobbyRoom
 		ApplySlotHeader(header);
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/NameCol", NameCellWidth);
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/FactionCol", FactionColumnWidth);
-		ApplyDifficultyHeader(header);
 	}
 
 	/// <summary>
@@ -163,23 +162,6 @@ public partial class LobbyRoom
 
 		var nameHeader = header.GetNodeOrNull<Control>("NameCol");
 		if (nameHeader != null && lblSlot.GetIndex() > nameHeader.GetIndex()) header.MoveChild(lblSlot, nameHeader.GetIndex());
-	}
-
-	private void ApplyDifficultyHeader(HBoxContainer header)
-	{
-		var lblDifficulty = header.GetNodeOrNull<Label>("DifficultyCol");
-		if (lblDifficulty == null)
-		{
-			lblDifficulty = new Label();
-			lblDifficulty.Name = "DifficultyCol";
-			lblDifficulty.Text = TranslationServer.Translate("DIFFICULTY");
-			lblDifficulty.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			lblDifficulty.AddThemeFontSizeOverride("font_size", 15);
-			header.AddChild(lblDifficulty);
-		}
-
-		lblDifficulty.ClipText = true;
-		lblDifficulty.CustomMinimumSize = new Vector2(DifficultyColumnWidth, 0);
 	}
 
 	private void ApplyHeaderColumnWidth(string path, int width)
