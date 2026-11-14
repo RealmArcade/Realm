@@ -82,7 +82,6 @@ public partial class LobbyRoom
 
 		SetupLobbyButton(_backButton, TranslationServer.Translate(" LEAVE LOBBY"), ReturnFromLobby);
 		SetupLobbyButton(_inviteButton, TranslationServer.Translate("INVITE FRIEND"), OpenInviteFriendsDialog);
-		SetupLobbyButton(_addBotButton, TranslationServer.Translate("ADD AI BOT"), () => Lobby.AddAIBot());
 		SetupStartButton();
 
 		_mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);

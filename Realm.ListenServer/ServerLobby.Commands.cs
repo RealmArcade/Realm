@@ -30,8 +30,8 @@ public partial class ServerLobby
 				UpdateSeat(peerId, isAdmin, sender, command);
 				break;
 			case LobbyCommandKind.AddComputer:
-				if (!RequireAdmin(peerId, isAdmin, out int adminSlot, "add a computer player")) return;
-				AddComputer(adminSlot);
+				if (!RequireAdmin(peerId, isAdmin, out _, "add a computer player")) return;
+				AddComputer(command.Slot);
 				break;
 			case LobbyCommandKind.Kick:
 				if (!RequireAdmin(peerId, isAdmin, out _, "remove a player")) return;

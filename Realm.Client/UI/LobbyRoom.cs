@@ -48,7 +48,6 @@ public partial class LobbyRoom : Control
 	private Button _backButton = null!;
 	private Button _inviteButton = null!;
 	private SteamFriendsDialog? _friendsDialog;
-	private Button _addBotButton = null!;
 	private Button _startButton = null!;
 	private Label _mapNameLabel = null!;
 	private LineEdit _chatInput = null!;
@@ -76,10 +75,8 @@ public partial class LobbyRoom : Control
 	private Label _authorshipWarningLabel = null!;
 	private Label _primaryAuthorLabel = null!;
 	private string? _authorshipMapJsonPath;
-	private Button _otherAuthorsButton = null!;
 	private Button _attributionButton = null!;
 	private AttributionPopover _attributionPopover = null!;
-	private AttributionPopover _otherAuthorsPopover = null!;
 	private List<string> _otherAuthorsList = new List<string>();
 
 
@@ -93,7 +90,7 @@ public partial class LobbyRoom : Control
 	private const int ReadyColumnWidth = 100;
 	private const int TeamColumnWidth = 150;
 	private const int ColorColumnWidth = 56;
-	private const int NameColumnWidth = 140;
+	private const int NameColumnWidth = 200;
 	private const int FactionColumnWidth = 100;
 	private const int DifficultyColumnWidth = 120;
 	private const int RowColumnSeparation = 16;
@@ -116,9 +113,7 @@ public partial class LobbyRoom : Control
 
 		_backButton = GetNode<Button>("BackButton");
 		_inviteButton = GetNode<Button>("InviteButton");
-		_addBotButton = GetNode<Button>("AddBotButton");
 		_startButton = GetNode<Button>("StartButton");
-		_addBotButton.Visible = Lobby.IsHost;
 		_inviteButton.Visible = !Lobby.IsSinglePlayer;
 
 
@@ -224,7 +219,6 @@ public partial class LobbyRoom : Control
 			ShowConnectingPopup();
 		}
 
-		CreateMatchSettingsUI();
 		Lobby.MatchSettingsChanged += OnMatchSettingsChanged;
 		Lobby.TeamsTogetherChanged += OnTeamsTogetherChanged;
 		Lobby.SpectatorDelayChanged += OnSpectatorDelayChanged;
@@ -269,17 +263,8 @@ public partial class LobbyRoom : Control
 		var authorsSpacer = new Control { CustomMinimumSize = new Vector2(0, 24) };
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(authorsSpacer);
 
-		_otherAuthorsButton = new Button();
-		_otherAuthorsButton.Name = "OtherAuthorsButton_Button";
-		_otherAuthorsButton.Text = Tr("Other Authors");
-		_otherAuthorsButton.CustomMinimumSize = new Vector2(160, 32);
-		_otherAuthorsButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
-		_otherAuthorsButton.Visible = false;
-		UIStyle.ApplyButtonStyleBoxes(_otherAuthorsButton);
-		_otherAuthorsButton.Pressed += OnOtherAuthorsPressed;
-		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_otherAuthorsButton);
-
 		SetupAttributionButton();
+		CreateMatchSettingsUI();
 
 		UpdateSelectedMapUI();
 	}
@@ -538,18 +523,13 @@ public partial class LobbyRoom : Control
 
 		ReleaseStalePlayerRows(existingRows, slotCount);
 
-		UpdateAddBotAvailability();
+		UpdatePlayersHeading();
 		SetupStartButton();
 	}
 
-	private void UpdateAddBotAvailability()
+	private void UpdatePlayersHeading()
 	{
 		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({Lobby.PlayingPlayerCount}/{Lobby.OpenSlotCount})";
-
-		if (_addBotButton == null || !GodotObject.IsInstanceValid(_addBotButton)) return;
-		if (!Lobby.IsHost) return;
-
-		_addBotButton.Disabled = Lobby.FreeSlotCount == 0;
 	}
 
 	private bool CheckHostVersionMismatch()
@@ -744,8 +724,8 @@ public partial class LobbyRoom : Control
 
 		_matchSettingsButton = new Button();
 		_matchSettingsButton.Name = "MatchSettingsButton_Button";
-		_matchSettingsButton.Position = new Vector2(1450, 660);
-		_matchSettingsButton.Size = new Vector2(340, 40);
+		_matchSettingsButton.CustomMinimumSize = new Vector2(280, 36);
+		_matchSettingsButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		_matchSettingsButton.AddThemeConstantOverride("icon_max_width", 20);
 		_matchSettingsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_matchSettingsButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
@@ -759,7 +739,7 @@ public partial class LobbyRoom : Control
 			ToggleMatchSettingsPopup();
 		};
 		_matchSettingsButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		AddChild(_matchSettingsButton);
+		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_matchSettingsButton);
 	}
 
 	private void ToggleMatchSettingsPopup()

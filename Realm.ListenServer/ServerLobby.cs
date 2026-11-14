@@ -150,8 +150,12 @@ public partial class ServerLobby : ILobbySeatTable
 
 	public int OpenSlotCount => _openSlotCount;
 
-	/// <summary>Every player slot the lobby carries, which is the number of rows its screens draw.</summary>
-	public int SlotCount => _openSlots.Length - 1;
+	/// <summary>
+	///     Every player slot the lobby carries, which is the number of rows its screens draw. A slot the lobby's map keeps
+	///     for its own players is not one of them: no person can be seated there, so a row offering it would be a row the
+	///     lobby's own limits refuse.
+	/// </summary>
+	public int SlotCount => Math.Min(_openSlots.Length - 1, SeatLimit);
 
 	/// <summary>Whether a player slot accepts a player.</summary>
 	/// <param name="slot">The player slot.</param>

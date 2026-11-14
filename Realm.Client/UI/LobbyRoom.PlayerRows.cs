@@ -10,7 +10,16 @@ namespace Realm.Client.UI;
 
 public partial class LobbyRoom
 {
-	private const int SlotStateColumnWidth = 120;
+	private const int SlotStateSelectWidth = 84;
+
+	/// <summary>The option a player slot's dropdown lists as open, which is also the state of a slot a person holds.</summary>
+	private const int SlotStateOpenOption = 0;
+
+	/// <summary>The option a player slot's dropdown lists as closed, which is a slot that accepts nobody.</summary>
+	private const int SlotStateClosedOption = 1;
+
+	/// <summary>The option a player slot's dropdown lists as AI, which is a slot a computer player holds.</summary>
+	private const int SlotStateComputerOption = 2;
 
 	private PanelContainer CreatePlayerRow(int slot, PlayerInfo? player)
 	{
@@ -28,7 +37,6 @@ public partial class LobbyRoom
 		CreateNameCell(hBox);
 		CreateFactionCell(hBox);
 		CreateDifficultyCell(hBox);
-		CreateSlotStateCell(hBox);
 		CreateDiagnosticCell(hBox);
 		CreateBootCell(hBox);
 
@@ -57,14 +65,13 @@ public partial class LobbyRoom
 		UpdateReadyCell(hBox, player, isLocalPlayer);
 		UpdateTeamCell(hBox, player, canEditSeat);
 		UpdateColorCell(hBox, player, canEditSeat);
-		UpdateNameCell(hBox, player, isLocalPlayer);
+		UpdateNameCell(hBox, slot, player, isLocalPlayer);
 		UpdateFactionCell(hBox, player, canEditSeat);
 		UpdateDifficultyCell(hBox, player, canEditSeat);
-		UpdateSlotStateCell(hBox, slot, occupied);
 		UpdateDiagnosticCell(hBox, player, isLocalPlayer);
 		UpdateBootCell(hBox, player);
 
-		hBox.Modulate = occupied ? new Color(1f, 1f, 1f) : new Color(1f, 1f, 1f, Lobby.IsSlotOpen(slot) ? 0.72f : 0.4f);
+		hBox.Modulate = occupied ? new Color(1f, 1f, 1f) : new Color(1f, 1f, 1f, Lobby.IsSlotOpen(slot) ? 0.72f : 0.55f);
 	}
 
 	private static Control CreateColumnCell(string name, int width)
@@ -275,33 +282,134 @@ public partial class LobbyRoom
 		return available;
 	}
 
+	/// <summary>
+	///     Creates the cell that names the player in a slot, and the dropdown the host decides that slot's state with. The
+	///     state belongs beside the name because it describes who the row seats: a person, a computer player, or nobody.
+	/// </summary>
+	/// <param name="hBox">The row's column.</param>
 	private void CreateNameCell(HBoxContainer hBox)
 	{
 		var cell = CreateColumnCell("NameCell", NameColumnWidth);
 
-		var nameEdit = new LineEdit { Name = "NameEdit", CustomMinimumSize = new Vector2(NameColumnWidth, 30) };
-		nameEdit.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
-		nameEdit.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
-		nameEdit.AddThemeColorOverride("font_color", new Color(1, 1, 1));
-		nameEdit.AddThemeFontSizeOverride("font_size", 14);
-		nameEdit.TextSubmitted += text =>
-		{
-			PlayerInfo? seat = FindSeatInSlot(ReadCellSlot(hBox));
-			if (seat == null) return;
+		var nameRow = new HBoxContainer { Name = "NameRow", MouseFilter = MouseFilterEnum.Ignore };
+		nameRow.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		nameRow.AddThemeConstantOverride("separation", 6);
+		cell.AddChild(nameRow);
 
-			seat.Name = text;
-			Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
-		};
-		FillColumnCell(cell, nameEdit);
+		var stateSelect = new OptionButton { Name = "SlotStateSelect", CustomMinimumSize = new Vector2(SlotStateSelectWidth, 30), ClipText = true };
+		ApplyTeamOptionStyle(stateSelect);
+		stateSelect.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		stateSelect.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+		stateSelect.AddThemeFontSizeOverride("font_size", 12);
+		stateSelect.AddItem(TranslationServer.Translate("Open"));
+		stateSelect.AddItem(TranslationServer.Translate("Closed"));
+		stateSelect.AddItem(TranslationServer.Translate("AI"));
+		stateSelect.ItemSelected += index => OnSlotStateSelected(index, ReadCellSlot(hBox), stateSelect);
+		stateSelect.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		nameRow.AddChild(stateSelect);
 
 		var lblName = new Label { Name = "LblName", ClipText = true, VerticalAlignment = VerticalAlignment.Center };
 		lblName.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		lblName.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
 		lblName.AddThemeFontSizeOverride("font_size", 14);
-		lblName.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		cell.AddChild(lblName);
+		lblName.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		nameRow.AddChild(lblName);
 
 		hBox.AddChild(cell);
+	}
+
+	/// <summary>Reads which of the three states a slot is in: held by a computer, held by a person, or empty.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="seat">The seat the slot holds, or nothing.</param>
+	/// <returns>The option the slot's dropdown shows.</returns>
+	private static int GetSlotStateOptionIndex(int slot, PlayerInfo? seat)
+	{
+		if (seat != null) return seat.IsComputer ? SlotStateComputerOption : SlotStateOpenOption;
+		return Lobby.IsSlotOpen(slot) ? SlotStateOpenOption : SlotStateClosedOption;
+	}
+
+	/// <summary>
+	///     Applies the state the host picked for one player slot. A slot holding somebody is only emptied after the host
+	///     confirms it, and the dropdown is put back to the state the lobby still holds until the authority answers.
+	/// </summary>
+	/// <param name="index">The option the host picked.</param>
+	/// <param name="slot">The player slot the row draws.</param>
+	/// <param name="stateSelect">The dropdown that raised the change.</param>
+	private void OnSlotStateSelected(long index, int slot, OptionButton stateSelect)
+	{
+		GameContext.UserInterface?.PlayClickSound();
+
+		PlayerInfo? seat = FindSeatInSlot(slot);
+
+		if (index == SlotStateComputerOption)
+		{
+			RequestComputerSeat(slot, seat);
+		}
+		else if (index == SlotStateClosedOption)
+		{
+			RequestSlotClosed(slot, seat);
+		}
+		else if (seat != null && seat.IsComputer)
+		{
+			Lobby.BootPlayer(seat.PeerId);
+			Lobby.SetSlotOpen(slot, true);
+		}
+		else
+		{
+			Lobby.SetSlotOpen(slot, true);
+		}
+
+		if (GodotObject.IsInstanceValid(stateSelect)) stateSelect.Select(GetSlotStateOptionIndex(slot, FindSeatInSlot(slot)));
+	}
+
+	private void RequestComputerSeat(int slot, PlayerInfo? seat)
+	{
+		if (seat != null && !seat.IsComputer)
+		{
+			ConfirmRemovingSeat(seat, () =>
+			{
+				Lobby.BootPlayer(seat.PeerId);
+				SeatComputerInSlot(slot);
+			});
+
+			return;
+		}
+
+		SeatComputerInSlot(slot);
+	}
+
+	private void RequestSlotClosed(int slot, PlayerInfo? seat)
+	{
+		if (seat == null)
+		{
+			Lobby.SetSlotOpen(slot, false);
+			return;
+		}
+
+		ConfirmRemovingSeat(seat, () =>
+		{
+			Lobby.BootPlayer(seat.PeerId);
+			Lobby.SetSlotOpen(slot, false);
+		});
+	}
+
+	/// <summary>Asks the lobby to seat a computer player in one player slot.</summary>
+	/// <param name="slot">The player slot the computer should hold.</param>
+	private static void SeatComputerInSlot(int slot)
+	{
+		Lobby.AddAIBot(slot);
+	}
+
+	private static void ConfirmRemovingSeat(PlayerInfo seat, Action onConfirm)
+	{
+		string message = string.Format(
+			TranslationServer.Translate("{0} will be removed from the lobby."),
+			GetPlayerRowDisplayName(seat));
+
+		GameContext.UserInterface?.ShowConfirmationDialog(message, onConfirm,
+			confirmText: TranslationServer.Translate("REMOVE"),
+			cancelText: TranslationServer.Translate("CANCEL"),
+			titleOverride: TranslationServer.Translate("REMOVE PLAYER"));
 	}
 
 	private void CreateFactionCell(HBoxContainer hBox)
@@ -409,63 +517,6 @@ public partial class LobbyRoom
 		Lobby.SetComputerDifficulty(seat.PeerId, difficulty);
 	}
 
-	/// <summary>
-	///     Creates the cell that says whether a slot is open, and the button the host opens or closes it with. It is the one
-	///     place a lobby is sized from, so a lobby has no separate player count that could disagree with its rows.
-	/// </summary>
-	/// <param name="hBox">The row's column.</param>
-	private void CreateSlotStateCell(HBoxContainer hBox)
-	{
-		var cell = CreateColumnCell("SlotStateCell", SlotStateColumnWidth);
-
-		var label = new Label { Name = "SlotState", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-		label.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		label.AddThemeFontSizeOverride("font_size", 13);
-		cell.AddChild(label);
-
-		var toggle = new Button { Name = "SlotToggle", CustomMinimumSize = new Vector2(60, 26), SizeFlagsVertical = SizeFlags.ShrinkCenter };
-		UIStyle.ApplyButtonStyleBoxes(toggle);
-		toggle.AddThemeConstantOverride("icon_max_width", 20);
-		toggle.AddThemeFontSizeOverride("font_size", 12);
-		toggle.Pressed += () =>
-		{
-			int slot = ReadCellSlot(hBox);
-			if (slot <= 0) return;
-
-			GameContext.UserInterface?.PlayClickSound();
-			Lobby.SetSlotOpen(slot, !Lobby.IsSlotOpen(slot));
-		};
-		toggle.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-		var center = new CenterContainer { Name = "CellCenter", MouseFilter = MouseFilterEnum.Ignore };
-		center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		center.AddChild(toggle);
-		cell.AddChild(center);
-
-		hBox.AddChild(cell);
-	}
-
-	private void UpdateSlotStateCell(HBoxContainer hBox, int slot, bool occupied)
-	{
-		var cell = hBox.GetNodeOrNull<Control>("SlotStateCell");
-		if (cell == null) return;
-
-		bool open = Lobby.IsSlotOpen(slot);
-		var label = cell.GetNodeOrNull<Label>("SlotState");
-		var toggle = cell.GetNodeOrNull<Button>("CellCenter/SlotToggle");
-		if (label == null || toggle == null) return;
-
-		label.Visible = !occupied;
-		label.Text = open ? Tr("Open Slot") : Tr("Closed");
-		label.AddThemeColorOverride("font_color", open ? UIStyle.ColorGoldDull : new Color(0.55f, 0.55f, 0.6f));
-
-		toggle.Visible = !occupied && Lobby.IsHost;
-		toggle.Text = open ? Tr("CLOSE") : Tr("OPEN");
-		toggle.TooltipText = open
-			? Tr("Close this player slot so nobody can join it.")
-			: Tr("Open this player slot so a player can join it.");
-	}
-
 	private void CreateDiagnosticCell(HBoxContainer hBox)
 	{
 		var diagLabel = new RichTextLabel { Name = "DiagLabel", BbcodeEnabled = true, ScrollActive = false };
@@ -542,9 +593,9 @@ public partial class LobbyRoom
 		var readyCheck = hBox.GetNodeOrNull<CheckBox>("ReadyCell/CellCenter/ReadyCheck");
 		if (readyCheck == null) return;
 
-		readyCheck.Visible = p != null;
+		readyCheck.Visible = p != null && !p.IsComputer;
 		readyCheck.Disabled = !isLocalPlayer;
-		if (p == null) return;
+		if (p == null || p.IsComputer) return;
 
 		if (readyCheck.ButtonPressed != p.IsReady) readyCheck.SetPressedNoSignal(p.IsReady);
 	}
@@ -585,22 +636,23 @@ public partial class LobbyRoom
 		UIStyle.ApplySeatColorSwatch(colorBtn, p.Color);
 	}
 
-	private void UpdateNameCell(HBoxContainer hBox, PlayerInfo? p, bool isLocalPlayer)
+	private void UpdateNameCell(HBoxContainer hBox, int slot, PlayerInfo? p, bool isLocalPlayer)
 	{
-		var nameEdit = hBox.GetNodeOrNull<LineEdit>("NameCell/CellCenter/NameEdit");
-		var lblName = hBox.GetNodeOrNull<Label>("NameCell/LblName");
-		if (nameEdit == null || lblName == null) return;
+		var stateSelect = hBox.GetNodeOrNull<OptionButton>("NameCell/NameRow/SlotStateSelect");
+		var lblName = hBox.GetNodeOrNull<Label>("NameCell/NameRow/LblName");
+		if (stateSelect == null || lblName == null) return;
 
-		nameEdit.Visible = p != null && isLocalPlayer;
-		lblName.Visible = p != null && !isLocalPlayer;
+		bool canChooseState = Lobby.IsHost && !isLocalPlayer;
+		stateSelect.Disabled = !canChooseState;
+		stateSelect.TooltipText = canChooseState
+			? Tr("Choose whether this player slot is open to a player, closed to everyone, or held by an AI player.")
+			: string.Empty;
 
+		int stateIndex = GetSlotStateOptionIndex(slot, p);
+		if (stateSelect.Selected != stateIndex) stateSelect.Select(stateIndex);
+
+		lblName.Visible = p != null;
 		if (p == null) return;
-
-		if (isLocalPlayer)
-		{
-			if (nameEdit.Text != p.Name) nameEdit.Text = p.Name;
-			return;
-		}
 
 		string displayName = GetPlayerRowDisplayName(p);
 		if (lblName.Text != displayName) lblName.Text = displayName;

@@ -74,15 +74,6 @@ offset_right = 460.0
 offset_bottom = 85.0
 focus_mode = 0
 
-[node name="AddBotButton" type="Button" parent="."]
-custom_minimumSize = Vector2(160, 45)
-layout_mode = 0
-offset_left = 480.0
-offset_top = 40.0
-offset_right = 640.0
-offset_bottom = 85.0
-focus_mode = 0
-
 [node name="InviteFeedback" type="Label" parent="."]
 layout_mode = 0
 offset_left = 660.0
@@ -146,7 +137,7 @@ text = "COLOR"
 [node name="NameCol" type="Label" parent="PlayersPanel/VBoxContainer/TableHeader"]
 custom_minimumSize = Vector2(110, 0)
 layout_mode = 2
-text = "PLAYER / AI NAME"
+text = "PLAYER"
 
 [node name="FactionCol" type="Label" parent="PlayersPanel/VBoxContainer/TableHeader"]
 custom_minimumSize = Vector2(110, 0)

@@ -207,16 +207,20 @@ public partial class LobbyManager
 		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.CancelCountdown });
 	}
 
-	public bool AddAIBot()
+	/// <summary>
+	///     Seats a computer player in one player slot. Only the host may do it, the slot is opened first when the host had
+	///     closed it, and the authority's answer - which refuses a slot its map keeps or somebody still holds - is what
+	///     every seat reads back.
+	/// </summary>
+	/// <param name="slot">The player slot the computer should play in.</param>
+	/// <returns>Whether the lobby was asked to seat a computer in that slot.</returns>
+	public bool AddAIBot(int slot)
 	{
 		if (!IsHost) return false;
-		if (FreeSlotCount == 0)
-		{
-			LastLobbyWarning = string.Format(Tr("Cannot add an AI player: all {0} open slots are taken."), OpenSlotCount);
-			return false;
-		}
 
-		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.AddComputer });
+		if (!IsSlotOpen(slot)) SetSlotOpen(slot, true);
+
+		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.AddComputer, Slot = slot });
 		return true;
 	}
 

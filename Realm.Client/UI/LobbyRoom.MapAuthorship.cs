@@ -26,7 +26,6 @@ public partial class LobbyRoom
 		_authorshipWarningLabel.Visible = false;
 		_primaryAuthorLabel.Visible = false;
 		_primaryAuthorLabel.Text = Tr("Author: Unknown");
-		_otherAuthorsButton.Visible = false;
 		_otherAuthorsList.Clear();
 
 		string? mapJsonPath = TryGetMapJsonPath(mapName);
@@ -78,7 +77,6 @@ public partial class LobbyRoom
 		}
 
 		ShowStatedAuthor(ReadStatedAuthor(mapDoc, mapJsonPath));
-		_otherAuthorsButton.Visible = _otherAuthorsList.Count > 0;
 	}
 
 	private void ShowStatedAuthor(string? author)
@@ -189,7 +187,7 @@ public partial class LobbyRoom
 		_attributionButton.CustomMinimumSize = new Vector2(160, 28);
 		_attributionButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		_attributionButton.FocusMode = FocusModeEnum.None;
-		_attributionButton.TooltipText = LocalizationManager.Translate("Show maps whose content was imported into this map");
+		_attributionButton.TooltipText = LocalizationManager.Translate("Show the content this map imported and the contributors it lists");
 		_attributionButton.AddThemeFontSizeOverride("font_size", 11);
 		UIStyle.ApplyButtonStyleBoxesClearingFocus(_attributionButton);
 		_attributionButton.Pressed += OnAttributionPressed;
@@ -212,26 +210,17 @@ public partial class LobbyRoom
 			? MapAttributionLookup.Resolve(_lobbyRoomMaps[selectedIndex].Attribution_SourceMap, _lobbyRoomMaps[selectedIndex].PathName, _lobbyRoomMaps[selectedIndex].Version)
 			: Array.Empty<string>();
 
-		_attributionPopover.ShowFor(_attributionButton, sourceMapNames);
-	}
-
-	private void OnOtherAuthorsPressed()
-	{
-		GameContext.UserInterface?.PlayClickSound();
-
-		if (_otherAuthorsPopover == null || !GodotObject.IsInstanceValid(_otherAuthorsPopover))
+		_attributionPopover.ShowFor(_attributionButton, new[]
 		{
-			_otherAuthorsPopover = new AttributionPopover();
-			AddChild(_otherAuthorsPopover);
-			_otherAuthorsPopover.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		}
-
-		_otherAuthorsPopover.ShowFor(
-			_otherAuthorsButton,
-			LocalizationManager.Translate("Other Authors"),
-			LocalizationManager.Translate("This map lists these additional contributors:"),
-			LocalizationManager.Translate("No other contributors listed."),
-			_otherAuthorsList);
+			new AttributionSection(
+				LocalizationManager.Translate("This map contains content imported from:"),
+				LocalizationManager.Translate("No imported content has been attributed to this map."),
+				sourceMapNames),
+			new AttributionSection(
+				LocalizationManager.Translate("This map lists these additional contributors:"),
+				LocalizationManager.Translate("No other contributors listed."),
+				_otherAuthorsList)
+		});
 	}
 
 	private int GetSelectedMapIndex()
@@ -259,7 +248,6 @@ public partial class LobbyRoom
 		}
 
 		_attributionPopover?.Close();
-		_otherAuthorsPopover?.Close();
 	}
 
 	/// <summary>
