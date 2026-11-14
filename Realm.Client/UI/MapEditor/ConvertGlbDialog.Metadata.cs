@@ -38,7 +38,7 @@ public partial class ConvertGlbDialog
 
 		GameContext.MetadataService.UpdateMetadata(wsPath, meta =>
 		{
-			UpdateSpecificMetadata(meta, subCategory, unitId, fileName, defaultScale, autoYOffset);
+			UpdateSpecificMetadata(meta, subCategory, unitId, fileName, defaultScale, autoYOffset, minY);
 		});
 
 		GameContext.MetadataService.CleanMetadata(wsPath);
@@ -48,21 +48,21 @@ public partial class ConvertGlbDialog
 		GameContext.Host?.LoadUnitMetadata(wsPath);
 	}
 
-	private void UpdateSpecificMetadata(MapMetadata meta, string subCategory, string unitId, string fileName, float defaultScale, float autoYOffset)
+	private void UpdateSpecificMetadata(MapMetadata meta, string subCategory, string unitId, string fileName, float defaultScale, float autoYOffset, float minY)
 	{
 		switch (subCategory)
 		{
 			case "units" or "characters":
-				UpdateUnitMetadata(meta, unitId, fileName, defaultScale, autoYOffset);
+				UpdateUnitMetadata(meta, unitId, fileName, defaultScale, autoYOffset, minY);
 				break;
 			case "buildings":
-				UpdateBuildingMetadata(meta, unitId, fileName, defaultScale, autoYOffset);
+				UpdateBuildingMetadata(meta, unitId, fileName, defaultScale, autoYOffset, minY);
 				break;
 			case "resources":
-				UpdateResourceMetadata(meta, unitId, fileName, defaultScale, autoYOffset);
+				UpdateResourceMetadata(meta, unitId, fileName, defaultScale, autoYOffset, minY);
 				break;
 			case "props":
-				UpdatePropMetadata(meta, unitId, fileName, defaultScale, autoYOffset);
+				UpdatePropMetadata(meta, unitId, fileName, defaultScale, autoYOffset, minY);
 				break;
 			case "attachments" or "items":
 				UpdateItemMetadata(meta, unitId);
@@ -70,12 +70,12 @@ public partial class ConvertGlbDialog
 		}
 	}
 
-	private void UpdateUnitMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset)
+	private void UpdateUnitMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset, float minY)
 	{
 		string unitTemplateId = TemplateIDHelper.NormalizeTemplateID("unit", unitId);
 		bool updatedU = meta.UpdateUnit(unitTemplateId, u =>
 		{
-			if (autoYOffset != 0f) u.YOffset = autoYOffset;
+			if (float.IsFinite(minY) && Math.Abs(minY) > 0.0001f) u.YOffset = ModelCache.RestingOffsetFor(minY, u.Scale);
 			return u;
 		});
 		if (!updatedU)
@@ -95,12 +95,12 @@ public partial class ConvertGlbDialog
 		}
 	}
 
-	private void UpdateBuildingMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset)
+	private void UpdateBuildingMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset, float minY)
 	{
 		string buildingTemplateId = TemplateIDHelper.NormalizeTemplateID("building", unitId);
 		bool updatedB = meta.UpdateBuilding(buildingTemplateId, b =>
 		{
-			if (autoYOffset != 0f) b.YOffset = autoYOffset;
+			if (float.IsFinite(minY) && Math.Abs(minY) > 0.0001f) b.YOffset = ModelCache.RestingOffsetFor(minY, b.Scale);
 			return b;
 		});
 		if (!updatedB)
@@ -120,12 +120,12 @@ public partial class ConvertGlbDialog
 		}
 	}
 
-	private void UpdateResourceMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset)
+	private void UpdateResourceMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset, float minY)
 	{
 		string resourceTemplateId = TemplateIDHelper.NormalizeTemplateID("resource", unitId);
 		bool updatedR = meta.UpdateResource(resourceTemplateId, r =>
 		{
-			if (autoYOffset != 0f) r.YOffset = autoYOffset;
+			if (float.IsFinite(minY) && Math.Abs(minY) > 0.0001f) r.YOffset = ModelCache.RestingOffsetFor(minY, r.Scale);
 			return r;
 		});
 		if (!updatedR)
@@ -146,12 +146,12 @@ public partial class ConvertGlbDialog
 		}
 	}
 
-	private void UpdatePropMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset)
+	private void UpdatePropMetadata(MapMetadata meta, string unitId, string fileName, float defaultScale, float autoYOffset, float minY)
 	{
 		string propTemplateId = TemplateIDHelper.NormalizeTemplateID("prop", unitId);
 		bool updatedP = meta.UpdateProp(propTemplateId, p =>
 		{
-			if (autoYOffset != 0f) p.YOffset = autoYOffset;
+			if (float.IsFinite(minY) && Math.Abs(minY) > 0.0001f) p.YOffset = ModelCache.RestingOffsetFor(minY, p.Scale);
 			return p;
 		});
 		if (!updatedP)
