@@ -12,7 +12,7 @@ namespace Realm.ListenServer;
 /// <summary>admitting a peer and the session checks that guard it.</summary>
 public partial class ServerLobby
 	{
-	public string AdmitPeer(int peerId, string name, long accountId, string sessionToken, bool proveAdmin, out bool isAdmin)
+	public string AdmitPeer(int peerId, string name, long accountId, string sessionToken, ulong steamId, bool proveAdmin, out bool isAdmin)
 	{
 		isAdmin = false;
 		if (_matchStarted) return "server_rejected_lobby_is_closed";
@@ -57,8 +57,6 @@ public partial class ServerLobby
 		if (!restored)
 		{
 			int slot = FindFreePlayingSlot(isAdmin ? 1 : 0);
-			bool playingSeat = slot > 0;
-			if (!playingSeat) slot = FindFreeSpectatorSlot();
 			if (slot <= 0) return "server_rejected_no_free_slot";
 
 			seat = new LobbySeat
@@ -67,7 +65,7 @@ public partial class ServerLobby
 				AccountId = accountId,
 				Name = DefaultName(name, slot, isAdmin),
 				Faction = Roster?.GetFactionName(0) ?? string.Empty,
-				TeamName = playingSeat ? ResolveJoinTeamName() : LobbyLimits.SpectatorTeamName,
+				TeamName = ResolveJoinTeamName(),
 				ColorRgba = ResolveJoinColorRgba(slot),
 				IsHost = isAdmin,
 				LatencyMilliseconds = -1,
@@ -82,6 +80,10 @@ public partial class ServerLobby
 
 		seat.PeerId = peerId;
 		seat.AccountId = accountId;
+
+		// Stated by the seat's own client, like the name it plays under. It is published to the other seats so the table at
+		// the end of the match can name the person behind it to Steam, and a seat that reconnects states it again.
+		seat.SteamId = steamId;
 		seat.IsHost = isAdmin || peerId == _adminPeerId;
 		seat.IsDisconnected = false;
 		if (!string.IsNullOrWhiteSpace(name)) seat.Name = LobbyLimits.SanitizeDisplayName(name);

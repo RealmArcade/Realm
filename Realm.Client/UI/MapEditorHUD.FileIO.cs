@@ -584,9 +584,9 @@ namespace Realm.Client.UI
 			return EditorMapBuild.TryBypassCompilation(workspace, FindExistingWasmFile, HasNewerSourceFiles, () => { _wasmHasErrors = false; SetWasmConsoleStatus("✓ WASM Compilation Bypassed (Unchanged)", UIStyle.ColorCyanGlow); AppendWasmConsoleLog($"[INFO] The script sources are unchanged since the last {(isDebug ? "debug" : "release")} build. Bypassing compilation using the WASM binary already in bin/script."); }, isDebug);
 		}
 
-		private string? FindExistingWasmFile(string workspace)
+		private string? FindExistingWasmFile(string workspace, bool isDebug)
 		{
-			return MapWorkspaceService.FindExistingWasmFileDomain(workspace);
+			return MapWorkspaceService.FindExistingWasmFileDomain(workspace, isDebug);
 		}
 
 		private bool HasNewerSourceFiles(string workspace, DateTime wasmTime)

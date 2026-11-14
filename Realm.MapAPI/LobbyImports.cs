@@ -15,10 +15,6 @@ public static class LobbyImports
 	[WasmImportLinkage]
 	private static extern int ImportAddLobbyFaction(nint factionNamePointer, int factionNameLength);
 
-	[DllImport(Module, EntryPoint = "set-lobby-maximum-player-count")]
-	[WasmImportLinkage]
-	private static extern void ImportSetLobbyMaximumPlayerCount(int maximumPlayerCount);
-
 	[DllImport(Module, EntryPoint = "set-lobby-team-count")]
 	[WasmImportLinkage]
 	private static extern void ImportSetLobbyTeamCount(int teamCount);
@@ -47,6 +43,50 @@ public static class LobbyImports
 	[WasmImportLinkage]
 	private static extern void ImportSetLobbyColorLocked(int playerIndex, int locked);
 
+	[DllImport(Module, EntryPoint = "set-lobby-slot-open")]
+	[WasmImportLinkage]
+	private static extern int ImportSetLobbySlotOpen(int playerIndex, int open);
+
+	[DllImport(Module, EntryPoint = "set-lobby-open-slot-count")]
+	[WasmImportLinkage]
+	private static extern int ImportSetLobbyOpenSlotCount(int count);
+
+	[DllImport(Module, EntryPoint = "set-lobby-player-slot-limit")]
+	[WasmImportLinkage]
+	private static extern int ImportSetLobbyPlayerSlotLimit(int maximumPlayers);
+
+	[DllImport(Module, EntryPoint = "set-lobby-player-minimap-color")]
+	[WasmImportLinkage]
+	private static extern int ImportSetLobbyPlayerMinimapColor(int playerIndex, int mode, int colorRgba);
+
+	[DllImport(Module, EntryPoint = "set-lobby-player-proxy-owner")]
+	[WasmImportLinkage]
+	private static extern int ImportSetLobbyPlayerProxyOwner(int playerIndex, int ownerPlayerIndex);
+
+	[DllImport(Module, EntryPoint = "add-lobby-match-setting")]
+	[WasmImportLinkage]
+	private static extern int ImportAddLobbyMatchSetting(int settingId, int control, nint labelPointer, int labelLength, nint tooltipPointer, int tooltipLength, int defaultValue);
+
+	[DllImport(Module, EntryPoint = "add-lobby-match-setting-option")]
+	[WasmImportLinkage]
+	private static extern int ImportAddLobbyMatchSettingOption(int settingId, nint labelPointer, int labelLength);
+
+	[DllImport(Module, EntryPoint = "set-lobby-match-setting-range")]
+	[WasmImportLinkage]
+	private static extern int ImportSetLobbyMatchSettingRange(int settingId, int minimum, int maximum);
+
+	[DllImport(Module, EntryPoint = "get-lobby-match-setting-value")]
+	[WasmImportLinkage]
+	private static extern int ImportGetLobbyMatchSettingValue(int settingId);
+
+	[DllImport(Module, EntryPoint = "set-lobby-spectator-delay-default")]
+	[WasmImportLinkage]
+	private static extern void ImportSetLobbySpectatorDelayDefault(int enabled);
+
+	[DllImport(Module, EntryPoint = "set-lobby-shroud-mode-default")]
+	[WasmImportLinkage]
+	private static extern void ImportSetLobbyShroudModeDefault(int shroudMode);
+
 	[DllImport(Module, EntryPoint = "set-lobby-teams-together-default")]
 	[WasmImportLinkage]
 	private static extern void ImportSetLobbyTeamsTogetherDefault(int teamsTogether);
@@ -62,13 +102,6 @@ public static class LobbyImports
 	{
 		byte[] bytes = Encoding.UTF8.GetBytes(factionName);
 		fixed (byte* pointer = bytes) return ImportAddLobbyFaction((nint)pointer, bytes.Length) != 0;
-	}
-
-	/// <summary>Places the order that states how many players the lobby seats.</summary>
-	/// <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
-	public static void SetMaximumPlayerCount(int maximumPlayerCount)
-	{
-		ImportSetLobbyMaximumPlayerCount(maximumPlayerCount);
 	}
 
 	/// <summary>Places the order that states how many teams the lobby offers.</summary>
@@ -128,6 +161,110 @@ public static class LobbyImports
 	public static void SetColorLocked(int playerIndex, bool locked)
 	{
 		ImportSetLobbyColorLocked(playerIndex, locked ? 1 : 0);
+	}
+
+	/// <summary>Places the order that opens or closes one player slot.</summary>
+	/// <param name="playerIndex">The player slot.</param>
+	/// <param name="open">Whether the slot accepts a player.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
+	public static bool SetSlotOpen(int playerIndex, bool open)
+	{
+		return ImportSetLobbySlotOpen(playerIndex, open ? 1 : 0) != 0;
+	}
+
+	/// <summary>Places the order that opens the first slots up to a count and closes the rest.</summary>
+	/// <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
+	public static bool SetOpenSlotCount(int count)
+	{
+		return ImportSetLobbyOpenSlotCount(count) != 0;
+	}
+
+	/// <summary>Places the order that reserves every player index above a count for the map itself.</summary>
+	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
+	public static bool SetPlayerSlotLimit(int maximumPlayers)
+	{
+		return ImportSetLobbyPlayerSlotLimit(maximumPlayers) != 0;
+	}
+
+	/// <summary>Places the order that states the colour a player index is drawn in on one minimap scheme.</summary>
+	/// <param name="playerIndex">The player index.</param>
+	/// <param name="mode">The scheme, as the value of the minimap colour mode enum.</param>
+	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
+	public static bool SetPlayerMinimapColor(int playerIndex, int mode, uint colorRgba)
+	{
+		return ImportSetLobbyPlayerMinimapColor(playerIndex, mode, (int)colorRgba) != 0;
+	}
+
+	/// <summary>Places the order that states one player index stands in for another, or clears the statement.</summary>
+	/// <param name="playerIndex">The player index that stands in for another.</param>
+	/// <param name="ownerPlayerIndex">The player index it stands in for, or zero to clear the statement.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
+	public static bool SetPlayerProxyOwner(int playerIndex, int ownerPlayerIndex)
+	{
+		return ImportSetLobbyPlayerProxyOwner(playerIndex, ownerPlayerIndex) != 0;
+	}
+
+	/// <summary>Places the order that declares one match setting of the map's own.</summary>
+	/// <param name="settingId">The identifier the map declares the setting under.</param>
+	/// <param name="control">The control kind, as the value of the lobby setting control enum.</param>
+	/// <param name="label">The label the host reads, passed as UTF-8 with its byte length.</param>
+	/// <param name="tooltip">The sentence that explains the setting, or empty, passed as UTF-8 with its byte length.</param>
+	/// <param name="defaultValue">The value the setting holds until the host changes it.</param>
+	/// <returns>Whether the authority accepted the declaration.</returns>
+	public static unsafe bool AddMatchSetting(int settingId, int control, string label, string tooltip, int defaultValue)
+	{
+		byte[] labelBytes = Encoding.UTF8.GetBytes(label);
+		byte[] tooltipBytes = Encoding.UTF8.GetBytes(tooltip);
+		fixed (byte* labelPointer = labelBytes)
+		fixed (byte* tooltipPointer = tooltipBytes)
+		{
+			return ImportAddLobbyMatchSetting(settingId, control, (nint)labelPointer, labelBytes.Length, (nint)tooltipPointer, tooltipBytes.Length, defaultValue) != 0;
+		}
+	}
+
+	/// <summary>Places the order that adds one option to a setting declared as a choice.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="optionLabel">The text the host reads in the dropdown, passed as UTF-8 with its byte length.</param>
+	/// <returns>Whether the authority accepted the option.</returns>
+	public static unsafe bool AddMatchSettingOption(int settingId, string optionLabel)
+	{
+		byte[] bytes = Encoding.UTF8.GetBytes(optionLabel);
+		fixed (byte* pointer = bytes) return ImportAddLobbyMatchSettingOption(settingId, (nint)pointer, bytes.Length) != 0;
+	}
+
+	/// <summary>Places the order that states the values a count setting may hold.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="minimum">The lowest value the host may choose.</param>
+	/// <param name="maximum">The highest value the host may choose.</param>
+	/// <returns>Whether the authority accepted the range.</returns>
+	public static bool SetMatchSettingRange(int settingId, int minimum, int maximum)
+	{
+		return ImportSetLobbyMatchSettingRange(settingId, minimum, maximum) != 0;
+	}
+
+	/// <summary>Reads the value the host chose for one of the map's own settings.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <returns>The value the setting holds, or zero for a setting the lobby holds no value for.</returns>
+	public static int GetMatchSettingValue(int settingId)
+	{
+		return ImportGetLobbyMatchSettingValue(settingId);
+	}
+
+	/// <summary>Places the order that states whether late joiners wait before they see the board.</summary>
+	/// <param name="enabled">Whether the delay is on.</param>
+	public static void SetSpectatorDelayDefault(int enabled)
+	{
+		ImportSetLobbySpectatorDelayDefault(enabled);
+	}
+
+	/// <summary>Places the order that states which shroud the lobby starts with.</summary>
+	/// <param name="shroudMode">The mode, as the value of the match option the lobby publishes.</param>
+	public static void SetShroudModeDefault(int shroudMode)
+	{
+		ImportSetLobbyShroudModeDefault(shroudMode);
 	}
 
 	/// <summary>Places the order that states whether the lobby's Teams Together checkbox starts checked.</summary>

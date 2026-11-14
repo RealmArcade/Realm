@@ -66,7 +66,7 @@ public sealed class BrushSettingsPanel
 		Header = hooks.Owner.GetNode<Button>(BasePath + "/BtnHeaderBrush");
 		Content = hooks.Owner.GetNode<VBoxContainer>(BasePath + "/ContentBrush");
 		hooks.StyleAccordionHeader(Header);
-		hooks.SetupAccordion(Header, Content, TranslationServer.Translate("Global Brush Properties"));
+		hooks.SetupAccordion(Header, Content, "Global Brush Properties");
 	}
 
 	private void BuildSizeControls(BrushSettingsHooks hooks)

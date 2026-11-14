@@ -49,6 +49,7 @@ public partial class ServerGameAPI : IGameAPI, IDisposable
 		_paths = paths;
 		_localization = new ServerLocalization(paths, log);
 		_savedData = new ServerSavedData(paths.DataDirectory, log);
+		_steamCloud = new ServerSteamCloud(log);
 		_techLevels = new ServerTechLevels(_context, map);
 		_abilities = new ScriptAbilityRegistry(map.Catalog);
 		_bots = new ServerBots(_context, paths.MapName, paths.DataDirectory, log);

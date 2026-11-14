@@ -13,6 +13,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
+using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
@@ -23,6 +24,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Simulation;
 using Realm.Shared.Services;
 using Environment = System.Environment;
@@ -49,6 +51,18 @@ public partial class LobbyManager : BaseMapTransferNode
 	public string LastAuthorityConsoleLogPath { get; private set; } = string.Empty;
 
 	public bool IsRestrictedHost { get; private set; }
+
+	/// <summary>
+	///     Why the last attempt to host was refused before the lobby was published, when it was refused because no other
+	///     player could reach it. The screen states this with the steps that fix it rather than as a bare failure.
+	/// </summary>
+	public HostReachabilityResult? LastHostFailure { get; private set; }
+
+	/// <summary>What the local firewall said when this lobby asked it for an inbound allowance.</summary>
+	public WindowsFirewallGrantResult LastFirewallGrant { get; private set; }
+
+	/// <summary>The UDP port this lobby listens on, which is the port a router and the local firewall must let through.</summary>
+	public int LobbyPort { get; private set; }
 
 	/// <summary>The factions the lobby's map offers, in the order its roster numbers them.</summary>
 	public IReadOnlyList<string> LobbyFactions { get; private set; } = Array.Empty<string>();
@@ -93,7 +107,48 @@ public partial class LobbyManager : BaseMapTransferNode
 	private const int StunPort = 19302;
 
 	public int ENetPort { get; private set; } = DefaultGamePort;
+
+	/// <summary>
+	///     The player slots the lobby's map states in its metadata, which is the shape a match started from this screen is
+	///     seated with. The lobby itself is sized by the slots it leaves open, which its own rows show.
+	/// </summary>
 	public int MaxPlayers { get; private set; } = MapInfoMetadata.DefaultPlayablePlayerSlots;
+
+	/// <summary>Every player slot the lobby carries, which is the number of rows its screen draws.</summary>
+	public int SlotCount { get; private set; } = LobbyLimits.MaximumSeats;
+
+	/// <summary>How many player slots the lobby leaves open to a player.</summary>
+	public int OpenSlotCount { get; private set; } = LobbyLimits.MaximumSeats;
+
+	/// <summary>Whether one player slot accepts a player, as the lobby last published it.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>Whether the slot is open.</returns>
+	public bool IsSlotOpen(int slot) => slot > 0 && slot < _openSlots.Length && _openSlots[slot];
+
+	/// <summary>
+	///     Answers whether the slot holds nobody and accepts a player, which is where a joining peer or a new computer
+	///     seat is placed.
+	/// </summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>Whether the slot is open and free.</returns>
+	public bool IsSlotFree(int slot) => IsSlotOpen(slot) && !PlayerList.Exists(player => player.Slot == slot);
+
+	/// <summary>How many player slots are open and hold nobody.</summary>
+	public int FreeSlotCount
+	{
+		get
+		{
+			int count = 0;
+			for (int slot = 1; slot < _openSlots.Length; slot++)
+			{
+				if (IsSlotFree(slot)) count++;
+			}
+
+			return count;
+		}
+	}
+
+	private readonly bool[] _openSlots = new bool[Realm.Ecs.EcsSharedMemory.MAX_PLAYERS];
 
 	/// <summary>
 	///     How many seats in this lobby are playing rather than watching. A spectator holds no player seat, so it is not
@@ -164,17 +219,76 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool TeamsTogether { get; set; } = false;
 
 	/// <summary>
-	///     The parameters the lobby's host configured for the match, as the lobby last published them. Every seat shows the
-	///     same list; only the host may change it.
+	///     The shroud this lobby will play, as the lobby published it: the host's own choice, or the mode the map's lobby
+	///     script states, or <see cref="MatchShroudMode.FromMap" /> while neither has said anything.
 	/// </summary>
-	public MatchOptionSet MatchOptions { get; } = new();
+	public MatchShroudMode ShroudMode { get; private set; } = MatchShroudMode.FromMap;
 
-	public event Action? MatchOptionsChanged;
+	/// <summary>
+	///     The shroud the next match will actually play. A lobby that states no mode falls back to the mode the board's
+	///     properties state, which is what a map that never runs a lobby script plays.
+	/// </summary>
+	/// <summary>
+	///     The display name the lobby waiting to be published was opened with, which is what the registry lists it as.
+	/// </summary>
+	public string HostedMapDisplayName { get; private set; } = string.Empty;
+
+	/// <summary>The map version the lobby waiting to be published plays.</summary>
+	public string HostedMapVersion { get; private set; } = string.Empty;
+
+	public MatchShroudMode EffectiveShroudMode =>
+		ShroudMode != MatchShroudMode.FromMap
+			? ShroudMode
+			: MapPropertiesLoader.ReadMapShroudMode(ActiveMapName);
+
+	/// <summary>
+	///     The match settings this lobby's map declared, as the lobby last published them. Every seat shows the same list;
+	///     only the host may change one, and the map that declared them reads the values.
+	/// </summary>
+	public List<LobbyMatchSetting> MatchSettings { get; } = new();
+
+	public event Action? MatchSettingsChanged;
 	public string? LobbyJoinError { get; set; }
 	public string HostStability { get; set; } = "Excellent";
 	public event Action<string>? HostStabilityUpdated;
 
 	public List<PlayerInfo> PlayerList { get; } = new();
+
+	/// <summary>
+	///     The colour the lobby's map keeps for each player index, indexed by player index and packed as 0xRRGGBBAA, zero
+	///     for an index that keeps the colour its seat states. It names the colours of the player indexes nobody holds -
+	///     the players a map drives itself - which a seat list has nowhere to carry.
+	/// </summary>
+	public uint[] ColorOverlays { get; private set; } = new uint[LobbyLimits.MaximumSeats + 1];
+
+	/// <summary>
+	///     The colour each player index's units are drawn in on a minimap that paints every player in its own colour, as the
+	///     lobby's map stated it, zero for an index it stated none for.
+	/// </summary>
+	public uint[] MinimapPlayerColors { get; private set; } = new uint[LobbyLimits.MaximumSeats + 1];
+
+	/// <summary>
+	///     The colour each player index's units are drawn in on a minimap that paints players by their relation to the screen
+	///     looking at it, as the lobby's map stated it, zero for an index it stated none for.
+	/// </summary>
+	public uint[] MinimapTeamColors { get; private set; } = new uint[LobbyLimits.MaximumSeats + 1];
+
+	/// <summary>
+	///     The player index each player index stands in for, as the lobby's map stated it, zero for an index that stands in
+	///     for nobody. The minimap that paints players by their relation to the screen looking at it draws a standing-in
+	///     index as the player it stands in for.
+	/// </summary>
+	public int[] ProxyOwners { get; private set; } = new int[LobbyLimits.MaximumSeats + 1];
+
+	/// <summary>Reads one entry of a published colour array, answering zero for an index the array does not carry.</summary>
+	/// <param name="colors">The published array.</param>
+	/// <param name="playerIndex">The player index.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA, or zero.</returns>
+	public static uint ColorAt(uint[]? colors, int playerIndex)
+	{
+		if (colors == null || playerIndex < 0 || playerIndex >= colors.Length) return 0u;
+		return colors[playerIndex];
+	}
 
 	public int LocalPeerId => _lobbySession?.LocalPeerId ?? -1;
 

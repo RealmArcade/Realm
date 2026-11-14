@@ -25,6 +25,7 @@ public partial class CommandAuthorityService
 		if (DispatchMovementCommand(peerId, cmd, stopVelocityEntityIds, holdVelocityEntityIds, rejectedServerEntityIds, ref rejectionReason)) return;
 		if (DispatchActionCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
 		if (DispatchTrainingCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
+		if (DispatchConstructionCommand(peerId, cmd, ref rejectionReason)) return;
 		if (DispatchResearchCommand(peerId, cmd, ref rejectionReason)) return;
 		if (DispatchConsumableCommand(peerId, cmd, ref rejectionReason)) return;
 		if (DispatchAutoCastCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;

@@ -148,13 +148,14 @@ private static void IndexArchivedFilesInManifest(string sourceDirectory, IReadOn
 
 	private static bool IsIgnoredPath(string relPath)
 	{
-		string[] prefixes = [".git/", ".backups/", "obj/", ".godot/", ".sidecarcache/", ".vscode/", ".vs/", $"bin/{MapFileService.DebugBuildFlavor}/", $"bin/{MapFileService.ReleaseBuildFlavor}/"];
+		string[] prefixes = [".git/", ".backups/", "obj/", ".godot/", ".sidecarcache/", ".vscode/", ".vs/", $"bin/{MapFileService.DebugBuildFlavor}/", $"bin/{MapFileService.ReleaseBuildFlavor}/", $"bin/{MapFileService.ScriptStagingDirectoryNamePrefix}"];
 		string[] suffixes = [".tmp", ".rmap", ".7z", ".zip", ".rar", ".tar", ".gz", ".bak", ".backup", ".rkey", ".elf", ".jit.elf"];
 
 		if (prefixes.Any(p => relPath.StartsWith(p, StringComparison.OrdinalIgnoreCase))) return true;
 		if (suffixes.Any(s => relPath.EndsWith(s, StringComparison.OrdinalIgnoreCase))) return true;
 		if (relPath.Contains("/obj/", StringComparison.OrdinalIgnoreCase)) return true;
-		if (string.Equals(Path.GetFileName(relPath), MapFileService.BuildFlavorFileName, StringComparison.OrdinalIgnoreCase)) return true;
+		if (string.Equals(Path.GetFileName(relPath), MapFileService.RetiredBuildFlavorFileName, StringComparison.OrdinalIgnoreCase)) return true;
+		if (MapFileService.IsDebugScriptFileName(relPath)) return true;
 
 		string fileName = Path.GetFileName(relPath);
 		if (string.Equals(fileName, MapMetadataMerger.MetadataPartialFileName, StringComparison.OrdinalIgnoreCase)) return true;
@@ -714,6 +715,16 @@ private static void IndexArchivedFilesInManifest(string sourceDirectory, IReadOn
 						catch (Exception exception)
 						{
 							Console.Error.WriteLine($"[MapArchiveHelper] could not remove the stale API library {file}: {exception.GetType().Name}: {exception.Message}");
+						}
+					}
+
+					string retiredFlavorMarker = Path.Combine(scriptDirectory, MapFileService.RetiredBuildFlavorFileName);
+					if (File.Exists(retiredFlavorMarker))
+					{
+						try { File.Delete(retiredFlavorMarker); }
+						catch (Exception exception)
+						{
+							Console.Error.WriteLine($"[MapArchiveHelper] could not remove the retired build marker {retiredFlavorMarker}: {exception.GetType().Name}: {exception.Message}");
 						}
 					}
 				}

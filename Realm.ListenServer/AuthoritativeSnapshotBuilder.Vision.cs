@@ -20,6 +20,9 @@ public partial class AuthoritativeSnapshotBuilder
 		_describedUnits.Clear();
 		_describedEntityIds.Clear();
 		_viewer = viewerPlayer;
+		_viewerPlayerIndex = viewerPlayer != Entity.Null && _world.IsAlive(viewerPlayer) && _world.Has<UnitOwnerPlayer>(viewerPlayer)
+			? _world.Get<UnitOwnerPlayer>(viewerPlayer).PlayerIndex
+			: -1;
 		_playerEntities = Array.Empty<Entity>();
 
 		if (_context.ShroudDisabled || viewerPlayer == Entity.Null)
@@ -72,9 +75,13 @@ public partial class AuthoritativeSnapshotBuilder
 		bool visible = true;
 		if (_world.TryGet<Owner>(entity, out Owner entityOwner))
 		{
-			if (entityOwner.PlayerEntity.Value == _viewer)
+			// A side sees its own units and its allies' units, and both are what lifts its shroud: an ally is never hidden
+			// from a player it is fighting beside, and a shared front sees the same enemies wherever its units stand.
+			if (IsOnViewersSide(entityOwner.PlayerEntity.Value))
 			{
-				float radius = _world.TryGet<ScanRadius>(entity, out ScanRadius scanRadius) ? scanRadius.Value : DefaultVisionRadius;
+				float radius = _world.TryGet<TargetIntel>(entity, out TargetIntel intel) && intel.SightRange > 0f
+					? intel.SightRange
+					: _world.TryGet<ScanRadius>(entity, out ScanRadius scanRadius) ? scanRadius.Value : DefaultVisionRadius;
 				if (radius > 0f) _visionSources.Add((position.Value, radius));
 			}
 			else visible = false;
@@ -92,6 +99,22 @@ public partial class AuthoritativeSnapshotBuilder
 		}
 
 		unitsInCell.Add(candidateIndex);
+	}
+
+	/// <summary>
+	///     Whether a player entity stands on the viewer's side: the viewer itself, or a player the board's relationship table
+	///     calls an ally. A board with no table has no allies, and an owner that names no player is nobody's ally.
+	/// </summary>
+	private bool IsOnViewersSide(Entity ownerPlayerEntity)
+	{
+		if (ownerPlayerEntity == Entity.Null) return false;
+		if (ownerPlayerEntity == _viewer) return true;
+		if (_viewerPlayerIndex < 0) return false;
+		if (!_world.IsAlive(ownerPlayerEntity) || !_world.Has<UnitOwnerPlayer>(ownerPlayerEntity)) return false;
+		if (!_world.Has<PlayerRelationshipMatrix>(_worldEntity)) return false;
+
+		int ownerPlayerIndex = _world.Get<UnitOwnerPlayer>(ownerPlayerEntity).PlayerIndex;
+		return _world.Get<PlayerRelationshipMatrix>(_worldEntity).AreAllied(_viewerPlayerIndex, ownerPlayerIndex);
 	}
 
 	private void MarkUnitsWithinSight()

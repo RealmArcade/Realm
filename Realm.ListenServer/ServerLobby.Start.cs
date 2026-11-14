@@ -1,6 +1,7 @@
 ﻿using System.Numerics;
 using System.Security.Cryptography;
 using MemoryPack;
+using Realm.Ecs;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Network;
@@ -103,6 +104,11 @@ public partial class ServerLobby
 			GroupTeamsTogether(roster, assignments, sessionSeats);
 			_log.Write("this lobby groups each team's players into consecutive player slots");
 		}
+
+		// The shroud the lobby plays is a core setting, so the match is told which mode it plays before the match exists: the
+		// host's own choice when it made one, and otherwise the mode the map's lobby script stated.
+		MatchShroudMode shroudMode = EffectiveShroudMode;
+		if (shroudMode != MatchShroudMode.FromMap) _log.Write($"this lobby plays with the shroud mode {shroudMode}");
 
 		rejection = _startMatch(roster, assignments, sessionSeats, seed);
 		if (rejection != null) return rejection;

@@ -7,6 +7,7 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Services;
 using Realm.Client.Utils;
@@ -23,15 +24,17 @@ public partial class CommandPanel
 
 		if (focusedUnit.IsBuilding && focusedUnit.IsUnderConstruction)
 		{
-			// A site whose own choices are still open keeps the grid it was given: a map that draws the buildings a site may
-			// become, or asks anything else of the player before it is raised, has nowhere else to offer it. A site with no
-			// such work offers the engine's cancel command, which is all a plain site has to say.
+			// A site keeps every choice its map drew on it: a map that offers the buildings a site may become, or asks
+			// anything else of the player before it is raised, has nowhere else to put those.
 			foreach (var ability in focusedUnit.Abilities)
 			{
 				AddItem(items, CreateAbilityItem(ability, focusedUnit.Entity));
 			}
 
-			if (items.Count == 0) items.Add(CreateCancelConstructionItem());
+			// Taking a site down is the engine's own command, so it is offered on the sites the engine is raising. A map
+			// holding one short of completion owns that site's grid and its own way out of it, and an engine cancel there
+			// would take the site out from under the map's rules.
+			if (IsRaisedByTheEngine(focusedUnit.Entity)) items.Add(CreateCancelConstructionItem(focusedUnit.Entity));
 			return items;
 		}
 
@@ -55,15 +58,31 @@ public partial class CommandPanel
 		if (item != null) items.Add(item);
 	}
 
-	private CommandCardItem CreateCancelConstructionItem()
+	/// <summary>
+	///     Reports whether a site is being raised by the engine rather than held short of completion by its map. A map
+	///     that states a lesser ceiling is holding the site itself, and the site is then the map's to finish or abandon.
+	/// </summary>
+	/// <param name="siteEntity">The site the grid is being drawn for.</param>
+	/// <returns>True when nothing but the site's own work stands between it and a finished building.</returns>
+	private static bool IsRaisedByTheEngine(Entity siteEntity)
+	{
+		EcsWorld? world = GameContext.World;
+		if (world == null || !world.IsAlive(siteEntity)) return false;
+		if (!world.TryGet<ConstructionState>(siteEntity, out ConstructionState construction)) return false;
+
+		return construction.CompletionCeilingFraction >= 1f;
+	}
+
+	private static CommandCardItem CreateCancelConstructionItem(Entity siteEntity)
 	{
 		return new CommandCardItem
 		{
-			Id = "stop",
+			Id = "cancel_construction",
 			IconPath = "res://Assets/UI/cancel_button_2.webp",
-			Tooltip = "[S] Cancel Construction",
+			IconTint = new Color(0.95f, 0.25f, 0.22f),
+			Tooltip = TranslationServer.Translate("[S] Cancel Construction — Takes this unfinished site down and refunds its full cost"),
 			HotkeyFromGrid = true,
-			Callback = () => { }
+			Callback = () => GameContext.Host?.CancelConstruction(siteEntity)
 		};
 	}
 

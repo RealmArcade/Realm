@@ -1,5 +1,6 @@
 param(
-    [string]$VersionNumber = ""
+    [string]$VersionNumber = "",
+    [switch]$Publish
 )
 
 $ErrorActionPreference = "Stop"
@@ -112,5 +113,71 @@ if ($env:GITHUB_OUTPUT) {
     Add-Content -Path $env:GITHUB_OUTPUT -Value "version_number=$infoVersion"
     Add-Content -Path $env:GITHUB_OUTPUT -Value "raw_version=$version"
 }
+
+# A plain-text stamp beside the artefacts, so the build somebody is holding can be named from a screenshot instead of from
+# the properties of an executable. Nothing in Realm reads it: the game takes its version from the assembly it was compiled
+# into and its Steam application from the client that launched it, so this file is only ever evidence for a person.
+function Get-GameBuildNumber {
+    $versionPath = Join-Path $rootDir "Realm.Shared\RealmVersion.cs"
+    if (-not (Test-Path $versionPath)) { return "(unknown)" }
+
+    $match = [regex]::Match([System.IO.File]::ReadAllText($versionPath, [System.Text.Encoding]::UTF8), 'GameBuildNumber\s*=\s*"(?<value>[^"]+)"')
+    if ($match.Success) { return $match.Groups["value"].Value }
+    return "(unknown)"
+}
+
+function Get-SteamApplicationIds {
+    $idsPath = Join-Path $rootDir "Realm.Client\Services\Steam\SteamApplicationIds.cs"
+    if (-not (Test-Path $idsPath)) { return "(unknown)" }
+
+    $idsText = [System.IO.File]::ReadAllText($idsPath, [System.Text.Encoding]::UTF8)
+    $full = [regex]::Match($idsText, 'FullGameAppId\s*=\s*(?<value>\d+)')
+    $demo = [regex]::Match($idsText, 'DemoAppId\s*=\s*(?<value>\d+)')
+    if (-not $full.Success -and -not $demo.Success) { return "(unknown)" }
+
+    $fullId = if ($full.Success) { $full.Groups["value"].Value } else { "unknown" }
+    $demoId = if ($demo.Success) { $demo.Groups["value"].Value } else { "unknown" }
+    return "$fullId (full), $demoId (demo)"
+}
+
+$buildInput = if ($VersionNumber -and $VersionNumber.Trim() -ne "") { $VersionNumber.Trim() } else { "(none: the version.json in this checkout)" }
+$runNumber = if ($env:GITHUB_RUN_NUMBER) { $env:GITHUB_RUN_NUMBER } else { "(local build)" }
+$runUrl = if ($env:GITHUB_SERVER_URL -and $env:GITHUB_REPOSITORY -and $env:GITHUB_RUN_ID) {
+    "$($env:GITHUB_SERVER_URL)/$($env:GITHUB_REPOSITORY)/actions/runs/$($env:GITHUB_RUN_ID)"
+} else {
+    "(local build)"
+}
+$commit = if ($env:GITHUB_SHA) { $env:GITHUB_SHA } else { "(unknown)" }
+$ref = if ($env:GITHUB_REF) { $env:GITHUB_REF } else { "(unknown)" }
+$actor = if ($env:GITHUB_ACTOR) { $env:GITHUB_ACTOR } else { "(local build)" }
+$publishBuild = if ($Publish) { "yes" } else { "no" }
+$builtAt = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", [System.Globalization.CultureInfo]::InvariantCulture)
+
+$stampLines = @(
+    "Realm build stamp",
+    "=================",
+    "Written when this build applied its version, so a bug report can name the build it came from.",
+    "Realm never reads this file: the game takes its version and its Steam application from the assembly it was",
+    "compiled into, and from the Steam client that launched it.",
+    "",
+    "Version            : $version",
+    "Build input        : $buildInput",
+    "File version       : $fileVersion",
+    "Product version    : $productVersion",
+    "Informational      : $infoVersion",
+    "Game build number  : $(Get-GameBuildNumber)",
+    "Steam app ids      : $(Get-SteamApplicationIds)",
+    "Publish build      : $publishBuild",
+    "Built (UTC)        : $builtAt",
+    "Workflow run       : $runNumber",
+    "Commit             : $commit",
+    "Ref                : $ref",
+    "Actor              : $actor",
+    "Run                : $runUrl"
+)
+
+$stampPath = Join-Path $rootDir "version.txt"
+[System.IO.File]::WriteAllText($stampPath, ($stampLines -join "`r`n") + "`r`n", $utf8NoBom)
+Write-Host "Wrote $stampPath"
 
 Write-Host "Version sync completed successfully."

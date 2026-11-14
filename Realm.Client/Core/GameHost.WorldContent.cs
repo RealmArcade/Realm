@@ -60,6 +60,11 @@ public partial class GameHost
 		// A removal held against a clock this screen no longer has would free a node of whatever match comes next.
 		_pendingUnitViewRemovals.Clear();
 
+		// A cutscene's bars, line and fade belong to this match. The overlay is a child of this host, so it leaves the tree
+		// with it; clearing it first means the frame that tears the match down is not drawn through a fade.
+		if (GodotObject.IsInstanceValid(_cinematicOverlay)) _cinematicOverlay!.ClearContent();
+		_cinematicOverlay = null;
+
 		if (!GameContext.GlobalScope.IsDisposed)
 		{
 			GameContext.MapAutosaveService.FlushPendingWrites(TimeSpan.FromSeconds(2));

@@ -5,12 +5,18 @@ namespace Realm.ListenServer;
 
 public partial class ServerGameAPI
 {
-	/// <summary>Gets the parameters the lobby's host configured for this match, empty when the host left them to the map.</summary>
-	public MatchOptionSet MatchOptions { get; } = new();
+	/// <summary>Gets the values the lobby's host chose for the match settings the map declared.</summary>
+	public LobbySettingSet LobbySettings { get; } = new();
 
-	public int GetMatchOption(MatchOption matchOption)
+	public int GetLobbySetting(int settingId)
 	{
-		return MatchOptions.Get(matchOption);
+		return LobbySettings.Get(settingId);
+	}
+
+	public void SetUnitTypeReceivesConsumables(string unitTypeId, bool receives)
+	{
+		if (string.IsNullOrWhiteSpace(unitTypeId)) return;
+		_context.MapRules.SetUnitTypeReceivesConsumables(unitTypeId, receives);
 	}
 
 	public void RegisterPlacementRadius(string definitionKey, float radius)

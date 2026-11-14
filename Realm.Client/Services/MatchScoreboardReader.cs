@@ -12,6 +12,7 @@ namespace Realm.Client.Services;
 public readonly record struct MatchPlayerResult(
 	int Slot,
 	string Name,
+	ulong SteamId,
 	string TeamName,
 	string Faction,
 	bool IsComputer,
@@ -60,6 +61,7 @@ public static class MatchScoreboardReader
 			destination.Add(new MatchPlayerResult(
 				slot,
 				ResolveName(player, seat, slot, hasPlayersState),
+				seat?.SteamId ?? 0,
 				ResolveTeamName(player, seat, hasPlayersState),
 				ResolveFaction(player, seat, hasPlayersState),
 				hasPlayersState ? player.IsComputer : seat != null && seat.PeerId < 0,

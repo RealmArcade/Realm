@@ -589,6 +589,11 @@ public class ResourceEconomyService
 	private void PopulationUnitQueryAction(Entity entity, ref UnitOwnerPlayer owner, ref DefinitionId definition)
 	{
 		if (_context.World.Has<BypassPopulationTag>(entity)) return;
+
+		// A site being raised is not a building yet: it offers nothing the player can use, so it takes nothing from the
+		// food cap, and the cap it would need is what holds its work until there is room for it.
+		if (_context.World.Has<UnderConstruction>(entity)) return;
+
 		AccumulatePopulationCost(owner.PlayerIndex, definition.Value);
 	}
 

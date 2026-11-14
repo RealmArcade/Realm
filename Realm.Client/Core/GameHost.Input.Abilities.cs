@@ -139,7 +139,7 @@ public partial class GameHost
 		if (cost <= 0f) return;
 
 		string displayName = def?.DisplayName ?? spellId;
-		GameContext.InGameHud?.ShowFeedbackText($"{displayName} requires {(int)cost} mana", new Color(0.9f, 0.4f, 0.1f));
+		GameContext.InGameHud?.ShowFeedbackWarning($"{displayName} requires {(int)cost} mana");
 	}
 
 	private bool IsSpellOnCooldown(string spellId, AbilityDefinition? def, Entity casterEntity)
@@ -150,7 +150,7 @@ public partial class GameHost
 		if (cd <= 0f) return false;
 
 		string displayName = def?.DisplayName ?? spellId;
-		GameContext.InGameHud?.ShowFeedbackText($"{displayName} on cooldown: {cd:F1}s remaining", new Color(0.9f, 0.4f, 0.1f));
+		GameContext.InGameHud?.ShowFeedbackWarning($"{displayName} on cooldown: {cd:F1}s remaining");
 		return true;
 	}
 
@@ -250,8 +250,7 @@ public partial class GameHost
 
 		if (Hud.Gold < costGold)
 		{
-			Hud.ShowFeedbackText("Cannot buy item: Insufficient gold!", new Color(1.0f, 0.2f, 0.2f));
-			GameContext.UserInterface?.PlayWarningSound();
+			Hud.ShowFeedbackWarning("Cannot buy item: Insufficient gold!");
 			return;
 		}
 
@@ -271,8 +270,7 @@ public partial class GameHost
 		}
 		else
 		{
-			Hud.ShowFeedbackText("Cannot buy item: No friendly combat units nearby!", new Color(1.0f, 0.2f, 0.2f));
-			GameContext.UserInterface?.PlayWarningSound();
+			Hud.ShowFeedbackWarning("Cannot buy item: No friendly combat units nearby!");
 		}
 	}
 

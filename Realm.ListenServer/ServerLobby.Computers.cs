@@ -12,18 +12,23 @@ namespace Realm.ListenServer;
 /// <summary>computer seats, difficulty, kicks and seat removal.</summary>
 public partial class ServerLobby
 	{
-	private void AddComputer(int adminSlot)
+	/// <summary>
+	///     Seats a computer player in one player slot, or in the first slot that accepts a player when no slot is named. The
+	///     named slot has to be one the lobby offers and nobody holds, so the order the host gave is answered exactly.
+	/// </summary>
+	/// <param name="requestedSlot">The player slot to seat the computer in, or zero for the first one that accepts a player.</param>
+	private void AddComputer(int requestedSlot)
 	{
-		if (PlayingSeatCount >= _maximumPlayers)
+		if (requestedSlot > 0 && (!IsSlotOpen(requestedSlot) || _seats.ContainsKey(requestedSlot)))
 		{
-			AddSystemChat($"Cannot add an AI player: all {_maximumPlayers} player seats are taken.");
+			AddSystemChat($"Cannot seat an AI player in player slot {requestedSlot}: it is not an open, empty slot.");
 			return;
 		}
 
-		int slot = FindFreePlayingSlot(0);
+		int slot = requestedSlot > 0 ? requestedSlot : FindFreePlayingSlot(0);
 		if (slot <= 0)
 		{
-			AddSystemChat($"Cannot add an AI player: all {_maximumPlayers} player seats are taken.");
+			AddSystemChat($"Cannot add an AI player: all {_openSlotCount} open player seats are taken.");
 			return;
 		}
 
@@ -31,7 +36,7 @@ public partial class ServerLobby
 		{
 			PeerId = -100 - _nextComputerNumber,
 			Slot = slot,
-			Name = $"AI Bot {_nextComputerNumber}",
+			Name = "AI Bot",
 			Faction = LobbyLimits.RandomFactionName,
 			TeamName = ResolveJoinTeamName(),
 			ColorRgba = ResolveJoinColorRgba(slot),

@@ -137,7 +137,7 @@ namespace Realm.Client.UI
 			_btnHeaderInspector = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/BtnHeaderInspector");
 			_contentInspector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector");
 			StyleAccordionHeader(_btnHeaderInspector);
-			SetupAccordion(_btnHeaderInspector, _contentInspector, TranslationServer.Translate("Selected Object Inspector"));
+			SetupAccordion(_btnHeaderInspector, _contentInspector, "Selected Object Inspector");
 
 			BuildPlacementAccordion();
 		}
@@ -459,7 +459,7 @@ namespace Realm.Client.UI
 			_btnHeaderToolSettings = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/BtnHeaderToolSettings");
 			_contentToolSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings");
 			StyleAccordionHeader(_btnHeaderToolSettings);
-			SetupAccordion(_btnHeaderToolSettings, _contentToolSettings, TranslationServer.Translate("Tool Settings"));
+			SetupAccordion(_btnHeaderToolSettings, _contentToolSettings, "Tool Settings");
 
 			BuildTextureSettingsPanel();
 

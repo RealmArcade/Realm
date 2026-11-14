@@ -58,6 +58,13 @@ namespace Realm.Client.UI
 			_viewModel.InspectorPos = LocalizationManager.Translate("Drag any selected object to move the whole group. Shift + MouseWheel rotates, Alt + MouseWheel scales, Delete removes all of them.");
 		}
 
+		private void UpdateInspectorHeaderText()
+		{
+			if (_btnHeaderInspector == null) return;
+
+			LocalizedText.Bind(_btnHeaderInspector, () => UnicodeIcons.CARET_DOWN + " " + TranslationServer.Translate("Selected Object Inspector"));
+		}
+
 		private void SetInspectorVisibility()
 		{
 			if (_lblInfoText != null) _lblInfoText.Visible = false;
@@ -65,7 +72,7 @@ namespace Realm.Client.UI
 			if (_accordionInspector != null)
 			{
 				_accordionInspector.Visible = true;
-				if (_btnHeaderInspector != null) _btnHeaderInspector.Text = "▼ Selected Object Inspector";
+				UpdateInspectorHeaderText();
 				if (_contentInspector != null) _contentInspector.Visible = true;
 			}
 		}
@@ -209,17 +216,17 @@ namespace Realm.Client.UI
 					_inspectorView.RigStatusContainer.Visible = true;
 					if (validation.IsValid)
 					{
-						_inspectorView.RigStatusLabel.Text = TranslationServer.Translate("Rig: ✔ Compatible Humanoid");
+						LocalizedText.Set(_inspectorView.RigStatusLabel, "Rig: ✔ Compatible Humanoid");
 						_inspectorView.RigStatusLabel.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 0.3f));
 					}
 					else if (validation.Skeleton == null)
 					{
-						_inspectorView.RigStatusLabel.Text = TranslationServer.Translate("Rig: ✖ Unrigged Mesh");
+						LocalizedText.Set(_inspectorView.RigStatusLabel, "Rig: ✖ Unrigged Mesh");
 						_inspectorView.RigStatusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 					}
 					else
 					{
-						_inspectorView.RigStatusLabel.Text = string.Format(TranslationServer.Translate("Rig: ✖ Incompatible ({0})"), string.Join(", ", validation.MissingRequiredBones));
+						LocalizedText.Set(_inspectorView.RigStatusLabel, "Rig: ✖ Incompatible ({0})", string.Join(", ", validation.MissingRequiredBones));
 						_inspectorView.RigStatusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.4f, 0.4f));
 					}
 				}
@@ -238,7 +245,7 @@ namespace Realm.Client.UI
 			if (!string.IsNullOrEmpty(assetKey) && !isDecal && _inspectorView.EditTemplateButton != null)
 			{
 				_inspectorView.EditTemplateButton.Visible = true;
-				_inspectorView.EditTemplateButton.TooltipText = string.Format(TranslationServer.Translate("Edit global model scale, offsets, and shaders for {0}"), assetKey);
+				LocalizedText.SetTooltip(_inspectorView.EditTemplateButton, "Edit global model scale, offsets, and shaders for {0}", assetKey);
 			}
 			else if (_inspectorView.EditTemplateButton != null) _inspectorView.EditTemplateButton.Visible = false;
 

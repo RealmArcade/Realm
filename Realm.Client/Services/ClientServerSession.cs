@@ -15,7 +15,7 @@ using Realm.Shared.Simulation;
 
 namespace Realm.Client.Services;
 
-public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null, bool LoopbackOnly = false, MatchOptionSet? Options = null);
+public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null, bool LoopbackOnly = false, Realm.Ecs.MatchShroudMode ShroudMode = Realm.Ecs.MatchShroudMode.FromMap, LobbySettingSet? Settings = null);
 
 public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false, bool Cheats = false, bool LoopbackOnly = false);
 
@@ -72,6 +72,8 @@ public class ClientServerSession : IDisposable
 	private long _accountId;
 
 	private string _sessionToken = string.Empty;
+
+	private ulong _steamId;
 
 	private string _mapHash = string.Empty;
 	private bool _helloSent;
@@ -151,6 +153,13 @@ public class ClientServerSession : IDisposable
 	public int AuthorityProcessId => _local ? GameContext.LocalAuthority.ProcessId : 0;
 
 	public bool IsLocalAuthority => _local;
+
+	/// <summary>
+	///     Whether this screen's own seat is held over the loopback address. A lobby this screen hosts is always reached that
+	///     way, so the host's own commands never depend on the router, the firewall rule or anything else between this machine
+	///     and the authority it launched.
+	/// </summary>
+	public bool ConnectedOverLoopback => System.Net.IPAddress.TryParse(_address, out System.Net.IPAddress? connectedAddress) && System.Net.IPAddress.IsLoopback(connectedAddress);
 
 	public string WireTableHash => _local ? _localWireTableHash : string.Empty;
 
@@ -238,7 +247,7 @@ public class ClientServerSession : IDisposable
 		if (start.Roster is { Count: > 0 })
 		{
 			rosterPath = Path.Combine(start.LogDirectory, $"{logName}{MatchRosterFile.FileSuffix}");
-			MatchRosterFile.Write(rosterPath, start.Roster, start.Options);
+			MatchRosterFile.Write(rosterPath, start.Roster, start.ShroudMode, start.Settings);
 		}
 
 		var command = new ServerControlCommand
@@ -281,11 +290,17 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
-	public void ConfigureLobbyIdentity(string playerName, string sessionToken, long accountId)
+	/// <summary>
+	///     States who this screen is to the lobby it is about to hold or join. The Steam id travels with the rest because the
+	///     lobby publishes the seats to each other, and the end-of-match table is where a player can act on the people they
+	///     just played with.
+	/// </summary>
+	public void ConfigureLobbyIdentity(string playerName, string sessionToken, long accountId, ulong steamId)
 	{
 		_playerName = playerName ?? string.Empty;
 		_sessionToken = sessionToken ?? string.Empty;
 		_accountId = accountId;
+		_steamId = steamId;
 	}
 
 	public async Task<MatchStartResult> TryStartLobbyAsync(ServerLobbyStart start, int lobbyPort = 0)
@@ -487,6 +502,18 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	///     Hands the match the cloud files this screen holds for the map, which answers a request the map script made through
+	///     the Steam surface of <c>IGameAPI</c>.
+	/// </summary>
+	/// <param name="upload">What this screen's Steam cloud holds for this map.</param>
+	public void SendSteamCloudUpload(in SteamCloudUpload upload)
+	{
+		if (!IsRunning) return;
+
+		_channel.Send(NetworkFrameKind.SteamCloudUpload, MemoryPackSerializer.Serialize(upload));
+	}
+
 	public bool Acknowledge(int sequence, ulong appliedMask, int roundTripMilliseconds)
 	{
 		if (sequence <= 0) return false;
@@ -670,7 +697,8 @@ public class ClientServerSession : IDisposable
 			Language = _language,
 			PlayerName = _playerName,
 			AccountId = _accountId,
-			SessionToken = _sessionToken
+			SessionToken = _sessionToken,
+			SteamId = _steamId
 		};
 
 		_channel.Send(NetworkFrameKind.ClientHello, MemoryPackSerializer.Serialize(hello));

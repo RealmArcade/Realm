@@ -17,6 +17,12 @@ namespace Realm.Shared.Maps;
 
 public static class UnitEntityFactory
 {
+	/// <summary>
+	///     What a template that states neither a sight range nor a scan radius sees over. It is the same fifteen metres the
+	///     shroud has always fallen back to, so a unit authored with no numbers at all still lifts the ground around it.
+	/// </summary>
+	private const float DefaultSightRange = 15f;
+
 	public static Entity CreateFromMetadata(
 		EcsWorld world,
 		DefinitionCatalog catalog,
@@ -84,7 +90,8 @@ public static class UnitEntityFactory
 			metadata.FriendlyFire,
 			metadata.PushPriority,
 			!string.IsNullOrEmpty(metadata.MovementType) ? metadata.MovementType : "Ground",
-			metadata.FlatMagicPenetration);
+			metadata.FlatMagicPenetration,
+			ResolveSightRange(metadata, metadata.ScanRadius > 0f ? metadata.ScanRadius : DefaultSightRange));
 
 		if (entity == Entity.Null) return Entity.Null;
 
@@ -125,6 +132,17 @@ public static class UnitEntityFactory
 	}
 
 	/// <summary>
+	///     The distance a template sees over, which is the radius its owner's shroud is lifted by. A template states it as
+	///     its sight range; one that states none keeps the scan radius it has always been measured by, so a map authored
+	///     before sight was separate still sees something.
+	/// </summary>
+	private static float ResolveSightRange(UnitMetadata metadata, float scanRadius)
+	{
+		if (metadata.SightRange > 0f) return metadata.SightRange;
+		return scanRadius > 0f ? scanRadius : DefaultSightRange;
+	}
+
+	/// <summary>
 	///     Gives a unit that already stands another template: it keeps its identity, its position, its owner and the share
 	///     of its health it had, and everything its template states — name, health, resistances, attack, mana, abilities,
 	///     model scale and whether it is a building — is written from the new template. This is how a site that has not
@@ -157,7 +175,7 @@ public static class UnitEntityFactory
 
 		float scanRadius = metadata.ScanRadius > 0f ? metadata.ScanRadius : 15.0f;
 		world.SetOrAdd(entity, new ScanRadius(scanRadius));
-		world.SetOrAdd(entity, new TargetIntel(scanRadius, scanRadius));
+		world.SetOrAdd(entity, new TargetIntel(ResolveSightRange(metadata, scanRadius), scanRadius));
 
 		if (metadata.Damage > 0f)
 		{
@@ -363,7 +381,8 @@ public static class UnitEntityFactory
 		bool friendlyFire = false,
 		int pushPriority = 0,
 		string movementType = "Ground",
-		float flatMagicPen = 0f)
+		float flatMagicPen = 0f,
+		float sightRange = 0f)
 	{
 		Entity entity = world.Create();
 		world.Add(entity, new DefinitionId(id));
@@ -417,7 +436,7 @@ public static class UnitEntityFactory
 		world.Add(entity, new Resistances(armor, magicResistance));
 		world.Add(entity, new CollisionScale(1.0f));
 		world.Add(entity, new ScanRadius(scanRadius));
-		world.Add(entity, new TargetIntel(scanRadius, scanRadius));
+		world.Add(entity, new TargetIntel(sightRange > 0f ? sightRange : scanRadius, scanRadius));
 
 		var baseStats = new Dictionary<StatId, float>
 		{

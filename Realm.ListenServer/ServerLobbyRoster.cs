@@ -23,8 +23,9 @@ public class ServerLobbyRoster
 	private IntPtr _sharedMemoryBase = IntPtr.Zero;
 	private uint _revision;
 	private int _teamCount = LobbyLimits.DefaultTeamCount;
-	private bool _teamsTogether;
+	private bool _teamsTogether = true;
 	private bool _hostChoseTeamsTogether;
+	private MatchShroudMode _shroudMode = MatchShroudMode.FromMap;
 
 	public ServerLobbyRoster(ILobbySeatTable lobby, ServerLog log, int teamCount = LobbyLimits.DefaultTeamCount)
 	{
@@ -43,7 +44,12 @@ public class ServerLobbyRoster
 	/// </summary>
 	public bool TeamsTogether => _teamsTogether;
 
-	public int MaximumPlayerCount => _lobby.MaximumPlayers;
+	/// <summary>
+	///     The shroud mode the lobby plays unless its host chooses another: the mode the map's lobby script stated, or
+	///     <see cref="MatchShroudMode.FromMap" /> while the map has stated nothing.
+	/// </summary>
+	public MatchShroudMode ShroudMode => _shroudMode;
+
 
 	public void SetTeamCount(int teamCount)
 	{
@@ -147,9 +153,107 @@ public class ServerLobbyRoster
 		return _lobby.ApplyRosterColor(slot, colorRgba);
 	}
 
-	public bool TrySetMaximumPlayerCount(int maximumPlayerCount)
+	/// <summary>Reads the colour a slot's units are drawn in, which is its seat's colour or the one the map keeps for it.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA.</returns>
+	public uint GetPlayerColor(int slot)
 	{
-		return _lobby.TrySetMaximumPlayers(maximumPlayerCount);
+		if (_lobby.TryGetSeatBySlot(slot, out LobbySeat seat)) return seat.ColorRgba;
+		return _lobby.ColorOverrideOf(slot);
+	}
+
+	/// <summary>Reads the minimap colour the lobby's map stated for one scheme, or zero while it stated none.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA.</returns>
+	public uint GetPlayerMinimapColor(int slot, MinimapColorMode mode) => _lobby.MinimapColorOf(slot, mode);
+
+	/// <summary>States the colour a slot's units are drawn in on one minimap scheme, or clears the statement.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+	/// <returns>Whether the lobby holds that statement afterwards.</returns>
+	public bool SetPlayerMinimapColor(int slot, MinimapColorMode mode, uint colorRgba)
+	{
+		if (!InRange(slot)) return false;
+		return _lobby.ApplyRosterMinimapColor(slot, mode, colorRgba);
+	}
+
+	/// <summary>States that one player index stands in for another, which is what the allied-colour minimap reads.</summary>
+	/// <param name="slot">The player index standing in for another.</param>
+	/// <param name="ownerSlot">The player index it stands in for, or zero to clear the statement.</param>
+	/// <returns>Whether the lobby holds that statement afterwards.</returns>
+	public bool SetPlayerProxyOwner(int slot, int ownerSlot)
+	{
+		if (!InRange(slot)) return false;
+		return _lobby.ApplyRosterProxyOwner(slot, ownerSlot);
+	}
+
+	/// <summary>Keeps every player index above a count for the lobby's map.</summary>
+	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+	/// <returns>Whether the lobby holds that limit afterwards.</returns>
+	public bool TrySetPlayerSlotLimit(int maximumPlayers) => _lobby.TrySetPlayerSlotLimit(maximumPlayers);
+
+	/// <summary>Answers whether one player slot accepts a player.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>Whether the slot is open.</returns>
+	public bool IsSlotOpen(int slot) => _lobby.IsSlotOpen(slot);
+
+	/// <summary>Reads the value one of the settings the lobby's map declared currently holds.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <returns>The value the setting holds, or zero when the map declared no such setting.</returns>
+	public int GetMatchSettingValue(int settingId) => _lobby.GetMatchSettingValue(settingId);
+
+	/// <summary>Opens or closes one player slot, which is how a map states the seats its board is authored for.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="open">Whether the slot accepts a player.</param>
+	/// <returns>Whether the lobby offers that slot afterwards.</returns>
+	public bool TrySetSlotOpen(int slot, bool open)
+	{
+		return _lobby.TrySetSlotOpen(slot, open);
+	}
+
+	/// <summary>Opens the first slots up to a count and closes the rest, up to the limit the map reserved.</summary>
+	/// <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+	/// <returns>Whether the lobby offers those slots afterwards.</returns>
+	public bool TrySetOpenSlotCount(int count)
+	{
+		return _lobby.TrySetOpenSlotCount(count);
+	}
+
+	/// <summary>Declares one match setting of the map's own, which is what its host is then offered.</summary>
+	/// <param name="settingId">The identifier the map declares the setting under.</param>
+	/// <param name="control">How the host edits the setting.</param>
+	/// <param name="label">The label the host reads.</param>
+	/// <param name="tooltip">The sentence that explains the setting, or empty for none.</param>
+	/// <param name="defaultValue">The value the setting holds until the host changes it.</param>
+	public void DeclareMatchSetting(int settingId, LobbySettingControl control, string label, string tooltip, int defaultValue)
+	{
+		_lobby.DeclareMatchSetting(settingId, control, label, tooltip, defaultValue);
+	}
+
+	/// <summary>Adds one option to a setting the map declared as a choice.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="optionLabel">The text the host reads in the dropdown.</param>
+	public void DeclareMatchSettingOption(int settingId, string optionLabel)
+	{
+		_lobby.DeclareMatchSettingOption(settingId, optionLabel);
+	}
+
+	/// <summary>States the values a count setting the map declared may hold.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="minimum">The lowest value the host may choose.</param>
+	/// <param name="maximum">The highest value the host may choose.</param>
+	public void DeclareMatchSettingRange(int settingId, int minimum, int maximum)
+	{
+		_lobby.DeclareMatchSettingRange(settingId, minimum, maximum);
+	}
+
+	/// <summary>States whether late joiners wait before the board is described to them.</summary>
+	/// <param name="enabled">Whether the delay is on.</param>
+	public void SetSpectatorDelayDefault(bool enabled)
+	{
+		_lobby.SetSpectatorDelayDefault(enabled);
 	}
 
 	/// <summary>
@@ -202,6 +306,22 @@ public class ServerLobbyRoster
 		_log.Write($"the lobby's host set teams together {(teamsTogether ? "on" : "off")}");
 		_lobby.BroadcastState();
 		return true;
+	}
+
+	/// <summary>
+	///     States the shroud mode a lobby starts on, which is how a map says whether its board is played with vision limited
+	///     or with the whole thing visible. The host keeps the last word: a mode the host chose is what the lobby plays, and
+	///     this is the answer the lobby returns to when the host clears that choice.
+	/// </summary>
+	/// <param name="mode">The mode the lobby should start on.</param>
+	public void SetShroudModeDefault(MatchShroudMode mode)
+	{
+		if (!Enum.IsDefined(mode)) return;
+		if (_shroudMode == mode) return;
+
+		_shroudMode = mode;
+		_log.Write($"the lobby's map states the shroud mode: {mode}");
+		_lobby.BroadcastState();
 	}
 
 	/// <summary>
@@ -275,7 +395,7 @@ public class ServerLobbyRoster
 		if (sharedMemoryBase == IntPtr.Zero) return;
 
 		LobbyRosterHeader* header = EcsSharedMemory.LobbyRosterHeaderAt(sharedMemoryBase);
-		header->MaximumPlayerCount = _lobby.MaximumPlayers;
+		header->OpenSlotCount = _lobby.OpenSlotCount;
 		header->FactionCount = _factions.Count;
 		header->TeamCount = _teamCount;
 		header->SlotCount = EcsSharedMemory.MAX_PLAYERS;
@@ -303,6 +423,9 @@ public class ServerLobbyRoster
 			entry->FactionLocked = (byte)(_factionLocked[slot] ? 1 : 0);
 			entry->TeamLocked = (byte)(_teamLocked[slot] ? 1 : 0);
 			entry->ColorLocked = (byte)(_colorLocked[slot] ? 1 : 0);
+			entry->Open = (byte)(_lobby.IsSlotOpen(slot) ? 1 : 0);
+			entry->MinimapPlayerColorRgba = _lobby.MinimapColorOf(slot, MinimapColorMode.PlayerColors);
+			entry->MinimapTeamColorRgba = _lobby.MinimapColorOf(slot, MinimapColorMode.TeamColors);
 
 			if (!_lobby.TryGetSeatBySlot(slot, out LobbySeat seat))
 			{
@@ -311,7 +434,7 @@ public class ServerLobbyRoster
 				entry->Host = 0;
 				entry->FactionIndex = -1;
 				entry->TeamIndex = 0;
-				entry->ColorRgba = 0;
+				entry->ColorRgba = _lobby.ColorOverrideOf(slot);
 				continue;
 			}
 

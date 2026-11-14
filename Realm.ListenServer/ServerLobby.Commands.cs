@@ -30,8 +30,8 @@ public partial class ServerLobby
 				UpdateSeat(peerId, isAdmin, sender, command);
 				break;
 			case LobbyCommandKind.AddComputer:
-				if (!RequireAdmin(peerId, isAdmin, out int adminSlot, "add a computer player")) return;
-				AddComputer(adminSlot);
+				if (!RequireAdmin(peerId, isAdmin, out _, "add a computer player")) return;
+				AddComputer(command.Slot);
 				break;
 			case LobbyCommandKind.Kick:
 				if (!RequireAdmin(peerId, isAdmin, out _, "remove a player")) return;
@@ -58,14 +58,21 @@ public partial class ServerLobby
 				if (!RequireAdmin(peerId, isAdmin, out _, "change whether teams sit together")) return;
 				Roster?.TrySetTeamsTogether(command.Flag);
 				break;
+			case LobbyCommandKind.SetShroudMode:
+				if (!RequireAdmin(peerId, isAdmin, out _, "change the shroud mode")) return;
+				if (Enum.IsDefined(typeof(MatchShroudMode), command.Progress)) TrySetShroudMode((MatchShroudMode)command.Progress);
+				break;
+			case LobbyCommandKind.SetSlotOpen:
+				if (!RequireAdmin(peerId, isAdmin, out _, "open or close a player slot")) return;
+				TrySetSlotOpen(command.Slot, command.Flag);
+				break;
 			case LobbyCommandKind.SetComputerDifficulty:
 				if (!RequireAdmin(peerId, isAdmin, out _, "change a computer player's difficulty")) return;
 				SetComputerDifficulty(command.TargetPeerId, command.Progress);
 				break;
-			case LobbyCommandKind.SetMatchOption:
+			case LobbyCommandKind.SetLobbySetting:
 				if (!RequireAdmin(peerId, isAdmin, out _, "change the match settings")) return;
-				if (!Enum.IsDefined(typeof(MatchOption), command.Option)) return;
-				TrySetMatchOption((MatchOption)command.Option, command.OptionValue);
+				TrySetLobbySetting(command.SettingId, command.SettingValue);
 				break;
 			case LobbyCommandKind.ReportMapReady:
 				ReportMapReady(sender, command.Flag);

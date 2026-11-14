@@ -60,7 +60,7 @@ public partial class ListenServerHost
 		WasmScriptHost.OnWasmLog += _scriptLogSink;
 		LagProbe.TryEnableFromEnvironment("authority");
 
-		MatchRosterSeat[] roster = ReadRoster(out MatchOptionSet rosterOptions);
+		MatchRosterSeat[] roster = ReadRoster(out MatchShroudMode rosterShroudMode, out LobbySettingSet rosterSettings);
 		var paths = ServerMatchPaths.From(_arguments);
 		LoadedMap map = MapWorldLoader.LoadShell(_arguments.MapPath);
 		MarkStartStage("map loaded");
@@ -71,7 +71,8 @@ public partial class ListenServerHost
 			roster = ApplyMapLobbyRules(map, paths, roster, out lobbyScript);
 			MapWorldLoader.Seat(map, roster);
 			preparedScript = lobbyScript?.DetachHost();
-			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, _arguments.Cheats ? 1 : 0, preparedScript, matchOptions: rosterOptions, teamSpawnCoordinates: _mapLobbyRoster?.CopyTeamSpawnCoordinates());
+			MatchShroudMode shroudMode = rosterShroudMode != MatchShroudMode.FromMap ? rosterShroudMode : _mapLobbyRoster?.ShroudMode ?? MatchShroudMode.FromMap;
+			_simulation = new ServerSimulation(map, paths, _log, _arguments.Seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, _arguments.Cheats ? 1 : 0, preparedScript, shroudMode: shroudMode, lobbySettings: rosterSettings, teamSpawnCoordinates: _mapLobbyRoster?.CopyTeamSpawnCoordinates());
 			preparedScript = null;
 			lobbyScript = null;
 			MarkStartStage("simulation built");
@@ -143,8 +144,7 @@ public partial class ListenServerHost
 		_mapLobbyRoster = null;
 		if (roster.Length == 0) return roster;
 
-		int maximumPlayers = world.Metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
-		var seats = new MatchRosterSeatTable(roster, _log, maximumPlayers);
+		var seats = new MatchRosterSeatTable(roster, _log);
 		var publishedRoster = new ServerLobbyRoster(seats, _log, roster.Length);
 		publishedRoster.BindBoardCoordinates(world.SaveData.Coordinates);
 		lobbyScript = ServerLobbyScript.Start(world, paths, _log, publishedRoster, _arguments.WasmDebug, _arguments.WorkspacePath);
@@ -178,7 +178,7 @@ public partial class ListenServerHost
 		IsRunning = true;
 		_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 		MarkStartStage("lobby listening");
-		_log.Write($"lobby opened for map '{_lobby.MapName}' version {_lobby.MapVersion} with {_lobby.MaximumPlayers} playable slot(s)");
+		_log.Write($"lobby opened for map '{_lobby.MapName}' version {_lobby.MapVersion} with {_lobby.OpenSlotCount} open player slot(s)");
 		if (_arguments.LoopbackOnly) _log.Write("this lobby listens on the loopback address only: nothing outside this screen can reach it");
 		AnnounceReady();
 	}

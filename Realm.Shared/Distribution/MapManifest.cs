@@ -574,8 +574,16 @@ public class MapManifest
 
 	private static bool IsIgnoredBuildDirectory(string relativePath)
 	{
-		if (relativePath.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !relativePath.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase))
-			return true;
+		if (relativePath.StartsWith("bin/", StringComparison.OrdinalIgnoreCase))
+		{
+			if (!relativePath.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase)) return true;
+			if (MapFileService.IsDebugScriptFileName(relativePath)) return true;
+
+			string belowBin = relativePath.Substring("bin/".Length);
+			if (belowBin.Length > 1 && belowBin[0] == '.' && belowBin.IndexOf('/') > 0) return true;
+
+			return false;
+		}
 
 		return relativePath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase);
 	}

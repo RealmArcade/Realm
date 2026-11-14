@@ -57,6 +57,7 @@ public static class EditorMetadataOperations
 				}
 
 				var (minY, autoYOffset) = ModelCache.CalculateModelBounds(modelFullPath, defaultScale);
+				bool hasMeasuredMinY = float.IsFinite(minY) && Math.Abs(minY) > 0.0001f;
 				string subLower = subCategory.ToLowerInvariant();
 				bool isPropOrRes = subLower == "props" || subLower == "resources" || subLower == "attachments" || subLower == "weapons" || subLower == "items" || subLower == "projectiles";
 
@@ -82,9 +83,9 @@ public static class EditorMetadataOperations
 						};
 						metadata.AddOrUpdateBuilding(b);
 					}
-					else if (autoYOffset != 0f)
+					else if (hasMeasuredMinY)
 					{
-						b.YOffset = autoYOffset;
+						b.YOffset = ModelCache.RestingOffsetFor(minY, b.Scale);
 					}
 				}
 				else if (subLower == "props")
@@ -105,9 +106,9 @@ public static class EditorMetadataOperations
 						};
 						metadata.AddOrUpdateProp(p);
 					}
-					else if (autoYOffset != 0f)
+					else if (hasMeasuredMinY)
 					{
-						p.YOffset = autoYOffset;
+						p.YOffset = ModelCache.RestingOffsetFor(minY, p.Scale);
 					}
 				}
 				else if (subLower == "resources")
@@ -128,9 +129,9 @@ public static class EditorMetadataOperations
 						};
 						metadata.AddOrUpdateResource(r);
 					}
-					else if (autoYOffset != 0f)
+					else if (hasMeasuredMinY)
 					{
-						r.YOffset = autoYOffset;
+						r.YOffset = ModelCache.RestingOffsetFor(minY, r.Scale);
 					}
 				}
 				else
@@ -151,9 +152,9 @@ public static class EditorMetadataOperations
 						};
 						metadata.AddOrUpdateUnit(u);
 					}
-					else if (autoYOffset != 0f)
+					else if (hasMeasuredMinY)
 					{
-						u.YOffset = autoYOffset;
+						u.YOffset = ModelCache.RestingOffsetFor(minY, u.Scale);
 					}
 				}
 			}

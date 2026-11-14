@@ -75,6 +75,7 @@ public partial class Unit3D : Node3D
 		Node root = (_modelNode != null && GodotObject.IsInstanceValid(_modelNode)) ? _modelNode : this;
 		CollectGeometryInstancesRecursive(root, _cachedGeometryInstances);
 		if (_isRuinSilhouette) ModelShaderManager.SetRuinSilhouette(root, true);
+		if (_isConstructionBlocked) ModelShaderManager.SetSilhouetteTint(root, ModelShaderManager.BlockedSilhouetteTint);
 	}
 
 	private static void CollectGeometryInstancesRecursive(Node node, List<GeometryInstance3D> list)
@@ -148,6 +149,22 @@ public partial class Unit3D : Node3D
 
 		Node root = (_modelNode != null && GodotObject.IsInstanceValid(_modelNode)) ? _modelNode : this;
 		ModelShaderManager.SetRuinSilhouette(root, dormant);
+	}
+
+	private bool _isConstructionBlocked = false;
+
+	/// <summary>
+	///     Reports whether the site this node draws is a building it cannot be raised into yet, which is answered by
+	///     colouring its silhouette red instead of the dark fill a ruined or dormant building wears.
+	/// </summary>
+	/// <param name="blocked">Whether the site is held short of completion.</param>
+	public void SetConstructionBlocked(bool blocked)
+	{
+		if (_isConstructionBlocked == blocked) return;
+		_isConstructionBlocked = blocked;
+
+		Node root = (_modelNode != null && GodotObject.IsInstanceValid(_modelNode)) ? _modelNode : this;
+		ModelShaderManager.SetSilhouetteTint(root, blocked ? ModelShaderManager.BlockedSilhouetteTint : ModelShaderManager.DefaultSilhouetteTint);
 	}
 
 	private Vector3 _velocity = Vector3.Zero;

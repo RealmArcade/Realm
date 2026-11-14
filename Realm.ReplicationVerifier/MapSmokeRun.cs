@@ -53,7 +53,7 @@ public static class MapSmokeRun
 		api.OnUnitDied += (unit, killer) => died.Add(unit.Value);
 		api.OnConstructionFinished += unit => built.Add(unit.Value);
 
-		Console.WriteLine($"script: {(ServerMapScript.TryFindScript(mapPath, out string wasmPath) ? wasmPath : "none")}");
+		Console.WriteLine($"script: {(ServerMapScript.TryFindScript(mapPath, wasmDebug: false, out string wasmPath, out _) ? wasmPath : "none")}");
 		Console.WriteLine($"catalog: {map.Catalog.Units.Count} unit(s), {map.Catalog.Buildings.Count} building(s), map reports {map.UnitCount} placed unit(s) and {map.PropCount} prop(s)");
 		int unitsAfterLoad = CountUnits(map.World);
 		Check(unitsAfterLoad > 0, "the map brought units into the world");
@@ -255,9 +255,9 @@ public static class MapSmokeRun
 		PlayerEntity playerEntity = map.GetPlayerEntity(workerPlayerIndex);
 		Vector3 position = map.World.Get<Position>(worker).Value + new Vector3(6f, 0f, 0f);
 
-		if (!BuildingPlacementService.TryPlace(map.World, map.Catalog, templateId, position, playerEntity, worker, out Entity site))
+		if (!BuildingPlacementService.TryPlace(map.World, map.Catalog, templateId, position, playerEntity, worker, out Entity site, out BuildingPlacementRefusal placementRefusal))
 		{
-			report = $"'{templateId}' could not be placed";
+			report = $"'{templateId}' could not be placed: {placementRefusal}";
 			return false;
 		}
 

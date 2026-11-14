@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
+using Realm.Shared.Reachability;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
@@ -28,6 +29,7 @@ public partial class LobbyCreate : Control
 
 	private Button _backButton = null!;
 	private Button _createButton = null!;
+
 	private Button _openMapLibraryButton = null!;
 	private OptionButton _versionSelectButton = null!;
 	private HBoxContainer _versionContainer = null!;
@@ -367,43 +369,72 @@ public partial class LobbyCreate : Control
 			}
 
 			GameContext.UserInterface?.PlayWarningSound();
-			ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to start the match."));
-			return;
-		}
 
-		if (lobby.LocalNatType == NatType.Symmetric)
-		{
-			GameContext.UserInterface?.PlayWarningSound();
-			ShowNatErrorModal();
+			if (lobby.LastHostFailure is { } loopbackFailure && loopbackFailure.Failure != HostReachabilityFailure.None)
+			{
+				ShowReachabilityHelpModal(loopbackFailure);
+				return;
+			}
+
+			ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to start the match."));
 			return;
 		}
 
 		_createButton.Disabled = true;
 		ShowHostProgressOverlay();
 		lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
-		bool success = await lobby.HostLobbyAsync(pathName, displayName, selectedVersion);
+		bool prepared = await lobby.PrepareHostedLobbyAsync(pathName, displayName, selectedVersion);
 		lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
 		HideHostProgressOverlay();
 		_createButton.Disabled = false;
 
-		if (success)
+		if (!prepared)
+		{
+			ReportLobbyHostingFailure(lobby);
+			return;
+		}
+
+		// The lobby is open and nobody can see it yet. Hosting publishes it straight away and takes the host into its room,
+		// where every setting its map states is changed: a host no longer confirms a panel of settings before its lobby
+		// exists, because the lobby room is where those settings are read and edited.
+		await PublishPreparedLobbyAsync();
+	}
+
+	private void ReportLobbyHostingFailure(LobbyManager lobby)
+	{
+		GameContext.UserInterface?.PlayWarningSound();
+		GameLog.LogError("[LobbyCreate] Failed to host lobby.");
+
+		if (lobby.LastHostFailure is { } reachability && reachability.Failure != HostReachabilityFailure.None)
+		{
+			ShowReachabilityHelpModal(reachability);
+			return;
+		}
+
+		string errorMsg = lobby.LastHostError ?? Tr("Failed to host lobby on the registry server.");
+		ShowHostErrorModal(errorMsg);
+	}
+
+	private async Task PublishPreparedLobbyAsync()
+	{
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null) return;
+
+		_createButton.Disabled = true;
+		ShowHostProgressOverlay();
+		lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
+		bool published = await lobby.PublishPreparedLobbyAsync();
+		lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
+		HideHostProgressOverlay();
+		_createButton.Disabled = false;
+
+		if (published)
 		{
 			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
+			return;
 		}
-		else
-		{
-			GameContext.UserInterface?.PlayWarningSound();
-			GameLog.LogError("[LobbyCreate] Failed to host lobby.");
 
-			if (lobby.LocalNatType == NatType.Symmetric)
-			{
-				ShowNatErrorModal();
-				return;
-			}
-
-			string errorMsg = lobby.LastHostError ?? Tr("Failed to host lobby on the registry server.");
-			ShowHostErrorModal(errorMsg);
-		}
+		ReportLobbyHostingFailure(lobby);
 	}
 
 	private async void EnsureFestivalFeaturedMapInstalledAsync()
@@ -564,7 +595,9 @@ public partial class LobbyCreate : Control
 			case HostLobbyStage.AdmittingHost:
 				return (TranslationServer.Translate("Entering the lobby as host..."), 60, 74);
 			case HostLobbyStage.OpeningPort:
-				return (TranslationServer.Translate("Opening your port for other players..."), 74, 88);
+				return (TranslationServer.Translate("Opening your port for other players..."), 74, 84);
+			case HostLobbyStage.VerifyingNetwork:
+				return (TranslationServer.Translate("Checking that other players can reach this computer..."), 84, 92);
 			case HostLobbyStage.RegisteringLobby:
 				return (TranslationServer.Translate("Registering the lobby on the server..."), 88, 99);
 			default:
@@ -610,14 +643,6 @@ public partial class LobbyCreate : Control
 			}
 			}, confirmText: versionExistsLocally ? string.Format(Tr("LAUNCH {0}"), mapBuildNumber) : string.Format(Tr("DOWNLOAD {0}"), mapBuildNumber),
 			cancelText: TranslationServer.Translate("CANCEL"), titleOverride: "MAP BUILD MISMATCH");
-	}
-
-	private void ShowNatErrorModal()
-	{
-		GameContext.UserInterface?.ShowPopupMessage(
-			TranslationServer.Translate("CANNOT HOST A GAME"),
-			TranslationServer.Translate("Your internet provider's network prevents other players from connecting to a game you host.\n\nYou can join another player's lobby, or play single player against AI bots."),
-			() => GameContext.UserInterface?.TransitionTo(GameScreen.LobbyBrowser));
 	}
 
 	private void ShowHostErrorModal(string errorMessage)

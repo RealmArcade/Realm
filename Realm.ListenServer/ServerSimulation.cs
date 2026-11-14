@@ -44,9 +44,9 @@ public class ServerSimulation : IDisposable
 	private bool _disposed;
 	private long _navMeshRebakeTick = -1;
 
-	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null, MatchOptionSet? matchOptions = null, IReadOnlyList<string?>? teamSpawnCoordinates = null)
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null, MatchShroudMode shroudMode = MatchShroudMode.FromMap, LobbySettingSet? lobbySettings = null, IReadOnlyList<string?>? teamSpawnCoordinates = null)
 	{
-		MatchOptions = matchOptions ?? new MatchOptionSet();
+		LobbySettings = lobbySettings ?? new LobbySettingSet();
 		_map = map;
 		_hasRoster = roster is { Count: > 0 };
 		if (roster != null)
@@ -60,10 +60,9 @@ public class ServerSimulation : IDisposable
 		map.Simulation.CheatsEnabled = cheatsEnabled;
 		map.Simulation.HostPlayerSlot = hostPlayerSlot;
 
-		// Shroud is the one option the authority evaluates itself rather than handing to the map: a host that revealed the
-		// board leaves the authority publishing every unit to every peer instead of only what each peer can see.
-		MatchShroudMode shroudMode = MatchOptions.GetShroudMode();
-		if (shroudMode != MatchShroudMode.FromMap) map.Simulation.ShroudDisabled = shroudMode == MatchShroudMode.Revealed;
+		// Shroud is the one core setting the authority evaluates itself rather than handing to the map: a lobby that revealed
+		// the board leaves the authority publishing every unit to every peer instead of only what each peer can see.
+		if (shroudMode != MatchShroudMode.FromMap) map.Simulation.ShroudDisabled = shroudMode == MatchShroudMode.None;
 
 		// The stream the simulation and its script draw from is established here, by the owner of the match, before
 		// anything can step or describe it.
@@ -82,16 +81,21 @@ public class ServerSimulation : IDisposable
 		_repair = new BuildingRepairTick(map.Simulation, map.Catalog);
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
-		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, MatchOptions, teamSpawnCoordinates);
+		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, LobbySettings, teamSpawnCoordinates);
 		_commands.ScriptAbilityRulesProvider = spellId =>
 			_script.Api.Abilities.TryGetRules(spellId, out AbilityRules scriptRules) ? scriptRules : null;
 		if (roster != null) ApplyRosterBotDifficulties(roster);
 		_script.Api.Metrics = Metrics;
-		if (!MatchOptions.IsEmpty) log.Write($"the lobby configured this match: {MatchOptions.Describe()}");
+		if (!LobbySettings.IsEmpty) log.Write($"the lobby configured this match: {LobbySettings.Describe()}");
 		_commands.ConsumableChangedSink = (unitId, consumableId) => _script.Api.RaiseConsumableChanged(unitId, consumableId);
+		_commands.ConstructionCancelledSink = site => _script.Api.Abilities.ForgetUnit(site.Id);
 		_snapshots.Abilities = _script.Api.Abilities;
 		_snapshots.TechLevels = _script.Api.TechLevels;
 		_script.Api.PlayerDroppedSink = DropPlayer;
+
+		// The map's Steam surface answers from the hello each screen sent: a seat is on Steam when its own client said
+		// which Steam account it plays as.
+		_script.Api.BindSteamSeats(IsPlayerOnSteam);
 
 		_events = new ServerSimulationEvents(map.World);
 		_events.Attach(_script.Api);
@@ -137,8 +141,8 @@ public class ServerSimulation : IDisposable
 		if (!map.World.Has<ScriptZonesState>(worldEntity)) map.World.Add(worldEntity, new ScriptZonesState(null));
 	}
 
-	/// <summary>Gets the parameters the lobby's host configured for this match.</summary>
-	public MatchOptionSet MatchOptions { get; }
+	/// <summary>Gets the values the lobby's host chose for the match settings the map declared.</summary>
+	public LobbySettingSet LobbySettings { get; }
 
 	public LoadedMap Map => _map;
 
@@ -473,6 +477,54 @@ public class ServerSimulation : IDisposable
 
 	public void SetPlayerLanguage(int playerSlot, string? language) => _script.Api.Localization.SetPlayerLanguage(playerSlot, language);
 
+	private readonly Dictionary<int, ulong> _peerSteamIds = new();
+
+	/// <summary>
+	///     Records the Steam account the connection seated in this slot plays as, which is how the map's Steam surface knows
+	///     a seat is a person inside Steam rather than a computer or a screen without it.
+	/// </summary>
+	/// <param name="peerId">The connection that stated it.</param>
+	/// <param name="steamId">The SteamID64 the hello named, or zero when that screen is not running Steam.</param>
+	public void SetPeerSteamId(int peerId, ulong steamId)
+	{
+		if (peerId <= 0) return;
+
+		if (steamId == 0) _peerSteamIds.Remove(peerId);
+		else _peerSteamIds[peerId] = steamId;
+	}
+
+	/// <summary>
+	///     Whether the seat at this player slot is a person whose screen is running Steam.
+	/// </summary>
+	/// <param name="playerSlot">The seat to test.</param>
+	/// <returns>True when that seat's connection stated a Steam account.</returns>
+	public bool IsPlayerOnSteam(int playerSlot)
+	{
+		if (playerSlot <= 0) return false;
+
+		foreach (var pair in _peerPlayerSlots)
+		{
+			if (pair.Value != playerSlot) continue;
+
+			return _peerSteamIds.TryGetValue(pair.Key, out ulong steamId) && steamId != 0;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	///     Takes the cloud files a seat's screen uploaded for this map and hands them to the map script's copy.
+	/// </summary>
+	/// <param name="peerId">The connection that uploaded them.</param>
+	/// <param name="upload">What that screen holds.</param>
+	public void ApplySteamCloudUpload(int peerId, in SteamCloudUpload upload)
+	{
+		if (!_peerPlayerSlots.TryGetValue(peerId, out int playerSlot)) return;
+
+		_script.Api.ApplySteamCloudUpload(playerSlot, in upload);
+	}
+
+
 	public string MapSavedDataDirectory() => _script.Api.SavedDataDirectory;
 
 	private void DropPlayer(int playerSlot)
@@ -598,6 +650,7 @@ public class ServerSimulation : IDisposable
 	{
 		_snapshots.ForgetPeer(peerId);
 		if (_hasRoster && _peerPlayerSlots.Remove(peerId, out int releasedSlot)) _unseatedPlayerSlots.Add(releasedSlot);
+		_peerSteamIds.Remove(peerId);
 		_lastAnsweredCommandIdPerPeer.Remove(peerId);
 		_peersNeedingBaseline.Remove(peerId);
 		_peersNeedingDescriptionRepeat.Remove(peerId);
@@ -711,11 +764,15 @@ public class ServerSimulation : IDisposable
 		}
 
 		var buildPosition = new Vector3(result.BuildPosition.X, result.BuildPosition.Y, result.BuildPosition.Z);
-		if (!BuildingPlacementService.TryPlace(_map.World, _map.Catalog, templateId, buildPosition, new PlayerEntity(playerEntity), workerEntity, out Entity buildingEntity))
+		if (!BuildingPlacementService.TryPlace(_map.World, _map.Catalog, templateId, buildPosition, new PlayerEntity(playerEntity), workerEntity, out Entity buildingEntity, out BuildingPlacementRefusal refusal))
 		{
-			return RefusePlacement(_map.Catalog.FindUnitOrBuilding(templateId) == null
-				? $"'{command.CommandType}' naming '{templateId}' could not be placed: this map defines no such template"
-				: $"'{command.CommandType}' naming '{templateId}' could not be placed: the player cannot pay for it");
+			return RefusePlacement(refusal switch
+			{
+				BuildingPlacementRefusal.TemplateNotDefined => $"'{command.CommandType}' naming '{templateId}' could not be placed: this map defines no such template",
+				BuildingPlacementRefusal.BuildingSupplyReached => $"'{command.CommandType}' naming '{templateId}' could not be placed: the player holds every building their allowance permits",
+				BuildingPlacementRefusal.FoodCapReached => "Cannot construct: food cap exceeded!",
+				_ => $"'{command.CommandType}' naming '{templateId}' could not be placed: the player cannot pay for it"
+			});
 		}
 
 		_log.Write(workerEntity == Entity.Null

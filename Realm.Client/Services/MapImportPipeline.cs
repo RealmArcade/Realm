@@ -181,9 +181,9 @@ public static class MapImportPipeline
 		MapAssetManager.Storage.StoreAsset(manifestBytes, ".json", precomputedBlake3: manifestBlake3);
 
 		string targetDirectory = Path.Combine(MapAssetManager.GlobalArchiveDirectory, mapTitle, mapVersion, manifestBlake3);
-		if (Directory.Exists(targetDirectory))
+		if (!DirectoryDeletion.TryDelete(targetDirectory, out string staleCopyError))
 		{
-			Directory.Delete(targetDirectory, true);
+			return Task.FromResult((false, $"The copy of this map already on this machine could not be replaced: {staleCopyError}", (string?)null, (string?)null));
 		}
 
 		Directory.CreateDirectory(targetDirectory);
@@ -226,16 +226,7 @@ public static class MapImportPipeline
 
 	private static void CleanupOnValidationFailure(string targetDirectory)
 	{
-		try
-		{
-			if (Directory.Exists(targetDirectory))
-			{
-				Directory.Delete(targetDirectory, true);
-			}
-		}
-		catch
-		{
-		}
+		DirectoryDeletion.TryDelete(targetDirectory, out _);
 	}
 
 	public static Task<(bool Success, string Message, string? MapTitle, string? MapVersion)> ImportMapFromFolderAsync(

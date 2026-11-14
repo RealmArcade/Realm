@@ -82,7 +82,6 @@ public partial class LobbyRoom
 
 		SetupLobbyButton(_backButton, TranslationServer.Translate(" LEAVE LOBBY"), ReturnFromLobby);
 		SetupLobbyButton(_inviteButton, TranslationServer.Translate("INVITE FRIEND"), OpenInviteFriendsDialog);
-		SetupLobbyButton(_addBotButton, TranslationServer.Translate("ADD AI BOT"), () => Lobby.AddAIBot());
 		SetupStartButton();
 
 		_mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -135,26 +134,34 @@ public partial class LobbyRoom
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/ReadyCol", ReadyColumnWidth);
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/TeamCol", TeamColumnWidth);
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/ColorCol", ColorColumnWidth);
-		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/NameCol", NameColumnWidth);
+		ApplySlotHeader(header);
+		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/NameCol", NameCellWidth);
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/FactionCol", FactionColumnWidth);
-		ApplyDifficultyHeader(header);
 	}
 
-	private void ApplyDifficultyHeader(HBoxContainer header)
+	/// <summary>
+	///     Puts the slot column's header in front of the player column's, because the dropdown that decides a slot's state
+	///     has a column of its own.
+	/// </summary>
+	/// <param name="header">The header row the column labels are laid out in.</param>
+	private void ApplySlotHeader(HBoxContainer header)
 	{
-		var lblDifficulty = header.GetNodeOrNull<Label>("DifficultyCol");
-		if (lblDifficulty == null)
+		var lblSlot = header.GetNodeOrNull<Label>("SlotCol");
+		if (lblSlot == null)
 		{
-			lblDifficulty = new Label();
-			lblDifficulty.Name = "DifficultyCol";
-			lblDifficulty.Text = TranslationServer.Translate("DIFFICULTY");
-			lblDifficulty.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			lblDifficulty.AddThemeFontSizeOverride("font_size", 15);
-			header.AddChild(lblDifficulty);
+			lblSlot = new Label();
+			lblSlot.Name = "SlotCol";
+			lblSlot.Text = TranslationServer.Translate("SLOT");
+			lblSlot.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			lblSlot.AddThemeFontSizeOverride("font_size", 15);
+			header.AddChild(lblSlot);
 		}
 
-		lblDifficulty.ClipText = true;
-		lblDifficulty.CustomMinimumSize = new Vector2(DifficultyColumnWidth, 0);
+		lblSlot.ClipText = true;
+		lblSlot.CustomMinimumSize = new Vector2(SlotColumnWidth, 0);
+
+		var nameHeader = header.GetNodeOrNull<Control>("NameCol");
+		if (nameHeader != null && lblSlot.GetIndex() > nameHeader.GetIndex()) header.MoveChild(lblSlot, nameHeader.GetIndex());
 	}
 
 	private void ApplyHeaderColumnWidth(string path, int width)
@@ -171,10 +178,16 @@ public partial class LobbyRoom
 		var factionHeader = GetNodeOrNull<Control>("PlayersPanel/VBoxContainer/TableHeader/FactionCol");
 		if (factionHeader != null) factionHeader.Visible = HasFactions;
 
+		var nameHeader = GetNodeOrNull<Control>("PlayersPanel/VBoxContainer/TableHeader/NameCol");
+		if (nameHeader != null) nameHeader.CustomMinimumSize = new Vector2(NameCellWidth, 0);
+
 		foreach (var row in GetExistingPlayerRows().Values)
 		{
 			var factionCell = row.GetNodeOrNull<Control>("HBox_HBoxContainer/FactionCell");
 			if (factionCell != null) factionCell.Visible = HasFactions;
+
+			var nameCell = row.GetNodeOrNull<Control>("HBox_HBoxContainer/NameCell");
+			if (nameCell != null) nameCell.CustomMinimumSize = new Vector2(NameCellWidth, 0);
 		}
 	}
 }

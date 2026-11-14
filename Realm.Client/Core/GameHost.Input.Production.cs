@@ -56,7 +56,7 @@ public partial class GameHost
 
 		HologramPreviewState state = blocked
 			? HologramPreviewState.Blocked
-			: CanAffordActivePlacement(activeType) ? HologramPreviewState.Legal : HologramPreviewState.Unaffordable;
+			: CanPlaceWithinFoodCap(activeType) ? CanAffordActivePlacement(activeType) ? HologramPreviewState.Legal : HologramPreviewState.Unaffordable : HologramPreviewState.FoodCapReached;
 
 		if (_hologramPreviewState == state) return;
 
@@ -64,6 +64,7 @@ public partial class GameHost
 		Color targetColor = state switch
 		{
 			HologramPreviewState.Blocked => new Color(0.9f, 0.2f, 0.2f),
+			HologramPreviewState.FoodCapReached => new Color(0.9f, 0.2f, 0.2f),
 			HologramPreviewState.Unaffordable => new Color(0.55f, 0.55f, 0.55f),
 			_ => new Color(0.15f, 0.65f, 1.0f)
 		};
@@ -74,7 +75,25 @@ public partial class GameHost
 	{
 		Legal,
 		Blocked,
+		FoodCapReached,
 		Unaffordable
+	}
+
+	/// <summary>
+	///     Reports whether the armed placement fits under the player's food cap. A placement that would take the player over
+	///     it is refused by the match and raises no site at all, so the silhouette says so in red before the click, with the
+	///     same arithmetic the match refusal is made with.
+	/// </summary>
+	/// <param name="type">The template the armed placement raises.</param>
+	/// <returns>True when the building fits under the cap.</returns>
+	private bool CanPlaceWithinFoodCap(string type)
+	{
+		if (!TryGetUnitOrBuildingMetadata(type, out UnitMetadata? metadata)) return true;
+		if (metadata.PopCost <= 0) return true;
+
+		int playerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		Entity playerEntity = GetPlayerEntityForPlayerIndex(playerIndex);
+		return PlayerPopulationRules.FitsWithinCap(World, playerEntity, metadata.PopCost);
 	}
 
 	/// <summary>
@@ -112,7 +131,7 @@ public partial class GameHost
 			    Hud.Stone
 		    ))
 		{
-			ShowTrainingFeedback("Cannot train unit: Insufficient resources!", new Color(1f, 0.2f, 0.2f), isWarning: true);
+			ShowTrainingWarning("Cannot train unit: Insufficient resources!");
 			return;
 		}
 
@@ -128,12 +147,12 @@ public partial class GameHost
 
 		if (result == InputService.TryGetCandidateBuildingResult.NoProducingBuildingSelected)
 		{
-			ShowTrainingFeedback(TranslationServer.Translate("Cannot train unit: No producing building selected!"), new Color(1f, 0.3f, 0.3f), isWarning: true);
+			ShowTrainingWarning(TranslationServer.Translate("Cannot train unit: No producing building selected!"));
 			return false;
 		}
 		else if (result == InputService.TryGetCandidateBuildingResult.TrainingQueueFull)
 		{
-			ShowTrainingFeedback(TranslationServer.Translate("Training queue is full! (Max 5)"), new Color(1f, 0.3f, 0.3f), isWarning: true);
+			ShowTrainingWarning(TranslationServer.Translate("Training queue is full! (Max 5)"));
 			return false;
 		}
 
@@ -150,7 +169,7 @@ public partial class GameHost
 		if (result == InputService.ValidateTrainingConstraintsResult.PopulationCapReached)
 		{
 			string msg = string.Format(TranslationServer.Translate("Population cap reached! ({0}/{1})"), curPop, maxPop);
-			ShowTrainingFeedback(msg, new Color(1f, 0.3f, 0.3f), isWarning: true);
+			ShowTrainingWarning(msg);
 			return false;
 		}
 
@@ -173,17 +192,16 @@ public partial class GameHost
 		int curPop = GetCurrentPopulation(localSlot);
 		int maxPop = GetMaxPopulation(localSlot);
 		string msg = string.Format(TranslationServer.Translate("Queued {0} ({1}/{2} pop)"), meta.Name, curPop, maxPop);
-		ShowTrainingFeedback(msg, new Color(0.2f, 0.8f, 1f), isWarning: false);
+		ShowTrainingQueued(msg, new Color(0.2f, 0.8f, 1f));
 		Hud.RefreshUI(SelectedUnits);
 	}
 
-	private void ShowTrainingFeedback(string message, Color color, bool isWarning)
+	private void ShowTrainingWarning(string message) => Hud.ShowFeedbackWarning(message);
+
+	private void ShowTrainingQueued(string message, Color color)
 	{
 		Hud.ShowFeedbackText(message, color);
-		if (isWarning)
-			GameContext.UserInterface?.PlayWarningSound();
-		else
-			GameContext.UserInterface?.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 	}
 
 	public void SaveCameraLocation(int slotIndex)

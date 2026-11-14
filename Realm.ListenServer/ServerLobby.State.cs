@@ -6,6 +6,7 @@ using Realm.Shared.Maps;
 using Realm.Shared.Network;
 using Realm.Shared.Players;
 using Realm.Shared.Services;
+using Realm.Shared.Simulation;
 
 namespace Realm.ListenServer;
 
@@ -58,25 +59,73 @@ public partial class ServerLobby
 			seats[index++] = published;
 		}
 
+		CopyColorOverlays(out uint[] colorOverlays, out uint[] minimapPlayerColors, out uint[] minimapTeamColors);
+
 		return new LobbyStateMessage
 		{
 			Seats = seats,
 			MapName = _mapName,
 			MapVersion = _mapVersion,
-			MaxPlayers = _maximumPlayers,
+			SlotCount = SlotCount,
+			OpenSlots = CopyOpenSlots(),
 			Factions = Roster?.GetFactionNames() ?? [],
 			TeamCount = Roster?.TeamCount ?? LobbyLimits.DefaultTeamCount,
 			SpectatorDelay = SpectatorDelay,
 			TeamsTogether = Roster?.TeamsTogether ?? false,
+			ShroudMode = (int)EffectiveShroudMode,
 			HostStability = HostStability,
 			CountdownActive = _countdownActive,
 			CountdownRemainingSeconds = _countdownActive ? Math.Max(0, _lastCountdownSeconds) : 0,
-			Options = _matchOptions.ToValues(),
+			Settings = DescribeMatchSettings(),
+			ColorOverlays = colorOverlays,
+			MinimapPlayerColors = minimapPlayerColors,
+			MinimapTeamColors = minimapTeamColors,
+			ProxyOwners = CopyProxyOwners(),
 			Revision = ++_revision
 		};
 	}
 
-	public bool SpectatorDelay { get; private set; }
+	/// <summary>Copies which player slots this lobby leaves open, indexed by slot.</summary>
+	/// <returns>One entry per player slot, where true means the slot accepts a player.</returns>
+	private bool[] CopyOpenSlots()
+	{
+		var openSlots = new bool[_openSlots.Length];
+		Array.Copy(_openSlots, openSlots, _openSlots.Length);
+		return openSlots;
+	}
+
+	/// <summary>Describes the match settings the lobby's map declared, which every seat reads to show them.</summary>
+	/// <returns>One entry per declared setting, in the order their identifiers name them.</returns>
+	private LobbyMatchSettingMessage[] DescribeMatchSettings()
+	{
+		if (_matchSettings.Count == 0) return Array.Empty<LobbyMatchSettingMessage>();
+
+		var settings = new LobbyMatchSettingMessage[_matchSettings.Count];
+		int index = 0;
+		foreach (LobbyMatchSetting setting in _matchSettings.Values)
+		{
+			settings[index++] = new LobbyMatchSettingMessage
+			{
+				SettingId = setting.SettingId,
+				Label = setting.Label,
+				Tooltip = setting.Tooltip,
+				Control = (int)setting.Control,
+				Value = setting.Value,
+				Minimum = setting.Minimum,
+				Maximum = setting.Maximum,
+				Options = setting.Options
+			};
+		}
+
+		return settings;
+	}
+
+	/// <summary>
+	///     Whether a player who joins while the match is running watches for a delay before the board is described to them.
+	///     It starts at the core game's answer - on - and follows the map's own default and then the host from the moment
+	///     either states one.
+	/// </summary>
+	public bool SpectatorDelay { get; private set; } = true;
 
 	/// <summary>
 	///     Republishes the measured link of every seat on an interval, because nothing else in a quiet lobby changes: the

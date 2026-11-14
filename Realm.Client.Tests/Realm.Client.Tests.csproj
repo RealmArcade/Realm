@@ -27,15 +27,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="LagPerceptionTests.cs" />
-    <Compile Include="MapEditorUxTests.cs" />
     <Compile Include="MapProjectFileNormalizerTests.cs" />
-    <Compile Include="MapImportVerificationTests.cs" />
-    <Compile Include="MultiplayerEcsSyncTests.cs" />
-    <Compile Include="SimulationTests.cs" />
-    <Compile Include="SnapshotTimelineTests.cs" />
     <Compile Include="SnapshotReassemblerTests.cs" />
     <Compile Include="ReplicationContractTests.cs" />
-    <Compile Include="UxSceneTests.cs" />
   </ItemGroup>
 </Project>

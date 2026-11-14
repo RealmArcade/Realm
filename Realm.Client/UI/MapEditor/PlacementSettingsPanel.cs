@@ -65,7 +65,7 @@ public sealed class PlacementSettingsPanel
 		Header = hooks.Owner.GetNode<Button>(BasePath + "/BtnHeaderPlacement");
 		Content = hooks.Owner.GetNode<VBoxContainer>(ContentPath);
 		hooks.StyleAccordionHeader(Header);
-		hooks.SetupAccordion(Header, Content, TranslationServer.Translate("Placement Config"));
+		hooks.SetupAccordion(Header, Content, "Placement Config");
 	}
 
 	private void BuildTransformSliders(PlacementSettingsHooks hooks)

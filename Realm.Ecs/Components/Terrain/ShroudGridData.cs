@@ -78,7 +78,7 @@ public unsafe class ShroudGridData
 		new Span<byte>(VisibleCells, previousBufferLength).CopyTo(new Span<byte>(expandedVisibleCells, requiredBufferLength));
 		new Span<byte>(VisibleCoverage, previousBufferLength).CopyTo(new Span<byte>(expandedVisibleCoverage, requiredBufferLength));
 
-		if (AppliedVisibilityMode == ShroudVisibilityMode.VisionShroud)
+		if (AppliedVisibilityMode == ShroudVisibilityMode.Partial)
 		{
 			new Span<byte>(expandedExploredCells + previousBufferLength, requiredBufferLength - previousBufferLength).Fill(1);
 		}
@@ -105,7 +105,7 @@ public unsafe class ShroudGridData
 		new Span<int>(SourceLastSeenTick, ShroudGrid.MaxTrackedEntities).Clear();
 		new Span<int>(SourceCells, ShroudGrid.MaxTrackedEntities).Fill(-1);
 
-		if (visibilityMode == ShroudVisibilityMode.VisionShroud)
+		if (visibilityMode == ShroudVisibilityMode.Partial)
 		{
 			new Span<byte>(ExploredCells, cellBufferLength).Fill(1);
 		}

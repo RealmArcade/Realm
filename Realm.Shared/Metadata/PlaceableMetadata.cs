@@ -24,6 +24,10 @@ public abstract class PlaceableMetadata
 	[SchemaAsset(new[] { "rmesh" }, new[] { "Assets/models/units", "Assets/models/buildings", "Assets/models/props" })]
 	public string? PortraitModelPath { get; set; }
 
+	[SchemaDescription("Path to the icon the command card shows for the button that offers this placeable, such as the hero a Build menu sells. A placeable without one shows the generic unit placeholder.")]
+	[SchemaAsset(new[] { "rtex" }, new[] { "Assets/icons" })]
+	public string? IconPath { get; set; }
+
 	[SchemaDescription("How the model is laid out in the world, such as standing on the ground plane or lying flat as a decal.")]
 	public string VisualMode { get; set; } = "GroundPlane";
 

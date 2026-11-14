@@ -29,6 +29,23 @@ public partial class InstructionsDialog : Control
 		MouseFilter = MouseFilterEnum.Stop;
 
 		BuildLayout();
+
+		// The pages are kept as the map published them, so changing the language under an open menu is a matter of asking
+		// for them again: nothing about a page is a translated string until it is drawn.
+		LocalizationManager.LanguageChanged += OnLanguageChanged;
+	}
+
+	public override void _ExitTree()
+	{
+		LocalizationManager.LanguageChanged -= OnLanguageChanged;
+		base._ExitTree();
+	}
+
+	private void OnLanguageChanged(GameLanguage language)
+	{
+		if (!GodotObject.IsInstanceValid(this) || !Visible) return;
+
+		Refresh(_sections);
 	}
 
 	public void Open(IReadOnlyList<InstructionsSection> sections)

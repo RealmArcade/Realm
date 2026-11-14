@@ -157,7 +157,7 @@ public partial class CommandAuthorityService
 		Entity worldEntity = _context.WorldEntity;
 		if (worldEntity == Entity.Null || !_context.World.IsAlive(worldEntity)) return;
 
-		_context.World.Mutate<ShroudState>(worldEntity, (ref ShroudState shroud) => shroud.VisibilityMode = ShroudVisibilityMode.Revealed);
+		_context.World.Mutate<ShroudState>(worldEntity, (ref ShroudState shroud) => shroud.VisibilityMode = ShroudVisibilityMode.None);
 	}
 
 	/// <summary>

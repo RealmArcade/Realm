@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
@@ -66,41 +67,16 @@ public partial class LobbyManager
 			GD.PushWarning($"[LobbyManager] {LastLobbyWarning}");
 		}
 
-		bool randomize = metadata.MapProperties?.TestRandomizeSlots ?? false;
 		int? testSeed = metadata.MapProperties?.TestRandomSeed;
 
 		GameContext.RandomService.SetSeed(testSeed);
 		MatchSeed = GameContext.RandomService.Seed;
 
-		int humanSlot = 1;
-		var aiSlots = new List<int>();
-
-		if (!randomize)
-		{
-			humanSlot = 1;
-			for (int i = 0; i < aiCount; i++)
-			{
-				aiSlots.Add(2 + i);
-			}
-		}
-		else
-		{
-			var available = Enumerable.Range(1, MaxPlayers).ToList();
-			var rng = (testSeed.HasValue && testSeed.Value != 0) ? new Random(testSeed.Value) : new Random();
-			int n = available.Count;
-			while (n > 1)
-			{
-				n--;
-				int k = rng.Next(n + 1);
-				(available[k], available[n]) = (available[n], available[k]);
-			}
-
-			humanSlot = available[0];
-			for (int i = 0; i < aiCount; i++)
-			{
-				aiSlots.Add(available[1 + i]);
-			}
-		}
+		// The seat plan is read from the map's own test settings, which is the same reading the editor warns about what a
+		// run will show with, so a randomized run seats the player where the editor said it would.
+		MapTestSeatingPlan seating = MapTestSeating.Plan(metadata.MapProperties, MaxPlayers);
+		int humanSlot = seating.HumanSlot;
+		var aiSlots = new List<int>(seating.ComputerSlots);
 
 		var hostPlayer = new PlayerInfo
 		{
@@ -185,7 +161,8 @@ public partial class LobbyManager
 			openToOthers,
 			wasmDebug,
 			BuildMatchRoster(),
-			Options: MatchOptions);
+			ShroudMode: ShroudMode > MatchShroudMode.FromMap ? ShroudMode : EffectiveShroudMode,
+			Settings: BuildLobbySettingSet());
 
 		MatchStartResult started = await session.TryStartAsync(start, authorityPort);
 		LastAuthorityLogPath = started.LogPath;
@@ -203,18 +180,41 @@ public partial class LobbyManager
 		return true;
 	}
 
+	/// <summary>
+	///     Opens this screen's lobby, takes its seat in it and lets the map state the defaults the lobby starts with, and then
+	///     publishes it: the port is opened, a registry node is asked to reach it, and only then is the lobby registered.
+	/// </summary>
 	public async Task<bool> HostLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
+	{
+		return await PrepareHostedLobbyAsync(mapPathName, mapDisplayName, explicitVersion) && await PublishPreparedLobbyAsync();
+	}
+
+	/// <summary>
+	///     Opens the lobby this screen will host without publishing it. The authority is started, this screen takes the seat
+	///     that administers it, the map's own lobby rules have run, and the settings the match will play are the ones the
+	///     lobby state names - so a host can read them and confirm them before anybody can see the lobby. Nothing about the
+	///     machine's network is touched here: the port is opened, verified and registered by
+	///     <see cref="PublishPreparedLobbyAsync" />.
+	/// </summary>
+	public async Task<bool> PrepareHostedLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
 	{
 		IsSinglePlayer = false;
 		InitializeHostState(mapPathName, explicitVersion);
+		LastHostFailure = null;
+		LastFirewallGrant = default;
+		LobbyPort = 0;
+		HostedMapDisplayName = mapDisplayName;
+		HostedMapVersion = string.IsNullOrWhiteSpace(explicitVersion) ? "1.0.0" : explicitVersion;
 
 		ReportHostLobbyStage(HostLobbyStage.TestingNetwork);
 		await RunNatTypeTestAsync();
+
+		// The classification is advisory: it says how hard this network usually is to reach, not whether this lobby can be
+		// reached. Whether anybody can connect is decided by the reachability probe before the lobby is published, and by
+		// the connections players make afterwards, so a symmetric NAT is recorded and hosting goes ahead.
 		if (LocalNatType == NatType.Symmetric)
 		{
-			LastHostError = "Lobby creation rejected: Symmetric NAT is not supported.";
-			GameLog.LogError("[LobbyManager] Lobby creation rejected: Symmetric NAT is not supported.");
-			return false;
+			GameLog.LogToConsole("[LobbyManager] This network reported a symmetric NAT. Hosting continues; the lobby is published only once a public node reaches it.");
 		}
 
 		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
@@ -235,7 +235,7 @@ public partial class LobbyManager
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
 
 		var start = new ServerLobbyStart(
@@ -278,24 +278,64 @@ public partial class LobbyManager
 
 		IsHost = true;
 
-		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
-		await ResolvePublicEndpointAsync(session.Port);
+		LobbyPort = session.Port;
 
-		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(session.Port);
+		// First, and before anything is opened or registered: this screen has to be able to play its own seat. A lobby the
+		// host cannot control its own player in is not one anybody else should be shown either. The check waits for the
+		// lobby to be described back over loopback, which is the last step of entering it as host.
+		ReportHostLobbyStage(HostLobbyStage.AdmittingHost);
+		if (!await VerifyLocalSeatBeforePublishingAsync(session))
+		{
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		PlayerListUpdated?.Invoke();
+		return true;
+	}
+
+	/// <summary>
+	///     Publishes the lobby <see cref="PrepareHostedLobbyAsync" /> opened: the port is opened in the local firewall and on
+	///     the router, a registry node is asked to reach it, and the lobby is registered only once that node answered. The
+	///     host may have changed any setting the lobby offers in between, and the match plays the settings the lobby holds
+	///     when it starts.
+	/// </summary>
+	public async Task<bool> PublishPreparedLobbyAsync()
+	{
+		ClientServerSession? prepared = _lobbySession;
+		if (prepared == null || !prepared.IsRunning || !IsHost)
+		{
+			LastHostError = "There is no lobby waiting to be published.";
+			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			return false;
+		}
+
+		string mapDisplayName = string.IsNullOrEmpty(HostedMapDisplayName) ? ActiveMapName : HostedMapDisplayName;
+
+		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
+
+		// Asked for on every attempt, because a dismissed prompt leaves the port closed and is almost always a misclick
+		// rather than a decision to host unreachable lobbies.
+		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(prepared.Port);
+
+		await ResolvePublicEndpointAsync(prepared.Port);
+
+		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(prepared.Port);
 		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
 		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
 		if (IsRestrictedHost)
 		{
-			GameLog.LogToConsole("[LobbyManager] Warning: UPnP port mapping not available on restricted NAT. External players may require Direct Connect.");
+			GameLog.LogToConsole($"[LobbyManager] Warning: UPnP port mapping not available on {LocalNatType} NAT. External players may require Direct Connect.");
 		}
 
-		Diagnostics.StartHostListener(session.Port + 1);
+		Diagnostics.StartHostListener(prepared.Port + 1);
 
-		ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
-		bool registered = await RegisterLobbyWithRegistryAsync(mapPathName, mapDisplayName, explicitVersion);
+		// The lobby is only published once a public node has reached its game port, so nobody sees a lobby that a
+		// timeout is waiting behind.
+		bool registered = await RegisterLobbyWithRegistryAsync(ActiveMapName, mapDisplayName, HostedMapVersion, prepared.Port);
 		if (!registered)
 		{
-			TeardownHostedLobby(session);
+			TeardownHostedLobby(prepared);
 			return false;
 		}
 
@@ -315,6 +355,9 @@ public partial class LobbyManager
 	{
 		IsSinglePlayer = true;
 		InitializeHostState(mapPathName, explicitVersion);
+		LastHostFailure = null;
+		LastFirewallGrant = default;
+		LobbyPort = 0;
 
 		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
 		if (string.IsNullOrEmpty(mapDirectory))
@@ -336,7 +379,7 @@ public partial class LobbyManager
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
 
 		var start = new ServerLobbyStart(
@@ -378,8 +421,49 @@ public partial class LobbyManager
 		}
 
 		IsHost = true;
+		LobbyPort = session.Port;
+
+		if (!await VerifyLocalSeatBeforePublishingAsync(session))
+		{
+			TeardownHostedLobby(session);
+			return false;
+		}
+
 		PlayerListUpdated?.Invoke();
 		return true;
+	}
+
+	/// <summary>
+	///     Checks the local round trip every hosted lobby depends on, whether or not anybody else will see it. A lobby only
+	///     this machine plays still has to answer this machine, and a lobby other players can see has to answer this machine
+	///     before it is worth publishing: the host controls its own player over this path, and nothing between this screen and
+	///     the authority it launched is allowed to break that.
+	/// </summary>
+	private async Task<bool> VerifyLocalSeatBeforePublishingAsync(ClientServerSession session)
+	{
+		HostReachabilityResult loopback = await VerifyLobbyLoopbackAsync(session);
+		if (loopback.Verified) return true;
+
+		LastHostFailure = loopback;
+		LastHostError = $"this screen's own seat could not be confirmed over loopback on port {session.Port}: {loopback.Detail}";
+		GameLog.LogError($"[LobbyManager] {LastHostError}");
+		return false;
+	}
+
+	/// <summary>
+	///     Collects the values of the match settings the lobby's map declared, which is what a match started from this screen
+	///     plays with. A map that declared none hands over nothing and uses its own constants.
+	/// </summary>
+	/// <returns>The values the settings hold.</returns>
+	private LobbySettingSet BuildLobbySettingSet()
+	{
+		var settings = new LobbySettingSet();
+		for (int index = 0; index < MatchSettings.Count; index++)
+		{
+			settings.Set(MatchSettings[index].SettingId, MatchSettings[index].Value);
+		}
+
+		return settings;
 	}
 
 	private void InitializeHostState(string mapPathName, string? explicitVersion)

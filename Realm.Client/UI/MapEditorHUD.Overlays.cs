@@ -121,7 +121,7 @@ namespace Realm.Client.UI
 				if (shouldShowInspector)
 				{
 					if (_contentInspector != null) _contentInspector.Visible = true;
-					if (_btnHeaderInspector != null) _btnHeaderInspector.Text = "▼ " + TranslationServer.Translate("Selected Object Inspector");
+					UpdateInspectorHeaderText();
 				}
 
 				_accordionContainer?.QueueSort();
@@ -654,6 +654,7 @@ namespace Realm.Client.UI
 			{
 				int count = EditorToolCatalog.SpokeCountOptions[i];
 				opt.AddItem($"{UnicodeIcons.COMPASS} " + string.Format(TranslationServer.Translate("SPOKES: {0}"), count), count);
+				LocalizedText.BindOptionItem(opt, i, () => $"{UnicodeIcons.COMPASS} " + string.Format(TranslationServer.Translate("SPOKES: {0}"), count));
 			}
 
 			if (!string.IsNullOrEmpty(tooltip))

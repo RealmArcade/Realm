@@ -754,8 +754,32 @@
             Defines the safe, public API exposed to map scripts to interact with the game engine.
             </summary>
             <summary>
-            Defines the safe, public API exposed to map scripts to interact with the game engine.
+                The camera and cinematic surface a map may drive: taking the camera away from the player for a shot, moving it,
+                following a unit with it, and dressing the screen with the bars, subtitles and fades a cutscene needs. Every member
+                is opt-in - the engine never takes the camera away from a player on its own - so a map that says nothing about
+                cinematics leaves the camera exactly as the player expects it.
             </summary>
+            <remarks>
+                <para>
+                    A camera shot is a request the match sends to the screen sitting in the seat it names, on the reliable stream, so
+                    a shot that is stated is a shot that arrives. A map driving a cutscene for one player names that player's slot;
+                    one driving it for everybody, which is what a co-operative campaign or a cinematic between rounds wants, names
+                    <see cref="F:Realm.MapAPI.IGameAPI.EveryPlayer" />.
+                </para>
+                <para>
+                    Taking the camera means taking it away from the person holding the mouse: <see cref="M:Realm.MapAPI.IGameAPI.MovePlayerCameraTo(System.Int32,System.Numerics.Vector3,System.Numerics.Vector3,System.Single)" />,
+                    <see cref="M:Realm.MapAPI.IGameAPI.FollowUnitWithPlayerCamera(System.Int32,Realm.Ecs.UnitId,System.Single,System.Single,System.Single,System.Boolean,System.Single,System.Single)" /> and <see cref="M:Realm.MapAPI.IGameAPI.LockPlayerCamera(System.Int32,System.Boolean)" /> hold the player's own panning,
+                    zooming, edge scrolling and rotation for as long as the shot runs, and <see cref="M:Realm.MapAPI.IGameAPI.ReleasePlayerCamera(System.Int32)" /> gives
+                    it back. A map that takes the camera and never releases it leaves that player unable to look at their own base,
+                    so every shot is expected to end. Nothing about the match changes while the camera is held: the player still
+                    commands units, still builds, and still plays.
+                </para>
+                <para>
+                    The camera is presentation only. What a screen can see is decided by the shroud and by what that player owns, so
+                    a shot that flies over ground the player has not explored shows only what that player may already see. A map that
+                    wants a cutscene to reveal the land itself calls <see cref="M:Realm.MapAPI.IGameAPI.DisableShroud" /> or arranges its own reveal first.
+                </para>
+            </remarks>
             <summary>
             Defines the safe, public API exposed to map scripts to interact with the game engine.
             </summary>
@@ -789,6 +813,36 @@
             <summary>
             Defines the safe, public API exposed to map scripts to interact with the game engine.
             </summary>
+            <summary>
+            Defines the safe, public API exposed to map scripts to interact with the game engine.
+            </summary>
+            <summary>
+                The Steam surface a map may call: achievements, stats and per-player cloud files. Every member is opt-in - the
+                engine never unlocks an achievement, records a stat or touches a cloud file on its own - so a map that says nothing
+                about Steam behaves exactly as it did before this surface existed.
+            </summary>
+            <remarks>
+                <para>
+                    A map script runs in the authority, while Steam runs inside each player's own screen, so these calls describe an
+                    intent to the screen of the player the call names. The description travels on the reliable stream and is applied
+                    by the screen sitting in that player slot: no other screen, and no spectator or ally, applies it.
+                </para>
+                <para>
+                    Every identifier a map states here is namespaced by the map it comes from, in the screen that talks to Steam, so
+                    two maps may both call an achievement <c>chapter_one</c> without touching the same Steam achievement. The name
+                    Steam is given is <c>realm_&lt;map&gt;_&lt;identifier&gt;</c>, with everything that is not a letter, a digit or an
+                    underscore removed and the rest lowercased. That name, and any stat name derived the same way, has to exist in
+                    the application's Steamworks configuration before it means anything; a name Steam does not know is refused by
+                    Steam without failing the match.
+                </para>
+                <para>
+                    Nothing here blocks. Achievements, stats and cloud writes are handed to Steam and forgotten, and cloud reads come
+                    out of the copy the screen uploaded when the map asked for it, which is why <see cref="M:Realm.MapAPI.IGameAPI.RequestSteamCloudFiles(System.Int32)" />
+                    and <see cref="M:Realm.MapAPI.IGameAPI.IsSteamCloudSynced(System.Int32)" /> exist. A match without Steam, a seat that is a computer player and a screen
+                    whose Steam is not running all answer <see cref="M:Realm.MapAPI.IGameAPI.IsSteamAvailable(System.Int32)" /> with false and quietly ignore the rest, so a
+                    map may call these members without asking first.
+                </para>
+            </remarks>
             <summary>
             Defines the safe, public API exposed to map scripts to interact with the game engine.
             </summary>
@@ -1112,6 +1166,128 @@
             </summary>
             <param name="playerIndex">Zero-based player slot index.</param>
             <param name="unitTypeId">The unit type ID of the building to place.</param>
+        </member>
+        <member name="F:Realm.MapAPI.IGameAPI.EveryPlayer">
+            <summary>
+                The player index that names every screen in the match, which is what a cutscene every player watches is addressed
+                with.
+            </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.LockPlayerCamera(System.Int32,System.Boolean)">
+            <summary>
+                Holds the player's own camera controls, or gives them back, without moving the camera.
+            </summary>
+            <param name="playerIndex">The player slot whose controls are held, or <see cref="F:Realm.MapAPI.IGameAPI.EveryPlayer" />.</param>
+            <param name="locked">True to hold the controls, false to give them back.</param>
+            <remarks>
+                This is the smallest part of the cinematic surface: a map that only wants to stop a player from panning away
+                during a briefing uses this and nothing else. <see cref="M:Realm.MapAPI.IGameAPI.ReleasePlayerCamera(System.Int32)" /> also gives the controls back,
+                along with everything else a shot changed.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.MovePlayerCameraTo(System.Int32,System.Numerics.Vector3,System.Numerics.Vector3,System.Single)">
+            <summary>
+                Sends the player's camera to a stated place, looking at a stated point, holding the player's own controls for the
+                shot.
+            </summary>
+            <param name="playerIndex">The player slot whose camera is moved, or <see cref="F:Realm.MapAPI.IGameAPI.EveryPlayer" />.</param>
+            <param name="position">Where the camera goes, in world space.</param>
+            <param name="lookAt">The point the camera is pointed at for the whole move, in world space.</param>
+            <param name="durationSeconds">
+                How long the move takes. Zero cuts straight to the shot, which is what a sequence of shots uses between its beats;
+                a positive duration flies the camera there over that time, eased at both ends.
+            </param>
+            <remarks>
+                A move is a shot rather than a pan: the camera is pointed at <paramref name="lookAt" /> from the first frame, so it
+                reads as a camera moving through the world instead of a map being scrolled. The camera is kept above the ground so
+                a shot never ends up inside a hill, and the player's controls stay held until the move finishes or
+                <see cref="M:Realm.MapAPI.IGameAPI.ReleasePlayerCamera(System.Int32)" /> is called.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.FollowUnitWithPlayerCamera(System.Int32,Realm.Ecs.UnitId,System.Single,System.Single,System.Single,System.Boolean,System.Single,System.Single)">
+            <summary>
+                Makes the player's camera follow a unit, looking at it while it moves.
+            </summary>
+            <param name="playerIndex">The player slot whose camera follows, or <see cref="F:Realm.MapAPI.IGameAPI.EveryPlayer" />.</param>
+            <param name="unit">The unit to follow. An invalid unit stops the follow and holds the camera where it is.</param>
+            <param name="distance">How far behind the unit the camera sits, in metres.</param>
+            <param name="height">How far above the unit the camera sits, in metres.</param>
+            <param name="yawOffsetDegrees">
+                Which side of the unit the camera sits on. When <paramref name="alignToUnitFacing" /> is false this is a world
+                direction, so the camera keeps its bearing however the unit turns; when it is true it is the angle behind the
+                unit's own facing, so the camera stays behind it.
+            </param>
+            <param name="alignToUnitFacing">True to keep the camera behind the unit's facing, false to hold a fixed bearing.</param>
+            <param name="smoothingSeconds">
+                How quickly the camera catches up with the unit, in seconds of lag. Zero follows rigidly, which suits a racing
+                camera; a value around a fifth of a second reads as a camera operator following a character.
+            </param>
+            <param name="lookAtHeight">How far above the unit's origin the camera looks, in metres, so the shot frames the body rather than the feet.</param>
+            <remarks>
+                The follow lasts until <see cref="M:Realm.MapAPI.IGameAPI.StopPlayerCameraFollow(System.Int32)" />, another shot replaces it, or
+                <see cref="M:Realm.MapAPI.IGameAPI.ReleasePlayerCamera(System.Int32)" /> gives the camera back. A unit that dies while it is being followed leaves the
+                camera where it stood rather than snapping to a corpse that no longer exists.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.StopPlayerCameraFollow(System.Int32)">
+            <summary>
+                Stops the camera following its unit and holds it where it stands.
+            </summary>
+            <param name="playerIndex">The player slot whose camera stops following, or <see cref="F:Realm.MapAPI.IGameAPI.EveryPlayer" />.</param>
+            <remarks>
+                The player's own controls stay held: this ends the follow, not the cutscene. Use
+                <see cref="M:Realm.MapAPI.IGameAPI.ReleasePlayerCamera(System.Int32)" /> to give the camera back.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ReleasePlayerCamera(System.Int32)">
+            <summary>
+                Gives the camera back to the player, ending any shot that was running.
+            </summary>
+            <param name="playerIndex">The player slot whose camera is given back, or <see cref="F:Realm.MapAPI.IGameAPI.EveryPlayer" />.</param>
+            <remarks>
+                The camera keeps the place and angle the cutscene left it at, and the player's controls start from there: a map
+                that wants the player to come back to their base moves the camera there before releasing it, and one that leaves
+                it wherever the last shot ended hands the player a camera looking at whatever the story ended on.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetCinematicBarsVisible(System.Int32,System.Boolean)">
+            <summary>
+                Draws or clears the cinematic bars above and below the screen.
+            </summary>
+            <param name="playerIndex">The player slot whose screen is framed, or <see cref="F:Realm.MapAPI.IGameAPI.EveryPlayer" />.</param>
+            <param name="visible">True to draw the bars, false to clear them.</param>
+            <remarks>
+                The bars are only framing: they change nothing about the camera or the match, and a map that shows them is
+                expected to clear them when its cutscene ends. They stay out of the way of the HUD, so a cutscene that leaves the
+                player in full control still shows the controls they are using.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ShowCinematicSubtitle(System.Int32,System.String,System.String,System.Single)">
+            <summary>
+                Shows one line of cinematic dialogue, with the speaker named above it.
+            </summary>
+            <param name="playerIndex">The player slot whose screen shows the line, or <see cref="F:Realm.MapAPI.IGameAPI.EveryPlayer" />.</param>
+            <param name="speaker">Who is speaking, as the map names them. Pass an empty string for narration.</param>
+            <param name="line">The line itself, already translated by the map if it carries text from its own catalogs.</param>
+            <param name="durationSeconds">How long the line stays on screen, in seconds. A duration of zero clears the line at once.</param>
+            <remarks>
+                A line replaces the one before it, so a map that shows lines in sequence shows each for its own duration and does
+                not have to clear the previous one. Showing a line does not hold the player's camera controls; a map running a
+                briefing pairs it with <see cref="M:Realm.MapAPI.IGameAPI.LockPlayerCamera(System.Int32,System.Boolean)" />.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetScreenFade(System.Int32,System.Single,System.Single)">
+            <summary>
+                Fades the screen toward black, or back from it.
+            </summary>
+            <param name="playerIndex">The player slot whose screen fades, or <see cref="F:Realm.MapAPI.IGameAPI.EveryPlayer" />.</param>
+            <param name="alpha">How opaque the fade is once it finishes: 0 is a clear screen and 1 is fully black.</param>
+            <param name="durationSeconds">How long the fade takes, in seconds. Zero changes it at once.</param>
+            <remarks>
+                A fade covers the whole screen including the HUD, which is what a scene change needs; it does not stop the match,
+                so a map that fades to black and moves the camera underneath is revealing a new place rather than pausing the
+                game. The fade stays where it is left, so a map that faded in is expected to fade back out.
+            </remarks>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitColor(Realm.Ecs.UnitId,System.Numerics.Vector3)">
             <summary>
@@ -1860,6 +2036,17 @@
             <param name="itemId">The item definition identifier.</param>
             <param name="charges">The new charge count; zero removes the item's grants.</param>
         </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetUnitTypeReceivesConsumables(System.String,System.Boolean)">
+            <summary>
+            States whether units of one type may be given a consumable, which is how a map keeps the potions or elixirs it
+            sells off the units that only look like the ones they are meant for. A purchase aims at the nearest unit of the
+            buyer's within the item's purchase range: when that unit's type refuses consumables the order is refused rather
+            than handed to some other unit the player did not point at. Every type accepts consumables unless its map says
+            otherwise, so a map that never calls this sells its consumables exactly as it did before.
+            </summary>
+            <param name="unitTypeId">The unit definition identifier the rule applies to, matched exactly and case-insensitively.</param>
+            <param name="receives">Whether units of that type accept a consumable.</param>
+        </member>
         <member name="M:Realm.MapAPI.IGameAPI.UnitHasBuff(Realm.Ecs.UnitId,System.String)">
             <summary>
             Returns true if the specified unit currently has an active buff with the given identifier.
@@ -2253,19 +2440,19 @@
             <param name="playerIndex">Zero-based player slot index.</param>
             <param name="limit">The maximum number of buildings, or zero for no limit.</param>
         </member>
-        <member name="M:Realm.MapAPI.IGameAPI.GetMatchOption(Realm.Ecs.MatchOption)">
+        <member name="M:Realm.MapAPI.IGameAPI.GetLobbySetting(System.Int32)">
             <summary>
-            Reads a parameter the lobby's host configured for this match, which is how a map lets a host change a limit or a
-            mode it would otherwise have stated as a constant.
+            Reads the value the lobby's host chose for one of the match settings the map declared, which is how a map acts on
+            the rule it offered rather than on the constant it authored.
             </summary>
             <remarks>
-            Every option modifies a value the game already evaluates rather than selecting a different set of rules, so a map
-            reads it once while it starts and falls back to its own default when the host left the option alone. A host that
-            left an option alone answers zero, which is the value no option treats as a real setting, and a map that reads an
-            option it does not act on simply ignores it.
+            A setting the map declared through <see cref="M:Realm.MapAPI.ILobbyAPI.AddMatchSetting(System.Int32,Realm.Ecs.LobbySettingControl,System.String,System.String,System.Int32)" /> carries the value it was declared with
+            until the host changes it, so a map reads it once while it starts and uses that value in place of its own default.
+            A setting the map never declared, or one no lobby held a value for, answers zero; a map that reads a setting it does
+            not act on simply ignores it.
             </remarks>
-            <param name="matchOption">The option being read, named by <see cref="T:Realm.Ecs.MatchOption" />.</param>
-            <returns>The value the host set, or zero when the host left the option to the map.</returns>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <returns>The value the setting holds, or zero when the lobby held no value for it.</returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetPlayerGold(System.Int32,System.Single)">
             <summary>
@@ -2776,6 +2963,165 @@
             <summary>
             Sets the mana cost of a unit's ability.
             </summary>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.IsSteamAvailable(System.Int32)">
+            <summary>
+                Whether the seat at the given player index is a person whose screen is running Steam, and may therefore receive
+                achievements, stats and cloud files.
+            </summary>
+            <param name="playerIndex">The player slot to test.</param>
+            <returns>True when that seat belongs to a person playing inside Steam.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.UnlockSteamAchievement(System.Int32,System.String)">
+            <summary>
+                Unlocks a Steam achievement for the player at the given index.
+            </summary>
+            <param name="playerIndex">The player whose Steam account earns the achievement.</param>
+            <param name="achievementId">
+                The map's own identifier for the achievement, with no namespace of its own; see the remarks on
+                <see cref="T:Realm.MapAPI.IGameAPI" /> for how it is turned into a Steam achievement name.
+            </param>
+            <remarks>
+                Unlocking an achievement the player already holds is harmless: Steam keeps the first time it was earned. The call
+                is the map's statement that the player met the condition, so a map that awards an achievement for something it
+                tracks itself does not have to ask Steam whether it was already earned.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.IndicateSteamAchievementProgress(System.Int32,System.String,System.Int32,System.Int32)">
+            <summary>
+                Shows the player how far they are toward an achievement Steam treats as a progress achievement, without unlocking
+                it.
+            </summary>
+            <param name="playerIndex">The player to show the progress to.</param>
+            <param name="achievementId">The map's own identifier for the achievement.</param>
+            <param name="progress">How much of the achievement is done, in the units its Steam configuration counts in.</param>
+            <param name="maxProgress">The amount that completes the achievement.</param>
+            <remarks>
+                This is Steam's own progress indicator, which is a display of progress rather than a stat: a map that tracks
+                counts over a longer life than one match normally records them with <see cref="M:Realm.MapAPI.IGameAPI.SetSteamStatInt(System.Int32,System.String,System.Int32)" /> and calls this
+                only when the count changes.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetSteamStatInt(System.Int32,System.String,System.Int32)">
+            <summary>
+                Records an integer Steam stat for the player at the given index, which is how a map keeps a count that
+                achievements and Steam's own stat pages read.
+            </summary>
+            <param name="playerIndex">The player whose Steam account records the stat.</param>
+            <param name="statId">The map's own identifier for the stat.</param>
+            <param name="value">The value to store.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.AddSteamStatInt(System.Int32,System.String,System.Int32)">
+            <summary>
+                Adds to an integer Steam stat for the player at the given index and stores the result, which keeps a running
+                count without the map having to know the value it had.
+            </summary>
+            <param name="playerIndex">The player whose Steam account records the stat.</param>
+            <param name="statId">The map's own identifier for the stat.</param>
+            <param name="delta">The amount to add, which may be negative.</param>
+            <remarks>
+                The addition happens in the player's screen, on the value Steam holds at that moment, so a count kept across
+                several matches stays correct even when this match never read the old value.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.SetSteamStatFloat(System.Int32,System.String,System.Single)">
+            <summary>
+                Records a floating point Steam stat for the player at the given index, which is how a map keeps a rate, a
+                distance or a best time.
+            </summary>
+            <param name="playerIndex">The player whose Steam account records the stat.</param>
+            <param name="statId">The map's own identifier for the stat.</param>
+            <param name="value">The value to store.</param>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.RequestSteamCloudFiles(System.Int32)">
+            <summary>
+                Asks the screen of the player at the given index to upload the cloud files this map keeps for them, so the map
+                can read them from here.
+            </summary>
+            <param name="playerIndex">The player whose cloud files the map wants.</param>
+            <remarks>
+                <para>
+                    A map script cannot read Steam directly, so cloud files arrive asynchronously: call this once (a saved-data
+                    load during match start is the usual place), then poll <see cref="M:Realm.MapAPI.IGameAPI.IsSteamCloudSynced(System.Int32)" /> and read what arrived
+                    with <see cref="M:Realm.MapAPI.IGameAPI.GetSteamCloudFileCount(System.Int32)" />, <see cref="M:Realm.MapAPI.IGameAPI.GetSteamCloudFileName(System.Int32,System.Int32)" /> and
+                    <see cref="M:Realm.MapAPI.IGameAPI.ReadSteamCloudFile(System.Int32,System.String)" />. Asking again replaces the copy the map holds, so a map that wants to pick up
+                    changes a screen made while the match runs may ask again later.
+                </para>
+                <para>
+                    Asking a seat that is not a person, or whose screen is not running Steam, settles the request immediately with
+                    nothing in it: <see cref="M:Realm.MapAPI.IGameAPI.IsSteamCloudSynced(System.Int32)" /> then answers true and the file count is zero.
+                </para>
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.IsSteamCloudSynced(System.Int32)">
+            <summary>
+                Whether the cloud files of the player at the given index have arrived, which means the map may read them.
+            </summary>
+            <param name="playerIndex">The player to test.</param>
+            <returns>True when a request has settled, whether or not it carried any file.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetSteamCloudFileCount(System.Int32)">
+            <summary>
+                How many cloud files the player at the given index holds for this map.
+            </summary>
+            <param name="playerIndex">The player whose files are counted.</param>
+            <returns>The number of files the last upload carried.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.GetSteamCloudFileName(System.Int32,System.Int32)">
+            <summary>
+                The name of one of the cloud files the player at the given index holds for this map.
+            </summary>
+            <param name="playerIndex">The player whose files are listed.</param>
+            <param name="index">The position in the list, from zero to <see cref="M:Realm.MapAPI.IGameAPI.GetSteamCloudFileCount(System.Int32)" /> minus one.</param>
+            <returns>The file's name, or an empty string for a position the list does not hold.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.HasSteamCloudFile(System.Int32,System.String)">
+            <summary>
+                Whether the player at the given index holds a cloud file with this name for this map.
+            </summary>
+            <param name="playerIndex">The player whose files are read.</param>
+            <param name="fileName">The file's name, as the map named it.</param>
+            <returns>True when a file with that name is held.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.ReadSteamCloudFile(System.Int32,System.String)">
+            <summary>
+                Reads a cloud file the player at the given index holds for this map.
+            </summary>
+            <param name="playerIndex">The player whose file is read.</param>
+            <param name="fileName">The file's name, as the map named it.</param>
+            <returns>The file's content, or an empty string when that player holds no such file.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.WriteSteamCloudFile(System.Int32,System.String,System.String)">
+            <summary>
+                Writes a cloud file for the player at the given index, replacing the one the map wrote before it.
+            </summary>
+            <param name="playerIndex">The player whose Steam account keeps the file.</param>
+            <param name="fileName">
+                The file's name, which is a plain name: up to 64 characters of letters, digits, dots, dashes and underscores, with
+                no folder in it, because the screen places the file inside the part of Steam's cloud that belongs to this map.
+            </param>
+            <param name="content">The file's content, up to 32768 characters.</param>
+            <returns>
+                True when the write was accepted for that player, which is immediately true for the copy the map reads back and
+                later for Steam; false when the name, the size or the seat is one this rule refuses.
+            </returns>
+            <remarks>
+                The write reaches Steam inside the player's screen, and Steam uploads it on its own schedule, so a map that wants
+                a save to be safely away before the match ends should write it when the player reaches the point being saved
+                rather than only at the end. A copy written during the match is what a later <see cref="M:Realm.MapAPI.IGameAPI.ReadSteamCloudFile(System.Int32,System.String)" />
+                answers, so a map can read back what it just wrote.
+            </remarks>
+        </member>
+        <member name="M:Realm.MapAPI.IGameAPI.DeleteSteamCloudFile(System.Int32,System.String)">
+            <summary>
+                Removes a cloud file the player at the given index holds for this map.
+            </summary>
+            <param name="playerIndex">The player whose Steam account deletes the file.</param>
+            <param name="fileName">The file's name, as the map named it.</param>
+            <returns>
+                True when the delete was accepted, which removes it from the copy the map reads as well as asking that player's
+                screen to delete the file in Steam.
+            </returns>
         </member>
         <member name="M:Realm.MapAPI.IGameAPI.SetUnitHealth(Realm.Ecs.UnitId,System.Single)">
             <summary>
@@ -3423,15 +3769,15 @@
         </member>
         <member name="T:Realm.MapAPI.ILobbyAPI">
             <summary>
-                The roster a map script owns while its lobby is filling: which factions the map offers, how many players it seats,
-                and what faction, team and colour each player slot holds. It is handed to <see cref="T:Realm.MapAPI.ILobbyScript" /> while the
-                authority sits at tick zero, before any match exists.
+                The lobby a map script owns while it fills: which factions the map offers, which player slots are open, and what
+                faction, team and colour each player slot holds. It is handed to <see cref="T:Realm.MapAPI.ILobbyScript" /> while the authority sits
+                at tick zero, before any match exists.
             </summary>
             <remarks>
                 <para>
                     Reads are taken straight out of the shared roster the authority publishes, so they cost no host call and never
                     allocate. Writes are orders to the authority, which applies them to the lobby the players are sitting in, so a
-                    write can be refused - a locked slot, a slot nobody holds, a faction the map does not offer, or a full lobby -
+                    write can be refused - a locked slot, a slot nobody holds, a faction the map does not offer, or a closed slot -
                     and reports whether it was accepted.
                 </para>
                 <para>
@@ -3440,18 +3786,22 @@
                     lobby's own assignment of colours and teams in place, which is what the default lobby rules do.
                 </para>
                 <para>
-                    The two settings beyond the roster are the ones a map states once and a host may still overrule: whether the
-                    lobby groups a team's players into consecutive player slots when the match starts, and which board coordinate
-                    each team begins inside. Both are placed as orders here and only take effect when the match starts, so a map
-                    states them while its lobby fills and never has to read them back.
+                    Every lobby carries the core game's three match settings - the shroud the board is played with, whether a team's
+                    players sit together, and whether a late joiner waits before the board is described - and a map states the
+                    values those settings start on. Everything else a match may be configured with belongs to the map, so a map
+                    declares its own settings here, with the label, the kind of control and the range it wants the host offered, and
+                    the host's choices are read back through <see cref="M:Realm.MapAPI.ILobbyAPI.GetMatchSettingValue(System.Int32)" />. The engine never learns what any of
+                    those settings mean: a map that declares none offers its host the core settings alone.
+                </para>
+                <para>
+                    A map states the values it starts on rather than reading them back where it can avoid it: a setting it declared
+                    with a default is that default until the host changes it, and the value the match plays is read once when the
+                    match starts.
                 </para>
             </remarks>
         </member>
-        <member name="P:Realm.MapAPI.ILobbyAPI.MaximumPlayerCount">
-            <summary>How many player slots this lobby currently seats. Slots are indexed from one; slot zero is not a player.</summary>
-        </member>
         <member name="P:Realm.MapAPI.ILobbyAPI.SlotCount">
-            <summary>The number of slots the shared roster carries, which is the highest player index this API accepts.</summary>
+            <summary>The number of slots the shared roster carries, which is every player index this API accepts.</summary>
         </member>
         <member name="P:Realm.MapAPI.ILobbyAPI.FactionCount">
             <summary>How many factions the map offers, in the order <see cref="M:Realm.MapAPI.ILobbyAPI.GetFactionName(System.Int32)" /> reports them.</summary>
@@ -3508,17 +3858,17 @@
         <member name="M:Realm.MapAPI.ILobbyAPI.SetTeamCount(System.Int32)">
             <summary>
                 States how many teams the lobby offers, which is what its players are offered as choices and what a slot's
-                team may be numbered up to. A lobby that states nothing offers two.
+                team may be numbered up to. A lobby whose map states nothing offers one team per player slot.
             </summary>
             <param name="teamCount">The number of teams, from one up to the seats this lobby may serve.</param>
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.SetPlayerTeam(System.Int32,System.Int32)">
             <summary>
                 Puts a player slot on a team. A slot whose team is locked, a slot nobody holds and a team number outside the
-                lobby's seats are all refused.
+                lobby's teams are all refused.
             </summary>
             <param name="playerIndex">The player slot.</param>
-            <param name="teamIndex">The team number, from 1 up to the lobby's seats, or 0 for no team.</param>
+            <param name="teamIndex">The team number, from 1 up to the lobby's teams, or 0 for no team.</param>
             <returns>Whether the authority took the order.</returns>
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.IsTeamLocked(System.Int32)">
@@ -3536,15 +3886,84 @@
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.SetPlayerColor(System.Int32,System.UInt32)">
             <summary>
-                Gives a player slot a colour. A slot whose colour is locked and a slot nobody holds are both refused.
+                Gives a player index the colour its units are drawn in, which is the colour its seat holds while it is seated
+                and a colour the map keeps for an index nobody holds.
             </summary>
-            <param name="playerIndex">The player slot.</param>
+            <remarks>
+                <para>
+                    A colour stated here is the map overriding the lobby's own assignment, so it is not held to the palette's
+                    one-player-per-colour rule: two indexes may be given the same colour, which is what a map that drives a
+                    player of its own beside a real one wants, so that both read as one side on screen. The lobby's own colour
+                    picker still refuses to hand a player a colour another player already holds - only this order may repeat one.
+                </para>
+                <para>
+                    An index nobody holds is not a seat the lobby can colour, so a colour stated for one is kept by the map
+                    rather than rejected: it is published to every screen beside the seats, and the match draws the units of
+                    that index in it. An index a player does hold changes that player's seat, and a seat whose colour the map
+                    locked is refused.
+                </para>
+            </remarks>
+            <param name="playerIndex">The player index.</param>
             <param name="colorRgba">The colour, packed as 0xRRGGBBAA.</param>
             <returns>Whether the authority took the order.</returns>
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.IsColorLocked(System.Int32)">
             <summary>Whether the slot's colour may no longer be changed.</summary>
             <param name="playerIndex">The player slot.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.GetPlayerMinimapColor(System.Int32,Realm.Ecs.MinimapColorMode)">
+            <summary>
+                Reads the colour a player index's units are drawn in on a minimap of one scheme, which is the colour the map
+                stated for that scheme.
+            </summary>
+            <param name="playerIndex">The player index.</param>
+            <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+            <returns>
+                The colour, packed as 0xRRGGBBAA, or zero while the map stated none for that scheme and the scheme decides the
+                colour itself.
+            </returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetPlayerMinimapColor(System.Int32,Realm.Ecs.MinimapColorMode,System.UInt32)">
+            <summary>
+                States the colour a player index's units are drawn in on a minimap of one scheme, which is how a map says that a
+                player it drives reads as part of a side on one of the minimap's two readings without changing the colour its
+                units are painted in the world.
+            </summary>
+            <remarks>
+                The two schemes are independent: a colour stated for <see cref="F:Realm.Ecs.MinimapColorMode.TeamColors" /> leaves
+                what the same index looks like under <see cref="F:Realm.Ecs.MinimapColorMode.PlayerColors" /> alone, and the other
+                way round. A colour of zero clears the statement, which returns that index to the colour it would be drawn in
+                without one, and an index the lobby does not carry is refused.
+            </remarks>
+            <param name="playerIndex">The player index.</param>
+            <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+            <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetPlayerProxyOwner(System.Int32,System.Int32)">
+            <summary>
+                States that one player index stands in for another, which is how a map says that a player it drives itself
+                carries a real player's army.
+            </summary>
+            <remarks>
+                <para>
+                    The minimap that paints players by their relation to the screen looking at it reads a standing-in index as
+                    the player it stands in for: on that player's own screen it is drawn as that player is - white - and on every
+                    other screen it follows that player's own standing, so it is blue on an ally's screen and red on an enemy's.
+                    Without this statement such an index is judged by its own relations, which is why it would otherwise read as
+                    an ally on the screen of the player whose army it carries.
+                </para>
+                <para>
+                    The minimap that paints every player in its own colour is not affected: it keeps drawing each index in the
+                    colour it states, so a map that wants a standing-in index drawn in the colour of the player it stands in for
+                    states that colour through <see cref="M:Realm.MapAPI.ILobbyAPI.SetPlayerColor(System.Int32,System.UInt32)" /> as well. The statement is a lobby order, so it
+                    reaches the screens sitting in this lobby; an index outside the roster is refused, and an owner of zero clears
+                    the statement.
+                </para>
+            </remarks>
+            <param name="playerIndex">The player index that stands in for another.</param>
+            <param name="ownerPlayerIndex">The player index it stands in for, or zero to clear the statement.</param>
+            <returns>Whether the authority took the order.</returns>
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.SetColorLocked(System.Int32,System.Boolean)">
             <summary>Locks or unlocks the slot's colour.</summary>
@@ -3563,12 +3982,96 @@
             <summary>Whether the slot belongs to the player administering the lobby.</summary>
             <param name="playerIndex">The player slot.</param>
         </member>
-        <member name="M:Realm.MapAPI.ILobbyAPI.SetMaximumPlayerCount(System.Int32)">
+        <member name="M:Realm.MapAPI.ILobbyAPI.IsSlotOpen(System.Int32)">
             <summary>
-                Sets how many players the lobby seats. The authority clamps it to the seats its map may serve and refuses a
-                count smaller than the players already sitting in it.
+                Whether the slot is open to a player. A seat is only ever placed in an open slot, and a closed slot is one the
+                host removed from the board the lobby offers while keeping the row on screen.
             </summary>
-            <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
+            <param name="playerIndex">The player slot.</param>
+            <returns>Whether the slot is open.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetSlotOpen(System.Int32,System.Boolean)">
+            <summary>
+                Opens or closes one player slot, which is how a map states the seats its board is authored for: a lobby whose
+                map closes nothing offers every slot it has. A slot somebody already holds stays occupied either way, and the
+                order is refused for a slot outside the roster.
+            </summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="open">Whether the slot accepts a player.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetOpenSlotCount(System.Int32)">
+            <summary>
+                Opens the first slots up to a count and closes the rest, which is the short way for a map to state the number
+                of players its board seats. A slot somebody already holds is not closed by this order.
+            </summary>
+            <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetPlayerSlotLimit(System.Int32)">
+            <summary>
+                States the most players this map will seat: every player index above that count belongs to the map alone, and no
+                player - and no host opening a row - may be placed in one.
+            </summary>
+            <remarks>
+                <para>
+                    A map that drives players of its own needs indexes no person can take, or a player joining at the wrong
+                    moment would sit in the seat the map's own rules are about to use. This is the order that reserves them: an
+                    index above the count stays closed however the lobby is run, the host may not reopen it, and nobody is
+                    admitted into it.
+                </para>
+                <para>
+                    A count stated here also caps <see cref="M:Realm.MapAPI.ILobbyAPI.SetOpenSlotCount(System.Int32)" />, so a map states one number for the players it
+                    seats and reserves everything after it. A map that states no limit leaves every slot the lobby carries
+                    available to its host, which is the neutral answer for a board with no players of its own.
+                </para>
+            </remarks>
+            <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.AddMatchSetting(System.Int32,Realm.Ecs.LobbySettingControl,System.String,System.String,System.Int32)">
+            <summary>
+                Declares one match setting of the map's own, which is how a map offers its host a rule the core game has no
+                concept of - how many building options a draw offers, whether every player drafts the same deck, how much of
+                its board a map seats. The authority keeps the declaration and publishes it to every screen in the lobby, and
+                the value of it is read back through <see cref="M:Realm.MapAPI.ILobbyAPI.GetMatchSettingValue(System.Int32)" />. Declaring a setting the lobby already
+                holds is how a map restates it after changing its wording, and keeps the value the host chose.
+            </summary>
+            <param name="settingId">
+                The identifier the map declares the setting under. It is the map's own number and never leaves the map, so any
+                positive value it likes will do; two settings may not share one.
+            </param>
+            <param name="control">How the host edits the setting.</param>
+            <param name="label">The label the host reads, at most 48 characters.</param>
+            <param name="tooltip">The sentence that explains the setting, or empty for none, at most 200 characters.</param>
+            <param name="defaultValue">The value the setting holds until the host changes it.</param>
+            <returns>Whether the authority holds the declaration afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.AddMatchSettingOption(System.Int32,System.String)">
+            <summary>
+                Adds one option to a setting declared as a choice. The option's index is the value the setting holds while it
+                is chosen, so the first option added is zero.
+            </summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="optionLabel">The text the host reads in the dropdown, at most 48 characters.</param>
+            <returns>Whether the option is part of the setting afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetMatchSettingRange(System.Int32,System.Int32,System.Int32)">
+            <summary>
+                States the values a count setting may hold. A count declared without a range offers zero to one.
+            </summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="minimum">The lowest value the host may choose.</param>
+            <param name="maximum">The highest value the host may choose.</param>
+            <returns>Whether the authority holds the range afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.GetMatchSettingValue(System.Int32)">
+            <summary>
+                Reads the value the host chose for one of the map's own settings, which is what a map reads to act on it. A
+                setting the map never declared, or one the lobby holds no value for, answers zero.
+            </summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <returns>The value the setting holds.</returns>
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.SetTeamsTogetherDefault(System.Boolean)">
             <summary>
@@ -3578,6 +4081,22 @@
                 checkbox, and a host that has changed it keeps its own choice rather than being overruled by this order.
             </summary>
             <param name="teamsTogether">Whether the checkbox starts checked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetSpectatorDelayDefault(System.Boolean)">
+            <summary>
+                States whether a player who joins after the match has started waits for a delay before the board is described to
+                them. The core game starts every lobby with the delay on; the host may still switch it off, and a value stated here
+                is the answer the lobby returns to when the host clears theirs.
+            </summary>
+            <param name="enabled">Whether late joiners wait before they see the board.</param>
+        </member>
+        <member name="M:Realm.MapAPI.ILobbyAPI.SetShroudModeDefault(Realm.Ecs.MatchShroudMode)">
+            <summary>
+                States which shroud the lobby starts with, which is how a map says whether its board is played with the whole
+                thing visible or with vision limited to what each player's units can see. The host may still choose another mode
+                for the match it starts, and a mode stated here is the answer the lobby returns to when the host clears theirs.
+            </summary>
+            <param name="shroudMode">The mode the lobby starts on.</param>
         </member>
         <member name="M:Realm.MapAPI.ILobbyAPI.SetTeamSpawnCoordinate(System.Int32,System.String)">
             <summary>
@@ -3753,9 +4272,6 @@
                 they cost no host call, and writes are placed as orders the authority applies to the lobby it is holding.
             </summary>
         </member>
-        <member name="P:Realm.MapAPI.LobbyAPI_WasmModule.MaximumPlayerCount">
-            <summary>How many player slots this lobby currently seats, as the authority last published it.</summary>
-        </member>
         <member name="P:Realm.MapAPI.LobbyAPI_WasmModule.SlotCount">
             <summary>
                 The number of slots the shared roster carries, which is the highest player index this API accepts. Slots are
@@ -3856,11 +4372,38 @@
         </member>
         <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetPlayerColor(System.Int32,System.UInt32)">
             <summary>
-                Gives a player slot a colour. A slot outside the roster is refused without placing an order; the authority
-                refuses a slot whose colour is locked and a slot nobody holds.
+                Gives a player index the colour its units are drawn in. A colour that repeats one another index already holds is
+                taken, because this is the map overriding the lobby's own assignment, and an index nobody holds keeps the colour
+                for the match rather than having it refused.
             </summary>
-            <param name="playerIndex">The player slot.</param>
+            <param name="playerIndex">The player index.</param>
             <param name="colorRgba">The colour, packed as 0xRRGGBBAA.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.GetPlayerMinimapColor(System.Int32,Realm.Ecs.MinimapColorMode)">
+            <summary>Reads the colour a player index's units are drawn in on a minimap of one scheme, as the map stated it.</summary>
+            <param name="playerIndex">The player index.</param>
+            <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+            <returns>The colour packed as 0xRRGGBBAA, or zero for a slot outside the roster or a scheme the map stated nothing for.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetPlayerMinimapColor(System.Int32,Realm.Ecs.MinimapColorMode,System.UInt32)">
+            <summary>
+                States the colour a player index's units are drawn in on one minimap scheme, or clears the statement when the
+                colour is zero. A slot outside the roster and a mode outside the enum place no order.
+            </summary>
+            <param name="playerIndex">The player index.</param>
+            <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+            <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetPlayerProxyOwner(System.Int32,System.Int32)">
+            <summary>
+                States that one player index stands in for another, or clears the statement when the owner is zero. The minimap
+                that paints players by their relation to the screen then draws the standing-in index as the player it stands in
+                for. A slot outside the roster, an owner outside it and an index standing in for itself all place no order.
+            </summary>
+            <param name="playerIndex">The player index that stands in for another.</param>
+            <param name="ownerPlayerIndex">The player index it stands in for, or zero to clear the statement.</param>
             <returns>Whether the authority took the order.</returns>
         </member>
         <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.IsColorLocked(System.Int32)">
@@ -3888,20 +4431,60 @@
             <param name="playerIndex">The player slot.</param>
             <returns>Whether the slot is the host's, or false for a slot outside the roster.</returns>
         </member>
-        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetMaximumPlayerCount(System.Int32)">
-            <summary>
-                Sets how many players the lobby seats. A count of zero or less places no order; the authority clamps it to the
-                seats its map may serve and refuses a count smaller than the players already sitting in it.
-            </summary>
-            <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.IsSlotOpen(System.Int32)">
+            <summary>Whether the slot is open to a player, as the authority last published the roster.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <returns>Whether the slot is open, or false for a slot outside the roster.</returns>
         </member>
-        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetTeamsTogetherDefault(System.Boolean)">
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetSlotOpen(System.Int32,System.Boolean)">
             <summary>
-                States whether the lobby's Teams Together checkbox starts checked, which is how a map that plays its teams as
-                sides says so. The host keeps the last word, so an order placed after the host has changed the checkbox leaves
-                the host's choice alone.
+                Opens or closes one player slot. A slot outside the roster places no order.
             </summary>
-            <param name="teamsTogether">Whether the checkbox starts checked.</param>
+            <param name="playerIndex">The player slot.</param>
+            <param name="open">Whether the slot accepts a player.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetOpenSlotCount(System.Int32)">
+            <summary>
+                Opens the first slots up to a count and closes the rest. A count outside the roster places no order.
+            </summary>
+            <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetPlayerSlotLimit(System.Int32)">
+            <summary>
+                Reserves every player index above a count for the map itself, so no player and no host may seat anyone there. A
+                count outside the roster places no order.
+            </summary>
+            <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+            <returns>Whether the authority took the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.AddMatchSetting(System.Int32,Realm.Ecs.LobbySettingControl,System.String,System.String,System.Int32)">
+            <summary>Declares one match setting of the map's own, with the control and default it is offered with.</summary>
+            <param name="settingId">The identifier the map declares the setting under.</param>
+            <param name="control">How the host edits the setting.</param>
+            <param name="label">The label the host reads.</param>
+            <param name="tooltip">The sentence that explains the setting, or empty for none.</param>
+            <param name="defaultValue">The value the setting holds until the host changes it.</param>
+            <returns>Whether the authority holds the declaration afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.AddMatchSettingOption(System.Int32,System.String)">
+            <summary>Adds one option to a setting declared as a choice.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="optionLabel">The text the host reads in the dropdown.</param>
+            <returns>Whether the option is part of the setting afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetMatchSettingRange(System.Int32,System.Int32,System.Int32)">
+            <summary>States the values a count setting may hold.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="minimum">The lowest value the host may choose.</param>
+            <param name="maximum">The highest value the host may choose.</param>
+            <returns>Whether the authority holds the range afterwards.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.GetMatchSettingValue(System.Int32)">
+            <summary>Reads the value the host chose for one of the map's own settings.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <returns>The value the setting holds, or zero for a setting the lobby holds no value for.</returns>
         </member>
         <member name="M:Realm.MapAPI.LobbyAPI_WasmModule.SetTeamSpawnCoordinate(System.Int32,System.String)">
             <summary>
@@ -3923,10 +4506,6 @@
             <summary>Places the order that adds a named faction to the lobby roster.</summary>
             <param name="factionName">The faction's name, passed to the authority as UTF-8 with its byte length.</param>
             <returns>Whether the authority accepted the order.</returns>
-        </member>
-        <member name="M:Realm.MapAPI.LobbyImports.SetMaximumPlayerCount(System.Int32)">
-            <summary>Places the order that states how many players the lobby seats.</summary>
-            <param name="maximumPlayerCount">The number of player slots the lobby should seat.</param>
         </member>
         <member name="M:Realm.MapAPI.LobbyImports.SetTeamCount(System.Int32)">
             <summary>Places the order that states how many teams the lobby offers.</summary>
@@ -3964,6 +4543,70 @@
             <summary>Places the order that locks or unlocks a slot's colour.</summary>
             <param name="playerIndex">The player slot.</param>
             <param name="locked">Whether the field is locked.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetSlotOpen(System.Int32,System.Boolean)">
+            <summary>Places the order that opens or closes one player slot.</summary>
+            <param name="playerIndex">The player slot.</param>
+            <param name="open">Whether the slot accepts a player.</param>
+            <returns>Whether the authority accepted the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetOpenSlotCount(System.Int32)">
+            <summary>Places the order that opens the first slots up to a count and closes the rest.</summary>
+            <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+            <returns>Whether the authority accepted the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetPlayerSlotLimit(System.Int32)">
+            <summary>Places the order that reserves every player index above a count for the map itself.</summary>
+            <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+            <returns>Whether the authority accepted the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetPlayerMinimapColor(System.Int32,System.Int32,System.UInt32)">
+            <summary>Places the order that states the colour a player index is drawn in on one minimap scheme.</summary>
+            <param name="playerIndex">The player index.</param>
+            <param name="mode">The scheme, as the value of the minimap colour mode enum.</param>
+            <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+            <returns>Whether the authority accepted the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetPlayerProxyOwner(System.Int32,System.Int32)">
+            <summary>Places the order that states one player index stands in for another, or clears the statement.</summary>
+            <param name="playerIndex">The player index that stands in for another.</param>
+            <param name="ownerPlayerIndex">The player index it stands in for, or zero to clear the statement.</param>
+            <returns>Whether the authority accepted the order.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.AddMatchSetting(System.Int32,System.Int32,System.String,System.String,System.Int32)">
+            <summary>Places the order that declares one match setting of the map's own.</summary>
+            <param name="settingId">The identifier the map declares the setting under.</param>
+            <param name="control">The control kind, as the value of the lobby setting control enum.</param>
+            <param name="label">The label the host reads, passed as UTF-8 with its byte length.</param>
+            <param name="tooltip">The sentence that explains the setting, or empty, passed as UTF-8 with its byte length.</param>
+            <param name="defaultValue">The value the setting holds until the host changes it.</param>
+            <returns>Whether the authority accepted the declaration.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.AddMatchSettingOption(System.Int32,System.String)">
+            <summary>Places the order that adds one option to a setting declared as a choice.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="optionLabel">The text the host reads in the dropdown, passed as UTF-8 with its byte length.</param>
+            <returns>Whether the authority accepted the option.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetMatchSettingRange(System.Int32,System.Int32,System.Int32)">
+            <summary>Places the order that states the values a count setting may hold.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <param name="minimum">The lowest value the host may choose.</param>
+            <param name="maximum">The highest value the host may choose.</param>
+            <returns>Whether the authority accepted the range.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.GetMatchSettingValue(System.Int32)">
+            <summary>Reads the value the host chose for one of the map's own settings.</summary>
+            <param name="settingId">The identifier the map declared the setting under.</param>
+            <returns>The value the setting holds, or zero for a setting the lobby holds no value for.</returns>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetSpectatorDelayDefault(System.Int32)">
+            <summary>Places the order that states whether late joiners wait before they see the board.</summary>
+            <param name="enabled">Whether the delay is on.</param>
+        </member>
+        <member name="M:Realm.MapAPI.LobbyImports.SetShroudModeDefault(System.Int32)">
+            <summary>Places the order that states which shroud the lobby starts with.</summary>
+            <param name="shroudMode">The mode, as the value of the match option the lobby publishes.</param>
         </member>
         <member name="M:Realm.MapAPI.LobbyImports.SetTeamsTogetherDefault(System.Boolean)">
             <summary>Places the order that states whether the lobby's Teams Together checkbox starts checked.</summary>
