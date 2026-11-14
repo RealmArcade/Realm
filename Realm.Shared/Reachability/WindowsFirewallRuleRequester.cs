@@ -52,11 +52,35 @@ public class WindowsFirewallRuleRequester
 		_runner = runner;
 	}
 
+	/// <summary>
+	///     Asks for the allowance and reports what happened. Asking never throws: the firewall is a machine's own business,
+	///     and nothing it answers - not a missing shell, not a rule it cannot read, not a prompt that never appears - may
+	///     stop a host from publishing the lobby it is trying to open.
+	/// </summary>
+	/// <param name="port">The lobby port the allowance covers.</param>
+	/// <param name="cancellationToken">Cancels the ask.</param>
+	/// <returns>What the machine did about the allowance.</returns>
 	public async Task<WindowsFirewallGrantResult> RequestInboundUdpForPortAsync(int port, CancellationToken cancellationToken = default)
 	{
 		if (port <= 0) return new WindowsFirewallGrantResult(WindowsFirewallGrant.Failed, "a lobby port is needed before the firewall can be asked for it");
 		if (!OperatingSystem.IsWindows()) return new WindowsFirewallGrantResult(WindowsFirewallGrant.NotApplicable, "this platform has no Windows firewall rule to add");
 
+		try
+		{
+			return await AskAsync(port, cancellationToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException)
+		{
+			throw;
+		}
+		catch (Exception exception)
+		{
+			return new WindowsFirewallGrantResult(WindowsFirewallGrant.Failed, $"the local firewall could not be asked: {exception.GetType().Name}: {exception.Message}");
+		}
+	}
+
+	private async Task<WindowsFirewallGrantResult> AskAsync(int port, CancellationToken cancellationToken)
+	{
 		WindowsFirewallRuleState state = await ReadStateAsync(port, cancellationToken).ConfigureAwait(false);
 		if (WindowsFirewallRules.IsOpen(state)) return new WindowsFirewallGrantResult(WindowsFirewallGrant.AlreadyOpen, "the port is already allowed in");
 

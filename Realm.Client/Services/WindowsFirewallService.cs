@@ -23,9 +23,6 @@ public class WindowsFirewallService : IWindowsFirewallCommandRunner
 
 	private const int ElevationCancelledErrorCode = 1223;
 
-	private const string RuleStateQuery = "$r = Get-NetFirewallRule -DisplayName '{0}' -ErrorAction SilentlyContinue; " +
-	                                       "if (-not $r) { 'absent' } elseif ($r.Action -eq 'Block') { 'blocked' } elseif ($r.Enabled -ne 'True') { 'disabled' } else { 'allowed' }";
-
 	private readonly WindowsFirewallRuleRequester _requester;
 
 	public WindowsFirewallService()
@@ -58,7 +55,7 @@ public class WindowsFirewallService : IWindowsFirewallCommandRunner
 	/// </summary>
 	public async Task<WindowsFirewallRuleState> ReadRuleStateAsync(int port, CancellationToken cancellationToken = default)
 	{
-		string query = string.Format(RuleStateQuery, WindowsFirewallRules.RuleName(port).Replace("'", "''"));
+		string query = WindowsFirewallRules.BuildPowerShellStateQuery(port);
 		string token = await RunAsync("powershell", $"-NoProfile -NonInteractive -Command \"{query}\"", ReadCommandTimeoutMilliseconds, cancellationToken).ConfigureAwait(false);
 
 		WindowsFirewallRuleState fromPowerShell = WindowsFirewallRules.ParseStateToken(token);

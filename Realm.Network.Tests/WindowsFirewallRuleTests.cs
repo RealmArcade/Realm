@@ -79,6 +79,30 @@ public class WindowsFirewallRuleTests
 	}
 
 	[Test]
+	public void TheRuleQueryKeepsItsPowerShellBlocksAndNamesTheRule()
+	{
+		// The query is PowerShell, so its script blocks are written with braces. A query built by formatting was read as
+		// placeholders and threw before PowerShell ever started, which stopped a host from publishing its lobby.
+		string query = WindowsFirewallRules.BuildPowerShellStateQuery(8999);
+
+		Assert.That(query, Does.Contain($"'{WindowsFirewallRules.RuleName(8999)}'"));
+		Assert.That(query, Does.Contain("{ 'absent' }"));
+		Assert.That(query, Does.Contain("{ 'allowed' }"));
+		Assert.That(query, Does.Not.Contain("{0}"));
+	}
+
+	[Test]
+	public async Task AFirewallThatCannotBeReadReportsAFailureInsteadOfStoppingTheHost()
+	{
+		var requester = new WindowsFirewallRuleRequester(new ThrowingFirewallRunner());
+
+		WindowsFirewallGrantResult result = await requester.RequestInboundUdpForPortAsync(8999);
+
+		Assert.That(result.Grant, Is.EqualTo(WindowsFirewallGrant.Failed));
+		Assert.That(result.Detail, Does.Contain("FormatException"));
+	}
+
+	[Test]
 	public void AReportThatMatchesNoRuleReadsAsAbsent()
 	{
 		Assert.That(WindowsFirewallRules.ParseShowOutput("No rules match the specified criteria."), Is.EqualTo(WindowsFirewallRuleState.Absent));
@@ -153,6 +177,21 @@ public class WindowsFirewallRuleTests
 
 	private static string RuleReport(string action, bool enabled) =>
 		$"Rule Name:                            Realm RTS Lobby UDP 8999\nEnabled:                              {(enabled ? "Yes" : "No")}\nAction:                               {action}\n";
+
+	private class ThrowingFirewallRunner : IWindowsFirewallCommandRunner
+	{
+		public string AuthorityExecutablePath => string.Empty;
+
+		public Task<WindowsFirewallRuleState> ReadRuleStateAsync(int port, CancellationToken cancellationToken = default)
+		{
+			throw new FormatException("Input string was not in a correct format. Failure to parse near offset 89. Expected an ASCII digit.");
+		}
+
+		public Task<WindowsFirewallGrant> RunElevatedAsync(string arguments, CancellationToken cancellationToken = default)
+		{
+			return Task.FromResult(WindowsFirewallGrant.Failed);
+		}
+	}
 
 	private class ScriptedFirewallRunner : IWindowsFirewallCommandRunner
 	{

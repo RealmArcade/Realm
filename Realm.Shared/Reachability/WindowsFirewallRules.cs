@@ -63,6 +63,24 @@ public static class WindowsFirewallRules
 	public static string BuildDeleteCommand(int port) => $"advfirewall firewall delete rule name=\"{RuleName(port)}\"";
 
 	/// <summary>
+	///     The PowerShell command that reports the allowance's state as a single word, so a Windows installed in a language
+	///     this build does not know answers the same way netsh would not.
+	/// </summary>
+	/// <remarks>
+	///     The query is assembled by concatenation rather than by formatting on purpose: it carries PowerShell script
+	///     blocks, and a format string reads their braces as placeholders, which fails before PowerShell is ever started.
+	/// </remarks>
+	/// <param name="port">The port the allowance covers.</param>
+	/// <returns>The command to run, which needs no elevation.</returns>
+	public static string BuildPowerShellStateQuery(int port)
+	{
+		string quotedRuleName = RuleName(port).Replace("'", "''");
+
+		return "$r = Get-NetFirewallRule -DisplayName '" + quotedRuleName + "' -ErrorAction SilentlyContinue; " +
+		       "if (-not $r) { 'absent' } elseif ($r.Action -eq 'Block') { 'blocked' } elseif ($r.Enabled -ne 'True') { 'disabled' } else { 'allowed' }";
+	}
+
+	/// <summary>
 	///     Reads what <see cref="BuildShowCommand" /> printed. A rule that blocks the port or that is switched off is not an
 	///     allowance, and is reported as such so the caller grants it again.
 	/// </summary>
