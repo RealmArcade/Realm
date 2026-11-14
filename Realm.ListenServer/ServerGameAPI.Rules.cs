@@ -13,6 +13,12 @@ public partial class ServerGameAPI
 		return LobbySettings.Get(settingId);
 	}
 
+	public void SetUnitTypeReceivesConsumables(string unitTypeId, bool receives)
+	{
+		if (string.IsNullOrWhiteSpace(unitTypeId)) return;
+		_context.MapRules.SetUnitTypeReceivesConsumables(unitTypeId, receives);
+	}
+
 	public void RegisterPlacementRadius(string definitionKey, float radius)
 	{
 		if (string.IsNullOrEmpty(definitionKey)) return;

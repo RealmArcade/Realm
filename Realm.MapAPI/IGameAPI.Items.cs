@@ -74,6 +74,17 @@ public partial interface IGameAPI
 	void SetUnitItemCharges(UnitId unit, string itemId, int charges);
 
 	/// <summary>
+	/// States whether units of one type may be given a consumable, which is how a map keeps the potions or elixirs it
+	/// sells off the units that only look like the ones they are meant for. A purchase aims at the nearest unit of the
+	/// buyer's within the item's purchase range: when that unit's type refuses consumables the order is refused rather
+	/// than handed to some other unit the player did not point at. Every type accepts consumables unless its map says
+	/// otherwise, so a map that never calls this sells its consumables exactly as it did before.
+	/// </summary>
+	/// <param name="unitTypeId">The unit definition identifier the rule applies to, matched exactly and case-insensitively.</param>
+	/// <param name="receives">Whether units of that type accept a consumable.</param>
+	void SetUnitTypeReceivesConsumables(string unitTypeId, bool receives);
+
+	/// <summary>
 	/// Returns true if the specified unit currently has an active buff with the given identifier.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>

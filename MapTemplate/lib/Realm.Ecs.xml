@@ -2179,6 +2179,22 @@
             </summary>
             <param name="slots">The number of slots every unit of the match may use, clamped to the storage the inventory holds.</param>
         </member>
+        <member name="M:Realm.Ecs.Services.MapRulesCatalog.SetUnitTypeReceivesConsumables(System.String,System.Boolean)">
+            <summary>
+                States whether units of one type may be handed a consumable, which is what a map that sells potions or elixirs
+                reads to keep them off the units it never meant to receive one.
+            </summary>
+            <param name="definitionId">The unit definition identifier the rule applies to, matched exactly and case-insensitively.</param>
+            <param name="receives">Whether units of that type accept a consumable.</param>
+        </member>
+        <member name="M:Realm.Ecs.Services.MapRulesCatalog.UnitTypeReceivesConsumables(System.String)">
+            <summary>
+                Answers whether units of one type accept a consumable. Every type accepts one unless the map said otherwise, so
+                a map that never states the rule plays exactly as it did before the rule existed.
+            </summary>
+            <param name="definitionId">The unit definition identifier to ask about.</param>
+            <returns>Whether a unit of that type may be given a consumable.</returns>
+        </member>
         <member name="M:Realm.Ecs.Services.MapRulesCatalog.SetUnitBarVisibility(System.Boolean,System.Boolean,System.Boolean)">
             <summary>
                 Chooses which parts of a unit's overhead plate the match draws. Any combination is a valid plate: the bars

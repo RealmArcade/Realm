@@ -22,6 +22,7 @@ public class MapRulesCatalog
 	private readonly List<string> _resourceWorkerUnitKeys = new();
 	private readonly List<string> _primaryBuildingIds = new();
 	private readonly Dictionary<string, string> _resourceTypeByNodeId = new(StringComparer.OrdinalIgnoreCase);
+	private readonly HashSet<string> _consumableRefusingUnitTypeIds = new(StringComparer.OrdinalIgnoreCase);
 	private bool _passiveResourceIncomeEnabled;
 	private int _inventorySlotLimit = DefaultInventorySlotLimit;
 	private bool _unitHealthBarEnabled = true;
@@ -84,6 +85,33 @@ public class MapRulesCatalog
 	public void SetInventorySlotLimit(int slots)
 	{
 		_inventorySlotLimit = Math.Clamp(slots, 0, InventorySlotArray.Capacity);
+	}
+
+	/// <summary>
+	///     States whether units of one type may be handed a consumable, which is what a map that sells potions or elixirs
+	///     reads to keep them off the units it never meant to receive one.
+	/// </summary>
+	/// <param name="definitionId">The unit definition identifier the rule applies to, matched exactly and case-insensitively.</param>
+	/// <param name="receives">Whether units of that type accept a consumable.</param>
+	public void SetUnitTypeReceivesConsumables(string definitionId, bool receives)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(definitionId);
+
+		if (receives) _consumableRefusingUnitTypeIds.Remove(definitionId);
+		else _consumableRefusingUnitTypeIds.Add(definitionId);
+	}
+
+	/// <summary>
+	///     Answers whether units of one type accept a consumable. Every type accepts one unless the map said otherwise, so
+	///     a map that never states the rule plays exactly as it did before the rule existed.
+	/// </summary>
+	/// <param name="definitionId">The unit definition identifier to ask about.</param>
+	/// <returns>Whether a unit of that type may be given a consumable.</returns>
+	public bool UnitTypeReceivesConsumables(string definitionId)
+	{
+		if (string.IsNullOrEmpty(definitionId)) return true;
+
+		return !_consumableRefusingUnitTypeIds.Contains(definitionId);
 	}
 
 	/// <summary>
