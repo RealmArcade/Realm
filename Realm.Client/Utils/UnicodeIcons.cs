@@ -123,4 +123,5 @@ public static class UnicodeIcons
 	public static readonly string LOCK = char.ConvertFromUtf32(0xF023);
 	public static readonly string ID_CARD = char.ConvertFromUtf32(0xF2C2);
 	public static readonly string SCALE = char.ConvertFromUtf32(0xF24E);
+	public static readonly string WIFI = char.ConvertFromUtf32(0xF1EB);
 }

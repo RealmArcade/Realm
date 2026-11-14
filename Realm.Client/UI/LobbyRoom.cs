@@ -87,13 +87,14 @@ public partial class LobbyRoom : Control
 
 	private List<MapBriefingDetails> _lobbyRoomMaps = new List<MapBriefingDetails>();
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
-	private const int ReadyColumnWidth = 100;
-	private const int TeamColumnWidth = 150;
-	private const int ColorColumnWidth = 56;
-	private const int NameColumnWidth = 200;
-	private const int FactionColumnWidth = 100;
-	private const int DifficultyColumnWidth = 120;
-	private const int RowColumnSeparation = 16;
+	private const int ReadyColumnWidth = 90;
+	private const int TeamColumnWidth = 140;
+	private const int ColorColumnWidth = 48;
+	private const int NameColumnWidth = 204;
+	private const int FactionColumnWidth = 96;
+	private const int DifficultyColumnWidth = 110;
+	private const int BootColumnWidth = 90;
+	private const int RowColumnSeparation = 12;
 	private const int RowContentInset = 8;
 
 	private static IReadOnlyList<string> FactionList => GameContext.Lobby?.LobbyFactions ?? Array.Empty<string>();

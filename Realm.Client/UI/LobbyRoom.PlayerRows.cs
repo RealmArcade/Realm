@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Shared.Accounts;
 using Realm.Shared.Network;
 
@@ -10,7 +11,9 @@ namespace Realm.Client.UI;
 
 public partial class LobbyRoom
 {
-	private const int SlotStateSelectWidth = 84;
+	private const int SlotStateSelectWidth = 88;
+	private const int BootButtonWidth = 60;
+	private const int LinkIconWidth = 24;
 
 	/// <summary>The option a player slot's dropdown lists as open, which is also the state of a slot a person holds.</summary>
 	private const int SlotStateOpenOption = 0;
@@ -37,7 +40,6 @@ public partial class LobbyRoom
 		CreateNameCell(hBox);
 		CreateFactionCell(hBox);
 		CreateDifficultyCell(hBox);
-		CreateDiagnosticCell(hBox);
 		CreateBootCell(hBox);
 
 		ApplyPlayerRow(panel, slot, player);
@@ -68,8 +70,7 @@ public partial class LobbyRoom
 		UpdateNameCell(hBox, slot, player, isLocalPlayer);
 		UpdateFactionCell(hBox, player, canEditSeat);
 		UpdateDifficultyCell(hBox, player, canEditSeat);
-		UpdateDiagnosticCell(hBox, player, isLocalPlayer);
-		UpdateBootCell(hBox, player);
+		UpdateBootCell(hBox, player, isLocalPlayer);
 
 		hBox.Modulate = occupied ? new Color(1f, 1f, 1f) : new Color(1f, 1f, 1f, Lobby.IsSlotOpen(slot) ? 0.72f : 0.55f);
 	}
@@ -517,44 +518,31 @@ public partial class LobbyRoom
 		Lobby.SetComputerDifficulty(seat.PeerId, difficulty);
 	}
 
-	private void CreateDiagnosticCell(HBoxContainer hBox)
-	{
-		var diagLabel = new RichTextLabel { Name = "DiagLabel", BbcodeEnabled = true, ScrollActive = false };
-		diagLabel.AutowrapMode = TextServer.AutowrapMode.Off;
-		diagLabel.CustomMinimumSize = new Vector2(200, 24);
-		diagLabel.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		diagLabel.AddThemeFontSizeOverride("normal_font_size", 13);
-		hBox.AddChild(diagLabel);
-	}
-
-	private string BuildDiagnosticText(PlayerInfo p, bool isLocalPlayer)
-	{
-		if (!p.IsHost && !p.IsMapReady)
-		{
-			int downloadPercent = Math.Clamp(p.MapDownloadPercent, 0, 100);
-			return $"  [color=#ffa040]{Tr("downloading...")} {downloadPercent}%[/color]";
-		}
-
-		if (!isLocalPlayer && !p.IsHost && !p.IsLoadReady)
-		{
-			return $"  [color=#ffa040]{Tr("loading...")}[/color]";
-		}
-
-		string latencyText = p.Latency == "--" ? Tr("measuring...") : p.Latency;
-		string jitterText = p.Jitter == "--" ? Tr("n/a") : p.Jitter;
-		string lossText = p.PacketLoss == "--" ? Tr("n/a") : p.PacketLoss;
-
-		string pingColor = GetPingColorCode(p.Latency);
-		string jitterColor = GetJitterColorCode(p.Jitter);
-		string lossColor = GetLossColorCode(p.PacketLoss);
-
-		return $"  {Tr("Ping")}: [color={pingColor}]{latencyText}[/color] | {Tr("Jitter")}: [color={jitterColor}]{jitterText}[/color] | {Tr("Loss")}: [color={lossColor}]{lossText}[/color]";
-	}
-
+	/// <summary>
+	///     Creates the cell the host removes a seat from, and the one glyph that says how good that seat's link is. The
+	///     glyph keeps the width the number-and-colour text used to take, follows the kick button, and carries the measured
+	///     numbers in its tooltip.
+	/// </summary>
+	/// <param name="hBox">The row's column.</param>
 	private void CreateBootCell(HBoxContainer hBox)
 	{
-		var bootBtn = new Button { Name = "BootBtn", Text = Tr("KICK"), CustomMinimumSize = new Vector2(60, 26), SizeFlagsVertical = SizeFlags.ShrinkCenter };
+		var cell = CreateColumnCell("BootCell", BootColumnWidth);
+
+		var bootRow = new HBoxContainer { Name = "BootRow", MouseFilter = MouseFilterEnum.Ignore };
+		bootRow.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		bootRow.AddThemeConstantOverride("separation", 6);
+		cell.AddChild(bootRow);
+
+		var buttonSlot = new Control { Name = "BootSlot", CustomMinimumSize = new Vector2(BootButtonWidth, 0), MouseFilter = MouseFilterEnum.Ignore };
+		bootRow.AddChild(buttonSlot);
+
+		var bootBtn = new Button { Name = "BootBtn", Text = Tr("KICK"), CustomMinimumSize = new Vector2(BootButtonWidth, 26) };
 		ApplyBootButtonStyle(bootBtn);
+		bootBtn.SetAnchorsPreset(LayoutPreset.CenterLeft);
+		bootBtn.OffsetLeft = 0;
+		bootBtn.OffsetRight = BootButtonWidth;
+		bootBtn.OffsetTop = -13;
+		bootBtn.OffsetBottom = 13;
 		bootBtn.Pressed += () =>
 		{
 			PlayerInfo? seat = FindSeatInSlot(ReadCellSlot(hBox));
@@ -563,7 +551,22 @@ public partial class LobbyRoom
 			GameContext.UserInterface?.PlayWarningSound();
 			Lobby.BootPlayer(seat.PeerId);
 		};
-		hBox.AddChild(bootBtn);
+		buttonSlot.AddChild(bootBtn);
+
+		var linkIcon = new Label
+		{
+			Name = "LinkIcon",
+			Text = UnicodeIcons.WIFI,
+			CustomMinimumSize = new Vector2(LinkIconWidth, 0),
+			HorizontalAlignment = HorizontalAlignment.Center,
+			VerticalAlignment = VerticalAlignment.Center,
+			MouseFilter = MouseFilterEnum.Stop
+		};
+		linkIcon.AddThemeFontSizeOverride("font_size", 16);
+		if (UIStyle.FontAwesome != null) linkIcon.AddThemeFontOverride("font", UIStyle.FontAwesome);
+		bootRow.AddChild(linkIcon);
+
+		hBox.AddChild(cell);
 	}
 
 	private void ApplyBootButtonStyle(Button bootBtn)
@@ -675,11 +678,13 @@ public partial class LobbyRoom
 		var factionCell = hBox.GetNodeOrNull<Control>("FactionCell");
 		if (factionCell == null) return;
 
-		factionCell.Visible = HasFactions && p != null;
-		if (!HasFactions || p == null) return;
+		factionCell.Visible = HasFactions;
 
 		var optFaction = factionCell.GetNodeOrNull<OptionButton>("CellCenter/OptFaction");
 		if (optFaction == null) return;
+
+		optFaction.Visible = p != null;
+		if (!HasFactions || p == null) return;
 
 		if (p.TeamIndex < 1)
 		{
@@ -714,7 +719,7 @@ public partial class LobbyRoom
 		var optDifficulty = hBox.GetNodeOrNull<OptionButton>("DifficultyCell/CellCenter/OptDifficulty");
 		if (difficultyCell == null || optDifficulty == null) return;
 
-		difficultyCell.Visible = p != null && p.IsComputer;
+		optDifficulty.Visible = p != null && p.IsComputer;
 		if (p == null || !p.IsComputer) return;
 
 		int optionIndex = GetDifficultyOptionIndex(p);
@@ -730,26 +735,47 @@ public partial class LobbyRoom
 		optDifficulty.Disabled = !canEditSeat;
 	}
 
-	private void UpdateDiagnosticCell(HBoxContainer hBox, PlayerInfo? p, bool isLocalPlayer)
+	private void UpdateBootCell(HBoxContainer hBox, PlayerInfo? p, bool isLocalPlayer)
 	{
-		var diagLabel = hBox.GetNodeOrNull<RichTextLabel>("DiagLabel");
-		if (diagLabel == null) return;
-
-		diagLabel.Visible = p != null;
-		if (p == null) return;
-
-		diagLabel.MouseFilter = p.IsHost ? MouseFilterEnum.Pass : MouseFilterEnum.Ignore;
-		diagLabel.TooltipText = p.IsHost ? Tr("Host: Average connection with all players in lobby") : string.Empty;
-
-		string newText = BuildDiagnosticText(p, isLocalPlayer);
-		if (diagLabel.Text != newText) diagLabel.Text = newText;
-	}
-
-	private void UpdateBootCell(HBoxContainer hBox, PlayerInfo? p)
-	{
-		var bootBtn = hBox.GetNodeOrNull<Button>("BootBtn");
-		if (bootBtn == null) return;
+		var bootBtn = hBox.GetNodeOrNull<Button>("BootCell/BootRow/BootSlot/BootBtn");
+		var linkIcon = hBox.GetNodeOrNull<Label>("BootCell/BootRow/LinkIcon");
+		if (bootBtn == null || linkIcon == null) return;
 
 		bootBtn.Visible = p != null && Lobby.IsHost && !Lobby.IsLocalPlayer(p);
+
+		linkIcon.Visible = p != null;
+		if (p == null)
+		{
+			linkIcon.TooltipText = string.Empty;
+			return;
+		}
+
+		Color qualityColor = GetLinkQualityColor(p);
+		if (linkIcon.GetThemeColor("font_color") != qualityColor) linkIcon.AddThemeColorOverride("font_color", qualityColor);
+
+		linkIcon.TooltipText = BuildLinkStatistics(p, isLocalPlayer);
+	}
+
+	/// <summary>Writes the three link measurements a row used to spell out, which its glyph shows as a tooltip.</summary>
+	/// <param name="p">The seat the row holds.</param>
+	/// <param name="isLocalPlayer">Whether the row is this screen's own seat.</param>
+	/// <returns>The measurement text, and what it means for the host's row.</returns>
+	private string BuildLinkStatistics(PlayerInfo p, bool isLocalPlayer)
+	{
+		if (!p.IsHost && !p.IsMapReady)
+		{
+			int downloadPercent = Math.Clamp(p.MapDownloadPercent, 0, 100);
+			return $"{Tr("downloading...")} {downloadPercent}%";
+		}
+
+		if (!isLocalPlayer && !p.IsHost && !p.IsLoadReady) return Tr("loading...");
+
+		string latencyText = p.Latency == "--" ? Tr("measuring...") : p.Latency;
+		string jitterText = p.Jitter == "--" ? Tr("n/a") : p.Jitter;
+		string lossText = p.PacketLoss == "--" ? Tr("n/a") : p.PacketLoss;
+
+		string statistics = $"{Tr("Ping")}: {latencyText} | {Tr("Jitter")}: {jitterText} | {Tr("Loss")}: {lossText}";
+
+		return p.IsHost ? $"{statistics}\n{Tr("Host: Average connection with all players in lobby")}" : statistics;
 	}
 }
