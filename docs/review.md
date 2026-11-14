@@ -153,8 +153,8 @@ options and cheat tests pass (22/22).
 ## 8. Melee acceptance suite (`Realm.Simulation.Tests`)
 
 **State: 206 of 240 pass.** Before this batch the suite could not run at all in this checkout, because
-`MeleeRuleset/metadata.json` still carried a field the engine removed. After upgrading the map, 90 failed; my repair of
-the draft harness reduced that to **34, with no test regressing**.
+`MeleeRuleset/metadata.json` still carried a field the engine removed. After upgrading the map, 90 of the 240 failed; my repair of
+the draft harness reduced that to **34, with no test regressing** (the same run, before and after, compared test by test).
 
 **What the harness repair changed:** `BeginConstruction` now sends the placement order a player's click sends instead of
 casting the card's ability (the card arms placement; nothing is cast), the site is read from the ability's
