@@ -226,6 +226,8 @@ public static partial class MapAssetHelper
 		{
 			string relativePath = Path.GetRelativePath(fullDirectoryPath, filePath).Replace('\\', '/');
 
+			if (MapFileService.IsDebugScriptFileName(Path.GetFileName(filePath))) continue;
+
 			if (IsIgnoredAssetFile(relativePath) && !(relativePath.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && relativePath.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase)))
 			{
 				continue;
