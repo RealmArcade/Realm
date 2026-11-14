@@ -330,7 +330,8 @@ public partial class LobbyRoom
 			Name = "LblName",
 			ClipText = true,
 			VerticalAlignment = VerticalAlignment.Center,
-			SizeFlagsHorizontal = SizeFlags.ShrinkBegin
+			SizeFlagsHorizontal = SizeFlags.ShrinkBegin,
+			MouseFilter = MouseFilterEnum.Ignore
 		};
 		lblName.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		lblName.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
@@ -718,6 +719,7 @@ public partial class LobbyRoom
 
 		lblName.Visible = p != null;
 		aiEditBtn.Visible = p != null && p.IsComputer;
+		lblName.MouseFilter = p != null && p.IsComputer ? MouseFilterEnum.Stop : MouseFilterEnum.Ignore;
 		LocalizedText.BindTooltip(lblName, () => p != null && p.IsComputer ? AiSettingsPopover.BuildSummary(p.Difficulty) : string.Empty);
 		if (p == null) return;
 
