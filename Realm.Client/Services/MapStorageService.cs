@@ -153,9 +153,14 @@ public class MapStorageService
 			return false;
 		}
 
+		if (!DirectoryDeletion.TryDelete(targetDir, out string deletionError))
+		{
+			MapAssetManager.LogErr($"[MapStorageService] Error deleting map version '{mapTitle}' v{mapVersion}: {deletionError}");
+			return false;
+		}
+
 		try
 		{
-			Directory.Delete(targetDir, true);
 			CleanupEmptyParentDirectories(targetDir);
 
 			if (!string.IsNullOrEmpty(manifestHash))
