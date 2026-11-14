@@ -126,8 +126,9 @@ public class ServerMapScript : IDisposable
 		string scriptDirectory = Path.Combine(mapPath, "bin", "script");
 		if (!Directory.Exists(scriptDirectory)) return false;
 
-		foreach (string scriptFileName in ScriptFileNamesFor(isDebug))
+		for (int index = 0; index < ScriptFileStems.Length; index++)
 		{
+			string scriptFileName = Realm.Shared.Services.MapFileService.ScriptFileNameForFlavor(ScriptFileStems[index] + ".wasm", isDebug);
 			string candidate = Path.Combine(scriptDirectory, scriptFileName);
 			if (!File.Exists(candidate)) continue;
 
@@ -136,14 +137,6 @@ public class ServerMapScript : IDisposable
 		}
 
 		return false;
-	}
-
-	private static IEnumerable<string> ScriptFileNamesFor(bool isDebug)
-	{
-		foreach (string stem in ScriptFileStems)
-		{
-			yield return Realm.Shared.Services.MapFileService.ScriptFileNameForFlavor(stem + ".wasm", isDebug);
-		}
 	}
 
 	public void Dispose()
