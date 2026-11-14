@@ -196,7 +196,17 @@ carried are stated on the templates that use them):
 - `MeleeRuleset`: `MapProperties.HowToPlayInstructions` (folded into `HowToPlayObjective`).
 - `ugc-SecludedCrest`: `MapProperties.MaxTestPlayers` and the top-level `Models` table.
 
-## 9. Smaller decisions made without asking
+## 9. Test suites at a glance
+
+| Suite | State | Failures caused by this batch |
+| --- | --- | --- |
+| `Realm.Ecs.Tests` | 49 / 49 | none |
+| `Realm.Network.Tests` | 41 / 41 | none |
+| `Realm.Simulation.Tests` | 217 / 240 | none — the 23 are the content literals listed in section 8 |
+| `Realm.Distribution.Tests` | 21 / 26 | none — the 5 fail identically at the commit this batch started from (`11e8d13`), which I checked in a throwaway worktree: they are the CAS dedup/header-merge and asset-package scenarios, and `Scenario5` reads an external `C:/temp/Asset_Pack` fixture that is out of date |
+| `Realm.Client.Tests` | not run as a UI suite | the scene-based suites cannot run in this checkout (the Godot project root is `Realm.Client/`, the test project is not), so the game-over table, the instructions dialog and the lobby popup were verified by build plus the logic tests only |
+
+## 10. Smaller decisions made without asking
 
 - **Warning colour and outline** are constants on the HUD, not theme entries; if you want them in `UIStyle` they move
   cheaply.
