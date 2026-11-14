@@ -11,40 +11,6 @@ namespace Realm.Client.UI;
 /// </summary>
 public partial class LobbyRoom
 {
-	private void CreateDirectConnectInviteUI()
-	{
-		if (!Lobby.IsHost || Lobby.IsSinglePlayer || !Lobby.IsDirectLobby) return;
-
-		var panel = new PanelContainer();
-		panel.Name = "DirectConnectPanel_PanelContainer";
-		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
-		panel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-
-		var vbox = new VBoxContainer();
-		vbox.Name = "DirectConnectVBox";
-		vbox.AddThemeConstantOverride("separation", 4);
-		panel.AddChild(vbox);
-
-		var title = new Label();
-		title.Name = "DirectConnectTitle_Label";
-		UIStyle.ApplyTitle(title, TranslationServer.Translate("DIRECT CONNECT"), 15);
-		title.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		title.HorizontalAlignment = HorizontalAlignment.Center;
-		vbox.AddChild(title);
-
-		vbox.AddChild(CreateDirectConnectNote(
-			"DirectConnectHint_Label",
-			TranslationServer.Translate("Send this address to the players you want to join. They open DIRECT CONNECT in the lobby browser and paste it."),
-			560,
-			12,
-			new Color(0.85f, 0.87f, 0.92f)));
-
-		AddDirectConnectAddresses(vbox, "LanAddress", 560, 17);
-		AddDirectConnectInviteCopyButton(vbox);
-
-		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(panel);
-	}
-
 	/// <summary>
 	///     Writes the addresses this lobby is played at, and what a host has to know about each: the address on this
 	///     network, the address a player anywhere reaches when a router forward was measured, and - when none was - the

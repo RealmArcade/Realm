@@ -262,7 +262,7 @@ public partial class LobbyManager : BaseMapTransferNode
 				"\n",
 				string.Format(TranslationServer.Translate("Join my Realm lobby: {0}"), mapName),
 				string.Format(TranslationServer.Translate("Address: {0}"), address),
-				TranslationServer.Translate("In Realm, choose PLAY, then DIRECT CONNECT, and paste the address."));
+				TranslationServer.Translate("In Realm, choose PLAY, then Join Private Lobby via IP Address, and paste the address."));
 		}
 	}
 	public string? ActiveLobbyId { get; private set; }

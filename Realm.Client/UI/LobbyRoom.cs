@@ -46,7 +46,9 @@ public partial class LobbyRoom : Control
 	private PanelContainer _chatPanel = null!;
 
 	private Button _backButton = null!;
-	private Button _inviteButton = null!;
+	private Button _steamInviteButton = null!;
+	private Button _shareAddressButton = null!;
+	private Label _privateLobbyHint = null!;
 	private SteamFriendsDialog? _friendsDialog;
 	private Button _startButton = null!;
 	private Label _mapNameLabel = null!;
@@ -121,9 +123,12 @@ public partial class LobbyRoom : Control
 
 
 		_backButton = GetNode<Button>("BackButton");
-		_inviteButton = GetNode<Button>("InviteButton");
+		_steamInviteButton = GetNode<Button>("SteamInviteButton");
+		_shareAddressButton = GetNode<Button>("ShareAddressButton");
+		_privateLobbyHint = GetNode<Label>("PrivateLobbyHint");
 		_startButton = GetNode<Button>("StartButton");
-		_inviteButton.Visible = !Lobby.IsSinglePlayer;
+		_privateLobbyHint.Text = TranslationServer.Translate("Private Lobby: Send your IP address to players so they can join.");
+		ApplyInviteVisibility();
 
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");
@@ -274,7 +279,6 @@ public partial class LobbyRoom : Control
 
 		SetupAttributionButton();
 		CreateMatchSettingsUI();
-		CreateDirectConnectInviteUI();
 
 		UpdateSelectedMapUI();
 	}
@@ -321,15 +325,33 @@ public partial class LobbyRoom : Control
 
 
 
+	/// <summary>
+	///     Whether this lobby is played at an address its host sends around instead of being listed for the lobby browser
+	///     to find. The staging id the authority opens a direct lobby under states the same thing as the flag, and a screen
+	///     that joined by address reads it from there.
+	/// </summary>
+	private static bool IsDirectConnectLobby =>
+		Lobby.IsDirectLobby ||
+		(Lobby.ActiveLobbyId is { Length: > 0 } activeLobbyId && activeLobbyId.StartsWith("direct-", StringComparison.Ordinal));
+
+	/// <summary>
+	///     Shows the one invite button this lobby can use. A Steam invite needs a lobby the lobby browser lists, because that
+	///     list is what a friend's client finds and joins; a lobby that is not listed hands out the address its host reads
+	///     from the dialog instead. The note beside that button is the host's, since an address a joining player passes on is
+	///     the host's and not their own.
+	/// </summary>
+	private void ApplyInviteVisibility()
+	{
+		bool invitesPlayers = !Lobby.IsSinglePlayer;
+		bool directLobby = IsDirectConnectLobby;
+
+		_steamInviteButton.Visible = invitesPlayers && !directLobby;
+		_shareAddressButton.Visible = invitesPlayers && directLobby;
+		_privateLobbyHint.Visible = invitesPlayers && directLobby && Lobby.IsHost;
+	}
+
 	private void OpenInviteFriendsDialog()
 	{
-		bool directLobby = Lobby.IsDirectLobby || (Lobby.ActiveLobbyId is { Length: > 0 } activeLobbyId && activeLobbyId.StartsWith("direct-", StringComparison.Ordinal));
-		if (directLobby)
-		{
-			ShowDirectConnectInviteDialog();
-			return;
-		}
-
 		if (Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId)
 		{
 			GameContext.UserInterface?.ShowPopupMessage(

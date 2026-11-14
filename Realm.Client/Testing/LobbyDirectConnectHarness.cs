@@ -309,56 +309,75 @@ public partial class LobbyDirectConnectHarness : Node
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-		Control? panel = room.GetNodeOrNull<Control>("BriefingPanel/VBoxContainer/DirectConnectPanel_PanelContainer");
-		if (panel == null) return (21, "the lobby room draws no direct connect card");
+		// A lobby that is not listed can only be shared as an address, and a Steam invite cannot reach it at all, so the
+		// screen offers the one button that works rather than using a single button for both kinds of lobby.
+		Button? shareAddress = room.GetNodeOrNull<Button>("ShareAddressButton");
+		if (shareAddress == null) return (21, "the lobby room draws no button that shares a private lobby's address");
+		if (!shareAddress.Visible) return (21, "the button that shares the address is hidden in a private lobby");
+		if (!shareAddress.Text.Contains("INVITE PLAYERS", StringComparison.Ordinal))
+		{
+			return (23, $"the address button reads '{shareAddress.Text}' instead of inviting players");
+		}
+
+		Button? steamInvite = room.GetNodeOrNull<Button>("SteamInviteButton");
+		if (steamInvite == null) return (26, "the lobby room draws no Steam invite button");
+		if (steamInvite.Visible) return (26, "a private lobby shows the Steam invite button, which cannot reach it");
+
+		Label? hint = room.GetNodeOrNull<Label>("PrivateLobbyHint");
+		if (hint == null) return (27, "the lobby room draws no note saying what a private lobby's address is for");
+		if (!hint.Visible) return (27, "the private lobby note is hidden in a private lobby");
+		if (!hint.Text.Contains("Send your IP address", StringComparison.Ordinal))
+		{
+			return (27, $"the private lobby note reads '{hint.Text}'");
+		}
+
+		shareAddress.EmitSignal(BaseButton.SignalName.Pressed);
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+		Control? overlay = room.GetNodeOrNull<Control>("DirectConnectInviteOverlay");
+		if (overlay == null) return (28, "the address button opened no dialog");
 
 		string address = lobby.DirectConnectAddress;
 		bool addressShown = false;
-		foreach (Node node in panel.FindChildren("LanAddressLabel", string.Empty, true, false))
+		foreach (Node node in overlay.FindChildren("InviteLanLabel", string.Empty, true, false))
 		{
 			if (node is Label label && label.Text == address) addressShown = true;
 		}
 
-		if (!addressShown) return (22, $"the direct connect card does not show '{address}'");
+		if (!addressShown) return (22, $"the invite dialog does not show '{address}'");
 
 		// A host has to be able to tell the two apart: an address a router forward was measured for works anywhere, and
-		// one that was not is only reachable on this network. The card says which of those it is selling.
+		// one that was not is only reachable on this network. The dialog says which of those it is selling.
 		if (lobby.PublicConnectAddress is { Length: > 0 } publicAddress)
 		{
 			bool publicShown = false;
-			foreach (Node node in panel.FindChildren("LanAddressPublicLabel", string.Empty, true, false))
+			foreach (Node node in overlay.FindChildren("InviteLanPublicLabel", string.Empty, true, false))
 			{
 				if (node is Label label && label.Text == publicAddress) publicShown = true;
 			}
 
-			if (!publicShown) return (24, $"the direct connect card does not show the measured public address '{publicAddress}'");
+			if (!publicShown) return (24, $"the invite dialog does not show the measured public address '{publicAddress}'");
 		}
-		else if (panel.GetNodeOrNull<Control>("DirectConnectVBox/LanAddressNoForwardHint_Label") == null)
+		else if (overlay.FindChild("InviteLanNoForwardHint_Label", true, false) == null)
 		{
-			return (24, "the direct connect card does not say that no router forward was found");
-		}
-
-		Button? inviteButton = room.GetNodeOrNull<Button>("InviteButton");
-		if (inviteButton == null || !inviteButton.Text.Contains("SHARE ADDRESS", StringComparison.Ordinal))
-		{
-			return (23, $"the invite button reads '{inviteButton?.Text}' instead of sharing the address");
+			return (24, "the invite dialog does not say that no router forward was found");
 		}
 
 		// What the host is handed has to stand on its own in a chat: the map being played, the address, and what the
 		// friend does with it. A message that names only one of those is the two-step copy this replaced.
-		if (panel.FindChild("CopyInviteMessage_Button", true, false) == null)
+		if (overlay.FindChild("CopyInviteMessage_Button", true, false) == null)
 		{
-			return (25, "the direct connect card offers no ready-to-paste invite message");
+			return (25, "the invite dialog offers no ready-to-paste invite message");
 		}
 
 		string inviteMessage = lobby.DirectConnectInviteMessage;
 		string inviteAddress = lobby.PublicConnectAddress ?? lobby.DirectConnectAddress;
 		if (!inviteMessage.Contains(mapName, StringComparison.Ordinal)) return (25, $"the invite message does not name the map '{mapName}': {inviteMessage}");
 		if (!inviteMessage.Contains(inviteAddress, StringComparison.Ordinal)) return (25, $"the invite message does not name the address '{inviteAddress}': {inviteMessage}");
-		if (!inviteMessage.Contains("DIRECT CONNECT", StringComparison.Ordinal)) return (25, $"the invite message does not say where the address goes: {inviteMessage}");
+		if (!inviteMessage.Contains("Join Private Lobby", StringComparison.Ordinal)) return (25, $"the invite message does not say where the address goes: {inviteMessage}");
 
 		room.QueueFree();
-		return (0, $"the lobby room shows '{address}' and copies an invite for {inviteAddress}");
+		return (0, $"the lobby room offers 'INVITE PLAYERS' with the private-lobby note and copies an invite for {inviteAddress}");
 	}
 
 	/// <summary>
@@ -394,6 +413,13 @@ public partial class LobbyDirectConnectHarness : Node
 
 			Button? directConnect = browser.GetNodeOrNull<Button>("DirectConnectButton");
 			if (directConnect == null) return (41, "the lobby browser draws no direct connect button");
+
+			// What the button does has to be readable before it is pressed: it joins an address a player was handed, and the
+			// lobby on the far side is not in the list above it.
+			if (!directConnect.Text.Contains("Join Private Lobby", StringComparison.Ordinal))
+			{
+				return (45, $"the join button reads '{directConnect.Text}' instead of naming a private lobby");
+			}
 			directConnect.EmitSignal(BaseButton.SignalName.Pressed);
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 

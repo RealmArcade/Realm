@@ -313,11 +313,11 @@ public partial class LobbyBrowser : Control
 	private void SetupDirectConnectButton()
 	{
 		_directConnectButton.Flat = false;
-		_directConnectButton.CustomMinimumSize = new Vector2(260, 86);
-		_directConnectButton.Size = new Vector2(260, 86);
-		_directConnectButton.Position = new Vector2(_hostButton.Position.X - 280, _hostButton.Position.Y);
+		_directConnectButton.CustomMinimumSize = new Vector2(440, 86);
+		_directConnectButton.Size = new Vector2(440, 86);
+		_directConnectButton.Position = new Vector2(_hostButton.Position.X - 460, _hostButton.Position.Y);
 		_directConnectButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(_directConnectButton, Tr("DIRECT CONNECT"), 22);
+		UIStyle.ApplyButtonText(_directConnectButton, Tr("Join Private Lobby via IP Address"), 20);
 		_directConnectButton.AddThemeFontOverride("font", UIStyle.FontNorseBold);
 
 		UIStyle.ApplyCustomLobbyStartGameButton(_directConnectButton);
@@ -444,7 +444,7 @@ public partial class LobbyBrowser : Control
 		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		descLabel.CustomMinimumSize = new Vector2(500, 0);
 		descLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		descLabel.Text = Tr("Enter the address the host sent you. A host whose lobby is not listed reads it from the DIRECT CONNECT card in their lobby room; LAN, Tailscale, Radmin and port-forwarded hosts all work.");
+		descLabel.Text = Tr("Enter the address the host sent you. A host whose lobby is not listed reads it from the INVITE PLAYERS button in their lobby room; LAN, Tailscale, Radmin and port-forwarded hosts all work.");
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		descLabel.AddThemeFontSizeOverride("font_size", 13);
 		descLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
