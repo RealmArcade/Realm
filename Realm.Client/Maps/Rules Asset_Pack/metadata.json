@@ -6,7 +6,7 @@
     "MapDescription": "Shared rule systems map authors import into their own maps.",
     "Author": "Realm",
     "SuggestedPlayers": "1-8",
-    "ShroudType": "ExplorationShroud",
+    "ShroudType": "Full",
     "MapWidth": 64,
     "MapHeight": 64,
     "Version": "1.0.0",
