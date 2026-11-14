@@ -133,6 +133,11 @@ public class MeleeConstructionDraftTests
 		_match.SetWood(1, 500f);
 		DraftOffer offer = _match.BeginConstruction(1, SitePosition);
 
+		// The ruleset sends a hero that is standing idle to the site a package was locked on, so the hero is given an order
+		// of its own first: what this test measures is a site nobody was sent to work at.
+		Vector3 heroPosition = _match.PositionOf(_match.Hero(1));
+		_match.Order(1, "move", new Vector3(heroPosition.X + 3f, 0f, heroPosition.Z + 3f), _match.Hero(1));
+
 		_match.LockDraftOption(1, offer.AbilityIds[0], SitePosition);
 
 		UnitId site = FindSite(1);
@@ -146,10 +151,10 @@ public class MeleeConstructionDraftTests
 		Assert.That(_match.Blueprint(1).IsValid, Is.False, "The blueprint gives way to the site it placed.");
 
 		_match.Step(2f);
-		Assert.That(_match.ConstructionProgress(site), Is.LessThan(0.01f), "A site may not raise itself just because the hero stands near it.");
+		Assert.That(_match.ConstructionProgress(site), Is.LessThan(0.01f), "A site nobody was sent to work at may not raise itself, however close a hero stands.");
 
 		OrderHeroToRaise(site);
-		_match.Step(2f);
+		_match.Step(4f);
 		Assert.That(_match.ConstructionProgress(site), Is.GreaterThan(0.01f), "A hero sent to the site has to raise it.");
 
 		Assert.That(_match.IsUnderConstruction(site), Is.True, "The hero has not worked the site long enough for it to finish early.");

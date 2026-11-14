@@ -76,7 +76,7 @@ public class MeleeRulesetSetupTests
 		for (int slot = 1; slot <= match.PlayerCount; slot++)
 		{
 			Assert.That(match.Api.GetPlayerBuildingCount(slot), Is.EqualTo(1), "The Nexus is the only building a player starts with.");
-			Assert.That(match.BuildingLimitOf(slot), Is.EqualTo(MaximumBuildingsPerPlayer + 1), "The engine limit has to allow the authored building count beside the Nexus.");
+			Assert.That(match.BuildingLimitOf(slot), Is.EqualTo(MaximumBuildingsPerPlayer + 2), "The engine limit has to allow the authored building count beside the Nexus and the site an open draw is played on.");
 		}
 	}
 
