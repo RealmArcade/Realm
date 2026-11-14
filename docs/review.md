@@ -237,7 +237,20 @@ delay, and that a **hidden** setting refuses the host's order while a visible on
 | `Realm.Distribution.Tests` | 21 / 26 | none — the 5 fail identically at the commit this batch started from (`11e8d13`), which I checked in a throwaway worktree: they are the CAS dedup/header-merge and asset-package scenarios, and `Scenario5` reads an external `C:/temp/Asset_Pack` fixture that is out of date |
 | `Realm.Client.Tests` | not run as a UI suite | the scene-based suites cannot run in this checkout (the Godot project root is `Realm.Client/`, the test project is not), so the game-over table, the instructions dialog and the lobby popup were verified by build plus the logic tests only |
 
-## 11. Smaller decisions made without asking
+## 11. The build stamp (`version.txt`)
+
+`scripts/sync-version.ps1` now also writes `version.txt`: the version the build was asked for, the versions derived from
+it, the game build number, the Steam app ids, whether the run was a publish build, and the run's number, commit, ref and
+URL. It is git-ignored, it is copied into both published archives, and every Actions run uploads it as a `version-stamp`
+artifact. Nothing in Realm reads it — the game keeps taking its version from the assembly it was compiled into and its
+Steam application from the Steam client — and `docs/review.md` is not a substitute for that file when a bug report needs
+to name a build.
+
+**Needs your review:** the workflow change itself can only be proven by an actual Actions run (it was validated as YAML,
+and the script was run locally with and without a `-VersionNumber` and with `-Publish` on and off, producing the expected
+stamp). Check after the next publish that `version.txt` inside the archive names the version you typed.
+
+## 12. Smaller decisions made without asking
 
 - **Warning colour and outline** are constants on the HUD, not theme entries; if you want them in `UIStyle` they move
   cheaply.

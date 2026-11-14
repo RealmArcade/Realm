@@ -28,6 +28,8 @@ admin_private.key
 servers.json
 Realm.Clientservers.json
 steam_appid.txt
+# The build stamp scripts/sync-version.ps1 writes for the build that is currently checked out.
+version.txt
 Realm.Client/steam_api64.dll
 Realm.AdminServer/appsettings.json
 .godot/

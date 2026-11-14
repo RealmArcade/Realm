@@ -33,13 +33,26 @@ jobs:
 
       - name: Apply Version
         id: apply_version
-        run: powershell -ExecutionPolicy Bypass -File scripts/sync-version.ps1 -VersionNumber "${{ inputs.VersionNumber || github.event.inputs.VersionNumber }}"
+        # The script also writes version.txt, the plain-text stamp of this build. It is here to name the build in a bug
+        # report; nothing in the game reads it, and the game keeps taking its version from the assembly it was built into.
+        run: |
+          $publish = "${{ inputs.publish }}" -eq "true" -or "${{ github.event.inputs.publish }}" -eq "true"
+          powershell -ExecutionPolicy Bypass -File scripts/sync-version.ps1 -VersionNumber "${{ inputs.VersionNumber || github.event.inputs.VersionNumber }}" -Publish:$publish
 
       - name: Restore
         run: dotnet restore Realm.slnx
 
       - name: Build
         run: dotnet build Realm.slnx --configuration Release --no-restore
+
+      - name: Upload Build Stamp
+        # The stamp is a few hundred bytes, so every run keeps it: a build can then be named from the run page without
+        # downloading the archive it belongs to.
+        uses: actions/upload-artifact@v6
+        with:
+          name: version-stamp
+          path: version.txt
+          if-no-files-found: ignore
 
       - name: Setup Godot
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
@@ -131,6 +144,9 @@ jobs:
           if (Test-Path "LICENSE") {
             Copy-Item -Path "LICENSE" -Destination "$PWD\publish\LICENSE" -Force
           }
+          # The stamp names the build this folder was made from, so an archive in somebody's hands can be identified
+          # without running it.
+          Copy-Item -Path "version.txt" -Destination "$PWD\publish\version.txt" -Force
 
       - name: Copy servers.json to Publish Directory
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
@@ -184,6 +200,7 @@ jobs:
           if (Test-Path "LICENSE") {
             Copy-Item -Path "LICENSE" -Destination "$PWD\publish-adminserver\LICENSE" -Force
           }
+          Copy-Item -Path "version.txt" -Destination "$PWD\publish-adminserver\version.txt" -Force
 
       - name: Create 7z Ultra Archive (AdminServer)
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
