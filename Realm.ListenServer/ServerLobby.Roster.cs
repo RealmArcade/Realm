@@ -135,6 +135,14 @@ public partial class ServerLobby
 		colors = (uint[])_colorOverrides.Clone();
 		minimapPlayerColors = (uint[])_minimapPlayerColors.Clone();
 		minimapTeamColors = (uint[])_minimapTeamColors.Clone();
+
+		// A colour the map kept while a row was empty stops applying the moment a player takes that row: the seat states
+		// the colour its player is drawn in, and a leftover overlay would otherwise paint the player in a colour nobody
+		// chose for them.
+		for (int slot = 1; slot < colors.Length; slot++)
+		{
+			if (_seats.ContainsKey(slot)) colors[slot] = 0u;
+		}
 	}
 
 	public bool HasHumanSeat

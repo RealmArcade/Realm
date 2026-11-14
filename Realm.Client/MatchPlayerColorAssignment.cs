@@ -126,6 +126,9 @@ public static class MatchPlayerColorAssignment
 		LobbyManager? lobby = GameContext.Lobby;
 		for (int slot = 1; slot < AssignedColors.Length; slot++)
 		{
+			// A seat states its own colour; an overlay only stands in for a player index nobody holds.
+			if (IsSeated(seats, slot)) continue;
+
 			uint overlay = LobbyManager.ColorAt(lobby?.ColorOverlays, slot);
 			if (overlay != 0u) AssignedColors[slot] = Unpack(overlay);
 		}
