@@ -87,15 +87,23 @@ public partial class LobbyRoom : Control
 
 	private List<MapBriefingDetails> _lobbyRoomMaps = new List<MapBriefingDetails>();
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
-	private const int ReadyColumnWidth = 90;
-	private const int TeamColumnWidth = 140;
-	private const int ColorColumnWidth = 48;
-	private const int NameColumnWidth = 204;
-	private const int FactionColumnWidth = 96;
-	private const int DifficultyColumnWidth = 110;
-	private const int BootColumnWidth = 90;
-	private const int RowColumnSeparation = 12;
+	private const int ReadyColumnWidth = 82;
+	private const int TeamColumnWidth = 126;
+	private const int ColorColumnWidth = 70;
+	private const int SlotColumnWidth = 104;
+	private const int NameColumnWidth = 90;
+	private const int FactionColumnWidth = 98;
+	private const int DifficultyColumnWidth = 126;
+	private const int BootColumnWidth = 100;
+	private const int RowColumnSeparation = 10;
 	private const int RowContentInset = 8;
+
+	/// <summary>
+	///     The width the player column takes: what the row has left once the columns that are always there have taken
+	///     theirs. A map that offers factions spends that width on them, and a map that offers none leaves the player's
+	///     name the room instead.
+	/// </summary>
+	private static int NameCellWidth => HasFactions ? NameColumnWidth : NameColumnWidth + FactionColumnWidth + RowColumnSeparation;
 
 	private static IReadOnlyList<string> FactionList => GameContext.Lobby?.LobbyFactions ?? Array.Empty<string>();
 

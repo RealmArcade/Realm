@@ -134,9 +134,35 @@ public partial class LobbyRoom
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/ReadyCol", ReadyColumnWidth);
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/TeamCol", TeamColumnWidth);
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/ColorCol", ColorColumnWidth);
-		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/NameCol", NameColumnWidth);
+		ApplySlotHeader(header);
+		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/NameCol", NameCellWidth);
 		ApplyHeaderColumnWidth("PlayersPanel/VBoxContainer/TableHeader/FactionCol", FactionColumnWidth);
 		ApplyDifficultyHeader(header);
+	}
+
+	/// <summary>
+	///     Puts the slot column's header in front of the player column's, because the dropdown that decides a slot's state
+	///     has a column of its own.
+	/// </summary>
+	/// <param name="header">The header row the column labels are laid out in.</param>
+	private void ApplySlotHeader(HBoxContainer header)
+	{
+		var lblSlot = header.GetNodeOrNull<Label>("SlotCol");
+		if (lblSlot == null)
+		{
+			lblSlot = new Label();
+			lblSlot.Name = "SlotCol";
+			lblSlot.Text = TranslationServer.Translate("SLOT");
+			lblSlot.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			lblSlot.AddThemeFontSizeOverride("font_size", 15);
+			header.AddChild(lblSlot);
+		}
+
+		lblSlot.ClipText = true;
+		lblSlot.CustomMinimumSize = new Vector2(SlotColumnWidth, 0);
+
+		var nameHeader = header.GetNodeOrNull<Control>("NameCol");
+		if (nameHeader != null && lblSlot.GetIndex() > nameHeader.GetIndex()) header.MoveChild(lblSlot, nameHeader.GetIndex());
 	}
 
 	private void ApplyDifficultyHeader(HBoxContainer header)
@@ -170,10 +196,16 @@ public partial class LobbyRoom
 		var factionHeader = GetNodeOrNull<Control>("PlayersPanel/VBoxContainer/TableHeader/FactionCol");
 		if (factionHeader != null) factionHeader.Visible = HasFactions;
 
+		var nameHeader = GetNodeOrNull<Control>("PlayersPanel/VBoxContainer/TableHeader/NameCol");
+		if (nameHeader != null) nameHeader.CustomMinimumSize = new Vector2(NameCellWidth, 0);
+
 		foreach (var row in GetExistingPlayerRows().Values)
 		{
 			var factionCell = row.GetNodeOrNull<Control>("HBox_HBoxContainer/FactionCell");
 			if (factionCell != null) factionCell.Visible = HasFactions;
+
+			var nameCell = row.GetNodeOrNull<Control>("HBox_HBoxContainer/NameCell");
+			if (nameCell != null) nameCell.CustomMinimumSize = new Vector2(NameCellWidth, 0);
 		}
 	}
 }

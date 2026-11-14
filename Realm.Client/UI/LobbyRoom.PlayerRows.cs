@@ -11,9 +11,9 @@ namespace Realm.Client.UI;
 
 public partial class LobbyRoom
 {
-	private const int SlotStateSelectWidth = 88;
 	private const int BootButtonWidth = 60;
 	private const int LinkIconWidth = 24;
+	private const int BootRowSeparation = 14;
 
 	/// <summary>The option a player slot's dropdown lists as open, which is also the state of a slot a person holds.</summary>
 	private const int SlotStateOpenOption = 0;
@@ -37,6 +37,7 @@ public partial class LobbyRoom
 		CreateReadyCell(hBox);
 		CreateTeamCell(hBox);
 		CreateColorCell(hBox);
+		CreateSlotCell(hBox);
 		CreateNameCell(hBox);
 		CreateFactionCell(hBox);
 		CreateDifficultyCell(hBox);
@@ -67,7 +68,8 @@ public partial class LobbyRoom
 		UpdateReadyCell(hBox, player, isLocalPlayer);
 		UpdateTeamCell(hBox, player, canEditSeat);
 		UpdateColorCell(hBox, player, canEditSeat);
-		UpdateNameCell(hBox, slot, player, isLocalPlayer);
+		UpdateSlotCell(hBox, slot, player, isLocalPlayer);
+		UpdateNameCell(hBox, player);
 		UpdateFactionCell(hBox, player, canEditSeat);
 		UpdateDifficultyCell(hBox, player, canEditSeat);
 		UpdateBootCell(hBox, player, isLocalPlayer);
@@ -284,20 +286,16 @@ public partial class LobbyRoom
 	}
 
 	/// <summary>
-	///     Creates the cell that names the player in a slot, and the dropdown the host decides that slot's state with. The
-	///     state belongs beside the name because it describes who the row seats: a person, a computer player, or nobody.
+	///     Creates the cell holding the dropdown the host decides a player slot's state with: open to a player, closed to
+	///     everyone, or held by a computer player. It has a column of its own so that neither it nor the name beside it has
+	///     to give up width to the other.
 	/// </summary>
 	/// <param name="hBox">The row's column.</param>
-	private void CreateNameCell(HBoxContainer hBox)
+	private void CreateSlotCell(HBoxContainer hBox)
 	{
-		var cell = CreateColumnCell("NameCell", NameColumnWidth);
+		var cell = CreateColumnCell("SlotCell", SlotColumnWidth);
 
-		var nameRow = new HBoxContainer { Name = "NameRow", MouseFilter = MouseFilterEnum.Ignore };
-		nameRow.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		nameRow.AddThemeConstantOverride("separation", 6);
-		cell.AddChild(nameRow);
-
-		var stateSelect = new OptionButton { Name = "SlotStateSelect", CustomMinimumSize = new Vector2(SlotStateSelectWidth, 30), ClipText = true };
+		var stateSelect = new OptionButton { Name = "SlotStateSelect", CustomMinimumSize = new Vector2(SlotColumnWidth, 30), ClipText = true };
 		ApplyTeamOptionStyle(stateSelect);
 		stateSelect.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		stateSelect.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
@@ -307,14 +305,23 @@ public partial class LobbyRoom
 		stateSelect.AddItem(TranslationServer.Translate("AI"));
 		stateSelect.ItemSelected += index => OnSlotStateSelected(index, ReadCellSlot(hBox), stateSelect);
 		stateSelect.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-		nameRow.AddChild(stateSelect);
+
+		FillColumnCell(cell, stateSelect);
+		hBox.AddChild(cell);
+	}
+
+	/// <summary>Creates the cell that names the player in a slot.</summary>
+	/// <param name="hBox">The row's column.</param>
+	private void CreateNameCell(HBoxContainer hBox)
+	{
+		var cell = CreateColumnCell("NameCell", NameCellWidth);
 
 		var lblName = new Label { Name = "LblName", ClipText = true, VerticalAlignment = VerticalAlignment.Center };
 		lblName.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		lblName.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
 		lblName.AddThemeFontSizeOverride("font_size", 14);
-		lblName.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		nameRow.AddChild(lblName);
+		lblName.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		cell.AddChild(lblName);
 
 		hBox.AddChild(cell);
 	}
@@ -528,9 +535,14 @@ public partial class LobbyRoom
 	{
 		var cell = CreateColumnCell("BootCell", BootColumnWidth);
 
+		// The cell takes whatever width the row has left, and its contents sit at its far edge, so the actions end where
+		// the row does whatever the other columns measure.
+		cell.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+
 		var bootRow = new HBoxContainer { Name = "BootRow", MouseFilter = MouseFilterEnum.Ignore };
 		bootRow.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		bootRow.AddThemeConstantOverride("separation", 6);
+		bootRow.Alignment = BoxContainer.AlignmentMode.End;
+		bootRow.AddThemeConstantOverride("separation", BootRowSeparation);
 		cell.AddChild(bootRow);
 
 		var buttonSlot = new Control { Name = "BootSlot", CustomMinimumSize = new Vector2(BootButtonWidth, 0), MouseFilter = MouseFilterEnum.Ignore };
@@ -639,11 +651,10 @@ public partial class LobbyRoom
 		UIStyle.ApplySeatColorSwatch(colorBtn, p.Color);
 	}
 
-	private void UpdateNameCell(HBoxContainer hBox, int slot, PlayerInfo? p, bool isLocalPlayer)
+	private void UpdateSlotCell(HBoxContainer hBox, int slot, PlayerInfo? p, bool isLocalPlayer)
 	{
-		var stateSelect = hBox.GetNodeOrNull<OptionButton>("NameCell/NameRow/SlotStateSelect");
-		var lblName = hBox.GetNodeOrNull<Label>("NameCell/NameRow/LblName");
-		if (stateSelect == null || lblName == null) return;
+		var stateSelect = hBox.GetNodeOrNull<OptionButton>("SlotCell/CellCenter/SlotStateSelect");
+		if (stateSelect == null) return;
 
 		bool canChooseState = Lobby.IsHost && !isLocalPlayer;
 		stateSelect.Disabled = !canChooseState;
@@ -653,6 +664,12 @@ public partial class LobbyRoom
 
 		int stateIndex = GetSlotStateOptionIndex(slot, p);
 		if (stateSelect.Selected != stateIndex) stateSelect.Select(stateIndex);
+	}
+
+	private static void UpdateNameCell(HBoxContainer hBox, PlayerInfo? p)
+	{
+		var lblName = hBox.GetNodeOrNull<Label>("NameCell/LblName");
+		if (lblName == null) return;
 
 		lblName.Visible = p != null;
 		if (p == null) return;
