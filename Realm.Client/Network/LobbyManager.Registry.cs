@@ -160,6 +160,7 @@ public partial class LobbyManager
 		_loadReadyReported = false;
 		_matchPresentationOpen = false;
 		_isConnectedToHost = false;
+		IsDirectLobby = false;
 		IsHost = false;
 		IsGameStarted = false;
 		_countdownActive = false;

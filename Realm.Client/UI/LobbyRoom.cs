@@ -274,6 +274,7 @@ public partial class LobbyRoom : Control
 
 		SetupAttributionButton();
 		CreateMatchSettingsUI();
+		CreateDirectConnectInviteUI();
 
 		UpdateSelectedMapUI();
 	}
@@ -322,11 +323,18 @@ public partial class LobbyRoom : Control
 
 	private void OpenInviteFriendsDialog()
 	{
-		if (Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId || lobbyId.StartsWith("direct-", StringComparison.Ordinal))
+		bool directLobby = Lobby.IsDirectLobby || (Lobby.ActiveLobbyId is { Length: > 0 } activeLobbyId && activeLobbyId.StartsWith("direct-", StringComparison.Ordinal));
+		if (directLobby)
+		{
+			ShowDirectConnectInviteDialog();
+			return;
+		}
+
+		if (Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId)
 		{
 			GameContext.UserInterface?.ShowPopupMessage(
 				Tr("LOBBY INVITES"),
-				Tr("Invites need a lobby the server lists. A direct connection cannot be invited to."));
+				Tr("Invites need a lobby the server lists. Share the lobby's direct connect address instead."));
 			return;
 		}
 

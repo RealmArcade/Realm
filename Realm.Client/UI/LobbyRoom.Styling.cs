@@ -81,7 +81,7 @@ public partial class LobbyRoom
 
 
 		SetupLobbyButton(_backButton, TranslationServer.Translate(" LEAVE LOBBY"), ReturnFromLobby);
-		SetupLobbyButton(_inviteButton, TranslationServer.Translate("INVITE FRIEND"), OpenInviteFriendsDialog);
+		SetupLobbyButton(_inviteButton, TranslationServer.Translate(Lobby.IsDirectLobby ? "SHARE ADDRESS" : "INVITE FRIEND"), OpenInviteFriendsDialog);
 		SetupStartButton();
 
 		_mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);

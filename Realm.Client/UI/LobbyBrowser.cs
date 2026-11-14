@@ -329,6 +329,81 @@ public partial class LobbyBrowser : Control
 		_directConnectButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
+	private enum DirectConnectAddressError
+	{
+		None,
+		MissingAddress,
+		MissingBracket,
+		InvalidPort
+	}
+
+	/// <summary>
+	///     Reads the address a host sent. Players paste the whole `address:port` the host's lobby room shows, and a player
+	///     who only knows the address still reaches the default port, so both forms are accepted here rather than asking the
+	///     player to split them apart.
+	/// </summary>
+	/// <param name="text">What the player typed or pasted.</param>
+	/// <param name="host">The address to reach.</param>
+	/// <param name="port">The port to reach it on.</param>
+	/// <param name="error">What is wrong with the text, when anything is.</param>
+	/// <returns>Whether the text states an address.</returns>
+	private static bool TryParseDirectConnectAddress(string text, out string host, out int port, out DirectConnectAddressError error)
+	{
+		host = string.Empty;
+		port = LobbyManager.DefaultGamePort;
+		error = DirectConnectAddressError.None;
+
+		string trimmed = text.Trim();
+		if (trimmed.Length == 0)
+		{
+			error = DirectConnectAddressError.MissingAddress;
+			return false;
+		}
+
+		string portText = string.Empty;
+		if (trimmed.StartsWith('['))
+		{
+			int closingBracket = trimmed.IndexOf(']');
+			if (closingBracket < 0)
+			{
+				error = DirectConnectAddressError.MissingBracket;
+				return false;
+			}
+
+			host = trimmed[1..closingBracket];
+			if (closingBracket + 1 < trimmed.Length && trimmed[closingBracket + 1] == ':') portText = trimmed[(closingBracket + 2)..];
+		}
+		else
+		{
+			int colon = trimmed.LastIndexOf(':');
+			bool hasOneColon = colon == trimmed.IndexOf(':');
+			if (hasOneColon && colon > 0)
+			{
+				host = trimmed[..colon];
+				portText = trimmed[(colon + 1)..];
+			}
+			else
+			{
+				host = trimmed;
+			}
+		}
+
+		host = host.Trim();
+		if (host.Length == 0)
+		{
+			error = DirectConnectAddressError.MissingAddress;
+			return false;
+		}
+
+		if (portText.Length > 0 && (!int.TryParse(portText, out port) || port < 1 || port > 65535))
+		{
+			error = DirectConnectAddressError.InvalidPort;
+			return false;
+		}
+
+		return true;
+	}
+
 	private void ShowDirectConnectDialog()
 	{
 		var overlay = new Panel();
@@ -337,79 +412,76 @@ public partial class LobbyBrowser : Control
 		overlay.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		AddChild(overlay);
 
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(500, 320);
-		cardPanel.SetAnchorsAndOffsetsPreset(LayoutPreset.Center);
+		var center = UIStyle.CreateCenteredOverlay();
+		overlay.AddChild(center);
+
+		var cardPanel = new PanelContainer();
+		cardPanel.Name = "CardPanel_PanelContainer";
+		cardPanel.CustomMinimumSize = new Vector2(560, 0);
 		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
-		overlay.AddChild(cardPanel);
+		center.AddChild(cardPanel);
 
 		var vbox = new VBoxContainer();
 		vbox.Name = "Vbox_VBoxContainer";
-		vbox.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		vbox.CustomMinimumSize = new Vector2(450, 280);
+		vbox.CustomMinimumSize = new Vector2(520, 0);
 		vbox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		vbox.SizeFlagsVertical = SizeFlags.ExpandFill;
+		vbox.AddThemeConstantOverride("separation", 10);
 		cardPanel.AddChild(vbox);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
 
 		var titleLabel = new Label();
 		titleLabel.Name = "TitleLabel_Label";
 		UIStyle.ApplyTitle(titleLabel, Tr("DIRECT CONNECTION"), 22);
 		titleLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(titleLabel);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
 
 		var descLabel = new Label();
 		descLabel.Name = "DescLabel_Label";
 		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		descLabel.CustomMinimumSize = new Vector2(440, 0);
+		descLabel.CustomMinimumSize = new Vector2(500, 0);
 		descLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		descLabel.Text = Tr("Connect directly to a host via IP address and port (Direct / LAN / Tailscale / Radmin).");
+		descLabel.Text = Tr("Enter the address the host sent you. A host whose lobby is not listed reads it from the DIRECT CONNECT card in their lobby room; LAN, Tailscale, Radmin and port-forwarded hosts all work.");
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		descLabel.AddThemeFontSizeOverride("font_size", 13);
 		descLabel.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
 		vbox.AddChild(descLabel);
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
+		var addressLabel = new Label();
+		addressLabel.Name = "AddressLabel_Label";
+		addressLabel.Text = Tr("Host address:");
+		addressLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		addressLabel.AddThemeFontSizeOverride("font_size", 13);
+		vbox.AddChild(addressLabel);
 
-		var ipLabel = new Label();
-		ipLabel.Name = "IpLabel_Label";
-		ipLabel.Text = Tr("Host IP Address:");
-		ipLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		ipLabel.AddThemeFontSizeOverride("font_size", 13);
-		vbox.AddChild(ipLabel);
+		var addressInput = new LineEdit();
+		addressInput.Name = "AddressInput_LineEdit";
+		addressInput.PlaceholderText = "192.168.1.42:8999";
+		addressInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
+		addressInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
+		addressInput.AddThemeColorOverride("font_color", new Color(0.95f, 0.9f, 0.8f));
+		addressInput.CustomMinimumSize = new Vector2(500, 36);
+		vbox.AddChild(addressInput);
 
-		var ipInput = new LineEdit();
-		ipInput.Name = "IpInput_LineEdit";
-		ipInput.PlaceholderText = "127.0.0.1 or 192.168.1.X or 100.X.X.X";
-		ipInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
-		ipInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
-		ipInput.AddThemeColorOverride("font_color", new Color(0.95f, 0.9f, 0.8f));
-		ipInput.CustomMinimumSize = new Vector2(440, 36);
-		vbox.AddChild(ipInput);
+		var hintLabel = new Label();
+		hintLabel.Name = "AddressHint_Label";
+		hintLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		hintLabel.CustomMinimumSize = new Vector2(500, 0);
+		hintLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		hintLabel.Text = Tr("The port is 8999 when the address does not name one.");
+		hintLabel.AddThemeFontSizeOverride("font_size", 11);
+		hintLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.72f, 0.78f));
+		vbox.AddChild(hintLabel);
 
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
-
-		var portLabel = new Label();
-		portLabel.Name = "PortLabel_Label";
-		portLabel.Text = Tr("Port:");
-		portLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		portLabel.AddThemeFontSizeOverride("font_size", 13);
-		vbox.AddChild(portLabel);
-
-		var portInput = new LineEdit();
-		portInput.Name = "PortInput_LineEdit";
-		portInput.Text = "8999";
-		portInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
-		portInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
-		portInput.AddThemeColorOverride("font_color", new Color(0.95f, 0.9f, 0.8f));
-		portInput.CustomMinimumSize = new Vector2(440, 36);
-		vbox.AddChild(portInput);
-
-		vbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 15) });
+		var errorLabel = new Label();
+		errorLabel.Name = "ConnectError_Label";
+		errorLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		errorLabel.CustomMinimumSize = new Vector2(500, 0);
+		errorLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		errorLabel.AddThemeFontSizeOverride("font_size", 12);
+		errorLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.4f, 0.4f));
+		errorLabel.Visible = false;
+		vbox.AddChild(errorLabel);
 
 		var hbox = new HBoxContainer();
 		hbox.Name = "Hbox_HBoxContainer";
@@ -428,33 +500,57 @@ public partial class LobbyBrowser : Control
 
 		var connectBtn = UIStyle.CreateActionButton("ConnectBtn_Button", Tr("CONNECT"), 14);
 		connectBtn.CustomMinimumSize = new Vector2(140, 38);
-		connectBtn.Pressed += async () =>
+		connectBtn.Pressed += connectButtonPressed;
+		hbox.AddChild(connectBtn);
+		addressInput.TextSubmitted += _ => connectButtonPressed();
+
+		addressInput.GrabFocus();
+		return;
+
+		async void connectButtonPressed()
 		{
-			string ip = ipInput.Text.Trim();
-			if (string.IsNullOrEmpty(ip)) return;
-			int port = 8999;
-			if (int.TryParse(portInput.Text.Trim(), out int customPort)) port = customPort;
+			if (connectBtn.Disabled) return;
+
+			if (!TryParseDirectConnectAddress(addressInput.Text, out string host, out int port, out DirectConnectAddressError parseError))
+			{
+				GameContext.UserInterface?.PlayWarningSound();
+				errorLabel.Text = parseError switch
+				{
+					DirectConnectAddressError.MissingBracket => Tr("The address is missing its closing bracket."),
+					DirectConnectAddressError.InvalidPort => Tr("The port must be a whole number between 1 and 65535."),
+					_ => Tr("Enter the address the host sent you.")
+				};
+				errorLabel.Visible = true;
+				return;
+			}
 
 			GameContext.UserInterface?.PlayClickSound();
+			errorLabel.Visible = false;
 			connectBtn.Disabled = true;
+			addressInput.Editable = false;
 			UIStyle.ApplyButtonText(connectBtn, Tr("CONNECTING..."), 14);
 
 			if (GameContext.Lobby is not { } lobby) return;
 
-			bool success = await lobby.JoinByIpAsync(ip, port);
+			bool success = await lobby.JoinByIpAsync(host, port);
+			if (!GodotObject.IsInstanceValid(this) || !GodotObject.IsInstanceValid(overlay)) return;
+
 			if (success)
 			{
 				overlay.QueueFree();
 				GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
+				return;
 			}
-			else
-			{
-				connectBtn.Disabled = false;
-				UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
-				GameContext.UserInterface?.PlayWarningSound();
-			}
-		};
-		hbox.AddChild(connectBtn);
+
+			GameContext.UserInterface?.PlayWarningSound();
+			connectBtn.Disabled = false;
+			addressInput.Editable = true;
+			UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
+
+			string reason = lobby.LastHostError ?? lobby.LobbyJoinError ?? Tr("The host did not answer.");
+			errorLabel.Text = $"{string.Format(Tr("Could not reach {0}."), $"{host}:{port}")}\n{reason}\n\n{Tr("The host must keep the lobby open and allow UDP traffic on that port. Players outside their network also need the host's router to forward the port.")}";
+			errorLabel.Visible = true;
+		}
 	}
 
 	private void SetupBackButton()

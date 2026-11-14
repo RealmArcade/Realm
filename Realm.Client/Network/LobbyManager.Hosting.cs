@@ -312,21 +312,9 @@ public partial class LobbyManager
 
 		string mapDisplayName = string.IsNullOrEmpty(HostedMapDisplayName) ? ActiveMapName : HostedMapDisplayName;
 
+		IsDirectLobby = false;
 		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
-
-		// Asked for on every attempt, because a dismissed prompt leaves the port closed and is almost always a misclick
-		// rather than a decision to host unreachable lobbies.
-		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(prepared.Port);
-
-		await ResolvePublicEndpointAsync(prepared.Port);
-
-		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(prepared.Port);
-		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
-		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
-		if (IsRestrictedHost)
-		{
-			GameLog.LogToConsole($"[LobbyManager] Warning: UPnP port mapping not available on {LocalNatType} NAT. External players may require Direct Connect.");
-		}
+		await OpenLobbyEndpointAsync(prepared.Port);
 
 		Diagnostics.StartHostListener(prepared.Port + 1);
 
@@ -341,6 +329,75 @@ public partial class LobbyManager
 
 		PlayerListUpdated?.Invoke();
 		return true;
+	}
+
+	/// <summary>
+	///     Opens a lobby that only a player holding its address can reach, so hosting does not depend on a registry: the
+	///     lobby is prepared exactly as a listed one is, its port is opened in the local firewall and on the router, and it
+	///     is not registered anywhere. The host hands the address the lobby room shows to the players who should join.
+	/// </summary>
+	/// <param name="mapPathName">The map whose lobby is opened.</param>
+	/// <param name="mapDisplayName">The name the lobby lists the map under.</param>
+	/// <param name="explicitVersion">The map version to play, or the newest the screen holds when omitted.</param>
+	/// <returns>Whether the lobby is open, administered by this screen and waiting for players it can be told about.</returns>
+	public async Task<bool> HostDirectLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
+	{
+		return await PrepareHostedLobbyAsync(mapPathName, mapDisplayName, explicitVersion) && await PublishDirectLobbyAsync();
+	}
+
+	/// <summary>
+	///     Opens the joining half of the lobby <see cref="PrepareHostedLobbyAsync" /> prepared without a registry: the port is
+	///     opened for players on other machines and the address they can reach is measured. Nothing can refuse a direct
+	///     lobby for reachability, because no public node was asked to reach it - the host shares the address and the players
+	///     who receive it are the check.
+	/// </summary>
+	/// <returns>Whether the lobby now accepts players on its address.</returns>
+	public async Task<bool> PublishDirectLobbyAsync()
+	{
+		ClientServerSession? prepared = _lobbySession;
+		if (prepared == null || !prepared.IsRunning || !IsHost)
+		{
+			LastHostError = "There is no lobby waiting to be shared.";
+			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			return false;
+		}
+
+		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
+		await OpenLobbyEndpointAsync(prepared.Port);
+
+		IsDirectLobby = true;
+		ActiveLobbyId = null;
+		GameLog.LogToConsole($"[LobbyManager] This lobby is not listed anywhere; share {DirectConnectAddress} with the players who should join.");
+		if (PublicConnectAddress is { Length: > 0 } publicAddress)
+		{
+			GameLog.LogToConsole($"[LobbyManager] Players outside this network can join at {publicAddress} when the router forwards that port.");
+		}
+
+		PlayerListUpdated?.Invoke();
+		return true;
+	}
+
+	/// <summary>
+	///     Makes a prepared lobby's game port reachable and measures the address it is reached on. A dismissed firewall prompt
+	///     is recorded rather than treated as a failure: hosting still works on this machine, and the lobby room states what
+	///     other machines will meet.
+	/// </summary>
+	/// <param name="port">The game port the lobby listens on.</param>
+	private async Task OpenLobbyEndpointAsync(int port)
+	{
+		// Asked for on every attempt, because a dismissed prompt leaves the port closed and is almost always a misclick
+		// rather than a decision to host unreachable lobbies.
+		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(port);
+
+		await ResolvePublicEndpointAsync(port);
+
+		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(port);
+		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
+		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
+		if (IsRestrictedHost)
+		{
+			GameLog.LogToConsole($"[LobbyManager] Warning: UPnP port mapping not available on {LocalNatType} NAT. External players may require Direct Connect.");
+		}
 	}
 
 	/// <summary>
@@ -470,6 +527,7 @@ public partial class LobbyManager
 	{
 		ReleaseSeedingSlot();
 
+		IsDirectLobby = false;
 		IsHost = true;
 		MaxPlayers = ResolvePlayablePlayerSlots(mapPathName, explicitVersion);
 		LastLobbyWarning = null;

@@ -103,7 +103,8 @@ public partial class LobbyManager : BaseMapTransferNode
 	public List<string> RegistryServers => OfficialServers;
 	private int _currentServerIndex = 0;
 	public string RegistryServerUrl => OfficialServers.Count > 0 && _currentServerIndex < OfficialServers.Count && !string.IsNullOrWhiteSpace(OfficialServers[_currentServerIndex]) ? OfficialServers[_currentServerIndex] : ServersConfigHelper.GetDefaultServerUrl();
-	private const int DefaultGamePort = 8999;
+	/// <summary>The port a lobby listens on when nothing asked for another one, and the port a direct connect assumes.</summary>
+	public const int DefaultGamePort = 8999;
 	private const int StunPort = 19302;
 
 	public int ENetPort { get; private set; } = DefaultGamePort;
@@ -204,6 +205,42 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public NatType LocalNatType { get; private set; } = NatType.Open;
 	public bool IsHost { get; set; }
+
+	/// <summary>
+	///     Whether this screen's lobby is reachable only by the players it gives its address to, rather than being listed on
+	///     a registry. A direct lobby is opened and administered exactly as a listed one is; the difference is that no lobby
+	///     server knows it exists.
+	/// </summary>
+	public bool IsDirectLobby { get; private set; }
+
+	/// <summary>
+	///     The address a player on this network joins this screen's lobby with, in the `address:port` form every player
+	///     pastes into the direct connect dialog. It is the address a host sends to the people they want to play with.
+	/// </summary>
+	public string DirectConnectAddress => $"{GetLocalIPAddress()}:{(LobbyPort > 0 ? LobbyPort : ENetPort)}";
+
+	/// <summary>
+	///     The address this lobby was measured to be reachable at from outside this network, or nothing while it was not
+	///     measured or the measurement named the address this machine already holds. A router that forwards the port makes
+	///     this the address a player anywhere can join with.
+	/// </summary>
+	public string? PublicConnectAddress
+	{
+		get
+		{
+			if (string.IsNullOrEmpty(_hostPublicIp)) return null;
+			if (_hostPublicIp is "127.0.0.1" or "0.0.0.0") return null;
+			if (string.Equals(_hostPublicIp, GetLocalIPAddress(), StringComparison.Ordinal)) return null;
+
+			return $"{_hostPublicIp}:{PublicPort}";
+		}
+	}
+
+	/// <summary>
+	///     The address this screen joined the lobby at, or nothing while it hosts. A player who reached a lobby this way can
+	///     pass the address on, which is what a lobby that is not listed depends on.
+	/// </summary>
+	public string? JoinedLobbyAddress => !IsHost && _connectedHostIp is { Length: > 0 } host ? $"{host}:{BoundPort}" : null;
 	public string? ActiveLobbyId { get; private set; }
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
