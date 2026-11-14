@@ -47,6 +47,7 @@ public partial class LobbyDirectConnectHarness : Node
 				"host" => await RunHostAsync(),
 				"createcheck" => await RunCreateScreenCheckAsync(),
 				"roomcheck" => await RunLobbyRoomCheckAsync(),
+				"connectcheck" => await RunDirectConnectDialogCheckAsync(),
 				_ => await RunGuestAsync()
 			};
 		}
@@ -152,7 +153,7 @@ public partial class LobbyDirectConnectHarness : Node
 		var notes = new List<string>();
 
 		string listedDone = Path.Combine(outputDirectory, "listed-host.done");
-		await RunChildToCompletionAsync(projectDirectory, ["--role=host", "--mode=listed", "--dead-registry=1", $"--map={_mapFolder}", $"--done-file={listedDone}", "--wait-seconds=10"], "host", 240);
+		await RunChildToCompletionAsync(projectDirectory, ["--role=host", "--mode=listed",					"--dead-registry=1", $"--map={_mapFolder}", $"--done-file={listedDone}", "--wait-seconds=10"], "host", 240);
 		(int listedExit, string listedOutcome) = ReadDoneFile(listedDone);
 		if (listedExit != 2) failures.Add($"a listed lobby opened against an unreachable registry (exit {listedExit}: {listedOutcome})");
 		else notes.Add("a listed lobby is refused when the registry cannot be reached");
@@ -190,6 +191,12 @@ public partial class LobbyDirectConnectHarness : Node
 		(int roomExit, string roomOutcome) = ReadDoneFile(roomDone);
 		if (roomExit != 0) failures.Add($"the lobby room check failed (exit {roomExit}: {roomOutcome})");
 		else notes.Add(roomOutcome);
+
+		string connectDone = Path.Combine(outputDirectory, "direct-connect-dialog.done");
+		await RunChildToCompletionAsync(projectDirectory, ["--role=connectcheck", $"--done-file={connectDone}"], "1", 180);
+		(int connectExit, string connectOutcome) = ReadDoneFile(connectDone);
+		if (connectExit != 0) failures.Add($"the direct connect dialog check failed (exit {connectExit}: {connectOutcome})");
+		else notes.Add(connectOutcome);
 
 		var report = new StringBuilder();
 		for (int index = 0; index < notes.Count; index++) report.AppendLine($"PASS {notes[index]}");
@@ -354,6 +361,76 @@ public partial class LobbyDirectConnectHarness : Node
 		return (0, $"the lobby room shows '{address}' and copies an invite for {inviteAddress}");
 	}
 
+	/// <summary>
+	///     Reads the dialog a returning player meets. A lobby that is not listed is only ever an address, so the addresses
+	///     this screen has already joined have to be offered back — and the one joined most recently has to be the one the
+	///     field already holds, because that is what makes a rejoin a single press.
+	/// </summary>
+	/// <returns>The exit code and the line to report.</returns>
+	private async Task<(int ExitCode, string Outcome)> RunDirectConnectDialogCheckAsync()
+	{
+		string historyPath = ProjectSettings.GlobalizePath("user://direct_connect_history.json");
+		string backupPath = $"{historyPath}.harness-backup";
+		bool hadHistory = File.Exists(historyPath);
+		if (hadHistory) File.Copy(historyPath, backupPath, true);
+		File.Delete(historyPath);
+
+		try
+		{
+			DirectConnectHistory.Remember("192.168.1.42", 8999);
+			DirectConnectHistory.Remember("38.148.48.39", 9001);
+			DirectConnectHistory.Remember("192.168.1.42", 8999);
+
+			List<DirectConnectHistoryEntry> remembered = DirectConnectHistory.LoadRecent();
+			if (remembered.Count != 2) return (40, $"joining two addresses left {remembered.Count} recent address(es) instead of 2");
+			if (remembered[0].Address != "192.168.1.42:8999") return (40, $"the address joined last is not first: '{remembered[0].Address}'");
+
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			var browser = GD.Load<PackedScene>("res://UI/LobbyBrowser.tscn").Instantiate();
+			browser.Name = "LobbyBrowserHarnessScreen";
+			GetTree().Root.AddChild(browser);
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+			Button? directConnect = browser.GetNodeOrNull<Button>("DirectConnectButton");
+			if (directConnect == null) return (41, "the lobby browser draws no direct connect button");
+			directConnect.EmitSignal(BaseButton.SignalName.Pressed);
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+			Node? overlay = browser.GetNodeOrNull("Overlay_Panel");
+			if (overlay == null) return (41, "the direct connect button opened no dialog");
+
+			LineEdit? addressInput = FindNode<LineEdit>(overlay, "AddressInput_LineEdit");
+			if (addressInput == null) return (41, "the direct connect dialog draws no address field");
+			if (addressInput.Text != "192.168.1.42:8999") return (42, $"the address field opens at '{addressInput.Text}' instead of the address joined last");
+
+			Button? olderAddress = FindNode<Button>(overlay, "RecentAddress1_Button");
+			if (olderAddress == null) return (43, "the dialog lists only one recent address");
+			olderAddress.EmitSignal(BaseButton.SignalName.Pressed);
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			if (addressInput.Text != "38.148.48.39:9001") return (44, $"choosing an older address filled '{addressInput.Text}' instead of it");
+
+			browser.QueueFree();
+			return (0, "the direct connect dialog opens at 192.168.1.42:8999 and offers 38.148.48.39:9001 again");
+		}
+		finally
+		{
+			if (hadHistory) File.Copy(backupPath, historyPath, true);
+			else File.Delete(historyPath);
+			if (File.Exists(backupPath)) File.Delete(backupPath);
+		}
+	}
+
+	private static T? FindNode<T>(Node root, string name) where T : Node
+	{
+		foreach (Node child in root.FindChildren(name, string.Empty, true, false))
+		{
+			if (child is T typed) return typed;
+		}
+
+		return null;
+	}
+
 	private async Task<(int ExitCode, string Outcome)> RunGuestAsync()
 	{
 		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("The LobbyManager autoload is unavailable.");
@@ -367,7 +444,11 @@ public partial class LobbyDirectConnectHarness : Node
 		bool described = await WaitUntilAsync(() => lobby.HasLobbyState && lobby.LocalPeerId > 0, 20f);
 		if (!described) return (7, $"the connection to {_hostAddress}:{_port} was accepted but the lobby never described a seat");
 
-		return (0, $"joined {_hostAddress}:{_port} as peer {lobby.LocalPeerId} with {lobby.PlayerList.Count} seat(s)");
+		string joinedAddress = DirectConnectHistory.DescribeAddress(_hostAddress, _port);
+		bool remembered = DirectConnectHistory.LoadRecent().Exists(entry => entry.Address == joinedAddress);
+		if (!remembered) return (8, $"joining {joinedAddress} was not offered back as a recent address");
+
+		return (0, $"joined {_hostAddress}:{_port} as peer {lobby.LocalPeerId} with {lobby.PlayerList.Count} seat(s) and remembered it");
 	}
 
 	/// <summary>

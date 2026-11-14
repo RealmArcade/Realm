@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -329,6 +330,8 @@ public partial class LobbyBrowser : Control
 		_directConnectButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
+	private const int MaximumRecentAddressesShown = 4;
+
 	private enum DirectConnectAddressError
 	{
 		None,
@@ -472,6 +475,43 @@ public partial class LobbyBrowser : Control
 		hintLabel.AddThemeFontSizeOverride("font_size", 11);
 		hintLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.72f, 0.78f));
 		vbox.AddChild(hintLabel);
+
+		// A lobby that is not listed depends on an address the player was handed once, so the addresses this screen has
+		// already joined are offered back instead of asking them to find the invitation again. The field starts at the most
+		// recent of them, which makes rejoining the usual case a single press of CONNECT.
+		List<DirectConnectHistoryEntry> recentAddresses = DirectConnectHistory.LoadRecent();
+		if (recentAddresses.Count > 0)
+		{
+			var recentTitle = new Label();
+			recentTitle.Name = "RecentAddressesTitle_Label";
+			recentTitle.Text = Tr("RECENT");
+			recentTitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+			recentTitle.AddThemeFontSizeOverride("font_size", 12);
+			vbox.AddChild(recentTitle);
+
+			int shownAddresses = Math.Min(recentAddresses.Count, MaximumRecentAddressesShown);
+			for (int index = 0; index < shownAddresses; index++)
+			{
+				DirectConnectHistoryEntry entry = recentAddresses[index];
+				var recentButton = UIStyle.CreateActionButton($"RecentAddress{index}_Button", entry.Address, 13);
+				recentButton.CustomMinimumSize = new Vector2(500, 32);
+				recentButton.Alignment = HorizontalAlignment.Left;
+				recentButton.AddThemeConstantOverride("icon_max_width", 0);
+				recentButton.TooltipText = string.Format(Tr("Last joined {0}."), entry.LastJoinedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture));
+				recentButton.Pressed += () =>
+				{
+					GameContext.UserInterface?.PlayClickSound();
+					addressInput.Text = entry.Address;
+					addressInput.CaretColumn = addressInput.Text.Length;
+					addressInput.GrabFocus();
+				};
+				recentButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+				vbox.AddChild(recentButton);
+			}
+
+			addressInput.Text = recentAddresses[0].Address;
+			addressInput.CaretColumn = addressInput.Text.Length;
+		}
 
 		var errorLabel = new Label();
 		errorLabel.Name = "ConnectError_Label";
