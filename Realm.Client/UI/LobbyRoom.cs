@@ -753,7 +753,7 @@ public partial class LobbyRoom : Control
 		_matchSettingsButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		_matchSettingsButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		UIStyle.ApplyButtonText(_matchSettingsButton, TranslationServer.Translate("Match Settings"), 16);
-		_matchSettingsButton.TooltipText = TranslationServer.Translate("Set how many players, building options and building copies this match allows, and which modes it plays with.");
+		_matchSettingsButton.TooltipText = TranslationServer.Translate("Set the shroud, the teams and the spectator delay this match plays with, and the rules this map adds to them.");
 		_matchSettingsButton.Pressed += () =>
 		{
 			GameContext.UserInterface.PlayClickSound();
