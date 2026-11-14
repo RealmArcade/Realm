@@ -109,7 +109,37 @@ public enum PresentationKind : byte
 	SteamCloudFileWritten,
 
 	/// <summary>Asks the screen of one player to delete a cloud file for this map.</summary>
-	SteamCloudFileDeleted
+	SteamCloudFileDeleted,
+
+	/// <summary>
+	///     States whether the player's own camera input is held or released, which is how a map keeps control of the camera
+	///     for a cutscene without moving it yet.
+	/// </summary>
+	CameraScriptLockChanged,
+
+	/// <summary>
+	///     States a camera shot: where the camera goes, what it looks at, and how long the move takes. A duration of zero is
+	///     a cut.
+	/// </summary>
+	CameraScriptMoveTo,
+
+	/// <summary>States that the camera follows a unit from a stated distance and height, looking at it as it moves.</summary>
+	CameraScriptFollowUnit,
+
+	/// <summary>States that the camera stops following its unit and holds where it stands.</summary>
+	CameraScriptFollowStopped,
+
+	/// <summary>States that the camera returns to the player's own control, keeping the reading it was left at.</summary>
+	CameraScriptReleased,
+
+	/// <summary>States whether the cinematic bars are drawn over the screen.</summary>
+	CinematicBarsVisibility,
+
+	/// <summary>States one line of cinematic dialogue: who says it, what it says, and how long it stays on screen.</summary>
+	CinematicSubtitle,
+
+	/// <summary>States a full-screen fade: how opaque it is and how long it takes to get there.</summary>
+	ScreenFadeSet
 }
 
 [MemoryPackable]

@@ -464,3 +464,48 @@ Steamworks.NET signatures (checked by reflection: `GetFileNameAndSize(index, out
 or cloud file written against a real account. Note also that the Steam achievement and stat names a map asks for do not
 exist in the application's Steamworks configuration yet - they have to be registered before they mean anything, and
 Steam refuses an unknown name without failing the match (the refusal is logged).
+
+## 19. The cinematic camera surface map scripts may opt into
+
+`IGameAPI` gained eight camera and cinematic members (`Realm.MapAPI/IGameAPI.CameraCinematics.cs`). Nothing in the engine
+uses them and no map has to: a map that says nothing about cinematics leaves the camera exactly as it was. They exist so a
+campaign map, a racing map or any map with a scripted moment can drive the camera itself.
+
+**Camera** - `LockPlayerCamera`, `MovePlayerCameraTo`, `FollowUnitWithPlayerCamera`, `StopPlayerCameraFollow`,
+`ReleasePlayerCamera`. A move is a shot rather than a pan: the camera is pointed at the point the map named for the whole
+move, a duration of zero cuts, and a positive duration eases at both ends. A follow sits at a stated distance, height and
+bearing behind a unit (bearing either fixed in the world or aligned to the unit's own facing) and looks at it with the
+lag stated in seconds, so it reads the same at any frame rate. Both keep the camera above the terrain and write the
+reading back into `CameraState`, which is what keeps the minimap, the HUD and the player's own controls consistent with
+where the shot left the camera.
+
+**Dressing** - `SetCinematicBarsVisible`, `ShowCinematicSubtitle`, `SetScreenFade`. The overlay is a `[GlobalClass]
+CanvasLayer` created under the match host when a map first asks for it, so it leaves with the match; bars are ten percent
+of the screen, a subtitle carries a speaker and fades itself out, and the fade covers the HUD as well, which is what a
+scene change needs.
+
+**Addressing** - every member takes a player index, and `IGameAPI.EveryPlayer` (`-1`) addresses every screen, which is what
+a co-operative cutscene or a cinematic between rounds uses. The requests are state, so they ride the reliable presentation
+stream.
+
+**Proven (35 checks against MeleeRuleset through the real `ServerSimulation`):** every member raises the request it should
+with the right seat, place, look-at point, unit id, duration and payload; a negative duration becomes a cut, a shot to a
+place that is not on the board is dropped, an invalid unit stops a follow rather than starting one, `EveryPlayer` is
+addressed as -1, and a request naming a slot that is not a seat is dropped. The same run built a real map script against
+the surface - all eight imports are present in the wasm and the authority answered every one without trapping. A headless
+Godot run then drove the client half: a cut lands where it was told, points exactly at the point it was given, a hold
+takes and returns the camera, a release keeps the place the cutscene left, and the overlay builds, draws, sizes and clears
+its bars, subtitle and fade and lives under the match that asked for it.
+
+**Not proven here:** the timed move and the unit follow need a live match, because `CameraControl._Process` only runs a
+script camera when the world holds a `CameraState`; both use the same ground clamp and look-at code the cut was verified
+with, and the follow's framing was reviewed against the same math instead. The end-to-end path a real match takes
+(presentation request -> client handler -> camera) is likewise only compiled, not clicked.
+
+**`origin/feature/chariot-racer` was reviewed and left alone.** That branch already has a chase-camera pair
+(`SetPlayerCameraFollowUnit` / `SetPlayerCameraView` / `ResetPlayerCamera`, plus `PlayerId` extensions), and the review
+found it sound for what it does: the follow snaps on its first frame, derives its position from the rotationally smoothed
+yaw (which is what its own fix commit was for), clamps the camera above terrain and restores the player's controls on
+reset. It is deliberately a chase camera rather than a cutscene camera - it cannot move the camera to a place, and it has
+no bars, subtitles or fades - so the generic surface here is the thing that racing map should move to later, and none of
+its member names collide with the new ones. No change was made on that branch.

@@ -40,6 +40,7 @@ interface game-api {
     draw-line-on-terrain: func(start-x: f32, start-y: f32, end-x: f32, end-y: f32, color-r: f32, color-g: f32, color-b: f32, color-has-color: bool, duration: f32, width: f32);
     enable-passive-resource-income: func();
     enable-unit-auto-combat: func(unit-id: s32, enabled: bool);
+    follow-unit-with-player-camera: func(player-index: s32, unit-id: s32, distance: f32, height: f32, yaw-offset-degrees: f32, align-to-unit-facing: bool, smoothing-seconds: f32, look-at-height: f32);
     generate-map-directory: func(map-name: string, target-directory: string);
     get-ability-cooldown: func(unit-id: s32, ability-id: string) -> f32;
     get-ability-name: func(ability-id: string) -> string;
@@ -144,6 +145,8 @@ interface game-api {
     issue-stop-order: func(unit-id: s32);
     kick-player: func(player-index: s32, reason: string);
     kill-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
+    lock-player-camera: func(player-index: s32, locked: bool);
+    move-player-camera-to: func(player-index: s32, position-x: f32, position-y: f32, position-z: f32, look-at-x: f32, look-at-y: f32, look-at-z: f32, duration-seconds: f32);
     pan-player-camera-to: func(player-index: s32, position-x: f32, position-y: f32, position-z: f32, duration: f32);
     ping-player-minimap: func(player-index: s32, position-x: f32, position-y: f32, position-z: f32);
     play-player-click-sound: func(player-index: s32);
@@ -161,6 +164,7 @@ interface game-api {
     register-resource-dropoff-building: func(definition-key: string);
     register-resource-node-type: func(node-definition-id: string, resource-type: string);
     register-resource-worker-unit: func(unit-key: string);
+    release-player-camera: func(player-index: s32);
     remove-buff: func(unit-id: s32, buff-id: string);
     remove-item-from-unit: func(unit-id: s32, item-id: string) -> bool;
     remove-loot-item: func(loot-item-id: s32) -> bool;
@@ -184,6 +188,7 @@ interface game-api {
     set-ability-tooltip: func(ability-id: string, tooltip: string);
     set-ability-tooltip-text: func(ability-id: string, key: string, value: string);
     set-ability-tooltip-value: func(ability-id: string, key: string, value: f32);
+    set-cinematic-bars-visible: func(player-index: s32, visible: bool);
     set-countdown-timer-label: func(label: string);
     set-day-night-cycle-enabled: func(enabled: bool);
     set-environment-preset: func(preset-id: string);
@@ -211,6 +216,7 @@ interface game-api {
     set-players-allied: func(player-index: s32, other-player-index: s32, allied: bool);
     set-region-pathing: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32, pathing-flags: s32, blocked: bool);
     set-resource-node-amount: func(node-id: s32, value: f32);
+    set-screen-fade: func(player-index: s32, alpha: f32, duration-seconds: f32);
     set-static-text: func(handle: s32, text: string);
     set-static-text-color: func(handle: s32, color-x: f32, color-y: f32, color-z: f32);
     set-static-text-visible: func(handle: s32, visible: bool);
@@ -263,6 +269,7 @@ interface game-api {
     set-weather: func(weather-type: string);
     shake-camera: func(intensity: f32, duration: f32);
     shake-player-camera: func(player-index: s32, intensity: f32, duration: f32);
+    show-cinematic-subtitle: func(player-index: s32, speaker: string, line: string, duration-seconds: f32);
     show-feedback-text: func(text: string, color-x: f32, color-y: f32, color-z: f32);
     show-player-feedback-text: func(player-index: s32, text: string, color-x: f32, color-y: f32, color-z: f32);
     show-summary-table: func(title: string, visible: bool);
@@ -281,6 +288,7 @@ interface game-api {
     start-player-building-placement: func(player-index: s32, unit-type-id: string);
     start-unit-construction: func(unit-id: s32, total-construction-seconds: f32);
     stop-countdown-timer: func();
+    stop-player-camera-follow: func(player-index: s32);
     stun-unit: func(unit-id: s32, duration: f32);
     teleport-unit: func(unit-id: s32, position-x: f32, position-y: f32, position-z: f32);
     train-bot-profile: func(map-name: string, generations: s32, population-size: s32, matches-per-evaluation: s32, genre: string) -> string;

@@ -305,6 +305,17 @@ public partial class GameHost
 				clientRpc.ShowFeedbackText(message.PlayerIndex, message.Text, color);
 				break;
 
+			case PresentationKind.CameraScriptLockChanged:
+			case PresentationKind.CameraScriptMoveTo:
+			case PresentationKind.CameraScriptFollowUnit:
+			case PresentationKind.CameraScriptFollowStopped:
+			case PresentationKind.CameraScriptReleased:
+			case PresentationKind.CinematicBarsVisibility:
+			case PresentationKind.CinematicSubtitle:
+			case PresentationKind.ScreenFadeSet:
+				ApplyCinematicPresentation(in message);
+				break;
+
 			case PresentationKind.SteamAchievementUnlocked:
 			case PresentationKind.SteamAchievementProgress:
 			case PresentationKind.SteamStatIntSet:
