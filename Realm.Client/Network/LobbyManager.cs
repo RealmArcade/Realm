@@ -254,6 +254,35 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public List<PlayerInfo> PlayerList { get; } = new();
 
+	/// <summary>
+	///     The colour the lobby's map keeps for each player index, indexed by player index and packed as 0xRRGGBBAA, zero
+	///     for an index that keeps the colour its seat states. It names the colours of the player indexes nobody holds -
+	///     the players a map drives itself - which a seat list has nowhere to carry.
+	/// </summary>
+	public uint[] ColorOverlays { get; private set; } = new uint[LobbyLimits.MaximumSeats + 1];
+
+	/// <summary>
+	///     The colour each player index's units are drawn in on a minimap that paints every player in its own colour, as the
+	///     lobby's map stated it, zero for an index it stated none for.
+	/// </summary>
+	public uint[] MinimapPlayerColors { get; private set; } = new uint[LobbyLimits.MaximumSeats + 1];
+
+	/// <summary>
+	///     The colour each player index's units are drawn in on a minimap that paints players by their relation to the screen
+	///     looking at it, as the lobby's map stated it, zero for an index it stated none for.
+	/// </summary>
+	public uint[] MinimapTeamColors { get; private set; } = new uint[LobbyLimits.MaximumSeats + 1];
+
+	/// <summary>Reads one entry of a published colour array, answering zero for an index the array does not carry.</summary>
+	/// <param name="colors">The published array.</param>
+	/// <param name="playerIndex">The player index.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA, or zero.</returns>
+	public static uint ColorAt(uint[]? colors, int playerIndex)
+	{
+		if (colors == null || playerIndex < 0 || playerIndex >= colors.Length) return 0u;
+		return colors[playerIndex];
+	}
+
 	public int LocalPeerId => _lobbySession?.LocalPeerId ?? -1;
 
 	public int BoundPort => _lobbySession?.Port ?? ENetPort;

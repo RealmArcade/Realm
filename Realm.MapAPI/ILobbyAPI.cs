@@ -118,9 +118,24 @@ public interface ILobbyAPI
 	uint GetPlayerColor(int playerIndex);
 
 	/// <summary>
-	///     Gives a player slot a colour. A slot whose colour is locked and a slot nobody holds are both refused.
+	///     Gives a player index the colour its units are drawn in, which is the colour its seat holds while it is seated
+	///     and a colour the map keeps for an index nobody holds.
 	/// </summary>
-	/// <param name="playerIndex">The player slot.</param>
+	/// <remarks>
+	///     <para>
+	///         A colour stated here is the map overriding the lobby's own assignment, so it is not held to the palette's
+	///         one-player-per-colour rule: two indexes may be given the same colour, which is what a map that drives a
+	///         player of its own beside a real one wants, so that both read as one side on screen. The lobby's own colour
+	///         picker still refuses to hand a player a colour another player already holds - only this order may repeat one.
+	///     </para>
+	///     <para>
+	///         An index nobody holds is not a seat the lobby can colour, so a colour stated for one is kept by the map
+	///         rather than rejected: it is published to every screen beside the seats, and the match draws the units of
+	///         that index in it. An index a player does hold changes that player's seat, and a seat whose colour the map
+	///         locked is refused.
+	///     </para>
+	/// </remarks>
+	/// <param name="playerIndex">The player index.</param>
 	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA.</param>
 	/// <returns>Whether the authority took the order.</returns>
 	bool SetPlayerColor(int playerIndex, uint colorRgba);
@@ -128,6 +143,35 @@ public interface ILobbyAPI
 	/// <summary>Whether the slot's colour may no longer be changed.</summary>
 	/// <param name="playerIndex">The player slot.</param>
 	bool IsColorLocked(int playerIndex);
+
+	/// <summary>
+	///     Reads the colour a player index's units are drawn in on a minimap of one scheme, which is the colour the map
+	///     stated for that scheme.
+	/// </summary>
+	/// <param name="playerIndex">The player index.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <returns>
+	///     The colour, packed as 0xRRGGBBAA, or zero while the map stated none for that scheme and the scheme decides the
+	///     colour itself.
+	/// </returns>
+	uint GetPlayerMinimapColor(int playerIndex, Realm.Ecs.MinimapColorMode mode);
+
+	/// <summary>
+	///     States the colour a player index's units are drawn in on a minimap of one scheme, which is how a map says that a
+	///     player it drives reads as part of a side on one of the minimap's two readings without changing the colour its
+	///     units are painted in the world.
+	/// </summary>
+	/// <remarks>
+	///     The two schemes are independent: a colour stated for <see cref="Realm.Ecs.MinimapColorMode.TeamColors" /> leaves
+	///     what the same index looks like under <see cref="Realm.Ecs.MinimapColorMode.PlayerColors" /> alone, and the other
+	///     way round. A colour of zero clears the statement, which returns that index to the colour it would be drawn in
+	///     without one, and an index the lobby does not carry is refused.
+	/// </remarks>
+	/// <param name="playerIndex">The player index.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	bool SetPlayerMinimapColor(int playerIndex, Realm.Ecs.MinimapColorMode mode, uint colorRgba);
 
 	/// <summary>Locks or unlocks the slot's colour.</summary>
 	/// <param name="playerIndex">The player slot.</param>
@@ -171,6 +215,27 @@ public interface ILobbyAPI
 	/// <param name="count">How many slots, counted from the first, the lobby should offer.</param>
 	/// <returns>Whether the authority took the order.</returns>
 	bool SetOpenSlotCount(int count);
+
+	/// <summary>
+	///     States the most players this map will seat: every player index above that count belongs to the map alone, and no
+	///     player - and no host opening a row - may be placed in one.
+	/// </summary>
+	/// <remarks>
+	///     <para>
+	///         A map that drives players of its own needs indexes no person can take, or a player joining at the wrong
+	///         moment would sit in the seat the map's own rules are about to use. This is the order that reserves them: an
+	///         index above the count stays closed however the lobby is run, the host may not reopen it, and nobody is
+	///         admitted into it.
+	///     </para>
+	///     <para>
+	///         A count stated here also caps <see cref="SetOpenSlotCount" />, so a map states one number for the players it
+	///         seats and reserves everything after it. A map that states no limit leaves every slot the lobby carries
+	///         available to its host, which is the neutral answer for a board with no players of its own.
+	///     </para>
+	/// </remarks>
+	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	bool SetPlayerSlotLimit(int maximumPlayers);
 
 	/// <summary>
 	///     Declares one match setting of the map's own, which is how a map offers its host a rule the core game has no

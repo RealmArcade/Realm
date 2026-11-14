@@ -3839,6 +3839,26 @@
         <member name="F:Realm.Ecs.MatchShroudMode.Full">
             <summary>Hides the ground itself until one of a player's units has walked over it.</summary>
         </member>
+        <member name="T:Realm.Ecs.MinimapColorMode">
+            <summary>
+                Selects which of a minimap's two colourings a stated colour applies to. The minimap draws a player's units in one
+                of two schemes, and a colour stated for one of them does not change the other: <see cref="F:Realm.Ecs.MinimapColorMode.PlayerColors" /> paints
+                every player in the colour it was given, and <see cref="F:Realm.Ecs.MinimapColorMode.TeamColors" /> paints the map by relation to the screen
+                looking at it - the player this screen holds, that player's allies and its enemies - so a map that wants one of its
+                players drawn differently in only one of those two readings states it under that reading alone.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.MinimapColorMode.TeamColors">
+            <summary>
+                The scheme that paints a player by its relation to the screen looking at it: the player this screen holds, the
+                players allied to it, and the players hostile to it.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.MinimapColorMode.PlayerColors">
+            <summary>
+                The scheme that paints every player in its own colour, which is the colour its seat states.
+            </summary>
+        </member>
         <member name="T:Realm.Ecs.PlayerId">
             <summary>
             Identifies a player slot in the running match by its zero-based index.
@@ -3937,6 +3957,18 @@
         </member>
         <member name="F:Realm.Ecs.PlayerRosterSlot.ColorRgba">
             <summary>The slot's colour packed as 0xRRGGBBAA, matching the colour the lobby publishes for its seat.</summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.MinimapPlayerColorRgba">
+            <summary>
+                The colour this slot's units are drawn in on a minimap that paints each player in its own colour, packed as
+                0xRRGGBBAA, or zero while the map stated none and the slot keeps the colour its seat was given.
+            </summary>
+        </member>
+        <member name="F:Realm.Ecs.PlayerRosterSlot.MinimapTeamColorRgba">
+            <summary>
+                The colour this slot's units are drawn in on a minimap that paints players by their relation to the screen
+                looking at it, packed as 0xRRGGBBAA, or zero while the map stated none.
+            </summary>
         </member>
         <member name="F:Realm.Ecs.PlayerRosterSlot.FactionLocked">
             <summary>Whether the slot's faction may no longer be changed.</summary>

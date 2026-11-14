@@ -163,16 +163,45 @@ public unsafe class LobbyAPI_WasmModule : ILobbyAPI
 	}
 
 	/// <summary>
-	///     Gives a player slot a colour. A slot outside the roster is refused without placing an order; the authority
-	///     refuses a slot whose colour is locked and a slot nobody holds.
+	///     Gives a player index the colour its units are drawn in. A colour that repeats one another index already holds is
+	///     taken, because this is the map overriding the lobby's own assignment, and an index nobody holds keeps the colour
+	///     for the match rather than having it refused.
 	/// </summary>
-	/// <param name="playerIndex">The player slot.</param>
+	/// <param name="playerIndex">The player index.</param>
 	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA.</param>
 	/// <returns>Whether the authority took the order.</returns>
 	public bool SetPlayerColor(int playerIndex, uint colorRgba)
 	{
 		if (!IsSlotIndex(playerIndex)) return false;
 		return LobbyImports.SetPlayerColor(playerIndex, colorRgba);
+	}
+
+	/// <summary>Reads the colour a player index's units are drawn in on a minimap of one scheme, as the map stated it.</summary>
+	/// <param name="playerIndex">The player index.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <returns>The colour packed as 0xRRGGBBAA, or zero for a slot outside the roster or a scheme the map stated nothing for.</returns>
+	public uint GetPlayerMinimapColor(int playerIndex, MinimapColorMode mode)
+	{
+		PlayerRosterSlot* slot = ResolveSlot(playerIndex);
+		if (slot == null) return 0u;
+
+		return mode == MinimapColorMode.PlayerColors ? slot->MinimapPlayerColorRgba : slot->MinimapTeamColorRgba;
+	}
+
+	/// <summary>
+	///     States the colour a player index's units are drawn in on one minimap scheme, or clears the statement when the
+	///     colour is zero. A slot outside the roster and a mode outside the enum place no order.
+	/// </summary>
+	/// <param name="playerIndex">The player index.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	public bool SetPlayerMinimapColor(int playerIndex, MinimapColorMode mode, uint colorRgba)
+	{
+		if (!IsSlotIndex(playerIndex)) return false;
+		if (mode != MinimapColorMode.TeamColors && mode != MinimapColorMode.PlayerColors) return false;
+
+		return LobbyImports.SetPlayerMinimapColor(playerIndex, (int)mode, colorRgba);
 	}
 
 	/// <summary>Whether the slot's colour may no longer be changed.</summary>
@@ -250,6 +279,18 @@ public unsafe class LobbyAPI_WasmModule : ILobbyAPI
 	{
 		if (count <= 0 || count >= EcsSharedMemory.LobbyRosterHeaderAt(SharedMemory)->SlotCount) return false;
 		return LobbyImports.SetOpenSlotCount(count);
+	}
+
+	/// <summary>
+	///     Reserves every player index above a count for the map itself, so no player and no host may seat anyone there. A
+	///     count outside the roster places no order.
+	/// </summary>
+	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	public bool SetPlayerSlotLimit(int maximumPlayers)
+	{
+		if (maximumPlayers <= 0 || maximumPlayers >= EcsSharedMemory.LobbyRosterHeaderAt(SharedMemory)->SlotCount) return false;
+		return LobbyImports.SetPlayerSlotLimit(maximumPlayers);
 	}
 
 	/// <summary>Declares one match setting of the map's own, with the control and default it is offered with.</summary>

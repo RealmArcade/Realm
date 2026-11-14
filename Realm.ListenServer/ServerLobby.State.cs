@@ -59,6 +59,8 @@ public partial class ServerLobby
 			seats[index++] = published;
 		}
 
+		CopyColorOverlays(out uint[] colorOverlays, out uint[] minimapPlayerColors, out uint[] minimapTeamColors);
+
 		return new LobbyStateMessage
 		{
 			Seats = seats,
@@ -75,6 +77,9 @@ public partial class ServerLobby
 			CountdownActive = _countdownActive,
 			CountdownRemainingSeconds = _countdownActive ? Math.Max(0, _lastCountdownSeconds) : 0,
 			Settings = DescribeMatchSettings(),
+			ColorOverlays = colorOverlays,
+			MinimapPlayerColors = minimapPlayerColors,
+			MinimapTeamColors = minimapTeamColors,
 			Revision = ++_revision
 		};
 	}

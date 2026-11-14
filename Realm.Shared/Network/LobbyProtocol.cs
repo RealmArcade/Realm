@@ -213,6 +213,25 @@ public partial struct LobbyStateMessage
 	///     fields a peer already reads keep their wire position.
 	/// </summary>
 	public int ShroudMode;
+
+	/// <summary>
+	///     The colour each player index's units are drawn in, indexed by player index, packed as 0xRRGGBBAA, where zero
+	///     means the index keeps the colour its seat states. It carries the colours a map keeps for the player indexes
+	///     nobody holds - the players such a map drives itself - which a seat list has nowhere to name.
+	/// </summary>
+	public uint[] ColorOverlays;
+
+	/// <summary>
+	///     The colour each player index's units are drawn in on a minimap that paints every player in its own colour,
+	///     indexed by player index and packed as 0xRRGGBBAA, zero while the map stated none.
+	/// </summary>
+	public uint[] MinimapPlayerColors;
+
+	/// <summary>
+	///     The colour each player index's units are drawn in on a minimap that paints players by their relation to the
+	///     screen looking at it, indexed by player index and packed as 0xRRGGBBAA, zero while the map stated none.
+	/// </summary>
+	public uint[] MinimapTeamColors;
 }
 
 /// <summary>

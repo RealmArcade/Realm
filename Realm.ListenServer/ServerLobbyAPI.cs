@@ -58,12 +58,13 @@ public class ServerLobbyAPI : ILobbyAPI
 
 	public void SetTeamLocked(int playerIndex, bool locked) => _roster.SetTeamLocked(playerIndex, locked);
 
-	public uint GetPlayerColor(int playerIndex)
-	{
-		return _roster.TryGetSeat(playerIndex, out LobbySeat seat) ? seat.ColorRgba : 0u;
-	}
+	public uint GetPlayerColor(int playerIndex) => _roster.GetPlayerColor(playerIndex);
 
 	public bool SetPlayerColor(int playerIndex, uint colorRgba) => _roster.TrySetPlayerColor(playerIndex, colorRgba);
+
+	public uint GetPlayerMinimapColor(int playerIndex, MinimapColorMode mode) => _roster.GetPlayerMinimapColor(playerIndex, mode);
+
+	public bool SetPlayerMinimapColor(int playerIndex, MinimapColorMode mode, uint colorRgba) => _roster.SetPlayerMinimapColor(playerIndex, mode, colorRgba);
 
 	public bool IsColorLocked(int playerIndex) => _roster.IsColorLocked(playerIndex);
 
@@ -86,6 +87,8 @@ public class ServerLobbyAPI : ILobbyAPI
 	public bool SetSlotOpen(int playerIndex, bool open) => _roster.TrySetSlotOpen(playerIndex, open);
 
 	public bool SetOpenSlotCount(int count) => _roster.TrySetOpenSlotCount(count);
+
+	public bool SetPlayerSlotLimit(int maximumPlayers) => _roster.TrySetPlayerSlotLimit(maximumPlayers);
 
 	public bool AddMatchSetting(int settingId, LobbySettingControl control, string label, string tooltip, int defaultValue)
 	{

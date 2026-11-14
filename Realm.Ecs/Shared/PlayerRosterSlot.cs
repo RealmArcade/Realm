@@ -19,6 +19,18 @@ public struct PlayerRosterSlot
 	/// <summary>The slot's colour packed as 0xRRGGBBAA, matching the colour the lobby publishes for its seat.</summary>
 	public uint ColorRgba;
 
+	/// <summary>
+	///     The colour this slot's units are drawn in on a minimap that paints each player in its own colour, packed as
+	///     0xRRGGBBAA, or zero while the map stated none and the slot keeps the colour its seat was given.
+	/// </summary>
+	public uint MinimapPlayerColorRgba;
+
+	/// <summary>
+	///     The colour this slot's units are drawn in on a minimap that paints players by their relation to the screen
+	///     looking at it, packed as 0xRRGGBBAA, or zero while the map stated none.
+	/// </summary>
+	public uint MinimapTeamColorRgba;
+
 	/// <summary>Whether the slot's faction may no longer be changed.</summary>
 	public byte FactionLocked;
 

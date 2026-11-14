@@ -39,11 +39,34 @@ public interface ILobbySeatTable
 	/// <returns>Whether the seat holds that team afterwards.</returns>
 	bool ApplyRosterTeam(int slot, int team);
 
-	/// <summary>Gives a seat a colour its map's roster chose.</summary>
+	/// <summary>Gives a seat a colour its map's roster chose, or keeps one for a slot nobody holds.</summary>
 	/// <param name="slot">The seat's slot.</param>
 	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA.</param>
-	/// <returns>Whether the seat holds that colour afterwards.</returns>
+	/// <returns>Whether the slot holds that colour afterwards.</returns>
 	bool ApplyRosterColor(int slot, uint colorRgba);
+
+	/// <summary>Reads the colour the table keeps for a slot nobody holds, which is what the roster publishes for it.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA, or zero while the table keeps none.</returns>
+	uint ColorOverrideOf(int slot);
+
+	/// <summary>Reads the minimap colour the table holds for one scheme.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA, or zero while the table holds none.</returns>
+	uint MinimapColorOf(int slot, MinimapColorMode mode);
+
+	/// <summary>States the colour a slot's units are drawn in on one minimap scheme, or clears the statement.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+	/// <returns>Whether the table holds that statement afterwards.</returns>
+	bool ApplyRosterMinimapColor(int slot, MinimapColorMode mode, uint colorRgba);
+
+	/// <summary>Keeps every player index above a count for the map itself.</summary>
+	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+	/// <returns>Whether the table holds that limit afterwards.</returns>
+	bool TrySetPlayerSlotLimit(int maximumPlayers);
 
 	/// <summary>Opens or closes one player slot, which is what a map's roster states.</summary>
 	/// <param name="slot">The player slot.</param>

@@ -51,6 +51,14 @@ public static class LobbyImports
 	[WasmImportLinkage]
 	private static extern int ImportSetLobbyOpenSlotCount(int count);
 
+	[DllImport(Module, EntryPoint = "set-lobby-player-slot-limit")]
+	[WasmImportLinkage]
+	private static extern int ImportSetLobbyPlayerSlotLimit(int maximumPlayers);
+
+	[DllImport(Module, EntryPoint = "set-lobby-player-minimap-color")]
+	[WasmImportLinkage]
+	private static extern int ImportSetLobbyPlayerMinimapColor(int playerIndex, int mode, int colorRgba);
+
 	[DllImport(Module, EntryPoint = "add-lobby-match-setting")]
 	[WasmImportLinkage]
 	private static extern int ImportAddLobbyMatchSetting(int settingId, int control, nint labelPointer, int labelLength, nint tooltipPointer, int tooltipLength, int defaultValue);
@@ -166,6 +174,24 @@ public static class LobbyImports
 	public static bool SetOpenSlotCount(int count)
 	{
 		return ImportSetLobbyOpenSlotCount(count) != 0;
+	}
+
+	/// <summary>Places the order that reserves every player index above a count for the map itself.</summary>
+	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
+	public static bool SetPlayerSlotLimit(int maximumPlayers)
+	{
+		return ImportSetLobbyPlayerSlotLimit(maximumPlayers) != 0;
+	}
+
+	/// <summary>Places the order that states the colour a player index is drawn in on one minimap scheme.</summary>
+	/// <param name="playerIndex">The player index.</param>
+	/// <param name="mode">The scheme, as the value of the minimap colour mode enum.</param>
+	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
+	public static bool SetPlayerMinimapColor(int playerIndex, int mode, uint colorRgba)
+	{
+		return ImportSetLobbyPlayerMinimapColor(playerIndex, mode, (int)colorRgba) != 0;
 	}
 
 	/// <summary>Places the order that declares one match setting of the map's own.</summary>

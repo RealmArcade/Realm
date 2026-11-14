@@ -105,6 +105,13 @@ public partial class MinimapOverlay : Control
 
 	private Color ResolveUnitColor(int playerIndex, bool usesPlayerColors)
 	{
+		// A colour the match's map stated for one of its players is drawn on that scheme before the scheme's own reading
+		// of the player, which is how a map that drives a player beside a real one shows both as one side.
+		if (MatchPlayerColorAssignment.TryGetMinimapColor(playerIndex, usesPlayerColors ? MinimapColorScheme.PlayerColors : MinimapColorScheme.TeamColors, out Color statedColor))
+		{
+			return statedColor;
+		}
+
 		if (usesPlayerColors)
 		{
 			return GetPlayerMinimapColor(playerIndex);

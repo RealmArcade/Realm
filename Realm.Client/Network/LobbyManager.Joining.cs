@@ -214,6 +214,9 @@ public partial class LobbyManager
 		ApplyOpenSlots(state);
 
 		ApplyMatchSettings(state);
+		ColorOverlays = NormaliseColorArray(state.ColorOverlays);
+		MinimapPlayerColors = NormaliseColorArray(state.MinimapPlayerColors);
+		MinimapTeamColors = NormaliseColorArray(state.MinimapTeamColors);
 		LobbyFactions = state.Factions ?? Array.Empty<string>();
 		LobbyTeamCount = state.TeamCount > 0 ? state.TeamCount : LobbyLimits.DefaultTeamCount;
 		SpectatorDelay = state.SpectatorDelay;
@@ -243,6 +246,23 @@ public partial class LobbyManager
 		MakeSureThisSeatReportsItsMap();
 		StartMatchPreparationForCurrentMap();
 		PlayerListUpdated?.Invoke();
+	}
+
+	/// <summary>
+	///     Copies one of the colour arrays the lobby published into a table indexed by player index, replacing one that is
+	///     missing or the wrong length with an empty table, because a lobby that states no colour for an index must leave that
+	///     index to the colour its seat carries.
+	/// </summary>
+	/// <param name="published">The array the lobby published.</param>
+	/// <returns>One entry per player slot, zero for an index the lobby stated nothing for.</returns>
+	private static uint[] NormaliseColorArray(uint[]? published)
+	{
+		var colors = new uint[LobbyLimits.MaximumSeats + 1];
+		if (published == null) return colors;
+
+		int count = Math.Min(published.Length, colors.Length);
+		Array.Copy(published, colors, count);
+		return colors;
 	}
 
 	/// <summary>

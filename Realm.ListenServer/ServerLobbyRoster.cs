@@ -153,6 +153,37 @@ public class ServerLobbyRoster
 		return _lobby.ApplyRosterColor(slot, colorRgba);
 	}
 
+	/// <summary>Reads the colour a slot's units are drawn in, which is its seat's colour or the one the map keeps for it.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA.</returns>
+	public uint GetPlayerColor(int slot)
+	{
+		if (_lobby.TryGetSeatBySlot(slot, out LobbySeat seat)) return seat.ColorRgba;
+		return _lobby.ColorOverrideOf(slot);
+	}
+
+	/// <summary>Reads the minimap colour the lobby's map stated for one scheme, or zero while it stated none.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA.</returns>
+	public uint GetPlayerMinimapColor(int slot, MinimapColorMode mode) => _lobby.MinimapColorOf(slot, mode);
+
+	/// <summary>States the colour a slot's units are drawn in on one minimap scheme, or clears the statement.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+	/// <returns>Whether the lobby holds that statement afterwards.</returns>
+	public bool SetPlayerMinimapColor(int slot, MinimapColorMode mode, uint colorRgba)
+	{
+		if (!InRange(slot)) return false;
+		return _lobby.ApplyRosterMinimapColor(slot, mode, colorRgba);
+	}
+
+	/// <summary>Keeps every player index above a count for the lobby's map.</summary>
+	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+	/// <returns>Whether the lobby holds that limit afterwards.</returns>
+	public bool TrySetPlayerSlotLimit(int maximumPlayers) => _lobby.TrySetPlayerSlotLimit(maximumPlayers);
+
 	/// <summary>Answers whether one player slot accepts a player.</summary>
 	/// <param name="slot">The player slot.</param>
 	/// <returns>Whether the slot is open.</returns>
@@ -172,7 +203,7 @@ public class ServerLobbyRoster
 		return _lobby.TrySetSlotOpen(slot, open);
 	}
 
-	/// <summary>Opens the first slots up to a count and closes the rest.</summary>
+	/// <summary>Opens the first slots up to a count and closes the rest, up to the limit the map reserved.</summary>
 	/// <param name="count">How many slots, counted from the first, the lobby should offer.</param>
 	/// <returns>Whether the lobby offers those slots afterwards.</returns>
 	public bool TrySetOpenSlotCount(int count)
@@ -383,6 +414,8 @@ public class ServerLobbyRoster
 			entry->TeamLocked = (byte)(_teamLocked[slot] ? 1 : 0);
 			entry->ColorLocked = (byte)(_colorLocked[slot] ? 1 : 0);
 			entry->Open = (byte)(_lobby.IsSlotOpen(slot) ? 1 : 0);
+			entry->MinimapPlayerColorRgba = _lobby.MinimapColorOf(slot, MinimapColorMode.PlayerColors);
+			entry->MinimapTeamColorRgba = _lobby.MinimapColorOf(slot, MinimapColorMode.TeamColors);
 
 			if (!_lobby.TryGetSeatBySlot(slot, out LobbySeat seat))
 			{
@@ -391,7 +424,7 @@ public class ServerLobbyRoster
 				entry->Host = 0;
 				entry->FactionIndex = -1;
 				entry->TeamIndex = 0;
-				entry->ColorRgba = 0;
+				entry->ColorRgba = _lobby.ColorOverrideOf(slot);
 				continue;
 			}
 

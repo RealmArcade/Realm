@@ -16,6 +16,9 @@ public class MatchRosterSeatTable : ILobbySeatTable
 	private readonly ServerLog _log;
 	private readonly Dictionary<int, LobbySeat> _seats = new();
 	private readonly bool[] _openSlots = new bool[EcsSharedMemory.MAX_PLAYERS];
+	private readonly uint[] _colorOverrides = new uint[EcsSharedMemory.MAX_PLAYERS];
+	private readonly uint[] _minimapPlayerColors = new uint[EcsSharedMemory.MAX_PLAYERS];
+	private readonly uint[] _minimapTeamColors = new uint[EcsSharedMemory.MAX_PLAYERS];
 
 	public MatchRosterSeatTable(IReadOnlyList<MatchRosterSeat> roster, ServerLog log)
 	{
@@ -97,10 +100,77 @@ public class MatchRosterSeatTable : ILobbySeatTable
 
 	public bool ApplyRosterColor(int slot, uint colorRgba)
 	{
-		if (!_seats.TryGetValue(slot, out LobbySeat seat)) return false;
+		if (slot <= 0 || slot >= _openSlots.Length) return false;
+
+		if (!_seats.TryGetValue(slot, out LobbySeat seat))
+		{
+			_colorOverrides[slot] = colorRgba;
+			return true;
+		}
 
 		seat.ColorRgba = colorRgba;
 		_seats[slot] = seat;
+		_colorOverrides[slot] = 0;
+		return true;
+	}
+
+	/// <summary>
+	///     Takes the minimap colour a map states for one of its players. A match started without a lobby has no screen to
+	///     publish it to, so the statement is accepted and nothing is drawn from it.
+	/// </summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+	/// <returns>Whether the slot is one this table holds.</returns>
+	public bool ApplyRosterMinimapColor(int slot, MinimapColorMode mode, uint colorRgba)
+	{
+		if (slot <= 0 || slot >= _openSlots.Length) return false;
+		if (mode != MinimapColorMode.TeamColors && mode != MinimapColorMode.PlayerColors) return false;
+
+		if (mode == MinimapColorMode.TeamColors)
+		{
+			_minimapTeamColors[slot] = colorRgba;
+		}
+		else
+		{
+			_minimapPlayerColors[slot] = colorRgba;
+		}
+
+		return true;
+	}
+
+	/// <summary>Reads the colour the table keeps for a slot nobody holds.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA, or zero while the table keeps none.</returns>
+	public uint ColorOverrideOf(int slot) => slot > 0 && slot < _openSlots.Length ? _colorOverrides[slot] : 0u;
+
+	/// <summary>Reads the minimap colour the table holds for one scheme.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA, or zero while the table holds none.</returns>
+	public uint MinimapColorOf(int slot, MinimapColorMode mode)
+	{
+		if (slot <= 0 || slot >= _openSlots.Length) return 0u;
+
+		return mode == MinimapColorMode.TeamColors ? _minimapTeamColors[slot] : _minimapPlayerColors[slot];
+	}
+
+	/// <summary>
+	///     Keeps every player index above a count for the match's map. Nobody is admitted to a started match, so the limit
+	///     is accepted and closes those slots rather than refusing them.
+	/// </summary>
+	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+	/// <returns>Whether the table holds that limit afterwards.</returns>
+	public bool TrySetPlayerSlotLimit(int maximumPlayers)
+	{
+		if (maximumPlayers <= 0 || maximumPlayers >= _openSlots.Length) return false;
+
+		for (int slot = 1; slot < _openSlots.Length; slot++)
+		{
+			if (slot <= maximumPlayers) continue;
+			_openSlots[slot] = false;
+		}
+
 		return true;
 	}
 

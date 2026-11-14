@@ -39,6 +39,19 @@ public partial class ServerLobby : ILobbySeatTable
 	/// <summary>Every player slot the lobby carries, where true means the slot accepts a player.</summary>
 	private readonly bool[] _openSlots = new bool[EcsSharedMemory.MAX_PLAYERS];
 
+	/// <summary>
+	///     The colours the lobby's map keeps for player indexes, indexed by player index. A slot holding a seat takes the
+	///     colour on its seat; an index nobody holds - a player the map drives itself - keeps its colour here so the match
+	///     still draws it. Zero means the index keeps the colour its seat states.
+	/// </summary>
+	private readonly uint[] _colorOverrides = new uint[EcsSharedMemory.MAX_PLAYERS];
+
+	/// <summary>The colours the map stated for the minimap's player-colour scheme, indexed by player index, zero for none.</summary>
+	private readonly uint[] _minimapPlayerColors = new uint[EcsSharedMemory.MAX_PLAYERS];
+
+	/// <summary>The colours the map stated for the minimap's team-colour scheme, indexed by player index, zero for none.</summary>
+	private readonly uint[] _minimapTeamColors = new uint[EcsSharedMemory.MAX_PLAYERS];
+
 	private readonly SortedDictionary<int, LobbyMatchSetting> _matchSettings = new();
 	private int _openSlotCount;
 	private MatchShroudMode _hostShroudMode = MatchShroudMode.FromMap;
@@ -97,6 +110,38 @@ public partial class ServerLobby : ILobbySeatTable
 
 	public bool MatchStarted => _matchStarted;
 
+	/// <summary>The highest player index a person may be seated in, which is every slot while the map stated no limit.</summary>
+	public int SeatLimit { get; private set; } = EcsSharedMemory.MAX_PLAYERS - 1;
+
+	/// <summary>
+	///     Keeps every player index above a count for the lobby's map, which is how a map that drives players of its own
+	///     stops a person being seated in one of them. The slots above the count are closed as well, so no admission, no
+	///     computer seat and no host order can place anyone there.
+	/// </summary>
+	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+	/// <returns>Whether the lobby holds that limit afterwards.</returns>
+	public bool TrySetPlayerSlotLimit(int maximumPlayers)
+	{
+		if (maximumPlayers <= 0 || maximumPlayers >= EcsSharedMemory.MAX_PLAYERS) return false;
+		if (maximumPlayers == SeatLimit) return true;
+
+		SeatLimit = maximumPlayers;
+
+		bool changed = false;
+		for (int slot = 1; slot < _openSlots.Length; slot++)
+		{
+			if (slot <= maximumPlayers || !_openSlots[slot]) continue;
+
+			_openSlots[slot] = false;
+			changed = true;
+		}
+
+		_openSlotCount = CountOpenSlots();
+		_log.Write($"the lobby's map reserves every player slot after {maximumPlayers} for itself");
+		if (changed) BroadcastState();
+		return true;
+	}
+
 	public int AdminPeerId => _adminPeerId;
 
 	public string MapName => _mapName;
@@ -115,7 +160,8 @@ public partial class ServerLobby : ILobbySeatTable
 
 	/// <summary>
 	///     Opens or closes one player slot, which is how the lobby's host decides which seats the board offers. A slot the
-	///     host closes keeps its row on screen and stops accepting a player.
+	///     host closes keeps its row on screen and stops accepting a player. A slot the lobby's map reserved for itself is
+	///     refused, because the player indexes above the map's limit belong to the map's own rules.
 	/// </summary>
 	/// <param name="slot">The player slot.</param>
 	/// <param name="open">Whether the slot accepts a player.</param>
@@ -123,6 +169,12 @@ public partial class ServerLobby : ILobbySeatTable
 	public bool TrySetSlotOpen(int slot, bool open)
 	{
 		if (slot <= 0 || slot >= _openSlots.Length) return false;
+		if (open && slot > SeatLimit)
+		{
+			_log.Write($"player slot {slot} was opened, but the lobby's map keeps every slot after {SeatLimit} for its own players; the order is refused");
+			return false;
+		}
+
 		if (_openSlots[slot] == open) return true;
 
 		_openSlots[slot] = open;
@@ -142,6 +194,7 @@ public partial class ServerLobby : ILobbySeatTable
 	{
 		if (count <= 0 || count >= _openSlots.Length) return false;
 
+		count = Math.Min(count, SeatLimit);
 		bool changed = false;
 		for (int slot = 1; slot < _openSlots.Length; slot++)
 		{
