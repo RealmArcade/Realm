@@ -19,7 +19,10 @@ public class AutoCastSystem
 	private readonly ScriptAbilityRegistry _abilities;
 	private readonly ServerGameAPI _api;
 	private readonly EntityCallback<AutoCastState, Position, DefinitionId, Owner> _unitCallback;
+	private readonly EntityCallback<Position, Owner> _enemyCallback;
+	private readonly QueryDescription _enemyQuery = QueryCache.AllPositionAndOwnerNoneDeadQuery;
 	private readonly List<AutoCastRequest> _pendingCasts = new();
+	private readonly List<EnemySnapshot> _enemies = new();
 
 	public AutoCastSystem(SimulationContext context, ScriptAbilityRegistry abilities, ServerGameAPI api)
 	{
@@ -27,6 +30,7 @@ public class AutoCastSystem
 		_abilities = abilities;
 		_api = api;
 		_unitCallback = CollectUnit;
+		_enemyCallback = CollectEnemy;
 	}
 
 	public void Grant(Entity entity)
@@ -55,9 +59,19 @@ public class AutoCastSystem
 	public void Step()
 	{
 		_pendingCasts.Clear();
+		_enemies.Clear();
+		_context.World.Query(in _enemyQuery, _enemyCallback);
 		_context.World.Query(in QueryCache.AllAutoCastQuery, _unitCallback);
 		for (int index = 0; index < _pendingCasts.Count; index++) Cast(_pendingCasts[index]);
 		_pendingCasts.Clear();
+		_enemies.Clear();
+	}
+
+	private void CollectEnemy(Entity entity, ref Position position, ref Owner owner)
+	{
+		if (_context.World.Has<Invulnerable>(entity)) return;
+
+		_enemies.Add(new EnemySnapshot(position.Value, ResolvePlayerIndex(entity)));
 	}
 
 	private void CollectUnit(Entity entity, ref AutoCastState autoCastState, ref Position position, ref DefinitionId definitionId, ref Owner owner)
@@ -69,8 +83,7 @@ public class AutoCastSystem
 		if (!world.TryGet<AbilityState>(entity, out AbilityState abilityState) || abilityState.Count == 0) return;
 
 		Vector3 casterPosition = position.Value;
-		bool hasTarget = TryReadEngagementPosition(entity, out Vector3 targetPosition);
-		float targetDistance = hasTarget ? Vector3.Distance(casterPosition, targetPosition) : 0f;
+		int casterPlayerIndex = ResolvePlayerIndex(entity);
 		bool hasMana = world.TryGet<Mana>(entity, out Mana mana);
 
 		for (int index = 0; index < abilityState.Count && index < AutoCastSystem.MaximumAbilitySlots; index++)
@@ -85,20 +98,70 @@ public class AutoCastSystem
 			if (_abilities.IsUnitAbilityDisabled(entity.Id, abilityId)) continue;
 			if (UnitOrderService.GetAbilityCooldownRemaining(world, entity, abilityId) > 0f) continue;
 
-			float reach = MathF.Max(definition.TargetRange, definition.AreaOfEffectRadius);
+			Vector3 castPosition = casterPosition;
 			if (definition.AutoCastRequiresEnemy)
 			{
-				if (!hasTarget) continue;
-				if (reach > 0f && targetDistance > reach) continue;
+				float reach = MathF.Max(definition.TargetRange, definition.AreaOfEffectRadius);
+				if (!TryFindNearestEnemy(casterPosition, casterPlayerIndex, reach, out castPosition)) continue;
 			}
 
 			float manaCost = definition.ManaCost;
 			if (manaCost > 0f && !CanPayMana(hasMana, in mana, definition, manaCost)) continue;
 
-			Vector3 castPosition = definition.AutoCastRequiresEnemy ? targetPosition : casterPosition;
 			_pendingCasts.Add(new AutoCastRequest(entity, abilityId, castPosition, manaCost, definition.Cooldown));
 			return;
 		}
+	}
+
+	private bool TryFindNearestEnemy(Vector3 casterPosition, int casterPlayerIndex, float reach, out Vector3 enemyPosition)
+	{
+		enemyPosition = Vector3.Zero;
+		float bestDistanceSquared = reach > 0f ? reach * reach : float.PositiveInfinity;
+		bool found = false;
+
+		for (int index = 0; index < _enemies.Count; index++)
+		{
+			EnemySnapshot enemy = _enemies[index];
+			if (!ArePlayersEnemies(casterPlayerIndex, enemy.PlayerIndex)) continue;
+
+			float distanceSquared = Vector3.DistanceSquared(casterPosition, enemy.Position);
+			if (distanceSquared > bestDistanceSquared) continue;
+
+			bestDistanceSquared = distanceSquared;
+			enemyPosition = enemy.Position;
+			found = true;
+		}
+
+		return found;
+	}
+
+	private int ResolvePlayerIndex(Entity entity)
+	{
+		EcsWorld world = _context.World;
+		if (entity == Entity.Null || !world.IsAlive(entity)) return 0;
+		if (world.Has<UnitOwnerPlayer>(entity)) return world.Get<UnitOwnerPlayer>(entity).PlayerIndex;
+		if (!world.Has<Owner>(entity)) return 0;
+
+		Entity playerEntity = world.Get<Owner>(entity).PlayerEntity.Value;
+		if (!world.IsAlive(playerEntity) || !world.Has<UnitOwnerPlayer>(playerEntity)) return 0;
+
+		return world.Get<UnitOwnerPlayer>(playerEntity).PlayerIndex;
+	}
+
+	private bool ArePlayersEnemies(int playerIndex, int otherPlayerIndex)
+	{
+		if (playerIndex == otherPlayerIndex) return false;
+
+		EcsWorld world = _context.World;
+		Entity worldEntity = _context.WorldEntity;
+		if (worldEntity != Entity.Null && world.IsAlive(worldEntity) && world.Has<PlayerRelationshipMatrix>(worldEntity))
+		{
+			PlayerRelationship relationship = world.Get<PlayerRelationshipMatrix>(worldEntity).GetRelationship(playerIndex, otherPlayerIndex);
+			if ((relationship & PlayerRelationship.Ally) != 0) return false;
+			if ((relationship & PlayerRelationship.Enemy) != 0) return true;
+		}
+
+		return true;
 	}
 
 	private void Cast(AutoCastRequest request)
@@ -121,22 +184,7 @@ public class AutoCastSystem
 		_api.CastAbility(new UnitId(request.Caster.Id), request.AbilityId, request.TargetPosition);
 	}
 
-	private bool TryReadEngagementPosition(Entity entity, out Vector3 position)
-	{
-		EcsWorld world = _context.World;
-		position = Vector3.Zero;
-
-		if (!world.TryGet<AttackTarget>(entity, out AttackTarget attackTarget)) return false;
-
-		Entity target = attackTarget.Target;
-		if (target == Entity.Null || !world.IsAlive(target) || world.Has<Dead>(target)) return false;
-		if (!world.TryGet<Position>(target, out Position targetPosition)) return false;
-
-		position = targetPosition.Value;
-		return true;
-	}
-
-	private static bool CanPayMana(bool hasMana, in Mana mana, AbilityDefinition definition, float manaCost)
+	private bool CanPayMana(bool hasMana, in Mana mana, AbilityDefinition definition, float manaCost)
 	{
 		if (!hasMana) return false;
 		if (mana.Current < manaCost + definition.AutoCastManaReserve) return false;
@@ -148,4 +196,6 @@ public class AutoCastSystem
 	private const int MaximumAbilitySlots = 32;
 
 	private readonly record struct AutoCastRequest(Entity Caster, string AbilityId, Vector3 TargetPosition, float ManaCost, float Cooldown);
+
+	private readonly record struct EnemySnapshot(Vector3 Position, int PlayerIndex);
 }
