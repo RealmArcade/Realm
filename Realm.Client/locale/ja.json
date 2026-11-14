@@ -183,6 +183,7 @@
   "Are you sure you want to delete this replay?": "このリプレイを削除してもよろしいですか？",
   "Are you sure you want to delete version {0} of {1} from storage?": "ストレージから {1} のバージョン {0} を削除してもよろしいですか？",
   "Are you sure you want to quit the current match and return to the main menu?": "Are you sure you want to quit the current match and return to the main menu?",
+  "Are you sure you want to quit the current match and return to the map editor?": "Are you sure you want to quit the current match and return to the map editor?",
   "Are you sure you want to remove asset '{0}' from manifest.json?": "manifest.json からアセット '{0}' を削除してもよろしいですか？",
   "Are you sure you want to replace the entire map with procedurally generated terrain? This will delete all placed entities and overwrite the terrain.": "Are you sure you want to replace the entire map with procedurally generated terrain? This will delete all placed entities and overwrite the terrain.",
   "Are you sure you want to replace the entire map with terrain imported from an image? This will delete all placed entities and overwrite the terrain.": "Are you sure you want to replace the entire map with terrain imported from an image? This will delete all placed entities and overwrite the terrain.",

@@ -183,6 +183,7 @@
   "Are you sure you want to delete this replay?": "Tem certeza de que deseja excluir este replay?",
   "Are you sure you want to delete version {0} of {1} from storage?": "Tem certeza de que deseja excluir a versão {0} de {1} do armazenamento?",
   "Are you sure you want to quit the current match and return to the main menu?": "Are you sure you want to quit the current match and return to the main menu?",
+  "Are you sure you want to quit the current match and return to the map editor?": "Are you sure you want to quit the current match and return to the map editor?",
   "Are you sure you want to remove asset '{0}' from manifest.json?": "Tem certeza de que deseja remover o recurso '{0}' de manifest.json?",
   "Are you sure you want to replace the entire map with procedurally generated terrain? This will delete all placed entities and overwrite the terrain.": "Are you sure you want to replace the entire map with procedurally generated terrain? This will delete all placed entities and overwrite the terrain.",
   "Are you sure you want to replace the entire map with terrain imported from an image? This will delete all placed entities and overwrite the terrain.": "Are you sure you want to replace the entire map with terrain imported from an image? This will delete all placed entities and overwrite the terrain.",

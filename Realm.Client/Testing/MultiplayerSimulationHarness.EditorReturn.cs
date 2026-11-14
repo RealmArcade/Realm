@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,6 +8,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Client.UI.InGame;
 using Realm.Ecs;
 using Realm.Ecs.Common;
 
@@ -80,12 +81,8 @@ public partial class MultiplayerSimulationHarness
 				GameHost matchHost = GameContext.Host ?? throw new InvalidOperationException("The playtest's world went away.");
 				report.Add(DescribeWorld("playtest_end", matchHost));
 
-				GameContext.SessionState.IsTestMode = false;
-				GameContext.SessionState.ReturningFromTest = true;
-				GameContext.Lobby?.Disconnect();
-				GameContext.UserInterface?.TransitionTo(GameScreen.MapEditorHUD);
+				BackToEditorButton.Return();
 				await ToSignal(GetTree().CreateTimer(EditorReturnSettleSeconds), SceneTreeTimer.SignalName.Timeout);
-
 				GameHost? after = GameContext.Host;
 				report.Add($"return hostChanged={(!ReferenceEquals(after, matchHost) ? 1 : 0)} returningFromTest={(GameContext.SessionState.ReturningFromTest ? 1 : 0)} keptSnapshot={(GameContext.SessionState.EditorWorldState != null ? 1 : 0)} mapEditorMode={(GameContext.SessionState.IsMapEditorMode ? 1 : 0)} editorAlive={(GodotObject.IsInstanceValid(editor) ? 1 : 0)}");
 				report.Add(after == null ? "return_world=missing" : DescribeWorld("editor_after", after));

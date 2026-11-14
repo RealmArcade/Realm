@@ -311,3 +311,16 @@ log says so. If you would rather keep the stale release and accept it being used
 **Also unproven here:** the two Windows UI paths (`btnTestMap`, export/publish) compile a Godot-side service that cannot
 be exercised outside the game, so they were verified by building and by driving the same publish command and the same
 lookup code directly, not by clicking the buttons.
+
+## 14. Quitting a playtest goes back to the editor
+
+`Quit Match` in the resource bar now leaves a playtest the way the `Back to Editor` button does, and both go through one
+method (`BackToEditorButton.Return`) so they cannot drift apart; a match that is not a playtest still leaves to the main
+menu. The confirmation sentence is new (`Are you sure you want to quit the current match and return to the map editor?`)
+and added to all eleven catalogs, English everywhere except Korean, which already translated the main-menu sentence this
+one mirrors — the rest of the catalogs are English placeholders for that sentence too, so this matches the state the
+translation pipeline left them in.
+
+**Needs your review:** this is a Godot UI path that cannot be driven from here, so it was verified by building and by
+reading the one call chain, not by clicking the button in a running game. `GameOver`'s close button and the editor-return
+harness now call the same method, so a click-through of any one of them exercises the shared code.

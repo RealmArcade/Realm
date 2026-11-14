@@ -209,6 +209,7 @@
   "Are you sure you want to delete this replay?": "이 리플레이를 삭제하시겠습니까?",
   "Are you sure you want to delete version {0} of {1} from storage?": "저장소에서 {1}의 버전 {0}을(를) 삭제하시겠습니까?",
   "Are you sure you want to quit the current match and return to the main menu?": "현재 경기에서 나가 메인 메뉴로 돌아가시겠습니까?",
+  "Are you sure you want to quit the current match and return to the map editor?": "현재 경기에서 나가 맵 편집기로 돌아가시겠습니까?",
   "Are you sure you want to remove asset '{0}' from manifest.json?": "manifest.json에서 에셋 '{0}'을(를) 제거하시겠습니까?",
   "Are you sure you want to replace the entire map with procedurally generated terrain? This will delete all placed entities and overwrite the terrain.": "전체 맵을 절차적으로 생성된 지형으로 교체하시겠습니까? 배치된 모든 엔티티가 삭제되고 지형이 덮어써집니다.",
   "Are you sure you want to replace the entire map with terrain imported from an image? This will delete all placed entities and overwrite the terrain.": "전체 맵을 이미지에서 가져온 지형으로 교체하시겠습니까? 배치된 모든 엔티티가 삭제되고 지형이 덮어써집니다.",

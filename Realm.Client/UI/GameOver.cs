@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Client.UI.InGame;
 using Realm.Shared.Distribution;
 using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
@@ -292,14 +293,7 @@ public partial class GameOver : Control
 			GameContext.UserInterface?.PlayClickSound();
 			if (GameContext.SessionState.IsTestMode)
 			{
-				GameContext.SessionState.IsTestMode = false;
-				GameContext.SessionState.ReturningFromTest = true;
-				if (GameContext.Lobby != null)
-				{
-					GameContext.Lobby.Disconnect();
-				}
-
-				GameContext.UserInterface?.TransitionTo(GameScreen.MapEditorHUD);
+				BackToEditorButton.Return();
 			}
 			else
 			{
