@@ -115,7 +115,7 @@ public partial class GameHost
 		// happen had no way to tell a refusal from a click the match never heard.
 		if (string.IsNullOrEmpty(outcome.RejectionReason)) return;
 
-		GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate(outcome.RejectionReason), new Color(1.0f, 0.3f, 0.25f));
+		GameContext.InGameHud?.ShowFeedbackWarning(TranslationServer.Translate(outcome.RejectionReason));
 	}
 
 	public int RefusedCommandCount { get; private set; }

@@ -112,7 +112,7 @@ public partial class GameHost
 			    Hud.Stone
 		    ))
 		{
-			ShowTrainingFeedback("Cannot train unit: Insufficient resources!", new Color(1f, 0.2f, 0.2f), isWarning: true);
+			ShowTrainingWarning("Cannot train unit: Insufficient resources!");
 			return;
 		}
 
@@ -128,12 +128,12 @@ public partial class GameHost
 
 		if (result == InputService.TryGetCandidateBuildingResult.NoProducingBuildingSelected)
 		{
-			ShowTrainingFeedback(TranslationServer.Translate("Cannot train unit: No producing building selected!"), new Color(1f, 0.3f, 0.3f), isWarning: true);
+			ShowTrainingWarning(TranslationServer.Translate("Cannot train unit: No producing building selected!"));
 			return false;
 		}
 		else if (result == InputService.TryGetCandidateBuildingResult.TrainingQueueFull)
 		{
-			ShowTrainingFeedback(TranslationServer.Translate("Training queue is full! (Max 5)"), new Color(1f, 0.3f, 0.3f), isWarning: true);
+			ShowTrainingWarning(TranslationServer.Translate("Training queue is full! (Max 5)"));
 			return false;
 		}
 
@@ -150,7 +150,7 @@ public partial class GameHost
 		if (result == InputService.ValidateTrainingConstraintsResult.PopulationCapReached)
 		{
 			string msg = string.Format(TranslationServer.Translate("Population cap reached! ({0}/{1})"), curPop, maxPop);
-			ShowTrainingFeedback(msg, new Color(1f, 0.3f, 0.3f), isWarning: true);
+			ShowTrainingWarning(msg);
 			return false;
 		}
 
@@ -173,17 +173,16 @@ public partial class GameHost
 		int curPop = GetCurrentPopulation(localSlot);
 		int maxPop = GetMaxPopulation(localSlot);
 		string msg = string.Format(TranslationServer.Translate("Queued {0} ({1}/{2} pop)"), meta.Name, curPop, maxPop);
-		ShowTrainingFeedback(msg, new Color(0.2f, 0.8f, 1f), isWarning: false);
+		ShowTrainingQueued(msg, new Color(0.2f, 0.8f, 1f));
 		Hud.RefreshUI(SelectedUnits);
 	}
 
-	private void ShowTrainingFeedback(string message, Color color, bool isWarning)
+	private void ShowTrainingWarning(string message) => Hud.ShowFeedbackWarning(message);
+
+	private void ShowTrainingQueued(string message, Color color)
 	{
 		Hud.ShowFeedbackText(message, color);
-		if (isWarning)
-			GameContext.UserInterface?.PlayWarningSound();
-		else
-			GameContext.UserInterface?.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 	}
 
 	public void SaveCameraLocation(int slotIndex)

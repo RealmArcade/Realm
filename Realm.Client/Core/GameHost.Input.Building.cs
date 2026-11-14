@@ -179,8 +179,7 @@ public partial class GameHost
 			int placementWorkerServerId = placementWorker != null ? GetServerEntityId(placementWorker.Entity) : -1;
 			if (_buildingPlacementNeedsBuilder && placementWorkerServerId <= 0)
 			{
-				GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Cannot construct: no builder is available"), new Color(1.0f, 0.2f, 0.2f));
-				GameContext.UserInterface?.PlayWarningSound();
+				GameContext.InGameHud?.ShowFeedbackWarning(TranslationServer.Translate("Cannot construct: no builder is available"));
 				ClearBuildingPlacementState();
 				return;
 			}
@@ -214,8 +213,7 @@ public partial class GameHost
 			    Hud.Stone
 		    ))
 		{
-			Hud.ShowFeedbackText("Cannot construct: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
-			GameContext.UserInterface?.PlayWarningSound();
+			Hud.ShowFeedbackWarning("Cannot construct: Insufficient resources!");
 		}
 		else
 		{
@@ -240,8 +238,7 @@ public partial class GameHost
 
 	private void ViewHandleObstructedPlacement()
 	{
-		Hud.ShowFeedbackText("Cannot construct: Area is obstructed!", new Color(1.0f, 0.2f, 0.2f));
-		GameContext.UserInterface?.PlayWarningSound();
+		Hud.ShowFeedbackWarning("Cannot construct: Area is obstructed!");
 		ClearBuildingPlacementState();
 	}
 
