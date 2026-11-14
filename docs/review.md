@@ -49,7 +49,9 @@ measured endpoint (`Realm.Network.Tests`, run by hand against a live `Realm.Admi
 
 **What is proven:** the SteamID64 travels from the seat's own client through the hello, the lobby seat and the
 published state to the table (`LobbyIdentityWireTests`, `MeleeLobbyTransportTests`), and the button is only drawn for a
-person who stated an id and is not you.
+person who stated an id, is not you, and is not already one of your Steam friends (Steam's `SteamFriends.HasFriend(…,
+k_EFriendFlagImmediate)`, asked per row when the table is built). A session without Steamworks has no friend list to
+read, so it keeps the button and the existing "Steam unavailable" answer rather than deciding for the player.
 
 **Needs your review:**
 
@@ -59,8 +61,10 @@ person who stated an id and is not you.
 2. **Seats state their own SteamID64.** It is as trustworthy as the display name next to it: a hostile peer could state
    somebody else's id, and the button would open that person's profile. Nothing else is exposed by it, but if you want
    the id attested, it has to come from the account authority instead.
-3. **No button is drawn for your own seat or for a computer seat** — a request to yourself can only fail, and a bot has
-   nobody behind it.
+3. **No button is drawn for your own seat, for a computer seat, or for somebody already on your friend list** — a
+   request to yourself can only fail, a bot has nobody behind it, and Steam has already accepted the third. The friend
+   list is read live, but the table is built once, so a request accepted while the table is on screen keeps its button
+   until the table is rebuilt.
 
 ## 3. Map text and language switching
 

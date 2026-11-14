@@ -523,16 +523,19 @@ public partial class GameOver : Control
 	}
 
 	/// <summary>
-	///     Whether a row gets the friend-request button: a seat played by a person, whose own client stated a Steam id, and not
-	///     this screen's own seat. Steam has nothing to add for a computer seat, nothing to name for a player who is not
-	///     running inside Steam, and nothing to do with a request to itself.
+	///     Whether a row gets the friend-request button: a seat played by a person, whose own client stated a Steam id, who is
+	///     not already this screen's Steam friend, and not this screen's own seat. Steam has nothing to add for a computer
+	///     seat, nothing to name for a player who is not running inside Steam, nothing to do with a request to itself, and
+	///     nothing to ask for somebody it already lists as a friend.
 	/// </summary>
 	private static bool OffersFriendRequest(in StatsRow row)
 	{
 		if (row.IsComputer || row.SteamId == 0) return false;
 
 		ulong ownSteamId = GameContext.Steam.SteamId;
-		return ownSteamId == 0 || ownSteamId != row.SteamId;
+		if (ownSteamId != 0 && ownSteamId == row.SteamId) return false;
+
+		return !GameContext.Steam.IsFriend(row.SteamId);
 	}
 
 	/// <summary>

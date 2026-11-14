@@ -611,6 +611,28 @@ public class SteamService
 	}
 
 	/// <summary>
+	///     Whether Steam already lists a person among this player's friends, which is what decides if a friend request is
+	///     still worth a place in the game-over table: an add-friend dialog for somebody Steam has already accepted asks the
+	///     player to do what is already done. A session without Steamworks has no friend list to read and answers nothing.
+	/// </summary>
+	/// <param name="steamId">The SteamID64 of the person to look up.</param>
+	/// <returns>Whether Steam lists that person as this player's friend.</returns>
+	public bool IsFriend(ulong steamId)
+	{
+		if (!_initialized || steamId == 0) return false;
+
+		try
+		{
+			return SteamFriends.HasFriend(new CSteamID(steamId), EFriendFlags.k_EFriendFlagImmediate);
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[Steam] whether {steamId} is a friend could not be read: {exception.Message}");
+			return false;
+		}
+	}
+
+	/// <summary>
 	///     Asks Steam to add a player as a friend, by opening Steam's own add-friend dialog for that SteamID64. Steam has no
 	///     interface that sends a request silently - the request is the player's to confirm in Steam's own window - so this is
 	///     the whole of what a game can do, and it carries the same meaning as any other game's "add friend" button.
