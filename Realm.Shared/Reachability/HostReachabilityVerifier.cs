@@ -34,6 +34,16 @@ public record HostReachabilityResult(HostReachabilityFailure Failure, string Pro
 {
 	public bool Verified => Failure == HostReachabilityFailure.None;
 
+	/// <summary>
+	///     The endpoint the rehearsal punched, which is the endpoint the host's router made a mapping toward. A router keeps
+	///     that mapping only while it sees traffic toward the endpoint it was made for, so this is what a published lobby has
+	///     to keep sending to for as long as it advertises the port the mapping exposes.
+	/// </summary>
+	public string ProbeIp { get; init; } = string.Empty;
+
+	/// <summary>The port the rehearsal punched, or zero when nothing was punched.</summary>
+	public int ProbePort { get; init; }
+
 	public static HostReachabilityResult Refused(HostReachabilityFailure failure, string detail) => new(failure, string.Empty, string.Empty, 0, detail);
 }
 
@@ -94,7 +104,7 @@ public class HostReachabilityVerifier
 		{
 			lastPunchAccepted |= punch(probeAddress, ticket.ProbePort);
 			lastReport = await ReadAsync(registryBaseUrl, ticket.ProbeId, cancellationToken).ConfigureAwait(false);
-			if (lastReport is { Answered: true }) return Verified(ticket.ProbeId, lastReport, advertisedIp, advertisedPort);
+			if (lastReport is { Answered: true }) return Verified(ticket.ProbeId, lastReport, advertisedIp, advertisedPort, probeAddress, ticket.ProbePort);
 
 			await Task.Delay(PollIntervalMilliseconds, cancellationToken).ConfigureAwait(false);
 		}
@@ -103,11 +113,15 @@ public class HostReachabilityVerifier
 		return HostReachabilityResult.Refused(HostReachabilityFailure.ProbeUnanswered, detail);
 	}
 
-	private static HostReachabilityResult Verified(string probeId, ReachabilityReport report, string advertisedIp, int advertisedPort)
+	private static HostReachabilityResult Verified(string probeId, ReachabilityReport report, string advertisedIp, int advertisedPort, string probeAddress, int probePort)
 	{
 		string observedIp = string.IsNullOrEmpty(report.ObservedIp) ? advertisedIp : report.ObservedIp;
 		int observedPort = report.ObservedPort > 0 ? report.ObservedPort : advertisedPort;
-		return new HostReachabilityResult(HostReachabilityFailure.None, probeId, observedIp, observedPort, $"the registry node reached the game port and measured the public endpoint {observedIp}:{observedPort}");
+		return new HostReachabilityResult(HostReachabilityFailure.None, probeId, observedIp, observedPort, $"the registry node reached the game port and measured the public endpoint {observedIp}:{observedPort}")
+		{
+			ProbeIp = probeAddress,
+			ProbePort = probePort
+		};
 	}
 
 	private static string DescribeSilence(ReachabilityTicket ticket, string probeAddress, string advertisedIp, int advertisedPort, ReachabilityReport? lastReport, bool punchAccepted)

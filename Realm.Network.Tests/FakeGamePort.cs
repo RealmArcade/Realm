@@ -61,8 +61,18 @@ public class FakeGamePort : IDisposable
 	/// </summary>
 	public void Punch(IPEndPoint endpoint)
 	{
+		Solicit(endpoint);
+		_socket.Send(ReachabilityPunch.Datagram.ToArray(), endpoint);
+	}
+
+	/// <summary>
+	///     Records that the host has sent to an endpoint without sending anything, which is what a router in front of the
+	///     host does on its behalf: the punch leaves through the router, so the game port sees the router's endpoint as the
+	///     one it may be answered from.
+	/// </summary>
+	public void Solicit(IPEndPoint endpoint)
+	{
 		_solicited[endpoint.ToString()] = DateTime.UtcNow;
-		_socket.Send(new byte[] { 0x50, 0x55, 0x4E, 0x43, 0x48 }, endpoint);
 	}
 
 	public void Dispose()

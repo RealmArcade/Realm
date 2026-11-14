@@ -11,6 +11,7 @@ using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Simulation;
 
 namespace Realm.ListenServer;
@@ -168,7 +169,7 @@ public partial class ListenServerHost
 			peerId => _transport.Disconnect(peerId),
 			StartMatchFromLobby,
 			Stop,
-			(address, port) => _transport.SendToAddress(address, port, Encoding.UTF8.GetBytes("PUNCH")),
+			(address, port) => _transport.SendToAddress(address, port, ReachabilityPunch.Datagram.ToArray()),
 			peerId => _transport.TryReadPeerLink(peerId, out PeerLinkStatistics statistics) ? statistics : null,
 			DescribeLobbyStartWarning);
 
