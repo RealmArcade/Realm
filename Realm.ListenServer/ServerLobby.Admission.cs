@@ -12,7 +12,7 @@ namespace Realm.ListenServer;
 /// <summary>admitting a peer and the session checks that guard it.</summary>
 public partial class ServerLobby
 	{
-	public string AdmitPeer(int peerId, string name, long accountId, string sessionToken, bool proveAdmin, out bool isAdmin)
+	public string AdmitPeer(int peerId, string name, long accountId, string sessionToken, ulong steamId, bool proveAdmin, out bool isAdmin)
 	{
 		isAdmin = false;
 		if (_matchStarted) return "server_rejected_lobby_is_closed";
@@ -82,6 +82,10 @@ public partial class ServerLobby
 
 		seat.PeerId = peerId;
 		seat.AccountId = accountId;
+
+		// Stated by the seat's own client, like the name it plays under. It is published to the other seats so the table at
+		// the end of the match can name the person behind it to Steam, and a seat that reconnects states it again.
+		seat.SteamId = steamId;
 		seat.IsHost = isAdmin || peerId == _adminPeerId;
 		seat.IsDisconnected = false;
 		if (!string.IsNullOrWhiteSpace(name)) seat.Name = LobbyLimits.SanitizeDisplayName(name);

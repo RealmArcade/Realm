@@ -73,6 +73,8 @@ public class ClientServerSession : IDisposable
 
 	private string _sessionToken = string.Empty;
 
+	private ulong _steamId;
+
 	private string _mapHash = string.Empty;
 	private bool _helloSent;
 	private bool _started;
@@ -288,11 +290,17 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
-	public void ConfigureLobbyIdentity(string playerName, string sessionToken, long accountId)
+	/// <summary>
+	///     States who this screen is to the lobby it is about to hold or join. The Steam id travels with the rest because the
+	///     lobby publishes the seats to each other, and the end-of-match table is where a player can act on the people they
+	///     just played with.
+	/// </summary>
+	public void ConfigureLobbyIdentity(string playerName, string sessionToken, long accountId, ulong steamId)
 	{
 		_playerName = playerName ?? string.Empty;
 		_sessionToken = sessionToken ?? string.Empty;
 		_accountId = accountId;
+		_steamId = steamId;
 	}
 
 	public async Task<MatchStartResult> TryStartLobbyAsync(ServerLobbyStart start, int lobbyPort = 0)
@@ -677,7 +685,8 @@ public class ClientServerSession : IDisposable
 			Language = _language,
 			PlayerName = _playerName,
 			AccountId = _accountId,
-			SessionToken = _sessionToken
+			SessionToken = _sessionToken,
+			SteamId = _steamId
 		};
 
 		_channel.Send(NetworkFrameKind.ClientHello, MemoryPackSerializer.Serialize(hello));

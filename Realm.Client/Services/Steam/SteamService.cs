@@ -22,6 +22,12 @@ public class SteamService
 
 	private const string GameLobbyIdMetadataKey = "realm_game_lobby_id";
 
+	/// <summary>
+	///     The overlay dialog Steam opens for a user it should add as a friend. The name is Steamworks' own spelling of the
+	///     dialog, and it is the only way a game can put a request in front of the player who has to confirm it.
+	/// </summary>
+	private const string FriendDialogAddFriend = "friendadd";
+
 	private static readonly TimeSpan TicketTimeout = TimeSpan.FromSeconds(15);
 
 	private static readonly TimeSpan InviteLobbyTimeout = TimeSpan.FromSeconds(10);
@@ -579,6 +585,60 @@ public class SteamService
 				GameLog.LogError($"[Steam] the persona name could not be read: {exception.Message}");
 				return string.Empty;
 			}
+		}
+	}
+
+	/// <summary>
+	///     The SteamID64 this process plays as, or <c>0</c> while Steamworks is not running. It is the identity a seat states
+	///     to the lobby so that the table at the end of a match can point Steam at the person behind it.
+	/// </summary>
+	public ulong SteamId
+	{
+		get
+		{
+			if (!_initialized) return 0;
+
+			try
+			{
+				return SteamUser.GetSteamID().m_SteamID;
+			}
+			catch (Exception exception)
+			{
+				GameLog.LogError($"[Steam] this player's Steam id could not be read: {exception.Message}");
+				return 0;
+			}
+		}
+	}
+
+	/// <summary>
+	///     Asks Steam to add a player as a friend, by opening Steam's own add-friend dialog for that SteamID64. Steam has no
+	///     interface that sends a request silently - the request is the player's to confirm in Steam's own window - so this is
+	///     the whole of what a game can do, and it carries the same meaning as any other game's "add friend" button.
+	/// </summary>
+	/// <param name="steamId">The SteamID64 of the player to add.</param>
+	/// <returns>Whether Steam was asked, which is false when Steamworks is not running or the id names nobody.</returns>
+	public bool OpenAddFriendDialog(ulong steamId)
+	{
+		if (!_initialized || steamId == 0) return false;
+
+		ulong ownSteamId = SteamId;
+		if (ownSteamId != 0 && ownSteamId == steamId) return false;
+
+		try
+		{
+			if (!SteamUtils.IsOverlayEnabled())
+			{
+				GameLog.LogError("[Steam] the Steam overlay is disabled for this game, so the add-friend dialog will not be shown");
+			}
+
+			SteamFriends.ActivateGameOverlayToUser(FriendDialogAddFriend, new CSteamID(steamId));
+			GameLog.LogToConsole($"[Steam] asked Steam to add {steamId} as a friend");
+			return true;
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[Steam] Steam's add-friend dialog for {steamId} could not be opened: {exception.Message}");
+			return false;
 		}
 	}
 

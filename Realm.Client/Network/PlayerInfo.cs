@@ -19,6 +19,13 @@ public class PlayerInfo
 	/// </summary>
 	public long AccountId { get; set; }
 	public string Name { get; set; } = "";
+
+	/// <summary>
+	///     The SteamID64 this seat's player plays as, or 0 for a computer seat, a guest who is not running inside Steam, or a
+	///     player who has not stated one. The seat's own client states it, exactly like the name, and the only thing it is used
+	///     for is pointing Steam's add-friend dialog at the person behind the seat.
+	/// </summary>
+	public ulong SteamId { get; set; }
 	public string Faction { get; set; } = string.Empty;
 	public int TeamIndex
 	{

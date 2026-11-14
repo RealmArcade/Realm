@@ -239,7 +239,7 @@ public partial class LobbyManager
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
 
 		var start = new ServerLobbyStart(
@@ -361,7 +361,7 @@ public partial class LobbyManager
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
 
 		var start = new ServerLobbyStart(

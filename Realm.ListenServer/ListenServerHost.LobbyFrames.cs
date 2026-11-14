@@ -182,7 +182,7 @@ public partial class ListenServerHost
 		}
 
 		bool proveAdmin = ProvesAdmin(peerId, hello.AdminProof);
-		string admitted = lobby.AdmitPeer(peerId, hello.PlayerName, hello.AccountId, hello.SessionToken, proveAdmin, out bool isAdmin);
+		string admitted = lobby.AdmitPeer(peerId, hello.PlayerName, hello.AccountId, hello.SessionToken, hello.SteamId, proveAdmin, out bool isAdmin);
 		if (admitted.Length > 0)
 		{
 			_log.Write($"peer {peerId} refused by the lobby: {admitted}");

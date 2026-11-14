@@ -155,6 +155,13 @@ public partial struct LobbySeat
 	///     The <see cref="LobbyBotDifficulty" /> this computer seat plays on, or zero for a seat no one seated as a computer.
 	/// </summary>
 	public int Difficulty;
+
+	/// <summary>
+	///     The SteamID64 the seat's own client plays as, or 0 for a computer seat, a guest who is not running inside Steam, or
+	///     a seat whose player has not sent a hello this build can read. It is stated by that client, exactly like the name it
+	///     plays under, and it is only used to point Steam's add-friend dialog at the right person.
+	/// </summary>
+	public ulong SteamId;
 }
 
 [MemoryPackable]

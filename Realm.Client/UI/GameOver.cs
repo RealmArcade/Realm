@@ -44,6 +44,7 @@ public partial class GameOver : Control
 	private Control _graphContainer = null!;
 
 	private Label _placementColHeader = null!;
+	private Label _friendColHeader = null!;
 	private Label _playerColHeader = null!;
 	private Label _factionColHeader = null!;
 	private Label _scoreColHeader = null!;
@@ -59,6 +60,7 @@ public partial class GameOver : Control
 	private const int SecondPlace = 2;
 	private const float PlacementRefreshSeconds = 2f;
 	private const float PlacementColumnWidth = 88f;
+	private const float FriendColumnWidth = 196f;
 	private const string UnknownAuthorContributorName = "Realm Builder";
 
 	private bool _isVictory = true;
@@ -99,9 +101,16 @@ public partial class GameOver : Control
 		_placementColHeader.ClipText = true;
 		_placementColHeader.Visible = false;
 
+		_friendColHeader = new Label();
+		_friendColHeader.Name = "FriendColHeader_Label";
+		_friendColHeader.Text = string.Empty;
+		_friendColHeader.CustomMinimumSize = new Vector2(FriendColumnWidth, 0);
+		_friendColHeader.Visible = false;
+
 		var tableHeader = GetNode<HBoxContainer>("MainPanel/VBox/TableFrame/VBox/TableHeader");
 		tableHeader.AddChild(_placementColHeader);
 		tableHeader.MoveChild(_placementColHeader, 0);
+		tableHeader.AddChild(_friendColHeader);
 
 		_playerColHeader = GetNode<Label>("MainPanel/VBox/TableFrame/VBox/TableHeader/PlayerCol");
 		_factionColHeader = GetNode<Label>("MainPanel/VBox/TableFrame/VBox/TableHeader/FactionCol");
@@ -427,12 +436,26 @@ public partial class GameOver : Control
 				Rank = FormatPlacement(result),
 				IsFirstPlace = result.Placement == FirstPlace,
 				Player = result.Name,
+				SteamId = result.SteamId,
+				IsComputer = result.IsComputer,
 				Faction = string.IsNullOrWhiteSpace(result.Faction) ? result.TeamName : result.Faction,
 				Col3 = thirdColumn,
 				Col4 = fourthColumn,
 				Col5 = fifthColumn
 			});
 		}
+
+		bool showFriendColumn = false;
+		foreach (StatsRow row in rows)
+		{
+			if (OffersFriendRequest(row))
+			{
+				showFriendColumn = true;
+				break;
+			}
+		}
+
+		_friendColHeader.Visible = showFriendColumn;
 
 		foreach (var r in rows)
 		{
@@ -499,8 +522,66 @@ public partial class GameOver : Control
 			c5Lbl.VerticalAlignment = VerticalAlignment.Center;
 			rowContainer.AddChild(c5Lbl);
 
+			if (showFriendColumn) rowContainer.AddChild(CreateFriendCell(r));
+
 			_tableRowsContainer.AddChild(rowContainer);
 		}
+	}
+
+	/// <summary>
+	///     Whether a row gets the friend-request button: a seat played by a person, whose own client stated a Steam id, and not
+	///     this screen's own seat. Steam has nothing to add for a computer seat, nothing to name for a player who is not
+	///     running inside Steam, and nothing to do with a request to itself.
+	/// </summary>
+	private static bool OffersFriendRequest(in StatsRow row)
+	{
+		if (row.IsComputer || row.SteamId == 0) return false;
+
+		ulong ownSteamId = GameContext.Steam.SteamId;
+		return ownSteamId == 0 || ownSteamId != row.SteamId;
+	}
+
+	/// <summary>
+	///     Puts Steam's add-friend dialog in front of the player for the person behind a seat. Steam owns the request itself:
+	///     no game can send one on a player's behalf, so the dialog is the whole of the action and its confirmation is Steam's.
+	/// </summary>
+	private static void RequestSteamFriend(string playerName, ulong playerSteamId)
+	{
+		if (!GameContext.Steam.IsAvailable)
+		{
+			GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("STEAM UNAVAILABLE"), GameContext.Steam.UnavailableExplanation);
+			return;
+		}
+
+		if (GameContext.Steam.OpenAddFriendDialog(playerSteamId)) return;
+
+		GameContext.UserInterface?.PlayWarningSound();
+		GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("STEAM FRIEND REQUEST"), string.Format(TranslationServer.Translate("Steam could not open the add friend dialog for {0}."), playerName));
+	}
+
+	/// <summary>
+	///     The last cell of a row, which is the one place a player can act on the people they just played with. Every row
+	///     holds the cell whether or not it offers the button, so the columns above and below it stay lined up, and a row whose
+	///     seat is a computer or belongs to this screen holds an empty one.
+	/// </summary>
+	private Control CreateFriendCell(in StatsRow row)
+	{
+		if (!OffersFriendRequest(row)) return new Control { Name = "FriendCell_Spacer", CustomMinimumSize = new Vector2(FriendColumnWidth, 0) };
+
+		string playerName = row.Player;
+		ulong playerSteamId = row.SteamId;
+
+		Button friendButton = UIStyle.CreateActionButton("SendSteamFriendRequest_Button", TranslationServer.Translate("Send Steam Friend Request"), 12);
+		friendButton.CustomMinimumSize = new Vector2(FriendColumnWidth, 24);
+		friendButton.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		friendButton.TooltipText = string.Format(TranslationServer.Translate("Open Steam's add friend dialog for {0}."), playerName);
+		friendButton.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			RequestSteamFriend(playerName, playerSteamId);
+		};
+		friendButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		return friendButton;
 	}
 
 	private static bool HasPlacements(List<MatchPlayerResult> results)

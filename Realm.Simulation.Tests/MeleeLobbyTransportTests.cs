@@ -49,10 +49,10 @@ public class MeleeLobbyTransportTests
 			_ => null,
 			() => null);
 
-		Assert.That(_lobby.AdmitPeer(1, "Host", 1001, string.Empty, proveAdmin: true, out bool hostAdministers), Is.Empty, "The host has to be admitted.");
+		Assert.That(_lobby.AdmitPeer(1, "Host", 1001, string.Empty, steamId: 0, proveAdmin: true, out bool hostAdministers), Is.Empty, "The host has to be admitted.");
 		Assert.That(hostAdministers, Is.True, "The peer that proved the ticket administers the lobby.");
 
-		Assert.That(_lobby.AdmitPeer(2, "Member", 1002, string.Empty, proveAdmin: false, out bool memberAdministers), Is.Empty, "A second peer has to be admitted.");
+		Assert.That(_lobby.AdmitPeer(2, "Member", 1002, string.Empty, steamId: 0, proveAdmin: false, out bool memberAdministers), Is.Empty, "A second peer has to be admitted.");
 		Assert.That(memberAdministers, Is.False, "A peer that proved no ticket is a member rather than an administrator.");
 	}
 
@@ -68,6 +68,49 @@ public class MeleeLobbyTransportTests
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
 		}
+	}
+
+	/// <summary>
+	///     The Steam id a seat states travels to every other seat, because that is the only thing the end-of-match table has
+	///     to name when a player asks Steam to add somebody they just played with. It is published like the name it plays
+	///     under, and unlike the seat secret it is not blanked for the peers that do not hold the seat.
+	/// </summary>
+	[Test]
+	public void ASeatsStatedSteamIdIsPublishedToEverySeat()
+	{
+		const ulong steamId = 76561198000000001;
+
+		Assert.That(_lobby.AdmitPeer(3, "Friend", 1003, string.Empty, steamId, proveAdmin: false, out _), Is.Empty, "The third peer has to be admitted.");
+
+		_frames.Clear();
+		_lobby.BroadcastState();
+
+		foreach (int receiverPeerId in new[] { 1, 2, 3 })
+		{
+			LobbyStateMessage? published = LatestStateSentTo(receiverPeerId);
+			Assert.That(published, Is.Not.Null, $"peer {receiverPeerId} has to be told the seats");
+
+			LobbySeat? friendSeat = null;
+			foreach (LobbySeat seat in published!.Value.Seats)
+			{
+				if (seat.PeerId == 3) friendSeat = seat;
+			}
+
+			Assert.That(friendSeat, Is.Not.Null, $"peer {receiverPeerId} has to be told the third seat");
+			Assert.That(friendSeat!.Value.SteamId, Is.EqualTo(steamId), $"peer {receiverPeerId} has to read the Steam id the third seat stated");
+		}
+	}
+
+	private LobbyStateMessage? LatestStateSentTo(int peerId)
+	{
+		LobbyStateMessage? state = null;
+		foreach ((int framePeerId, NetworkFrameKind kind, byte[] payload) in _frames)
+		{
+			if (framePeerId != peerId || kind != NetworkFrameKind.LobbyState) continue;
+			state = MemoryPackSerializer.Deserialize<LobbyStateMessage>(payload);
+		}
+
+		return state;
 	}
 
 	[Test]

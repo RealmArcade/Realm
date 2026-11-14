@@ -102,7 +102,7 @@ public partial class LobbyManager
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
 
 		if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), isLocalConnection ? 0 : ENetPort, out string failure))
@@ -315,6 +315,7 @@ public partial class LobbyManager
 				PeerId = seat.PeerId,
 				Slot = seat.Slot,
 				AccountId = seat.AccountId,
+				SteamId = seat.SteamId,
 				Name = seat.Name ?? string.Empty,
 				Faction = seat.Faction ?? string.Empty,
 				Team = seat.TeamName ?? string.Empty,
