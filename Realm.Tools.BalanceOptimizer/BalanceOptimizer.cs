@@ -110,6 +110,12 @@ public class BalanceOptimizer
 			population.Add(candidate);
 		}
 
+		if (!string.IsNullOrWhiteSpace(options.SeedGenomePath) && File.Exists(options.SeedGenomePath))
+		{
+			population.Insert(1, BalanceGenome.FromJson(File.ReadAllText(options.SeedGenomePath), catalog.Count));
+			log.WriteLine($"seeded the genome at {options.SeedGenomePath} as candidate 2");
+		}
+
 		BalanceGenome best = neutral.Clone();
 		BalanceEvaluation bestEvaluation = new() { Fitness = double.NegativeInfinity, MaximumDeviation = 1.0 };
 

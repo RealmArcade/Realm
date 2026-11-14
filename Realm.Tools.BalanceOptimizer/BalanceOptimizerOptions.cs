@@ -19,6 +19,8 @@ public class BalanceOptimizerOptions
 	public bool ShowHelp { get; private set; }
 	public bool DescribeOnly { get; private set; }
 
+	public string SeedGenomePath { get; private set; } = string.Empty;
+
 	public static string Usage =>
 		"""
 		Realm balance optimizer — tunes the map's numeric content against real matches.
@@ -32,6 +34,7 @@ public class BalanceOptimizerOptions
 		  --max-seconds <value>     stop a match after this many simulated seconds (default 1800)
 		  --parallel <n>            matches played at the same time (default 4)
 		  --seed <n>                base seed of the evolution; zero selects the fixed default
+		  --seed-genome <path>      multipliers evaluated first, before the random ones
 		  --profile <path>          trained profile the skill guard plays (default <map>/<mapName>_bot.json)
 		  --output <path>           genome file to write (default <map>/metadata.balance.genome.json)
 		  --report <path>           run report to write (default <map>/metadata.balance.optimizer.json)
@@ -83,6 +86,9 @@ public class BalanceOptimizerOptions
 					options.Seed = ReadInt(args, ref index, argument, minimum: 0);
 					break;
 				case "--profile":
+				case "--seed-genome":
+					options.SeedGenomePath = ReadValue(args, ref index, argument);
+					break;
 					options.ProfilePath = ReadValue(args, ref index, argument);
 					break;
 				case "--output":
