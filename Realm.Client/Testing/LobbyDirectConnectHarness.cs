@@ -337,8 +337,21 @@ public partial class LobbyDirectConnectHarness : Node
 			return (23, $"the invite button reads '{inviteButton?.Text}' instead of sharing the address");
 		}
 
+		// What the host is handed has to stand on its own in a chat: the map being played, the address, and what the
+		// friend does with it. A message that names only one of those is the two-step copy this replaced.
+		if (panel.FindChild("CopyInviteMessage_Button", true, false) == null)
+		{
+			return (25, "the direct connect card offers no ready-to-paste invite message");
+		}
+
+		string inviteMessage = lobby.DirectConnectInviteMessage;
+		string inviteAddress = lobby.PublicConnectAddress ?? lobby.DirectConnectAddress;
+		if (!inviteMessage.Contains(mapName, StringComparison.Ordinal)) return (25, $"the invite message does not name the map '{mapName}': {inviteMessage}");
+		if (!inviteMessage.Contains(inviteAddress, StringComparison.Ordinal)) return (25, $"the invite message does not name the address '{inviteAddress}': {inviteMessage}");
+		if (!inviteMessage.Contains("DIRECT CONNECT", StringComparison.Ordinal)) return (25, $"the invite message does not say where the address goes: {inviteMessage}");
+
 		room.QueueFree();
-		return (0, $"the lobby room shows '{address}' and the invite button shares it");
+		return (0, $"the lobby room shows '{address}' and copies an invite for {inviteAddress}");
 	}
 
 	private async Task<(int ExitCode, string Outcome)> RunGuestAsync()

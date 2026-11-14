@@ -40,6 +40,7 @@ public partial class LobbyRoom
 			new Color(0.85f, 0.87f, 0.92f)));
 
 		AddDirectConnectAddresses(vbox, "LanAddress", 560, 17);
+		AddDirectConnectInviteCopyButton(vbox);
 
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(panel);
 	}
@@ -119,11 +120,37 @@ public partial class LobbyRoom
 		return row;
 	}
 
+	/// <summary>
+	///     Offers the whole message a host sends, rather than the address alone: a friend who is handed a bare address has to
+	///     be told what it is for and where it goes, and that is one copy rather than two plus an explanation typed out.
+	/// </summary>
+	/// <param name="container">The column the button is written into.</param>
+	private void AddDirectConnectInviteCopyButton(VBoxContainer container)
+	{
+		var copyInviteButton = UIStyle.CreateActionButton("CopyInviteMessage_Button", TranslationServer.Translate("COPY INVITE MESSAGE"), 13);
+		copyInviteButton.CustomMinimumSize = new Vector2(240, 34);
+		copyInviteButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		copyInviteButton.AddThemeConstantOverride("icon_max_width", 0);
+		copyInviteButton.TooltipText = TranslationServer.Translate("Copies the map name and the address to join at as one message you can paste into a chat. It uses the address measured to be reachable from outside your network when a router forward answered.");
+		copyInviteButton.Pressed += CopyDirectConnectInviteMessage;
+		container.AddChild(copyInviteButton);
+	}
+
 	private void CopyDirectConnectAddress(string address)
 	{
 		DisplayServer.ClipboardSet(address);
 		GameContext.UserInterface?.PlayClickSound();
 		ShowInviteFeedback(TranslationServer.Translate("Address copied."));
+	}
+
+	private void CopyDirectConnectInviteMessage()
+	{
+		string message = Lobby.DirectConnectInviteMessage;
+		if (message.Length == 0) return;
+
+		DisplayServer.ClipboardSet(message);
+		GameContext.UserInterface?.PlayClickSound();
+		ShowInviteFeedback(TranslationServer.Translate("Invite message copied."));
 	}
 
 	private void ShowDirectConnectInviteDialog()
@@ -170,6 +197,7 @@ public partial class LobbyRoom
 		if (Lobby.IsHost)
 		{
 			AddDirectConnectAddresses(vbox, "InviteLan", 600, 17);
+			AddDirectConnectInviteCopyButton(vbox);
 		}
 		else if (Lobby.JoinedLobbyAddress is { Length: > 0 } joinedAddress)
 		{

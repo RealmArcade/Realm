@@ -241,6 +241,30 @@ public partial class LobbyManager : BaseMapTransferNode
 	///     pass the address on, which is what a lobby that is not listed depends on.
 	/// </summary>
 	public string? JoinedLobbyAddress => !IsHost && _connectedHostIp is { Length: > 0 } host ? $"{host}:{BoundPort}" : null;
+
+	/// <summary>
+	///     The message a host pastes into a chat to bring players into the lobby they opened, or nothing while this screen
+	///     is not hosting. It names the map being played and the address those players join at, and says where that address
+	///     goes in the game, because an address sent on its own leaves a friend guessing what to do with it. The address is
+	///     the one measured to be reachable from outside this network when a router forward answered, because a friend in a
+	///     chat is usually not on this network.
+	/// </summary>
+	public string DirectConnectInviteMessage
+	{
+		get
+		{
+			if (!IsHost) return string.Empty;
+
+			string mapName = !string.IsNullOrEmpty(HostedMapDisplayName) ? HostedMapDisplayName : ActiveMapName;
+			string address = PublicConnectAddress ?? DirectConnectAddress;
+
+			return string.Join(
+				"\n",
+				string.Format(TranslationServer.Translate("Join my Realm lobby: {0}"), mapName),
+				string.Format(TranslationServer.Translate("Address: {0}"), address),
+				TranslationServer.Translate("In Realm, choose PLAY, then DIRECT CONNECT, and paste the address."));
+		}
+	}
 	public string? ActiveLobbyId { get; private set; }
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
