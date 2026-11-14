@@ -83,6 +83,10 @@ public partial class ListenServerHost
 			BeginSeatedPeerBookkeeping(peerId, slot, _simulation.TickCount);
 			if (_peerLanguages.TryGetValue(peerId, out string? language)) _simulation.SetPlayerLanguage(slot, language);
 
+			// A lobby connection carries its Steam account from the hello it was admitted with, so the match inherits it: the
+			// seat does not say hello again when the lobby hands it over.
+			if (_lobby != null && _lobby.TryGetSeat(peerId, out LobbySeat lobbySeat)) _simulation.SetPeerSteamId(peerId, lobbySeat.SteamId);
+
 			var assignment = new PeerRosterAssignment
 			{
 				PeerId = peerId,

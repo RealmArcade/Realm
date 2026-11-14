@@ -129,6 +129,7 @@ public partial class ListenServerHost
 		if (!string.IsNullOrEmpty(hello.SessionToken)) _sessionTokenSlots[hello.SessionToken] = playerSlot;
 		BeginSeatedPeerBookkeeping(peerId, playerSlot, simulation.TickCount);
 		simulation.SetPlayerLanguage(playerSlot, hello.Language);
+		simulation.SetPeerSteamId(peerId, hello.SteamId);
 		SendHello(peerId, string.Empty);
 
 		var assignment = new PeerRosterAssignment

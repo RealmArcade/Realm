@@ -78,6 +78,9 @@ public partial class ListenServerHost
 			case NetworkFrameKind.ChatLine:
 				HandleChatLine(peerId, payload);
 				break;
+			case NetworkFrameKind.SteamCloudUpload:
+				HandleSteamCloudUpload(peerId, payload);
+				break;
 			case NetworkFrameKind.Shutdown:
 				_log.Write($"peer {peerId} asked the match to end");
 				Stop();
@@ -128,6 +131,11 @@ public partial class ListenServerHost
 
 			case NetworkFrameKind.MapTransferRequest:
 				HandleMapTransfer(peerId, payload);
+				break;
+
+			case NetworkFrameKind.SteamCloudUpload:
+				// The map script ran in a match, so an upload still on its way when the match ended arrives at a lobby that has
+				// nothing to hand it to. It is dropped rather than treated as a frame a lobby member may not send.
 				break;
 
 			case NetworkFrameKind.LatencyProbe:
@@ -238,6 +246,31 @@ public partial class ListenServerHost
 		};
 
 		_transport.Send(peerId, NetworkFrameKind.MapTransferReply, MemoryPackSerializer.Serialize(reply));
+	}
+
+	/// <summary>
+	///     Takes the cloud files one screen uploaded for the map, which answers a request the map script made through the
+	///     Steam surface of <c>IGameAPI</c>.
+	/// </summary>
+	/// <param name="peerId">The connection that answered.</param>
+	/// <param name="payload">The serialized <see cref="SteamCloudUpload" />.</param>
+	private void HandleSteamCloudUpload(int peerId, ReadOnlySpan<byte> payload)
+	{
+		ServerSimulation? simulation = _simulation;
+		if (simulation == null) return;
+
+		SteamCloudUpload upload;
+		try
+		{
+			upload = MemoryPackSerializer.Deserialize<SteamCloudUpload>(payload);
+		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+		{
+			_log.Write($"peer {peerId} sent cloud files that could not be read: {exception.Message}");
+			return;
+		}
+
+		simulation.ApplySteamCloudUpload(peerId, in upload);
 	}
 
 	private void HandleConsoleCommand(int peerId, ReadOnlySpan<byte> payload)

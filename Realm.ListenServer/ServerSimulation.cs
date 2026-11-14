@@ -94,6 +94,10 @@ public class ServerSimulation : IDisposable
 		_snapshots.TechLevels = _script.Api.TechLevels;
 		_script.Api.PlayerDroppedSink = DropPlayer;
 
+		// The map's Steam surface answers from the hello each screen sent: a seat is on Steam when its own client said
+		// which Steam account it plays as.
+		_script.Api.BindSteamSeats(IsPlayerOnSteam);
+
 		_events = new ServerSimulationEvents(map.World);
 		_events.Attach(_script.Api);
 		WireSimulationCallbacks();
@@ -474,6 +478,54 @@ public class ServerSimulation : IDisposable
 
 	public void SetPlayerLanguage(int playerSlot, string? language) => _script.Api.Localization.SetPlayerLanguage(playerSlot, language);
 
+	private readonly Dictionary<int, ulong> _peerSteamIds = new();
+
+	/// <summary>
+	///     Records the Steam account the connection seated in this slot plays as, which is how the map's Steam surface knows
+	///     a seat is a person inside Steam rather than a computer or a screen without it.
+	/// </summary>
+	/// <param name="peerId">The connection that stated it.</param>
+	/// <param name="steamId">The SteamID64 the hello named, or zero when that screen is not running Steam.</param>
+	public void SetPeerSteamId(int peerId, ulong steamId)
+	{
+		if (peerId <= 0) return;
+
+		if (steamId == 0) _peerSteamIds.Remove(peerId);
+		else _peerSteamIds[peerId] = steamId;
+	}
+
+	/// <summary>
+	///     Whether the seat at this player slot is a person whose screen is running Steam.
+	/// </summary>
+	/// <param name="playerSlot">The seat to test.</param>
+	/// <returns>True when that seat's connection stated a Steam account.</returns>
+	public bool IsPlayerOnSteam(int playerSlot)
+	{
+		if (playerSlot <= 0) return false;
+
+		foreach (var pair in _peerPlayerSlots)
+		{
+			if (pair.Value != playerSlot) continue;
+
+			return _peerSteamIds.TryGetValue(pair.Key, out ulong steamId) && steamId != 0;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	///     Takes the cloud files a seat's screen uploaded for this map and hands them to the map script's copy.
+	/// </summary>
+	/// <param name="peerId">The connection that uploaded them.</param>
+	/// <param name="upload">What that screen holds.</param>
+	public void ApplySteamCloudUpload(int peerId, in SteamCloudUpload upload)
+	{
+		if (!_peerPlayerSlots.TryGetValue(peerId, out int playerSlot)) return;
+
+		_script.Api.ApplySteamCloudUpload(playerSlot, in upload);
+	}
+
+
 	public string MapSavedDataDirectory() => _script.Api.SavedDataDirectory;
 
 	private void DropPlayer(int playerSlot)
@@ -599,6 +651,7 @@ public class ServerSimulation : IDisposable
 	{
 		_snapshots.ForgetPeer(peerId);
 		if (_hasRoster && _peerPlayerSlots.Remove(peerId, out int releasedSlot)) _unseatedPlayerSlots.Add(releasedSlot);
+		_peerSteamIds.Remove(peerId);
 		_lastAnsweredCommandIdPerPeer.Remove(peerId);
 		_peersNeedingBaseline.Remove(peerId);
 		_peersNeedingDescriptionRepeat.Remove(peerId);

@@ -16,7 +16,7 @@ namespace Realm.Client.Services;
 ///     the demo and the base game, so asking Steam to restart it under either id would send the other product's install to the
 ///     wrong store page. It initialises against whichever application Steam launched it as instead.
 /// </summary>
-public class SteamService
+public partial class SteamService
 {
 	private const string NativeLibraryName = "steam_api64";
 

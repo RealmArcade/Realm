@@ -10,6 +10,7 @@ interface game-api {
     add-leaderboard-row: func(label: string, value: string, color-r: f32, color-g: f32, color-b: f32, color-has-color: bool);
     add-player-tech-level: func(player-index: s32, tech-id: string, delta: s32);
     add-stat-modifier: func(unit-id: s32, stat-name: string, is-percentage: bool, value: f32, source-id: string);
+    add-steam-stat-int: func(player-index: s32, stat-id: string, delta: s32);
     add-unit-type-ability: func(unit-type-id: string, ability-id: string);
     adjust-player-gold: func(player-index: s32, delta: f32);
     adjust-player-stone: func(player-index: s32, delta: f32);
@@ -32,6 +33,7 @@ interface game-api {
     create-static-text: func(text: string, position-x: f32, position-y: f32, position-z: f32, color-x: f32, color-y: f32, color-z: f32, font-size: s32) -> s32;
     deal-typed-damage: func(attacker-id: s32, target-id: s32, damage: f32, damage-type: string);
     define-zone: func(min-x: f32, min-z: f32, max-x: f32, max-z: f32) -> s32;
+    delete-steam-cloud-file: func(player-index: s32, file-name: string) -> bool;
     destroy-static-text: func(handle: s32);
     destroy-unit: func(unit-id: s32, execute-despawn-shader: bool, play-death-animation: bool);
     disable-shroud: func();
@@ -96,6 +98,8 @@ interface game-api {
     get-spawn-anchor-x: func(player-slot: s32) -> f32;
     get-spawn-anchor-y: func(player-slot: s32) -> f32;
     get-spawn-anchor-z: func(player-slot: s32) -> f32;
+    get-steam-cloud-file-count: func(player-index: s32) -> s32;
+    get-steam-cloud-file-name: func(player-index: s32, index: s32) -> string;
     get-string-text: func(string-id: s32) -> string;
     get-unit-by-id: func(unique-id: s32) -> s32;
     get-unit-construction-progress: func(unit-id: s32) -> f32;
@@ -119,11 +123,15 @@ interface game-api {
     get-zone-center-y: func(zone-handle: s32) -> f32;
     get-zone-center-z: func(zone-handle: s32) -> f32;
     has-coordinate: func(coordinate-name: string) -> bool;
+    has-steam-cloud-file: func(player-index: s32, file-name: string) -> bool;
+    indicate-steam-achievement-progress: func(player-index: s32, achievement-id: string, progress: s32, max-progress: s32);
     is-host: func(player-index: s32) -> bool;
     is-loot-item-auto-pickup: func(item-id: s32) -> bool;
     is-loot-item-despawned: func(item-id: s32) -> bool;
     is-position-in-coordinate: func(position-x: f32, position-y: f32, position-z: f32, coordinate-name: string) -> bool;
     is-resource-node-depleted: func(node-id: s32) -> bool;
+    is-steam-available: func(player-index: s32) -> bool;
+    is-steam-cloud-synced: func(player-index: s32) -> bool;
     issue-attack-move-order: func(unit-id: s32, destination-x: f32, destination-y: f32, destination-z: f32);
     issue-attack-move-order-to-player: func(player-index: s32, destination-x: f32, destination-y: f32, destination-z: f32);
     issue-attack-order: func(unit-id: s32, target-id: s32);
@@ -143,6 +151,7 @@ interface game-api {
     random-float: func(min: f32, max: f32) -> f32;
     random-int: func(min: s32, max: s32) -> s32;
     read-saved-data: func(file-name: string, source-map-name: string) -> string;
+    read-steam-cloud-file: func(player-index: s32, file-name: string) -> string;
     register-ability: func(ability-id: string, display-name: string, tooltip: string, icon-path: string, is-instant: bool);
     register-buff-modifier: func(buff-id: string, stat-name: string, is-percentage: bool, value: f32);
     register-custom-bot-decision: func(player-index: s32, action-id: string, intent: string, feature-vector: list<f32>, position-x: f32, position-y: f32, position-z: f32, payload: string);
@@ -157,6 +166,7 @@ interface game-api {
     remove-loot-item: func(loot-item-id: s32) -> bool;
     remove-stat-modifiers: func(unit-id: s32, source-id: string);
     remove-unit-custom-data: func(unit-id: s32, key: string) -> bool;
+    request-steam-cloud-files: func(player-index: s32);
     reset-player-camera-bounds: func(player-index: s32);
     reveal-building-site: func(site-id: s32, building-type-id: string, total-construction-seconds: f32) -> bool;
     schedule-repeating-timer: func(interval: f32) -> s32;
@@ -204,6 +214,8 @@ interface game-api {
     set-static-text: func(handle: s32, text: string);
     set-static-text-color: func(handle: s32, color-x: f32, color-y: f32, color-z: f32);
     set-static-text-visible: func(handle: s32, visible: bool);
+    set-steam-stat-float: func(player-index: s32, stat-id: string, value: f32);
+    set-steam-stat-int: func(player-index: s32, stat-id: string, value: s32);
     set-summary-table-headers: func(column-headers: list<string>);
     set-summary-table-row: func(row-key: string, cell-values: list<string>);
     set-time-of-day: func(time: f32);
@@ -283,7 +295,9 @@ interface game-api {
     unit-has-buff: func(unit-id: s32, buff-id: string) -> bool;
     unit-has-custom-data: func(unit-id: s32, key: string) -> bool;
     unit-has-item: func(unit-id: s32, item-id: string) -> bool;
+    unlock-steam-achievement: func(player-index: s32, achievement-id: string);
     write-saved-data: func(file-name: string, content: string);
+    write-steam-cloud-file: func(player-index: s32, file-name: string, content: string) -> bool;
 }
 
 world game-client {

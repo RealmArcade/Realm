@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.Services.Steam;
 using Realm.Client.UI;
 using Realm.Client.VFX;
 using Realm.Ecs;
@@ -302,6 +303,19 @@ public partial class GameHost
 
 			case PresentationKind.PlayerKicked:
 				clientRpc.ShowFeedbackText(message.PlayerIndex, message.Text, color);
+				break;
+
+			case PresentationKind.SteamAchievementUnlocked:
+			case PresentationKind.SteamAchievementProgress:
+			case PresentationKind.SteamStatIntSet:
+			case PresentationKind.SteamStatIntAdd:
+			case PresentationKind.SteamStatFloatSet:
+			case PresentationKind.SteamCloudFilesRequested:
+			case PresentationKind.SteamCloudFileWritten:
+			case PresentationKind.SteamCloudFileDeleted:
+				// The map asked this screen's Steam account for something. The bridge checks the seat itself, because an
+				// ally's or a spectator's own Steam account is not the one the map meant.
+				SteamScriptBridge.Apply(in message);
 				break;
 
 			default:

@@ -423,3 +423,44 @@ creator passing that same check.
 signature names the creator, not the resolved key, so a peer resolves the name itself; if a name is re-registered to a
 different key between the two servers seeing the event, each applies the key its own name locks state, which is logged as
 drift rather than merged.
+
+## 18. The Steam surface map scripts may opt into: achievements, stats and cloud saves
+
+`IGameAPI` gained fourteen Steam members (`Realm.MapAPI/IGameAPI.Steam.cs`). Nothing in the engine calls them and no map
+has to: a map that says nothing about Steam behaves exactly as it did. They exist so a future map can carry Steam
+requirements without the engine changing again.
+
+**Achievements and stats** - `IsSteamAvailable`, `UnlockSteamAchievement`, `IndicateSteamAchievementProgress`,
+`SetSteamStatInt`, `AddSteamStatInt`, `SetSteamStatFloat`. The map states its own identifier; the screen turns it into
+`realm_<map>_<identifier>` (`SteamScriptNames.ForMap`), so two maps may both call an achievement `chapter_one` without
+touching the same Steam achievement, and a map can never reach one of the game's own.
+
+**Cloud saves** - `RequestSteamCloudFiles`, `IsSteamCloudSynced`, `GetSteamCloudFileCount`, `GetSteamCloudFileName`,
+`HasSteamCloudFile`, `ReadSteamCloudFile`, `WriteSteamCloudFile`, `DeleteSteamCloudFile`. Files live under
+`maps/<map>/` inside the player's Steam cloud, which is the folder that separates one map's saves from another's. Reads
+are a round trip because the authority cannot read Steam: the map asks, the seat's screen uploads what it holds with a
+`NetworkFrameKind.SteamCloudUpload` frame carrying the request's handle, `ServerSteamCloud` keeps that copy per seat and
+the map polls until it is there. Writes and deletes update that copy at once and are sent to the screen, so a map reads
+back what it just wrote. Limits are one shared rule (`SteamCloudLimits`): 64 characters of plain file name, 32 KB per
+file, 64 files and 128 KB per player for one map.
+
+**How it travels:** the authority has no Steamworks, so every call becomes a `PresentationKind.Steam*` request addressed
+to the player slot, applied by `SteamScriptBridge` only on the screen sitting in that seat, never by an ally, a spectator
+or a replay. The requests are state, so they ride the reliable presentation stream. A seat counts as being on Steam when
+its own hello stated a SteamID64 (`ServerSimulation.SetPeerSteamId`, inherited from the lobby seat for a lobby-started
+match), so computer seats, unheld seats and screens without Steam answer false and every other call is a no-op for them.
+
+**Proven (57 checks against MeleeRuleset through the real `ServerSimulation`):** every member raises the request it should
+with the right seat, identifier and payload; a seat without Steam raises nothing and its cloud request settles empty at
+once; names are namespaced per map and an unusable identifier names nothing; the cloud round trip keeps file order, drops
+an answer to an older request, refuses a name with a folder in it and a file past the size limit, and reads back what it
+wrote; a real map script built against the new surface (all fourteen imports are present in the wasm) calls every member
+on its first tick and the authority answers each one without trapping, including a cloud request the probe then answers
+and the script reads.
+
+**Not proven here:** the Steam calls themselves need Steam running, so `SteamService.Script.cs` was written against the
+Steamworks.NET signatures (checked by reflection: `GetFileNameAndSize(index, out int)`, `FileRead/FileWrite/FileDelete`,
+`SetAchievement`, `IndicateAchievementProgress`, `SetStat`, `StoreStats`) and built, but no achievement has been unlocked
+or cloud file written against a real account. Note also that the Steam achievement and stat names a map asks for do not
+exist in the application's Steamworks configuration yet - they have to be registered before they mean anything, and
+Steam refuses an unknown name without failing the match (the refusal is logged).

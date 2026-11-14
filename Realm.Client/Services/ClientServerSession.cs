@@ -502,6 +502,18 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	///     Hands the match the cloud files this screen holds for the map, which answers a request the map script made through
+	///     the Steam surface of <c>IGameAPI</c>.
+	/// </summary>
+	/// <param name="upload">What this screen's Steam cloud holds for this map.</param>
+	public void SendSteamCloudUpload(in SteamCloudUpload upload)
+	{
+		if (!IsRunning) return;
+
+		_channel.Send(NetworkFrameKind.SteamCloudUpload, MemoryPackSerializer.Serialize(upload));
+	}
+
 	public bool Acknowledge(int sequence, ulong appliedMask, int roundTripMilliseconds)
 	{
 		if (sequence <= 0) return false;

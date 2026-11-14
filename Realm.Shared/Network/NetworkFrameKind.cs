@@ -56,5 +56,12 @@ public enum NetworkFrameKind : byte
 
 	SnapshotDescriptionRepeat = 28,
 
-	LobbyStartWarning = 29
+	LobbyStartWarning = 29,
+
+	/// <summary>
+	///     The cloud files one player's screen holds for this map, sent in answer to
+	///     <see cref="PresentationKind.SteamCloudFilesRequested" />. The seat is the one the connection was seated in, so the
+	///     frame states no player of its own.
+	/// </summary>
+	SteamCloudUpload = 30
 }
