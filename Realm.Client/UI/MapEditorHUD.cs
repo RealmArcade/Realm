@@ -390,7 +390,9 @@ public partial class MapEditorHUD : Control
 	{
 		if (tool == EditorTool.PlaceUnit)
 		{
-			string alignment = PlayerColorConfig.GetPaletteLabel(GameContext.EditorService.Tools.PlaceUnitPlayerIndex);
+			string alignment = GameContext.EditorService != null
+				? PlayerColorConfig.GetPaletteLabel(GameContext.EditorService.Tools.PlaceUnitPlayerIndex)
+				: "";
 			return string.Format(TranslationServer.Translate("TOOL: Place Unit\n\nLeft-click on the ground to spawn a {0} aligned with {1}."), shortPlaceName, alignment);
 		}
 
