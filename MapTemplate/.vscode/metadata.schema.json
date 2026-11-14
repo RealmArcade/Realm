@@ -1564,6 +1564,22 @@
                   ]
                 }
               },
+              "IconPath": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "title": "IconPath",
+                "description": "Path to the icon the command card shows for the button that offers this placeable, such as the hero a Build menu sells. A placeable without one shows the generic unit placeholder.",
+                "x-realm-asset": {
+                  "kinds": [
+                    "rtex"
+                  ],
+                  "folders": [
+                    "Assets/icons"
+                  ]
+                }
+              },
               "VisualMode": {
                 "type": "string",
                 "title": "VisualMode",
@@ -1930,6 +1946,22 @@
                   ]
                 }
               },
+              "IconPath": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "title": "IconPath",
+                "description": "Path to the icon the command card shows for the button that offers this placeable, such as the hero a Build menu sells. A placeable without one shows the generic unit placeholder.",
+                "x-realm-asset": {
+                  "kinds": [
+                    "rtex"
+                  ],
+                  "folders": [
+                    "Assets/icons"
+                  ]
+                }
+              },
               "VisualMode": {
                 "type": "string",
                 "title": "VisualMode",
@@ -2151,6 +2183,22 @@
                     "Assets/models/units",
                     "Assets/models/buildings",
                     "Assets/models/props"
+                  ]
+                }
+              },
+              "IconPath": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "title": "IconPath",
+                "description": "Path to the icon the command card shows for the button that offers this placeable, such as the hero a Build menu sells. A placeable without one shows the generic unit placeholder.",
+                "x-realm-asset": {
+                  "kinds": [
+                    "rtex"
+                  ],
+                  "folders": [
+                    "Assets/icons"
                   ]
                 }
               },

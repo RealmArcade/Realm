@@ -145,8 +145,18 @@ public partial class CommandPanel
 		return false;
 	}
 
-	private string GetUnitIcon(string unitId)
+	/// <summary>
+	///     The icon the card that offers a placeable draws. A unit, building or hero names its own, which is how a Build menu
+	///     selling twenty heroes draws twenty different buttons; one that names none keeps the placeholder, so a map that
+	///     never set an icon for a placeable still gets a card.
+	/// </summary>
+	private static string GetUnitIcon(string unitId)
 	{
+		if (GameHost.TryGetUnitOrBuildingMetadata(unitId, out Realm.Shared.Metadata.UnitMetadata metadata) && !string.IsNullOrWhiteSpace(metadata.IconPath))
+		{
+			return metadata.IconPath;
+		}
+
 		return "res://Assets/UI/unit_placeholder.webp";
 	}
 }
