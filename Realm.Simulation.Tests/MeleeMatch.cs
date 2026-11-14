@@ -226,12 +226,19 @@ internal sealed class MeleeMatch : IDisposable
 		return UnitId.Invalid;
 	}
 
+	/// <summary>
+	///     The buildings a seat has raised. An open construction site is not counted: it stands where a draw is being played
+	///     and only becomes the building the player picks, so <see cref="Sites" /> answers a seat's open sites.
+	/// </summary>
 	public IReadOnlyList<UnitId> Buildings(int slot)
 	{
+		string siteTemplate = ConstructionSiteTemplate;
 		var buildings = new List<UnitId>();
 		foreach (UnitId unit in Owned(slot))
 		{
-			if (Has<Building>(unit)) buildings.Add(unit);
+			if (!Has<Building>(unit)) continue;
+			if (string.Equals(TemplateOf(unit), siteTemplate, StringComparison.OrdinalIgnoreCase)) continue;
+			buildings.Add(unit);
 		}
 
 		return buildings;
@@ -631,9 +638,43 @@ internal sealed class MeleeMatch : IDisposable
 	/// </summary>
 	public DraftOffer BeginConstruction(int slot, Vector3 position)
 	{
-		Cast(slot, BeginConstructionAbilityId, position);
+		// The Begin Construction card arms the standard building placement instead of casting, so the order a player's
+		// click sends is what raises the site. The site opening its draw is the match's answer to that order.
+		SubmitBuild(slot, ConstructionSiteTemplate, position);
 		return new DraftOffer(slot, DraftOptions(slot));
 	}
+
+	/// <summary>
+	///     Sends the order a player's placement click sends: the template the card names, at the ground it points at, with no
+	///     unit attached because a placement raises itself.
+	/// </summary>
+	/// <param name="slot">The seat placing the building.</param>
+	/// <param name="templateId">The template being raised.</param>
+	/// <param name="position">The ground the player clicked.</param>
+	/// <returns>What the authority answered the order with.</returns>
+	public ServerCommandResult SubmitBuild(int slot, string templateId, Vector3 position)
+	{
+		var command = new NetworkCommand
+		{
+			CommandId = _nextCommandId++,
+			CommandType = "build",
+			UnitEntityIds = new System.Collections.Generic.List<int>(),
+			TargetPosition = new NetworkVector3(position.X, position.Y, position.Z),
+			TargetEntityId = 0,
+			ArgString = templateId
+		};
+
+		return Send(slot, command);
+	}
+
+	/// <summary>
+	///     The template the Begin Construction order raises, which is the site the deck's draw is played on. It is read from
+	///     the ability the map authored, so a test follows the map instead of naming a template of its own.
+	/// </summary>
+	public string ConstructionSiteTemplate =>
+		Api.Abilities.GetDefinition(BeginConstructionAbilityId).PlacementTemplateId is { Length: > 0 } placementTemplate
+			? placementTemplate
+			: "building/construction_site";
 
 	/// <summary>
 	///     The blueprint a draw leaves standing on the ground the player cast at. It is the unit whose command grid offers
@@ -643,10 +684,11 @@ internal sealed class MeleeMatch : IDisposable
 	/// <returns>The blueprint, or an invalid id when no draw is open.</returns>
 	public UnitId Blueprint(int slot)
 	{
+		string siteTemplate = ConstructionSiteTemplate;
 		foreach (UnitId unit in Owned(slot))
 		{
 			if (!IsAlive(unit)) continue;
-			if (string.Equals(TemplateOf(unit), "unit/blueprint", StringComparison.OrdinalIgnoreCase)) return unit;
+			if (string.Equals(TemplateOf(unit), siteTemplate, StringComparison.OrdinalIgnoreCase)) return unit;
 		}
 
 		return UnitId.Invalid;
@@ -708,7 +750,69 @@ internal sealed class MeleeMatch : IDisposable
 			tooltip = candidate.Text;
 		}
 
-		return tooltip;
+		return ResolveAbilityTooltip(abilityId, tooltip);
+	}
+
+	/// <summary>
+	///     Resolves the placeholders a tooltip template carries from the values the map published, which is the text a player
+	///     reads on the card. The client owns the full resolver; this mirrors the ability scope a map's own tooltips use, so a
+	///     test reads what the player reads rather than the template the authority sent.
+	/// </summary>
+	private string ResolveAbilityTooltip(string abilityId, string template)
+	{
+		if (string.IsNullOrEmpty(template) || template.IndexOf("{{", StringComparison.Ordinal) < 0) return template;
+
+		var builder = new System.Text.StringBuilder(template.Length);
+		int index = 0;
+		while (index < template.Length)
+		{
+			int open = template.IndexOf("{{", index, StringComparison.Ordinal);
+			if (open < 0)
+			{
+				builder.Append(template, index, template.Length - index);
+				break;
+			}
+
+			builder.Append(template, index, open - index);
+			int close = template.IndexOf("}}", open + 2, StringComparison.Ordinal);
+			if (close < 0)
+			{
+				builder.Append(template, open, template.Length - open);
+				break;
+			}
+
+			builder.Append(ResolveAbilityTooltipToken(abilityId, template[(open + 2)..close]));
+			index = close + 2;
+		}
+
+		return builder.ToString();
+	}
+
+	private string ResolveAbilityTooltipToken(string abilityId, string token)
+	{
+		string path = token;
+		string? format = null;
+		int colon = token.IndexOf(':');
+		if (colon >= 0)
+		{
+			path = token[..colon];
+			format = token[(colon + 1)..];
+		}
+
+		int dot = path.IndexOf('.');
+		string scope = dot > 0 ? path[..dot] : path;
+		string key = dot > 0 ? path[(dot + 1)..] : string.Empty;
+		if (!string.Equals(scope, "Ability", StringComparison.OrdinalIgnoreCase)) return "{{" + token + "}}";
+
+		if (Api.Abilities.TryGetTooltipText("ability", abilityId, key, out string text) && !string.IsNullOrEmpty(text)) return text;
+		if (Api.Abilities.TryGetTooltipNumber("ability", abilityId, key, out float number))
+		{
+			return format is { Length: > 0 }
+				? number.ToString(format, System.Globalization.CultureInfo.InvariantCulture)
+				: number.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+		}
+
+		return "{{" + token + "}}";
 	}
 
 	/// <summary>
@@ -737,6 +841,23 @@ internal sealed class MeleeMatch : IDisposable
 		ServerCommandResult result = Simulation.ApplyCommand(PeerFor(slot), command);
 		DrainPresentation();
 		return result;
+	}
+
+	/// <summary>The open construction sites a seat stands, which is where its draws are being played.</summary>
+	/// <param name="slot">The seat whose sites are wanted.</param>
+	/// <returns>The sites that have not been raised as a building yet.</returns>
+	public IReadOnlyList<UnitId> Sites(int slot)
+	{
+		string siteTemplate = ConstructionSiteTemplate;
+		var sites = new List<UnitId>();
+		foreach (UnitId unit in Owned(slot))
+		{
+			if (!Has<Building>(unit)) continue;
+			if (!string.Equals(TemplateOf(unit), siteTemplate, StringComparison.OrdinalIgnoreCase)) continue;
+			sites.Add(unit);
+		}
+
+		return sites;
 	}
 
 	public UnitId SpawnSoldier(int slot, string templateId, Vector3 position)
