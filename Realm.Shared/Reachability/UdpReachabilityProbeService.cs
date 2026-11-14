@@ -378,8 +378,24 @@ public class UdpReachabilityProbeService : IDisposable
 		private IPAddress? _observedAddress;
 		private int _observedPort;
 		private int _attempts;
-		private IPAddress? _punchedAddress;
-		private int _punchedPort;
+		private PunchedTarget? _punchedTarget;
+
+		/// <summary>
+		///     The endpoint one punch arrived from, held as one value so a check can only ever be given an address and a port
+		///     that came from the same datagram. Publishing the two halves separately let a punch that lost the race write its
+		///     port over the port of the punch that won, which pointed the check at an endpoint no punch ever came from.
+		/// </summary>
+		private class PunchedTarget
+		{
+			public PunchedTarget(ProbeTarget target)
+			{
+				Target = target;
+			}
+
+			public ProbeTarget Target { get; }
+		}
+
+		private PunchedTarget? Punched => Volatile.Read(ref _punchedTarget);
 
 		public PendingProbe(string probeId, uint connectId, ProbeTarget[] targets, IPAddress requestSourceAddress, int requestSourcePort, long deadlineMilliseconds)
 		{
@@ -419,11 +435,11 @@ public class UdpReachabilityProbeService : IDisposable
 		public ProbeTarget NextTarget()
 		{
 			int attempt = Interlocked.Increment(ref _attempts) - 1;
-			IPAddress? punchedAddress = Volatile.Read(ref _punchedAddress);
-			if (punchedAddress == null) return _targets[attempt % _targets.Length];
+			PunchedTarget? punched = Punched;
+			if (punched == null) return _targets[attempt % _targets.Length];
 
 			if ((attempt & 3) == 3) return _targets[attempt / 4 % _targets.Length];
-			return new ProbeTarget(punchedAddress, Volatile.Read(ref _punchedPort));
+			return punched.Target;
 		}
 
 		/// <summary>
@@ -451,10 +467,8 @@ public class UdpReachabilityProbeService : IDisposable
 		/// <returns>Whether this punch was the one this check learned from.</returns>
 		public bool LearnPunchedEndpoint(IPAddress address, int port)
 		{
-			if (Volatile.Read(ref _punchedAddress) != null) return false;
-
-			Volatile.Write(ref _punchedPort, port);
-			return Interlocked.CompareExchange(ref _punchedAddress, address, null) == null;
+			var candidate = new PunchedTarget(new ProbeTarget(address, port));
+			return Interlocked.CompareExchange(ref _punchedTarget, candidate, null) == null;
 		}
 
 		/// <summary>
@@ -468,8 +482,8 @@ public class UdpReachabilityProbeService : IDisposable
 				IPAddress? observed = _observedAddress;
 				if (observed != null)
 				{
-					IPAddress? punchedAddress = Volatile.Read(ref _punchedAddress);
-					if (punchedAddress != null && punchedAddress.Equals(observed) && Volatile.Read(ref _punchedPort) == _observedPort) return new ProbeTarget(punchedAddress, _observedPort);
+					PunchedTarget? punched = Punched;
+					if (punched != null && punched.Target.Address.Equals(observed) && punched.Target.Port == _observedPort) return punched.Target;
 
 					foreach (ProbeTarget target in _targets)
 					{
