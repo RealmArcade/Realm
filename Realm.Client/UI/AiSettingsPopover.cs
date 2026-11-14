@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Realm.Client.Services;
 using Realm.Shared.Network;
@@ -102,14 +103,40 @@ public partial class AiSettingsPopover : Control
 		_difficultySelect.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
 		_difficultySelect.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 		_difficultySelect.AddThemeFontSizeOverride("font_size", 13);
-		_difficultySelect.AddItem(TranslationServer.Translate("EASY"));
-		_difficultySelect.AddItem(TranslationServer.Translate("MEDIUM"));
-		_difficultySelect.AddItem(TranslationServer.Translate("HARD"));
+		_difficultySelect.AddItem(DifficultyName(LobbyBotDifficulty.Easy));
+		_difficultySelect.AddItem(DifficultyName(LobbyBotDifficulty.Medium));
+		_difficultySelect.AddItem(DifficultyName(LobbyBotDifficulty.Hard));
 		_difficultySelect.ItemSelected += OnDifficultySelected;
 		_difficultySelect.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		row.AddChild(_difficultySelect);
 
 		return row;
+	}
+
+	/// <summary>
+	///     Every setting the card holds, one line each, which is what the row states when the seat's name is hovered. A
+	///     setting added to the card is added here, so the row can never describe an older set of settings than the card.
+	/// </summary>
+	/// <param name="difficulty">The difficulty the seat plays on.</param>
+	/// <returns>The card's values, one per line.</returns>
+	public static string BuildSummary(LobbyBotDifficulty difficulty)
+	{
+		var lines = new List<string>
+		{
+			string.Format(TranslationServer.Translate("Difficulty: {0}"), DifficultyName(difficulty))
+		};
+
+		return string.Join('\n', lines);
+	}
+
+	private static string DifficultyName(LobbyBotDifficulty difficulty)
+	{
+		return difficulty switch
+		{
+			LobbyBotDifficulty.Easy => TranslationServer.Translate("EASY"),
+			LobbyBotDifficulty.Medium => TranslationServer.Translate("MEDIUM"),
+			_ => TranslationServer.Translate("HARD")
+		};
 	}
 
 	private static int DifficultyOptionIndex(LobbyBotDifficulty difficulty)

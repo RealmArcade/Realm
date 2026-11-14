@@ -15,6 +15,10 @@ public partial class LobbyRoom
 	private const int LinkIconWidth = 24;
 	private const int BootRowSeparation = 14;
 
+	/// <summary>The width the pencil beside a computer seat's name takes, and the gap that separates it from the name.</summary>
+	private const int AiEditButtonWidth = 24;
+	private const int AiEditButtonSeparation = 6;
+
 	/// <summary>The option a player slot's dropdown lists as open, which is also the state of a slot a person holds.</summary>
 	private const int SlotStateOpenOption = 0;
 
@@ -318,7 +322,7 @@ public partial class LobbyRoom
 
 		var nameRow = new HBoxContainer { Name = "NameRow", MouseFilter = MouseFilterEnum.Ignore };
 		nameRow.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		nameRow.AddThemeConstantOverride("separation", 6);
+		nameRow.AddThemeConstantOverride("separation", AiEditButtonSeparation);
 		cell.AddChild(nameRow);
 
 		var lblName = new Label
@@ -326,7 +330,7 @@ public partial class LobbyRoom
 			Name = "LblName",
 			ClipText = true,
 			VerticalAlignment = VerticalAlignment.Center,
-			SizeFlagsHorizontal = SizeFlags.ExpandFill
+			SizeFlagsHorizontal = SizeFlags.ShrinkBegin
 		};
 		lblName.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		lblName.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
@@ -347,7 +351,7 @@ public partial class LobbyRoom
 		{
 			Name = "AiEditBtn",
 			Text = UnicodeIcons.EDIT,
-			CustomMinimumSize = new Vector2(24, 24),
+			CustomMinimumSize = new Vector2(AiEditButtonWidth, 24),
 			FocusMode = FocusModeEnum.None,
 			MouseDefaultCursorShape = CursorShape.PointingHand,
 			SizeFlagsVertical = SizeFlags.ShrinkCenter,
@@ -558,19 +562,6 @@ public partial class LobbyRoom
 		PopulatePlayersList();
 	}
 
-	/// <summary>Reads the difficulty a computer seat plays on as the word its row states it with.</summary>
-	/// <param name="p">The computer seat.</param>
-	/// <returns>The difficulty, translated.</returns>
-	private static string GetDifficultyLabel(PlayerInfo p)
-	{
-		return p.Difficulty switch
-		{
-			LobbyBotDifficulty.Easy => TranslationServer.Translate("EASY"),
-			LobbyBotDifficulty.Medium => TranslationServer.Translate("MEDIUM"),
-			_ => TranslationServer.Translate("HARD")
-		};
-	}
-
 	/// <summary>
 	///     Creates the cell the host removes a seat from, and the one glyph that says how good that seat's link is. The
 	///     glyph keeps the width the number-and-colour text used to take, follows the kick button, and carries the measured
@@ -727,18 +718,35 @@ public partial class LobbyRoom
 
 		lblName.Visible = p != null;
 		aiEditBtn.Visible = p != null && p.IsComputer;
-		LocalizedText.BindTooltip(lblName, () => p != null && p.IsComputer
-			? string.Format(TranslationServer.Translate("Difficulty: {0}"), GetDifficultyLabel(p))
-			: string.Empty);
+		LocalizedText.BindTooltip(lblName, () => p != null && p.IsComputer ? AiSettingsPopover.BuildSummary(p.Difficulty) : string.Empty);
 		if (p == null) return;
 
 		string displayName = GetPlayerRowDisplayName(p);
 		if (lblName.Text != displayName) lblName.Text = displayName;
+		ApplyNameLabelWidth(lblName, displayName);
 
 		Color nameColor = p.IsDisconnected ? new Color(0.95f, 0.65f, 0.3f) : new Color(0.9f, 0.9f, 0.9f);
 		if (lblName.GetThemeColor("font_color") != nameColor) lblName.AddThemeColorOverride("font_color", nameColor);
 
 		aiEditBtn.Disabled = !canEditSeat;
+	}
+
+	/// <summary>
+	///     Widths the name to the text it holds, as far as the column leaves once the pencil beside it has its room, so the
+	///     pencil sits against the end of the name and a name too long for the row is trimmed rather than pushing it out.
+	/// </summary>
+	/// <param name="lblName">The label the seat is named in.</param>
+	/// <param name="displayName">The name the label states.</param>
+	private static void ApplyNameLabelWidth(Label lblName, string displayName)
+	{
+		Font? font = lblName.GetThemeFont("font");
+		if (font == null) return;
+
+		int fontSize = lblName.GetThemeFontSize("font_size");
+		float textWidth = font.GetStringSize(displayName, HorizontalAlignment.Left, -1, fontSize).X;
+		float maximumWidth = Mathf.Max(0, NameCellWidth - AiEditButtonWidth - AiEditButtonSeparation);
+		var labelWidth = new Vector2(Mathf.Min(Mathf.Ceil(textWidth) + 2, maximumWidth), 0);
+		if (lblName.CustomMinimumSize != labelWidth) lblName.CustomMinimumSize = labelWidth;
 	}
 
 	private static string GetPlayerRowDisplayName(PlayerInfo player)
