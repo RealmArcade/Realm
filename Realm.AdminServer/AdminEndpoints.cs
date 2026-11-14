@@ -179,7 +179,7 @@ public static class AdminEndpoints
 			}
 
 			string mapTitle = req.MapTitle.Trim();
-			string creatorUsername = req.CreatorUsername.Trim();
+			string creatorUsername = req.CreatorUsername?.Trim() ?? string.Empty;
 
 			// The override names a creator, and the name lock is what turns that name into the one key allowed to publish
 			// the title. Without it the greenlight would be a permission anybody could spend by publishing first.
