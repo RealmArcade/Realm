@@ -744,7 +744,6 @@ public partial class LobbyRoom : Control
 
 		_matchSettingsButton = new Button();
 		_matchSettingsButton.Name = "MatchSettingsButton_Button";
-		_matchSettingsButton.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
 		_matchSettingsButton.Position = new Vector2(1450, 660);
 		_matchSettingsButton.Size = new Vector2(340, 40);
 		_matchSettingsButton.AddThemeConstantOverride("icon_max_width", 20);
@@ -765,8 +764,6 @@ public partial class LobbyRoom : Control
 
 	private void ToggleMatchSettingsPopup()
 	{
-		if (BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE) return;
-
 		if (_matchSettingsPanel != null && GodotObject.IsInstanceValid(_matchSettingsPanel))
 		{
 			CloseMatchSettingsPanel();
