@@ -59,6 +59,10 @@ public static class LobbyImports
 	[WasmImportLinkage]
 	private static extern int ImportSetLobbyPlayerMinimapColor(int playerIndex, int mode, int colorRgba);
 
+	[DllImport(Module, EntryPoint = "set-lobby-player-proxy-owner")]
+	[WasmImportLinkage]
+	private static extern int ImportSetLobbyPlayerProxyOwner(int playerIndex, int ownerPlayerIndex);
+
 	[DllImport(Module, EntryPoint = "add-lobby-match-setting")]
 	[WasmImportLinkage]
 	private static extern int ImportAddLobbyMatchSetting(int settingId, int control, nint labelPointer, int labelLength, nint tooltipPointer, int tooltipLength, int defaultValue);
@@ -192,6 +196,15 @@ public static class LobbyImports
 	public static bool SetPlayerMinimapColor(int playerIndex, int mode, uint colorRgba)
 	{
 		return ImportSetLobbyPlayerMinimapColor(playerIndex, mode, (int)colorRgba) != 0;
+	}
+
+	/// <summary>Places the order that states one player index stands in for another, or clears the statement.</summary>
+	/// <param name="playerIndex">The player index that stands in for another.</param>
+	/// <param name="ownerPlayerIndex">The player index it stands in for, or zero to clear the statement.</param>
+	/// <returns>Whether the authority accepted the order.</returns>
+	public static bool SetPlayerProxyOwner(int playerIndex, int ownerPlayerIndex)
+	{
+		return ImportSetLobbyPlayerProxyOwner(playerIndex, ownerPlayerIndex) != 0;
 	}
 
 	/// <summary>Places the order that declares one match setting of the map's own.</summary>

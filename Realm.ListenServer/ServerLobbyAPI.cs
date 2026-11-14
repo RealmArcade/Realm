@@ -66,6 +66,8 @@ public class ServerLobbyAPI : ILobbyAPI
 
 	public bool SetPlayerMinimapColor(int playerIndex, MinimapColorMode mode, uint colorRgba) => _roster.SetPlayerMinimapColor(playerIndex, mode, colorRgba);
 
+	public bool SetPlayerProxyOwner(int playerIndex, int ownerPlayerIndex) => _roster.SetPlayerProxyOwner(playerIndex, ownerPlayerIndex);
+
 	public bool IsColorLocked(int playerIndex) => _roster.IsColorLocked(playerIndex);
 
 	public void SetColorLocked(int playerIndex, bool locked) => _roster.SetColorLocked(playerIndex, locked);

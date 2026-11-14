@@ -110,6 +110,31 @@ public partial class ServerLobby
 		return true;
 	}
 
+	/// <summary>
+	///     States that one player index stands in for another, which is how a map says that a player it drives itself
+	///     carries a real player's army. The statement reaches every screen with the seats, so the minimap that paints
+	///     players by their relation to the screen draws that index as the player it stands in for.
+	/// </summary>
+	/// <param name="slot">The player index standing in for another.</param>
+	/// <param name="ownerSlot">The player index it stands in for, or zero to clear the statement.</param>
+	/// <returns>Whether the lobby holds that statement afterwards.</returns>
+	public bool ApplyRosterProxyOwner(int slot, int ownerSlot)
+	{
+		if (!InPlayerRange(slot)) return false;
+		if (ownerSlot != 0 && (!InPlayerRange(ownerSlot) || ownerSlot == slot)) return false;
+
+		if (_proxyOwners[slot] == ownerSlot) return true;
+
+		_proxyOwners[slot] = ownerSlot;
+		BroadcastState();
+		return true;
+	}
+
+	/// <summary>Reads the player index one player index stands in for, or zero while it stands in for nobody.</summary>
+	/// <param name="slot">The player index.</param>
+	/// <returns>The player index it stands in for, or zero.</returns>
+	public int ProxyOwnerOf(int slot) => InPlayerRange(slot) ? _proxyOwners[slot] : 0;
+
 	/// <summary>The colour the lobby's map keeps for a player slot's units, or zero while it keeps none.</summary>
 	/// <param name="slot">The player slot.</param>
 	/// <returns>The colour, packed as 0xRRGGBBAA.</returns>
@@ -144,6 +169,10 @@ public partial class ServerLobby
 			if (_seats.ContainsKey(slot)) colors[slot] = 0u;
 		}
 	}
+
+	/// <summary>Copies the player index each player index stands in for, which is what every screen is told beside the seats.</summary>
+	/// <returns>The player index each index stands in for, per player index, zero for none.</returns>
+	public int[] CopyProxyOwners() => (int[])_proxyOwners.Clone();
 
 	public bool HasHumanSeat
 	{

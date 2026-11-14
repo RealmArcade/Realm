@@ -118,15 +118,19 @@ public partial class MinimapOverlay : Control
 		}
 
 		// A team is one colour on the map: the player this screen holds is white, that player's allies are blue, and
-		// anything hostile to it is red. A screen observing every player at once is nobody's enemy.
+		// anything hostile to it is red. A screen observing every player at once is nobody's enemy. A player the match's
+		// map drives for a real player is drawn by that player's own standing, so each screen reads its own army as itself
+		// and every other player's army by that player's relation to it.
 		var perspective = GameContext.PerspectiveFilter;
 		if (!perspective.IsConfigured || perspective.ObservesAllPlayers)
 		{
 			return FriendlyColor;
 		}
 
-		if (perspective.ObservedPlayerIndex == playerIndex) return SelfColor;
-		return perspective.IsHostileToObserved(playerIndex) ? EnemyColor : FriendlyColor;
+		int readsAs = MatchPlayerColorAssignment.ProxyOwnerOf(playerIndex);
+
+		if (perspective.ObservedPlayerIndex == readsAs) return SelfColor;
+		return perspective.IsHostileToObserved(readsAs) ? EnemyColor : FriendlyColor;
 	}
 
 	private void DrawUnitIcon(Unit3D unit, Vector2 drawPos, Texture2D circleTexture, bool usesPlayerColors)

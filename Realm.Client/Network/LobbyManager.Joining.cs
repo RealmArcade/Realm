@@ -217,6 +217,7 @@ public partial class LobbyManager
 		ColorOverlays = NormaliseColorArray(state.ColorOverlays);
 		MinimapPlayerColors = NormaliseColorArray(state.MinimapPlayerColors);
 		MinimapTeamColors = NormaliseColorArray(state.MinimapTeamColors);
+		ProxyOwners = NormaliseIndexArray(state.ProxyOwners);
 		LobbyFactions = state.Factions ?? Array.Empty<string>();
 		LobbyTeamCount = state.TeamCount > 0 ? state.TeamCount : LobbyLimits.DefaultTeamCount;
 		SpectatorDelay = state.SpectatorDelay;
@@ -263,6 +264,23 @@ public partial class LobbyManager
 		int count = Math.Min(published.Length, colors.Length);
 		Array.Copy(published, colors, count);
 		return colors;
+	}
+
+	/// <summary>
+	///     Copies the standing-in index array the lobby published into a table indexed by player index, replacing one that is
+	///     missing or the wrong length with an empty table, because a lobby that states nothing for an index leaves it drawn
+	///     by its own relations.
+	/// </summary>
+	/// <param name="published">The array the lobby published.</param>
+	/// <returns>One entry per player slot, zero for an index that stands in for nobody.</returns>
+	private static int[] NormaliseIndexArray(int[]? published)
+	{
+		var owners = new int[LobbyLimits.MaximumSeats + 1];
+		if (published == null) return owners;
+
+		int count = Math.Min(published.Length, owners.Length);
+		Array.Copy(published, owners, count);
+		return owners;
 	}
 
 	/// <summary>

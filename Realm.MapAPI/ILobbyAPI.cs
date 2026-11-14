@@ -173,6 +173,31 @@ public interface ILobbyAPI
 	/// <returns>Whether the authority took the order.</returns>
 	bool SetPlayerMinimapColor(int playerIndex, Realm.Ecs.MinimapColorMode mode, uint colorRgba);
 
+	/// <summary>
+	///     States that one player index stands in for another, which is how a map says that a player it drives itself
+	///     carries a real player's army.
+	/// </summary>
+	/// <remarks>
+	///     <para>
+	///         The minimap that paints players by their relation to the screen looking at it reads a standing-in index as
+	///         the player it stands in for: on that player's own screen it is drawn as that player is - white - and on every
+	///         other screen it follows that player's own standing, so it is blue on an ally's screen and red on an enemy's.
+	///         Without this statement such an index is judged by its own relations, which is why it would otherwise read as
+	///         an ally on the screen of the player whose army it carries.
+	///     </para>
+	///     <para>
+	///         The minimap that paints every player in its own colour is not affected: it keeps drawing each index in the
+	///         colour it states, so a map that wants a standing-in index drawn in the colour of the player it stands in for
+	///         states that colour through <see cref="SetPlayerColor" /> as well. The statement is a lobby order, so it
+	///         reaches the screens sitting in this lobby; an index outside the roster is refused, and an owner of zero clears
+	///         the statement.
+	///     </para>
+	/// </remarks>
+	/// <param name="playerIndex">The player index that stands in for another.</param>
+	/// <param name="ownerPlayerIndex">The player index it stands in for, or zero to clear the statement.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	bool SetPlayerProxyOwner(int playerIndex, int ownerPlayerIndex);
+
 	/// <summary>Locks or unlocks the slot's colour.</summary>
 	/// <param name="playerIndex">The player slot.</param>
 	/// <param name="locked">Whether the field is locked.</param>

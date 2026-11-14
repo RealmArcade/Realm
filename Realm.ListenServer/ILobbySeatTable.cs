@@ -63,6 +63,17 @@ public interface ILobbySeatTable
 	/// <returns>Whether the table holds that statement afterwards.</returns>
 	bool ApplyRosterMinimapColor(int slot, MinimapColorMode mode, uint colorRgba);
 
+	/// <summary>States that one player index stands in for another, which is how a map says a player it drives itself carries a real player's army.</summary>
+	/// <param name="slot">The player index standing in for another.</param>
+	/// <param name="ownerSlot">The player index it stands in for, or zero to clear the statement.</param>
+	/// <returns>Whether the table holds that statement afterwards.</returns>
+	bool ApplyRosterProxyOwner(int slot, int ownerSlot);
+
+	/// <summary>Reads the player index one player index stands in for.</summary>
+	/// <param name="slot">The player index.</param>
+	/// <returns>The player index it stands in for, or zero while it stands in for nobody.</returns>
+	int ProxyOwnerOf(int slot);
+
 	/// <summary>Keeps every player index above a count for the map itself.</summary>
 	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
 	/// <returns>Whether the table holds that limit afterwards.</returns>

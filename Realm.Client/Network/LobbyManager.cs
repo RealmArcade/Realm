@@ -273,6 +273,13 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// </summary>
 	public uint[] MinimapTeamColors { get; private set; } = new uint[LobbyLimits.MaximumSeats + 1];
 
+	/// <summary>
+	///     The player index each player index stands in for, as the lobby's map stated it, zero for an index that stands in
+	///     for nobody. The minimap that paints players by their relation to the screen looking at it draws a standing-in
+	///     index as the player it stands in for.
+	/// </summary>
+	public int[] ProxyOwners { get; private set; } = new int[LobbyLimits.MaximumSeats + 1];
+
 	/// <summary>Reads one entry of a published colour array, answering zero for an index the array does not carry.</summary>
 	/// <param name="colors">The published array.</param>
 	/// <param name="playerIndex">The player index.</param>

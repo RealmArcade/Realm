@@ -80,6 +80,7 @@ public partial class ServerLobby
 			ColorOverlays = colorOverlays,
 			MinimapPlayerColors = minimapPlayerColors,
 			MinimapTeamColors = minimapTeamColors,
+			ProxyOwners = CopyProxyOwners(),
 			Revision = ++_revision
 		};
 	}

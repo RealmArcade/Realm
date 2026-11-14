@@ -232,6 +232,13 @@ public partial struct LobbyStateMessage
 	///     screen looking at it, indexed by player index and packed as 0xRRGGBBAA, zero while the map stated none.
 	/// </summary>
 	public uint[] MinimapTeamColors;
+
+	/// <summary>
+	///     The player index each player index stands in for, indexed by player index, zero for an index that stands in for
+	///     nobody. A map uses it to say that a player it drives itself carries a real player's army, which the minimap that
+	///     paints players by their relation to the screen reads as that player.
+	/// </summary>
+	public int[] ProxyOwners;
 }
 
 /// <summary>

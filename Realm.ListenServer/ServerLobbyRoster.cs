@@ -179,6 +179,16 @@ public class ServerLobbyRoster
 		return _lobby.ApplyRosterMinimapColor(slot, mode, colorRgba);
 	}
 
+	/// <summary>States that one player index stands in for another, which is what the allied-colour minimap reads.</summary>
+	/// <param name="slot">The player index standing in for another.</param>
+	/// <param name="ownerSlot">The player index it stands in for, or zero to clear the statement.</param>
+	/// <returns>Whether the lobby holds that statement afterwards.</returns>
+	public bool SetPlayerProxyOwner(int slot, int ownerSlot)
+	{
+		if (!InRange(slot)) return false;
+		return _lobby.ApplyRosterProxyOwner(slot, ownerSlot);
+	}
+
 	/// <summary>Keeps every player index above a count for the lobby's map.</summary>
 	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
 	/// <returns>Whether the lobby holds that limit afterwards.</returns>

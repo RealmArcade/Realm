@@ -52,6 +52,13 @@ public partial class ServerLobby : ILobbySeatTable
 	/// <summary>The colours the map stated for the minimap's team-colour scheme, indexed by player index, zero for none.</summary>
 	private readonly uint[] _minimapTeamColors = new uint[EcsSharedMemory.MAX_PLAYERS];
 
+	/// <summary>
+	///     The player index each player index stands in for, indexed by player index, zero for an index that stands in for
+	///     nobody. A player the map drives itself carries a real player's army, and the minimap that paints players by
+	///     their relation to the screen reads it as the player it stands in for.
+	/// </summary>
+	private readonly int[] _proxyOwners = new int[EcsSharedMemory.MAX_PLAYERS];
+
 	private readonly SortedDictionary<int, LobbyMatchSetting> _matchSettings = new();
 	private int _openSlotCount;
 	private MatchShroudMode _hostShroudMode = MatchShroudMode.FromMap;

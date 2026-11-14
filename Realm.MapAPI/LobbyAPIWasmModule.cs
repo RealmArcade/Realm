@@ -204,6 +204,22 @@ public unsafe class LobbyAPI_WasmModule : ILobbyAPI
 		return LobbyImports.SetPlayerMinimapColor(playerIndex, (int)mode, colorRgba);
 	}
 
+	/// <summary>
+	///     States that one player index stands in for another, or clears the statement when the owner is zero. The minimap
+	///     that paints players by their relation to the screen then draws the standing-in index as the player it stands in
+	///     for. A slot outside the roster, an owner outside it and an index standing in for itself all place no order.
+	/// </summary>
+	/// <param name="playerIndex">The player index that stands in for another.</param>
+	/// <param name="ownerPlayerIndex">The player index it stands in for, or zero to clear the statement.</param>
+	/// <returns>Whether the authority took the order.</returns>
+	public bool SetPlayerProxyOwner(int playerIndex, int ownerPlayerIndex)
+	{
+		if (!IsSlotIndex(playerIndex)) return false;
+		if (ownerPlayerIndex != 0 && !IsSlotIndex(ownerPlayerIndex)) return false;
+
+		return LobbyImports.SetPlayerProxyOwner(playerIndex, ownerPlayerIndex);
+	}
+
 	/// <summary>Whether the slot's colour may no longer be changed.</summary>
 	/// <param name="playerIndex">The player slot.</param>
 	/// <returns>Whether the field is locked, or false for a slot outside the roster.</returns>

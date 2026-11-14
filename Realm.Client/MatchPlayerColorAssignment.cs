@@ -55,6 +55,27 @@ public static class MatchPlayerColorAssignment
 		return true;
 	}
 
+	/// <summary>
+	///     Reads the player index one player index stands in for on the minimap that paints players by their relation to
+	///     the screen looking at it, which is how the match's map states that a player it drives itself carries a real
+	///     player's army.
+	/// </summary>
+	/// <param name="playerIndex">The player index the minimap is drawing.</param>
+	/// <returns>The player index it reads as, which is its own index while the map stated none.</returns>
+	public static int ProxyOwnerOf(int playerIndex)
+	{
+		if (playerIndex <= 0) return playerIndex;
+
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null) return playerIndex;
+
+		int[] owners = lobby.ProxyOwners;
+		if (playerIndex >= owners.Length) return playerIndex;
+
+		int owner = owners[playerIndex];
+		return owner > 0 ? owner : playerIndex;
+	}
+
 	private static Color[] BuildPaletteDefaults()
 	{
 		var defaults = new Color[TrackedPlayerSlots];

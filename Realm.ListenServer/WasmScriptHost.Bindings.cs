@@ -48,6 +48,9 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		_linker.DefineFunction(LobbyImportModule, "set-lobby-player-minimap-color", (int playerIndex, int mode, int colorRgba) =>
 			LobbyApi?.SetPlayerMinimapColor(playerIndex, (global::Realm.Ecs.MinimapColorMode)mode, (uint)colorRgba) == true ? 1 : 0);
 
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-player-proxy-owner", (int playerIndex, int ownerPlayerIndex) =>
+			LobbyApi?.SetPlayerProxyOwner(playerIndex, ownerPlayerIndex) == true ? 1 : 0);
+
 		_linker.DefineFunction(LobbyImportModule, "add-lobby-match-setting", (Caller caller, int settingId, int control, int labelPtr, int labelLength, int tooltipPtr, int tooltipLength, int defaultValue) =>
 			LobbyApi?.AddMatchSetting(settingId, (global::Realm.Ecs.LobbySettingControl)control, ReadGuestString(caller, labelPtr, labelLength), ReadGuestString(caller, tooltipPtr, tooltipLength), defaultValue) == true ? 1 : 0);
 

@@ -19,6 +19,7 @@ public class MatchRosterSeatTable : ILobbySeatTable
 	private readonly uint[] _colorOverrides = new uint[EcsSharedMemory.MAX_PLAYERS];
 	private readonly uint[] _minimapPlayerColors = new uint[EcsSharedMemory.MAX_PLAYERS];
 	private readonly uint[] _minimapTeamColors = new uint[EcsSharedMemory.MAX_PLAYERS];
+	private readonly int[] _proxyOwners = new int[EcsSharedMemory.MAX_PLAYERS];
 
 	public MatchRosterSeatTable(IReadOnlyList<MatchRosterSeat> roster, ServerLog log)
 	{
@@ -154,6 +155,24 @@ public class MatchRosterSeatTable : ILobbySeatTable
 
 		return mode == MinimapColorMode.TeamColors ? _minimapTeamColors[slot] : _minimapPlayerColors[slot];
 	}
+
+	/// <summary>
+	///     Takes the statement that one player index stands in for another. A match started without a lobby has no screen to
+	///     publish it to, so the statement is accepted and nothing is drawn from it.
+	/// </summary>
+	/// <param name="slot">The player index standing in for another.</param>
+	/// <param name="ownerSlot">The player index it stands in for, or zero to clear the statement.</param>
+	/// <returns>Whether the slot is one this table holds.</returns>
+	public bool ApplyRosterProxyOwner(int slot, int ownerSlot)
+	{
+		if (slot <= 0 || slot >= _openSlots.Length) return false;
+		if (ownerSlot != 0 && (ownerSlot <= 0 || ownerSlot >= _openSlots.Length || ownerSlot == slot)) return false;
+
+		_proxyOwners[slot] = ownerSlot;
+		return true;
+	}
+
+	public int ProxyOwnerOf(int slot) => slot > 0 && slot < _proxyOwners.Length ? _proxyOwners[slot] : 0;
 
 	/// <summary>
 	///     Keeps every player index above a count for the match's map. Nobody is admitted to a started match, so the limit
