@@ -129,6 +129,7 @@ public partial class LobbyRoom : Control
 		_startButton = GetNode<Button>("StartButton");
 		_privateLobbyHint.Text = TranslationServer.Translate("Private Lobby: Send your IP address to players so they can join.");
 		ApplyInviteVisibility();
+		if (Lobby.IsHost) CreateDiagnosticsButton();
 
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");

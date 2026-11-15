@@ -217,6 +217,13 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// </summary>
 	public string MappingBehaviour { get; private set; } = MappingBehaviours.Unknown;
 
+	/// <summary>
+	///     The last thing a player was told when a join into this lobby failed, as the lobby's host was told it. It is kept
+	///     for the diagnostics a host copies: a failure that reached this host's chat is the one piece of evidence about the
+	///     lobby's network that its own measurements cannot produce.
+	/// </summary>
+	public string? LastPlayerJoinFailure { get; private set; }
+
 	public bool IsHost { get; set; }
 
 	/// <summary>

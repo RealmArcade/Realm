@@ -144,6 +144,13 @@ public partial class LobbyDirectConnectHarness : Node
 		}
 		GameLog.LogToConsole($"[DIRECT_HARNESS] mode={_hostMode} direct={lobby.IsDirectLobby} address={lobby.DirectConnectAddress} public={lobby.PublicConnectAddress ?? "none"}; waiting for a direct guest.");
 
+		// The page a host copies for a report is written out here, line by line, because it is the one artifact a support
+		// request cannot be answered without and the one nobody can reproduce after the lobby is closed.
+		foreach (string line in lobby.DescribeNetworkDiagnostics().Split('\n'))
+		{
+			GameLog.LogToConsole($"[DIAGNOSTICS] {line}");
+		}
+
 		bool seated = await WaitUntilAsync(() => lobby.PlayerList.Exists(player => !player.IsHost && !player.IsComputer), _waitSeconds);
 		if (!seated) return (3, $"no guest arrived on port {_port} within {_waitSeconds} s; seats {lobby.PlayerList.Count}");
 
@@ -346,6 +353,24 @@ public partial class LobbyDirectConnectHarness : Node
 		if (!hint.Text.Contains("Send your IP address", StringComparison.Ordinal))
 		{
 			return (27, $"the private lobby note reads '{hint.Text}'");
+		}
+
+		Button? diagnostics = room.GetNodeOrNull<Button>("CopyDiagnostics_Button");
+		if (diagnostics == null) return (29, "the lobby room draws no button that copies this lobby's network diagnostics");
+
+		string diagnosticsBlock = lobby.DescribeNetworkDiagnostics();
+		foreach (string required in new[] { "game port (listed):", "game port (transport holds):", "address measured for this machine:", "reachability class:", "router mapping:", "firewall:", "last player join failure:" })
+		{
+			if (!diagnosticsBlock.Contains(required, StringComparison.Ordinal)) return (29, $"the diagnostics block never states '{required}'");
+		}
+
+		diagnostics.EmitSignal(BaseButton.SignalName.Pressed);
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+		Label? diagnosticsFeedback = room.GetNodeOrNull<Label>("CopyDiagnostics_Button/../DiagnosticsFeedback_Label");
+		if (diagnosticsFeedback == null || !diagnosticsFeedback.Visible)
+		{
+			return (29, "pressing the diagnostics button said nothing, so a host cannot tell whether anything was copied");
 		}
 
 		shareAddress.EmitSignal(BaseButton.SignalName.Pressed);

@@ -243,7 +243,7 @@ public partial class LobbyManager
 				{
 					long reportStarted = Environment.TickCount64;
 					_joinPhase = JoinPhases.Report;
-					joinLocalPort = await ReportJoinerEndpointFromJoinPortAsync(target.Punch);
+					joinLocalPort = await ReportJoinerEndpointFromJoinPortAsync(target.Punch, connectIp, connectPort);
 					punchCoordinated = joinLocalPort > 0;
 					MarkJoinPhase(JoinPhases.Report, punchCoordinated ? "sent" : "refused", reportStarted);
 				}
@@ -341,11 +341,16 @@ public partial class LobbyManager
 	///     from the connection attempt itself, because a router that drops unsolicited traffic drops exactly that, and this
 	///     screen cannot measure the external port its own router hands out. The socket is bound and closed here so the join's
 	///     own socket can hold the same port, which is the only way the endpoint that was reported and the endpoint that
-	///     connects are the same one.
+	///     connects are the same one. A punch is sent toward the lobby from that port before the report leaves: a router that
+	///     refuses unsolicited traffic admits the host's answer only from an endpoint this side has already sent to, and the
+	///     host punches as soon as the registry node reads the report, so an answer can meet a router that is still waiting for
+	///     this side to speak and be dropped.
 	/// </summary>
 	/// <param name="ticket">The ticket the registry node stated for this join.</param>
+	/// <param name="lobbyIp">The lobby's address, which the punch that opens this side of the route is aimed at.</param>
+	/// <param name="lobbyPort">The lobby's port, which that punch is aimed at.</param>
 	/// <returns>The local port the join must connect from, or zero when no report could be sent.</returns>
-	private async Task<int> ReportJoinerEndpointFromJoinPortAsync(JoinerPunchTicket ticket)
+	private async Task<int> ReportJoinerEndpointFromJoinPortAsync(JoinerPunchTicket ticket, string lobbyIp, int lobbyPort)
 	{
 		var datagram = new byte[JoinerPunch.MaximumDatagramBytes];
 		int written = JoinerPunch.TryWrite(datagram, ticket.Token);
@@ -366,10 +371,17 @@ public partial class LobbyManager
 		{
 			using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 			socket.Bind(new IPEndPoint(IPAddress.Any, 0));
-			socket.SendTo(datagram.AsSpan(0, written), new IPEndPoint(registryAddress, ticket.Port));
 
 			int localPort = ((IPEndPoint)socket.LocalEndPoint!).Port;
-			GameLog.LogToConsole($"[LobbyManager] Reported this screen's endpoint to {ticket.Address}:{ticket.Port} from local port {localPort}, which this join then connects from.");
+
+			if (IPAddress.TryParse(lobbyIp, out IPAddress? lobbyAddress))
+			{
+				socket.SendTo(ReachabilityPunch.Datagram, new IPEndPoint(lobbyAddress, lobbyPort));
+			}
+
+			socket.SendTo(datagram.AsSpan(0, written), new IPEndPoint(registryAddress, ticket.Port));
+
+			GameLog.LogToConsole($"[LobbyManager] Punched the lobby at {lobbyIp}:{lobbyPort} and reported this screen's endpoint to {ticket.Address}:{ticket.Port}, both from local port {localPort}, which this join then connects from.");
 			return localPort;
 		}
 		catch (Exception exception) when (exception is SocketException or ArgumentException)

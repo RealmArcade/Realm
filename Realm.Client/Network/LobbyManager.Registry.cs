@@ -348,10 +348,12 @@ public partial class LobbyManager
 				: Tr("Other players may need UPnP enabled on this router, or this UDP port forwarded to this machine.");
 
 		int players = Math.Max(1, distinctFailures);
+		string sentence = string.Format(Tr("{0} player(s) could not reach this lobby in the last minute: {1}; they tried {2}. {3}"), players, step, endpoint, advice);
+		LastPlayerJoinFailure = sentence;
 		_lobbySession?.SendLobbyCommand(new LobbyCommand
 		{
 			Kind = LobbyCommandKind.ReportJoinFailure,
-			Text = string.Format(Tr("{0} player(s) could not reach this lobby in the last minute: {1}; they tried {2}. {3}"), players, step, endpoint, advice)
+			Text = sentence
 		});
 	}
 
