@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
@@ -36,12 +37,13 @@ public partial class LobbyManager
 		InitializeClientState(lobbyId);
 		await EnsureNatTypeMeasuredAsync();
 
+		bool hasIpv6 = LocalIpv6Available;
 		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
 		int clientPublicPort = _hostPublicPort > 0 ? _hostPublicPort : ENetPort;
 
 		try
 		{
-			var response = await SendJoinRequestAsync(lobbyId, clientPublicIp, clientPublicPort);
+			var response = await SendJoinRequestAsync(lobbyId, clientPublicIp, clientPublicPort, LocalEndpointFamilyNames());
 			if (response == null || !response.IsSuccessStatusCode)
 			{
 				var errorText = response != null ? await response.Content.ReadAsStringAsync() : "All registry nodes offline";
@@ -50,9 +52,21 @@ public partial class LobbyManager
 				return false;
 			}
 
-			var (connectIp, connectPort) = await ResolveHostConnectionInfoAsync(response, clientPublicIp);
-			_connectedHostIp = connectIp;
-			return await EstablishLobbyConnectionAsync(connectIp, connectPort, IsPrivateIp(connectIp));
+			HostConnection connection = await ResolveHostConnectionAsync(response, clientPublicIp, hasIpv6);
+			if (!connection.Chosen)
+			{
+				// A lobby reachable over a family this machine has no address in cannot be joined by another attempt, so it is
+				// said at once rather than after a timeout that describes the same fact much less clearly.
+				LastHostError = connection.Failure;
+				LobbyJoinError = connection.Failure;
+				GameLog.LogError($"[LobbyManager] {connection.Failure}");
+				ConnectionFailed?.Invoke(connection.Failure);
+				return false;
+			}
+
+			_connectedHostIp = connection.Address;
+			JoinedLobbyFamily = connection.Family;
+			return await EstablishLobbyConnectionAsync(connection.Address, connection.Port, connection.NeedsPunch);
 		}
 		catch (Exception ex)
 		{
@@ -67,7 +81,12 @@ public partial class LobbyManager
 		string directLobbyId = $"direct-{Guid.NewGuid():N}";
 		InitializeClientState(directLobbyId);
 		_connectedHostIp = targetIp;
-		bool joined = await EstablishLobbyConnectionAsync(targetIp, targetPort, IsPrivateIp(targetIp));
+		JoinedLobbyFamily = LobbyAddresses.FamilyOf(targetIp);
+
+		// An address a player typed is dialled the same way a listed endpoint is: an IPv6 address is direct, and an IPv4
+		// address on this network is direct, while an IPv4 address somewhere else needs the router punched first.
+		bool needsPunch = LobbyAddresses.NeedsHolePunch(JoinedLobbyFamily) && !IsDialledDirectly(targetIp);
+		bool joined = await EstablishLobbyConnectionAsync(targetIp, targetPort, needsPunch);
 
 		// Only an address that seated this player is worth going back to: a typo, or a lobby that never answered, is not
 		// somewhere to send them a second time.
@@ -88,7 +107,7 @@ public partial class LobbyManager
 		PlayerList.Clear();
 	}
 
-	private async Task<bool> EstablishLobbyConnectionAsync(string connectIp, int connectPort, bool isLocalConnection)
+	private async Task<bool> EstablishLobbyConnectionAsync(string connectIp, int connectPort, bool needsHolePunch)
 	{
 		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
 		if (channel == null)
@@ -98,7 +117,7 @@ public partial class LobbyManager
 			return false;
 		}
 
-		if (!isLocalConnection)
+		if (needsHolePunch)
 		{
 			await UdpHolePuncher.PunchHoleAsync(connectIp, connectPort, ENetPort);
 		}
@@ -110,7 +129,7 @@ public partial class LobbyManager
 		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
 
-		if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), isLocalConnection ? 0 : ENetPort, out string failure))
+		if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), needsHolePunch ? ENetPort : 0, out string failure))
 		{
 			LastHostError = failure;
 			GameLog.LogError($"[LobbyManager] {failure}");

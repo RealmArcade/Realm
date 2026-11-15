@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
@@ -124,6 +125,15 @@ public partial class LobbyManager
 
 		return "127.0.0.1";
 	}
+
+	/// <summary>
+	///     Whether a lobby at this address is reached without a hole punch. An address on this machine, a private IPv4
+	///     address, and every IPv6 address are dialled directly: a router that drops unsolicited traffic is something the
+	///     IPv4 path meets, and an IPv6 endpoint has no router mapping in front of it at all.
+	/// </summary>
+	/// <param name="address">The address a lobby is going to be dialled at.</param>
+	/// <returns>Whether no punch is needed.</returns>
+	private static bool IsDialledDirectly(string address) => IsPrivateIp(address) || !LobbyAddresses.NeedsHolePunch(LobbyAddresses.FamilyOf(address));
 
 	private static bool IsPrivateIp(string ip)
 	{

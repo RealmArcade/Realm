@@ -1,3 +1,5 @@
+﻿using Realm.Shared.Reachability;
+
 namespace Realm.AdminServer.Models;
 
 public class LobbyInfo
@@ -23,4 +25,11 @@ public class LobbyInfo
 	public string? LocalIP { get; set; }
 	public long MapSizeBytes { get; set; }
 	public bool IsGameInProgress { get; set; }
+
+	/// <summary>
+	///     Every endpoint this lobby is reachable at, one per address family it was published in, each carrying the result
+	///     of the check this node made of it. A lobby registered by a client that states no endpoint list has the single
+	///     endpoint this node measured in its place, so a listing always has the same shape.
+	/// </summary>
+	public List<LobbyEndpointInfo> Endpoints { get; set; } = new();
 }

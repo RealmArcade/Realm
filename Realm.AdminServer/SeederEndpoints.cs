@@ -23,7 +23,7 @@ public static class SeederEndpoints
 	{
 	app.MapPost("/seeders/register", (SeederRegisterRequest req, SeederRegistry registry, HttpContext context) =>
 	{
-		var ip = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
+		var ip = (context.Connection.RemoteIpAddress ?? System.Net.IPAddress.Loopback).ToString();
 		if (!string.IsNullOrEmpty(req.ReportedIP) && req.ReportedIP != "0.0.0.0" && req.ReportedIP != "127.0.0.1")
 		{
 			ip = req.ReportedIP;

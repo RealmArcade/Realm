@@ -54,33 +54,63 @@ public class UdpReachabilityProbeService : IDisposable
 
 	private readonly int _requestedPort;
 	private readonly string _statedPublicIp;
+	private readonly string _statedPublicIpv6;
 	private readonly ConcurrentDictionary<string, PendingProbe> _pending = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<uint, string> _pendingByConnectId = new();
 	private readonly Stopwatch _clock = Stopwatch.StartNew();
 	private CancellationTokenSource? _stop;
-	private UdpClient? _socket;
-	private Task? _receiveLoop;
+	private UdpClient? _ipv4Socket;
+	private UdpClient? _ipv6Socket;
+	private readonly List<Task> _receiveLoops = new(2);
 	private bool _disposed;
 
-	public UdpReachabilityProbeService(int probePort = DefaultProbePort, string statedPublicIp = "")
+	public UdpReachabilityProbeService(int probePort = DefaultProbePort, string statedPublicIp = "", string statedPublicIpv6 = "")
 	{
 		_requestedPort = probePort;
 		_statedPublicIp = statedPublicIp ?? string.Empty;
+		_statedPublicIpv6 = statedPublicIpv6 ?? string.Empty;
 	}
 
 	/// <summary>The port this service probes from, which is the port a host is told to punch.</summary>
 	public int ProbePort { get; private set; }
 
-	public bool IsRunning => _socket != null;
+	public bool IsRunning => _ipv4Socket != null || _ipv6Socket != null;
 
 	/// <summary>
-	///     Binds the probe socket. It is bound on first use so a node that never registers a lobby pays nothing, and a node
-	///     whose port is taken says so once rather than per lobby.
+	///     The address families this node has a probe socket in, which is the whole of what it can measure. A node with no
+	///     IPv6 socket can never verify an IPv6 endpoint, and it says so rather than measuring one against a socket of the
+	///     wrong family.
 	/// </summary>
+	public IReadOnlyList<LobbyAddressFamily> AvailableFamilies
+	{
+		get
+		{
+			var families = new List<LobbyAddressFamily>(2);
+			if (_ipv4Socket != null) families.Add(LobbyAddressFamily.IPv4);
+			if (_ipv6Socket != null) families.Add(LobbyAddressFamily.IPv6);
+			return families;
+		}
+	}
+
+	/// <summary>Whether this node holds a probe socket in a family.</summary>
+	/// <param name="family">The family to look for.</param>
+	/// <returns>Whether a check can be made in that family.</returns>
+	public bool HasSocketFor(LobbyAddressFamily family) => SocketFor(family) != null;
+
+	/// <summary>
+	///     Binds the probe sockets. They are bound on first use so a node that never registers a lobby pays nothing, and a
+	///     node whose port is taken says so once rather than per lobby. One socket is bound per address family: a check is
+	///     only ever sent from a socket of the family it is made in, because a datagram can not cross families and an
+	///     answer that arrived from the wrong one would state an endpoint nobody can use.
+	/// </summary>
+	/// <remarks>
+	///     The IPv4 socket is the one this node must have. A missing IPv6 socket is not a failure: it makes this node an
+	///     IPv4-only node, which is what it was before this check could be made in IPv6 at all.
+	/// </remarks>
 	public bool TryStart(out string failure)
 	{
 		failure = string.Empty;
-		if (_socket != null) return true;
+		if (_ipv4Socket != null) return true;
 		if (_disposed)
 		{
 			failure = "this probe service has been disposed";
@@ -89,21 +119,60 @@ public class UdpReachabilityProbeService : IDisposable
 
 		try
 		{
-			var socket = new UdpClient(AddressFamily.InterNetwork);
-			socket.Client.ExclusiveAddressUse = true;
-			socket.Client.Bind(new IPEndPoint(IPAddress.Any, _requestedPort));
+			UdpClient socket = Bind(AddressFamily.InterNetwork, _requestedPort);
 			ProbePort = ((IPEndPoint)socket.Client.LocalEndPoint!).Port;
-			_socket = socket;
-			_stop = new CancellationTokenSource();
-			_receiveLoop = Task.Run(() => ReceiveAsync(socket, _stop.Token));
-			return true;
+			_ipv4Socket = socket;
 		}
 		catch (SocketException exception)
 		{
 			failure = $"a UDP probe socket could not be bound on port {_requestedPort}: {exception.Message}";
 			return false;
 		}
+
+		_stop = new CancellationTokenSource();
+		_receiveLoops.Add(Task.Run(() => ReceiveAsync(_ipv4Socket, _stop.Token)));
+
+		// Both sockets take the same port number: UDP names the two families separately, so port 8998 over IPv6 is a
+		// different port from 8998 over IPv4 and a host can be told one number whichever family it is checked in.
+		if (Socket.OSSupportsIPv6)
+		{
+			try
+			{
+				UdpClient ipv6 = Bind(AddressFamily.InterNetworkV6, ProbePort);
+				_ipv6Socket = ipv6;
+				_receiveLoops.Add(Task.Run(() => ReceiveAsync(ipv6, _stop.Token)));
+			}
+			catch (SocketException)
+			{
+				// A node that cannot bind the IPv6 port stays the IPv4-only node it was; the lobby server states which
+				// families it can check, so a host is told this instead of having its lobby measured in the wrong family.
+				_ipv6Socket = null;
+			}
+		}
+
+		return true;
 	}
+
+	private static UdpClient Bind(AddressFamily family, int port)
+	{
+		var socket = new UdpClient(family);
+		socket.Client.ExclusiveAddressUse = true;
+		if (family == AddressFamily.InterNetworkV6)
+		{
+			socket.Client.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, true);
+		}
+
+		socket.Client.Bind(new IPEndPoint(family == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, port));
+		return socket;
+	}
+
+	private UdpClient? SocketFor(LobbyAddressFamily family) => family switch
+	{
+		LobbyAddressFamily.IPv4 => _ipv4Socket,
+		LobbyAddressFamily.IPv6 => _ipv6Socket,
+		_ => null
+	};
+
 
 	/// <summary>
 	///     Starts a check of the game port a host is about to advertise. The port is the host's claim and is always used,
@@ -115,6 +184,19 @@ public class UdpReachabilityProbeService : IDisposable
 	{
 		if (!TryStart(out string failure)) throw new InvalidOperationException(failure);
 
+		// The check is made in the family of the endpoint the host advertised, because that is the family a joining
+		// player, and therefore this node, has to reach it in. An address this node cannot read states no family, so the
+		// request's own source address decides - that is the endpoint the host came from and the only one known.
+		LobbyAddressFamily family = LobbyAddresses.FamilyOf(advertisedAddress);
+		if (family == LobbyAddressFamily.Unknown) family = LobbyAddresses.FamilyOf(requestSourceAddress);
+
+		if (SocketFor(family) == null)
+		{
+			throw new InvalidOperationException(family == LobbyAddressFamily.IPv6
+				? "this node has no IPv6 socket to check an IPv6 endpoint from, so the endpoint was not checked"
+				: $"this node has no {LobbyAddresses.FamilyName(family)} probe socket, so the endpoint was not checked");
+		}
+
 		long now = _clock.ElapsedMilliseconds;
 		ForgetStale(now);
 		if (!HasCapacityFor(requestSourceAddress, now, out string refusal)) throw new InvalidOperationException(refusal);
@@ -124,13 +206,28 @@ public class UdpReachabilityProbeService : IDisposable
 		string probeId = Guid.NewGuid().ToString("N");
 		uint connectId = (uint)Random.Shared.NextInt64(1, uint.MaxValue);
 
-		var probe = new PendingProbe(probeId, connectId, targets, requestSourceAddress, requestSourcePort, now + window);
+		var probe = new PendingProbe(probeId, connectId, targets, family, requestSourceAddress, requestSourcePort, now + window);
 		_pending[probeId] = probe;
 		_pendingByConnectId[connectId] = probeId;
 
 		_ = Task.Run(() => RunProbeAsync(probe));
-		return new ReachabilityTicket(probeId, _statedPublicIp, ProbePort, window);
+		return new ReachabilityTicket(probeId, StatedPublicAddress(family), ProbePort, window, LobbyAddresses.FamilyName(family));
 	}
+
+	/// <summary>
+	///     The address this node tells a host its checks come from, in the family a check is being made in. An address the
+	///     node was configured with that belongs to the other family is not stated: a host told to punch an IPv4 address
+	///     for an IPv6 check would send its datagram where no check is listening, so the host is left to resolve this
+	///     node's name in the right family instead.
+	/// </summary>
+	/// <param name="family">The family the check is made in.</param>
+	/// <returns>The stated address, or empty when this node stated none in that family.</returns>
+	private string StatedPublicAddress(LobbyAddressFamily family) => family switch
+	{
+		LobbyAddressFamily.IPv6 => _statedPublicIpv6,
+		LobbyAddressFamily.IPv4 => _statedPublicIp,
+		_ => string.Empty
+	};
 
 	/// <summary>
 	///     Reports what a check has seen. A check that is still inside its window answers <see cref="ReachabilityStates.Waiting" />;
@@ -211,7 +308,8 @@ public class UdpReachabilityProbeService : IDisposable
 			target.Address.ToString(),
 			target.Port,
 			probe.RequestSourceAddress.ToString(),
-			probe.Attempts);
+			probe.Attempts,
+			LobbyAddresses.FamilyName(probe.Family));
 	}
 
 	/// <summary>
@@ -219,10 +317,18 @@ public class UdpReachabilityProbeService : IDisposable
 	///     requests. Only the port is taken from the host either way, because a joining player punches that port at whichever
 	///     of the two addresses is the host's real one.
 	/// </summary>
+	/// <remarks>
+	///     Every target is in one family, which is the family the check is made in. A request that arrived over one family
+	///     says nothing about how the host is reached in the other, and a target of the wrong family could only be probed
+	///     from a socket that cannot reach it.
+	/// </remarks>
 	public static ProbeTarget[] BuildTargets(IPAddress advertisedAddress, int advertisedPort, IPAddress requestSourceAddress)
 	{
 		IPAddress statedTarget = ChooseDestinationAddress(advertisedAddress, requestSourceAddress);
-		if (statedTarget.Equals(requestSourceAddress)) return new[] { new ProbeTarget(statedTarget, advertisedPort) };
+		LobbyAddressFamily family = LobbyAddresses.FamilyOf(statedTarget);
+		bool sourceSharesFamily = LobbyAddresses.FamilyOf(requestSourceAddress) == family && family != LobbyAddressFamily.Unknown;
+
+		if (!sourceSharesFamily || statedTarget.Equals(requestSourceAddress)) return new[] { new ProbeTarget(statedTarget, advertisedPort) };
 		return new[] { new ProbeTarget(statedTarget, advertisedPort), new ProbeTarget(requestSourceAddress, advertisedPort) };
 	}
 
@@ -233,6 +339,7 @@ public class UdpReachabilityProbeService : IDisposable
 	public static IPAddress ChooseDestinationAddress(IPAddress advertisedAddress, IPAddress requestSourceAddress)
 	{
 		if (advertisedAddress.Equals(IPAddress.Any) || advertisedAddress.Equals(IPAddress.None)) return requestSourceAddress;
+		if (advertisedAddress.Equals(IPAddress.IPv6Any) || advertisedAddress.Equals(IPAddress.IPv6None)) return requestSourceAddress;
 		if (IPAddress.IsLoopback(advertisedAddress) && !IPAddress.IsLoopback(requestSourceAddress)) return requestSourceAddress;
 		if (advertisedAddress.IsIPv6LinkLocal || advertisedAddress.IsIPv6SiteLocal) return requestSourceAddress;
 		return advertisedAddress;
@@ -249,7 +356,7 @@ public class UdpReachabilityProbeService : IDisposable
 
 	private void SendAttempt(PendingProbe probe)
 	{
-		UdpClient? socket = _socket;
+		UdpClient? socket = SocketFor(probe.Family);
 		if (socket == null) return;
 
 		Span<byte> datagram = stackalloc byte[EnetConnectProbe.ConnectDatagramBytes];
@@ -353,20 +460,25 @@ public class UdpReachabilityProbeService : IDisposable
 		_disposed = true;
 
 		_stop?.Cancel();
-		_socket?.Dispose();
-		_socket = null;
+		_ipv4Socket?.Dispose();
+		_ipv4Socket = null;
+		_ipv6Socket?.Dispose();
+		_ipv6Socket = null;
 
-		try
+		for (int index = 0; index < _receiveLoops.Count; index++)
 		{
-			_receiveLoop?.Wait(TimeSpan.FromSeconds(2));
-		}
-		catch (AggregateException)
-		{
+			try
+			{
+				_receiveLoops[index].Wait(TimeSpan.FromSeconds(2));
+			}
+			catch (AggregateException)
+			{
+			}
 		}
 
+		_receiveLoops.Clear();
 		_stop?.Dispose();
 		_stop = null;
-		_receiveLoop = null;
 		_pending.Clear();
 		_pendingByConnectId.Clear();
 	}
@@ -397,11 +509,12 @@ public class UdpReachabilityProbeService : IDisposable
 
 		private PunchedTarget? Punched => Volatile.Read(ref _punchedTarget);
 
-		public PendingProbe(string probeId, uint connectId, ProbeTarget[] targets, IPAddress requestSourceAddress, int requestSourcePort, long deadlineMilliseconds)
+		public PendingProbe(string probeId, uint connectId, ProbeTarget[] targets, LobbyAddressFamily family, IPAddress requestSourceAddress, int requestSourcePort, long deadlineMilliseconds)
 		{
 			ProbeId = probeId;
 			ConnectId = connectId;
 			_targets = targets;
+			Family = family;
 			RequestSourceAddress = requestSourceAddress;
 			RequestSourcePort = requestSourcePort;
 			DeadlineMilliseconds = deadlineMilliseconds;
@@ -410,6 +523,9 @@ public class UdpReachabilityProbeService : IDisposable
 		public string ProbeId { get; }
 
 		public uint ConnectId { get; }
+
+		/// <summary>The family this check is made in, which is the family of every endpoint it probes and of the socket it probes from.</summary>
+		public LobbyAddressFamily Family { get; }
 
 		public IPAddress RequestSourceAddress { get; }
 

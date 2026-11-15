@@ -24,6 +24,7 @@ using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
 using Realm.Shared.Reachability;
+using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
@@ -399,6 +400,26 @@ public partial class LobbyManager
 		// Asked for on every attempt, because a dismissed prompt leaves the port closed and is almost always a misclick
 		// rather than a decision to host unreachable lobbies.
 		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(port);
+
+		DiscoverOfferedEndpoints();
+
+		// A lobby offered over IPv6 alone is a lobby with nothing for a router to do: the address it is reached at is the
+		// one this machine holds, so there is no translation to map and no public endpoint to measure. The router half is
+		// skipped entirely rather than allowed to fail, because nothing was asked of it.
+		if (!_offersIpv4)
+		{
+			_hostPublicIp = null;
+			_hostPublicPort = 0;
+			_routerReachability = RouterReachability.NoRouterForward;
+			IsRestrictedHost = false;
+
+			if (_offeredIpv6Endpoint is { } onlyEndpoint)
+			{
+				GameLog.LogToConsole($"[LobbyManager] This machine holds no IPv4 address other than loopback, so the lobby is offered over IPv6 only at {LobbyAddresses.Describe(onlyEndpoint.Address, port)}; that address needs no router mapping.");
+			}
+
+			return;
+		}
 
 		await ResolvePublicEndpointAsync(port);
 

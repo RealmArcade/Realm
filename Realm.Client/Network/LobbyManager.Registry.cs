@@ -32,13 +32,14 @@ using HttpClient = System.Net.Http.HttpClient;
 namespace Realm.Client.Network;
 public partial class LobbyManager
 {
-	private async Task<HttpResponseMessage?> SendJoinRequestAsync(string lobbyId, string clientPublicIp, int clientPublicPort)
+	private async Task<HttpResponseMessage?> SendJoinRequestAsync(string lobbyId, string clientPublicIp, int clientPublicPort, IReadOnlyList<string> clientFamilies)
 	{
 		var joinPayload = new
 		{
 			LobbyId = lobbyId,
 			ClientPublicIP = clientPublicIp,
-			ClientPublicPort = clientPublicPort
+			ClientPublicPort = clientPublicPort,
+			ClientEndpointFamilies = clientFamilies
 		};
 
 		GameLog.LogToConsole($"[LobbyManager] Joining Lobby {lobbyId} via registry server...");
@@ -62,30 +63,78 @@ public partial class LobbyManager
 		return response;
 	}
 
-	private async Task<(string Ip, int Port)> ResolveHostConnectionInfoAsync(HttpResponseMessage response, string clientPublicIp)
+	/// <summary>
+	///     Works out where this player dials a lobby, from the endpoints the registry node states for it. The endpoint is the
+	///     one this screen shares a family with, and a lobby and a screen that share none is a refusal said here rather than
+	///     a dial that waits out its budget.
+	/// </summary>
+	/// <param name="response">The join answer.</param>
+	/// <param name="clientPublicIp">This screen's own public IPv4 endpoint, as measured before the join.</param>
+	/// <param name="hasIpv6">Whether this screen holds a global IPv6 address.</param>
+	/// <returns>The endpoint to dial, or why there is none.</returns>
+	private async Task<HostConnection> ResolveHostConnectionAsync(HttpResponseMessage response, string clientPublicIp, bool hasIpv6)
 	{
 		var respText = await response.Content.ReadAsStringAsync();
 		using var doc = JsonDocument.Parse(respText);
 
-		string hostIp = doc.RootElement.GetProperty("hostIP").GetString() ?? "";
-		int hostPort = doc.RootElement.GetProperty("hostPort").GetInt32();
+		JsonElement root = doc.RootElement;
+		string hostIp = root.TryGetProperty("hostIP", out JsonElement hostIpProperty) ? hostIpProperty.GetString() ?? string.Empty : string.Empty;
+		int hostPort = root.TryGetProperty("hostPort", out JsonElement hostPortProperty) && hostPortProperty.ValueKind == JsonValueKind.Number ? hostPortProperty.GetInt32() : 0;
+		string? localIp = root.TryGetProperty("localIP", out JsonElement localIpProperty) ? localIpProperty.GetString() : null;
 
-		string? localIp = null;
-		if (doc.RootElement.TryGetProperty("localIP", out var localIpProp))
+		List<LobbyEndpointInfo> endpoints = ReadOfferedEndpoints(root);
+		if (endpoints.Count == 0 && hostIp.Length > 0 && hostPort > 0)
 		{
-			localIp = localIpProp.GetString();
+			// A registry node from before endpoints could be listed states exactly one, and it is the one to dial. The absence
+			// of a list is a node that only ever measured IPv4, which is what this states.
+			endpoints.Add(new LobbyEndpointInfo(hostIp, hostPort, LobbyAddresses.FamilyName(LobbyAddresses.FamilyOf(hostIp)), true, hostIp, hostPort));
 		}
 
-		string connectIp = hostIp;
-		int connectPort = hostPort;
-		if (!string.IsNullOrEmpty(localIp) && hostIp == clientPublicIp)
+		LobbyEndpointChoice choice = LobbyEndpointSelection.Choose(endpoints, hasIpv4: true, hasIpv6);
+		if (!choice.Chosen || choice.Endpoint == null)
 		{
-			GameLog.LogToConsole($"[LobbyManager] Host is on the same LAN (Public IP: {hostIp}). Connecting to local IP: {localIp}:{ENetPort}");
+			return new HostConnection(string.Empty, 0, LobbyAddressFamily.Unknown, false, DescribeJoinFamilyFailure(choice));
+		}
+
+		string connectIp = choice.Endpoint.DialAddress;
+		int connectPort = choice.Endpoint.DialPort;
+
+		// The same-network shortcut only makes sense for IPv4: it exists because a router hands both players the same public
+		// address and the private one is the shorter path. An IPv6 endpoint is already the host's own address.
+		if (choice.Family == LobbyAddressFamily.IPv4 && !string.IsNullOrEmpty(localIp) && hostIp == clientPublicIp && !string.Equals(localIp, connectIp, StringComparison.Ordinal))
+		{
+			GameLog.LogToConsole($"[LobbyManager] The host is on this network (public address {hostIp}). Connecting to {LobbyAddresses.Describe(localIp, ENetPort)}.");
 			connectIp = localIp;
 			connectPort = ENetPort;
 		}
 
-		return (connectIp, connectPort);
+		bool needsPunch = LobbyAddresses.NeedsHolePunch(choice.Family) && !IsDialledDirectly(connectIp);
+		GameLog.LogToConsole($"[LobbyManager] Joining {LobbyAddresses.Describe(connectIp, connectPort)} over {LobbyAddresses.FamilyName(choice.Family)}{(needsPunch ? " after punching the host's router" : " directly")}.");
+		return new HostConnection(connectIp, connectPort, choice.Family, needsPunch, string.Empty);
+	}
+
+	/// <summary>Reads the endpoint list a join or listing answer carries.</summary>
+	/// <param name="root">The answer's root element.</param>
+	/// <returns>The endpoints, or an empty list when the answer states none.</returns>
+	private static List<LobbyEndpointInfo> ReadOfferedEndpoints(JsonElement root)
+	{
+		var endpoints = new List<LobbyEndpointInfo>(2);
+		foreach (string propertyName in new[] { "endpoints", "Endpoints" })
+		{
+			if (!root.TryGetProperty(propertyName, out JsonElement list) || list.ValueKind != JsonValueKind.Array) continue;
+
+			List<LobbyEndpointInfo>? parsed = JsonSerializer.Deserialize<List<LobbyEndpointInfo>>(list.GetRawText(), Options);
+			if (parsed == null) return endpoints;
+
+			for (int index = 0; index < parsed.Count; index++)
+			{
+				if (parsed[index] != null) endpoints.Add(parsed[index]);
+			}
+
+			return endpoints;
+		}
+
+		return endpoints;
 	}
 
 	public void UnregisterActiveLobbyFromRegistry()
@@ -120,6 +169,7 @@ public partial class LobbyManager
 	{
 		StopHostReachabilityKeepAlive();
 		_publishedReachability = null;
+		_publishedEndpoints = new List<LobbyEndpointInfo>();
 
 		if (!IsHost) return;
 		if (IsSinglePlayer) return;
@@ -170,6 +220,7 @@ public partial class LobbyManager
 		_countdownRemaining = 0;
 		_countdownMapName = null;
 		_matchStarted = false;
+		JoinedLobbyFamily = LobbyAddressFamily.Unknown;
 		_lobbyRevision = 0;
 		_downloadingMapName = null;
 		PlayerList.Clear();
@@ -303,21 +354,23 @@ public partial class LobbyManager
 
 		for (int attempt = 0; attempt < attempts; attempt++)
 		{
-			// The lobby is published only on an endpoint a public node has reached, and every registry node publishes
-			// only what it checked itself, so the rehearsal is run against the node that will accept the lobby.
+			// The lobby is published only at the endpoints a public node reached itself, and every registry node publishes
+			// only what it checked itself, so the rehearsal is run against the node that will accept the lobby - once per
+			// endpoint, in the family that endpoint is reached in.
 			ReportHostLobbyStage(HostLobbyStage.VerifyingNetwork);
-			HostReachabilityResult reachability = await VerifyLobbyReachabilityAsync(RegistryServerUrl, lobbyPort);
-			HostReachabilityFailure decision = LobbyJoinability.Decide(publicLobby: true, LoopbackJoinOutcome.Answered, reachability.Failure);
+			LobbyReachabilitySet reachability = await RehearsePublishedEndpointsAsync(RegistryServerUrl, lobbyPort);
+			HostReachabilityFailure decision = LobbyJoinability.Decide(publicLobby: true, LoopbackJoinOutcome.Answered, reachability.Verified.Count > 0 ? HostReachabilityFailure.None : DescribeReachabilityRefusal(RegistryServerUrl, reachability).Failure);
 			if (decision != HostReachabilityFailure.None)
 			{
-				LastHostFailure = reachability;
-				LastHostError = DescribeReachabilityFailure(reachability, lobbyPort);
+				HostReachabilityResult refusal = DescribeReachabilityRefusal(RegistryServerUrl, reachability);
+				LastHostFailure = refusal;
+				LastHostError = DescribeReachabilityFailure(refusal, lobbyPort);
 				GameLog.LogError($"[LobbyManager] {LastHostError}");
 				return false;
 			}
 
-			_hostPublicIp = reachability.PublicIp;
-			_hostPublicPort = reachability.PublicPort;
+			LobbyEndpointInfo primary = reachability.Verified.Find(endpoint => endpoint.FamilyValue == LobbyAddressFamily.IPv4) ?? reachability.Verified[0];
+			LobbyEndpointRegistration primaryRegistration = reachability.EndpointRegistrations.Find(registration => LobbyAddresses.ParseFamilyName(registration.Family) == primary.FamilyValue) ?? reachability.EndpointRegistrations[0];
 			_routerReachability = RouterReachability.Confirmed;
 
 			ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
@@ -330,9 +383,9 @@ public partial class LobbyManager
 				var registerPayload = new
 				{
 					Map = mapDisplayName,
-					HostPort = reachability.PublicPort,
+					HostPort = primary.DialPort,
 					NatType = LocalNatType.ToString(),
-					ReportedHostIP = reachability.PublicIp,
+					ReportedHostIP = primary.DialAddress,
 					PasswordHash = "",
 					MaxPlayers = OpenSlotCount,
 					SlotsUsed = PlayerList.Count,
@@ -344,7 +397,8 @@ public partial class LobbyManager
 					PublicKey = mapInfo.PublicKey,
 					MapHash = mapInfo.MapHash,
 					MapSizeBytes = mapInfo.SizeBytes,
-					ReachabilityProbeId = reachability.ProbeId
+					ReachabilityProbeId = primaryRegistration.ProbeId,
+					Endpoints = reachability.EndpointRegistrations
 				};
 
 				var jsonContent = new StringContent(JsonSerializer.Serialize(registerPayload), Encoding.UTF8, "application/json");
@@ -352,7 +406,6 @@ public partial class LobbyManager
 
 				if (response.IsSuccessStatusCode)
 				{
-					_publishedReachability = reachability;
 					await ProcessSuccessfulRegistrationAsync(response);
 					return true;
 				}
@@ -384,6 +437,7 @@ public partial class LobbyManager
 		{
 			HostReachabilityFailure.RegistryUnreachable => "The lobby server could not be reached, so whether other players can reach this machine was never checked.",
 			HostReachabilityFailure.ProbeSocketUnknown => "The lobby server could not say where its reachability check comes from, so this lobby was not published.",
+			HostReachabilityFailure.ProbeFamilyUnavailable => "The lobby server cannot check this kind of address, so this lobby was not published there. Another lobby server, or an IPv4 address, would fix it.",
 			_ => $"Other players could not reach this machine on UDP port {lobbyPort}, so this lobby was not published ({reachability.Detail})."
 		};
 	}

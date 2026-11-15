@@ -215,9 +215,43 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	/// <summary>
 	///     The address a player on this network joins this screen's lobby with, in the `address:port` form every player
-	///     pastes into the direct connect dialog. It is the address a host sends to the people they want to play with.
+	///     pastes into the direct connect dialog. It is the address a host sends to the people they want to play with, and
+	///     it is the best one this machine holds: a global IPv6 address when it has one, because that address works from
+	///     anywhere without a router mapping, and this network's IPv4 address otherwise.
 	/// </summary>
-	public string DirectConnectAddress => $"{GetLocalIPAddress()}:{(LobbyPort > 0 ? LobbyPort : ENetPort)}";
+	public string DirectConnectAddress => LobbyAddresses.Describe(BestLocalConnectHost(), LobbyPort > 0 ? LobbyPort : ENetPort);
+
+	/// <summary>
+	///     The best address this machine holds for another player to join this lobby at, or the IPv4 address this machine
+	///     has always advertised when it holds nothing else.
+	/// </summary>
+	/// <returns>The address to state, without a port.</returns>
+	private static string BestLocalConnectHost()
+	{
+		LobbyEndpointCandidate? best = LocalEndpointDiscovery.Best(LobbyAddressFamily.IPv6) ?? LocalEndpointDiscovery.Best(LobbyAddressFamily.IPv4);
+		return best?.Address.ToString() ?? GetLocalIPAddress();
+	}
+
+	/// <summary>
+	///     The endpoints a registry node verified for the lobby this screen last published, one per family it is reachable
+	///     in. It is empty until a listed lobby is registered, and it is what the lobby room reads to say which families
+	///     the lobby is offered over.
+	/// </summary>
+	public IReadOnlyList<LobbyEndpointInfo> PublishedEndpoints => _publishedEndpoints;
+
+	private List<LobbyEndpointInfo> _publishedEndpoints = new();
+
+	/// <summary>
+	///     The family this screen connected to the lobby it is in over, which is stated in the lobby room and in the log so
+	///     a dual-stack path can be told apart from an IPv4 one without reading a packet capture.
+	/// </summary>
+	public LobbyAddressFamily JoinedLobbyFamily { get; private set; } = LobbyAddressFamily.Unknown;
+
+	/// <summary>
+	///     Whether this machine holds a global IPv6 address, which is the only thing that lets it reach a lobby published
+	///     over IPv6. It is read when a lobby is joined and never on a match tick.
+	/// </summary>
+	public static bool LocalIpv6Available => LocalEndpointDiscovery.HasGlobalIpv6();
 
 	/// <summary>
 	///     The address this lobby was confirmed to be reachable at from outside this network, or nothing while nothing

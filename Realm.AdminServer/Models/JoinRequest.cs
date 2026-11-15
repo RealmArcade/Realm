@@ -1,7 +1,8 @@
-namespace Realm.AdminServer.Models;
+﻿namespace Realm.AdminServer.Models;
 
 public record JoinRequest(
 	string LobbyId,
 	string ClientPublicIP,
-	int ClientPublicPort
+	int ClientPublicPort,
+	IReadOnlyList<string>? ClientEndpointFamilies = null
 );
