@@ -580,6 +580,14 @@ public partial class LobbyManager : BaseMapTransferNode
 	public event Action<string>? ActiveMapChanged;
 
 	/// <summary>
+	///     Raised when a lobby this screen hosts could not be shown to be reachable, so it stays open to the players it is
+	///     given the address to instead of being listed. It is the one moment the help about a host's network is worth
+	///     opening by itself: the host is already in the lobby room, the lobby is still joinable by address, and the thing to
+	///     change is on this machine or its router.
+	/// </summary>
+	public event Action? LobbyPublicationRefused;
+
+	/// <summary>
 	///     Raised when the lobby's map asks its host to read a warning before the match starts, with the text that host has
 	///     to accept. The match stays at tick zero until it is accepted or the start is abandoned.
 	/// </summary>

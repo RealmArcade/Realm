@@ -134,7 +134,14 @@ public partial class LobbyRoom : Control
 		_lobbyFamiliesHint = GetNode<Label>("LobbyFamiliesHint");
 		UpdateLobbyFamiliesHint();
 		ApplyInviteVisibility();
-		if (Lobby.IsHost) CreateDiagnosticsButton();
+		if (Lobby.IsHost)
+		{
+			CreateHostNetworkButtons();
+
+			// A lobby that could not be shown reachable stays open to the players it is given the address to, so the host is
+			// told what to change at the moment the listing was refused rather than after somebody has failed to get in.
+			Lobby.LobbyPublicationRefused += ShowConnectivityHelp;
+		}
 
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");
@@ -413,6 +420,10 @@ public partial class LobbyRoom : Control
 		_steamInviteButton.Visible = invitesPlayers && !directLobby;
 		_shareAddressButton.Visible = invitesPlayers && directLobby;
 		_privateLobbyHint.Visible = invitesPlayers && directLobby && Lobby.IsHost;
+
+		// A single-player lobby has no players to explain anything to, so the two host network buttons are not offered there.
+		if (_helpPlayersJoinButton != null) _helpPlayersJoinButton.Visible = invitesPlayers;
+		if (_diagnosticsButton != null) _diagnosticsButton.Visible = invitesPlayers;
 	}
 
 	private void OpenInviteFriendsDialog()
@@ -483,6 +494,7 @@ public partial class LobbyRoom : Control
 			Lobby.CountdownCancelled -= OnCountdownCancelled;
 			Lobby.CountdownFinished -= OnCountdownFinished;
 			Lobby.HostStabilityUpdated -= UpdateHostStabilityLabel;
+			Lobby.LobbyPublicationRefused -= ShowConnectivityHelp;
 			Lobby.ActiveMapChanged -= OnActiveMapChanged;
 			Lobby.StartWarningReceived -= OnStartWarningReceived;
 		}
@@ -736,19 +748,30 @@ public partial class LobbyRoom : Control
 		ShowConnectionFailedPopup(reason);
 	}
 
+	/// <summary>
+	///     Explains a join that failed with the same connectivity help a host's refusal is explained with, on the side of the
+	///     connection that failed. A joining screen is told what the game measured, which of the causes could be its own and
+	///     which are usually the host's, and where to read about each - and closing it returns to the lobby list, which is what
+	///     a player who cannot get in wants next.
+	/// </summary>
+	/// <param name="reason">What the lobby said went wrong, kept for the log and for the popup this falls back to.</param>
 	private void ShowConnectionFailedPopup(string reason)
 	{
-		string displayReason = reason;
-		if (reason == "Direct connection handshake failed.")
+		// A failure that is not about the network - an authority that is gone, a lobby that refused this seat, a seam in the
+		// game - is stated as it arrived: sending that player to read about routers would describe a problem they do not have.
+		string phase = Lobby.LastJoinPhase;
+		bool networkFailure = JoinPhases.IsKnown(phase) && phase != JoinPhases.Admission && phase != JoinPhases.Session;
+
+		if (Lobby.IsHost || !networkFailure)
 		{
-			int hostPort = Lobby.LobbyPort > 0 ? Lobby.LobbyPort : LobbyManager.DefaultGamePort;
-			displayReason = $"{Tr("Direct connection handshake failed.")}\n\n{string.Format(Tr("The host's router may be blocking incoming UDP traffic on port {0}. Ensure UPnP is enabled on the host's router, configure UDP port {0} forwarding, or connect via a Virtual LAN (Tailscale / Radmin)."), hostPort)}";
+			GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), reason)}", ReturnFromLobby);
+			return;
 		}
 
-		GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), displayReason)}", () =>
-		{
-			ReturnFromLobby();
-		});
+		var dialog = new ConnectivityHelpDialog { Name = "JoinFailureHelpDialog" };
+		AddChild(dialog);
+		dialog.Closed += ReturnFromLobby;
+		dialog.Open(ConnectivityHelpRequest.ForJoining(Lobby));
 	}
 
 	private void OnLobbyKickReceived(string reason)

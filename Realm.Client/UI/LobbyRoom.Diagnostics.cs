@@ -1,5 +1,7 @@
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
+using Realm.Client.Services;
 using Realm.Shared.Reachability;
 
 namespace Realm.Client.UI;
@@ -17,32 +19,132 @@ public partial class LobbyRoom
 	/// <summary>The label on the button that copies the diagnostics block.</summary>
 	private const string CopyDiagnosticsText = "COPY NETWORK DIAGNOSTICS";
 
+	/// <summary>The label on the button that reopens the help about players not getting in.</summary>
+	private const string HelpPlayersJoinText = "HELP OTHER PLAYERS JOIN";
+
 	private Button? _diagnosticsButton;
 	private Label? _diagnosticsFeedback;
+	private Button? _helpPlayersJoinButton;
+	private ConnectivityHelpDialog? _connectivityHelpDialog;
 
 	/// <summary>
-	///     Puts the copy button beside the invite button the lobby already offers, so the host of a listed lobby and the host
-	///     of a direct one find it in the same place. It is built in code rather than added to the scene because it is one
-	///     button that follows nothing about the lobby's shape.
+	///     Puts the two buttons a host needs beside the invite button the lobby already offers, so the host of a listed lobby
+	///     and the host of a direct one find them in the same place: the page to paste into a report, and the help that
+	///     explains what to change when players cannot get in. They are built in code rather than added to the scene because
+	///     they are two buttons that follow nothing about the lobby's shape.
 	/// </summary>
-	private void CreateDiagnosticsButton()
+	private void CreateHostNetworkButtons()
 	{
 		if (_shareAddressButton.GetParent() is not Control inviteRow) return;
 
 		_diagnosticsFeedback = new Label();
 		_diagnosticsFeedback.Name = "DiagnosticsFeedback_Label";
+		_diagnosticsFeedback.OffsetLeft = 1180;
+		_diagnosticsFeedback.OffsetTop = 90;
+		_diagnosticsFeedback.OffsetRight = 1440;
+		_diagnosticsFeedback.OffsetBottom = 114;
 		_diagnosticsFeedback.Visible = false;
 		_diagnosticsFeedback.AddThemeFontSizeOverride("font_size", 12);
 		_diagnosticsFeedback.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		inviteRow.AddChild(_diagnosticsFeedback);
 
+		_helpPlayersJoinButton = UIStyle.CreateActionButton("HelpPlayersJoin_Button", TranslationServer.Translate(HelpPlayersJoinText), 13);
+		_helpPlayersJoinButton.CustomMinimumSize = new Vector2(280, 45);
+		_helpPlayersJoinButton.OffsetLeft = 880;
+		_helpPlayersJoinButton.OffsetTop = 40;
+		_helpPlayersJoinButton.OffsetRight = 1160;
+		_helpPlayersJoinButton.OffsetBottom = 85;
+		_helpPlayersJoinButton.AddThemeConstantOverride("icon_max_width", 0);
+		LocalizedText.SetTooltip(_helpPlayersJoinButton, "Read what this machine measured about the lobby, what usually stops players getting in, and what to change before hosting again.");
+		_helpPlayersJoinButton.Pressed += OpenConnectivityHelp;
+		inviteRow.AddChild(_helpPlayersJoinButton);
+		inviteRow.MoveChild(_helpPlayersJoinButton, _shareAddressButton.GetIndex() + 1);
+
 		_diagnosticsButton = UIStyle.CreateActionButton("CopyDiagnostics_Button", TranslationServer.Translate(CopyDiagnosticsText), 13);
-		_diagnosticsButton.CustomMinimumSize = new Vector2(260, 40);
+		_diagnosticsButton.CustomMinimumSize = new Vector2(260, 45);
+		_diagnosticsButton.OffsetLeft = 1180;
+		_diagnosticsButton.OffsetTop = 40;
+		_diagnosticsButton.OffsetRight = 1440;
+		_diagnosticsButton.OffsetBottom = 85;
 		_diagnosticsButton.AddThemeConstantOverride("icon_max_width", 0);
-		_diagnosticsButton.TooltipText = TranslationServer.Translate("Copy everything a report about this lobby's network needs, so it can be pasted into a message.");
+		LocalizedText.SetTooltip(_diagnosticsButton, "Copy everything a report about this lobby's network needs, so it can be pasted into a message.");
 		_diagnosticsButton.Pressed += CopyNetworkDiagnostics;
 		inviteRow.AddChild(_diagnosticsButton);
-		inviteRow.MoveChild(_diagnosticsButton, _shareAddressButton.GetIndex() + 1);
+
+		ApplyInviteVisibility();
+	}
+
+	/// <summary>
+	///     Reopens the connectivity help for a lobby that is already open. A host who read the announcement once, closed it,
+	///     and later has a player who cannot get in has nothing left to read otherwise: the measurement is in the log, and the
+	///     log is not the room.
+	/// </summary>
+	private void OpenConnectivityHelp()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+		ShowConnectivityHelp();
+	}
+
+	private void ShowConnectivityHelp()
+	{
+		CloseConnectivityHelp();
+
+		bool localSeatFailure = Lobby.LastHostFailure is { Failure: HostReachabilityFailure.LoopbackUnanswered or HostReachabilityFailure.LoopbackNotOnLocalAddress };
+		bool listingFailed = Lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None };
+
+		var dialog = new ConnectivityHelpDialog { Name = "LobbyRoomConnectivityHelpDialog" };
+		AddChild(dialog);
+		_connectivityHelpDialog = dialog;
+		dialog.Closed += CloseConnectivityHelp;
+		dialog.Open(new ConnectivityHelpRequest
+		{
+			Audience = ConnectivityAudience.Hosting,
+			TitleKey = localSeatFailure
+				? ConnectivitySentences.HostingTitleLocalSeat
+				: listingFailed ? ConnectivitySentences.HostingTitle : ConnectivitySentences.HostingTitlePlayersCannotJoin,
+			OffersRetry = true,
+			OnRetry = RepublishLobby,
+			DirectConnectAddress = () => localSeatFailure ? null : Lobby.DirectConnectAddress,
+			DiagnosticsBlock = Lobby.DescribeNetworkDiagnostics,
+			PlayerJoinFailure = () => Lobby.LastPlayerJoinFailure
+		});
+	}
+
+	/// <summary>
+	///     Frees the help dialog this room opened, whether the host closed it or a new measurement replaced it. A dialog left
+	///     detached would hold the references its labels were registered with and keep redrawing text nobody can see.
+	/// </summary>
+	private void CloseConnectivityHelp()
+	{
+		if (_connectivityHelpDialog == null) return;
+
+		if (IsInstanceValid(_connectivityHelpDialog)) _connectivityHelpDialog.QueueFree();
+		_connectivityHelpDialog = null;
+	}
+
+	/// <summary>
+	///     Hosts this lobby again, which is the only connectivity test this game has: publishing asks a lobby server to reach
+	///     the game port, so a change on the router or the firewall is confirmed by the same measurement that refused the
+	///     listing. A failure is stated in the room's chat, where the address the host sends out is shown.
+	/// </summary>
+	private void RepublishLobby()
+	{
+		_ = RepublishLobbyAsync();
+	}
+
+	private async Task RepublishLobbyAsync()
+	{
+		bool listed = await Lobby.PublishPreparedLobbyDirectlyOnFailureAsync();
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+
+		if (listed)
+		{
+			ShowInviteFeedback(TranslationServer.Translate("This lobby is listed again."));
+			return;
+		}
+
+		GameContext.UserInterface?.PlayWarningSound();
+		ShowInviteFeedback(TranslationServer.Translate("This lobby could not be listed again; the help says what to change."));
 	}
 
 	/// <summary>

@@ -357,6 +357,7 @@ public partial class LobbyManager
 			NotifyHostLine($"{TranslationServer.Translate("This lobby could not be listed, so only players you send the address to can join it.")} {LastHostError}");
 			GameLog.LogError($"[LobbyManager] The lobby is not listed; players who are given {DirectConnectAddress} can still join it.");
 			PlayerListUpdated?.Invoke();
+			LobbyPublicationRefused?.Invoke();
 			return false;
 		}
 
