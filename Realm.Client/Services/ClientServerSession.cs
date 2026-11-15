@@ -82,6 +82,7 @@ public class ClientServerSession : IDisposable
 	private string _challenge = string.Empty;
 	private bool _joined;
 	private int _joinedPort;
+	private int _joinedLocalPort;
 	private string _address = string.Empty;
 	private int _port;
 	private bool _connectedBefore;
@@ -91,7 +92,7 @@ public class ClientServerSession : IDisposable
 
 	public string? TerminationReport { get; private set; }
 
-	private const int ReconnectIntervalMilliseconds = 250;
+	private const int ReconnectIntervalMilliseconds = 1500;
 	private const int MaximumReconnectAttempts = 240;
 
 	/// <summary>
@@ -211,7 +212,13 @@ public class ClientServerSession : IDisposable
 	{
 		_channel = channel;
 		_channel.FrameArrived += Enqueue;
+		_channel.ConnectionFailed += OnChannelConnectionFailed;
+		_channel.ServerDisconnected += OnChannelServerDisconnected;
 	}
+
+	private void OnChannelConnectionFailed() => ReportLost("ENet connection failed: host unreachable or connection refused");
+
+	private void OnChannelServerDisconnected() => ReportLost("the server disconnected");
 
 	private const int FailedLaunchDetailLineCount = 8;
 
@@ -284,6 +291,7 @@ public class ClientServerSession : IDisposable
 		_joined = true;
 		_started = true;
 		_joinedPort = port;
+		_joinedLocalPort = 0;
 		_address = address;
 		_port = port;
 		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
@@ -384,6 +392,7 @@ public class ClientServerSession : IDisposable
 		_joined = true;
 		_started = true;
 		_joinedPort = port;
+		_joinedLocalPort = localPort;
 		_address = address;
 		_port = port;
 		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
@@ -579,7 +588,7 @@ public class ClientServerSession : IDisposable
 				_reconnectAttempts = 0;
 			}
 		}
-		else if (!_helloSent && !TryReconnect())
+		else if (!_helloSent && _connectedBefore && !_channel.IsConnecting && !TryReconnect())
 		{
 			return false;
 		}
@@ -656,6 +665,7 @@ public class ClientServerSession : IDisposable
 	private bool TryReconnect()
 	{
 		if (_address.Length == 0 || _port <= 0) return true;
+		if (_channel.IsConnecting) return true;
 
 		long now = System.Environment.TickCount64;
 		if (_lastReconnectAttemptMilliseconds != 0 && now - _lastReconnectAttemptMilliseconds < ReconnectIntervalMilliseconds) return true;
@@ -668,7 +678,7 @@ public class ClientServerSession : IDisposable
 			return false;
 		}
 
-		_channel.TryConnect(_address, _port, IsDebugSession, out _);
+		_channel.TryConnect(_address, _port, _joinedLocalPort, IsDebugSession, out _);
 		_longSilenceAllowed = false;
 		return true;
 	}
@@ -934,11 +944,14 @@ public class ClientServerSession : IDisposable
 		_local = false;
 		_joined = false;
 		_localPort = 0;
+		_joinedLocalPort = 0;
 		_localWireTableHash = string.Empty;
 		_mapHash = string.Empty;
 		_address = string.Empty;
 		_port = 0;
 		_channel.FrameArrived -= Enqueue;
+		_channel.ConnectionFailed -= OnChannelConnectionFailed;
+		_channel.ServerDisconnected -= OnChannelServerDisconnected;
 
 		_frames.Clear();
 		IsAuthorityHeldForDebug = false;

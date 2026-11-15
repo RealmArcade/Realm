@@ -125,7 +125,11 @@ public class EnetServerTransport : IServerTransport
 		var host = _peer.GetHost();
 		if (host == null) return false;
 
-		host.SocketSend(address, port, payload.ToArray());
+		byte[] packet = payload.ToArray();
+		for (int i = 0; i < 5; i++)
+		{
+			host.SocketSend(address, port, packet);
+		}
 		return true;
 	}
 

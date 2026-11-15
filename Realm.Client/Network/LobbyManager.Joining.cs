@@ -101,6 +101,7 @@ public partial class LobbyManager
 		if (!isLocalConnection)
 		{
 			await UdpHolePuncher.PunchHoleAsync(connectIp, connectPort, ENetPort);
+			await Task.Delay(50);
 		}
 
 		GameContext.ServerSession?.Dispose();

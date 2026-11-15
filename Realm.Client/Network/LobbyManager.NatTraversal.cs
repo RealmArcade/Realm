@@ -64,10 +64,7 @@ public partial class LobbyManager
 	/// <param name="localPort">The local port the lobby listens on.</param>
 	private async Task ResolvePublicEndpointAsync(int localPort)
 	{
-		_hostPublicIp = null;
-		_hostPublicPort = 0;
 		_routerReachability = RouterReachability.NoRouterForward;
-
 		try
 		{
 			var dnsAddresses = await Dns.GetHostAddressesAsync("stun.l.google.com");
@@ -83,7 +80,7 @@ public partial class LobbyManager
 				GameLog.LogToConsole($"[LobbyManager] Direct STUN on port {localPort} failed: {ex.Message}");
 			}
 
-			if (result == null || !result.Success || result.MappedEndPoint == null)
+			if ((result == null || !result.Success || result.MappedEndPoint == null) && string.IsNullOrEmpty(_hostPublicIp))
 			{
 				using var udp = new UdpClient();
 				udp.ExclusiveAddressUse = false;
@@ -107,12 +104,20 @@ public partial class LobbyManager
 				}
 			}
 
-			if (result == null || !result.Success || result.MappedEndPoint is not IPEndPoint mappedEndPoint) return;
-
-			bool mappedFromBoundPort = result.LocalEndPoint is IPEndPoint localEndPoint && localEndPoint.Port == localPort;
-			_hostPublicIp = mappedEndPoint.Address.ToString();
-			_hostPublicPort = mappedFromBoundPort ? mappedEndPoint.Port : localPort;
-			GameLog.LogToConsole($"[STUN] Local {localPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
+			if (result != null && result.Success && result.MappedEndPoint is IPEndPoint mappedEndPoint)
+			{
+				bool mappedFromBoundPort = result.LocalEndPoint is IPEndPoint localEndPoint && localEndPoint.Port == localPort;
+				_hostPublicIp = mappedEndPoint.Address.ToString();
+				if (mappedFromBoundPort)
+				{
+					_hostPublicPort = mappedEndPoint.Port;
+				}
+				else if (_hostPublicPort <= 0)
+				{
+					_hostPublicPort = localPort;
+				}
+				GameLog.LogToConsole($"[STUN] Local {localPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
+			}
 		}
 		catch (Exception ex)
 		{

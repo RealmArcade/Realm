@@ -14,12 +14,32 @@ public partial class ClientNetworkChannel : Node
 	private const int LongSilenceTimeoutMilliseconds = 86_400_000;
 
 	public event Action<NetworkFrameKind, byte[]>? FrameArrived;
+	public event Action? ConnectionFailed;
+	public event Action? ServerDisconnected;
 
 	private readonly SimulatedLink _simulatedLink = SimulatedLink.FromEnvironment();
 
 	public SimulatedLink SimulatedLink => _simulatedLink;
 
 	public new bool IsConnected => Multiplayer.MultiplayerPeer?.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
+
+	public bool IsConnecting => Multiplayer.MultiplayerPeer?.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connecting;
+
+	public override void _Ready()
+	{
+		Multiplayer.ConnectionFailed += OnMultiplayerConnectionFailed;
+		Multiplayer.ServerDisconnected += OnMultiplayerServerDisconnected;
+	}
+
+	public override void _ExitTree()
+	{
+		Multiplayer.ConnectionFailed -= OnMultiplayerConnectionFailed;
+		Multiplayer.ServerDisconnected -= OnMultiplayerServerDisconnected;
+	}
+
+	private void OnMultiplayerConnectionFailed() => ConnectionFailed?.Invoke();
+
+	private void OnMultiplayerServerDisconnected() => ServerDisconnected?.Invoke();
 
 	/// <summary>
 	///     Hands on the frames a simulated link has finished with. Every frame travels through the queue even when the link
@@ -59,6 +79,9 @@ public partial class ClientNetworkChannel : Node
 		FrameArrived?.Invoke((NetworkFrameKind)kind, frame);
 	}
 
+	private const int ClientBindAttempts = 6;
+	private const int ClientBindRetryMilliseconds = 50;
+
 	public bool TryConnect(string address, int port, out string failure) => TryConnect(address, port, 0, false, out failure);
 
 	public bool TryConnect(string address, int port, bool allowLongSilence, out string failure) => TryConnect(address, port, 0, allowLongSilence, out failure);
@@ -70,6 +93,12 @@ public partial class ClientNetworkChannel : Node
 		failure = string.Empty;
 
 		Error error = CreateClientPeer(address, port, localPort, out ENetMultiplayerPeer? peer);
+		for (int attempt = 0; error != Error.Ok && localPort > 0 && attempt < ClientBindAttempts; attempt++)
+		{
+			OS.DelayMsec(ClientBindRetryMilliseconds);
+			error = CreateClientPeer(address, port, localPort, out peer);
+		}
+
 		if (error != Error.Ok && localPort > 0) error = CreateClientPeer(address, port, 0, out peer);
 
 		if (error != Error.Ok || peer == null)
