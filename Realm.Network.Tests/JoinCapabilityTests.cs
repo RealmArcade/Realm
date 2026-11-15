@@ -139,6 +139,29 @@ public class JoinCapabilityTests
 		Assert.That(runner.ElevatedCommands, Has.Exactly(1).Items, "one removal, and no second prompt for a rule that already exists");
 	}
 
+	[Test]
+	public void ASeederBehindARouterIsKeptButNeverOffered()
+	{
+		var registry = new Realm.AdminServer.Services.SeederRegistry();
+		registry.Register(new Realm.AdminServer.Models.SeederInfo { SeederId = "lan", IP = "10.10.0.2", Port = 9002, MapIds = new List<string> { "map_a" }, LanOnly = true });
+		registry.Register(new Realm.AdminServer.Models.SeederInfo { SeederId = "public", IP = "203.0.113.9", Port = 9001, MapIds = new List<string> { "map_a" } });
+
+		Assert.That(registry.GetAdvertised().Select(seeder => seeder.SeederId), Is.EqualTo(new[] { "public" }));
+		Assert.That(registry.GetSeedersForMap("map_a").Select(seeder => seeder.SeederId), Is.EqualTo(new[] { "public" }), "a download is never offered an endpoint nothing confirmed");
+		Assert.That(registry.Get("lan"), Is.Not.Null, "a LAN-only seeder stays registered for the players its own network serves");
+	}
+
+	[Test]
+	public void AnEndpointIsAdvertisedOnlyWhenItIsPublicAndConfirmed()
+	{
+		Assert.That(Realm.Shared.Distribution.SeederAdvertisement.IsAdvertisable("203.0.113.9", confirmed: true), Is.True);
+		Assert.That(Realm.Shared.Distribution.SeederAdvertisement.IsAdvertisable("203.0.113.9", confirmed: false), Is.False);
+		Assert.That(Realm.Shared.Distribution.SeederAdvertisement.IsAdvertisable("10.10.0.2", confirmed: true), Is.False);
+		Assert.That(Realm.Shared.Distribution.SeederAdvertisement.IsConfirmationFresh(System.DateTime.UtcNow.AddSeconds(-59), System.DateTime.UtcNow), Is.True);
+		Assert.That(Realm.Shared.Distribution.SeederAdvertisement.IsConfirmationFresh(System.DateTime.UtcNow.AddSeconds(-61), System.DateTime.UtcNow), Is.False);
+		Assert.That(Realm.Shared.Distribution.SeederAdvertisement.IsConfirmationFresh(null, System.DateTime.UtcNow), Is.False);
+	}
+
 	private sealed class RecordingFirewallRunner : IWindowsFirewallCommandRunner
 	{
 		public Dictionary<string, WindowsFirewallRuleState> Rules { get; } = new();
