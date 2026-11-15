@@ -36,9 +36,19 @@ public class SimulatedNat : IDisposable
 
 	/// <summary>
 	///     Sends a datagram out from the router's public endpoint, which is what a host's punch looks like to the network.
-	///     The receiving node sees this endpoint as the host's address, exactly as it would see a real router's mapping.
+	///     The receiving node sees this endpoint as the host's address, exactly as it would see a real router's mapping, and
+	///     the datagram names the check the punch is for.
 	/// </summary>
-	public void Punch(IPEndPoint destination) => _publicSocket.Send(ReachabilityPunch.Datagram.ToArray(), destination);
+	/// <param name="destination">The endpoint to punch.</param>
+	/// <param name="probeId">The reachability check the punch is for.</param>
+	public void Punch(IPEndPoint destination, string probeId)
+	{
+		var datagram = new byte[ReachabilityPunch.MaximumDatagramBytes];
+		int written = ReachabilityPunch.TryWrite(datagram, probeId);
+		if (written == 0) return;
+
+		_publicSocket.Send(datagram, written, destination);
+	}
 
 	public void Dispose()
 	{

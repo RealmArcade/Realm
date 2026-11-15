@@ -56,13 +56,20 @@ public class FakeGamePort : IDisposable
 	public int ReceivedCount => Volatile.Read(ref _receivedCount);
 
 	/// <summary>
-	///     Sends a datagram to an endpoint, which is what a host's authority does when it punches a joining peer. It is the
-	///     only thing that makes <see cref="Behaviour.AnswerOnlySolicited" /> answer.
+	///     Sends the datagram a host's authority sends when it punches the registry node's probe socket, naming the check it is
+	///     punching for. It is the only thing that makes <see cref="Behaviour.AnswerOnlySolicited" /> answer.
 	/// </summary>
-	public void Punch(IPEndPoint endpoint)
+	/// <param name="endpoint">The endpoint to punch.</param>
+	/// <param name="probeId">The reachability check the punch is for.</param>
+	public void Punch(IPEndPoint endpoint, string probeId)
 	{
 		Solicit(endpoint);
-		_socket.Send(ReachabilityPunch.Datagram.ToArray(), endpoint);
+
+		var datagram = new byte[ReachabilityPunch.MaximumDatagramBytes];
+		int written = ReachabilityPunch.TryWrite(datagram, probeId);
+		if (written == 0) return;
+
+		_socket.Send(datagram, written, endpoint);
 	}
 
 	/// <summary>

@@ -28,10 +28,10 @@ public class ReachabilityRouterTests
 		var log = new List<string>();
 		var verifier = new HostReachabilityVerifier(new HttpClient(), log.Add);
 
-		bool Punch(string address, int port)
+		bool Punch(string address, int port, string probeId)
 		{
 			gamePort.Solicit(router.PublicEndpoint);
-			router.Punch(new IPEndPoint(IPAddress.Parse(address), port));
+			router.Punch(new IPEndPoint(IPAddress.Parse(address), port), probeId);
 			return true;
 		}
 
@@ -58,7 +58,7 @@ public class ReachabilityRouterTests
 		using var registry = new ProbeRegistryHost(probes);
 
 		var verifier = new HostReachabilityVerifier(new HttpClient(), _ => { });
-		HostReachabilityResult result = await verifier.VerifyAsync(registry.BaseUrl, IPAddress.Loopback.ToString(), gamePort.Port, (_, _) => true);
+		HostReachabilityResult result = await verifier.VerifyAsync(registry.BaseUrl, IPAddress.Loopback.ToString(), gamePort.Port, (_, _, _) => true);
 
 		Assert.That(result.Verified, Is.False, "a router that was never punched must not let a probe through, or the check is not measuring the network");
 		Assert.That(result.Failure, Is.EqualTo(HostReachabilityFailure.ProbeUnanswered));

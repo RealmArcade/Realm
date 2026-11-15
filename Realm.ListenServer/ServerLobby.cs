@@ -21,7 +21,11 @@ public partial class ServerLobby : ILobbySeatTable
 
 	private readonly Action _lobbyAbandoned;
 
-	private readonly Action<string, int> _punchAddress;
+	/// <summary>
+	///     Sends one datagram from the lobby's game port to an address. The third argument names the reachability check the
+	///     punch is for, or is empty when the punch only opens a path for a joining player.
+	/// </summary>
+	private readonly Action<string, int, string> _punchAddress;
 
 	private readonly Func<int, PeerLinkStatistics?> _readPeerLink;
 
@@ -93,7 +97,7 @@ public partial class ServerLobby : ILobbySeatTable
 	private bool _matchStarted;
 
 	public ServerLobby(ServerArguments arguments, ServerLog log, Action<int, NetworkFrameKind, byte[], FrameDelivery> send, Action<int> disconnect,
-		Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> startMatch, Action lobbyAbandoned, Action<string, int> punchAddress,
+		Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> startMatch, Action lobbyAbandoned, Action<string, int, string> punchAddress,
 		Func<int, PeerLinkStatistics?> readPeerLink, Func<string?> readStartWarning)
 	{
 		_log = log;

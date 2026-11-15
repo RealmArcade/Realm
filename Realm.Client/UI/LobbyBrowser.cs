@@ -497,7 +497,7 @@ public partial class LobbyBrowser : Control
 				recentButton.CustomMinimumSize = new Vector2(500, 32);
 				recentButton.Alignment = HorizontalAlignment.Left;
 				recentButton.AddThemeConstantOverride("icon_max_width", 0);
-				recentButton.TooltipText = string.Format(Tr("Last joined {0}."), entry.LastJoinedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture));
+				LocalizedText.SetTooltip(recentButton, "Last joined {0}.", entry.LastJoinedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture));
 				recentButton.Pressed += () =>
 				{
 					GameContext.UserInterface?.PlayClickSound();
@@ -544,6 +544,12 @@ public partial class LobbyBrowser : Control
 		hbox.AddChild(connectBtn);
 		addressInput.TextSubmitted += _ => connectButtonPressed();
 
+		// What a refused connect names. The sentence is built from the address and from whatever the lobby said went wrong,
+		// so the label draws it through a renderer that reads these: a language change rebuilds the sentence around the
+		// values instead of leaving the one the attempt happened to be made in on screen.
+		string? refusedEndpoint = null;
+		string refusalReason = string.Empty;
+
 		addressInput.GrabFocus();
 		return;
 
@@ -554,12 +560,21 @@ public partial class LobbyBrowser : Control
 			if (!TryParseDirectConnectAddress(addressInput.Text, out string host, out int port, out DirectConnectAddressError parseError))
 			{
 				GameContext.UserInterface?.PlayWarningSound();
-				errorLabel.Text = parseError switch
+				refusedEndpoint = null;
+				refusalReason = string.Empty;
+				switch (parseError)
 				{
-					DirectConnectAddressError.MissingBracket => Tr("The address is missing its closing bracket."),
-					DirectConnectAddressError.InvalidPort => Tr("The port must be a whole number between 1 and 65535."),
-					_ => Tr("Enter the address the host sent you.")
-				};
+					case DirectConnectAddressError.MissingBracket:
+						LocalizedText.Set(errorLabel, "The address is missing its closing bracket.");
+						break;
+					case DirectConnectAddressError.InvalidPort:
+						LocalizedText.Set(errorLabel, "The port must be a whole number between 1 and 65535.");
+						break;
+					default:
+						LocalizedText.Set(errorLabel, "Enter the address the host sent you.");
+						break;
+				}
+
 				errorLabel.Visible = true;
 				return;
 			}
@@ -587,9 +602,17 @@ public partial class LobbyBrowser : Control
 			addressInput.Editable = true;
 			UIStyle.ApplyButtonText(connectBtn, Tr("CONNECT"), 14);
 
-			string reason = lobby.LastHostError ?? lobby.LobbyJoinError ?? Tr("The host did not answer.");
-			errorLabel.Text = $"{string.Format(Tr("Could not reach {0}."), $"{host}:{port}")}\n{reason}\n\n{Tr("The host must keep the lobby open and allow UDP traffic on that port. Players outside their network also need the host's router to forward the port.")}";
+			refusedEndpoint = DirectConnectHistory.DescribeAddress(host, port);
+			refusalReason = lobby.LastHostError ?? lobby.LobbyJoinError ?? Tr("The host did not answer.");
+			LocalizedText.Bind(errorLabel, RenderRefusedConnect);
 			errorLabel.Visible = true;
+		}
+
+		string? RenderRefusedConnect()
+		{
+			if (refusedEndpoint == null) return null;
+
+			return $"{string.Format(Tr("Could not reach {0}."), refusedEndpoint)}\n{refusalReason}\n\n{Tr("The host must keep the lobby open and allow UDP traffic on that port. Players outside their network also need the host's router to forward the port.")}";
 		}
 	}
 

@@ -311,23 +311,23 @@ public class UdpReachabilityProbeService : IDisposable
 	}
 
 	/// <summary>
-	///     Reads a punch and makes the endpoint it came from the one this check probes. The punch is what opened the path
-	///     through the host's router, so the endpoint it arrived from is both where that host is reachable and the one
+	///     Reads a punch and makes the endpoint it came from the one the check it names probes. The punch is what opened the
+	///     path through the host's router, so the endpoint it arrived from is both where that host is reachable and the one
 	///     endpoint the router will let a probe in at, and the attempt is sent at once rather than at the next tick.
 	/// </summary>
+	/// <remarks>
+	///     The punch is matched by the check it names, never by the address it arrived from: two hosts behind one router, an
+	///     office, or two screens on one machine reach this socket from the same public address, so an address match would
+	///     hand one host's punch to another host's check and point that check at a game port that belongs to somebody else.
+	/// </remarks>
 	private void RecordPunch(ReadOnlySpan<byte> datagram, IPEndPoint remoteEndPoint)
 	{
-		if (!ReachabilityPunch.IsPunch(datagram)) return;
+		if (!ReachabilityPunch.TryReadProbeId(datagram, out string probeId)) return;
+		if (!_pending.TryGetValue(probeId, out PendingProbe? probe)) return;
+		if (probe.IsExpired(_clock.ElapsedMilliseconds)) return;
+		if (!probe.LearnPunchedEndpoint(remoteEndPoint.Address, remoteEndPoint.Port)) return;
 
-		foreach (KeyValuePair<string, PendingProbe> entry in _pending)
-		{
-			PendingProbe probe = entry.Value;
-			if (probe.IsExpired(_clock.ElapsedMilliseconds)) continue;
-			if (!probe.MatchesPunchSource(remoteEndPoint.Address)) continue;
-			if (!probe.LearnPunchedEndpoint(remoteEndPoint.Address, remoteEndPoint.Port)) continue;
-
-			SendAttempt(probe);
-		}
+		SendAttempt(probe);
 	}
 
 	private void ForgetStale() => ForgetStale(_clock.ElapsedMilliseconds);
@@ -443,26 +443,10 @@ public class UdpReachabilityProbeService : IDisposable
 		}
 
 		/// <summary>
-		///     Whether a punch from this address belongs to this check. The host's request states the address the network
-		///     showed for it, and the endpoint the check was asked to reach states it a second way; a punch from either is the
-		///     host's own, and a punch from anywhere else cannot move a running check.
-		/// </summary>
-		public bool MatchesPunchSource(IPAddress address)
-		{
-			if (RequestSourceAddress.Equals(address)) return true;
-
-			foreach (ProbeTarget target in _targets)
-			{
-				if (target.Address.Equals(address)) return true;
-			}
-
-			return false;
-		}
-
-		/// <summary>
 		///     Records the endpoint a punch arrived from, which is the endpoint this host's router made it reachable at. Only
 		///     the first punch is taken: it is the one that opened the path, and taking a later one would let a stray datagram
-		///     move a check that is already running.
+		///     move a check that is already running. The punch named this check before it reached here, so a punch meant for a
+		///     check running beside this one cannot arrive.
 		/// </summary>
 		/// <returns>Whether this punch was the one this check learned from.</returns>
 		public bool LearnPunchedEndpoint(IPAddress address, int port)

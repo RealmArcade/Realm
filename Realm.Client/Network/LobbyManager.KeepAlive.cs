@@ -65,7 +65,9 @@ public partial class LobbyManager
 	{
 		while (!cancellationToken.IsCancellationRequested)
 		{
-			PunchProbeEndpointAsync(probeAddress, probePort);
+			// The check this lobby was verified with has already been read and forgotten, so this punch names none: it exists
+			// only for the endpoint it leaves from, which is what keeps the router's mapping for the game port alive.
+			PunchProbeEndpointAsync(probeAddress, probePort, string.Empty);
 
 			try
 			{

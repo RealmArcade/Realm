@@ -54,6 +54,29 @@ public class ReachabilityCheckTests
 	}
 
 	[Test]
+	public async Task APunchOnlyMovesTheCheckItNames()
+	{
+		// Two hosts behind one router reach the probe socket from the same address, which is exactly what a house, an
+		// office or two screens on one machine looks like. One host's punch must never become the other host's endpoint:
+		// the punch names the check it is for, and the check it does not name keeps probing the port it was given.
+		using var firstGamePort = new FakeGamePort(FakeGamePort.Behaviour.AnswerOnlySolicited);
+		using var secondGamePort = new FakeGamePort(FakeGamePort.Behaviour.AnswerOnlySolicited);
+		using var probes = new UdpReachabilityProbeService(FreePort.Udp());
+
+		ReachabilityTicket first = probes.Begin(IPAddress.Loopback, firstGamePort.Port, IPAddress.Loopback, 5555, WindowMilliseconds);
+		ReachabilityTicket second = probes.Begin(IPAddress.Loopback, secondGamePort.Port, IPAddress.Loopback, 5555, WindowMilliseconds);
+
+		firstGamePort.Punch(new IPEndPoint(IPAddress.Loopback, probes.ProbePort), first.ProbeId);
+
+		ReachabilityReport punched = await ProbePolling.WaitForResultAsync(probes, first, TimeSpan.FromSeconds(6));
+		ReachabilityReport neighbour = probes.Read(second.ProbeId)!;
+
+		Assert.That(punched.Answered, Is.True, "the host that punched has to be verified at the endpoint its punch came from");
+		Assert.That(punched.ObservedPort, Is.EqualTo(firstGamePort.Port));
+		Assert.That(neighbour.Answered, Is.False, "a punch that names another check must not move this one, or a host is published at a neighbour's game port");
+	}
+
+	[Test]
 	public async Task APortWithNothingListeningIsReportedSilent()
 	{
 		int closedPort = FreePort.Udp();
@@ -129,7 +152,7 @@ public class ReachabilityCheckTests
 
 		var log = new List<string>();
 		var verifier = new HostReachabilityVerifier(new HttpClient(), log.Add);
-		HostReachabilityResult result = await verifier.VerifyAsync(registry.BaseUrl, IPAddress.Loopback.ToString(), gamePort.Port, (_, _) => true);
+		HostReachabilityResult result = await verifier.VerifyAsync(registry.BaseUrl, IPAddress.Loopback.ToString(), gamePort.Port, (_, _, _) => true);
 
 		Assert.That(result.Failure, Is.EqualTo(HostReachabilityFailure.None), string.Join(" | ", log));
 		Assert.That(result.Verified, Is.True);
@@ -148,7 +171,7 @@ public class ReachabilityCheckTests
 		// A host that measured its own public address badly still hosts on the address the network shows, so a wrong
 		// measurement is repaired instead of being turned into a refusal that nobody can act on.
 		var verifier = new HostReachabilityVerifier(new HttpClient(), _ => { });
-		HostReachabilityResult result = await verifier.VerifyAsync(registry.BaseUrl, "198.51.100.4", gamePort.Port, (_, _) => true);
+		HostReachabilityResult result = await verifier.VerifyAsync(registry.BaseUrl, "198.51.100.4", gamePort.Port, (_, _, _) => true);
 
 		Assert.That(result.Verified, Is.True, result.Detail);
 		Assert.That(result.PublicIp, Is.EqualTo(IPAddress.Loopback.ToString()));
@@ -163,7 +186,7 @@ public class ReachabilityCheckTests
 		using var registry = new ProbeRegistryHost(probes);
 
 		var verifier = new HostReachabilityVerifier(new HttpClient(), _ => { });
-		HostReachabilityResult result = await verifier.VerifyAsync(registry.BaseUrl, IPAddress.Loopback.ToString(), gamePort.Port, (_, _) => true);
+		HostReachabilityResult result = await verifier.VerifyAsync(registry.BaseUrl, IPAddress.Loopback.ToString(), gamePort.Port, (_, _, _) => true);
 
 		Assert.That(result.Failure, Is.EqualTo(HostReachabilityFailure.ProbeUnanswered));
 		Assert.That(result.Verified, Is.False);
@@ -179,10 +202,10 @@ public class ReachabilityCheckTests
 
 		int punches = 0;
 
-		bool Punch(string address, int port)
+		bool Punch(string address, int port, string probeId)
 		{
 			Interlocked.Increment(ref punches);
-			gamePort.Punch(new IPEndPoint(IPAddress.Parse(address), port));
+			gamePort.Punch(new IPEndPoint(IPAddress.Parse(address), port), probeId);
 			return true;
 		}
 
@@ -197,7 +220,7 @@ public class ReachabilityCheckTests
 	public async Task ARegistryThatCannotBeReachedRefusesTheLobbyInsteadOfGuessing()
 	{
 		var verifier = new HostReachabilityVerifier(new HttpClient { Timeout = TimeSpan.FromSeconds(3) }, _ => { });
-		HostReachabilityResult result = await verifier.VerifyAsync($"http://127.0.0.1:{FreePort.Tcp()}", string.Empty, 8999, (_, _) => true);
+		HostReachabilityResult result = await verifier.VerifyAsync($"http://127.0.0.1:{FreePort.Tcp()}", string.Empty, 8999, (_, _, _) => true);
 
 		Assert.That(result.Failure, Is.EqualTo(HostReachabilityFailure.RegistryUnreachable));
 		Assert.That(result.Verified, Is.False);
@@ -210,7 +233,7 @@ public class ReachabilityCheckTests
 
 		while (DateTime.UtcNow < deadline)
 		{
-			gamePort.Punch(new IPEndPoint(IPAddress.Loopback, probes.ProbePort));
+			gamePort.Punch(new IPEndPoint(IPAddress.Loopback, probes.ProbePort), ticket.ProbeId);
 			report = probes.Read(ticket.ProbeId);
 			if (report is { Answered: true }) return report;
 			await Task.Delay(50);

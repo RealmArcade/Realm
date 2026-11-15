@@ -220,11 +220,20 @@ public partial class LobbyManager : BaseMapTransferNode
 	public string DirectConnectAddress => $"{GetLocalIPAddress()}:{(LobbyPort > 0 ? LobbyPort : ENetPort)}";
 
 	/// <summary>
-	///     The address this lobby was measured to be reachable at from outside this network, or nothing while it was not
-	///     measured or the measurement named the address this machine already holds. A router that forwards the port makes
-	///     this the address a player anywhere can join with.
+	///     The address this lobby was confirmed to be reachable at from outside this network, or nothing while nothing
+	///     confirmed it. What confirms it is something outside acting on it: a registry node reached the game port through it,
+	///     or the router accepted a mapping for the port. A public address this machine merely measured for itself is a guess,
+	///     because a router reports the same mapping whether or not its outside face forwards anything, and it is offered
+	///     separately as <see cref="MeasuredPublicConnectAddress" /> so a host can read it without being told that it works.
 	/// </summary>
-	public string? PublicConnectAddress
+	public string? PublicConnectAddress => _hostPublicEndpointConfirmed ? MeasuredPublicConnectAddress : null;
+
+	/// <summary>
+	///     The address this machine measured for its own lobby with a STUN query, or nothing while the measurement failed or
+	///     named the address this machine already holds. It is where the router maps the lobby's port when a forward exists at
+	///     all, and nothing more than that: nothing outside has reached the port through it yet.
+	/// </summary>
+	public string? MeasuredPublicConnectAddress
 	{
 		get
 		{
@@ -232,7 +241,7 @@ public partial class LobbyManager : BaseMapTransferNode
 			if (_hostPublicIp is "127.0.0.1" or "0.0.0.0") return null;
 			if (string.Equals(_hostPublicIp, GetLocalIPAddress(), StringComparison.Ordinal)) return null;
 
-			return $"{_hostPublicIp}:{PublicPort}";
+			return DirectConnectHistory.DescribeAddress(_hostPublicIp, PublicPort);
 		}
 	}
 
@@ -240,14 +249,15 @@ public partial class LobbyManager : BaseMapTransferNode
 	///     The address this screen joined the lobby at, or nothing while it hosts. A player who reached a lobby this way can
 	///     pass the address on, which is what a lobby that is not listed depends on.
 	/// </summary>
-	public string? JoinedLobbyAddress => !IsHost && _connectedHostIp is { Length: > 0 } host ? $"{host}:{BoundPort}" : null;
+	public string? JoinedLobbyAddress => !IsHost && _connectedHostIp is { Length: > 0 } host ? DirectConnectHistory.DescribeAddress(host, BoundPort) : null;
 
 	/// <summary>
 	///     The message a host pastes into a chat to bring players into the lobby they opened, or nothing while this screen
 	///     is not hosting. It names the map being played and the address those players join at, and says where that address
 	///     goes in the game, because an address sent on its own leaves a friend guessing what to do with it. The address is
-	///     the one measured to be reachable from outside this network when a router forward answered, because a friend in a
-	///     chat is usually not on this network.
+	///     the one confirmed to be reachable from outside this network, because a friend in a chat is usually not on this
+	///     one, and it falls back to this network's own address when nothing confirmed anything, which is the only address
+	///     that is certainly right.
 	/// </summary>
 	public string DirectConnectInviteMessage
 	{
@@ -384,6 +394,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private CancellationTokenSource? _wsCts;
 	private string? _hostPublicIp;
 	private int _hostPublicPort;
+	private bool _hostPublicEndpointConfirmed;
 	public string PublicIP => _hostPublicIp ?? "127.0.0.1";
 	public int PublicPort => _hostPublicPort > 0 ? _hostPublicPort : BoundPort;
 	private string? _hostToken;

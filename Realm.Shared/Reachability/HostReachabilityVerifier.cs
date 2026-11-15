@@ -80,9 +80,10 @@ public class HostReachabilityVerifier
 	/// <summary>
 	///     Runs the rehearsal. <paramref name="punch" /> is how the host's authority is asked to send a datagram from the game
 	///     port to an address, which is what an ENet peer performs before it connects and what opens a restricted router for
-	///     the registry's probes.
+	///     the registry's probes. It is handed the name of the check it is punching for, which the datagram states so that a
+	///     host sharing a public address with another host cannot move that neighbour's check.
 	/// </summary>
-	public async Task<HostReachabilityResult> VerifyAsync(string registryBaseUrl, string advertisedIp, int advertisedPort, Func<string, int, bool> punch, CancellationToken cancellationToken = default)
+	public async Task<HostReachabilityResult> VerifyAsync(string registryBaseUrl, string advertisedIp, int advertisedPort, Func<string, int, string, bool> punch, CancellationToken cancellationToken = default)
 	{
 		ReachabilityTicket? ticket = await BeginAsync(registryBaseUrl, advertisedIp, advertisedPort, cancellationToken).ConfigureAwait(false);
 		if (ticket == null) return HostReachabilityResult.Refused(HostReachabilityFailure.RegistryUnreachable, $"the registry node '{registryBaseUrl}' did not start a reachability check");
@@ -102,7 +103,7 @@ public class HostReachabilityVerifier
 
 		while (Environment.TickCount64 < deadlineMilliseconds && !cancellationToken.IsCancellationRequested)
 		{
-			lastPunchAccepted |= punch(probeAddress, ticket.ProbePort);
+			lastPunchAccepted |= punch(probeAddress, ticket.ProbePort, ticket.ProbeId);
 			lastReport = await ReadAsync(registryBaseUrl, ticket.ProbeId, cancellationToken).ConfigureAwait(false);
 			if (lastReport is { Answered: true }) return Verified(ticket.ProbeId, lastReport, advertisedIp, advertisedPort, probeAddress, ticket.ProbePort);
 

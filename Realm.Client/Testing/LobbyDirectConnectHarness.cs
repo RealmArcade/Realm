@@ -346,8 +346,9 @@ public partial class LobbyDirectConnectHarness : Node
 
 		if (!addressShown) return (22, $"the invite dialog does not show '{address}'");
 
-		// A host has to be able to tell the two apart: an address a router forward was measured for works anywhere, and
-		// one that was not is only reachable on this network. The dialog says which of those it is selling.
+		// A host has to be able to tell the two apart: an address a router mapping was confirmed for works anywhere, and
+		// one that was only measured is reachable from here alone until a forward exists. The dialog says which of those
+		// it is selling.
 		if (lobby.PublicConnectAddress is { Length: > 0 } publicAddress)
 		{
 			bool publicShown = false;

@@ -351,7 +351,8 @@ public partial class LobbyManager
 	///     Opens the joining half of the lobby <see cref="PrepareHostedLobbyAsync" /> prepared without a registry: the port is
 	///     opened for players on other machines and the address they can reach is measured. Nothing can refuse a direct
 	///     lobby for reachability, because no public node was asked to reach it - the host shares the address and the players
-	///     who receive it are the check.
+	///     who receive it are the check. What a router accepting a mapping does decide is whether the address outside this
+	///     network is offered at all, because an address nothing confirmed is one a host would be sending at random.
 	/// </summary>
 	/// <returns>Whether the lobby now accepts players on its address.</returns>
 	public async Task<bool> PublishDirectLobbyAsync()
@@ -372,7 +373,11 @@ public partial class LobbyManager
 		GameLog.LogToConsole($"[LobbyManager] This lobby is not listed anywhere; share {DirectConnectAddress} with the players who should join.");
 		if (PublicConnectAddress is { Length: > 0 } publicAddress)
 		{
-			GameLog.LogToConsole($"[LobbyManager] Players outside this network can join at {publicAddress} when the router forwards that port.");
+			GameLog.LogToConsole($"[LobbyManager] This lobby's router accepted a forward, so players outside this network join at {publicAddress}.");
+		}
+		else if (MeasuredPublicConnectAddress is { Length: > 0 } measuredAddress)
+		{
+			GameLog.LogToConsole($"[LobbyManager] Nothing confirmed this lobby is reachable from outside; {measuredAddress} is the address its router maps the port to, which works once UDP port {prepared.Port} is forwarded.");
 		}
 
 		PlayerListUpdated?.Invoke();
@@ -394,6 +399,12 @@ public partial class LobbyManager
 		await ResolvePublicEndpointAsync(port);
 
 		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(port);
+
+		// A mapping the router accepted is the only confirmation a lobby that is not listed anywhere can gather on its own,
+		// and it is exactly what makes the address the measurement found worth sending to somebody outside this network.
+		// A listed lobby is confirmed again by the registry node that reaches its port before it is published.
+		_hostPublicEndpointConfirmed = upnpSuccess;
+
 		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
 		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
 		if (IsRestrictedHost)

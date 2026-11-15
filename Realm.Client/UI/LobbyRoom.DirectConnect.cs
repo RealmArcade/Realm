@@ -28,7 +28,7 @@ public partial class LobbyRoom
 		{
 			container.AddChild(CreateDirectConnectNote(
 				$"{prefix}PublicHint_Label",
-				TranslationServer.Translate("Players outside your network use this address when the router forwards the port:"),
+				"Players outside your network join at this address:",
 				width,
 				11,
 				UIStyle.ColorGoldDull));
@@ -38,15 +38,45 @@ public partial class LobbyRoom
 
 		container.AddChild(CreateDirectConnectNote(
 			$"{prefix}NoForwardHint_Label",
-			string.Format(
-				TranslationServer.Translate("Nothing answered for UDP port {0} from outside your network, so the address above only works on your own network. Forward that port on your router, or have your friends join through a virtual LAN such as Tailscale, to play with them anywhere."),
-				Lobby.BoundPort),
+			"Nothing outside your network has reached UDP port {0}, so the address above only works on your own network. Forward that port on your router, or have your friends join through a virtual LAN such as Tailscale, to play with them anywhere.",
 			width,
 			11,
-			UIStyle.ColorGoldDull));
+			UIStyle.ColorGoldDull,
+			Lobby.BoundPort));
+
+		// The router almost always maps the port to something, so the address outside players would use is worth showing even
+		// while nothing confirmed it. It is offered as a second address with the condition attached, because a host who has
+		// forwarded the port by hand is the one case a direct lobby cannot measure for itself and the one it cannot work for.
+		if (Lobby.MeasuredPublicConnectAddress is not { Length: > 0 } measuredAddress) return;
+
+		container.AddChild(CreateDirectConnectNote(
+			$"{prefix}MeasuredPublicHint_Label",
+			"With UDP port {0} forwarded on your router, players outside your network use this address instead:",
+			width,
+			11,
+			UIStyle.ColorGoldDull,
+			Lobby.BoundPort));
+		container.AddChild(CreateDirectConnectAddressRow($"{prefix}MeasuredPublic", measuredAddress, width, addressFontSize));
 	}
 
-	private Label CreateDirectConnectNote(string name, string text, int width, int fontSize, Color color)
+	/// <summary>
+	///     Writes a note whose sentence is a translation key with the values that go inside it, so a note built around the
+	///     port a router has to forward is redrawn in the new language rather than left in the one it was written in.
+	/// </summary>
+	/// <param name="name">The name the label is given.</param>
+	/// <param name="key">The translation key, which is also the English sentence.</param>
+	/// <param name="width">The width the sentence may wrap in.</param>
+	/// <param name="fontSize">The size the sentence is drawn at.</param>
+	/// <param name="color">The colour the sentence is drawn in.</param>
+	/// <param name="arguments">The values the sentence is formatted with.</param>
+	private Label CreateDirectConnectNote(string name, string key, int width, int fontSize, Color color, params object?[] arguments)
+	{
+		Label note = CreateDirectConnectNoteFromText(name, string.Empty, width, fontSize, color);
+		LocalizedText.Set(note, key, arguments);
+		return note;
+	}
+
+	private Label CreateDirectConnectNoteFromText(string name, string text, int width, int fontSize, Color color)
 	{
 		var note = new Label();
 		note.Name = name;
@@ -97,7 +127,7 @@ public partial class LobbyRoom
 		copyInviteButton.CustomMinimumSize = new Vector2(240, 34);
 		copyInviteButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		copyInviteButton.AddThemeConstantOverride("icon_max_width", 0);
-		copyInviteButton.TooltipText = TranslationServer.Translate("Copies the map name and the address to join at as one message you can paste into a chat. It uses the address measured to be reachable from outside your network when a router forward answered.");
+		copyInviteButton.TooltipText = TranslationServer.Translate("Copies the map name and the address to join at as one message you can paste into a chat. It uses the address players outside your network reach when that was confirmed, and your own network's address otherwise.");
 		copyInviteButton.Pressed += CopyDirectConnectInviteMessage;
 		container.AddChild(copyInviteButton);
 	}
@@ -151,7 +181,7 @@ public partial class LobbyRoom
 		title.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(title);
 
-		vbox.AddChild(CreateDirectConnectNote(
+		vbox.AddChild(CreateDirectConnectNoteFromText(
 			"DirectConnectInviteDescription_Label",
 			Lobby.IsHost
 				? TranslationServer.Translate("This lobby is not listed anywhere. Send one of these addresses to the players you want to play with.")
