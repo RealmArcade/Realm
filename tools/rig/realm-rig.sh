@@ -158,7 +158,31 @@ run_in() {
 	ip netns exec "$ns" "$@"
 }
 
+wrapper() {
+	local project_dir
+	project_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../Realm.ListenServerHost" && pwd)
+	local launcher="$project_dir/Realm.ListenServerHost"
+
+	shift || true
+	case "${1:-on}" in
+		on)
+			cp "$(dirname "${BASH_SOURCE[0]}")/authority-wrapper.sh" "$launcher"
+			chmod +x "$launcher"
+			echo "the client will launch the authority through $launcher"
+			;;
+		off)
+			rm -f "$launcher"
+			echo "removed $launcher"
+			;;
+		*)
+			echo "wrapper takes 'on' or 'off'" >&2
+			exit 1
+			;;
+	esac
+}
+
 case "${1:-}" in
+	wrapper) wrapper "$@" ;;
 	up) up ;;
 	down) down ;;
 	status) status ;;
@@ -167,7 +191,7 @@ case "${1:-}" in
 	player) shift; run_in "$PLAYER_NS" "$@" ;;
 	public) shift; run_in "$PUBLIC_NS" "$@" ;;
 	*)
-		echo "usage: $0 up|down|status|mapping reuse|random|host <cmd>|player <cmd>|public <cmd>" >&2
+		echo "usage: $0 up|down|status|wrapper on|off|mapping reuse|random|host <cmd>|player <cmd>|public <cmd>" >&2
 		exit 1
 		;;
 esac

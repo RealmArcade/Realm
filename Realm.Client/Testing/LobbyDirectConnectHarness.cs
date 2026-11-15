@@ -28,6 +28,8 @@ public partial class LobbyDirectConnectHarness : Node
 	private string _hostMode = "direct";
 	private bool _deadRegistry;
 
+	private string _registry = string.Empty;
+
 	public override void _Ready()
 	{
 		_ = RunAsync();
@@ -102,6 +104,9 @@ public partial class LobbyDirectConnectHarness : Node
 				case "--dead-registry":
 					_deadRegistry = value == "1";
 					break;
+				case "--registry":
+					_registry = value;
+					break;
 			}
 		}
 
@@ -114,6 +119,7 @@ public partial class LobbyDirectConnectHarness : Node
 		string mapName = Path.GetFileName(Path.TrimEndingDirectorySeparator(_mapFolder));
 
 		if (_deadRegistry) PointTheRegistryAtAnUnreachableServer(lobby);
+		else if (_registry.Length > 0) PointTheRegistryAt(lobby, _registry);
 
 		bool opened = _hostMode switch
 		{
@@ -499,9 +505,20 @@ public partial class LobbyDirectConnectHarness : Node
 	/// <param name="lobby">The lobby manager whose registry list is replaced.</param>
 	private static void PointTheRegistryAtAnUnreachableServer(LobbyManager lobby)
 	{
+		PointTheRegistryAt(lobby, "http://127.0.0.1:1");
+	}
+
+	/// <summary>
+	///     Points this run at one lobby server instead of the ones the build ships with, which is what lets a harness run
+	///     against a server on another machine or in another network namespace.
+	/// </summary>
+	/// <param name="lobby">The lobby whose server list is replaced.</param>
+	/// <param name="url">The lobby server this run talks to.</param>
+	private static void PointTheRegistryAt(LobbyManager lobby, string url)
+	{
 		var servers = lobby.OfficialServers;
 		servers.Clear();
-		servers.Add("http://127.0.0.1:1");
+		servers.Add(url.TrimEnd('/'));
 		GameLog.LogToConsole($"[DIRECT_HARNESS] The registry is set to {servers[0]} for this run.");
 	}
 
