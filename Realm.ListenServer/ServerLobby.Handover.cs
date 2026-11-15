@@ -583,7 +583,12 @@ public partial class ServerLobby
 
 		if (_handoverStage == LobbyHandoverStage.None) return;
 
+		int previousRemainingSeconds = Math.Max(0, (int)Math.Ceiling(_handoverStageRemainingSeconds));
 		_handoverStageRemainingSeconds -= elapsed;
+
+		// The stage's own window is published as it runs down, so the status line every seat reads states the time the
+		// lobby is actually counting rather than the time it had when something else last changed.
+		if (_handoverStageRemainingSeconds > 0 && Math.Max(0, (int)Math.Ceiling(_handoverStageRemainingSeconds)) != previousRemainingSeconds) BroadcastState();
 
 		if (_handoverStage == LobbyHandoverStage.Committing && !_handoverCommitsSent)
 		{
