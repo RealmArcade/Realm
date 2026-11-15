@@ -432,6 +432,11 @@ public partial class LobbyDirectConnectHarness : Node
 		if (!inviteMessage.Contains(inviteAddress, StringComparison.Ordinal)) return (25, $"the invite message does not name the address '{inviteAddress}': {inviteMessage}");
 		if (!inviteMessage.Contains("Join Private Lobby", StringComparison.Ordinal)) return (25, $"the invite message does not say where the address goes: {inviteMessage}");
 
+		// The port is stated even when it is the one a direct connect assumes, and the message carries the one thing that
+		// can still stop a join, so a friend who cannot get in does not have to ask which port to open.
+		if (!inviteMessage.Contains($":{lobby.LobbyPort}", StringComparison.Ordinal)) return (25, $"the invite message never states the port the lobby is played at ({lobby.LobbyPort}): {inviteMessage}");
+		if (!inviteMessage.Contains("UPnP", StringComparison.Ordinal)) return (25, $"the invite message states no fallback for a player who cannot join: {inviteMessage}");
+
 		room.QueueFree();
 		return (0, $"the lobby room offers 'INVITE PLAYERS' with the private-lobby note and copies an invite for {inviteAddress}");
 	}

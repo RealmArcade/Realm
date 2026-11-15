@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
+using Realm.Shared.Reachability;
 using HttpClient = System.Net.Http.HttpClient;
 using Timer = Godot.Timer;
 using static Godot.Control;
@@ -122,7 +123,8 @@ public partial class LobbyBrowser
 			Ping = calculatedPing,
 			GameVersion = GetStringProp(item, "gameVersion"),
 			MapSizeBytes = mapSizeBytes,
-			MapSizeFormatted = MapAssetManager.FormatSizeInMB(mapSizeBytes)
+			MapSizeFormatted = MapAssetManager.FormatSizeInMB(mapSizeBytes),
+			ReachabilityClass = GetStringProp(item, "reachabilityClass")
 		};
 	}
 
@@ -340,6 +342,34 @@ public partial class LobbyBrowser
 		lblSize.AddThemeFontSizeOverride("font_size", 15);
 		lblSize.VerticalAlignment = VerticalAlignment.Center;
 		hBox.AddChild(lblSize);
+
+		// A lobby is listed with what was measured about its network, so a player can tell a lobby that works from
+		// anywhere apart from one that only opens after both sides punch. Nothing is stated for a class this build does
+		// not know, because guessing one would be the one thing the class exists to stop.
+		if (data.ReachabilityClass == ReachabilityClasses.PunchOnly)
+		{
+			var lblReachability = new Label();
+			lblReachability.Name = "LblReachability_Label";
+			lblReachability.Text = Tr("PUNCH");
+			lblReachability.TooltipText = Tr("Both sides send a packet first, which is how most home routers let a join in.");
+			lblReachability.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			lblReachability.AddThemeColorOverride("font_color", new Color(0.85f, 0.75f, 0.4f));
+			lblReachability.AddThemeFontSizeOverride("font_size", 14);
+			lblReachability.VerticalAlignment = VerticalAlignment.Center;
+			hBox.AddChild(lblReachability);
+		}
+		else if (data.ReachabilityClass == ReachabilityClasses.Open)
+		{
+			var lblReachability = new Label();
+			lblReachability.Name = "LblReachability_Label";
+			lblReachability.Text = Tr("OPEN");
+			lblReachability.TooltipText = Tr("A lobby server reached this lobby without the host sending anything first, so a join needs nothing special.");
+			lblReachability.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			lblReachability.AddThemeColorOverride("font_color", new Color(0.4f, 0.8f, 0.45f));
+			lblReachability.AddThemeFontSizeOverride("font_size", 14);
+			lblReachability.VerticalAlignment = VerticalAlignment.Center;
+			hBox.AddChild(lblReachability);
+		}
 
 		var lblMode = new Label();
 		lblMode.Name = "LblMode_Label";

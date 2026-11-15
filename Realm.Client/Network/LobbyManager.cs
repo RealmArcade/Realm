@@ -295,11 +295,20 @@ public partial class LobbyManager : BaseMapTransferNode
 			string mapName = !string.IsNullOrEmpty(HostedMapDisplayName) ? HostedMapDisplayName : ActiveMapName;
 			string address = PublicConnectAddress ?? DirectConnectAddress;
 
+			// The address is stated with the port whether or not the port is the one a direct connect would assume: a message
+			// a player can act on is one that says where to go, and the rest of it is what to do about the one thing that
+			// can still stop them getting in. The class decides that sentence, because a lobby a router was measured to
+			// forward for needs no advice and one that only opens on a punch does.
+			string fallback = ReachabilityClass == ReachabilityClasses.Open
+				? TranslationServer.Translate("A lobby server reached this address from outside without anything sent first, so a join should need nothing else.")
+				: string.Format(TranslationServer.Translate("If you cannot join, the host should try enabling UPnP on their router or forwarding UDP port {0} to their machine."), LobbyPort > 0 ? LobbyPort : DefaultGamePort);
+
 			return string.Join(
 				"\n",
 				string.Format(TranslationServer.Translate("Join my Realm lobby: {0}"), mapName),
 				string.Format(TranslationServer.Translate("Address: {0}"), address),
-				TranslationServer.Translate("In Realm, choose PLAY, then Join Private Lobby via IP Address, and paste the address."));
+				TranslationServer.Translate("In Realm, choose PLAY, then Join Private Lobby via IP Address, and paste the address."),
+				fallback);
 		}
 	}
 	public string? ActiveLobbyId { get; private set; }
