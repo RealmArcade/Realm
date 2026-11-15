@@ -46,11 +46,13 @@ public class EnetServerTransport : IServerTransport
 	public bool IsListeningOnAnotherPort => _requestedPort != 0 && Port != _requestedPort;
 
 	/// <summary>
-	///     Binds are retried at all because a port a previous match let go of is not free the instant its process ends. They
-	///     are retried for a second and no longer: this runs on the authority's main thread before it can announce itself
-	///     ready, and a port held by something else is not going to be released because the match waited six seconds for it.
+	///     How many times the requested port is tried before the operating system is asked for one instead. A retry is for the
+	///     window where the last match's socket has been released and the next bind has not happened yet; a port another
+	///     program holds is not going to be released because this waited, so the second attempt is the last one and the
+	///     fallback answers that case. This runs on the authority's main thread before it can announce itself ready, so the
+	///     whole budget is a tenth of a second.
 	/// </summary>
-	private const int BindAttempts = 10;
+	private const int BindAttempts = 2;
 
 	private const int BindRetryMilliseconds = 100;
 

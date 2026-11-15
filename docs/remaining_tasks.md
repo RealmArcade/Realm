@@ -64,6 +64,10 @@ line or exit code that closes each one, is in the status table under `The Checkl
   registry, the registry relays it to the lobby's host WebSocket, and the host's chat gains one line authored by the
   authority. Identical failures collapse, six lines a minute per lobby and eight reports a minute per source are the caps,
   and three distinct failures in a minute stop the lobby claiming a reachability its players disproved.
+- **A listed join is reliable, measured over ten runs.** Ten consecutive `listed-join.sh` runs all ended with the guest
+  admitted (`2 seat(s) after admission`), each in about a second, against one failure in two before the joiner was made to
+  punch before it reports itself. Thirteen consecutive successes follow the change; at the earlier rate that would be a
+  1-in-8192 coincidence, so the race is gone even though the exact conntrack state that lost the old runs was never caught.
 - **A host can hand over one block of text.** `COPY NETWORK DIAGNOSTICS` states both ports, the measured and the confirmed
   address, the class, the mapping behaviour, the NAT and firewall state, the lobby server and the last failure either side
   saw.
@@ -72,8 +76,7 @@ line or exit code that closes each one, is in the status table under `The Checkl
 
 ### Still open
 
-- A5 (the authority's bind retry still runs on its main thread for up to a second before falling back), A7 (firewall rule
-  migration), A9 (executor capabilities), A10 and G1-G2 (contract tests, which this project keeps out of its suite on
+- A7 (firewall rule migration), A9 (executor capabilities), A10 and G1-G2 (contract tests, which this project keeps out of its suite on
   purpose), B4 (only advertise a reachable seeder), B5 (audit of every address consumer), C3, C4, C6, C8, C11, C12, E1
   (written, not measured), F (relay), H4 (needs F2), I1/J2 (the CLI joiner exists; its phase output has not been re-checked
   since the phases were named), P9's remaining review of the older sections of the checklist.

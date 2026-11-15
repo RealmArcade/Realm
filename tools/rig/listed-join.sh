@@ -140,8 +140,9 @@ echo "--- player router conntrack (duplicates collapsed) ---"
 sort -u "$LOGS"/ct-player.txt 2>/dev/null | tail -8
 if [[ $FAIL_STORM -gt 0 ]]; then
 	for index in $(seq 1 "$FAIL_STORM"); do
-		ip netns exec realm-player curl -s -o /dev/null -w "report $index: %{http_code}
-" -H "Content-Type: application/json" 			-d "{\"LobbyId\":\"$LOBBY_ID\",\"Phase\":\"answer\",\"Endpoint\":\"198.51.100.9:6$index\",\"Attempts\":2,\"ElapsedMilliseconds\":30000}" 			"$REGISTRY_URL/lobbies/join-failure"
+		body="{\"LobbyId\":\"$LOBBY_ID\",\"Phase\":\"answer\",\"Endpoint\":\"198.51.100.9:6$index\",\"Attempts\":2,\"ElapsedMilliseconds\":30000}"
+		status=$(ip netns exec realm-player curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d "$body" "$REGISTRY_URL/lobbies/join-failure")
+		echo "report $index: $status"
 	done
 	echo "--- lobby lines the host was given ---"
 	[[ -n ${AUTHORITY_LOG:-} ]] && grep -F "system chat" "$AUTHORITY_LOG" | tail -8
