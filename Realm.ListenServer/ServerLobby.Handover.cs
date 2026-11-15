@@ -70,19 +70,20 @@ public partial class ServerLobby
 	}
 
 	/// <summary>
-	///     Answers whether a token is the session token of a seat this lobby holds, which is the whole of what the probe
-	///     relay trusts: a relay that introduced strangers would be a way to make a lobby's authority hand out endpoints.
+	///     Answers whether a token is the probe token of a seat this lobby holds, which is the whole of what the probe relay
+	///     trusts: a relay that introduced strangers would be a way to make a lobby's authority hand out endpoints.
 	/// </summary>
-	/// <param name="sessionToken">The token a probe datagram stated.</param>
+	/// <param name="probeToken">The token a probe datagram stated.</param>
 	/// <returns>Whether a seat of this lobby holds that token.</returns>
-	public bool HoldsSessionToken(string sessionToken)
+	public bool HoldsProbeToken(string probeToken)
 	{
-		if (string.IsNullOrEmpty(sessionToken)) return false;
+		if (string.IsNullOrEmpty(probeToken)) return false;
 
 		foreach (LobbySeat seat in _seats.Values)
 		{
 			if (seat.IsComputer) continue;
-			if (string.Equals(seat.SessionToken, sessionToken, StringComparison.Ordinal)) return true;
+			if (string.IsNullOrEmpty(seat.ProbeToken)) continue;
+			if (string.Equals(seat.ProbeToken, probeToken, StringComparison.Ordinal)) return true;
 		}
 
 		return false;
@@ -671,11 +672,15 @@ public partial class ServerLobby
 		{
 			LobbyHandoverAdoptedSeat adopted = adoption.Seats[index];
 			if (adopted == null || adopted.Slot <= 0 || adopted.Slot >= _openSlots.Length) continue;
-			if (string.IsNullOrEmpty(adopted.SessionToken)) continue;
+
+			bool isComputerSeat = string.IsNullOrEmpty(adopted.SessionToken) && adopted.Difficulty > 0;
+			if (string.IsNullOrEmpty(adopted.SessionToken) && !isComputerSeat) continue;
 
 			var seat = new LobbySeat
 			{
-				PeerId = 0,
+				IsComputer = isComputerSeat,
+				PeerId = isComputerSeat ? -100 - _nextComputerNumber++ : 0,
+				ProbeToken = isComputerSeat ? string.Empty : RealmProtocol.CreateToken(),
 				Slot = adopted.Slot,
 				AccountId = adopted.AccountId,
 				Name = LobbyLimits.SanitizeDisplayName(adopted.Name),
@@ -692,7 +697,7 @@ public partial class ServerLobby
 			};
 
 			_seats[seat.Slot] = seat;
-			_adoptionPendingSeats++;
+			if (!isComputerSeat) _adoptionPendingSeats++;
 		}
 
 		if (adoption.OpenSlots != null && adoption.OpenSlots.Length == _openSlots.Length) Array.Copy(adoption.OpenSlots, _openSlots, _openSlots.Length);
@@ -740,7 +745,11 @@ public partial class ServerLobby
 	private void NoteAdoptedSeatArrived(int slot)
 	{
 		if (!_seats.TryGetValue(slot, out LobbySeat seat)) return;
-		if (!string.IsNullOrEmpty(seat.SessionToken)) _adoptionPendingSeats = Math.Max(0, _adoptionPendingSeats - 1);
+		if (string.IsNullOrEmpty(seat.SessionToken)) return;
+
+		_adoptionPendingSeats = Math.Max(0, _adoptionPendingSeats - 1);
+		seat.ProbeToken = RealmProtocol.CreateToken();
+		_seats[slot] = seat;
 	}
 
 	/// <summary>

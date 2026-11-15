@@ -217,7 +217,7 @@ public partial class ListenServerHost
 		// The relay is told which tokens belong to this lobby's seats and nothing else, so the only endpoints it ever hands
 		// out are the endpoints of screens that are already in this lobby.
 		ServerLobby lobbyForProbe = _lobby;
-		_handoverProbeRelay = LobbyHandoverProbeRelay.TryStart(token => lobbyForProbe.HoldsSessionToken(token), _log.Write);
+		_handoverProbeRelay = LobbyHandoverProbeRelay.TryStart(token => lobbyForProbe.HoldsProbeToken(token), _log.Write);
 		_lobby.ProbeRelayPort = _handoverProbeRelay?.Port ?? 0;
 		if (_handoverProbeRelay == null) _log.Write("this lobby cannot rehearse a host handover: its probe relay did not open");
 

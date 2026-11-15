@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -116,6 +116,29 @@ public class LocalAuthority : IDisposable
 		if (!reply.Accepted) return LocalAuthorityReply.Failed(reply.Failure, resident.LogPath);
 
 		return new LocalAuthorityReply(true, string.Empty, reply.Port, reply.MapHash, reply.WireTableHash, resident.LogPath, resident.ConsoleLogPath);
+	}
+
+	/// <summary>
+	///     Sends one datagram from the port the authority holds to an address, which is how the lobby it holds opens its own
+	///     router for a registry node measuring it. It is asked for while the screen is not connected to that authority - a
+	///     screen taking a lobby over, whose connection is still the lobby it is leaving - so there is no lobby session to
+	///     carry the ask.
+	/// </summary>
+	/// <param name="address">The address to send to.</param>
+	/// <param name="port">The port to send to.</param>
+	/// <param name="probeId">The reachability check the punch is for, or empty for one that only opens a path.</param>
+	public void Punch(string address, int port, string probeId)
+	{
+		ResidentAuthority? resident = Resident;
+		if (resident == null) return;
+
+		_ = resident.SendAsync(new ServerControlCommand
+		{
+			Kind = ServerControlKind.Punch,
+			PunchAddress = address,
+			PunchPort = port,
+			PunchProbeId = probeId
+		});
 	}
 
 	/// <summary>

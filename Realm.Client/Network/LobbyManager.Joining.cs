@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -637,6 +637,7 @@ public partial class LobbyManager
 		session.LobbyKickedEvent += OnLobbyKicked;
 		session.LobbyStartWarningReceived += OnLobbyStartWarning;
 		session.MapTransferReplied += OnMapTransferReplied;
+		session.LobbyHandoverReceived += OnLobbyHandoverMessage;
 		session.ServerLost += OnLobbyAuthorityLost;
 	}
 
@@ -649,6 +650,7 @@ public partial class LobbyManager
 		session.LobbyKickedEvent -= OnLobbyKicked;
 		session.LobbyStartWarningReceived -= OnLobbyStartWarning;
 		session.MapTransferReplied -= OnMapTransferReplied;
+		session.LobbyHandoverReceived -= OnLobbyHandoverMessage;
 		session.ServerLost -= OnLobbyAuthorityLost;
 	}
 
@@ -664,6 +666,12 @@ public partial class LobbyManager
 		if (!hello.Accepted) return;
 
 		IsHost = hello.IsAdmin;
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.ReportSeatStability,
+			Text = HostStability
+		});
+
 		if (IsHost)
 		{
 			ReportLocalMapReadyState(true);
@@ -715,6 +723,7 @@ public partial class LobbyManager
 
 		ApplySeats(state.Seats);
 		ApplyCountdown(state);
+		ApplyHandoverState(state);
 		MakeSureThisSeatReportsItsMap();
 		StartMatchPreparationForCurrentMap();
 		PlayerListUpdated?.Invoke();
@@ -892,6 +901,11 @@ public partial class LobbyManager
 				Latency = FormatLinkMilliseconds(seat.LatencyMilliseconds),
 				Jitter = FormatLinkMilliseconds(seat.JitterMilliseconds),
 				PacketLoss = FormatLinkPercent(seat.PacketLossPercent),
+				LatencyMilliseconds = seat.LatencyMilliseconds,
+				JitterMilliseconds = seat.JitterMilliseconds,
+				PacketLossPercent = seat.PacketLossPercent,
+				ProbeToken = seat.ProbeToken ?? string.Empty,
+				HostStability = seat.HostStability ?? string.Empty,
 				BinaryVersion = RealmVersion.GameBinaryVersion,
 				SessionToken = seat.SessionToken ?? string.Empty
 			});

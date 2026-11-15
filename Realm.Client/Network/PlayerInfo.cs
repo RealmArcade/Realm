@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text.Json.Serialization;
 using Godot;
 using Realm.Shared.Network;
@@ -65,6 +65,24 @@ public class PlayerInfo
 	public string Latency { get; set; } = "--";
 	public string Jitter { get; set; } = "--";
 	public string PacketLoss { get; set; } = "--";
+
+	/// <summary>The round trip the lobby measured between this seat and the host, or -1 while it measured none.</summary>
+	public int LatencyMilliseconds { get; set; } = -1;
+
+	/// <summary>The jitter the lobby measured between this seat and the host, or -1 while it measured none.</summary>
+	public int JitterMilliseconds { get; set; } = -1;
+
+	/// <summary>The loss the lobby measured between this seat and the host, or -1 while it measured none.</summary>
+	public float PacketLossPercent { get; set; } = -1f;
+
+	/// <summary>
+	///     The token this seat is measured by, which the lobby mints and publishes. It is not the seat's credential: it
+	///     proves nothing and seats nothing, so it only lets the lobby's own players measure a path to each other.
+	/// </summary>
+	public string ProbeToken { get; set; } = string.Empty;
+
+	/// <summary>The machine stability this seat's own screen published for itself, or empty while it stated none.</summary>
+	public string HostStability { get; set; } = string.Empty;
 	public bool IsReady { get; set; }
 	public string BinaryVersion { get; set; } = "";
 	public bool IsMapReady { get; set; } = true;

@@ -61,7 +61,7 @@ public partial class ServerLobby
 			}
 		}
 
-		if (!restored && IsAdopting)
+		if (!restored && (_handoverStage == LobbyHandoverStage.Committing || IsAdopting))
 		{
 			// This authority is holding a lobby that moved to it, and the seats it holds are the seats it will serve. A player
 			// asking for a seat of its own is asking for one the lobby it took over never offered.
@@ -98,6 +98,7 @@ public partial class ServerLobby
 		// Stated by the seat's own client, like the name it plays under. It is published to the other seats so the table at
 		// the end of the match can name the person behind it to Steam, and a seat that reconnects states it again.
 		seat.SteamId = steamId;
+		seat.ProbeToken = RealmProtocol.CreateToken();
 		seat.IsHost = isAdmin || peerId == _adminPeerId;
 		seat.IsDisconnected = false;
 		if (!string.IsNullOrWhiteSpace(name)) seat.Name = LobbyLimits.SanitizeDisplayName(name);

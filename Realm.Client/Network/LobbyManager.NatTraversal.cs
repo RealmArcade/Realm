@@ -276,6 +276,15 @@ public partial class LobbyManager
 	/// </summary>
 	private bool PunchProbeEndpointAsync(string address, int port, string probeId)
 	{
+		// A screen rehearsing a handover holds the lobby it is taking over on its own authority while it is still a seat of
+		// the lobby it is leaving, so the punch has to leave from the port being measured rather than from the lobby it sits
+		// in: only the authority that holds the new port can open its router.
+		if (_handoverRehearsalPort > 0)
+		{
+			GameContext.LocalAuthority.Punch(address, port, probeId);
+			return true;
+		}
+
 		ClientServerSession? session = _lobbySession;
 		if (session == null) return false;
 

@@ -196,6 +196,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		get
 		{
+			if (_movedSeatToken.Length > 0) return _movedSeatToken;
 			if (!GameContext.Account.IsSignedIn) return _guestLobbySessionToken;
 
 			string seatToken = GameContext.Account.LobbySeatToken;

@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Godot;
 using MemoryPack;
@@ -209,6 +210,11 @@ public class ClientServerSession : IDisposable
 
 	public event Action<MapTransferReply>? MapTransferReplied;
 
+	/// <summary>
+	///     Raised with one private message of a lobby's host handover, which only the seat it is addressed to ever receives.
+	/// </summary>
+	public event Action<LobbyHandoverMessage>? LobbyHandoverReceived;
+
 	public ClientServerSession(ClientNetworkChannel channel)
 	{
 		_channel = channel;
@@ -304,6 +310,66 @@ public class ClientServerSession : IDisposable
 	///     lobby publishes the seats to each other, and the end-of-match table is where a player can act on the people they
 	///     just played with.
 	/// </summary>
+	/// <summary>
+	///     The token that proves this screen administers the lobby its authority holds. It is kept because a screen that
+	///     takes its own lobby back - which is what a handover that does not complete looks like - has to prove itself to
+	///     the authority it started.
+	/// </summary>
+	public string AdminToken => _adminToken;
+
+	/// <summary>
+	///     Tells this session which authority it is proving itself to when the lobby moved to a screen of this machine, and
+	///     which map and wire table that authority was started with.
+	/// </summary>
+	/// <param name="adminToken">The token the authority was started with.</param>
+	/// <param name="mapHash">The map hash the authority answered with.</param>
+	public void ConfigureAdoptedAuthority(string adminToken, string mapHash)
+	{
+		_adminToken = adminToken ?? string.Empty;
+		_mapHash = mapHash ?? string.Empty;
+	}
+
+	/// <summary>
+	///     Puts the lobby this screen is taking over onto the authority it owns, without touching the connection this screen
+	///     is using. The candidate is still a seat of the lobby it is leaving while its own authority comes up, which is
+	///     what lets the new authority be listening before the old one gives anything up.
+	/// </summary>
+	/// <param name="start">The map and log locations the lobby runs with.</param>
+	/// <param name="lobbyPort">The port the new authority should listen on, or zero for one the system chooses.</param>
+	/// <param name="adoption">The seats, settings and board the lobby is handed over with.</param>
+	/// <returns>What the authority answered, including the port it is listening on.</returns>
+	public async Task<LocalAuthorityReply> TryStartAdoptedLobbyAsync(ServerLobbyStart start, int lobbyPort, LobbyHandoverAdoption adoption)
+	{
+		if (!ListenServerTarget.TryResolve(out ServerLaunchTarget? target, out string failure) || target == null) return LocalAuthorityReply.Failed(failure, string.Empty);
+
+		string authorityLogPath = Path.Combine(start.LogDirectory, LocalAuthority.LogFileName);
+		try
+		{
+			Directory.CreateDirectory(start.LogDirectory);
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			return LocalAuthorityReply.Failed($"the lobby log folder '{start.LogDirectory}' could not be created: {exception.Message}", authorityLogPath);
+		}
+
+		_adminToken = RealmProtocol.CreateToken();
+		var command = new ServerControlCommand
+		{
+			Kind = ServerControlKind.StartMatch,
+			MapFolderPath = start.MapFolderPath,
+			Port = lobbyPort,
+			Lobby = true,
+			AdminToken = _adminToken,
+			MapName = start.MapName,
+			MaxPlayers = start.MaxPlayers,
+			AdoptionJson = JsonSerializer.Serialize(adoption, ServerControlProtocol.Format)
+		};
+
+		LocalAuthority authority = GameContext.LocalAuthority;
+		authority.Configure(target, start.LogDirectory, start.DataFolderPath);
+		return await authority.StartMatchAsync(command).ConfigureAwait(false);
+	}
+
 	public void ConfigureLobbyIdentity(string playerName, string sessionToken, long accountId, ulong steamId)
 	{
 		_playerName = playerName ?? string.Empty;
@@ -381,12 +447,12 @@ public class ClientServerSession : IDisposable
 		return MatchStartResult.Success(LogPath, ConsoleLogPath);
 	}
 
-	public bool TryJoinLobby(string address, int port, string language, int localPort, out string failure)
+	public bool TryJoinLobby(string address, int port, string language, int localPort, out string failure, string mapHash = "")
 	{
 		failure = string.Empty;
 		IsDebugSession = false;
 
-		_mapHash = string.Empty;
+		_mapHash = mapHash ?? string.Empty;
 		if (!_channel.TryConnect(address, port, localPort, out failure)) return false;
 
 		_language = language;
@@ -861,6 +927,10 @@ public class ClientServerSession : IDisposable
 
 			case NetworkFrameKind.LobbyStartWarning:
 				LobbyStartWarningReceived?.Invoke(MemoryPackSerializer.Deserialize<LobbyStartWarningMessage>(payload));
+				break;
+
+			case NetworkFrameKind.LobbyHandover:
+				LobbyHandoverReceived?.Invoke(MemoryPackSerializer.Deserialize<LobbyHandoverMessage>(payload));
 				break;
 
 			case NetworkFrameKind.MapTransferReply:

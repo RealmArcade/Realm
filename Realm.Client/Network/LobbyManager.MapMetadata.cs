@@ -197,10 +197,15 @@ public partial class LobbyManager
 			_hostToken = hostTokenProp.GetString();
 		}
 
+		_ownershipEpoch = 1;
+
 		GameLog.LogToConsole($"[LobbyManager] Lobby registered on server. LobbyId: {ActiveLobbyId}");
 
 		if (!string.IsNullOrEmpty(ActiveLobbyId))
 		{
+			// The authority states the lobby it serves, so a handover can prove to every seat that the authority it moves
+			// to serves the same lobby it left.
+			_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.ReportLobbyId, Text = ActiveLobbyId });
 			StartHostWebSocketSignaling(ActiveLobbyId);
 			StartHeartbeatLoop(ActiveLobbyId);
 		}

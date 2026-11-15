@@ -228,6 +228,13 @@ public partial struct LobbySeat
 	///     however good its link is.
 	/// </summary>
 	public string HostStability;
+
+	/// <summary>
+	///     The token other seats of this lobby name this seat by when they measure a path to it. It is minted by the
+	///     authority, published to every seat, and is deliberately not the seat's credential: a probe token proves nothing
+	///     and seats nothing, so knowing it lets a lobby's own players measure each other and nothing else.
+	/// </summary>
+	public string ProbeToken;
 }
 
 [MemoryPackable]

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -152,7 +152,7 @@ public partial class LobbyManager
 			{
 				try
 				{
-					var payload = new { LobbyId = lobbyIdToClose, HostToken = tokenToClose };
+					var payload = new { LobbyId = lobbyIdToClose, HostToken = tokenToClose, OwnershipEpoch = _ownershipEpoch };
 					var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 					await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/close", jsonContent);
 				}
@@ -227,6 +227,8 @@ public partial class LobbyManager
 		_matchStarted = false;
 		JoinedLobbyFamily = LobbyAddressFamily.Unknown;
 		_lobbyRevision = 0;
+		_movedSeatToken = string.Empty;
+		ResetHandoverState();
 		_downloadingMapName = null;
 		PlayerList.Clear();
 		PlayerListUpdated?.Invoke();
@@ -426,9 +428,17 @@ public partial class LobbyManager
 					// The class travels with the heartbeat so a lobby that withdraws its own claim stops being listed as
 					// reachable without waiting for a player to fail: the node only ever takes this downward, so a screen
 					// cannot promote its own lobby back by stating a better class.
-					var heartbeat = new { LobbyId = lobbyId, SlotsUsed = PlayerList.Count, IsGameInProgress = IsGameStarted, ReachabilityClass = ReachabilityClass };
+					var heartbeat = new { LobbyId = lobbyId, SlotsUsed = PlayerList.Count, IsGameInProgress = IsGameStarted, ReachabilityClass = ReachabilityClass, HostToken = _hostToken, OwnershipEpoch = _ownershipEpoch };
 					var jsonContent = new StringContent(JsonSerializer.Serialize(heartbeat), Encoding.UTF8, "application/json");
-					await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/heartbeat", jsonContent, token);
+					using HttpResponseMessage answer = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/heartbeat", jsonContent, token);
+
+					// A host the lobby has left is told so once, and stops speaking for it. The lobby's new owner heartbeats it
+					// from then on, and nothing this screen says could be about the lobby it no longer holds.
+					if (answer.StatusCode == System.Net.HttpStatusCode.Conflict)
+					{
+						GameLog.LogToConsole($"[LobbyManager] The registry node states that lobby {lobbyId} was handed to another host, so this screen stops publishing it.");
+						return;
+					}
 				}
 				catch (Exception ex)
 				{
