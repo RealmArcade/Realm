@@ -32,6 +32,22 @@ This ticket fixes the handshake, makes reachability an honest classification rat
 
 ---
 
+## Status
+
+Landed on `fix/p2p-connection-diagnosis`:
+
+- **A1** — the registry states a report ticket in the join answer; the joining screen reports itself from the socket its attempt holds; the node reads the endpoint that report arrived from and hands it to the host, which punches it. The join request no longer states a port the screen cannot know.
+- **A2–A6, A8** — a local network is decided by this machine's own interface table instead of equal public addresses; every join field is read defensively; the budget is one attempt with a full window, retried only on silence; the blocking bind retry is gone; one punch constant and one datagram; an external port measured for another local port is cleared.
+- **A11** — the register route refuses an endpoint that is not publicly routable, with its own error code.
+- **C9, C10** — the same-network refusal and the client-side defence, already landed before this ticket, are unchanged and still covered.
+- **Publishing a listed lobby no longer blocks the room** — the host enters the lobby room as soon as the lobby exists, edits the map's settings while the check runs, is told in the room's chat when the lobby is listed, and keeps the lobby as a direct one when the listing cannot be confirmed.
+- **J1, J2 (Tier A), J3–J7, J10** — `Realm.Tools.Cli join-lobby` resolves a lobby through a registry node, reports this machine, punches, and waits for the authority's answer, with per-phase timings, per-phase exit codes and `--expect phase:outcome`. It states that no seat was taken.
+- **Rig** — `tools/rig/realm-rig.sh` gives a host and a player real NAT paths in namespaces on one machine, and the authority runs headless on Linux. See `docs/rigs/README.md`.
+
+Still open: A7, A9, A10, B1–B5, C1–C8 and C11–C13, D1–D7, E1–E5, F1–F9, H1–H4, I2–I8, J8, J9, J11, and the end-to-end lobby run inside the rig (which needs a compiled map).
+
+---
+
 ## User Stories
 
 **As a player hosting a lobby**, I want to know whether players can actually get in, and to be told what to change when they cannot, instead of publishing a lobby that silently fails.
