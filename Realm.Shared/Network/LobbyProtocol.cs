@@ -63,7 +63,39 @@ public enum LobbyCommandKind : byte
 	///     every seat reads the same line and the lobby's history keeps it. Sent by the lobby's administrator only, and the
 	///     authority stores it as a system line rather than as anything a remote peer said.
 	/// </summary>
-	ReportReachability = 22
+	ReportReachability = 22,
+
+	/// <summary>
+	///     Offers a host handover. A seat that names no target offers to take over as host itself; the seat that administers the
+	///     lobby names the seat it is offering the role to.
+	/// </summary>
+	OfferHostHandover = 23,
+
+	/// <summary>Accepts the host handover it is a party to, which starts the rehearsal.</summary>
+	AcceptHostHandover = 24,
+
+	/// <summary>Refuses the host handover it is a party to. A refusal is final for that offer.</summary>
+	RefuseHostHandover = 25,
+
+	/// <summary>Withdraws the host handover it is a party to, which returns the lobby to exactly the state it was in.</summary>
+	WithdrawHostHandover = 26,
+
+	/// <summary>Confirms a handover the rehearsal passed, after the numbers have been read.</summary>
+	ConfirmHostHandover = 27,
+
+	/// <summary>States what a rehearsal measured, which is what the lobby judges the handover by.</summary>
+	ReportHostHandoverReport = 28,
+
+	/// <summary>States what one seat measured toward every other seat, which is the matrix a suggestion is read from.</summary>
+	ReportHandoverMeasurements = 29,
+
+	/// <summary>States the machine stability rating the sending seat's own screen published, which is what a candidate is judged on.</summary>
+	ReportSeatStability = 30,
+
+	/// <summary>
+	///     States that a handover the lobby committed did not complete, so every seat that moved returns to the host it had.
+	/// </summary>
+	AbortHostHandover = 31
 }
 
 /// <summary>
@@ -182,6 +214,13 @@ public partial struct LobbySeat
 	///     plays under, and it is only used to point Steam's add-friend dialog at the right person.
 	/// </summary>
 	public ulong SteamId;
+
+	/// <summary>
+	///     The machine stability the seat's own screen published for itself, or empty while it has stated none. A handover
+	///     compares it as part of a candidate's suitability, because a machine that cannot hold the tick is not a better host
+	///     however good its link is.
+	/// </summary>
+	public string HostStability;
 }
 
 [MemoryPackable]
@@ -253,6 +292,18 @@ public partial struct LobbyStateMessage
 	///     paints players by their relation to the screen reads as that player.
 	/// </summary>
 	public int[] ProxyOwners;
+
+	/// <summary>
+	///     The host handover this lobby is running, if any. It is last so the fields a peer already reads keep their wire
+	///     position, and it carries no measurement, endpoint or credential: those reach the two parties alone.
+	/// </summary>
+	public LobbyHandoverState Handover;
+
+	/// <summary>
+	///     The port of the lobby's handover probe relay, which every seated screen registers with so it can prove and measure a
+	///     path to another seat. Zero when the lobby's authority did not open one, in which case no handover can be rehearsed.
+	/// </summary>
+	public int ProbeRelayPort;
 }
 
 /// <summary>
@@ -319,6 +370,18 @@ public partial struct LobbyCommand
 
 	/// <summary>The player slot a <see cref="LobbyCommandKind.SetSlotOpen" /> opens or closes.</summary>
 	public int Slot;
+
+	/// <summary>
+	///     The rehearsal a <see cref="LobbyCommandKind.ReportHostHandoverReport" /> states, which is what the lobby judges the
+	///     handover by. It is last so the fields a peer already reads keep their wire position.
+	/// </summary>
+	public LobbyHandoverReport Report;
+
+	/// <summary>
+	///     What a seat measured toward every other seat, for <see cref="LobbyCommandKind.ReportHandoverMeasurements" />, which
+	///     is the matrix the lobby reads a suggestion from.
+	/// </summary>
+	public LobbyHandoverLinkRow Measurements;
 }
 
 [MemoryPackable]
