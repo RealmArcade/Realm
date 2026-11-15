@@ -185,3 +185,17 @@ run the authority's own log still holds only `resident authority up` and `watchi
 the client meant to send after readiness never reached it. The remaining question is therefore narrow: whether
 `ResidentAuthority` enqueues the command and its writer thread never writes, or writes into a pipe whose other end is a
 different process than the one answering.
+
+### The listed host never reaches hosting
+
+`PrepareHostedLobbyAsync` opens with `RunNatTypeTestAsync`, which prints `Starting STUN NAT Type Test...` as its first act.
+A host client started for this scenario prints that line **once**, and the startup NAT test is what printed it — the one
+hosting would print a second time never appears, nor does the harness's own `The registry is set to …` line. So the run
+is not stuck in the lobby path at all: it is stuck in `GameContext.EnsureServices()` before the harness takes its first
+step, which is also why the authority is already up while nothing else happens (the resident authority belongs to the
+session, not to hosting).
+
+That reframes the remaining work: the rig needs the headless client to finish its own startup with no internet. The
+startup code that reaches for the network — the update check, the server list and whatever else `EnsureServices` awaits —
+has to either bound its waits or be satisfiable from inside the rig, and only then does a listed host get as far as
+opening a port and talking to the registry.
