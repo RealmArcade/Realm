@@ -419,6 +419,10 @@ public partial class LobbyRoom : Control
 		_steamInviteButton.Visible = invitesPlayers && !directLobby;
 		_shareAddressButton.Visible = invitesPlayers && directLobby;
 		_privateLobbyHint.Visible = invitesPlayers && directLobby && Lobby.IsHost;
+
+		// A single-player lobby has no players to explain anything to, so the two host network buttons are not offered there.
+		if (_helpPlayersJoinButton != null) _helpPlayersJoinButton.Visible = invitesPlayers;
+		if (_diagnosticsButton != null) _diagnosticsButton.Visible = invitesPlayers;
 	}
 
 	private void OpenInviteFriendsDialog()

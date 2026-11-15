@@ -39,13 +39,21 @@ public partial class LobbyRoom
 
 		_diagnosticsFeedback = new Label();
 		_diagnosticsFeedback.Name = "DiagnosticsFeedback_Label";
+		_diagnosticsFeedback.OffsetLeft = 1180;
+		_diagnosticsFeedback.OffsetTop = 90;
+		_diagnosticsFeedback.OffsetRight = 1440;
+		_diagnosticsFeedback.OffsetBottom = 114;
 		_diagnosticsFeedback.Visible = false;
 		_diagnosticsFeedback.AddThemeFontSizeOverride("font_size", 12);
 		_diagnosticsFeedback.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		inviteRow.AddChild(_diagnosticsFeedback);
 
 		_helpPlayersJoinButton = UIStyle.CreateActionButton("HelpPlayersJoin_Button", TranslationServer.Translate(HelpPlayersJoinText), 13);
-		_helpPlayersJoinButton.CustomMinimumSize = new Vector2(280, 40);
+		_helpPlayersJoinButton.CustomMinimumSize = new Vector2(280, 45);
+		_helpPlayersJoinButton.OffsetLeft = 880;
+		_helpPlayersJoinButton.OffsetTop = 40;
+		_helpPlayersJoinButton.OffsetRight = 1160;
+		_helpPlayersJoinButton.OffsetBottom = 85;
 		_helpPlayersJoinButton.AddThemeConstantOverride("icon_max_width", 0);
 		LocalizedText.SetTooltip(_helpPlayersJoinButton, "Read what this machine measured about the lobby, what usually stops players getting in, and what to change before hosting again.");
 		_helpPlayersJoinButton.Pressed += OpenConnectivityHelp;
@@ -53,11 +61,17 @@ public partial class LobbyRoom
 		inviteRow.MoveChild(_helpPlayersJoinButton, _shareAddressButton.GetIndex() + 1);
 
 		_diagnosticsButton = UIStyle.CreateActionButton("CopyDiagnostics_Button", TranslationServer.Translate(CopyDiagnosticsText), 13);
-		_diagnosticsButton.CustomMinimumSize = new Vector2(260, 40);
+		_diagnosticsButton.CustomMinimumSize = new Vector2(260, 45);
+		_diagnosticsButton.OffsetLeft = 1180;
+		_diagnosticsButton.OffsetTop = 40;
+		_diagnosticsButton.OffsetRight = 1440;
+		_diagnosticsButton.OffsetBottom = 85;
 		_diagnosticsButton.AddThemeConstantOverride("icon_max_width", 0);
 		LocalizedText.SetTooltip(_diagnosticsButton, "Copy everything a report about this lobby's network needs, so it can be pasted into a message.");
 		_diagnosticsButton.Pressed += CopyNetworkDiagnostics;
 		inviteRow.AddChild(_diagnosticsButton);
+
+		ApplyInviteVisibility();
 	}
 
 	/// <summary>
