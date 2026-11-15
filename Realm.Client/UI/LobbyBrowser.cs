@@ -28,6 +28,9 @@ public partial class LobbyBrowser : Control
 
 	private List<LobbyData> _allLobbies = new List<LobbyData>();
 	private List<LobbyData> _filteredLobbies = new List<LobbyData>();
+
+	/// <summary>How many listed lobbies the current filters hide only because they could not be shown to be reachable.</summary>
+	private int _hiddenUnreachableCount;
 	private bool _connectionFailed;
 
 	private Panel _bgPanel = null!;
@@ -44,6 +47,7 @@ public partial class LobbyBrowser : Control
 	private readonly List<(string Tag, CheckBox CheckBox)> _tagFilters = new();
 	private CheckBox _betaTestingMapsCheck = null!;
 	private CheckBox _versionMismatchCheck = null!;
+	private CheckBox _unreachableLobbiesCheck = null!;
 	private VBoxContainer _lobbyListContainer = null!;
 
 	private Label _browserTitle = null!;
@@ -266,6 +270,19 @@ public partial class LobbyBrowser : Control
 		_versionMismatchCheck.TooltipText = TranslationServer.Translate("Also list lobbies that run a different game version and cannot be joined from this build");
 		_versionMismatchCheck.ButtonPressed = false;
 		SetupFilterCheckbox(_versionMismatchCheck);
+
+		_unreachableLobbiesCheck = new CheckBox
+		{
+			Name = "UnreachableLobbiesCheck",
+			Text = TranslationServer.Translate("Show unreachable lobbies"),
+			TooltipText = TranslationServer.Translate("Also list lobbies whose host could not be shown to be reachable from outside, which most players cannot join"),
+			ButtonPressed = false,
+			FocusMode = FocusModeEnum.None
+		};
+		SetupFilterCheckbox(_unreachableLobbiesCheck);
+		var filterRows = GetNode<VBoxContainer>("FilterPanel/VBoxContainer");
+		filterRows.AddChild(_unreachableLobbiesCheck);
+		filterRows.MoveChild(_unreachableLobbiesCheck, _versionMismatchCheck.GetIndex() + 1);
 	}
 
 	private void SetupFilterCheckbox(CheckBox checkBox)

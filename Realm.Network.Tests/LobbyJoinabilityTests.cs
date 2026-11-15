@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
 using NUnit.Framework;
@@ -86,6 +87,45 @@ public class LobbyJoinabilityTests
 
 		ReachabilityReport openAndMeasured = PunchedCheck(observedPort: 10000, secondObservedPort: 10000, coldAnswered: true);
 		Assert.That(ReachabilityClasses.FromReport(openAndMeasured, MappingBehaviours.Reused), Is.EqualTo(ReachabilityClasses.Open));
+	}
+
+	[Test]
+	public void OnlyALobbyShownToBeUnreachableIsHiddenFromTheBrowserUnlessItIsAskedFor()
+	{
+		Assert.That(LobbyListingPolicy.IsHiddenByDefault(ReachabilityClasses.Unverified), Is.True);
+		Assert.That(LobbyListingPolicy.IsHiddenByDefault(ReachabilityClasses.PunchOnly), Is.False);
+		Assert.That(LobbyListingPolicy.IsHiddenByDefault(ReachabilityClasses.Open), Is.False);
+
+		// A lobby server that states no class is not evidence that the lobby is broken, so those rows stay visible: hiding
+		// them would empty the browser for anybody pointed at a node that does not classify.
+		Assert.That(LobbyListingPolicy.IsHiddenByDefault(string.Empty), Is.False);
+		Assert.That(LobbyListingPolicy.IsHiddenByDefault(null), Is.False);
+	}
+
+	[Test]
+	public void TheListingIsOrderedByClassThenPingThenNameSoItIsAlsoStable()
+	{
+		string[] classes =
+		{
+			ReachabilityClasses.Unverified,
+			string.Empty,
+			ReachabilityClasses.PunchOnly,
+			ReachabilityClasses.Open
+		};
+
+		Assert.That(LobbyListingPolicy.Rank(ReachabilityClasses.Open), Is.LessThan(LobbyListingPolicy.Rank(ReachabilityClasses.PunchOnly)));
+		Assert.That(LobbyListingPolicy.Rank(ReachabilityClasses.PunchOnly), Is.LessThan(LobbyListingPolicy.Rank(string.Empty)), "a lobby that states no class is offered after the measured ones and before the ones that failed");
+		Assert.That(LobbyListingPolicy.Rank(string.Empty), Is.LessThan(LobbyListingPolicy.Rank(ReachabilityClasses.Unverified)));
+
+		Assert.That(LobbyListingPolicy.Compare(ReachabilityClasses.Open, 90, "Zeta", ReachabilityClasses.PunchOnly, 20, "Alpha"), Is.LessThan(0), "class comes before ping");
+		Assert.That(LobbyListingPolicy.Compare(ReachabilityClasses.PunchOnly, 20, "Zeta", ReachabilityClasses.PunchOnly, 90, "Alpha"), Is.LessThan(0), "within a class the closer lobby comes first");
+		Assert.That(LobbyListingPolicy.Compare(ReachabilityClasses.PunchOnly, 20, "Zeta", ReachabilityClasses.PunchOnly, 20, "Alpha"), Is.GreaterThan(0), "the name breaks a tie so the order does not change between refreshes");
+		Assert.That(LobbyListingPolicy.Compare(ReachabilityClasses.PunchOnly, 20, "Alpha", ReachabilityClasses.PunchOnly, 20, "Alpha"), Is.Zero);
+		Assert.That(LobbyListingPolicy.Compare(ReachabilityClasses.Open, -1, "Alpha", ReachabilityClasses.Open, 400, "Zeta"), Is.GreaterThan(0), "an unstated ping sorts after every stated one");
+
+		var listed = new List<string>(classes);
+		listed.Sort((left, right) => LobbyListingPolicy.Compare(left, 50, left, right, 50, right));
+		Assert.That(listed, Is.EqualTo(new[] { ReachabilityClasses.Open, ReachabilityClasses.PunchOnly, string.Empty, ReachabilityClasses.Unverified }));
 	}
 
 	[Test]

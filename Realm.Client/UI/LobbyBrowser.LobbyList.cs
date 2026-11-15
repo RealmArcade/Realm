@@ -276,6 +276,16 @@ public partial class LobbyBrowser
 	{
 		_filteredLobbies = _allLobbies.ToList();
 
+		_hiddenUnreachableCount = 0;
+		if (!_unreachableLobbiesCheck.ButtonPressed)
+		{
+			// A lobby whose host was never shown to be reachable is not an opportunity: joining it waits out a timeout. It is
+			// hidden behind a control a player can tick rather than removed, because the measurement can be wrong and the host
+			// may have fixed the network since it was published.
+			_filteredLobbies = _filteredLobbies.Where(x => !LobbyListingPolicy.IsHiddenByDefault(x.ReachabilityClass)).ToList();
+			_hiddenUnreachableCount = _allLobbies.Count(x => LobbyListingPolicy.IsHiddenByDefault(x.ReachabilityClass));
+		}
+
 		string query = _searchBar.Text.Trim().ToLower();
 		if (!string.IsNullOrEmpty(query))
 		{
@@ -297,6 +307,8 @@ public partial class LobbyBrowser
 		{
 			_filteredLobbies = _filteredLobbies.Where(x => IsJoinableGameVersion(x.GameVersion)).ToList();
 		}
+
+		_filteredLobbies.Sort((left, right) => LobbyListingPolicy.Compare(left.ReachabilityClass, left.Ping, left.Map, right.ReachabilityClass, right.Ping, right.Map));
 
 		RefreshLobbyDisplay();
 	}
@@ -346,7 +358,9 @@ public partial class LobbyBrowser
 			lbl.Name = noLobbiesOnline ? "NoLobbiesOnline_Label" : "NoLobbiesMatched_Label";
 			lbl.Text = noLobbiesOnline
 				? TranslationServer.Translate("No lobbies are open right now. Realm is new, so the player base is still growing.\n\nStart a lobby and invite friends, or play single player against AI bots.")
-				: TranslationServer.Translate("No lobbies match your search or filters.");
+				: _hiddenUnreachableCount > 0
+					? TranslationServer.Translate("No lobbies match your search or filters. Some lobbies are hidden because their host could not be shown to be reachable: tick SHOW UNREACHABLE LOBBIES to see them.")
+					: TranslationServer.Translate("No lobbies match your search or filters.");
 			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 			lbl.CustomMinimumSize = new Vector2(760, 0);
 			lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
