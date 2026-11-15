@@ -15,6 +15,7 @@ using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
+using Realm.Shared.Reachability;
 using Realm.Shared.Accounts;
 using Realm.Shared.Simulation;
 
@@ -49,6 +50,8 @@ public partial class LobbyRoom : Control
 	private Button _steamInviteButton = null!;
 	private Button _shareAddressButton = null!;
 	private Label _privateLobbyHint = null!;
+
+	private Label _lobbyFamiliesHint = null!;
 	private SteamFriendsDialog? _friendsDialog;
 	private Button _startButton = null!;
 	private Label _mapNameLabel = null!;
@@ -128,6 +131,8 @@ public partial class LobbyRoom : Control
 		_privateLobbyHint = GetNode<Label>("PrivateLobbyHint");
 		_startButton = GetNode<Button>("StartButton");
 		_privateLobbyHint.Text = TranslationServer.Translate("Private Lobby: Send your IP address to players so they can join.");
+		_lobbyFamiliesHint = GetNode<Label>("LobbyFamiliesHint");
+		UpdateLobbyFamiliesHint();
 		ApplyInviteVisibility();
 		if (Lobby.IsHost) CreateDiagnosticsButton();
 
@@ -341,6 +346,64 @@ public partial class LobbyRoom : Control
 	///     from the dialog instead. The note beside that button is the host's, since an address a joining player passes on is
 	///     the host's and not their own.
 	/// </summary>
+	/// <summary>
+	///     Says which address families this lobby can be joined over, which is the only way a host can tell that its lobby
+	///     is reachable over IPv6 and that the players it matters to can reach it. The sentence is drawn through a renderer
+	///     because it is built from live state, so a language change redraws it rather than leaving the language it was
+	///     first drawn in on screen.
+	/// </summary>
+	private void UpdateLobbyFamiliesHint()
+	{
+		if (!GodotObject.IsInstanceValid(_lobbyFamiliesHint)) return;
+
+		LocalizedText.Bind(_lobbyFamiliesHint, RenderLobbyFamiliesHint);
+		_lobbyFamiliesHint.Visible = RenderLobbyFamiliesHint() != null;
+	}
+
+	private string? RenderLobbyFamiliesHint()
+	{
+		(bool offersIpv4, bool offersIpv6) = DescribeOfferedFamilies();
+		if (offersIpv4 && offersIpv6)
+		{
+			return TranslationServer.Translate("This lobby is reachable over IPv6 and IPv4, so players on either can join it.");
+		}
+
+		if (offersIpv6)
+		{
+			return TranslationServer.Translate("This lobby is reachable over IPv6 only. Players without a global IPv6 address cannot join it.");
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	///     Which families this screen's lobby is offered over. A listed lobby states the endpoints a registry node reached;
+	///     one that is not listed is judged by the addresses this machine holds, which is what its invite tells players to
+	///     dial.
+	/// </summary>
+	/// <returns>Whether IPv4 and whether IPv6 are offered.</returns>
+	private (bool OffersIpv4, bool OffersIpv6) DescribeOfferedFamilies()
+	{
+		bool offersIpv4 = false;
+		bool offersIpv6 = false;
+
+		IReadOnlyList<LobbyEndpointInfo> published = Lobby.PublishedEndpoints;
+		for (int index = 0; index < published.Count; index++)
+		{
+			LobbyAddressFamily family = published[index].FamilyValue;
+			if (family == LobbyAddressFamily.IPv4) offersIpv4 = true;
+			if (family == LobbyAddressFamily.IPv6) offersIpv6 = true;
+		}
+
+		if (offersIpv4 || offersIpv6) return (offersIpv4, offersIpv6);
+		if (!Lobby.IsHost) return (Lobby.JoinedLobbyFamily != LobbyAddressFamily.IPv6, Lobby.JoinedLobbyFamily == LobbyAddressFamily.IPv6);
+
+		// Read once: two readings of the machine's addresses can disagree when an interface changes between them, and a hint
+		// that states a family the row beneath it does not offer is worse than the sentence it was meant to explain.
+		List<LobbyEndpointCandidate> held = LocalEndpointDiscovery.Discover();
+		return (held.Exists(candidate => candidate.Family == LobbyAddressFamily.IPv4), held.Exists(candidate => candidate.Family == LobbyAddressFamily.IPv6));
+	}
+
 	private void ApplyInviteVisibility()
 	{
 		bool invitesPlayers = !Lobby.IsSinglePlayer;

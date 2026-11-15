@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.WebSockets;
 using System.Text;
@@ -143,7 +143,8 @@ public static class ServerHost
 	// is part of the node rather than of one route.
 	var reachabilityProbePort = builder.Configuration.GetValue<int?>("ReachabilityProbePort") ?? UdpReachabilityProbeService.DefaultProbePort;
 	var reachabilityProbePublicIp = builder.Configuration.GetValue<string>("ReachabilityProbePublicIp") ?? string.Empty;
-	var reachabilityProbe = new UdpReachabilityProbeService(reachabilityProbePort, reachabilityProbePublicIp);
+	var reachabilityProbePublicIpv6 = builder.Configuration.GetValue<string>("ReachabilityProbePublicIpV6") ?? string.Empty;
+	var reachabilityProbe = new UdpReachabilityProbeService(reachabilityProbePort, reachabilityProbePublicIp, reachabilityProbePublicIpv6);
 	builder.Services.AddSingleton(reachabilityProbe);
 
 	var app = builder.Build();
@@ -179,7 +180,12 @@ public static class ServerHost
 
 	app.Lifetime.ApplicationStopping.Register(reachabilityProbe.Dispose);
 	app.Lifetime.ApplicationStopping.Register(joinerRelay.Dispose);
-	Console.WriteLine($"[Reachability] Lobbies are registered only after this node reaches their game port from UDP port {reachabilityProbePort}; that port must be reachable over UDP at this node's public address, and ReachabilityProbePublicIp names that address when it differs from the HTTP host name.");
+	if (builder.Configuration.GetValue("ReachabilityAllowLocalCaller", false))
+	{
+		Console.WriteLine("[Reachability] ReachabilityAllowLocalCaller is on, so this node also checks lobbies that reach it from inside the node's own network. A check like that proves only that same network can see the lobby, so this is for a development node on one machine and must stay off on a node that serves players.");
+	}
+
+	Console.WriteLine($"[Reachability] Lobbies are registered only after this node reaches their game port from UDP port {reachabilityProbePort}; that port must be reachable over UDP at this node's public address, and ReachabilityProbePublicIp names that address when it differs from the HTTP host name. The same check is made in IPv6 from the same port number when this node has an IPv6 stack, and ReachabilityProbePublicIpV6 names that address.");
 
 
 	_ = Task.Run(async () =>

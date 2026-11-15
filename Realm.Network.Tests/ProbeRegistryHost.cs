@@ -34,8 +34,17 @@ public class ProbeRegistryHost : IDisposable
 
 		_app.MapPost(ReachabilityRoutes.Begin, (ReachabilityBeginRequest request, HttpContext context) =>
 		{
-			string sourceAddress = (context.Connection.RemoteIpAddress?.MapToIPv4() ?? IPAddress.Loopback).ToString();
+			// The source address is stated in the family it arrived in: mapping it to IPv4 would judge an IPv6 caller as a
+			// loopback IPv4 one, and the family a check is made in is read from that address. A harness is the one caller
+			// allowed to be judged from its own network, which is what makes a single-machine rig possible at all.
+			string sourceAddress = (context.Connection.RemoteIpAddress ?? IPAddress.Loopback).ToString();
 			ReachabilityEndpointReply reply = ReachabilityEndpointHandlers.Begin(probe, request, sourceAddress, context.Connection.RemotePort, allowSameNetworkCaller: true);
+			return Results.Json(reply.Body, statusCode: reply.StatusCode);
+		});
+
+		_app.MapGet(ReachabilityRoutes.Capabilities, () =>
+		{
+			ReachabilityEndpointReply reply = ReachabilityEndpointHandlers.Capabilities(probe);
 			return Results.Json(reply.Body, statusCode: reply.StatusCode);
 		});
 

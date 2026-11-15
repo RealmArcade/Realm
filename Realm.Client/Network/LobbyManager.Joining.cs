@@ -44,6 +44,9 @@ public partial class LobbyManager
 	/// <summary>How many connection attempts the current join has made, which a failure report states.</summary>
 	private int _joinAttempts;
 
+	/// <summary>The address family the current join is aimed at, which is what decides whether a punch is needed.</summary>
+	private LobbyAddressFamily _joinFamily = LobbyAddressFamily.Unknown;
+
 	public async Task<bool> JoinLobbyAsync(string lobbyId)
 	{
 		InitializeClientState(lobbyId);
@@ -55,43 +58,11 @@ public partial class LobbyManager
 		_joinPhase = JoinPhases.Registry;
 		_joinEndpoint = string.Empty;
 		_joinAttempts = 0;
+		_joinFamily = LobbyAddressFamily.Unknown;
 
 		try
 		{
-			long registryStarted = Environment.TickCount64;
-			var response = await SendJoinRequestAsync(lobbyId, clientPublicIp);
-			if (response == null || !response.IsSuccessStatusCode)
-			{
-				var errorText = response != null ? await response.Content.ReadAsStringAsync() : "All registry nodes offline";
-				MarkJoinPhase(JoinPhases.Registry, "refused", registryStarted);
-				GameLog.LogError($"[LobbyManager] Failed to join lobby: {errorText}");
-				await ReportJoinFailureAsync(lobbyId);
-				LastHostError = JoinFailureSentence(JoinPhases.Registry);
-				LobbyJoinError = LastHostError;
-				ConnectionFailed?.Invoke("Failed to coordinate join.");
-				return false;
-			}
-
-			MarkJoinPhase(JoinPhases.Registry, "answered", registryStarted);
-
-			long resolveStarted = Environment.TickCount64;
-			_joinPhase = JoinPhases.Resolve;
-			LobbyJoinTarget target = await ResolveHostConnectionInfoAsync(response);
-			if (string.IsNullOrEmpty(target.Ip) || target.Port <= 0)
-			{
-				MarkJoinPhase(JoinPhases.Resolve, "unusable", resolveStarted);
-				LastHostError = JoinFailureSentence(JoinPhases.Resolve);
-				LobbyJoinError = LastHostError;
-				await ReportJoinFailureAsync(lobbyId);
-				ConnectionFailed?.Invoke(LastHostError);
-				return false;
-			}
-
-			_joinEndpoint = $"{target.Ip}:{target.Port}";
-			MarkJoinPhase(JoinPhases.Resolve, "resolved", resolveStarted);
-
-			_connectedHostIp = target.Ip;
-			return await EstablishLobbyConnectionAsync(target);
+			return await JoinFromRegistryAsync(lobbyId, clientPublicIp);
 		}
 		catch (Exception ex)
 		{
@@ -99,6 +70,58 @@ public partial class LobbyManager
 			ConnectionFailed?.Invoke(ex.Message);
 			return false;
 		}
+	}
+
+
+	private async Task<bool> JoinFromRegistryAsync(string lobbyId, string clientPublicIp)
+	{
+		// Both halves are read from this machine, so a screen that holds no IPv4 address avoids an IPv4 endpoint instead of
+		// dialling one it cannot reach, and a screen with no IPv6 is told a v6-only lobby is out of reach before it tries.
+		bool hasIpv6 = LocalIpv6Available;
+		bool hasIpv4 = LocalEndpointDiscovery.HasIpv4();
+
+		long registryStarted = Environment.TickCount64;
+		var response = await SendJoinRequestAsync(lobbyId, clientPublicIp, LocalEndpointFamilyNames());
+		if (response == null || !response.IsSuccessStatusCode)
+		{
+			string errorText = response != null ? await response.Content.ReadAsStringAsync() : "All registry nodes offline";
+			MarkJoinPhase(JoinPhases.Registry, "refused", registryStarted);
+
+			// The node's refusal is the only thing that knows why a join was turned away - a lobby whose host channel is gone,
+			// a lobby that closed while it was being pressed, a lobby this screen shares no address family with - and a screen
+			// that drops it can only offer the player a sentence about a timeout. It is stated as it arrived.
+			string refusal = DescribeJoinRefusal(errorText);
+			GameLog.LogError($"[LobbyManager] Failed to join lobby: {errorText}");
+			await ReportJoinFailureAsync(lobbyId);
+			LastHostError = refusal.Length > 0 ? refusal : JoinFailureSentence(JoinPhases.Registry);
+			LobbyJoinError = LastHostError;
+			ConnectionFailed?.Invoke("Failed to coordinate join.");
+			return false;
+		}
+
+		MarkJoinPhase(JoinPhases.Registry, "answered", registryStarted);
+
+		long resolveStarted = Environment.TickCount64;
+		_joinPhase = JoinPhases.Resolve;
+		(LobbyJoinTarget target, string resolveFailure) = await ResolveHostConnectionInfoAsync(response, clientPublicIp, hasIpv4, hasIpv6);
+		if (resolveFailure.Length > 0)
+		{
+			// A lobby reachable over a family this machine has no address in cannot be joined by another attempt, so it is said
+			// at once rather than after a timeout that describes the same fact much less clearly.
+			MarkJoinPhase(JoinPhases.Resolve, "unusable", resolveStarted);
+			GameLog.LogError($"[LobbyManager] {resolveFailure}");
+			await ReportJoinFailureAsync(lobbyId);
+			LastHostError = resolveFailure;
+			LobbyJoinError = resolveFailure;
+			ConnectionFailed?.Invoke(resolveFailure);
+			return false;
+		}
+
+		_joinEndpoint = LobbyAddresses.Describe(target.Ip, target.Port);
+		MarkJoinPhase(JoinPhases.Resolve, "resolved", resolveStarted);
+
+		_connectedHostIp = target.Ip;
+		return await EstablishLobbyConnectionAsync(target);
 	}
 
 	/// <summary>
@@ -110,7 +133,7 @@ public partial class LobbyManager
 	/// <param name="startedMilliseconds">When the step started, on the same clock the join started on.</param>
 	private void MarkJoinPhase(string phase, string outcome, long startedMilliseconds)
 	{
-		GameLog.LogToConsole($"[Join] phase={phase} outcome={outcome} elapsed={Environment.TickCount64 - startedMilliseconds}ms total={Environment.TickCount64 - _joinStartedMilliseconds}ms endpoint={(_joinEndpoint.Length > 0 ? _joinEndpoint : "none")}");
+		GameLog.LogToConsole($"[Join] phase={phase} outcome={outcome} elapsed={Environment.TickCount64 - startedMilliseconds}ms total={Environment.TickCount64 - _joinStartedMilliseconds}ms endpoint={(_joinEndpoint.Length > 0 ? _joinEndpoint : "none")} family={LobbyAddresses.FamilyName(_joinFamily)} attempt={_joinAttempts}");
 	}
 
 	/// <summary>
@@ -133,6 +156,44 @@ public partial class LobbyManager
 			JoinPhases.Session => Tr("The lobby admitted this screen but never described itself to it."),
 			_ => Tr("The lobby's authority did not answer in time.")
 		};
+	}
+
+	/// <summary>
+	///     Reads the reason a join request was refused. A registry node answers with a JSON body that carries a message,
+	///     sometimes a code and sometimes both; anything else is stated as it arrived, because a refusal a player cannot read
+	///     is no better than no refusal at all.
+	/// </summary>
+	/// <param name="body">The body the node answered with.</param>
+	/// <returns>The sentence to show, or empty when the body states nothing.</returns>
+	private static string DescribeJoinRefusal(string body)
+	{
+		string trimmed = (body ?? string.Empty).Trim();
+		if (trimmed.Length == 0) return string.Empty;
+
+		if (trimmed.StartsWith('{'))
+		{
+			try
+			{
+				using var document = JsonDocument.Parse(trimmed);
+				JsonElement root = document.RootElement;
+				foreach (string propertyName in new[] { "message", "Message", "error", "Error", "detail", "Detail" })
+				{
+					if (root.TryGetProperty(propertyName, out JsonElement value) && value.ValueKind == JsonValueKind.String)
+					{
+						string message = (value.GetString() ?? string.Empty).Trim();
+						if (message.Length > 0) return message;
+					}
+				}
+
+				return string.Empty;
+			}
+			catch (JsonException)
+			{
+				return trimmed;
+			}
+		}
+
+		return trimmed.Length <= 240 ? trimmed : trimmed[..240];
 	}
 
 	public async Task<bool> JoinByIpAsync(string targetIp, int targetPort = DefaultGamePort)
@@ -232,6 +293,11 @@ public partial class LobbyManager
 				int connectPort = nearRoute ? target.Port : target.PublicPort > 0 ? target.PublicPort : target.Port;
 				int attemptTimeoutMilliseconds = nearRoute ? LocalJoinAttemptTimeoutMilliseconds : JoinAttemptTimeoutMilliseconds;
 
+				// An endpoint is punched only when a router stands in front of it: an IPv6 endpoint is reached as it was stated,
+				// and an address on this machine's own network needs nothing to be opened in front of it either.
+				_joinFamily = LobbyAddresses.FamilyOf(connectIp);
+				bool needsPunch = !nearRoute && LobbyAddresses.NeedsHolePunch(_joinFamily) && !IsDialledDirectly(connectIp);
+
 				// The report of this screen's endpoint leaves from the port the join will connect from, so that the endpoint
 				// the host punches and the endpoint that connects are the same one. The connection is made at once rather
 				// than after the punch: this side's mapping for the lobby has to exist before the host's punch arrives,
@@ -239,7 +305,7 @@ public partial class LobbyManager
 				// away from it.
 				int joinLocalPort = 0;
 				punchCoordinated = false;
-				if (!nearRoute && target.Punch.IsUsable)
+				if (needsPunch && target.Punch.IsUsable)
 				{
 					long reportStarted = Environment.TickCount64;
 					_joinPhase = JoinPhases.Report;
@@ -275,13 +341,15 @@ public partial class LobbyManager
 
 					// A lobby that punched this screen back does not need the punch that opens this side of the route, and
 					// sending it would take the external port the host's punch is using for this screen.
-					if (!nearRoute && !punchCoordinated) PunchFromGamePort(channel, connectIp, connectPort);
+					if (needsPunch && !punchCoordinated) PunchFromGamePort(channel, connectIp, connectPort);
 
 					var admission = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromMilliseconds(attemptTimeoutMilliseconds));
 					if (admission.Failure == null)
 					{
 						IsHost = session.IsAdmin;
+						JoinedLobbyFamily = _joinFamily;
 						MarkJoinPhase(JoinPhases.Admission, "admitted", answerStarted);
+						StateJoinedFamily(connectIp, connectPort);
 						return true;
 					}
 
@@ -295,7 +363,7 @@ public partial class LobbyManager
 				if (nearRoute && !rejected)
 				{
 					GameLog.LogToConsole($"[LobbyManager] The host's own-network address {target.Ip}:{target.Port} did not answer in {LocalJoinAttemptTimeoutMilliseconds} ms, so this screen is not on that network after all; joining at {target.PublicIp}:{target.PublicPort} instead.");
-					_joinEndpoint = $"{target.PublicIp}:{target.PublicPort}";
+					_joinEndpoint = LobbyAddresses.Describe(target.PublicIp, target.PublicPort);
 				}
 			}
 		}
@@ -319,6 +387,20 @@ public partial class LobbyManager
 		Disconnect();
 		ConnectionFailed?.Invoke("Direct connection handshake failed.");
 		return false;
+	}
+
+	/// <summary>
+	///     States which address family a lobby was reached over, once it has answered. Only IPv6 says anything: an IPv4 join,
+	///     and a host name this machine resolved itself, read exactly the log they always have.
+	/// </summary>
+	/// <param name="connectIp">The address the lobby answered at.</param>
+	/// <param name="connectPort">The port the lobby answered at.</param>
+	private static void StateJoinedFamily(string connectIp, int connectPort)
+	{
+		LobbyAddressFamily family = LobbyAddresses.FamilyOf(connectIp);
+		if (family != LobbyAddressFamily.IPv6) return;
+
+		GameLog.LogToConsole($"[LobbyManager] Joined {LobbyAddresses.Describe(connectIp, connectPort)} over {LobbyAddresses.FamilyName(family)} with this lobby's network address needing no router forward and no hole punch.");
 	}
 
 	private void DropLobbySession(ClientServerSession session)

@@ -1,3 +1,5 @@
+﻿using Realm.Shared.Reachability;
+
 namespace Realm.AdminServer.Models;
 
 public record LobbyResponseDto(
@@ -20,5 +22,6 @@ public record LobbyResponseDto(
 	long MapSizeBytes = 0,
 	bool IsGreenlit = false,
 	string? MapCreator = null,
-	string? ReachabilityClass = null
+	string? ReachabilityClass = null,
+	IReadOnlyList<LobbyEndpointInfo>? Endpoints = null
 );

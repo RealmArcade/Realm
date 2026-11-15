@@ -77,7 +77,7 @@ public class GeoIpService
 
 	private static bool IsLocalhost(string ipAddress)
 	{
-		return ipAddress == "127.0.0.1" || ipAddress == "localhost";
+		return ipAddress == "127.0.0.1" || ipAddress == "localhost" || ipAddress == "::1";
 	}
 
 	private static (double lat, double lon) GetSimulatedCoordinates(string ipAddress)

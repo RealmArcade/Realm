@@ -64,13 +64,29 @@ public static class LobbyEndpoints
 	{
 	app.MapPost(ReachabilityRoutes.Begin, (ReachabilityBeginRequest req, HttpContext context) =>
 	{
-		string sourceAddress = (context.Connection.RemoteIpAddress?.MapToIPv4() ?? IPAddress.Loopback).ToString();
-		ReachabilityEndpointReply reply = ReachabilityEndpointHandlers.Begin(reachabilityProbe, req, sourceAddress, context.Connection.RemotePort);
+		// The source address is kept in the family it arrived in. Rewriting it as IPv4 states an endpoint the request never
+		// came from, which is the one address a check made over IPv6 can be handed for a host that stated none.
+		string sourceAddress = (context.Connection.RemoteIpAddress ?? IPAddress.Loopback).ToString();
+
+		// A node on the public internet refuses a host that reaches it from inside its own network, because such a check can
+		// only describe that network. A development node has no other network to be judged from, and says so in its own
+		// configuration: the setting is what makes a single-machine rig possible, and it defaults to the strict answer.
+		bool allowSameNetworkCaller = context.RequestServices.GetRequiredService<IConfiguration>().GetValue("ReachabilityAllowLocalCaller", false);
+		ReachabilityEndpointReply reply = ReachabilityEndpointHandlers.Begin(reachabilityProbe, req, sourceAddress, context.Connection.RemotePort, allowSameNetworkCaller);
 
 		if (reply.StatusCode == 200) Console.WriteLine($"[Reachability] Checking {req.AdvertisedIp}:{req.AdvertisedPort} for a lobby from {sourceAddress}.");
 		else if (reply.StatusCode == ReachabilityStatusCodes.CallerOnOwnNetwork) Console.WriteLine($"[Reachability] Refused to check {req.AdvertisedIp}:{req.AdvertisedPort}: {sourceAddress} is inside this node's own network, so the check would only describe that network.");
 		else Console.WriteLine($"[Reachability] A lobby check could not start: {sourceAddress}");
 
+		return Results.Json(reply.Body, statusCode: reply.StatusCode);
+	});
+
+	// A host is told which endpoint families this node can measure, so a host that holds only an IPv6 address learns that
+	// this node cannot check it instead of having its lobby refused as unreachable.
+	app.MapGet(ReachabilityRoutes.Capabilities, (HttpContext context) =>
+	{
+		bool allowsLocalCallers = context.RequestServices.GetRequiredService<IConfiguration>().GetValue("ReachabilityAllowLocalCaller", false);
+		ReachabilityEndpointReply reply = ReachabilityEndpointHandlers.Capabilities(reachabilityProbe, allowsLocalCallers);
 		return Results.Json(reply.Body, statusCode: reply.StatusCode);
 	});
 
@@ -82,7 +98,7 @@ public static class LobbyEndpoints
 
 	app.MapGet("/lobbies", (LobbyRegistry registry, GeoIpService geoIp, HttpContext context) =>
 	{
-		var clientIpStr = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
+		string clientIpStr = (context.Connection.RemoteIpAddress ?? IPAddress.Loopback).ToString();
 		var clientCoords = geoIp.GetCoordinates(clientIpStr);
 
 		var list = registry.GetAllLobbies().Where(lobby => !lobby.IsGameInProgress).Select(lobby =>
@@ -95,7 +111,8 @@ public static class LobbyEndpoints
 
 			int estimatedPing = 15 + (int)(distance / 100);
 			const int localConnectionPingMilliseconds = 5;
-			if (clientIpStr == lobby.HostIP || clientIpStr == "127.0.0.1" || lobby.HostIP == "127.0.0.1")
+			if (clientIpStr == lobby.HostIP || clientIpStr == "127.0.0.1" || lobby.HostIP == "127.0.0.1"
+				|| clientIpStr == "::1" || lobby.HostIP == "::1" || lobby.Endpoints.Exists(endpoint => endpoint.Address == clientIpStr))
 			{
 				estimatedPing = localConnectionPingMilliseconds;
 			}
@@ -120,7 +137,8 @@ public static class LobbyEndpoints
 				lobby.MapSizeBytes,
 				lobby.IsGreenlit,
 				lobby.MapCreator,
-				lobby.ReachabilityClass
+				lobby.ReachabilityClass,
+				lobby.Endpoints
 			);
 		});
 
@@ -134,54 +152,102 @@ public static class LobbyEndpoints
 		// network a lobby was hosted behind stays measured. It never decides whether the lobby is registered: the probe
 		// below, and the connections players make afterwards, decide whether it can actually be reached.
 
-		// A lobby is advertised only on the endpoint this node reached itself, so a host that cannot be reached is told
-		// before it is registered rather than after every player who tries to join has waited out a timeout.
-		if (!ReachabilityEndpointHandlers.IsLobbyVerified(reachabilityProbe, req.ReachabilityProbeId, out ReachabilityReport probeReport))
+		// A lobby is advertised only on the endpoints this node reached itself, so a host that cannot be reached is told
+		// before it is registered rather than after every player who tries to join has waited out a timeout. Every
+		// endpoint is judged in its own family: an IPv4 endpoint that answered and an IPv6 endpoint that did not publish
+		// the lobby over IPv4, and the family that did not answer is dropped rather than guessed at.
+		List<LobbyEndpointInfo> endpoints;
+		string hostIp;
+		int hostPort;
+		string reachabilityClass;
+
+		if (req.Endpoints is { Count: > 0 })
 		{
-			return Results.Json(ReachabilityEndpointHandlers.NotVerifiedRefusal(), statusCode: StatusCodes.Status400BadRequest);
-		}
-
-		var hostIp = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
-
-
-		if (!string.IsNullOrEmpty(req.ReportedHostIP) && req.ReportedHostIP != "0.0.0.0" && req.ReportedHostIP != "127.0.0.1")
-		{
-			hostIp = req.ReportedHostIP;
-		}
-
-		// The port a lobby is listed at is the port its game transport holds, not the port the check saw answers come
-		// from. An external port a router hands out belongs to one destination, so a player sent to it is sent to a port
-		// the host's router has no mapping for; the port the transport holds is the one a joining player punches, and the
-		// punch is what makes the router deliver its packets.
-		int hostPort = req.HostPort;
-		if (hostPort <= 0 || hostPort > 65535)
-		{
-			return Results.Json(new
+			endpoints = VerifyPublishedEndpoints(reachabilityProbe, req.Endpoints, out List<string> uncheckedFamilies);
+			if (endpoints.Count == 0)
 			{
-				Code = ReachabilityErrorCodes.PortNotStated,
-				Message = "This node cannot list a lobby that does not state the UDP port its game transport holds."
-			}, statusCode: StatusCodes.Status400BadRequest);
-		}
+				return Results.Json(
+					uncheckedFamilies.Count > 0
+						? ReachabilityEndpointHandlers.FamilyNotCheckedRefusal(string.Join(" and ", uncheckedFamilies))
+						: ReachabilityEndpointHandlers.NotVerifiedRefusal(),
+					statusCode: StatusCodes.Status400BadRequest);
+			}
 
-		string reachabilityClass = ReachabilityClasses.FromReport(probeReport, req.MappingBehaviour);
-		if (!ReachabilityClasses.IsPublishable(reachabilityClass))
-		{
-			return Results.Json(ReachabilityEndpointHandlers.NotVerifiedRefusal(), statusCode: StatusCodes.Status400BadRequest);
-		}
-
-		if (!string.IsNullOrEmpty(probeReport.ObservedIp)) hostIp = probeReport.ObservedIp;
-
-		// The endpoint this node measured is the one every player is sent to, so it has to be one a player elsewhere can
-		// use at all. A check that answered at a loopback or private address passed for a reason that says nothing about
-		// the internet, and listing the lobby there would publish an address no stranger can reach.
-		if (!ReachabilityAddresses.IsPubliclyRoutable(hostIp))
-		{
-			Console.WriteLine($"[Registry] Refused to register a lobby at '{hostIp}:{hostPort}': that endpoint is inside a network no other player can be sent to.");
-			return Results.Json(new
+			// A router that gives every destination its own outside port hands the game port a different external port per
+			// peer, so a punch can open a way for the one endpoint it was aimed at and for nobody else. The IPv4 endpoints of
+			// such a lobby are dropped rather than published as reachable, which is what leaves an IPv6 endpoint (which no
+			// punch is needed for) untouched.
+			if (req.MappingBehaviour == MappingBehaviours.PerDestination) endpoints.RemoveAll(endpoint => endpoint.FamilyValue == LobbyAddressFamily.IPv4);
+			if (endpoints.Count == 0)
 			{
-				Code = ReachabilityErrorCodes.EndpointNotPublic,
-				Message = $"This node measured the lobby at '{hostIp}', which is not an address a player elsewhere can reach. A lobby is listed only at a public endpoint."
-			}, statusCode: StatusCodes.Status400BadRequest);
+				Console.WriteLine($"[Registry] Refused to register a lobby that is only reachable over IPv4 from a router whose mapping is made per destination: a punch can only open the way for one of them.");
+				return Results.Json(
+					ReachabilityEndpointHandlers.MappingPerDestinationRefusal(),
+					statusCode: StatusCodes.Status400BadRequest);
+			}
+
+			LobbyEndpointInfo primary = PrimaryEndpoint(endpoints);
+			hostIp = primary.DialAddress;
+			hostPort = primary.Port;
+			// A class says whether a player needs to punch at all, so a lobby that offers one endpoint needing no punch is
+			// open however many of its other endpoints a router sits in front of.
+			reachabilityClass = endpoints.Exists(endpoint => !LobbyAddresses.NeedsHolePunch(endpoint.FamilyValue)) ? ReachabilityClasses.Open : ReachabilityClasses.PunchOnly;
+		}
+		else
+		{
+			// A client that states no endpoint list speaks the single-endpoint protocol, which only ever measured IPv4.
+			if (!ReachabilityEndpointHandlers.IsLobbyVerified(reachabilityProbe, req.ReachabilityProbeId, out ReachabilityReport probeReport))
+			{
+				return Results.Json(ReachabilityEndpointHandlers.NotVerifiedRefusal(), statusCode: StatusCodes.Status400BadRequest);
+			}
+
+			// The port a lobby is listed at is the port its game transport holds, not the port the check saw answers come
+			// from. An external port a router hands out belongs to one destination, so a player sent to it is sent to a
+			// port the host's router has no mapping for; the port the transport holds is the one a joining player punches,
+			// and the punch is what makes the router deliver its packets.
+			hostPort = req.HostPort;
+			if (hostPort <= 0 || hostPort > 65535)
+			{
+				return Results.Json(new
+				{
+					Code = ReachabilityErrorCodes.PortNotStated,
+					Message = "This node cannot list a lobby that does not state the UDP port its game transport holds."
+				}, statusCode: StatusCodes.Status400BadRequest);
+			}
+
+			reachabilityClass = ReachabilityClasses.FromReport(probeReport, req.MappingBehaviour);
+			if (!ReachabilityClasses.IsPublishable(reachabilityClass))
+			{
+				return Results.Json(ReachabilityEndpointHandlers.NotVerifiedRefusal(), statusCode: StatusCodes.Status400BadRequest);
+			}
+
+			hostIp = (context.Connection.RemoteIpAddress ?? IPAddress.Loopback).ToString();
+			if (!string.IsNullOrEmpty(req.ReportedHostIP) && req.ReportedHostIP != "0.0.0.0" && req.ReportedHostIP != "127.0.0.1")
+			{
+				hostIp = req.ReportedHostIP;
+			}
+
+			if (!string.IsNullOrEmpty(probeReport.ObservedIp)) hostIp = probeReport.ObservedIp;
+
+			// The endpoint this node measured is the one every player is sent to, so it has to be one a player elsewhere
+			// can use at all. A check that answered at a loopback or private address passed for a reason that says nothing
+			// about the internet, and listing the lobby there would publish an address no stranger can reach. A development
+			// node that checks its own network is the one case where such an address is the whole point.
+			bool allowSameNetworkCaller = context.RequestServices.GetRequiredService<IConfiguration>().GetValue("ReachabilityAllowLocalCaller", false);
+			if (!allowSameNetworkCaller && !ReachabilityAddresses.IsPubliclyRoutable(hostIp))
+			{
+				Console.WriteLine($"[Registry] Refused to register a lobby at '{hostIp}:{hostPort}': that endpoint is inside a network no other player can be sent to.");
+				return Results.Json(new
+				{
+					Code = ReachabilityErrorCodes.EndpointNotPublic,
+					Message = $"This node measured the lobby at '{hostIp}', which is not an address a player elsewhere can reach. A lobby is listed only at a public endpoint."
+				}, statusCode: StatusCodes.Status400BadRequest);
+			}
+
+			endpoints = new List<LobbyEndpointInfo>(1)
+			{
+				new(hostIp, hostPort, LobbyAddresses.FamilyName(LobbyAddresses.FamilyOf(hostIp)), true, hostIp, hostPort)
+			};
 		}
 
 		var hostCoords = geoIp.GetCoordinates(hostIp);
@@ -277,10 +343,11 @@ public static class LobbyEndpoints
 			LocalPort = req.LocalPort,
 			ReachabilityClass = reachabilityClass,
 			MappingBehaviour = req.MappingBehaviour,
-			ObservedPort = probeReport.ObservedPort,
+			ObservedPort = req.ObservedPort ?? 0,
 			MapSizeBytes = req.MapSizeBytes ?? 0,
 			IsGreenlit = isGreenlit,
-			MapCreator = mapCreator
+			MapCreator = mapCreator,
+			Endpoints = endpoints
 		};
 
 		registry.AddOrUpdate(info);
@@ -311,7 +378,7 @@ public static class LobbyEndpoints
 		});
 
 		string reportedNatType = string.IsNullOrEmpty(req.NatType) ? "unclassified" : req.NatType;
-		Console.WriteLine($"[Registry] Registered lobby {lobbyId} for map {req.Map} {mapVersion} at {hostIp}:{hostPort} behind {reportedNatType} NAT, {reachabilityClass} (measured port {probeReport.ObservedPort}, mapping {req.MappingBehaviour ?? "unknown"})");
+		Console.WriteLine($"[Registry] Registered lobby {lobbyId} for map {req.Map} {mapVersion} at {hostIp}:{hostPort} behind {reportedNatType} NAT, {reachabilityClass} (measured port {req.ObservedPort?.ToString() ?? "unstated"}, mapping {req.MappingBehaviour ?? MappingBehaviours.Unknown})");
 
 		return Results.Ok(new { LobbyId = lobbyId, Latitude = hostCoords.lat, Longitude = hostCoords.lon, HostToken = hostToken });
 	});
@@ -450,20 +517,28 @@ public static class LobbyEndpoints
 		var clientIp = req.ClientPublicIP;
 		if (string.IsNullOrWhiteSpace(clientIp) || clientIp == "127.0.0.1" || clientIp == "0.0.0.0")
 		{
-			clientIp = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? clientIp;
+			clientIp = (context.Connection.RemoteIpAddress ?? IPAddress.Loopback).ToString();
 		}
 
 		var effectiveReq = req with { ClientPublicIP = clientIp };
 		JoinerPunchTicket ticket = joinerRelay.Register(lobby.LobbyId);
 
+		// The endpoint this player will dial is chosen by the same rule the player's own screen uses, so the punch this
+		// node relays is made toward the endpoint the player actually connects to. An IPv6 endpoint needs no punch at
+		// all: there is no router in front of it and nothing to open.
+		LobbyEndpointChoice choice = LobbyEndpointSelection.Choose(lobby.Endpoints, hasIpv4: true, hasIpv6: ClientCanUseIpv6(req));
+		bool punchNeeded = choice.Chosen ? choice.NeedsHolePunch : LobbyAddresses.NeedsHolePunch(LobbyAddresses.FamilyOf(lobby.HostIP));
+		var response = new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token, lobby.ReachabilityClass, lobby.Endpoints);
+
 		if (hostConnections.TryGetValue(req.LobbyId, out var hostSocket) && hostSocket.State == WebSocketState.Open)
 		{
-			// A player that states the endpoint its socket holds is punched without waiting for its report, which is what
-			// a screen built before reporting existed does. A screen that states none reports itself from the socket its
-			// connection attempt holds instead, because only this node can see the endpoint that attempt arrives from.
-			if (req.ClientPublicPort > 0) await RelayPunchAsync(hostSocket, lobby.LobbyId, clientIp, req.ClientPublicPort);
+			// A player that states the endpoint its socket holds is punched at once, without waiting for its report, which
+			// is what a screen built before reporting existed does. A screen that states none reports itself from the socket
+			// its connection attempt holds instead, because only this node can see the endpoint that attempt arrives from.
+			// Either way only an endpoint that needs a punch is punched: an IPv6 endpoint has no router in front of it.
+			if (punchNeeded && req.ClientPublicPort > 0) await RelayPunchAsync(hostSocket, lobby.LobbyId, clientIp, req.ClientPublicPort);
 
-			return Results.Ok(new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token, lobby.ReachabilityClass));
+			return Results.Ok(response);
 		}
 		else
 		{
@@ -474,21 +549,21 @@ public static class LobbyEndpoints
 				{
 					using var httpClient = httpClientFactory.CreateClient();
 					var content = new StringContent(JsonSerializer.Serialize(effectiveReq), Encoding.UTF8, "application/json");
-					var response = await httpClient.PostAsync($"{lobby.OriginServerUri.TrimEnd('/')}/lobbies/join", content);
-					if (response.IsSuccessStatusCode)
+					var httpResponse = await httpClient.PostAsync($"{lobby.OriginServerUri.TrimEnd('/')}/lobbies/join", content);
+					if (httpResponse.IsSuccessStatusCode)
 					{
-						var respText = await response.Content.ReadAsStringAsync();
-					var joinResp = JsonSerializer.Deserialize<JoinResponseDto>(respText, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-					if (joinResp != null)
-					{
-						// The reporting socket belongs to the node the player reached, not to the node that holds the lobby's
-						// signalling channel, so the ticket this node states is the one the player has to report itself with.
-						return Results.Ok(joinResp with { PunchPort = ticket.Port, PunchToken = ticket.Token });
-					}
+						var respText = await httpResponse.Content.ReadAsStringAsync();
+						var joinResp = JsonSerializer.Deserialize<JoinResponseDto>(respText, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+						if (joinResp != null)
+						{
+							// The reporting socket belongs to the node the player reached, not to the node that holds the
+							// lobby's signalling channel, so the ticket this node states is the one the player reports with.
+							return Results.Ok(joinResp with { PunchPort = ticket.Port, PunchToken = ticket.Token });
+						}
 					}
 					else
 					{
-						var errText = await response.Content.ReadAsStringAsync();
+						var errText = await httpResponse.Content.ReadAsStringAsync();
 						return Results.BadRequest(new { Message = $"Relayed join failed: {errText}" });
 					}
 				}
@@ -505,7 +580,8 @@ public static class LobbyEndpoints
 
 	app.MapPost(JoinFailureRoutes.Report, async (JoinFailureReport report, HttpContext context) =>
 	{
-		string sourceAddress = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "unknown";
+		IPAddress? remote = context.Connection.RemoteIpAddress;
+		string sourceAddress = remote == null ? "unknown" : remote.IsIPv4MappedToIPv6 ? remote.MapToIPv4().ToString() : remote.ToString();
 		JoinFailureFeedback.Outcome outcome = await joinFailureFeedback.ReportAsync(report, sourceAddress);
 		if (outcome == JoinFailureFeedback.Outcome.UnknownLobby) return Results.NotFound(new { Message = "That lobby is not listed here." });
 		if (outcome == JoinFailureFeedback.Outcome.RateLimited) return Results.Json(new { Message = "Too many join failures were reported for this lobby or from this address." }, statusCode: StatusCodes.Status429TooManyRequests);
@@ -526,8 +602,10 @@ public static class LobbyEndpoints
 		if (!hostConnections.TryGetValue(req.LobbyId, out var hostSocket) || hostSocket.State != WebSocketState.Open)
 		{
 			return Results.BadRequest(new { Message = "Host signaling channel is disconnected" });
-		}			await RelayPunchAsync(hostSocket, req.LobbyId, req.ClientIP, req.ClientPort);
-			return Results.Ok(new { Punched = true });
+		}
+
+		await RelayPunchAsync(hostSocket, req.LobbyId, req.ClientIP, req.ClientPort);
+		return Results.Ok(new { Punched = true });
 	});
 
 	app.Map("/lobbies/ws", async (HttpContext context, LobbyRegistry registry) =>
@@ -567,5 +645,79 @@ public static class LobbyEndpoints
 			context.Response.StatusCode = StatusCodes.Status400BadRequest;
 		}
 	});
+	}
+
+	/// <summary>
+	///     Checks every endpoint a host offered and keeps the ones this node reached itself. Each endpoint is judged in its
+	///     own family, from this node's socket of that family, so an IPv6 endpoint that a filtered network drops is stated as
+	///     unverified instead of having its lobby refused, and an endpoint the host could not ask this node to check is named
+	///     as this node's own limitation.
+	/// </summary>
+	/// <param name="probe">This node's probe service.</param>
+	/// <param name="offered">The endpoints the host offered.</param>
+	/// <param name="uncheckedFamilies">The families this node has no probe socket for, when the host offered one.</param>
+	/// <returns>The endpoints that answered, one per family.</returns>
+	private static List<LobbyEndpointInfo> VerifyPublishedEndpoints(UdpReachabilityProbeService probe, IReadOnlyList<LobbyEndpointRegistration> offered, out List<string> uncheckedFamilies)
+	{
+		var verified = new List<LobbyEndpointInfo>(offered.Count);
+		uncheckedFamilies = new List<string>(1);
+
+		for (int index = 0; index < offered.Count; index++)
+		{
+			LobbyEndpointRegistration endpoint = offered[index];
+			if (endpoint == null) continue;
+			if (endpoint.Port <= 0 || endpoint.Port > 65535) continue;
+
+			LobbyAddressFamily family = LobbyAddresses.ParseFamilyName(endpoint.Family);
+			if (family == LobbyAddressFamily.Unknown) family = LobbyAddresses.FamilyOf(endpoint.Address);
+			if (family == LobbyAddressFamily.Unknown) continue;
+			if (verified.Exists(existing => existing.FamilyValue == family)) continue;
+
+			if (string.IsNullOrEmpty(endpoint.ProbeId))
+			{
+				// A host states no check for an endpoint it could not ask this node to measure. When the reason is a family
+				// this node has no socket in, that is this node's limit and not a lobby that cannot be reached.
+				string name = LobbyAddresses.FamilyName(family);
+				if (!probe.HasSocketFor(family) && !uncheckedFamilies.Contains(name)) uncheckedFamilies.Add(name);
+				continue;
+			}
+
+			if (!ReachabilityEndpointHandlers.IsLobbyVerified(probe, endpoint.ProbeId, out ReachabilityReport report)) continue;
+
+			// The address the node observed is the one a player dials, and the port is the one the lobby's transport holds:
+			// the external port a router handed out belongs to the destination this node punched from, so a player sent to
+			// it would be sent to a port the host's router has no mapping for. The player's own punch is what makes the
+			// mapping for the player, at the port the transport is listening on.
+			string observedIp = string.IsNullOrEmpty(report.ObservedIp) ? endpoint.Address : report.ObservedIp;
+			verified.Add(new LobbyEndpointInfo(observedIp, endpoint.Port, LobbyAddresses.FamilyName(family), true, observedIp, endpoint.Port));
+		}
+
+		return verified;
+	}
+
+	/// <summary>
+	///     The endpoint a lobby is listed at, and the one a client that cannot read the endpoint list dials. IPv4 is
+	///     preferred because that is the family a client of any age can use, so a lobby published in both families stays
+	///     reachable to everybody.
+	/// </summary>
+	/// <param name="endpoints">The verified endpoints.</param>
+	/// <returns>The primary endpoint.</returns>
+	private static LobbyEndpointInfo PrimaryEndpoint(List<LobbyEndpointInfo> endpoints)
+	{
+		LobbyEndpointInfo? ipv4 = endpoints.Find(endpoint => endpoint.FamilyValue == LobbyAddressFamily.IPv4);
+		return ipv4 ?? endpoints[0];
+	}
+
+	/// <summary>Whether a joining player stated that it holds an IPv6 address, so this node can tell whether it needs a punch.</summary>
+	/// <param name="req">The join request.</param>
+	/// <returns>Whether the player can dial an IPv6 endpoint.</returns>
+	private static bool ClientCanUseIpv6(JoinRequest req)
+	{
+		for (int index = 0; req.ClientEndpointFamilies != null && index < req.ClientEndpointFamilies.Count; index++)
+		{
+			if (LobbyAddresses.ParseFamilyName(req.ClientEndpointFamilies[index]) == LobbyAddressFamily.IPv6) return true;
+		}
+
+		return false;
 	}
 }

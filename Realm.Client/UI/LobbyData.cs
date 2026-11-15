@@ -1,4 +1,4 @@
-namespace Realm.Client.UI;
+﻿namespace Realm.Client.UI;
 
 public struct LobbyData
 {
@@ -18,4 +18,10 @@ public struct LobbyData
 	///     without punching, reachable only after both sides punch, or not shown to be reachable at all.
 	/// </summary>
 	public string ReachabilityClass;
+
+	/// <summary>Whether this lobby verified an IPv4 endpoint another player can reach.</summary>
+	public bool OffersIpv4;
+
+	/// <summary>Whether this lobby verified an IPv6 endpoint another player can reach.</summary>
+	public bool OffersIpv6;
 }

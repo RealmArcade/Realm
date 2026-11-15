@@ -52,6 +52,10 @@ public partial class LobbyDirectConnectHarness : Node
 				"createcheck" => await RunCreateScreenCheckAsync(),
 				"roomcheck" => await RunLobbyRoomCheckAsync(),
 				"connectcheck" => await RunDirectConnectDialogCheckAsync(),
+				"listedguest" => await RunListedGuestAsync(),
+				"v6guest" => await RunIpv6GuestAsync(),
+				"ipv6" => await RunIpv6DriverAsync(),
+				"oldnode" => await RunOldNodeDriverAsync(),
 				_ => await RunGuestAsync()
 			};
 		}
@@ -107,15 +111,33 @@ public partial class LobbyDirectConnectHarness : Node
 					_deadRegistry = value == "1";
 					break;
 				case "--registry":
+					// One flag names the node for every role, because a role that hosts and a role that joins a listed lobby
+					// differ in what they do with it, not in which node it is.
 					_registry = value;
+					_liveRegistryUrl = value;
 					break;
 				case "--lobby":
 					_lobbyId = value;
 					break;
+				case "--lobby-id":
+					_joinedLobbyId = value;
+					break;
+				case "--lobby-file":
+					_lobbyFile = value;
+					break;
+				case "--expect":
+					_expectedFamily = value;
+					break;
+				case "--seat-count":
+					_seatGuests = int.Parse(value, CultureInfo.InvariantCulture);
+					break;
+				case "--old-registry-dll":
+					_oldRegistryAssembly = value;
+					break;
 			}
 		}
 
-		if (_role is "host" or "roomcheck" or "driver" && string.IsNullOrEmpty(_mapFolder)) throw new InvalidOperationException("--map is required to host.");
+		if (_role is "host" or "roomcheck" or "driver" or "oldnode" && string.IsNullOrEmpty(_mapFolder)) throw new InvalidOperationException("--map is required to host.");
 	}
 
 	private async Task<(int ExitCode, string Outcome)> RunHostAsync()
@@ -124,7 +146,7 @@ public partial class LobbyDirectConnectHarness : Node
 		string mapName = Path.GetFileName(Path.TrimEndingDirectorySeparator(_mapFolder));
 
 		if (_deadRegistry) PointTheRegistryAtAnUnreachableServer(lobby);
-		else if (_registry.Length > 0) PointTheRegistryAt(lobby, _registry);
+		else if (_liveRegistryUrl.Length > 0) PointTheRegistryAt(lobby, _liveRegistryUrl);
 
 		bool opened = _hostMode switch
 		{
@@ -142,6 +164,8 @@ public partial class LobbyDirectConnectHarness : Node
 		{
 			File.WriteAllText(_inviteFile, $"{_port.ToString(CultureInfo.InvariantCulture)}\n{lobby.ActiveLobbyId ?? string.Empty}\n");
 		}
+
+		if (_lobbyFile.Length > 0) File.WriteAllText(_lobbyFile, lobby.ActiveLobbyId ?? string.Empty);
 		GameLog.LogToConsole($"[DIRECT_HARNESS] mode={_hostMode} direct={lobby.IsDirectLobby} address={lobby.DirectConnectAddress} public={lobby.PublicConnectAddress ?? "none"}; waiting for a direct guest.");
 
 		// The page a host copies for a report is written out here, line by line, because it is the one artifact a support
@@ -151,8 +175,10 @@ public partial class LobbyDirectConnectHarness : Node
 			GameLog.LogToConsole($"[DIAGNOSTICS] {line}");
 		}
 
-		bool seated = await WaitUntilAsync(() => lobby.PlayerList.Exists(player => !player.IsHost && !player.IsComputer), _waitSeconds);
-		if (!seated) return (3, $"no guest arrived on port {_port} within {_waitSeconds} s; seats {lobby.PlayerList.Count}");
+		// A dual-stack host is meant to seat a player from each family at the same time, which is a different claim from
+		// seating one player twice in two runs, so the number of guests to wait for is stated by the run that starts them.
+		bool seated = await WaitUntilAsync(() => lobby.PlayerList.FindAll(player => !player.IsHost && !player.IsComputer).Count >= _seatGuests, _waitSeconds);
+		if (!seated) return (3, $"only {lobby.PlayerList.Count} seat(s) filled on port {_port} within {_waitSeconds} s, and {_seatGuests} guest(s) were expected");
 
 		return (0, $"the lobby on port {_port} seated {lobby.PlayerList.Count} player(s)");
 	}
@@ -459,11 +485,13 @@ public partial class LobbyDirectConnectHarness : Node
 		{
 			DirectConnectHistory.Remember("192.168.1.42", 8999);
 			DirectConnectHistory.Remember("38.148.48.39", 9001);
+			DirectConnectHistory.Remember("2001:db8::1", 8999);
 			DirectConnectHistory.Remember("192.168.1.42", 8999);
 
 			List<DirectConnectHistoryEntry> remembered = DirectConnectHistory.LoadRecent();
-			if (remembered.Count != 2) return (40, $"joining two addresses left {remembered.Count} recent address(es) instead of 2");
+			if (remembered.Count != 3) return (40, $"joining three addresses left {remembered.Count} recent address(es) instead of 3");
 			if (remembered[0].Address != "192.168.1.42:8999") return (40, $"the address joined last is not first: '{remembered[0].Address}'");
+			if (remembered[1].Address != "[2001:db8::1]:8999") return (40, $"an IPv6 address is remembered as '{remembered[1].Address}' instead of the form a host sends");
 
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 			var browser = GD.Load<PackedScene>("res://UI/LobbyBrowser.tscn").Instantiate();
@@ -491,14 +519,23 @@ public partial class LobbyDirectConnectHarness : Node
 			if (addressInput == null) return (41, "the direct connect dialog draws no address field");
 			if (addressInput.Text != "192.168.1.42:8999") return (42, $"the address field opens at '{addressInput.Text}' instead of the address joined last");
 
-			Button? olderAddress = FindNode<Button>(overlay, "RecentAddress1_Button");
+			Button? olderAddress = FindNode<Button>(overlay, "RecentAddress2_Button");
 			if (olderAddress == null) return (43, "the dialog lists only one recent address");
 			olderAddress.EmitSignal(BaseButton.SignalName.Pressed);
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 			if (addressInput.Text != "38.148.48.39:9001") return (44, $"choosing an older address filled '{addressInput.Text}' instead of it");
 
+			// The form an IPv6 address is stated in has to survive the whole round trip: joined, written to the history this
+			// screen keeps, and put back into the field a player presses Connect in.
+			Button? ipv6Address = FindNode<Button>(overlay, "RecentAddress1_Button");
+			if (ipv6Address == null) return (46, "the dialog lists no address for a lobby joined over IPv6");
+			if (ipv6Address.Text != "[2001:db8::1]:8999") return (46, $"the IPv6 address is offered as '{ipv6Address.Text}'");
+			ipv6Address.EmitSignal(BaseButton.SignalName.Pressed);
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			if (addressInput.Text != "[2001:db8::1]:8999") return (46, $"choosing an IPv6 address filled '{addressInput.Text}' instead of it");
+
 			browser.QueueFree();
-			return (0, "the direct connect dialog opens at 192.168.1.42:8999 and offers 38.148.48.39:9001 again");
+			return (0, "the direct connect dialog opens at 192.168.1.42:8999, offers 38.148.48.39:9001 again, and fills '[2001:db8::1]:8999' from a lobby joined over IPv6");
 		}
 		finally
 		{

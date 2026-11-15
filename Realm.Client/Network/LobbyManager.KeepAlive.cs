@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Realm.Client.Services;
@@ -29,6 +29,11 @@ public partial class LobbyManager
 	private void StartHostReachabilityKeepAlive()
 	{
 		StopHostReachabilityKeepAlive();
+
+		// Only an IPv4 endpoint has a router mapping behind it. An IPv6 endpoint is the address this machine holds, so
+		// there is no translation a router could forget and nothing to refresh.
+		bool usesIpv4 = _publishedEndpoints.Exists(endpoint => endpoint.FamilyValue == LobbyAddressFamily.IPv4);
+		if (!usesIpv4) return;
 
 		HostReachabilityResult? published = _publishedReachability;
 		if (published == null || string.IsNullOrEmpty(published.ProbeIp) || published.ProbePort <= 0)

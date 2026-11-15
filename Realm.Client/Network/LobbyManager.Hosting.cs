@@ -434,6 +434,44 @@ public partial class LobbyManager
 		// rather than a decision to host unreachable lobbies.
 		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(port);
 
+		DiscoverOfferedEndpoints(port);
+
+		// A machine that offers an IPv6 address is promising a family it has never seen its own game port answer in, and that
+		// promise rests on Godot's transport holding a socket in both families. Asking this machine's own loopback over IPv6
+		// is the cheapest way to find out it no longer does, and it costs one datagram when it does. It is asked on loopback
+		// so the answer is about the transport rather than about a firewall: no inbound rule is consulted for traffic this
+		// machine sends itself.
+		if (FirstOffer(LobbyAddressFamily.IPv6) is { } offeredIpv6)
+		{
+			bool answersOverIpv6 = await LobbyPortCheck.AnswersAsync(IPAddress.IPv6Loopback, port, cancellationToken: CancellationToken.None);
+			if (answersOverIpv6)
+			{
+				GameLog.LogToConsole($"[LobbyManager] The game port answers over IPv6 on this machine, so {offeredIpv6.Describe()} is a route players with IPv6 can take.");
+			}
+			else
+			{
+				GameLog.LogError($"[LobbyManager] This machine holds the IPv6 address {offeredIpv6.Describe()}, but its own game port did not answer over IPv6. Nothing about the router or the firewall is involved in this check, so the transport is what to look at: a build whose ENet no longer binds both address families looks exactly like this.");
+			}
+		}
+
+		// A lobby offered over IPv6 alone is a lobby with nothing for a router to do: the address it is reached at is the
+		// one this machine holds, so there is no translation to map and no public endpoint to measure. The router half is
+		// skipped entirely rather than allowed to fail, because nothing was asked of it.
+		if (!_offersIpv4)
+		{
+			_hostPublicIp = null;
+			_hostPublicPort = 0;
+			_routerReachability = RouterReachability.NoRouterForward;
+			IsRestrictedHost = false;
+
+			if (_offeredIpv6Endpoint is { } onlyEndpoint)
+			{
+				GameLog.LogToConsole($"[LobbyManager] This machine holds no IPv4 address other than loopback, so the lobby is offered over IPv6 only at {onlyEndpoint.Describe()}; that address needs no router mapping.");
+			}
+
+			return;
+		}
+
 		await ResolvePublicEndpointAsync(port);
 
 		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(port);

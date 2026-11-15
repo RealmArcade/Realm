@@ -41,17 +41,21 @@ public class FakeGamePort : IDisposable
 	private Task? _loop;
 	private int _receivedCount;
 
-	public FakeGamePort(Behaviour behaviour)
+	/// <summary>A game port on loopback, in whichever family the case under test is about.</summary>
+	/// <param name="behaviour">How the port answers what reaches it.</param>
+	/// <param name="address">The loopback address it answers on, IPv4 when nothing else is asked for.</param>
+	public FakeGamePort(Behaviour behaviour, IPAddress? address = null)
 	{
 		_behaviour = behaviour;
-		_socket = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+		Address = address ?? IPAddress.Loopback;
+		_socket = new UdpClient(new IPEndPoint(Address, 0));
 		Port = ((IPEndPoint)_socket.Client.LocalEndPoint!).Port;
 		_loop = Task.Run(() => ReceiveAsync(_stop.Token));
 	}
 
 	public int Port { get; }
 
-	public IPAddress Address => IPAddress.Loopback;
+	public IPAddress Address { get; }
 
 	public int ReceivedCount => Volatile.Read(ref _receivedCount);
 

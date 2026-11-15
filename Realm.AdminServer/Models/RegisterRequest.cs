@@ -1,3 +1,5 @@
+﻿using Realm.Shared.Reachability;
+
 namespace Realm.AdminServer.Models;
 
 public record RegisterRequest(
@@ -19,5 +21,6 @@ public record RegisterRequest(
 	string? ReachabilityProbeId = null,
 	int? LocalPort = null,
 	string? MappingBehaviour = null,
-	int? ObservedPort = null
+	int? ObservedPort = null,
+	IReadOnlyList<LobbyEndpointRegistration>? Endpoints = null
 );

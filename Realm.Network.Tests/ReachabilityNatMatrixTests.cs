@@ -59,7 +59,7 @@ public class ReachabilityNatMatrixTests
 	}
 
 	[Test]
-	public async Task ARouterThatTranslatesThePortPublishesTheEndpointItsPunchExposedEachTimeItChanges()
+	public async Task ARouterThatTranslatesThePortIsJudgedAgainOnEveryAttemptAndNeverCarriesAnOutsidePortOver()
 	{
 		using var gamePort = new FakeGamePort(FakeGamePort.Behaviour.AnswerOnlySolicited);
 		using var probes = new UdpReachabilityProbeService(FreePort.Udp());
@@ -70,7 +70,7 @@ public class ReachabilityNatMatrixTests
 		Assert.That(firstRouter.PublicPort, Is.Not.EqualTo(secondRouter.PublicPort), "the two attempts must expose different ports or the drift this test covers cannot happen");
 
 		var verifier = new HostReachabilityVerifier(new HttpClient(), _ => { });
-		var publishedPorts = new List<int>();
+		var observedPorts = new List<int>();
 
 		foreach (SimulatedNat router in new[] { firstRouter, secondRouter })
 		{
@@ -83,14 +83,12 @@ public class ReachabilityNatMatrixTests
 
 			HostReachabilityResult result = await verifier.VerifyAsync(registry.BaseUrl, IPAddress.Loopback.ToString(), gamePort.Port, Punch);
 
-			Assert.That(result.Verified, Is.True, result.Detail);
-			Assert.That(result.PublicPort, Is.EqualTo(router.PublicPort), "a lobby is published at the endpoint the punch of this attempt exposed, not at one remembered from an earlier one");
-			publishedPorts.Add(result.PublicPort);
+			Assert.That(result.Failure, Is.EqualTo(HostReachabilityFailure.MappingPerDestination), result.Detail);
+			Assert.That(result.ObservedPort, Is.EqualTo(router.PublicPort), "each attempt is judged by the endpoint the punch of that attempt exposed, never by one remembered from an earlier one");
+			observedPorts.Add(result.ObservedPort);
 		}
 
-		Assert.That(publishedPorts[0], Is.Not.EqualTo(publishedPorts[1]));
-		Assert.That(publishedPorts[0], Is.EqualTo(firstRouter.PublicPort));
-		Assert.That(publishedPorts[1], Is.EqualTo(secondRouter.PublicPort));
+		Assert.That(observedPorts[0], Is.Not.EqualTo(observedPorts[1]), "the second attempt must measure its own outside port, which is what shows nothing was carried over");
 	}
 
 	[Test]
