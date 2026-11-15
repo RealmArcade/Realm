@@ -1,12 +1,12 @@
-using CommandLine;
+﻿using CommandLine;
 
 namespace Realm.Tools.Cli;
 
 [Verb("image_sheet", HelpText = "Compose images into one labelled grid and write a JSON index mapping every cell to its source file.")]
 public class ImageSheetOptions
 {
-	[Option('i', "input", Required = true, Min = 1, HelpText = "An image file or a directory of images. Repeat the option to list several inputs; directories are expanded.")]
-	public IList<string> Input { get; set; } = new List<string>();
+	[Option('i', "input", Required = true, Separator = ';', HelpText = "An image file or a directory of images. Several paths may be given separated by ';'; directories are expanded.")]
+	public IEnumerable<string> Input { get; set; } = Array.Empty<string>();
 
 	[Option('o', "output", Required = true, HelpText = "Path of the PNG sheet to write.")]
 	public string Output { get; set; } = string.Empty;

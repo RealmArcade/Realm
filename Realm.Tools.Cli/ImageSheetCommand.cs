@@ -48,13 +48,30 @@ public static class ImageSheetCommand
 			? 0
 			: Math.Max(16, (int)Math.Round(options.Cell * 0.075));
 		int cellWidth = options.Cell;
-		int cellHeight = options.Cell + labelHeight;
 		int titleHeight = string.IsNullOrWhiteSpace(options.Title)
 			? 0
 			: Math.Max(28, (int)Math.Round(options.Cell * 0.10)) + padding;
 
+		var fittedSizeByImage = imagePaths
+			.Select(path => FitSize(ReadImageSize(path), cellWidth, options.Cell))
+			.ToArray();
+
+		var rowHeights = new int[rows];
+		for (int row = 0; row < rows; row++)
+		{
+			int tallestInRow = 0;
+			for (int column = 0; column < columns; column++)
+			{
+				int index = row * columns + column;
+				if (index >= fittedSizeByImage.Length) break;
+				tallestInRow = Math.Max(tallestInRow, fittedSizeByImage[index].Height);
+			}
+
+			rowHeights[row] = tallestInRow + labelHeight;
+		}
+
 		int sheetWidth = columns * cellWidth + (columns + 1) * padding;
-		int sheetHeight = titleHeight + rows * cellHeight + (rows + 1) * padding;
+		int sheetHeight = titleHeight + padding + rowHeights.Sum() + rows * padding;
 
 		var cells = new List<ImageSheetCell>();
 
@@ -77,44 +94,52 @@ public static class ImageSheetCommand
 				canvas.DrawText(options.Title!, padding, titleBaseline, SKTextAlign.Left, titleFont, textPaint);
 			}
 
-			for (int index = 0; index < imagePaths.Length; index++)
+			float rowTop = titleHeight + padding;
+			for (int row = 0; row < rows; row++)
 			{
-				int column = index % columns;
-				int row = index / columns;
-
-				float cellLeft = padding + column * (cellWidth + padding);
-				float cellTop = titleHeight + padding + row * (cellHeight + padding);
-
-				var imageArea = new SKRect(cellLeft, cellTop, cellLeft + cellWidth, cellTop + cellHeight - labelHeight);
-
-				using var decoded = SKBitmap.Decode(imagePaths[index]);
-				if (decoded == null || decoded.Width <= 0 || decoded.Height <= 0)
+				for (int column = 0; column < columns; column++)
 				{
-					Console.Error.WriteLine($"Warning: could not decode image '{imagePaths[index]}', leaving its cell empty.");
+					int index = row * columns + column;
+					if (index >= imagePaths.Length) break;
+
+					var fittedSize = fittedSizeByImage[index];
+					float cellLeft = padding + column * (cellWidth + padding);
+					float imageLeft = cellLeft + (cellWidth - fittedSize.Width) / 2f;
+
+					using (var decoded = SKBitmap.Decode(imagePaths[index]))
+					{
+						if (decoded == null || decoded.Width <= 0 || decoded.Height <= 0)
+						{
+							Console.Error.WriteLine($"Warning: could not decode image '{imagePaths[index]}', its cell is left empty.");
+						}
+						else
+						{
+							using var image = SKImage.FromBitmap(decoded);
+							var destination = new SKRect(imageLeft, rowTop, imageLeft + fittedSize.Width, rowTop + fittedSize.Height);
+							canvas.DrawImage(image, destination, sampling);
+						}
+					}
+
+					string label = BuildLabel(labelMode, imagePaths[index], index);
+					if (labelHeight > 0 && label.Length > 0)
+					{
+						string shortenedLabel = ShortenToFit(label, labelFont, cellWidth, textPaint);
+						float baseline = rowTop + fittedSize.Height + labelHeight * 0.74f;
+						float textWidth = labelFont.MeasureText(shortenedLabel, textPaint);
+						canvas.DrawText(shortenedLabel, cellLeft + (cellWidth - textWidth) / 2f, baseline, SKTextAlign.Left, labelFont, textPaint);
+					}
+
+					cells.Add(new ImageSheetCell
+					{
+						Index = index,
+						Row = row,
+						Column = column,
+						Label = label,
+						Path = Path.GetFullPath(imagePaths[index])
+					});
 				}
-				else
-				{
-					using var image = SKImage.FromBitmap(decoded);
-					canvas.DrawImage(image, FitInside(imageArea, decoded.Width, decoded.Height), sampling);
-				}
 
-				string label = BuildLabel(labelMode, imagePaths[index], index);
-				if (labelHeight > 0 && label.Length > 0)
-				{
-					string shortenedLabel = ShortenToFit(label, labelFont, cellWidth, textPaint);
-					float baseline = cellTop + cellHeight - labelHeight + labelHeight * 0.72f;
-					float textWidth = labelFont.MeasureText(shortenedLabel, textPaint);
-					canvas.DrawText(shortenedLabel, cellLeft + (cellWidth - textWidth) / 2f, baseline, SKTextAlign.Left, labelFont, textPaint);
-				}
-
-				cells.Add(new ImageSheetCell
-				{
-					Index = index,
-					Row = row,
-					Column = column,
-					Label = label,
-					Path = Path.GetFullPath(imagePaths[index])
-				});
+				rowTop += rowHeights[row] + padding;
 			}
 
 			CliFileSet.EnsureTargetDirectoryExists(options.Output);
@@ -173,7 +198,7 @@ public static class ImageSheetCommand
 		}
 	}
 
-	private static string[] ExpandInputs(IList<string> inputs, bool recursive)
+	private static string[] ExpandInputs(IEnumerable<string> inputs, bool recursive)
 	{
 		var resolvedPaths = new List<string>();
 		var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -222,14 +247,33 @@ public static class ImageSheetCommand
 		return extension is ".png" or ".webp" or ".jpg" or ".jpeg" or ".bmp" or ".gif";
 	}
 
-	private static SKRect FitInside(SKRect area, int width, int height)
+	private static (int Width, int Height) ReadImageSize(string path)
 	{
-		float scale = Math.Min(area.Width / width, area.Height / height);
-		float drawnWidth = width * scale;
-		float drawnHeight = height * scale;
-		float left = area.Left + (area.Width - drawnWidth) / 2f;
-		float top = area.Top + (area.Height - drawnHeight) / 2f;
-		return new SKRect(left, top, left + drawnWidth, top + drawnHeight);
+		try
+		{
+			using var codec = SKCodec.Create(path);
+			if (codec == null || codec.Info.Width <= 0 || codec.Info.Height <= 0)
+			{
+				return (0, 0);
+			}
+
+			return (codec.Info.Width, codec.Info.Height);
+		}
+		catch (Exception)
+		{
+			return (0, 0);
+		}
+	}
+
+	private static (int Width, int Height) FitSize((int Width, int Height) sourceSize, int maximumWidth, int maximumHeight)
+	{
+		if (sourceSize.Width <= 0 || sourceSize.Height <= 0)
+		{
+			return (maximumWidth, maximumHeight);
+		}
+
+		float scale = Math.Min(maximumWidth / (float)sourceSize.Width, maximumHeight / (float)sourceSize.Height);
+		return (Math.Max(1, (int)Math.Round(sourceSize.Width * scale)), Math.Max(1, (int)Math.Round(sourceSize.Height * scale)));
 	}
 
 	private static string ShortenToFit(string label, SKFont font, float maximumWidth, SKPaint paint)
