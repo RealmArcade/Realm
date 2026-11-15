@@ -178,6 +178,21 @@ public partial class LobbyCreate
 			};
 		}
 
+		// A translated outside port is ordinary, and it is publishable once the router was shown to keep it for every player.
+		// When that second measurement never completed, the advice is to make it possible rather than to describe a router
+		// that was not measured as one that cannot work.
+		if (failure.Failure is HostReachabilityFailure.MappingUnmeasured)
+		{
+			return new List<string>
+			{
+				string.Format(Tr("The lobby server reached this computer, but your router gave it an outside port of its own ({0}) instead of the one the lobby listens on ({1}), and the second check that shows whether every player is given that same outside port did not complete. The lobby was not published."), failure.ObservedPort, port),
+				Tr("Host again so the check can measure it: a router that keeps one outside port for every player is the ordinary shape, and a lobby behind one is published at that outside port."),
+				string.Format(Tr("ROUTER: forward UDP port {0} to this computer. A forward is a fixed rule, so it gives every player the same outside port and the measurement is no longer needed."), port),
+				Tr("OVERLAY NETWORK: play over a virtual network such as Tailscale, ZeroTier or Netbird instead, where no router has to be measured at all."),
+				string.Format(Tr("DIRECT CONNECT: players on your own network can still join with Direct Connect at {0}."), directConnectEndpoint)
+			};
+		}
+
 		// The lobby server measured nothing wrong with this machine: it has no socket in the address family this lobby is
 		// offered in. Opening a port cannot fix that, and saying so keeps a host from chasing a router that is not involved.
 		if (failure.Failure is HostReachabilityFailure.ProbeFamilyUnavailable)

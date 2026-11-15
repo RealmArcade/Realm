@@ -26,6 +26,19 @@ people you want to play with. That is not a fallback that "sometimes" works — 
 | The port answered without the host sending anything first | `Open` | A router or firewall already forwards the port. A join needs nothing special. |
 | The port answered only after the host punched the lobby server | `PunchOnly` | The ordinary home router. Both sides send a packet first, which opens the router for that one peer. Most players join this way and never notice. |
 | The router gave the game port a different outside port for every destination | not listed | A punch can open the way for one endpoint and no other, so no player can be told where to connect. This is the case this page exists for. |
+| The router translated the outside port, and the second check that shows whether it is the same for every player did not complete | not listed | Nothing is known to be broken, and nothing was shown to work either: the lobby is not listed at an outside port nobody measured. Hosting again, or forwarding the port, settles it. |
+
+### Which outside port a lobby is listed at
+
+A router almost always gives the game a port of its own — anything other than the one the game listens on. That is
+expected and needs no fixing: the lobby is listed at the outside port the router exposed, because that is the port every
+player's punch reaches, and Realm states which one it is in the diagnostics block.
+
+What cannot be fixed by punching is a router that makes a *different* outside port for every peer. To tell those two
+apart, the lobby server punches two of its own ports and compares the outside port each punch arrived from: one port for
+both means the router keeps one mapping for every player, and two ports mean it makes one per player. Both punches are
+sent by the host's game port, so they cost nothing and open nothing — a router that dropped them says so instead of
+assuming the worse case.
 
 `PunchOnly` is not a problem and does not need fixing. The lobby is listed, players join, and nothing has to be changed on
 the router. A lobby stays listed while it is being joined: if enough players fail in a short window, Realm stops claiming
@@ -104,6 +117,7 @@ A failed join is reported at the step that broke, and the host is told that step
 
 The lobby room's **COPY NETWORK DIAGNOSTICS** button copies one block: the port the lobby is listed at, the port its
 transport holds, the address this machine measured, the address something outside confirmed, the reachability class, the
-router's mapping behaviour, the NAT and firewall state, the lobby server, and the last failure either side saw. Two of
-those numbers differing — the listed port and the port the transport holds — is the failure this branch fixed, and it is
-the first thing to look at.
+router's mapping behaviour, the NAT and firewall state, the lobby server, and the last failure either side saw. The two
+ports differing is normal — it means the router translated the port and the lobby is listed at the outside port players
+reach. What is worth looking at is `router mapping: Unknown` next to two differing ports: that is the case above where
+nothing was measured, and it is the one that is not listed.

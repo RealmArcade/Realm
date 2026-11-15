@@ -10,7 +10,7 @@
 #   realm-rig.sh up             build the namespaces and their NATs
 #   realm-rig.sh down           remove them
 #   realm-rig.sh status         print each namespace's addresses and NAT mode
-#   realm-rig.sh mapping reuse|per-destination
+#   realm-rig.sh mapping reuse|translating|per-destination
 #                               choose whether a router gives the game port one stable external port for every destination
 #                               (reuse, which is what a home router does) or makes a new one per destination
 #                               (per-destination, which is the carrier-grade and VPN case no punch can rescue)
@@ -36,6 +36,7 @@ HOST_NS=realm-host
 PLAYER_NS=realm-player
 MODE_FILE=/tmp/realm-rig-mapping
 GAME_PORT=${REALM_RIG_GAME_PORT:-8999}
+TRANSLATED_GAME_PORT=${REALM_RIG_TRANSLATED_GAME_PORT:-10000}
 
 require_root() {
 	if [[ $(id -u) -ne 0 ]]; then
@@ -85,15 +86,19 @@ configure_router() {
 # is talking to, and it drops unsolicited traffic until the machine behind it has sent toward the sender. Linux netfilter
 # does neither by itself: an unsolicited inbound packet creates connection state that then takes the external port the
 # machine's own next flow would have been given, and its mapping is per destination. A static mapping for the game port,
-# with the forward that only lets related traffic through, is the same arrangement a router with a port-preserving mapping
-# and a filtered outside face presents to the internet, which is the case a punch exists for. Without this the rig is
-# harsher than any router a player owns: two ends behind it disagree about the port on every join, and the punch is blamed
-# for the simulator's own bookkeeping.
+# with the forward that only lets related traffic through, is the same arrangement a router with a fixed mapping and a
+# filtered outside face presents to the internet, which is the case a punch exists for. Without this the rig is harsher than
+# any router a player owns: two ends behind it disagree about the port on every join, and the punch is blamed for the
+# simulator's own bookkeeping.
+#
+# The outside port is a parameter because a router picks it: `reuse` keeps the port the game holds, and `translating` is
+# the same mapping on an outside port of the router's own choosing, which is what almost every home router does and what a
+# UPnP mapping that was granted on another port produces.
 configure_stable_mapping() {
-	local ns=$1 wan=$2 lan_ip=$3 wan_ip=$4 port=$5
+	local ns=$1 wan=$2 lan_ip=$3 wan_ip=$4 port=$5 outside_port=${6:-$5}
 
-	ip netns exec "$ns" iptables -t nat -I POSTROUTING 1 -o "$wan" -p udp -s "$lan_ip" --sport "$port" -j SNAT --to-source "${wan_ip}:${port}"
-	ip netns exec "$ns" iptables -t nat -A PREROUTING -i "$wan" -p udp -d "$wan_ip" --dport "$port" -j DNAT --to-destination "${lan_ip}:${port}"
+	ip netns exec "$ns" iptables -t nat -I POSTROUTING 1 -o "$wan" -p udp -s "$lan_ip" --sport "$port" -j SNAT --to-source "${wan_ip}:${outside_port}"
+	ip netns exec "$ns" iptables -t nat -A PREROUTING -i "$wan" -p udp -d "$wan_ip" --dport "$outside_port" -j DNAT --to-destination "${lan_ip}:${port}"
 }
 
 forward_game_port() {
@@ -128,7 +133,7 @@ up() {
 
 	local mapping_mode=reuse
 	if [[ -f $MODE_FILE ]]; then mapping_mode=$(cat "$MODE_FILE"); fi
-	if [[ $mapping_mode != reuse && $mapping_mode != per-destination ]]; then mapping_mode=reuse; fi
+	if [[ $mapping_mode != reuse && $mapping_mode != translating && $mapping_mode != per-destination ]]; then mapping_mode=reuse; fi
 
 	local nat_argument=""
 	if [[ $mapping_mode == per-destination ]]; then nat_argument="--random"; fi
@@ -138,6 +143,9 @@ up() {
 
 	if [[ $mapping_mode == reuse ]]; then
 		configure_stable_mapping "$HOST_ROUTER_NS" wan-host "${HOST_LAN}.2" "$HOST_ROUTER" "$GAME_PORT"
+	fi
+	if [[ $mapping_mode == translating ]]; then
+		configure_stable_mapping "$HOST_ROUTER_NS" wan-host "${HOST_LAN}.2" "$HOST_ROUTER" "$GAME_PORT" "$TRANSLATED_GAME_PORT"
 	fi
 	if [[ ${REALM_RIG_FORWARD_GAME_PORT:-0} == 1 ]]; then
 		forward_game_port "$HOST_ROUTER_NS" wan-host lan-host "$GAME_PORT"
@@ -176,8 +184,8 @@ mapping() {
 	require_root
 	local mode=${1:-reuse}
 	if [[ $mode == random ]]; then mode=per-destination; fi
-	if [[ $mode != reuse && $mode != per-destination ]]; then
-		echo "mapping takes 'reuse' or 'per-destination'" >&2
+	if [[ $mode != reuse && $mode != translating && $mode != per-destination ]]; then
+		echo "mapping takes 'reuse', 'translating' or 'per-destination'" >&2
 		exit 1
 	fi
 
@@ -231,7 +239,7 @@ case "${1:-}" in
 	player) shift; run_in "$PLAYER_NS" "$@" ;;
 	public) shift; run_in "$PUBLIC_NS" "$@" ;;
 	*)
-		echo "usage: $0 up|down|status|wrapper on|off|mapping reuse|per-destination|host <cmd>|player <cmd>|public <cmd>" >&2
+		echo "usage: $0 up|down|status|wrapper on|off|mapping reuse|translating|per-destination|host <cmd>|player <cmd>|public <cmd>" >&2
 		exit 1
 		;;
 esac

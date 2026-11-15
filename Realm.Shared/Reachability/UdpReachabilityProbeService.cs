@@ -76,7 +76,8 @@ public class UdpReachabilityProbeService : IDisposable
 	private UdpClient? _ipv4Socket;
 	private UdpClient? _ipv6Socket;
 	private UdpClient? _coldSocket;
-	private readonly List<Task> _receiveLoops = new(3);
+	private UdpClient? _mappingSocket;
+	private readonly List<Task> _receiveLoops = new(4);
 	private bool _disposed;
 
 	public UdpReachabilityProbeService(int probePort = DefaultProbePort, string statedPublicIp = "", string statedPublicIpv6 = "")
@@ -95,6 +96,16 @@ public class UdpReachabilityProbeService : IDisposable
 	///     opens.
 	/// </summary>
 	public int ColdProbePort { get; private set; }
+
+	/// <summary>
+	///     The port a host punches only to measure its router's mapping, or zero when this node could not open that socket.
+	///     Nothing is ever probed from it and no answer is expected at it: the datagram that arrives there is the host's
+	///     punch, and the outside port it arrived from is what one destination sees the game port at. Together with the
+	///     outside port the punch toward the probe socket arrived from, it measures whether the router keeps one mapping for
+	///     every destination or makes one per destination, which is the difference between a lobby a player can join and one
+	///     no player can be told the port of.
+	/// </summary>
+	public int MappingProbePort { get; private set; }
 
 	public bool IsRunning => _ipv4Socket != null || _ipv6Socket != null;
 
@@ -152,7 +163,7 @@ public class UdpReachabilityProbeService : IDisposable
 		}
 
 		_stop = new CancellationTokenSource();
-		_receiveLoops.Add(Task.Run(() => ReceiveAsync(_ipv4Socket, _stop.Token, cold: false)));
+		_receiveLoops.Add(Task.Run(() => ReceiveAsync(_ipv4Socket, _stop.Token, ProbeSocketKind.Punched)));
 
 		// Both sockets take the same port number: UDP names the two families separately, so port 8998 over IPv6 is a
 		// different port from 8998 over IPv4 and a host can be told one number whichever family it is checked in.
@@ -162,7 +173,7 @@ public class UdpReachabilityProbeService : IDisposable
 			{
 				UdpClient ipv6 = Bind(AddressFamily.InterNetworkV6, ProbePort);
 				_ipv6Socket = ipv6;
-				_receiveLoops.Add(Task.Run(() => ReceiveAsync(ipv6, _stop.Token, cold: false)));
+				_receiveLoops.Add(Task.Run(() => ReceiveAsync(ipv6, _stop.Token, ProbeSocketKind.Punched)));
 			}
 			catch (SocketException)
 			{
@@ -173,6 +184,7 @@ public class UdpReachabilityProbeService : IDisposable
 		}
 
 		TryStartColdSocket();
+		TryStartMappingSocket();
 		return true;
 	}
 
@@ -192,11 +204,36 @@ public class UdpReachabilityProbeService : IDisposable
 			UdpClient socket = Bind(AddressFamily.InterNetwork, 0);
 			ColdProbePort = ((IPEndPoint)socket.Client.LocalEndPoint!).Port;
 			_coldSocket = socket;
-			_receiveLoops.Add(Task.Run(() => ReceiveAsync(socket, _stop.Token, cold: true)));
+			_receiveLoops.Add(Task.Run(() => ReceiveAsync(socket, _stop.Token, ProbeSocketKind.Cold)));
 		}
 		catch (SocketException)
 		{
 			ColdProbePort = 0;
+		}
+	}
+
+	/// <summary>
+	///     Binds the socket the mapping is measured at. It is a third IPv4 socket because the two measurements it must not
+	///     disturb are already made by the other two: the probe socket is punched, and the cold socket must stay unpunched or
+	///     its answer would stop meaning that a stranger's first datagram got through. Punching this socket costs one
+	///     datagram, gives no answer, and is the only thing that shows a router's mapping from two destinations at once. No
+	///     IPv6 mapping socket is opened: an IPv6 endpoint is reached without a translation, so its outside port is the port
+	///     it listens on by construction.
+	/// </summary>
+	private void TryStartMappingSocket()
+	{
+		if (_mappingSocket != null || _disposed || _stop == null) return;
+
+		try
+		{
+			UdpClient socket = Bind(AddressFamily.InterNetwork, 0);
+			MappingProbePort = ((IPEndPoint)socket.Client.LocalEndPoint!).Port;
+			_mappingSocket = socket;
+			_receiveLoops.Add(Task.Run(() => ReceiveAsync(socket, _stop.Token, ProbeSocketKind.Mapping)));
+		}
+		catch (SocketException)
+		{
+			MappingProbePort = 0;
 		}
 	}
 
@@ -263,7 +300,10 @@ public class UdpReachabilityProbeService : IDisposable
 
 		_ = Task.Run(() => RunProbeAsync(probe));
 		if (coldPossible) _ = Task.Run(() => RunColdProbeAsync(probe));
-		return new ReachabilityTicket(probeId, StatedPublicAddress(family), ProbePort, window, LobbyAddresses.FamilyName(family));
+		return new ReachabilityTicket(probeId, StatedPublicAddress(family), ProbePort, window, LobbyAddresses.FamilyName(family))
+		{
+			MappingProbePort = family == LobbyAddressFamily.IPv4 ? MappingProbePort : 0
+		};
 	}
 
 	/// <summary>
@@ -363,7 +403,9 @@ public class UdpReachabilityProbeService : IDisposable
 			probe.Attempts,
 			LobbyAddresses.FamilyName(probe.Family),
 			ColdAnswered(probe),
-			probe.ColdAttempts);
+			probe.ColdAttempts,
+			probe.SecondObservedAddress?.ToString() ?? string.Empty,
+			probe.SecondObservedPort);
 	}
 
 	/// <summary>
@@ -471,7 +513,7 @@ public class UdpReachabilityProbeService : IDisposable
 		}
 	}
 
-	private async Task ReceiveAsync(UdpClient socket, CancellationToken cancellationToken, bool cold)
+	private async Task ReceiveAsync(UdpClient socket, CancellationToken cancellationToken, ProbeSocketKind kind)
 	{
 		var buffer = new byte[ReceivedDatagramBytes];
 		while (!cancellationToken.IsCancellationRequested)
@@ -479,7 +521,7 @@ public class UdpReachabilityProbeService : IDisposable
 			try
 			{
 				UdpReceiveResult received = await socket.ReceiveAsync(cancellationToken).ConfigureAwait(false);
-				RecordDatagram(received.Buffer, received.RemoteEndPoint, cold);
+				RecordDatagram(received.Buffer, received.RemoteEndPoint, kind);
 				ForgetStale();
 			}
 			catch (OperationCanceledException)
@@ -496,19 +538,34 @@ public class UdpReachabilityProbeService : IDisposable
 		}
 	}
 
-	private void RecordDatagram(ReadOnlySpan<byte> datagram, IPEndPoint remoteEndPoint, bool cold)
+	/// <summary>The kinds of socket a datagram can arrive at, which is what says what the arrival is evidence of.</summary>
+	private enum ProbeSocketKind
+	{
+		/// <summary>The probe socket, which is the one a host punches and the one a player's route is measured at.</summary>
+		Punched,
+
+		/// <summary>The second socket a cold probe is sent from, which no host ever punches.</summary>
+		Cold,
+
+		/// <summary>The socket nothing is probed from, whose only traffic is the punch that measures the router's mapping.</summary>
+		Mapping
+	}
+
+	private void RecordDatagram(ReadOnlySpan<byte> datagram, IPEndPoint remoteEndPoint, ProbeSocketKind kind)
 	{
 		if (EnetConnectProbe.TryReadVerifyConnect(datagram, out EnetConnectReply reply))
 		{
-			RecordAnswer(reply, remoteEndPoint, cold);
+			// No check is ever sent from the mapping socket, so a reply arriving there belongs to a check of another node.
+			if (kind == ProbeSocketKind.Mapping) return;
+
+			RecordAnswer(reply, remoteEndPoint, kind == ProbeSocketKind.Cold);
 			return;
 		}
 
-		// Only the punched socket is ever punched, so a punch read from the cold socket is a datagram that was never
-		// addressed to it and says nothing about this check.
-		if (cold) return;
+		// Only the punched probe socket is ever punched, so a punch read from the cold socket says nothing about this check.
+		if (kind == ProbeSocketKind.Cold) return;
 
-		RecordPunch(datagram, remoteEndPoint);
+		RecordPunch(datagram, remoteEndPoint, kind == ProbeSocketKind.Mapping);
 	}
 
 	private void RecordAnswer(EnetConnectReply reply, IPEndPoint remoteEndPoint, bool cold)
@@ -531,11 +588,24 @@ public class UdpReachabilityProbeService : IDisposable
 	///     office, or two screens on one machine reach this socket from the same public address, so an address match would
 	///     hand one host's punch to another host's check and point that check at a game port that belongs to somebody else.
 	/// </remarks>
-	private void RecordPunch(ReadOnlySpan<byte> datagram, IPEndPoint remoteEndPoint)
+	/// <param name="datagram">The datagram that arrived.</param>
+	/// <param name="remoteEndPoint">The endpoint it arrived from.</param>
+	/// <param name="mapping">
+	///     Whether it arrived at the mapping socket. A punch there is not the route a player takes, but it is the second
+	///     destination whose outside port says whether the router keeps one mapping for every peer.
+	/// </param>
+	private void RecordPunch(ReadOnlySpan<byte> datagram, IPEndPoint remoteEndPoint, bool mapping)
 	{
 		if (!ReachabilityPunch.TryReadProbeId(datagram, out string probeId)) return;
 		if (!_pending.TryGetValue(probeId, out PendingProbe? probe)) return;
 		if (probe.IsExpired(_clock.ElapsedMilliseconds)) return;
+
+		if (mapping)
+		{
+			probe.LearnSecondEndpoint(remoteEndPoint.Address, remoteEndPoint.Port);
+			return;
+		}
+
 		if (!probe.LearnPunchedEndpoint(remoteEndPoint.Address, remoteEndPoint.Port)) return;
 
 		SendAttempt(probe);
@@ -570,6 +640,8 @@ public class UdpReachabilityProbeService : IDisposable
 		_ipv6Socket = null;
 		_coldSocket?.Dispose();
 		_coldSocket = null;
+		_mappingSocket?.Dispose();
+		_mappingSocket = null;
 
 		for (int index = 0; index < _receiveLoops.Count; index++)
 		{
@@ -597,6 +669,8 @@ public class UdpReachabilityProbeService : IDisposable
 		private volatile bool _coldAnswered;
 		private IPAddress? _observedAddress;
 		private int _observedPort;
+		private IPAddress? _secondObservedAddress;
+		private int _secondObservedPort;
 		private int _attempts;
 		private int _coldAttempts;
 		private PunchedTarget? _punchedTarget;
@@ -662,6 +736,16 @@ public class UdpReachabilityProbeService : IDisposable
 		public IPAddress? ObservedAddress => _observedAddress;
 
 		public int ObservedPort => _observedPort;
+
+		/// <summary>
+		///     The endpoint the game port's punch arrived from at this node's second socket, which is the external port this
+		///     router exposes toward that destination. Comparing it with <see cref="ObservedPort" /> is what measures whether
+		///     the router keeps one mapping for every peer.
+		/// </summary>
+		public IPAddress? SecondObservedAddress => Volatile.Read(ref _secondObservedAddress);
+
+		/// <summary>The port the punch toward this node's second socket arrived from, or zero when it never arrived.</summary>
+		public int SecondObservedPort => Volatile.Read(ref _secondObservedPort);
 
 		public bool IsExpired(long nowMilliseconds) => nowMilliseconds >= DeadlineMilliseconds;
 
@@ -736,6 +820,19 @@ public class UdpReachabilityProbeService : IDisposable
 			_observedAddress = address;
 			_observedPort = port;
 			_answered = true;
+		}
+
+		/// <summary>
+		///     Records the endpoint the punch toward this node's second socket arrived from. Only the first one is taken, and
+		///     it is kept apart from the endpoint the check probes: it is not a route a player takes, it is the second
+		///     destination the router was shown, whose external port is what the mapping measurement compares.
+		/// </summary>
+		/// <param name="address">The address the punch arrived from.</param>
+		/// <param name="port">The port the punch arrived from.</param>
+		public void LearnSecondEndpoint(IPAddress address, int port)
+		{
+			if (Interlocked.CompareExchange(ref _secondObservedPort, port, 0) != 0) return;
+			Volatile.Write(ref _secondObservedAddress, address);
 		}
 
 		/// <summary>

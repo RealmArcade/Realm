@@ -3,9 +3,12 @@
 # own router finds the lobby by identifier and is admitted. Both routers' connection tables are sampled while the join
 # is in flight, which is the instrument that tells a punch that worked from two ends that disagree about a port.
 #
-#   listed-join.sh [--mapping reuse|per-destination] [--forward] [--registry-only]
+#   listed-join.sh [--mapping reuse|translating|per-destination] [--forward] [--registry-only]
 #
-#   --mapping reuse|per-destination  the routers' NAT mapping mode (see realm-rig.sh mapping)
+#   --mapping reuse|translating|per-destination
+#                           the routers' NAT mapping mode (see realm-rig.sh mapping). `translating` is a router that keeps
+#                           one mapping for every destination but gives it an outside port of its own, which is the shape
+#                           almost every home router presents and the one a lobby has to be listed at correctly.
 #   --forward               open the host's game port to unsolicited traffic on its router, which is the case a player who
 #                           did the work gets
 #   --registry-only         start the registry and stop, so a scenario can be driven by hand

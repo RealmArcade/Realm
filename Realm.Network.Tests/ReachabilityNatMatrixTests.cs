@@ -64,31 +64,34 @@ public class ReachabilityNatMatrixTests
 		using var gamePort = new FakeGamePort(FakeGamePort.Behaviour.AnswerOnlySolicited);
 		using var probes = new UdpReachabilityProbeService(FreePort.Udp());
 		using var registry = new ProbeRegistryHost(probes);
-		using var firstRouter = new SimulatedNat(gamePort.Port);
-		using var secondRouter = new SimulatedNat(gamePort.Port);
 
-		Assert.That(firstRouter.PublicPort, Is.Not.EqualTo(secondRouter.PublicPort), "the two attempts must expose different ports or the drift this test covers cannot happen");
+		// Two attempts, each meeting a router that translates the port: one keeps a mapping for every destination and the
+		// other makes a new one per destination. Both are measured on their own, so what the first attempt saw is never what
+		// the second is judged by.
+		using var stableRouter = new SimulatedNat(gamePort.Port);
+		using var driftingRouter = new SimulatedNat(gamePort.Port, MappingBehaviours.PerDestination);
 
 		var verifier = new HostReachabilityVerifier(new HttpClient(), _ => { });
 		var observedPorts = new List<int>();
 
-		foreach (SimulatedNat router in new[] { firstRouter, secondRouter })
+		foreach (SimulatedNat router in new[] { stableRouter, driftingRouter })
 		{
 			bool Punch(string address, int port, string probeId)
 			{
-				gamePort.Solicit(router.PublicEndpoint);
-				router.Punch(new IPEndPoint(IPAddress.Parse(address), port), probeId);
+				var destination = new IPEndPoint(IPAddress.Parse(address), port);
+				gamePort.Solicit(router.OutsideEndpointFor(destination));
+				router.Punch(destination, probeId);
 				return true;
 			}
 
 			HostReachabilityResult result = await verifier.VerifyAsync(registry.BaseUrl, IPAddress.Loopback.ToString(), gamePort.Port, Punch);
 
-			Assert.That(result.Failure, Is.EqualTo(HostReachabilityFailure.MappingPerDestination), result.Detail);
 			Assert.That(result.ObservedPort, Is.EqualTo(router.PublicPort), "each attempt is judged by the endpoint the punch of that attempt exposed, never by one remembered from an earlier one");
+			Assert.That(result.MappingBehaviour, Is.EqualTo(router == stableRouter ? MappingBehaviours.Reused : MappingBehaviours.PerDestination));
 			observedPorts.Add(result.ObservedPort);
 		}
 
-		Assert.That(observedPorts[0], Is.Not.EqualTo(observedPorts[1]), "the second attempt must measure its own outside port, which is what shows nothing was carried over");
+		Assert.That(observedPorts[0], Is.Not.EqualTo(observedPorts[1]), "the two attempts must have measured different outside ports, which is what shows nothing was carried over");
 	}
 
 	[Test]

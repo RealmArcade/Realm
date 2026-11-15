@@ -56,6 +56,39 @@ public class LobbyJoinabilityTests
 	}
 
 	[Test]
+	public void AMappingIsMeasuredByComparingTwoDestinationsAndNeverByComparingTheOutsidePortToTheOneTheLobbyHolds()
+	{
+		Assert.That(MappingBehaviours.FromMeasurement(10000, 10000), Is.EqualTo(MappingBehaviours.Reused), "one outside port for both destinations is a router that keeps one mapping for every player");
+		Assert.That(MappingBehaviours.FromMeasurement(10000, 10001), Is.EqualTo(MappingBehaviours.PerDestination), "a port per destination is a router no player can be told the port of");
+		Assert.That(MappingBehaviours.FromMeasurement(10000, 0), Is.EqualTo(MappingBehaviours.Unknown), "one destination is not a measurement of the mapping");
+		Assert.That(MappingBehaviours.FromMeasurement(0, 0), Is.EqualTo(MappingBehaviours.Unknown));
+		Assert.That(MappingBehaviours.FromMeasurement(8999, 8999), Is.EqualTo(MappingBehaviours.Reused), "a router that kept the port happens to compare equal as well");
+	}
+
+	[Test]
+	public void ATranslatedOutsidePortIsPublishableOnceItIsShownToBeTheSameForEveryDestination()
+	{
+		ReachabilityReport translated = PunchedCheck(observedPort: 10000, secondObservedPort: 10000, coldAnswered: false);
+		Assert.That(ReachabilityClasses.FromReport(translated, MappingBehaviours.Reused), Is.EqualTo(ReachabilityClasses.PunchOnly), "a home router that translates the port is the case a punch exists for");
+
+		ReachabilityReport perDestination = PunchedCheck(observedPort: 10000, secondObservedPort: 10001, coldAnswered: false);
+		Assert.That(ReachabilityClasses.FromReport(perDestination, MappingBehaviours.PerDestination), Is.EqualTo(ReachabilityClasses.Unverified), "a port that is not the one another destination sees is not a port any player can be told");
+
+		ReachabilityReport unmeasured = PunchedCheck(observedPort: 10000, secondObservedPort: 0, coldAnswered: false);
+		Assert.That(ReachabilityClasses.FromReport(unmeasured, MappingBehaviours.Unknown), Is.EqualTo(ReachabilityClasses.Unverified), "an outside port nobody measured must not be published on the strength of one destination");
+	}
+
+	[Test]
+	public void APortAnUnpunchedDatagramReachedNeedsNoMappingMeasurementBecauseItIsForwardedToEveryPlayer()
+	{
+		ReachabilityReport open = PunchedCheck(observedPort: 10000, secondObservedPort: 0, coldAnswered: true);
+		Assert.That(ReachabilityClasses.FromReport(open, MappingBehaviours.Unknown), Is.EqualTo(ReachabilityClasses.Open), "a stranger reached the port at that outside port, which is what every player does");
+
+		ReachabilityReport openAndMeasured = PunchedCheck(observedPort: 10000, secondObservedPort: 10000, coldAnswered: true);
+		Assert.That(ReachabilityClasses.FromReport(openAndMeasured, MappingBehaviours.Reused), Is.EqualTo(ReachabilityClasses.Open));
+	}
+
+	[Test]
 	public void OnlyAPublicLobbyIsCheckedFromOutside()
 	{
 		Assert.That(LobbyJoinability.RequiresExternalCheck(publicLobby: true), Is.True);
@@ -69,4 +102,26 @@ public class LobbyJoinabilityTests
 		Assert.That(LobbyJoinability.DescribeLoopback(connectedOverLoopback: true, lobbyStateReceived: false), Is.EqualTo(LoopbackJoinOutcome.NoAnswer));
 		Assert.That(LobbyJoinability.DescribeLoopback(connectedOverLoopback: true, lobbyStateReceived: true), Is.EqualTo(LoopbackJoinOutcome.Answered));
 	}
+
+	/// <summary>A report from a check that answered at the stated outside ports, with the fields a case is not about left neutral.</summary>
+	/// <param name="observedPort">The outside port the punched route was seen from.</param>
+	/// <param name="secondObservedPort">The outside port the second destination's punch was seen from, or zero.</param>
+	/// <param name="coldAnswered">Whether the port answered a datagram no punch opened the way for.</param>
+	/// <returns>The report.</returns>
+	private static ReachabilityReport PunchedCheck(int observedPort, int secondObservedPort, bool coldAnswered) =>
+		new(
+			"probe",
+			ReachabilityStates.Answered,
+			true,
+			"203.0.113.9",
+			observedPort,
+			"203.0.113.4",
+			8999,
+			"10.10.0.2",
+			1,
+			LobbyAddresses.FamilyName(LobbyAddressFamily.IPv4),
+			coldAnswered,
+			coldAnswered ? 1 : 0,
+			"203.0.113.4",
+			secondObservedPort);
 }

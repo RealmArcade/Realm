@@ -132,36 +132,53 @@ public static class ReachabilityClasses
 	{
 		if (report == null || !report.Answered) return Unverified;
 		if (mappingBehaviour == MappingBehaviours.PerDestination) return Unverified;
+
+		// A mapping nobody could measure is trusted only when the outside port it handed this check is the one the lobby
+		// listens on, or when the port answered a stranger without a punch. A router that changed the port has a mapping of
+		// its own, and one that was never shown to keep a single mapping for every destination may have made one per
+		// destination, which is the case no punch can open; a port an unpunched datagram reached is forwarded to this
+		// machine for every player, which is the same thing as keeping one mapping.
+		if (mappingBehaviour == MappingBehaviours.Unknown && !report.ColdAnswered && report.ObservedPort > 0 && report.ObservedPort != report.AdvertisedPort) return Unverified;
+
 		return report.ColdAnswered ? Open : PunchOnly;
 	}
 }
 
 /// <summary>
 ///     Whether a router reuses one external port for every destination (an endpoint-independent mapping) or makes a new one
-///     per destination. The two need different advice: a reused mapping is what a punch opens for a joining player, while a
-///     per-destination mapping hands the game port a different external port for every peer, so no punch can predict the
-///     port a player should use. It is measured, not guessed, by comparing the external port the host's punch arrived from
-///     with the port the lobby listens on.
+///     per destination. The two need different advice: a reused mapping is what a punch opens for a joining player at the
+///     one port it exposes, while a per-destination mapping hands the game port a different external port for every peer,
+///     so no punch can predict the port a player should use and the lobby cannot be listed at all.
 /// </summary>
+/// <remarks>
+///     It is measured, not guessed, by having the host punch two destinations this node listens on and comparing the
+///     external port each of those punches arrived from. That is the only comparison that answers the question: the
+///     external port differing from the port the lobby listens on says a router translates the port, which almost every
+///     home router does and which is exactly the shape a punch exists for, not that it translates differently per peer.
+/// </remarks>
 public static class MappingBehaviours
 {
-	/// <summary>The router gave the game port the same external port it holds, so one mapping serves every destination.</summary>
+	/// <summary>The router gave the game port one external port whatever it was talking to, so one mapping serves every destination.</summary>
 	public const string Reused = "Reused";
 
-	/// <summary>The router gave the game port an external port of its own for the destination that was measured.</summary>
+	/// <summary>The router gave the game port a different external port for each destination that was measured.</summary>
 	public const string PerDestination = "PerDestination";
 
 	/// <summary>Nothing was measured, so the router's behaviour is unknown.</summary>
 	public const string Unknown = "Unknown";
 
-	/// <summary>Reads the mapping behaviour from the external port a check observed and the port the lobby listens on.</summary>
-	/// <param name="observedPort">The external port the host's punch arrived from, or zero when nothing was observed.</param>
-	/// <param name="advertisedPort">The port the lobby's transport holds.</param>
+	/// <summary>
+	///     Reads the mapping behaviour from the external ports the game port's own punches arrived from at two different
+	///     destinations. One destination is not a measurement of this: a router that keeps one mapping per internal socket
+	///     shows the same port to every peer, and a router that keeps one per destination shows each peer a port of its own.
+	/// </summary>
+	/// <param name="firstObservedPort">The external port the punch toward the first destination arrived from, or zero.</param>
+	/// <param name="secondObservedPort">The external port the punch toward the second destination arrived from, or zero.</param>
 	/// <returns>One of the three behaviour constants.</returns>
-	public static string FromMeasurement(int observedPort, int advertisedPort)
+	public static string FromMeasurement(int firstObservedPort, int secondObservedPort)
 	{
-		if (observedPort <= 0 || advertisedPort <= 0) return Unknown;
-		return observedPort == advertisedPort ? Reused : PerDestination;
+		if (firstObservedPort <= 0 || secondObservedPort <= 0) return Unknown;
+		return firstObservedPort == secondObservedPort ? Reused : PerDestination;
 	}
 }
 
@@ -178,11 +195,21 @@ public record ReachabilityBeginRequest(string AdvertisedIp, int AdvertisedPort, 
 ///     which tells the host which of the node's probe sockets will reach it and therefore which of its own sockets the
 ///     punch has to leave from; an IPv6 check needs no punch at all.
 /// </summary>
-public record ReachabilityTicket(string ProbeId, string ProbeIp, int ProbePort, int WindowMilliseconds, string Family = "");
+public record ReachabilityTicket(string ProbeId, string ProbeIp, int ProbePort, int WindowMilliseconds, string Family = "")
+{
+	/// <summary>
+	///     A second port on this node that the host punches as well, or zero when this node could not open the socket it
+	///     listens on. The two punches are what measure the router's mapping: the port each one arrives from is the outside
+	///     port that destination is reached at, and a router that keeps one mapping shows the same port to both.
+	/// </summary>
+	public int MappingProbePort { get; init; }
+}
 
 /// <summary>
 ///     What a registry node saw while it tried to reach a host's game port. The observed endpoint is what a peer on the
-///     public internet must use, measured from a probe datagram the host's own authority answered.
+///     public internet must use, measured from a probe datagram the host's own authority answered. The second observation
+///     is the endpoint the same game port's punch arrived from at this node's other socket, which is what says whether the
+///     router keeps one external port for every destination.
 /// </summary>
 public record ReachabilityReport(
 	string ProbeId,
@@ -196,7 +223,9 @@ public record ReachabilityReport(
 	int Attempts,
 	string Family = "",
 	bool ColdAnswered = false,
-	int ColdAttempts = 0);
+	int ColdAttempts = 0,
+	string SecondObservedIp = "",
+	int SecondObservedPort = 0);
 
 /// <summary>Marks the refusal a registry node states when it cannot check endpoints in the family a lobby offers.</summary>
 public static class ReachabilityRefusalCodes

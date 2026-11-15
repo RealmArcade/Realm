@@ -45,15 +45,23 @@ public enum HostReachabilityFailure
 	///     is not one a joining player can be told. A punch can only open a way for the endpoint it was aimed at, which makes
 	///     a lobby of this shape unjoinable until the port is forwarded or the players share an overlay network.
 	/// </summary>
-	MappingPerDestination
+	MappingPerDestination,
+
+	/// <summary>
+	///     The router translated the game port's outside port and this node could not measure whether it keeps one mapping
+	///     for every destination, because the second destination's punch never arrived. Nothing is known to be broken, and
+	///     nothing was proved either: a mapping made per destination cannot be joined by punching, so a lobby is not
+	///     published on an outside port nobody showed it keeps for every player.
+	/// </summary>
+	MappingUnmeasured
 }
 
 /// <summary>
 ///     The outcome of rehearsing a join against a registry node. A verified lobby states the endpoint a peer on the public
-///     internet must use, which is this machine's public address with the port the lobby's transport holds: the external
-///     port a check observed belongs to one router mapping for one destination and is not the port a joining player should
-///     be sent to. The class and the mapping behaviour are what the check measured, and they are what the advice to the host
-///     follows from.
+///     internet must use: this machine's public address with the outside port the router exposes for it, which is the port
+///     every player's punch will reach, and which is the port the lobby listens on only on a router that does not translate
+///     it. The class and the mapping behaviour are what the check measured, and they are what the advice to the host follows
+///     from.
 /// </summary>
 public record HostReachabilityResult(HostReachabilityFailure Failure, string ProbeId, string PublicIp, int PublicPort, string Detail)
 {
@@ -166,11 +174,26 @@ public class HostReachabilityVerifier
 			// reaches the node through a translation somewhere is exactly the host it exists for. A node that needs no
 			// punch for an endpoint ignores it, and an IPv6 endpoint answers whether or not it was punched.
 			lastPunchAccepted |= punch(probeAddress, ticket.ProbePort, ticket.ProbeId);
+
+			// The second destination is punched every time as well, because the port that punch arrives from is the other
+			// half of the mapping measurement: two destinations that see the same outside port are a router that keeps one
+			// mapping for every peer, and two that do not are a router no punch can open for a player.
+			if (ticket.MappingProbePort > 0) lastPunchAccepted |= punch(probeAddress, ticket.MappingProbePort, ticket.ProbeId);
 			lastReport = await ReadAsync(registryBaseUrl, ticket.ProbeId, cancellationToken).ConfigureAwait(false);
-			if (lastReport is { Answered: true }) return Verified(ticket.ProbeId, lastReport, advertisedIp, advertisedPort, advertisedFamily, probeAddress, ticket.ProbePort);
+
+			// An answer that needed a punch is finished only once the second destination has been measured too. A port
+			// open to strangers answers on its own before the punch has been read, and needs no second destination: a
+			// router that lets an unpunched datagram through is forwarding one outside port to this machine whatever the
+			// player, so the outside port it measured is the one every player dials.
+			bool measured = ticket.MappingProbePort == 0 || lastReport is { SecondObservedPort: > 0 } or { ColdAnswered: true };
+			if (lastReport is { Answered: true } && measured) return Verified(ticket.ProbeId, lastReport, advertisedIp, advertisedPort, advertisedFamily, probeAddress, ticket.ProbePort);
 
 			await Task.Delay(PollIntervalMilliseconds, cancellationToken).ConfigureAwait(false);
 		}
+
+		// The port answered but the second destination's punch never arrived, so what the answer measured is one outside
+		// port for one destination. That is not silence, and saying so would name the wrong thing to fix.
+		if (lastReport is { Answered: true }) return Verified(ticket.ProbeId, lastReport, advertisedIp, advertisedPort, advertisedFamily, probeAddress, ticket.ProbePort);
 
 		string detail = DescribeSilence(ticket, probeAddress, advertisedIp, advertisedPort, lastReport, lastPunchAccepted);
 		return HostReachabilityResult.Refused(HostReachabilityFailure.ProbeUnanswered, detail);
@@ -182,13 +205,30 @@ public class HostReachabilityVerifier
 		int observedPort = report.ObservedPort > 0 ? report.ObservedPort : advertisedPort;
 		LobbyAddressFamily measuredFamily = family == LobbyAddressFamily.Unknown ? LobbyAddresses.FamilyOf(observedIp) : family;
 
-		string mappingBehaviour = MappingBehaviours.FromMeasurement(observedPort, advertisedPort);
+		// The mapping is measured by the two destinations, never by comparing the outside port to the one the lobby holds:
+		// a router that translates the port and keeps one mapping for every peer is the shape a punch exists for, and
+		// listing it at the port it listens on would send every player to a port the router does not expose.
+		string mappingBehaviour = MappingBehaviours.FromMeasurement(observedPort, report.SecondObservedPort);
 		string reachabilityClass = ReachabilityClasses.FromReport(report, mappingBehaviour);
-		HostReachabilityFailure failure = reachabilityClass == ReachabilityClasses.Unverified ? HostReachabilityFailure.MappingPerDestination : HostReachabilityFailure.None;
-		string detail = failure == HostReachabilityFailure.None
-			? $"the registry node reached the game port and measured the public endpoint {LobbyAddresses.Describe(observedIp, observedPort)} ({reachabilityClass}, mapping {mappingBehaviour})"
-			: $"the registry node reached the game port, but the router gave it the outside port {observedPort} for that destination while the lobby listens on {advertisedPort}, so a punch opens a way for one endpoint and not for the players who would join";
-		return new HostReachabilityResult(failure, probeId, observedIp, advertisedPort, detail)
+
+		HostReachabilityFailure failure = HostReachabilityFailure.None;
+		string detail;
+		if (mappingBehaviour == MappingBehaviours.PerDestination)
+		{
+			failure = HostReachabilityFailure.MappingPerDestination;
+			detail = $"the registry node reached the game port, but the two destinations it was measured at saw it from the outside ports {observedPort} and {report.SecondObservedPort}, so the router gives every player a port of their own and a punch can open a way for one player and no other";
+		}
+		else if (mappingBehaviour == MappingBehaviours.Unknown && observedPort != advertisedPort && !report.ColdAnswered)
+		{
+			failure = HostReachabilityFailure.MappingUnmeasured;
+			detail = $"the registry node reached the game port at the outside port {observedPort} while the lobby listens on {advertisedPort}, and its punch toward the node's second socket never arrived, so whether the router keeps that one outside port for every player was not measured";
+		}
+		else
+		{
+			detail = $"the registry node reached the game port and measured the public endpoint {LobbyAddresses.Describe(observedIp, observedPort)} ({reachabilityClass}, mapping {mappingBehaviour})";
+		}
+
+		return new HostReachabilityResult(failure, probeId, observedIp, observedPort, detail)
 		{
 			ObservedPort = observedPort,
 			ReachabilityClass = reachabilityClass,

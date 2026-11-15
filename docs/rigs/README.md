@@ -6,10 +6,12 @@ Three rigs cover a join failure, in the order they should be used. Only the thir
 
 `SimulatedNat` and `FakeGamePort` put a real UDP relay between the test and the port it judges, so filtering and port
 translation are exercised against real sockets without leaving the test process. It answers the questions the publish
-gate rests on: does a port that answers only after a punch get published, is a silent port refused, and is the published
-port the one the punch exposed.
+gate rests on: does a port that answers only after a punch get published, is a silent port refused, is the published port
+the one the punch exposed, and does a router that gives every destination its own outside port cost a lobby its listing
+while one that keeps a single mapping is published at that mapping's port. `SimulatedNat` models both mapping behaviours,
+so `ReachabilityRouterTests` states each one as its own case.
 
-What it cannot show: a real ENet handshake, the firewall, or a router whose mapping is made per destination.
+What it cannot show: a real ENet handshake or the operating system's firewall.
 
 ## 2. Namespace rig (`tools/rig/realm-rig.sh`)
 
@@ -19,7 +21,9 @@ with the routers doing real `MASQUERADE`. Run it in WSL as root; no desktop hype
 ```bash
 tools/rig/realm-rig.sh up
 tools/rig/realm-rig.sh status
-tools/rig/realm-rig.sh mapping random     # rebuild the routers with a per-destination mapping
+tools/rig/realm-rig.sh mapping reuse|translating|per-destination
+                                          # rebuild the routers: one outside port for every destination, that same one on a
+                                          # port the router chose, or a port per destination
 tools/rig/realm-rig.sh host  <command>    # run inside the host's namespace
 tools/rig/realm-rig.sh player <command>   # run inside the player's namespace
 tools/rig/realm-rig.sh public <command>   # run inside the registry's namespace
@@ -31,7 +35,7 @@ globally scoped, so a lobby server on this rig judges a host the way a public no
 its own network" rule is exercised rather than bypassed. Nothing leaves the machine: there is no route out.
 
 What it proves: a datagram from the host reaches the registry, the registry cannot reach the host unsolicited, a punch
-opens the path, and the published endpoint is the one the router exposed — under either mapping mode.
+opens the path, and the published endpoint is the one the router exposed — under every mapping mode.
 
 What it cannot show: a real ISP's carrier-grade NAT, a real router's firmware, a real VPN exit.
 

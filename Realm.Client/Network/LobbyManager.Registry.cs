@@ -469,10 +469,11 @@ public partial class LobbyManager
 				var registerPayload = new
 				{
 					Map = mapDisplayName,
-					// The port a joining player must use is the one this lobby's transport holds: an external port a check
-					// observed belongs to one router mapping for one destination, and a player sent to it would be sent to a
-					// port the host's router has no mapping for.
-					HostPort = lobbyPort,
+					// The port a joining player must use is the outside port the router exposed to the check, which is the
+					// port every player's punch reaches. On a router that does not translate the port it is the port this
+					// lobby's transport holds, and a router that translates it was measured to keep one mapping for every
+					// destination before anything was published at it.
+					HostPort = primary.Port,
 					NatType = LocalNatType.ToString(),
 					ReportedHostIP = primary.DialAddress,
 					PasswordHash = "",
@@ -531,6 +532,7 @@ public partial class LobbyManager
 			HostReachabilityFailure.ProbeSocketUnknown => "The lobby server could not say where its reachability check comes from, so this lobby was not published.",
 			HostReachabilityFailure.ProbeFromOwnNetwork => "The lobby server reached this machine from inside its own network, so the check only proved that players sharing that network can see the lobby. Point the game at a lobby server on the internet and host again.",
 			HostReachabilityFailure.MappingPerDestination => $"This router gives every destination a different outside port, so the port other players would punch is a different one for each of them and none of them can be told where to connect. Forward UDP port {lobbyPort} to this machine, or play over a VPN or an overlay network such as Tailscale; the lobby was not published.",
+			HostReachabilityFailure.MappingUnmeasured => $"Your router gives this game an outside port of its own ({lobbyPort} is what the lobby listens on), and the lobby server could not reach the second destination it measures that with, so whether that one outside port is the same for every player was not measured. Host again so the check can measure it, forward UDP port {lobbyPort}, or play over a VPN or an overlay network; the lobby was not published.",
 			HostReachabilityFailure.ProbeFamilyUnavailable => "The lobby server cannot check this kind of address, so this lobby was not published there. Another lobby server, or an IPv4 address, would fix it.",
 			_ => $"Other players could not reach this machine on UDP port {lobbyPort}, so this lobby was not published ({reachability.Detail})."
 		};
