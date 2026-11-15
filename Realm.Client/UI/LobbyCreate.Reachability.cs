@@ -164,6 +164,20 @@ public partial class LobbyCreate
 			};
 		}
 
+		// A router that gives every destination its own outside port cannot be opened by a punch at all, so the two pieces
+		// of advice that work are named and the one that does not is left out: telling a host to enable UPnP here would
+		// describe a fix that was just measured not to exist on this router.
+		if (failure.Failure is HostReachabilityFailure.MappingPerDestination)
+		{
+			return new List<string>
+			{
+				string.Format(Tr("The lobby server reached this computer, but your router gave it a different outside port than the one the lobby listens on ({0}). That means the port other players would reach changes with every player, so nobody can be told where to connect, and the lobby was not published."), port),
+				string.Format(Tr("ROUTER: forward UDP port {0} to this computer. A forward is a fixed rule, so it gives every player the same outside port and the lobby becomes reachable."), port),
+				Tr("OVERLAY NETWORK: play over a virtual network such as Tailscale, ZeroTier or Netbird instead. Every player installs it, and the lobby is then reached at the address it gives this computer."),
+				string.Format(Tr("DIRECT CONNECT: players on your own network can still join with Direct Connect at {0}."), directConnectEndpoint)
+			};
+		}
+
 		string firewallParagraph = LobbyForHelp()?.LastFirewallGrant.Grant == WindowsFirewallGrant.Declined
 			? Tr("You dismissed the Windows firewall prompt, so the port is still closed. Host again and approve it, or allow Realm through Windows Defender Firewall in Windows Security.")
 			: string.Format(Tr("WINDOWS FIREWALL: allow Realm to receive incoming UDP connections on port {0}. The game asks Windows for this each time you host, so approve the prompt if it appears. If you dismissed it before, hosting asks again."), port);
@@ -173,7 +187,7 @@ public partial class LobbyCreate
 			string.Format(Tr("Other players could not reach this computer on UDP port {0}, so the lobby was not published."), port),
 			firewallParagraph,
 			string.Format(Tr("ROUTER: forward UDP port {0} to this computer, or switch on UPnP in the router's settings."), port),
-			Tr("You only need one of these. Opening the port on this computer is often enough, because the lobby server helps other players punch through the router when they join."),
+			Tr("You only need one of these. When this lobby is published, the lobby server tells each joining player to send toward you first, which is what most home routers need; a firewall that blocks the port, or a router with no way for an outside packet to arrive, is what was measured here."),
 			string.Format(Tr("DIRECT CONNECT: players on your own network can join with Direct Connect at {0}, even when no port is open."), directConnectEndpoint),
 			Tr("If neither your firewall nor your router can be changed, join another player's lobby instead. Hosting only works when other players can reach you.")
 		};
