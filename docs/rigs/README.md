@@ -157,6 +157,9 @@ The registry publishes for Linux but its `appsettings.json` is not in the publis
 
 ### The authority is not what stalls
 
+**Superseded:** these three sections were written before the harness scene was launched explicitly; hosting never began
+in those runs. What follows is kept for the isolates it records, not as the current account.
+
 Fed one control line on its own stdin, the authority does everything it is asked and does it immediately:
 
 ```bash
@@ -199,3 +202,21 @@ That reframes the remaining work: the rig needs the headless client to finish it
 startup code that reaches for the network — the update check, the server list and whatever else `EnsureServices` awaits —
 has to either bound its waits or be satisfiable from inside the rig, and only then does a listed host get as far as
 opening a port and talking to the registry.
+
+## The listed join, measured
+
+With the scene launched explicitly, a host publishes behind a router with no forward and a guest reaches it by lobby id.
+The guest gets as far as asking the registry where the lobby is, reporting its own endpoint, and knocking twice; the
+authority answers neither time:
+
+```
+[LobbyManager] Joining Lobby b427a874-… via registry server...
+[LobbyManager] Reported this screen's endpoint to 203.0.113.1:60533 from the socket joining the lobby on port 52302.
+[LobbyManager] Joining 203.0.113.2:52302 again after 'The lobby's authority did not answer in time.' (attempt 2 of 2).
+```
+
+The address to compare against is the one the host itself advertises in the same run:
+`mode=listed direct=False address=10.10.0.2:8999 public=203.0.113.2:52302`. Its earlier registration was measured at
+**203.0.113.2:64076**, and the mapping refresh that runs every 20 s is the only thing that could have moved it. A
+registered endpoint that the router no longer maps is knocked on in vain, so the first thing to check is whether the
+refresh keeps the port the registration measured or hands back a new one.
