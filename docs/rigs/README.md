@@ -130,3 +130,27 @@ Two things to know before running a scenario by hand:
 
 - **Run the whole scenario in one shell invocation.** A WSL that restarts reclaims every namespace, so a command that brings the rig up and a later command that uses it are not the same environment. Bring the rig up, start the registry, run both clients and tear down inside one script.
 - **The host namespace needs a way out to a public STUN server**, otherwise the NAT measurement reports `Resource temporarily unavailable` and the host is classified from a partial reading. Starting the registry in `realm-public` before the client is the cheapest check that the path out works at all.
+
+## Where the end-to-end run stops today
+
+With the rig up, a registry running in `realm-public` and the client hosting a listed lobby in `realm-host`, the
+sequence now reaches further than it did and stops at a repeatable point:
+
+- the registry answers on `203.0.113.1:5000`;
+- the client starts, imports assets, measures its NAT and classifies the network;
+- the client spawns the resident authority through the launcher, and the authority writes to its log:
+  `resident authority up pid=… build=v0.0.6` and `watching the screen that started this authority, pid=…`;
+- then nothing. No control line reaches the authority (its log gains nothing after those two lines), the registry
+  receives no request, and the harness writes neither its invite file nor its done file.
+
+Two conclusions worth keeping:
+
+- **The stall is between starting the authority and sending it the first command.** It is not the registry, not the
+  punch and not the transport: nothing arrives at any of them.
+- **UPnP discovery is not the cause.** The client logs a line on every exit path of `UpnpService.OpenPortAsync`, and
+  none appeared, so the stall happens before the endpoint is opened. The rig's router is not an IGD and that call would
+  eventually time out, but it is not what is being waited on here.
+
+The registry publishes for Linux but its `appsettings.json` is not in the published folder: copy
+`appsettings.template.json` beside `Realm.AdminServer.dll` before starting it, or it aborts on startup with
+`StorageDirectory is required`.
