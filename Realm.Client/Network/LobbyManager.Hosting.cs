@@ -400,10 +400,27 @@ public partial class LobbyManager
 
 		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(port);
 
-		// A mapping the router accepted is the only confirmation a lobby that is not listed anywhere can gather on its own,
-		// and it is exactly what makes the address the measurement found worth sending to somebody outside this network.
-		// A listed lobby is confirmed again by the registry node that reaches its port before it is published.
-		_hostPublicEndpointConfirmed = upnpSuccess;
+		// A mapping is the only confirmation a lobby that is not listed anywhere can gather on its own, but accepting one is
+		// not by itself proof: the address the mapping serves traffic at is the router's own outside face, and only that
+		// face reaching the network the measurement saw makes the measured address one somebody outside can join at. A
+		// router behind another one accepts the mapping and answers with a private address of its own, and the forward it
+		// holds then carries nothing from the carrier's network inward.
+		// The port advertised is the one the mapping states rather than the one the STUN query saw the router rewrite,
+		// because a static forward sets the external port itself.
+		string routerExternalAddress = upnpSuccess ? GameContext.Upnp.QueryExternalAddress() : string.Empty;
+		string measuredAddress = _hostPublicIp ?? string.Empty;
+		_hostPublicEndpointConfirmed = upnpSuccess
+			&& routerExternalAddress.Length > 0
+			&& string.Equals(routerExternalAddress, measuredAddress, StringComparison.Ordinal);
+
+		if (_hostPublicEndpointConfirmed)
+		{
+			_hostPublicPort = port;
+		}
+		else if (upnpSuccess)
+		{
+			GameLog.LogToConsole($"[LobbyManager] The router accepted a forward for UDP port {port} but gives its outside address as '{routerExternalAddress}' while this network measured '{measuredAddress}', so that forward does not make the measured address reachable and it is offered as a guess.");
+		}
 
 		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
 		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
