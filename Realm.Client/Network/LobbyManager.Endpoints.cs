@@ -175,9 +175,18 @@ public partial class LobbyManager
 			// and the log beneath it name the node's limit rather than this machine's network.
 			uncheckedFamilies.Add(familyName);
 			registrations.Add(new LobbyEndpointRegistration(advertisedAddress, lobbyPort, familyName, string.Empty));
-			GameLog.LogError(family == LobbyAddressFamily.IPv6
-				? $"[Reachability] {registryUrl} cannot check an ipv6 endpoint, so this lobby cannot be listed over IPv6. A node checks a family it holds a probe socket in, and states its own address in that family with ReachabilityProbePublicIpV6 (or an AAAA record) so a host knows where to reach it."
-				: $"[Reachability] {registryUrl} cannot check an ipv4 endpoint, so this lobby could not be published at all.");
+			// An IPv6 endpoint a node cannot check costs this lobby one route, not the lobby: it is stated as the thing to fix
+			// rather than as a failure, because a dual-stack host still publishes over IPv4. A node that cannot check IPv4
+			// cannot publish anything at all, which is a failure.
+			if (family == LobbyAddressFamily.IPv6)
+			{
+				GameLog.LogToConsole($"[Reachability] {registryUrl} cannot check an ipv6 endpoint, so this lobby is not listed over IPv6. A node checks a family it holds a probe socket in and states its own address in that family with ReachabilityProbePublicIpV6, or under a name with an AAAA record.");
+			}
+			else
+			{
+				GameLog.LogError($"[Reachability] {registryUrl} cannot check an ipv4 endpoint, so this lobby could not be published at all.");
+			}
+
 			return;
 		}
 

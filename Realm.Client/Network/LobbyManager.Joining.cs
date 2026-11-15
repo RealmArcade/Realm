@@ -37,7 +37,10 @@ public partial class LobbyManager
 		InitializeClientState(lobbyId);
 		await EnsureNatTypeMeasuredAsync();
 
+		// Both halves are read from this machine, so a screen that holds no IPv4 address avoids an IPv4 endpoint instead of
+		// dialling one it cannot reach, and a screen with no IPv6 is told a v6-only lobby is out of reach before it tries.
 		bool hasIpv6 = LocalIpv6Available;
+		bool hasIpv4 = LocalEndpointDiscovery.HasIpv4();
 		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
 		int clientPublicPort = _hostPublicPort > 0 ? _hostPublicPort : ENetPort;
 
@@ -63,7 +66,7 @@ public partial class LobbyManager
 				return false;
 			}
 
-			HostConnection connection = await ResolveHostConnectionAsync(response, clientPublicIp, hasIpv6);
+			HostConnection connection = await ResolveHostConnectionAsync(response, clientPublicIp, hasIpv4, hasIpv6);
 			if (!connection.Chosen)
 			{
 				// A lobby reachable over a family this machine has no address in cannot be joined by another attempt, so it is

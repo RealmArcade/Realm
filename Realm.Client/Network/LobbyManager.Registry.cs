@@ -70,9 +70,10 @@ public partial class LobbyManager
 	/// </summary>
 	/// <param name="response">The join answer.</param>
 	/// <param name="clientPublicIp">This screen's own public IPv4 endpoint, as measured before the join.</param>
+	/// <param name="hasIpv4">Whether this screen holds an IPv4 address at all.</param>
 	/// <param name="hasIpv6">Whether this screen holds a global IPv6 address.</param>
 	/// <returns>The endpoint to dial, or why there is none.</returns>
-	private async Task<HostConnection> ResolveHostConnectionAsync(HttpResponseMessage response, string clientPublicIp, bool hasIpv6)
+	private async Task<HostConnection> ResolveHostConnectionAsync(HttpResponseMessage response, string clientPublicIp, bool hasIpv4, bool hasIpv6)
 	{
 		string respText = await response.Content.ReadAsStringAsync();
 		LobbyJoinAnswer? answer = LobbyJoinAnswers.TryParse(respText);
@@ -85,7 +86,7 @@ public partial class LobbyManager
 		string? localIp = answer.Value.LocalAddress;
 		IReadOnlyList<LobbyEndpointInfo> endpoints = answer.Value.EndpointsOrStatedAddress();
 
-		LobbyEndpointChoice choice = LobbyEndpointSelection.Choose(endpoints, hasIpv4: true, hasIpv6);
+		LobbyEndpointChoice choice = LobbyEndpointSelection.Choose(endpoints, hasIpv4, hasIpv6);
 		if (!choice.Chosen || choice.Endpoint == null)
 		{
 			return new HostConnection(string.Empty, 0, LobbyAddressFamily.Unknown, false, DescribeJoinFamilyFailure(choice));
