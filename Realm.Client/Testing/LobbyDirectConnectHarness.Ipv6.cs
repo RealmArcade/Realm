@@ -153,6 +153,7 @@ public partial class LobbyDirectConnectHarness
 			{
 				notes.Add($"the registry node published an IPv6-only lobby as {lobbyId}");
 				await CheckListedFamiliesAsync(registryUrl, lobbyId, notes, failures);
+				await CheckBothFamiliesAreVerifiedAsync(registryUrl, hostPort, notes, failures);
 
 				// The lobby's own host signalling channel is what a join answer is relayed through when the host is not on
 				// the registry node's own network. This rig publishes the lobby without a host screen of its own, so it
@@ -412,6 +413,91 @@ public partial class LobbyDirectConnectHarness
 		}
 
 		failures.Add($"the lobby {lobbyId} is missing from the listing");
+	}
+
+	/// <summary>
+	///     Publishes the same game port at both of its addresses, which is what a dual-stack host does, and reads back what
+	///     the node stored. Each endpoint is measured from the socket of its own family, so a node that mixed them up would
+	///     report a family it never reached.
+	/// </summary>
+	/// <param name="registryUrl">The rig's registry node.</param>
+	/// <param name="hostPort">The game port the authority listens on in both families.</param>
+	/// <param name="notes">The lines to report.</param>
+	/// <param name="failures">The lines that failed.</param>
+	private static async Task CheckBothFamiliesAreVerifiedAsync(string registryUrl, int hostPort, List<string> notes, List<string> failures)
+	{
+		// A check is consumed by the registration that reads it, so a lobby published at two addresses asks for one check
+		// per address rather than reusing the one the IPv6-only lobby already spent.
+		string? ipv6ProbeId = await MeasureEndpointAsync(registryUrl, "::1", hostPort);
+		if (ipv6ProbeId == null)
+		{
+			failures.Add("the registry node never reached the game port over IPv6 a second time, so a dual-stack lobby could not be published");
+			return;
+		}
+
+		string? ipv4ProbeId = await MeasureEndpointAsync(registryUrl, "127.0.0.1", hostPort);
+		if (ipv4ProbeId == null)
+		{
+			failures.Add("the registry node never reached the game port over IPv4, so a dual-stack lobby could not be published");
+			return;
+		}
+
+		var request = new RigRegisterRequest(
+			"IPv6 Rig Dual Stack Map",
+			hostPort,
+			"Open",
+			"127.0.0.1",
+			string.Empty,
+			4,
+			1,
+			20,
+			RealmVersion.GameBinaryVersion,
+			"127.0.0.1",
+			"1.0.0",
+			new List<RigEndpoint>
+			{
+				new("::1", hostPort, LobbyAddresses.FamilyName(LobbyAddressFamily.IPv6), ipv6ProbeId),
+				new("127.0.0.1", hostPort, LobbyAddresses.FamilyName(LobbyAddressFamily.IPv4), ipv4ProbeId)
+			},
+			ipv6ProbeId);
+
+		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+		HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{registryUrl}/lobbies/register", request);
+		if (!response.IsSuccessStatusCode)
+		{
+			failures.Add($"a dual-stack lobby was refused with {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+			return;
+		}
+
+		using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+		string lobbyId = document.RootElement.GetProperty("lobbyId").GetString() ?? string.Empty;
+
+		string listing = await httpClient.GetStringAsync($"{registryUrl}/lobbies");
+		using JsonDocument listingDocument = JsonDocument.Parse(listing);
+		foreach (JsonElement lobby in listingDocument.RootElement.EnumerateArray())
+		{
+			if (lobby.GetProperty("lobbyId").GetString() != lobbyId) continue;
+
+			var families = new List<string>();
+			var addresses = new List<string>();
+			foreach (JsonElement endpoint in lobby.GetProperty("endpoints").EnumerateArray())
+			{
+				if (!endpoint.GetProperty("verified").GetBoolean()) failures.Add("a dual-stack lobby carries an endpoint the registry node never reached");
+				families.Add(endpoint.GetProperty("family").GetString() ?? string.Empty);
+				addresses.Add(LobbyAddresses.Describe(endpoint.GetProperty("address").GetString() ?? string.Empty, endpoint.GetProperty("port").GetInt32()));
+			}
+
+			if (families.Count != 2 || !families.Contains(LobbyAddresses.FamilyName(LobbyAddressFamily.IPv4)) || !families.Contains(LobbyAddresses.FamilyName(LobbyAddressFamily.IPv6)))
+			{
+				failures.Add($"a dual-stack lobby states {string.Join(" + ", families)} instead of both families");
+				return;
+			}
+
+			notes.Add($"a dual-stack lobby states both verified endpoints, {string.Join(" and ", addresses)}");
+			return;
+		}
+
+		failures.Add($"the dual-stack lobby {lobbyId} is missing from the listing");
 	}
 
 	/// <summary>
