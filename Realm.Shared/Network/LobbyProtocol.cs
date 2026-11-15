@@ -49,7 +49,14 @@ public enum LobbyCommandKind : byte
 	SetSlotOpen = 19,
 
 	/// <summary>Chooses the shroud mode the match plays, in <see cref="LobbyCommand.Progress" />.</summary>
-	SetShroudMode = 20
+	SetShroudMode = 20,
+
+	/// <summary>
+	///     States, in <see cref="LobbyCommand.Text" />, a sentence the lobby's authority writes into its own chat history as a
+	///     System line. Only the seat that administers the lobby may send one: it is how a host tells its players what its
+	///     network is doing, and it is the authority that stores and broadcasts the line so every peer sees it.
+	/// </summary>
+	ReportJoinFailure = 21
 }
 
 /// <summary>

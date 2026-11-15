@@ -60,7 +60,7 @@ public static class LobbyEndpoints
 		}
 	}
 
-	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections, UdpReachabilityProbeService reachabilityProbe, JoinerPunchRelay joinerRelay)
+	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections, UdpReachabilityProbeService reachabilityProbe, JoinerPunchRelay joinerRelay, JoinFailureFeedback joinFailureFeedback)
 	{
 	app.MapPost(ReachabilityRoutes.Begin, (ReachabilityBeginRequest req, HttpContext context) =>
 	{
@@ -370,6 +370,7 @@ public static class LobbyEndpoints
 			if (lobby.HostToken == req.HostToken)
 			{
 				registry.TryRemove(req.LobbyId, out _);
+				joinFailureFeedback.Forget(req.LobbyId);
 
 				if (hostConnections.TryRemove(req.LobbyId, out var socket))
 				{
@@ -501,6 +502,15 @@ public static class LobbyEndpoints
 		return Results.BadRequest(new { Message = "Host signaling channel is disconnected" });
 	});
 
+
+	app.MapPost(JoinFailureRoutes.Report, async (JoinFailureReport report, HttpContext context) =>
+	{
+		string sourceAddress = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "unknown";
+		JoinFailureFeedback.Outcome outcome = await joinFailureFeedback.ReportAsync(report, sourceAddress);
+		if (outcome == JoinFailureFeedback.Outcome.UnknownLobby) return Results.NotFound(new { Message = "That lobby is not listed here." });
+		if (outcome == JoinFailureFeedback.Outcome.RateLimited) return Results.Json(new { Message = "Too many join failures were reported for this lobby or from this address." }, statusCode: StatusCodes.Status429TooManyRequests);
+		return Results.Ok(new { Reported = outcome == JoinFailureFeedback.Outcome.Reported, Collapsed = outcome == JoinFailureFeedback.Outcome.Collapsed });
+	});
 
 	app.MapGet($"{JoinerPunchRoutes.State}/{{token}}", (string token) =>
 	{

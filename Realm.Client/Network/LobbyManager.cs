@@ -204,6 +204,19 @@ public partial class LobbyManager : BaseMapTransferNode
 	}
 
 	public NatType LocalNatType { get; private set; } = NatType.Open;
+
+	/// <summary>
+	///     The class this lobby was listed with: reachable without a punch, reachable only after one, or not shown to have
+	///     been reachable at all. It is what the lobby room, the diagnostics block and the advice a host reads follow from.
+	/// </summary>
+	public string ReachabilityClass { get; private set; } = ReachabilityClasses.Unverified;
+
+	/// <summary>
+	///     Whether this lobby's router reused one outside port for the destinations that were measured, which is what decides
+	///     whether forwarding a port is advice worth giving or an impossibility to state.
+	/// </summary>
+	public string MappingBehaviour { get; private set; } = MappingBehaviours.Unknown;
+
 	public bool IsHost { get; set; }
 
 	/// <summary>

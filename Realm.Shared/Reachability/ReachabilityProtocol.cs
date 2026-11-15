@@ -50,6 +50,21 @@ public static class ReachabilityClasses
 	/// <returns>Whether a lobby measured this way may be listed.</returns>
 	public static bool IsPublishable(string? reachabilityClass) => reachabilityClass is Open or PunchOnly;
 
+	/// <summary>
+	///     What a class becomes when real players fail to get in. A lobby shown to be reachable without a punch stops claiming
+	///     that the moment players cannot reach it, and one that only punching opened stops claiming even that. Nothing is
+	///     ever promoted: only a fresh check may state a better class, because a failure is evidence and a class is a
+	///     measurement.
+	/// </summary>
+	/// <param name="reachabilityClass">The class the lobby was listed with.</param>
+	/// <returns>The class a failing lobby is downgraded to.</returns>
+	public static string Downgrade(string? reachabilityClass)
+	{
+		if (reachabilityClass == Open) return PunchOnly;
+		if (reachabilityClass == PunchOnly) return Unverified;
+		return Unverified;
+	}
+
 	/// <summary>The class a report states, which is the honest reading of what the check actually saw.</summary>
 	/// <param name="report">The report a registry node published.</param>
 	/// <returns>One of the three class constants.</returns>

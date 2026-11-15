@@ -9,6 +9,10 @@
 #   --forward               open the host's game port to unsolicited traffic on its router, which is the case a player who
 #                           did the work gets
 #   --registry-only         start the registry and stop, so a scenario can be driven by hand
+#   --block-punch           drop the punches the host's game port sends toward the player, which is the network where a
+#                           listed lobby is published and nobody can get in
+#   --fail-storm N          after the guest gives up, post N join-failure reports from the player's network at N distinct
+#                           endpoints, which is how the lobby's line limit and its downgrade are measured
 set -u
 export PATH=${PATH}:/usr/local/dotnet:/opt/dotnet
 
@@ -23,11 +27,15 @@ MAP=${MAP:-/opt/realm-rig/map}
 MODE=reuse
 FORWARD=0
 REGISTRY_ONLY=0
+BLOCK_PUNCH=0
+FAIL_STORM=0
 
 while [[ $# -gt 0 ]]; do
 	case $1 in
 		--mapping) MODE=$2; shift 2 ;;
 		--forward) FORWARD=1; shift ;;
+		--block-punch) BLOCK_PUNCH=1; shift ;;
+		--fail-storm) FAIL_STORM=$2; shift 2 ;;
 		--registry-only) REGISTRY_ONLY=1; shift ;;
 		*) echo "unknown argument: $1" >&2; exit 1 ;;
 	esac
@@ -42,6 +50,11 @@ REALM_RIG_FORWARD_GAME_PORT=$FORWARD "$REPO/tools/rig/realm-rig.sh" up >/dev/nul
 
 if [[ $FORWARD -eq 1 ]]; then
 	echo "the host's router now forwards UDP 8999 to 10.10.0.2:8999, unsolicited traffic included"
+fi
+
+if [[ $BLOCK_PUNCH -eq 1 ]]; then
+	ip netns exec realm-host-router iptables -I FORWARD 1 -i lan-host -o wan-host -p udp -s 10.10.0.2 --sport 8999 -d 198.51.100.0/24 -j DROP
+	echo "the host's router now drops every punch its game port sends toward the player's network"
 fi
 
 cp "$REGISTRY_DIR/appsettings.template.json" "$REGISTRY_DIR/appsettings.json"
@@ -108,6 +121,15 @@ AUTHORITY_LOG=$(ls -t /root/.local/share/godot/app_userdata/Realm/logs/local_aut
 [[ -n ${AUTHORITY_LOG:-} ]] && grep -iE "punch|peer|refus|lobby opened|seat" "$AUTHORITY_LOG" | tail -12
 echo "--- player router conntrack (duplicates collapsed) ---"
 sort -u "$LOGS"/ct-player.txt 2>/dev/null | tail -8
+if [[ $FAIL_STORM -gt 0 ]]; then
+	for index in $(seq 1 "$FAIL_STORM"); do
+		ip netns exec realm-player curl -s -o /dev/null -w "report $index: %{http_code}
+" -H "Content-Type: application/json" 			-d "{\"LobbyId\":\"$LOBBY_ID\",\"Phase\":\"answer\",\"Endpoint\":\"198.51.100.9:6$index\",\"Attempts\":2,\"ElapsedMilliseconds\":30000}" 			"$REGISTRY_URL/lobbies/join-failure"
+	done
+	echo "--- lobby lines the host was given ---"
+	[[ -n ${AUTHORITY_LOG:-} ]] && grep -F "system chat" "$AUTHORITY_LOG" | tail -8
+fi
+
 echo "--- host router conntrack (duplicates collapsed) ---"
 sort -u "$LOGS"/ct-host.txt 2>/dev/null | tail -8
 

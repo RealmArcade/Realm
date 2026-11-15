@@ -32,6 +32,18 @@ using HttpClient = System.Net.Http.HttpClient;
 namespace Realm.Client.Network;
 public partial class LobbyManager
 {
+	/// <summary>How long the current join has been running, which every phase line states beside it.</summary>
+	private long _joinStartedMilliseconds;
+
+	/// <summary>The step the current join has reached, which is the step a failure is reported against.</summary>
+	private string _joinPhase = JoinPhases.Registry;
+
+	/// <summary>The endpoint the current join is aimed at, as the phase lines and the failure report state it.</summary>
+	private string _joinEndpoint = string.Empty;
+
+	/// <summary>How many connection attempts the current join has made, which a failure report states.</summary>
+	private int _joinAttempts;
+
 	public async Task<bool> JoinLobbyAsync(string lobbyId)
 	{
 		InitializeClientState(lobbyId);
@@ -39,18 +51,45 @@ public partial class LobbyManager
 
 		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
 
+		_joinStartedMilliseconds = Environment.TickCount64;
+		_joinPhase = JoinPhases.Registry;
+		_joinEndpoint = string.Empty;
+		_joinAttempts = 0;
+
 		try
 		{
+			long registryStarted = Environment.TickCount64;
 			var response = await SendJoinRequestAsync(lobbyId, clientPublicIp);
 			if (response == null || !response.IsSuccessStatusCode)
 			{
 				var errorText = response != null ? await response.Content.ReadAsStringAsync() : "All registry nodes offline";
+				MarkJoinPhase(JoinPhases.Registry, "refused", registryStarted);
 				GameLog.LogError($"[LobbyManager] Failed to join lobby: {errorText}");
+				await ReportJoinFailureAsync(lobbyId);
+				LastHostError = JoinFailureSentence(JoinPhases.Registry);
+				LobbyJoinError = LastHostError;
 				ConnectionFailed?.Invoke("Failed to coordinate join.");
 				return false;
 			}
 
+			MarkJoinPhase(JoinPhases.Registry, "answered", registryStarted);
+
+			long resolveStarted = Environment.TickCount64;
+			_joinPhase = JoinPhases.Resolve;
 			LobbyJoinTarget target = await ResolveHostConnectionInfoAsync(response);
+			if (string.IsNullOrEmpty(target.Ip) || target.Port <= 0)
+			{
+				MarkJoinPhase(JoinPhases.Resolve, "unusable", resolveStarted);
+				LastHostError = JoinFailureSentence(JoinPhases.Resolve);
+				LobbyJoinError = LastHostError;
+				await ReportJoinFailureAsync(lobbyId);
+				ConnectionFailed?.Invoke(LastHostError);
+				return false;
+			}
+
+			_joinEndpoint = $"{target.Ip}:{target.Port}";
+			MarkJoinPhase(JoinPhases.Resolve, "resolved", resolveStarted);
+
 			_connectedHostIp = target.Ip;
 			return await EstablishLobbyConnectionAsync(target);
 		}
@@ -60,6 +99,40 @@ public partial class LobbyManager
 			ConnectionFailed?.Invoke(ex.Message);
 			return false;
 		}
+	}
+
+	/// <summary>
+	///     Writes one line for a step of the join, carrying the step, what it did, how long it took and the endpoint it was
+	///     aimed at. A captured log then says which step broke without anybody reading two consoles side by side.
+	/// </summary>
+	/// <param name="phase">The step that finished.</param>
+	/// <param name="outcome">What the step did.</param>
+	/// <param name="startedMilliseconds">When the step started, on the same clock the join started on.</param>
+	private void MarkJoinPhase(string phase, string outcome, long startedMilliseconds)
+	{
+		GameLog.LogToConsole($"[Join] phase={phase} outcome={outcome} elapsed={Environment.TickCount64 - startedMilliseconds}ms total={Environment.TickCount64 - _joinStartedMilliseconds}ms endpoint={(_joinEndpoint.Length > 0 ? _joinEndpoint : "none")}");
+	}
+
+	/// <summary>
+	///     The sentence a failure at one step of the join is shown with. Each step has its own, because the thing a player has
+	///     to change is different for each: a lobby server that is down, a lobby server that will not say where the lobby is, a
+	///     host that never sent toward this screen, and a host whose port never answered are four different problems.
+	/// </summary>
+	/// <param name="phase">The step that failed.</param>
+	/// <returns>The sentence to show.</returns>
+	private static string JoinFailureSentence(string phase)
+	{
+		return phase switch
+		{
+			JoinPhases.Registry => Tr("The lobby server could not be reached, so this lobby could not be found."),
+			JoinPhases.Resolve => Tr("The lobby server answered without saying where this lobby is."),
+			JoinPhases.Report => Tr("This screen could not tell the lobby where it is, so the host could not send toward it."),
+			JoinPhases.Punch => Tr("The lobby's host never sent toward this screen, so the way back was never opened. The host may need UPnP enabled or this UDP port forwarded."),
+			JoinPhases.Answer => Tr("The lobby's host sent toward this screen but its game port never answered. The host may need this UDP port forwarded, or this network may need a VPN or an overlay network."),
+			JoinPhases.Admission => Tr("The lobby's authority refused this screen."),
+			JoinPhases.Session => Tr("The lobby admitted this screen but never described itself to it."),
+			_ => Tr("The lobby's authority did not answer in time.")
+		};
 	}
 
 	public async Task<bool> JoinByIpAsync(string targetIp, int targetPort = DefaultGamePort)
@@ -139,8 +212,11 @@ public partial class LobbyManager
 		bool punchCoordinated = false;
 		if (!isLocalConnection && target.Punch.IsUsable)
 		{
+			long reportStarted = Environment.TickCount64;
+			_joinPhase = JoinPhases.Report;
 			joinLocalPort = await ReportJoinerEndpointFromJoinPortAsync(target.Punch);
 			punchCoordinated = joinLocalPort > 0;
+			MarkJoinPhase(JoinPhases.Report, punchCoordinated ? "sent" : "refused", reportStarted);
 		}
 
 		_establishingLobbyConnection = true;
@@ -158,9 +234,13 @@ public partial class LobbyManager
 				session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
 				AttachLobbySession(session);
 
+				_joinAttempts++;
+				long answerStarted = Environment.TickCount64;
+				_joinPhase = JoinPhases.Answer;
 				if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), joinLocalPort, out string joinFailure))
 				{
 					failure = joinFailure;
+					MarkJoinPhase(JoinPhases.Answer, "unusable", answerStarted);
 					DropLobbySession(session);
 					continue;
 				}
@@ -175,11 +255,14 @@ public partial class LobbyManager
 				if (admission.Failure == null)
 				{
 					IsHost = session.IsAdmin;
+					MarkJoinPhase(JoinPhases.Admission, "admitted", answerStarted);
 					return true;
 				}
 
 				failure = admission.Failure;
 				rejected = admission.Answered;
+				_joinPhase = rejected ? JoinPhases.Admission : JoinPhases.Answer;
+				MarkJoinPhase(_joinPhase, rejected ? "refused" : "silent", answerStarted);
 				DropLobbySession(session);
 			}
 		}
@@ -188,13 +271,18 @@ public partial class LobbyManager
 			_establishingLobbyConnection = false;
 		}
 
-		if (!string.IsNullOrEmpty(failure) && !rejected && punchCoordinated) failure = $"{failure} {await DescribePunchStateAsync(target.Punch)}";
+		if (!string.IsNullOrEmpty(failure) && !rejected && punchCoordinated)
+		{
+			JoinPunchOutcome punchOutcome = await ReadPunchStateAsync(target.Punch.Token);
+			_joinPhase = punchOutcome == JoinPunchOutcome.Punched ? JoinPhases.Answer : JoinPhases.Punch;
+			failure = JoinFailureSentence(_joinPhase);
+		}
 
-		LobbyJoinError = string.Equals(failure, LobbyLimits.KickedRejection, StringComparison.Ordinal)
-			? "You were removed from this lobby."
-			: failure;
+		LobbyJoinError = string.Equals(failure, LobbyLimits.KickedRejection, StringComparison.Ordinal) ? "You were removed from this lobby." : failure;
 		LastHostError = failure;
+
 		GameLog.LogError($"[LobbyManager] {failure}");
+		await ReportJoinFailureAsync(ActiveLobbyId ?? string.Empty);
 		Disconnect();
 		ConnectionFailed?.Invoke("Direct connection handshake failed.");
 		return false;
@@ -285,21 +373,34 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
-	///     States what became of the punch this join asked for, which is the one half of a failed join this screen cannot see
-	///     for itself: the host either never stated that it sent anything toward this screen, or it did and nothing came back.
-	///     The two need different answers from the player, so the sentence a failure ends with says which one happened.
+	///     Tells the registry node that this join failed, which is what lets the lobby's host read that real players could not
+	///     get in. It states the step that broke, the endpoint it was aimed at, how many attempts were made and how long the
+	///     join was given, and nothing about the player: the host needs to know somebody could not get in, not who. A direct
+	///     lobby has no registry to tell and reports nothing.
 	/// </summary>
-	/// <param name="ticket">The ticket the registry node stated for this join.</param>
-	/// <returns>One sentence about the punch, to append to the reason the join failed.</returns>
-	private async Task<string> DescribePunchStateAsync(JoinerPunchTicket ticket)
+	/// <param name="lobbyId">The lobby the join was for.</param>
+	private async Task ReportJoinFailureAsync(string lobbyId)
 	{
-		JoinPunchOutcome outcome = await ReadPunchStateAsync(ticket.Token);
-		return outcome switch
+		if (string.IsNullOrEmpty(lobbyId) || lobbyId.StartsWith("direct-", StringComparison.Ordinal)) return;
+
+		try
 		{
-			JoinPunchOutcome.Punched => "The lobby's host sent toward this screen, so the reply was lost on the way back; the host may need to forward its game port.",
-			JoinPunchOutcome.Reported => "The lobby's host was told where this screen is but never stated that it sent toward it, so nothing opened the way back.",
-			_ => "The lobby's host was never told where this screen is, so it could not send toward it."
-		};
+			JoinFailureReport report = new(
+				lobbyId,
+				_joinPhase,
+				_joinEndpoint,
+				_joinAttempts,
+				(int)Math.Clamp(Environment.TickCount64 - _joinStartedMilliseconds, 0, int.MaxValue));
+
+			using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(2000));
+			var content = new StringContent(JsonSerializer.Serialize(report), Encoding.UTF8, "application/json");
+			using HttpResponseMessage response = await _httpClient.PostAsync($"{RegistryServerUrl}{JoinFailureRoutes.Report}", content, timeout.Token);
+			if (!response.IsSuccessStatusCode) GameLog.LogToConsole($"[LobbyManager] The lobby server would not take this join failure report: {(int)response.StatusCode}");
+		}
+		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or NotSupportedException)
+		{
+			GameLog.LogToConsole($"[LobbyManager] This join failure could not be reported to the lobby server: {exception.GetType().Name}");
+		}
 	}
 
 	/// <summary>What the registry node saw of one join's report and punch.</summary>

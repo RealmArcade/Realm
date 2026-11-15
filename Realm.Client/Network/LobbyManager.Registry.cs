@@ -276,6 +276,14 @@ public partial class LobbyManager
 				string token = root.TryGetProperty("Token", out JsonElement tokenElement) ? tokenElement.GetString() ?? string.Empty : string.Empty;
 				Callable.From(() => SendPunchRequest(clientIp, clientPort, token)).CallDeferred();
 			}
+			else if (root.GetProperty("Action").GetString() == "JoinFailed")
+			{
+				string phase = root.TryGetProperty("Phase", out JsonElement phaseElement) ? phaseElement.GetString() ?? string.Empty : string.Empty;
+				string endpoint = root.TryGetProperty("Endpoint", out JsonElement endpointElement) ? endpointElement.GetString() ?? string.Empty : string.Empty;
+				int distinctFailures = root.TryGetProperty("DistinctFailures", out JsonElement countElement) && countElement.ValueKind == JsonValueKind.Number ? countElement.GetInt32() : 0;
+				string reachabilityClass = root.TryGetProperty("ReachabilityClass", out JsonElement classElement) ? classElement.GetString() ?? string.Empty : string.Empty;
+				Callable.From(() => ReportJoinFailureToLobby(phase, endpoint, distinctFailures, reachabilityClass)).CallDeferred();
+			}
 		}
 		catch (Exception ex)
 		{
@@ -305,6 +313,46 @@ public partial class LobbyManager
 
 		if (!sent || token.Length == 0) return;
 		_ = SendHostSignalingAsync(new { Action = "Punched", Token = token });
+	}
+
+	/// <summary>
+	///     Writes a joining player's failure into this lobby's own chat, so the host reads it where it can act on it and every
+	///     peer sees the same line. The sentence is composed here, in the language this screen is running in, and the lobby's
+	///     authority is what stores and broadcasts it; the address, the step and the count are the only things taken from the
+	///     report, and none of them is rendered as anything but part of this sentence.
+	/// </summary>
+	/// <param name="phase">The step of the handshake that failed.</param>
+	/// <param name="endpoint">The endpoint the player tried.</param>
+	/// <param name="distinctFailures">How many distinct players failed in the last minute.</param>
+	/// <param name="reachabilityClass">The class the lobby is listed with now.</param>
+	private void ReportJoinFailureToLobby(string phase, string endpoint, int distinctFailures, string reachabilityClass)
+	{
+		if (!IsHost) return;
+
+		string step = phase switch
+		{
+			JoinPhases.Registry => Tr("the lobby could not be found through the lobby server"),
+			JoinPhases.Resolve => Tr("the lobby server did not say where the lobby is"),
+			JoinPhases.Report => Tr("the player could not report where it is, so this lobby could not send toward it"),
+			JoinPhases.Punch => Tr("the player never received the answer this lobby sent toward it"),
+			JoinPhases.Answer => Tr("this lobby's game port never answered the player"),
+			JoinPhases.Admission => Tr("this lobby refused the player"),
+			JoinPhases.Session => Tr("this lobby admitted the player but never described itself to it"),
+			_ => Tr("the handshake failed")
+		};
+
+		string advice = reachabilityClass == ReachabilityClasses.Unverified
+			? Tr("This lobby is no longer listed as reachable; enable UPnP on the router, forward this UDP port, or share the direct address meanwhile.")
+			: MappingBehaviour == MappingBehaviours.PerDestination
+				? Tr("This router gives every destination a different outside port, so punching cannot open it; forward this UDP port, or use a VPN or an overlay network.")
+				: Tr("Other players may need UPnP enabled on this router, or this UDP port forwarded to this machine.");
+
+		int players = Math.Max(1, distinctFailures);
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.ReportJoinFailure,
+			Text = string.Format(Tr("{0} player(s) could not reach this lobby in the last minute: {1}; they tried {2}. {3}"), players, step, endpoint, advice)
+		});
 	}
 
 	/// <summary>
@@ -372,6 +420,8 @@ public partial class LobbyManager
 
 			_hostPublicIp = reachability.PublicIp;
 			_hostPublicPort = reachability.PublicPort;
+			ReachabilityClass = reachability.ReachabilityClass;
+			MappingBehaviour = reachability.MappingBehaviour;
 			_routerReachability = RouterReachability.Confirmed;
 
 			ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
