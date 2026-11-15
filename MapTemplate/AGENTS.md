@@ -2,8 +2,9 @@
 Realm is an RTS Game Engine with a custom map editor for UGC arcade maps.
 
 ## Skills
-Separate skill files are located in the `.agents/skills` folder.
-- `skill-assign-asset`: Automatically queries storage and assigns random matching assets to templates. **Always call `skill-assign-asset` (`AssignRandomAssetsToTemplates(false)` via IPC) after creating a new template in `metadata.json`** to populate missing asset references.
+Separate skill files are located in the `.agent/skills` folder.
+- `skill-assign-asset`: Queries storage and assigns random matching assets to templates. **Call it (`AssignRandomAssetsToTemplates(false)` via IPC) after creating a new template in `metadata.json`** so the template is complete enough to play; it never overwrites a filled field.
+- `skill-review-assets`: Chooses the best-looking icon or model for a template by rendering every candidate with `Realm.Tools.Cli` (`mesh_render`) and looking at them side by side (`image_sheet`), then writing the chosen file into the map. Use it when an asset has to be *chosen* rather than filled at random; it needs no running editor.
 - `skill-translate-map`: Extracts, translates, verifies and prunes this map's own `locale/*.json` catalogs so template names and tooltips render in each player's language. Map text only — it never touches the Realm client's catalogs.
 
 ## Map Scripting & Editor API

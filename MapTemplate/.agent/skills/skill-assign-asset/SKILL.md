@@ -1,12 +1,20 @@
 ---
 name: skill-assign-asset
-description: Assigns matching random assets from the asset index / CAS storage to metadata templates using the Map Editor IPC HTTP bridge.
+description: Fills empty asset fields with random matching assets from the asset index / CAS storage, through the Map Editor IPC HTTP bridge. Bulk placeholder fill only; use skill-review-assets when an asset has to be chosen rather than filled.
 ---
 
 # Skill: Assign Asset (skill-assign-asset)
 
 ## Purpose
 Invokes `AssignRandomAssetsToTemplates(false)` via the Map Editor HTTP IPC bridge to automatically populate empty asset fields (`.rmesh`, `.rtex`, `.raud`, `.ranim`) for newly created or existing templates without overwriting custom assets.
+
+## Filling is not choosing
+This skill picks at random from the assets that match a template, so it exists to make a new template playable and complete. It cannot tell a good icon from a poor one, and it never looks at an image.
+
+- Need a placeholder so the map loads: this skill.
+- Need the asset that actually looks like the template: `skill-review-assets`, which renders the candidates, looks at them, and writes the chosen file into the map. That skill needs no running editor, so it also works when the bridge below is unreachable.
+
+If the bridge does not answer, report it. Editing the same asset fields in `metadata.json` directly produces the same result, and the editor's static validation at map test and publish will report a reference that does not resolve.
 
 ## HTTP IPC Endpoint
 - Primary URL: `http://127.0.0.1:8092/api/`
