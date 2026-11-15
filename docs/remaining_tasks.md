@@ -42,58 +42,41 @@ stop at the end with a report in the shape of section 9.
 
 ## 3. Where the branch stands
 
-`fix/p2p-connection-diagnosis`, head `73f9d80`, 27 commits ahead of `origin/main`, working tree clean.
+`fix/p2p-connection-diagnosis`, head of the branch when this section was written, working tree clean. The whole of P0 to P5
+below is measured in the namespace rig; P6 is written; P7 to P9 are open. The per-item evidence, including the exact log
+line or exit code that closes each one, is in the status table under `The Checklist` in `docs/network_host_resilience_task.md`.
 
-### Proven by measurement, in the namespace rig
+### Fixed, and measured in the rig
 
-- A listed lobby behind a router that drops unsolicited traffic **is reached by a public node through the punch and
-  registers**. `[Reachability] The registry reached this lobby's game port and measured 203.0.113.2:<port>`, followed
-  by `Lobby registered on server. LobbyId: …`.
-- The joiner discovers the lobby by id through the registry, reports its own endpoint from the socket it joins with,
-  and the host **punches that endpoint once per attempt** (`sending a punch from the game port to 198.51.100.2:<port>`).
-- The host's authority **receives the joiner's packets**: `peer <id> connected`, and it sends its `HandshakeChallenge`.
+- **A lobby is listed at the port its transport holds.** The register route stores `req.HostPort`, refuses a lobby that
+  does not state one, and the client sends the bound port rather than the port a check observed. A joiner's conntrack now
+  shows one assured flow instead of two unreplying ones, and `guest.done` reads exit 0 with a seat count.
+- **The joiner punches the lobby before it reports itself.** A router that refuses unsolicited traffic admits the host's
+  answer only from an endpoint this side has already spoken to, and the host punches the moment the registry reads the
+  report. Punching first from the same port removed a race that failed one join in two before it.
+- **A look-alike local address is tried, not trusted.** Two networks that both number themselves `192.168.1.0/24` no
+  longer cost the join two full timeouts: the near address gets 2.5 s and the join falls back to the lobby's outside one.
+- **Reachability is measured, not certified.** A cold probe from a socket the host never punched classifies a lobby
+  `Open`; silence after a successful punch is `PunchOnly`; an answer from inside the lobby's own network, or at an address
+  inside it, publishes nothing. A router whose mapping is per destination is classified `Unverified`, is not listed, and
+  its host is told what its router does and what to change.
+- **A failed join names the step that broke.** The joiner reports the phase, endpoint, attempts and elapsed time to the
+  registry, the registry relays it to the lobby's host WebSocket, and the host's chat gains one line authored by the
+  authority. Identical failures collapse, six lines a minute per lobby and eight reports a minute per source are the caps,
+  and three distinct failures in a minute stop the lobby claiming a reachability its players disproved.
+- **A host can hand over one block of text.** `COPY NETWORK DIAGNOSTICS` states both ports, the measured and the confirmed
+  address, the class, the mapping behaviour, the NAT and firewall state, the lobby server and the last failure either side
+  saw.
+- **Two lobbies on one machine collide nowhere.** The second lobby takes a system port and every address it publishes
+  states that port; the map download and the diagnostic listener ask the system for a port instead of deriving one.
 
-### Broken, with the cause identified and not yet fixed
+### Still open
 
-**The published endpoint is not the port the transport is bound to.** Router conntrack on the joiner's side during a
-join attempt:
-
-```
-ipv4 2 udp 17 29 src=10.20.0.2   dst=203.0.113.2 sport=50939 dport=31816 [UNREPLIED]   ← the port the joiner was told
-ipv4 2 udp 17 21 src=203.0.113.2 dst=198.51.100.2 sport=8999 dport=50939 [UNREPLIED]  ← the host's answers, from 8999
-```
-
-Both flows unacknowledged. The joiner's NAT admits replies only from the endpoint it sent to (`31816`), the host
-answers from `8999`, and the handshake stays half-open: the host logs a connected peer, the joiner never leaves
-`Connecting`, never sends a `ClientHello`, and reports `The lobby's authority did not answer in time.`
-
-`Realm.ListenServerHost/Network/EnetServerTransport.cs` binds with `peer.CreateServer(_requestedPort, …)` and retries
-the same requested port on failure, while the advertised endpoint is produced by a separate reachability measurement.
-The two are not reconciled.
-
-### Verified by code inspection only (never exercised)
-
-- `A11` — the register route refuses a non-public endpoint.
-- `A8` — a stale public port does not survive a failed measurement.
-- `A7` — firewall rule behaviour on upgrade.
-
-### Known dead ends — do not re-investigate
-
-Each of these was measured and disproved. Re-opening them wastes hours.
-
-1. **UPnP gateway discovery** was not the cause of any stall; the code never reached it in the failing runs.
-2. **Mapping-port drift** across a session does not exist; the two numbers that suggested it came from two different
-   runs. Within a run, registration and advertisement agree.
-3. **The punch's source port** is correct: `EnetServerTransport.SendToAddress` sends through `_peer.GetHost()`, the
-   same with which it listens.
-4. **The joiner's endpoint report** does leave from the joining socket: `ClientNetworkChannel.SendToAddress` refuses to
-   send unless the `ENetMultiplayerPeer` exists and sends through its host socket.
-5. **A spent punch ticket** was real and is fixed (`8ed2d94`): `JoinerPunchRelay` used to `TryRemove` the ticket on the
-   first report, so a joiner's retry was never relayed. It now keeps the ticket for its lifetime.
-6. **The retry budget** is not too short: the second attempt begins fifteen seconds after the punch, and still fails
-   for the port reason above.
-
----
+- A5 (the authority's bind retry still runs on its main thread for up to a second before falling back), A7 (firewall rule
+  migration), A9 (executor capabilities), A10 and G1-G2 (contract tests, which this project keeps out of its suite on
+  purpose), B4 (only advertise a reachable seeder), B5 (audit of every address consumer), C3, C4, C6, C8, C11, C12, E1
+  (written, not measured), F (relay), H4 (needs F2), I1/J2 (the CLI joiner exists; its phase output has not been re-checked
+  since the phases were named), P9's remaining review of the older sections of the checklist.
 
 ## 4. The test rig
 
@@ -307,6 +290,9 @@ All of the following, measured on this checkout:
 2. Rig: the same scenario with the host's game port firewalled fails with a host-visible explanation, not a timeout.
 3. Rig: a direct-connect guest still joins, and a loopback guest still joins.
 4. Rig: two clients behind one public address (same-namespace or a shared router) are not mistaken for a LAN.
+   Measured both ways: `listed-join.sh --same-machine` joins over the host's own network address in 144 ms, and
+   `--lookalike-lan` (two networks that number themselves the same, different public addresses) disproves the near
+   address in one short attempt and joins at the public one.
 5. `dotnet build` clean for `Realm.Client`, `Realm.ListenServerHost`, `Realm.AdminServer`, `Realm.Shared`,
    `Realm.MapAPI`.
 6. `Realm.Network.Tests` green, including the A10 state-machine coverage if it was written.
