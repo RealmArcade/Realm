@@ -13,6 +13,9 @@
 #                           listed lobby is published and nobody can get in
 #   --fail-storm N          after the guest gives up, post N join-failure reports from the player's network at N distinct
 #                           endpoints, which is how the lobby's line limit and its downgrade are measured
+#   --same-machine          run the guest in the host's own namespace, so both screens share one public address. This is
+#                           the same-namespace variant of "two players behind one public address", where the host's own
+#                           network address is genuinely reachable and the join is expected to stay on it.
 #   --lookalike-lan         put the player's machine on an address inside the host's own subnet numbers, which is the
 #                           office NAT, hotel NAT or VPN exit where two separate networks both call themselves 10.10.0.0/24
 #                           and the host's private address is one the player can see but cannot reach
@@ -33,6 +36,8 @@ REGISTRY_ONLY=0
 BLOCK_PUNCH=0
 FAIL_STORM=0
 LOOKALIKE_LAN=0
+SAME_MACHINE=0
+GUEST_NS=realm-player
 
 while [[ $# -gt 0 ]]; do
 	case $1 in
@@ -41,6 +46,7 @@ while [[ $# -gt 0 ]]; do
 		--block-punch) BLOCK_PUNCH=1; shift ;;
 		--fail-storm) FAIL_STORM=$2; shift 2 ;;
 		--lookalike-lan) LOOKALIKE_LAN=1; shift ;;
+		--same-machine) SAME_MACHINE=1; GUEST_NS=realm-host; shift ;;
 		--registry-only) REGISTRY_ONLY=1; shift ;;
 		*) echo "unknown argument: $1" >&2; exit 1 ;;
 	esac
@@ -111,7 +117,7 @@ echo "host published lobby $LOBBY_ID on port $LOBBY_PORT"
 	sleep 4
 done ) &
 
-( ip netns exec realm-player "$GODOT" --headless --path "$CLIENT" "$SCENE" -- \
+( ip netns exec "$GUEST_NS" "$GODOT" --headless --path "$CLIENT" "$SCENE" -- \
 	--role=guest --lobby="$LOBBY_ID" --registry="$REGISTRY_URL" \
 	--done-file="$LOGS"/guest.done --wait-seconds=40 \
 	> "$LOGS"/guest.log 2>&1 ) &

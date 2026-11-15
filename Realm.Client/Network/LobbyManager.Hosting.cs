@@ -337,7 +337,7 @@ public partial class LobbyManager
 		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
 		await OpenLobbyEndpointAsync(prepared.Port);
 
-		Diagnostics.StartHostListener(prepared.Port + 1);
+		Diagnostics.StartHostListener();
 
 		// The lobby is only published once a public node has reached its game port, so nobody sees a lobby that a
 		// timeout is waiting behind.
