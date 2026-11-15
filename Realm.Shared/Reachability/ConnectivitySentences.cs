@@ -280,7 +280,6 @@ public static class ConnectivitySentences
 	public const string JoinRestrictiveHostSide = "The lobby server answered this network, so this join failed after it, which points at the host's side.";
 	public const string JoinRestrictiveUnprobed = "The game could not ask the lobby server, so nothing can be said about this network.";
 
-	public const string JoinFirewallConfirmed = "The lobby server answered, and this screen's own traffic still never came back, which is what security software that filters the game looks like.";
 	public const string JoinFirewallInconclusive = "The game has no test for security software on a joining screen, so this has to be checked by hand.";
 
 	public const string JoinHostSideConfirmed = "The join stopped at the punch or the answer, which is the host's side of the connection.";

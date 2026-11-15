@@ -160,7 +160,6 @@ public static class ConnectivityHelpText
 		ConnectivitySentences.LobbyServerUnprobed => TranslationServer.Translate(ConnectivitySentences.LobbyServerUnprobed),
 		ConnectivitySentences.JoinRestrictiveConfirmed => TranslationServer.Translate(ConnectivitySentences.JoinRestrictiveConfirmed),
 		ConnectivitySentences.JoinRestrictiveHostSide => TranslationServer.Translate(ConnectivitySentences.JoinRestrictiveHostSide),
-		ConnectivitySentences.JoinFirewallConfirmed => TranslationServer.Translate(ConnectivitySentences.JoinFirewallConfirmed),
 		ConnectivitySentences.JoinFirewallInconclusive => TranslationServer.Translate(ConnectivitySentences.JoinFirewallInconclusive),
 		ConnectivitySentences.JoinHostSideConfirmed => TranslationServer.Translate(ConnectivitySentences.JoinHostSideConfirmed),
 		ConnectivitySentences.JoinHostSideInconclusive => TranslationServer.Translate(ConnectivitySentences.JoinHostSideInconclusive),

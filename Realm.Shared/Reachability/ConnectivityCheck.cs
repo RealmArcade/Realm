@@ -227,7 +227,9 @@ public static class ConnectivityCheck
 		// The three failures that describe the lobby server rather than the game port: a check that never ran cannot say
 		// anything about the port, and a dialog that turned its silence into advice would send a host to their router for
 		// nothing.
-		bool portWasMeasured = facts.HostFailure is HostReachabilityFailure.None or HostReachabilityFailure.ProbeUnanswered or HostReachabilityFailure.MappingPerDestination or HostReachabilityFailure.MappingUnmeasured;
+		// A lobby is only measured once it exists: a failure of None with no lobby behind it is a screen that never hosted
+		// anything, and calling that a measured success would be the same guess in the other direction.
+		bool portWasMeasured = facts.ListedPort > 0 && facts.HostFailure is HostReachabilityFailure.None or HostReachabilityFailure.ProbeUnanswered or HostReachabilityFailure.MappingPerDestination or HostReachabilityFailure.MappingUnmeasured;
 		OutsideAddressKind outsideAddress = OutsideAddresses.Classify(facts.MeasuredOutsideAddress);
 		int port = facts.ListedPort > 0 ? facts.ListedPort : facts.PreferredPort;
 		string outsideText = string.IsNullOrWhiteSpace(facts.MeasuredOutsideAddress) ? string.Empty : facts.MeasuredOutsideAddress.Trim();
@@ -240,7 +242,7 @@ public static class ConnectivityCheck
 					HostReachabilityFailure.ProbeUnanswered => Confirmed(issue, ConnectivitySentences.HostRouterConfirmed),
 					HostReachabilityFailure.MappingPerDestination => Confirmed(issue, ConnectivitySentences.HostPerDestinationConfirmed),
 					HostReachabilityFailure.MappingUnmeasured => Inconclusive(issue, ConnectivitySentences.HostRouterInconclusive),
-					HostReachabilityFailure.None => RuledOut(issue, ConnectivitySentences.HostRouterRuledOut, port),
+					HostReachabilityFailure.None => portWasMeasured ? RuledOut(issue, ConnectivitySentences.HostRouterRuledOut, port) : Inconclusive(issue, ConnectivitySentences.HostRouterInconclusive),
 					_ => Inconclusive(issue, ConnectivitySentences.HostRouterInconclusive)
 				};
 
@@ -342,7 +344,9 @@ public static class ConnectivityCheck
 				};
 
 			case ConnectivityIssue.FirewallOrSecuritySoftware:
-				if (facts.LobbyServerAnswered && ownSidePhase) return Confirmed(issue, ConnectivitySentences.JoinFirewallConfirmed);
+				// Nothing on a joining screen can see another program's filtering, so this is never stated as measured: a
+				// join that reached the lobby server and then failed says the traffic left, not that something here stopped
+				// the answer coming back.
 				return Inconclusive(issue, ConnectivitySentences.JoinFirewallInconclusive);
 
 			case ConnectivityIssue.RouterBlocksInboundPath:

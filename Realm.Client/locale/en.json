@@ -2432,7 +2432,6 @@
   "The lobby server answered this network, so it is not blocking everything.": "The lobby server answered this network, so it is not blocking everything.",
   "The lobby server answered this network, so this join failed after it, which points at the host's side.": "The lobby server answered this network, so this join failed after it, which points at the host's side.",
   "The lobby server answered without saying where this lobby is.": "The lobby server answered without saying where this lobby is.",
-  "The lobby server answered, and this screen's own traffic still never came back, which is what security software that filters the game looks like.": "The lobby server answered, and this screen's own traffic still never came back, which is what security software that filters the game looks like.",
   "The lobby server cannot check an address of the kind this lobby was offered at, so nothing about this computer could be measured.": "The lobby server cannot check an address of the kind this lobby was offered at, so nothing about this computer could be measured.",
   "The lobby server could not be reached": "The lobby server could not be reached",
   "The lobby server could not be reached from this computer.": "The lobby server could not be reached from this computer.",

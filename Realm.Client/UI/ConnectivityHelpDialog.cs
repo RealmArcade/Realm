@@ -255,17 +255,15 @@ public partial class ConnectivityHelpDialog : Control
 
 	private void BuildDirectConnectSection()
 	{
+		// A joining screen has no address of its own to offer: the address that matters is the host's, which is in the lobby
+		// it could not reach, and the next step of every entry says to ask for it.
+		if (_request.Audience != ConnectivityAudience.Hosting) return;
+
 		string? address = _request.DirectConnectAddress?.Invoke();
 		var section = new VBoxContainer { Name = "DirectConnectSection_VBox" };
 		section.AddThemeConstantOverride("separation", 4);
 		_body.AddChild(section);
 		_directSection = section;
-
-		var caption = new Label { Name = "DirectConnectCaption_Label" };
-		caption.Text = ConnectivityHelpText.Text(ConnectivitySentences.DirectConnectCaption);
-		caption.AddThemeFontSizeOverride("font_size", 11);
-		caption.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		section.AddChild(caption);
 
 		if (string.IsNullOrEmpty(address))
 		{
@@ -279,6 +277,12 @@ public partial class ConnectivityHelpDialog : Control
 			section.AddChild(withheld);
 			return;
 		}
+
+		var caption = new Label { Name = "DirectConnectCaption_Label" };
+		caption.Text = ConnectivityHelpText.Text(ConnectivitySentences.DirectConnectCaption);
+		caption.AddThemeFontSizeOverride("font_size", 11);
+		caption.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		section.AddChild(caption);
 
 		var row = new HBoxContainer { Name = "DirectConnectRow_HBoxContainer" };
 		row.Alignment = BoxContainer.AlignmentMode.Center;
@@ -315,9 +319,12 @@ public partial class ConnectivityHelpDialog : Control
 
 	private void BuildActions()
 	{
-		var actions = new HBoxContainer { Name = "ConnectivityHelpActions_HBoxContainer" };
-		actions.Alignment = BoxContainer.AlignmentMode.Center;
-		actions.AddThemeConstantOverride("separation", 12);
+		// A wrapping row rather than a plain one: which actions are offered depends on the failure, and a row that cannot wrap
+		// would push the whole card wider than the window on the failures that offer the most of them.
+		var actions = new HFlowContainer { Name = "ConnectivityHelpActions_HFlowContainer" };
+		actions.Alignment = FlowContainer.AlignmentMode.Center;
+		actions.AddThemeConstantOverride("h_separation", 12);
+		actions.AddThemeConstantOverride("v_separation", 8);
 		_body.AddChild(actions);
 
 		if (_request.OffersRetry && _request.OnRetry != null)
@@ -488,7 +495,13 @@ public partial class ConnectivityHelpDialog : Control
 
 	private void RenderRankedSection(IReadOnlyList<ConnectivityDiagnosis> ranked)
 	{
-		IReadOnlyList<ConnectivityDiagnosis> likely = ConnectivityDiagnosisRanking.Likely(ranked, _request.Audience);
+		IReadOnlyList<ConnectivityDiagnosis> ordered = ConnectivityDiagnosisRanking.Order(ranked, _request.Audience);
+		int shown = 0;
+		for (int index = 0; index < ordered.Count; index++)
+		{
+			if (ordered[index].Status == ConnectivityDiagnosisStatus.RuledOut) break;
+			shown++;
+		}
 
 		var caption = new Label { Name = "RankedCaption_Label" };
 		caption.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -496,16 +509,13 @@ public partial class ConnectivityHelpDialog : Control
 		caption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		caption.AddThemeFontSizeOverride("font_size", 11);
 		caption.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		LocalizedText.Bind(caption, () => likely.Count > 0
+		LocalizedText.Bind(caption, () => shown > 0
 			? ConnectivityHelpText.Text(ConnectivitySentences.RankedFoundCaption)
 			: ConnectivityHelpText.Text(ConnectivitySentences.RankedNothingFound));
 		_detailBox.AddChild(caption);
 
-		IReadOnlyList<ConnectivityDiagnosis> ordered = ConnectivityDiagnosisRanking.Order(ranked, _request.Audience);
-		for (int index = 0; index < ordered.Count; index++)
+		for (int index = 0; index < shown; index++)
 		{
-			if (!ordered[index].IsLikely) break;
-
 			ConnectivityIssue issue = ordered[index].Issue;
 			ConnectivityIssueContent content = ConnectivityIssueCatalog.Describe(issue, _request.Audience);
 			Button entry = UIStyle.CreateActionButton($"Ranked_{issue}_Button", string.Empty, 13);
@@ -658,7 +668,7 @@ public partial class ConnectivityHelpDialog : Control
 		string title = ConnectivityHelpText.Title(content);
 		if (!_diagnoses.TryGetValue(issue, out ConnectivityDiagnosis diagnosis)) return title;
 
-		return $"{RenderStatusGlyph(diagnosis.Status)} {title}   ·   {RenderStatusText(diagnosis.Status)}";
+		return $"{title}   ·   {RenderStatusText(diagnosis.Status)}";
 	}
 
 	private string RenderSelectedVerdict()
@@ -679,16 +689,6 @@ public partial class ConnectivityHelpDialog : Control
 	}
 
 	private static string RenderStatusText(ConnectivityDiagnosisStatus status) => ConnectivityHelpText.Verdict(status);
-
-	private static string RenderStatusGlyph(ConnectivityDiagnosisStatus status)
-	{
-		return status switch
-		{
-			ConnectivityDiagnosisStatus.Confirmed => UnicodeIcons.CIRCLE_EXCLAMATION,
-			ConnectivityDiagnosisStatus.Inconclusive => UnicodeIcons.CIRCLE_DOT,
-			_ => UnicodeIcons.CIRCLE
-		};
-	}
 
 	private string RenderLikelyCause()
 	{
