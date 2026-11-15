@@ -10,4 +10,15 @@ set -euo pipefail
 GODOT_BIN=${GODOT_BIN:-/opt/realm-rig/Godot_v4.7-stable_mono_linux_x86_64/Godot_v4.7-stable_mono_linux.x86_64}
 PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
-exec "$GODOT_BIN" --headless --path "$PROJECT_DIR" -- "$@"
+# The client states some of the engine's own flags itself when it knows the authority is a Godot project on this
+# platform, and an engine flag reaching the authority as a user argument is refused by it. They are dropped here and
+# this launcher states the one it always needs.
+user_args=()
+for argument in "$@"; do
+	case "$argument" in
+		--headless) continue ;;
+	esac
+	user_args+=("$argument")
+done
+
+exec "$GODOT_BIN" --headless --path "$PROJECT_DIR" -- "${user_args[@]}"
