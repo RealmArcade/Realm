@@ -35,26 +35,6 @@ public class ReachabilityCheckTests
 	}
 
 	[Test]
-	public async Task AReportStatesTheSourceThatAnsweredIt()
-	{
-		using var gamePort = new FakeGamePort(FakeGamePort.Behaviour.AnswerEverything);
-		using var probes = new UdpReachabilityProbeService(FreePort.Udp());
-
-		ReachabilityTicket ticket = probes.Begin(IPAddress.Loopback, gamePort.Port, IPAddress.Loopback, 5555, WindowMilliseconds);
-		ReachabilityReport answered = await ProbePolling.WaitForResultAsync(probes, ticket, TimeSpan.FromSeconds(6));
-
-		Assert.That(answered.SourcesChecked, Is.EqualTo(1));
-		Assert.That(answered.SourcesAnswered, Is.EqualTo(1), "the node that answered is itself a source that answered");
-
-		using var silentPort = new FakeGamePort(FakeGamePort.Behaviour.Silent);
-		ReachabilityTicket silentTicket = probes.Begin(IPAddress.Loopback, silentPort.Port, IPAddress.Loopback, 5555, 600);
-		ReachabilityReport silent = await ProbePolling.WaitForResultAsync(probes, silentTicket, TimeSpan.FromSeconds(6));
-
-		Assert.That(silent.SourcesChecked, Is.EqualTo(1));
-		Assert.That(silent.SourcesAnswered, Is.EqualTo(0));
-	}
-
-	[Test]
 	public async Task APortThatRefusesUnsolicitedTrafficIsReachedOnlyOnceTheHostPunches()
 	{
 		using var gamePort = new FakeGamePort(FakeGamePort.Behaviour.AnswerOnlySolicited);

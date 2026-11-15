@@ -42,9 +42,9 @@ public class ColdProbeClassificationTests
 	}
 
 	[Test]
-	public void ATranslatedOutsidePortThatWasMeasuredStableIsPunchOnlyWhichIsTheShapeTheRigFoundIsNotJoinable()
+	public void ATranslatedOutsidePortMeasuredAtTwoDestinationsIsPunchOnly()
 	{
-		Assert.That(ReachabilityClasses.FromReport(Report(observedPort: 10000, advertisedPort: 8999), MappingBehaviours.Reused), Is.EqualTo(ReachabilityClasses.PunchOnly), "the class is what the check measured - one mapping for every destination, answered after a punch - and not a promise: the rig found a lobby listed this way did not admit a guest, which is an open defect of the join path or the listing rather than of the classification");
+		Assert.That(ReachabilityClasses.FromReport(Report(observedPort: 10000, advertisedPort: 8999), MappingBehaviours.Reused), Is.EqualTo(ReachabilityClasses.PunchOnly), "one mapping for every destination is the ordinary home-router case a punch exists for; the rig admits a guest at this shape when the router's translation is present, and the join failure once recorded here came from a scenario that deleted the translation itself");
 	}
 
 	[Test]

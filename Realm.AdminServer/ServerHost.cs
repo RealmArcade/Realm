@@ -32,7 +32,6 @@ public record ServerSetup(
 	string SeederId,
 	int CapacityPercent,
 	UdpReachabilityProbeService ReachabilityProbe,
-	PeerReachabilityChecks PeerChecks,
 	JoinerPunchRelay JoinerRelay,
 	JoinFailureFeedback JoinFailureFeedback);
 
@@ -179,7 +178,6 @@ public static class ServerHost
 	var lobbyRegistry = app.Services.GetRequiredService<LobbyRegistry>();
 	var joinerRelay = new JoinerPunchRelay(hostConnections, lobbyRegistry, message => Console.WriteLine($"[JoinerRelay] {message}"));
 	var joinFailureFeedback = new JoinFailureFeedback(hostConnections, lobbyRegistry, message => Console.WriteLine($"[JoinFeedback] {message}"));
-	var peerChecks = new PeerReachabilityChecks(app.Services.GetRequiredService<IHttpClientFactory>(), peerRegistry, message => Console.WriteLine($"[Reachability] {message}"));
 
 	app.Lifetime.ApplicationStopping.Register(reachabilityProbe.Dispose);
 	app.Lifetime.ApplicationStopping.Register(joinerRelay.Dispose);
@@ -222,7 +220,7 @@ public static class ServerHost
 		}
 	});
 
-		return new ServerSetup(app, cas, adminPublicKeys, servesClientDownloads, hostConnections, seederId, capacityPercent, reachabilityProbe, peerChecks, joinerRelay, joinFailureFeedback);
+		return new ServerSetup(app, cas, adminPublicKeys, servesClientDownloads, hostConnections, seederId, capacityPercent, reachabilityProbe, joinerRelay, joinFailureFeedback);
 	}
 
 	/// <summary>Every 63 seconds, pull cluster state from the peers and drop events older than a day.</summary>

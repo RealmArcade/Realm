@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
@@ -188,15 +187,6 @@ public class HostReachabilityVerifier
 			// mapping for every peer, and two that do not are a router no punch can open for a player.
 			if (ticket.MappingProbePort > 0) lastPunchAccepted |= punch(probeAddress, ticket.MappingProbePort, ticket.ProbeId);
 
-			// Every other node checking this lobby gets the same datagram for the same reason: a node on the public internet
-			// is unsolicited traffic at this router, and its measurement is the second vantage point the listing is judged on.
-			IReadOnlyList<ReachabilityPeerProbe> peerProbes = ticket.PeerProbes;
-			for (int index = 0; index < peerProbes.Count; index++)
-			{
-				ReachabilityPeerProbe peer = peerProbes[index];
-				if (peer.Port <= 0) continue;
-				lastPunchAccepted |= punch(peer.Ip, peer.Port, peer.ProbeId);
-			}
 			lastReport = await ReadAsync(registryBaseUrl, ticket.ProbeId, cancellationToken).ConfigureAwait(false);
 
 			// An answer that needed a punch is finished only once the second destination has been measured too. A port
@@ -243,7 +233,7 @@ public class HostReachabilityVerifier
 		}
 		else
 		{
-			detail = $"the registry node reached the game port and measured the public endpoint {LobbyAddresses.Describe(observedIp, observedPort)} ({reachabilityClass}, mapping {mappingBehaviour}, cold answer {report.ColdAnswered}, second destination {report.SecondObservedPort}, lobby port {advertisedPort}, sources {report.SourcesAnswered} of {report.SourcesChecked})";
+			detail = $"the registry node reached the game port and measured the public endpoint {LobbyAddresses.Describe(observedIp, observedPort)} ({reachabilityClass}, mapping {mappingBehaviour}, cold answer {report.ColdAnswered}, second destination {report.SecondObservedPort}, lobby port {advertisedPort})";
 		}
 
 		return new HostReachabilityResult(failure, probeId, observedIp, observedPort, detail)

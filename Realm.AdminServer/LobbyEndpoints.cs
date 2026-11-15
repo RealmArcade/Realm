@@ -60,7 +60,7 @@ public static class LobbyEndpoints
 		}
 	}
 
-	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections, UdpReachabilityProbeService reachabilityProbe, PeerReachabilityChecks peerChecks, JoinerPunchRelay joinerRelay, JoinFailureFeedback joinFailureFeedback)
+	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections, UdpReachabilityProbeService reachabilityProbe, JoinerPunchRelay joinerRelay, JoinFailureFeedback joinFailureFeedback)
 	{
 	app.MapPost(ReachabilityRoutes.Begin, async (ReachabilityBeginRequest req, HttpContext context) =>
 	{
@@ -78,23 +78,6 @@ public static class LobbyEndpoints
 		else if (reply.StatusCode == ReachabilityStatusCodes.CallerOnOwnNetwork) Console.WriteLine($"[Reachability] Refused to check {req.AdvertisedIp}:{req.AdvertisedPort}: {sourceAddress} is inside this node's own network, so the check would only describe that network.");
 		else Console.WriteLine($"[Reachability] A lobby check could not start: {sourceAddress}");
 
-		// One node's view is one network's view. The other nodes in this deployment are asked to check the same game port,
-		// and what they see is read beside this node's answer: a peer is a second destination the host's router had to
-		// translate for, and agreement between two networks is a claim a single measurement cannot make.
-		if (reply.StatusCode == 200 && req.AskPeers && peerChecks.HasPeers && reply.Body is ReachabilityTicket ticket)
-		{
-			List<ReachabilityPeerCheck> checks = await peerChecks.AskAsync(ticket.ProbeId, req.AdvertisedIp, req.AdvertisedPort, req.WindowMilliseconds, context.RequestAborted).ConfigureAwait(false);
-			if (checks.Count > 0)
-			{
-				// The host is told which sockets to punch, because a peer node's probe is unsolicited traffic at the host's
-				// router exactly as this node's is, and the host is the only party that can send from the port being measured.
-				var probes = new List<ReachabilityPeerProbe>(checks.Count);
-				for (int index = 0; index < checks.Count; index++) probes.Add(checks[index].Probe);
-				reply = new ReachabilityEndpointReply(reply.StatusCode, ticket with { PeerProbes = probes });
-				Console.WriteLine($"[Reachability] {checks.Count} other node(s) are checking the same game port for this lobby.");
-			}
-		}
-
 		return Results.Json(reply.Body, statusCode: reply.StatusCode);
 	});
 
@@ -110,12 +93,7 @@ public static class LobbyEndpoints
 	app.MapGet($"{ReachabilityRoutes.Report}/{{probeId}}", async (string probeId, HttpContext context) =>
 	{
 		ReachabilityEndpointReply reply = ReachabilityEndpointHandlers.Read(reachabilityProbe, probeId);
-		if (reply.StatusCode != 200 || reply.Body is not ReachabilityReport report) return Results.Json(reply.Body, statusCode: reply.StatusCode);
-
-		IReadOnlyList<ReachabilityReport> peers = await peerChecks.CollectAsync(probeId, context.RequestAborted).ConfigureAwait(false);
-		if (peers.Count == 0) return Results.Json(report, statusCode: reply.StatusCode);
-
-		return Results.Json(SecondVantage.Merge(report, peers), statusCode: reply.StatusCode);
+		return Results.Json(reply.Body, statusCode: reply.StatusCode);
 	});
 
 	app.MapGet("/lobbies", (LobbyRegistry registry, GeoIpService geoIp, HttpContext context) =>

@@ -381,9 +381,6 @@ public class UdpReachabilityProbeService : IDisposable
 	{
 		ProbeTarget target = probe.AnsweringTarget;
 
-		// This node is one source, and it answered exactly when the game port answered it. A report that stated zero sources
-		// answered while its own answer was the one being read is a report a caller counting sources would read as "nobody
-		// reached this lobby", which is the opposite of what it says.
 		return new ReachabilityReport(
 			probe.ProbeId,
 			state,
@@ -398,11 +395,7 @@ public class UdpReachabilityProbeService : IDisposable
 			ColdAnswered(probe),
 			probe.ColdAttempts,
 			probe.SecondObservedAddress?.ToString() ?? string.Empty,
-			probe.SecondObservedPort)
-		{
-			SourcesChecked = 1,
-			SourcesAnswered = probe.HasAnswered ? 1 : 0
-		};
+			probe.SecondObservedPort);
 	}
 
 	/// <summary>

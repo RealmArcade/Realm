@@ -44,15 +44,15 @@ within the wait, 5 if the lobby still claims `Open`, and 4 if the host never pub
 `Open` to `PunchOnly` 40 seconds after the forward was withdrawn, the lobby room was told, and a stranger's first
 datagram no longer reached the game port while the player who had already punched kept playing.
 
-`tools/rig/second-vantage.sh [--mapping reuse|translating] [--peers 0|1]` runs two registry nodes on the internet
-namespace, with the host's router carrying the punch a host must send and losing its second one. With `--peers 0` the
-lobby is refused (`MappingUnmeasured`: the outside port was measured at one destination only); with `--peers 1` the
-second node is the second destination, the host punches its probe socket too, and the lobby is published with
-`sources 2 of 2` and `mapping Reused`. Measured on `--mapping translating`: refused with one node (host exit 2), published
-at the translated outside port with two, and **the guest did not join it** (exit 6) — that shape is listed as `PunchOnly`
-while a punch does not admit a player, and it is recorded as an open defect rather than accepted.
+A translated outside port is measured by punching the same game port from two sockets of the node's own probe, so a
+single-node deployment lists it without help: `listed-join.sh --mapping translating` published at `203.0.113.2:10000`
+for a game port of 8999 and admitted the guest 10 times in 10. A scenario that deletes the `PREROUTING` DNAT while doing
+that is deleting the translation, not a forward standing beside it: the outside port exists because the router
+translates to it, so what such a run measures is a port that no longer exists, not a listening rule that is too strict.
 
-What it cannot show: a real ISP's carrier-grade NAT, a real router's firmware, a real VPN exit.
+What it cannot show: a real ISP's carrier-grade NAT, a real router's firmware, a real VPN exit, or a router that rewrites
+the outside port of a flow without creating the reverse translation for it — a real router creates both together, which is
+what the punch relies on.
 
 ## 3. Two machines
 
@@ -109,6 +109,10 @@ ip netns exec realm-host-router iptables -I FORWARD 1 -i wan-host -o lan-host -p
 - A listed lobby whose forward is withdrawn stops claiming `Open` on the registry **40 s** later and is listed as
   `PunchOnly`, with the host and the lobby room told (`tools/rig/reachability-withdrawal.sh`). A forwarded lobby is listed
   as `Open`: the class a listing states is derived from the cold answer the node measured, not from the address's family.
+- A router that gives the game port an outside port of its own is listed at that outside port and joined:
+  `listed-join.sh --mapping translating` published at `203.0.113.2:10000` and the guest was admitted in about 0.7 s, ten
+  runs in ten. A lobby is judged by the node it registers with, on that node's own two punches, so its class is the same
+  in a one-node and a many-node deployment.
 
 That last distinction cost a rig fix: the internet namespace routes between the two routers' segments, and without
 `ip_forward` there every "blocked by NAT" result would have been "blocked by the rig" — a test that reports the right
@@ -144,9 +148,8 @@ The path as it stands, ten consecutive runs of `--mapping translating` (a router
 port of its own and keeps one mapping for every destination): 10/10 exit 0, two seats each, published at
 `203.0.113.2:10000` for a game port of 8999, admitted on the first attempt in about 0.7 s.
 
-`tools/rig/second-vantage.sh` runs the same lobby with two registry nodes, one of which the host never punches the
-mapping socket for; `tools/rig/reachability-withdrawal.sh` publishes through a forward and withdraws it under a live
-host to check the listing stops claiming `Open` within a minute.
+`tools/rig/reachability-withdrawal.sh` publishes through a forward and withdraws it under a live host to check the
+listing stops claiming `Open` within a minute.
 
 Both are checks, not a harness of their own: the clients are the real Godot build through
 `Testing/LobbyDirectConnectHarness.tscn`, and the registry is the real node published for linux-x64. Rebuild both
