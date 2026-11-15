@@ -220,3 +220,11 @@ The address to compare against is the one the host itself advertises in the same
 **203.0.113.2:64076**, and the mapping refresh that runs every 20 s is the only thing that could have moved it. A
 registered endpoint that the router no longer maps is knocked on in vain, so the first thing to check is whether the
 refresh keeps the port the registration measured or hands back a new one.
+
+**Correction to the endpoint drift above:** measured again inside one run, the registration and the host's own
+advertisement agree exactly (`The registry reached this lobby's game port and measured 203.0.113.2:40874` and
+`public=203.0.113.2:40874`). The 64076/52302 pair came from two separate runs, each of which gets its own mapping port,
+so there is no drift to fix. What remains open is the punch itself: the guest knocks on the address the host really
+publishes and the host's router still answers nothing, so the datagram the host is supposed to send toward the joiner -
+the one that would open its router for that joiner's address and port - is either never sent or sent to an endpoint the
+joiner's own mapping does not match.
