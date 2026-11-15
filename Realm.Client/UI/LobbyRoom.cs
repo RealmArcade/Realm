@@ -765,12 +765,7 @@ public partial class LobbyRoom : Control
 		var dialog = new ConnectivityHelpDialog { Name = "JoinFailureHelpDialog" };
 		AddChild(dialog);
 		dialog.Closed += ReturnFromLobby;
-		dialog.Open(new ConnectivityHelpRequest
-		{
-			Audience = ConnectivityAudience.Joining,
-			TitleKey = ConnectivitySentences.JoiningTitle,
-			DiagnosticsBlock = Lobby.DescribeNetworkDiagnostics
-		});
+		dialog.Open(ConnectivityHelpRequest.ForJoining(Lobby));
 	}
 
 	private void OnLobbyKickReceived(string reason)

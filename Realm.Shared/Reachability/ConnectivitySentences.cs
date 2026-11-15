@@ -19,8 +19,17 @@ public static class ConnectivitySentences
 	/// <summary>The title a host's dialog carries when the lobby could not even hold this computer's own seat.</summary>
 	public const string HostingTitleLocalSeat = "COULD NOT HOLD YOUR OWN SEAT";
 
+	/// <summary>The title a host's dialog carries when it was opened from a lobby nothing has failed on, so no cause can be named.</summary>
+	public const string HostingTitlePlayersCannotJoin = "PLAYERS CANNOT GET INTO THIS LOBBY";
+
 	/// <summary>The title a joining screen's dialog carries when a join failed.</summary>
 	public const string JoiningTitle = "COULD NOT JOIN THIS LOBBY";
+
+	/// <summary>The line shown while every cause is being checked.</summary>
+	public const string CheckingEveryCause = "Checking this machine and the lobby server ...";
+
+	/// <summary>The line shown while one cause is being checked.</summary>
+	public const string CheckingOneCause = "Checking this one cause ...";
 
 	/// <summary>The caption above the one line that names what the game measured.</summary>
 	public const string LikelyCauseCaption = "LIKELY CAUSE";
@@ -36,7 +45,6 @@ public static class ConnectivitySentences
 
 	/// <summary>The label of the button that runs every check and ranks what it finds.</summary>
 	public const string RunAllButton = "RUN FULL DIAGNOSTICS";
-
 
 	/// <summary>The label of the button that searches the web for the phrase beside it.</summary>
 	public const string SearchButton = "SEARCH";

@@ -47,6 +47,8 @@ public partial class ConnectivityHelpDialog : Control
 
 	private VBoxContainer _detailBox = null!;
 
+	private ScrollContainer _detailScroll = null!;
+
 	private Label _titleLabel = null!;
 
 	private Label _likelyCauseLabel = null!;
@@ -68,6 +70,8 @@ public partial class ConnectivityHelpDialog : Control
 	private bool _closed;
 
 	private bool _followUp;
+
+	private string _statusKey = string.Empty;
 
 	/// <summary>
 	///     Raised once when the dialog goes away, whether by its own button or because the screen it was opened from is being
@@ -184,17 +188,17 @@ public partial class ConnectivityHelpDialog : Control
 		_issueRowsBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		listScroll.AddChild(_issueRowsBox);
 
-		var detailScroll = new ScrollContainer { Name = "IssueDetailScroller" };
-		detailScroll.CustomMinimumSize = new Vector2(CardWidth - ListWidth - 90, ColumnsHeight);
-		detailScroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		detailScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		detailScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		columns.AddChild(detailScroll);
+		_detailScroll = new ScrollContainer { Name = "IssueDetailScroller" };
+		_detailScroll.CustomMinimumSize = new Vector2(CardWidth - ListWidth - 90, ColumnsHeight);
+		_detailScroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_detailScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
+		_detailScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+		columns.AddChild(_detailScroll);
 
 		_detailBox = new VBoxContainer { Name = "IssueDetailVBox" };
 		_detailBox.AddThemeConstantOverride("separation", 8);
 		_detailBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		detailScroll.AddChild(_detailBox);
+		_detailScroll.AddChild(_detailBox);
 
 		_statusLabel = new Label { Name = "ConnectivityHelpStatus_Label" };
 		_statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -202,6 +206,7 @@ public partial class ConnectivityHelpDialog : Control
 		_statusLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_statusLabel.AddThemeFontSizeOverride("font_size", 11);
 		_statusLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		LocalizedText.Bind(_statusLabel, RenderStatus);
 		_body.AddChild(_statusLabel);
 	}
 
@@ -497,6 +502,8 @@ public partial class ConnectivityHelpDialog : Control
 		nextStep.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		LocalizedText.Bind(nextStep, () => ConnectivityHelpText.NextStep(content, RenderNextStepValue()));
 		_detailBox.AddChild(nextStep);
+
+		_detailScroll.ScrollVertical = 0;
 	}
 
 	private void RenderRankedSection(IReadOnlyList<ConnectivityDiagnosis> ranked)
@@ -601,7 +608,7 @@ public partial class ConnectivityHelpDialog : Control
 		if (_running || _closed) return;
 
 		_running = true;
-		SetStatus("Checking this machine and the lobby server ...");
+		SetStatus(ConnectivitySentences.CheckingEveryCause);
 		try
 		{
 			IReadOnlyList<ConnectivityDiagnosis> results = await GameContext.Connectivity.RunAllAsync(_request.Audience, _cancellation.Token);
@@ -635,7 +642,7 @@ public partial class ConnectivityHelpDialog : Control
 		if (_running || _closed) return;
 
 		_running = true;
-		SetStatus("Checking this one cause ...");
+		SetStatus(ConnectivitySentences.CheckingOneCause);
 		try
 		{
 			ConnectivityDiagnosis diagnosis = await GameContext.Connectivity.RunAsync(_request.Audience, issue, _cancellation.Token);
@@ -719,10 +726,16 @@ public partial class ConnectivityHelpDialog : Control
 		_copyFeedbackLabel.Visible = true;
 	}
 
-	private void SetStatus(string message)
+	private string RenderStatus()
 	{
+		return _statusKey.Length == 0 ? string.Empty : ConnectivityHelpText.Text(_statusKey);
+	}
+
+	private void SetStatus(string key)
+	{
+		_statusKey = key;
 		if (_statusLabel == null || !IsInstanceValid(_statusLabel)) return;
-		_statusLabel.Text = message;
+		_statusLabel.Text = RenderStatus();
 	}
 
 	private bool CanDraw() => !_closed && GodotObject.IsInstanceValid(this) && IsInsideTree();

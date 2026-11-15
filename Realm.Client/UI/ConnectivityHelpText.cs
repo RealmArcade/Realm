@@ -24,7 +24,10 @@ public static class ConnectivityHelpText
 		{
 		ConnectivitySentences.HostingTitle => TranslationServer.Translate(ConnectivitySentences.HostingTitle),
 		ConnectivitySentences.HostingTitleLocalSeat => TranslationServer.Translate(ConnectivitySentences.HostingTitleLocalSeat),
+		ConnectivitySentences.HostingTitlePlayersCannotJoin => TranslationServer.Translate(ConnectivitySentences.HostingTitlePlayersCannotJoin),
 		ConnectivitySentences.JoiningTitle => TranslationServer.Translate(ConnectivitySentences.JoiningTitle),
+		ConnectivitySentences.CheckingEveryCause => TranslationServer.Translate(ConnectivitySentences.CheckingEveryCause),
+		ConnectivitySentences.CheckingOneCause => TranslationServer.Translate(ConnectivitySentences.CheckingOneCause),
 		ConnectivitySentences.LikelyCauseCaption => TranslationServer.Translate(ConnectivitySentences.LikelyCauseCaption),
 		ConnectivitySentences.PlayerJoinFailureCaption => TranslationServer.Translate(ConnectivitySentences.PlayerJoinFailureCaption),
 		ConnectivitySentences.CausesCaption => TranslationServer.Translate(ConnectivitySentences.CausesCaption),

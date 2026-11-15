@@ -76,6 +76,7 @@ public partial class LobbyRoom
 		CloseConnectivityHelp();
 
 		bool localSeatFailure = Lobby.LastHostFailure is { Failure: HostReachabilityFailure.LoopbackUnanswered or HostReachabilityFailure.LoopbackNotOnLocalAddress };
+		bool listingFailed = Lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None };
 
 		var dialog = new ConnectivityHelpDialog { Name = "LobbyRoomConnectivityHelpDialog" };
 		AddChild(dialog);
@@ -84,7 +85,9 @@ public partial class LobbyRoom
 		dialog.Open(new ConnectivityHelpRequest
 		{
 			Audience = ConnectivityAudience.Hosting,
-			TitleKey = localSeatFailure ? ConnectivitySentences.HostingTitleLocalSeat : ConnectivitySentences.HostingTitle,
+			TitleKey = localSeatFailure
+				? ConnectivitySentences.HostingTitleLocalSeat
+				: listingFailed ? ConnectivitySentences.HostingTitle : ConnectivitySentences.HostingTitlePlayersCannotJoin,
 			OffersRetry = true,
 			OnRetry = RepublishLobby,
 			DirectConnectAddress = () => localSeatFailure ? null : Lobby.DirectConnectAddress,

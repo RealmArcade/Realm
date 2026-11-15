@@ -1,4 +1,5 @@
 using System;
+using Realm.Client.Network;
 using Realm.Shared.Reachability;
 
 namespace Realm.Client.UI;
@@ -10,6 +11,22 @@ namespace Realm.Client.UI;
 /// </summary>
 public class ConnectivityHelpRequest
 {
+	/// <summary>
+	///     The help a screen that tried to join a lobby and never got in reads. Both joining surfaces that explain a failed
+	///     join build the same request, so the title and the diagnostics page cannot drift between them.
+	/// </summary>
+	/// <param name="lobby">The lobby manager that recorded the join's failure.</param>
+	/// <returns>The request for the joining side of the connection.</returns>
+	public static ConnectivityHelpRequest ForJoining(LobbyManager lobby)
+	{
+		return new ConnectivityHelpRequest
+		{
+			Audience = ConnectivityAudience.Joining,
+			TitleKey = ConnectivitySentences.JoiningTitle,
+			DiagnosticsBlock = lobby.DescribeNetworkDiagnostics
+		};
+	}
+
 	/// <summary>Which side of the connection this dialog explains.</summary>
 	public ConnectivityAudience Audience { get; init; }
 

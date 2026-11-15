@@ -564,14 +564,12 @@ public partial class LobbyBrowser : Control
 		troubleshootBtn.Pressed += () =>
 		{
 			GameContext.UserInterface?.PlayClickSound();
+			LobbyManager? joiningLobby = GameContext.Lobby;
+			if (joiningLobby == null) return;
+
 			var help = new ConnectivityHelpDialog { Name = "DirectConnectHelpDialog" };
 			AddChild(help);
-			help.Open(new ConnectivityHelpRequest
-			{
-				Audience = ConnectivityAudience.Joining,
-				TitleKey = ConnectivitySentences.JoiningTitle,
-				DiagnosticsBlock = GameContext.Lobby == null ? null : GameContext.Lobby.DescribeNetworkDiagnostics
-			});
+			help.Open(ConnectivityHelpRequest.ForJoining(joiningLobby));
 		};
 		hbox.AddChild(troubleshootBtn);
 
@@ -825,9 +823,27 @@ public partial class LobbyBrowser : Control
 		return overlay;
 	}
 
+	/// <summary>
+	///     Explains a join that failed from the lobby list. A failure at a network step opens the same help a joining screen
+	///     reads inside a lobby, because a player whose join was never answered has the same thing to check either way; a
+	///     lobby that refused the seat is stated as it arrived rather than sent to read about routers.
+	/// </summary>
+	/// <param name="message">What the lobby said went wrong, kept for the popup that is used when the network is not the cause.</param>
 	private void ShowLobbyJoinErrorPopup(string message)
 	{
-		GameContext.UserInterface?.ShowPopupMessage("CONNECTION ERROR", message);
+		LobbyManager? lobby = GameContext.Lobby;
+		string phase = lobby?.LastJoinPhase ?? string.Empty;
+		bool networkFailure = lobby != null && JoinPhases.IsKnown(phase) && phase != JoinPhases.Admission && phase != JoinPhases.Session;
+
+		if (!networkFailure)
+		{
+			GameContext.UserInterface?.ShowPopupMessage("CONNECTION ERROR", message);
+			return;
+		}
+
+		var help = new ConnectivityHelpDialog { Name = "LobbyJoinFailureHelpDialog" };
+		AddChild(help);
+		help.Open(ConnectivityHelpRequest.ForJoining(lobby!));
 	}
 
 	protected override void Dispose(bool disposing)
