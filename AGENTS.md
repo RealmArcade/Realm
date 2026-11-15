@@ -169,7 +169,7 @@ dotnet test Realm.Client.Tests/Realm.Client.Tests.csproj -e GODOT_BIN="C:\Progra
 - Everything else was deleted on purpose. A test that asserts a tuned value (a vision radius, a damage curve, a cost, an authored capacity, an ability's numbers) fails on the next balance pass, and a test that drives the game end to end (launching Godot or the authority, compiling a map, capturing screenshots, measuring lag budgets, parsing Windows firewall output) fails on the next environment. When a change needs verification, write that check for the change, run it, and delete it again rather than leaving it in the suite.
 
 ## Pull Request Review Notes:
-- Repository size hygiene: Avoid accidental merges of excessively large files which will need optimization in a future commit, because every committed byte remains permanent in cloned history. run scripts/check-large-files.ps1 for analysis.
+- Repository size hygiene: Avoid accidental merges of excessively large files which will need optimization in a future commit, because every committed byte remains permanent in cloned history. run scripts/check-large-files.ps1 for analysis. Squash merge is enforced for PRs so only HEAD file sizes are relevant.
 
 ## git commit rules
 - NEVER add automated footer tags like "Generated with {{ToolName}}" or "Co-Authored-By: {{Agent}}" to Git commit messages. 
