@@ -42,7 +42,8 @@ public sealed class BuildQueueProcessor
 
 	public void RemoveConstructionComponents(Entity buildingEntity)
 	{
-		if (SimulationService.World.Has<UnderConstruction>(buildingEntity))
+		bool wasUnderConstruction = SimulationService.World.Has<UnderConstruction>(buildingEntity);
+		if (wasUnderConstruction)
 		{
 			SimulationService.World.Remove<UnderConstruction>(buildingEntity);
 		}
@@ -50,6 +51,11 @@ public sealed class BuildQueueProcessor
 		if (SimulationService.World.Has<ConstructionState>(buildingEntity))
 		{
 			SimulationService.World.Remove<ConstructionState>(buildingEntity);
+		}
+
+		if (wasUnderConstruction && SimulationService.World.Has<Invulnerable>(buildingEntity))
+		{
+			SimulationService.World.Remove<Invulnerable>(buildingEntity);
 		}
 	}
 
@@ -75,6 +81,7 @@ public sealed class BuildQueueProcessor
 	{
 		return SimulationService.World.Has<MoveTo>(entity) ||
 			   SimulationService.World.Has<BuildTask>(entity) ||
+			   SimulationService.World.Has<RepairTask>(entity) ||
 			   SimulationService.World.Has<AttackTarget>(entity) ||
 			   SimulationService.World.Has<AttackMove>(entity) ||
 			   SimulationService.World.Has<Follow>(entity) ||

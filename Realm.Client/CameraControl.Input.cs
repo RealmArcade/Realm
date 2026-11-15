@@ -75,6 +75,10 @@ public partial class CameraControl : Camera3D
 
 		if (!HasCameraState) return;
 
+		// A map driving the camera owns it for as long as it says so: the player's panning, zooming, edge scrolling and
+		// rotation are not read, and the shot places the camera itself.
+		if (UpdateScriptCamera(fDelta)) return;
+
 		ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 		state.MoveSpeed = 10.0f + (GameSettings.ScrollSpeed / 100.0f) * 50.0f;
 

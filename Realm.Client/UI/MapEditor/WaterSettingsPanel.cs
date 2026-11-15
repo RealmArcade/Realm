@@ -71,7 +71,7 @@ public sealed class WaterSettingsPanel
 		}
 
 		hooks.StyleAccordionHeader(Header);
-		hooks.SetupAccordion(Header, Content, TranslationServer.Translate("Liquid / Water Config"));
+		hooks.SetupAccordion(Header, Content, "Liquid / Water Config");
 	}
 
 	private void BuildHeightSlider(WaterSettingsHooks hooks)

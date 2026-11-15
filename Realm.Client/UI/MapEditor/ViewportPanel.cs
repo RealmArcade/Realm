@@ -87,7 +87,7 @@ public sealed class ViewportPanel
 		Header = hooks.Owner.GetNode<Button>(BasePath + "/BtnHeaderViewport");
 		Content = hooks.Owner.GetNode<VBoxContainer>(ContentPath);
 		hooks.StyleAccordionHeader(Header);
-		hooks.SetupAccordion(Header, Content, TranslationServer.Translate("Viewport & Navigation"));
+		hooks.SetupAccordion(Header, Content, "Viewport & Navigation");
 	}
 
 	private void BuildMinimap(ViewportPanelHooks hooks)

@@ -281,6 +281,7 @@ public partial class Unit3D
 			GIMode = GeometryInstance3D.GIModeEnum.Disabled
 		};
 
+		Realm.Client.Utils.ModelShaderManager.MarkOverlayMaterialMesh(glow);
 		socketNode.AddChild(glow);
 		_pseudoSocketGlows[normSocket] = glow;
 	}

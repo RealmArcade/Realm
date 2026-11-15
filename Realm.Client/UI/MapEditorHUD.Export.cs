@@ -51,25 +51,12 @@ namespace Realm.Client.UI
 
 		private bool ValidateWorkspaceForExport(string wsPath)
 		{
-			var result = GameContext.MapStorageService.ValidateWorkspaceForExportDomain(wsPath);
-			if (!result.Success)
-			{
-				if (result.MissingAssets.Count > 0)
-				{
-					ShowFeedback(string.Format(TranslationServer.Translate("Export failed: Map is missing required asset files:\n{0}"), string.Join(", ", Enumerable.Take(result.MissingAssets, 4)) + (result.MissingAssets.Count > 4 ? "..." : "")));
-					AppendWasmConsoleLog($"[ERROR] Export failed. Missing required asset files:\n  {string.Join("\n  ", result.MissingAssets)}");
-				}
-				else if (result.OversizedAssets.Count > 0)
-				{
-					string oversizedSummary = string.Join("\n", Enumerable.Select(Enumerable.Take(result.OversizedAssets, 4), o => $"• {o.RelativePath} ({o.SizeMB:F2} MB > 15 MB)")) + (result.OversizedAssets.Count > 4 ? "\n..." : "");
-					ShowFeedback(string.Format(TranslationServer.Translate("Export failed: Assets exceed maximum 15 MB size limit:\n{0}"), oversizedSummary));
-					AppendWasmConsoleLog($"[ERROR] Export failed. Assets exceed maximum 15 MB size limit:\n{string.Join("\n", Enumerable.Select(result.OversizedAssets, o => $"  {o.RelativePath} ({o.SizeMB:F2} MB)"))}");
-				}
+			var (assetsValid, missingAssets) = GameContext.MapStorageService.ValidateWorkspaceAssetsForExportDomain(wsPath);
+			if (assetsValid) return true;
 
-				return false;
-			}
-
-			return true;
+			ShowFeedback(string.Format(TranslationServer.Translate("Export failed: Map is missing required asset files:\n{0}"), string.Join(", ", Enumerable.Take(missingAssets, 4)) + (missingAssets.Count > 4 ? "..." : "")));
+			AppendWasmConsoleLog($"[ERROR] Export failed. Missing required asset files:\n  {string.Join("\n  ", missingAssets)}");
+			return false;
 		}
 
 		private void ShowExportFileDialog(string initialDir, string defaultFileName)
@@ -156,9 +143,9 @@ namespace Realm.Client.UI
 
 			try
 			{
-				if (!await VerifyMapAssetsAsync(progressBar, statusLabel, closeBtn)) return null;
-
 				if (!await CompileMapScriptAsync(progressBar, statusLabel, closeBtn)) return null;
+
+				if (!await VerifyMapAssetsAsync(progressBar, statusLabel, closeBtn)) return null;
 
 				GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(GameContext.EditorService._editingDirectory);
 
@@ -195,7 +182,7 @@ namespace Realm.Client.UI
 
 		private async Task<bool> VerifyMapAssetsAsync(ProgressBar progressBar, Label statusLabel, Button closeBtn)
 		{
-			progressBar.Value = 15;
+			progressBar.Value = 25;
 			statusLabel.Text = TranslationServer.Translate("Verifying map assets...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
@@ -208,6 +195,12 @@ namespace Realm.Client.UI
 				AbortExport(progressBar, statusLabel, closeBtn, "Missing required asset files. Export aborted.",
 					$"[ERROR] Export aborted. Missing required asset files:\n  {string.Join("\n  ", missingAssets)}");
 				ShowFeedback(string.Format(TranslationServer.Translate("Export failed: Map is missing required asset files:\n{0}"), string.Join(", ", missingAssets.Take(4)) + (missingAssets.Count > 4 ? "..." : "")));
+				return false;
+			}
+
+			if (!CheckScriptIsOptimized(editingDirectory))
+			{
+				AbortExport(progressBar, statusLabel, closeBtn, "The map script is not an optimized release build. Export aborted.", null);
 				return false;
 			}
 
@@ -226,7 +219,7 @@ namespace Realm.Client.UI
 
 		private async Task<bool> CompileMapScriptAsync(ProgressBar progressBar, Label statusLabel, Button closeBtn)
 		{
-			progressBar.Value = 20;
+			progressBar.Value = 15;
 			statusLabel.Text = TranslationServer.Translate("Compiling WASM map script...");
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
@@ -248,6 +241,16 @@ namespace Realm.Client.UI
 			}
 
 			return true;
+		}
+
+		private bool CheckScriptIsOptimized(string workspace)
+		{
+			string? wasmPath = MapStorageService.FindWasmPath(workspace);
+			if (string.IsNullOrEmpty(wasmPath) || !MapScriptArtifacts.ContainsDebugInformation(wasmPath)) return true;
+
+			ShowFeedback(TranslationServer.Translate("The compiled map script still carries debug information. Recompile it for release and try again."));
+			AppendWasmConsoleLog("[ERROR] The compiled map script still carries DWARF debug information, so it is not a release build.");
+			return false;
 		}
 
 		private async Task OptimizeMapAssetsAsync(ProgressBar progressBar, Label statusLabel)

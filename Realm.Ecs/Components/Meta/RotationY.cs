@@ -6,6 +6,7 @@ namespace Realm.Ecs.Components.Meta;
 /// Tracks rotational azimuth heading around the vertical Y-axis in radians.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct RotationY
 {
 	public float Value;

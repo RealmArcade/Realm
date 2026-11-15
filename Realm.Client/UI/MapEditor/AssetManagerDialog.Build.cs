@@ -184,6 +184,15 @@ public partial class AssetManagerDialog
 		_footerThumbnail.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
 		footerHBox.AddChild(_footerThumbnail);
 
+		_sourceImagePreview = new TextureRect();
+		_sourceImagePreview.Name = "SourceImagePreview_TextureRect";
+		_sourceImagePreview.CustomMinimumSize = new Vector2(74, 74);
+		_sourceImagePreview.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+		_sourceImagePreview.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+		_sourceImagePreview.TooltipText = TranslationServer.Translate("Source reference image embedded in this .rmesh for re-generation and 2D portraits");
+		_sourceImagePreview.Visible = false;
+		footerHBox.AddChild(_sourceImagePreview);
+
 		var footerInfoVBox = new VBoxContainer();
 		footerInfoVBox.Name = "FooterInfoVBox_VBoxContainer";
 		footerInfoVBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -253,6 +262,17 @@ public partial class AssetManagerDialog
 		footerBtnVBox.Alignment = BoxContainer.AlignmentMode.Center;
 		footerBtnVBox.AddThemeConstantOverride("separation", 6);
 		footerHBox.AddChild(footerBtnVBox);
+
+		_btnExportSourceImage = AddButton(
+			footerBtnVBox,
+			$"{UnicodeIcons.FILE_EXPORT} {TranslationServer.Translate("Export Source Image")}",
+			OnExportSourceImagePressed,
+			"Save the source reference image embedded in this .rmesh as a WebP file",
+			11,
+			new Vector2(150, 28));
+		_btnExportSourceImage.Name = "BtnExportSourceImage_Button";
+		_btnExportSourceImage.Set("icon_max_width", 0);
+		_btnExportSourceImage.Visible = false;
 
 		_btnDeleteAsset = new Button();
 		_btnDeleteAsset.Name = "BtnDeleteAsset_Button";

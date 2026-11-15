@@ -24,6 +24,7 @@ public static class Program
 		string[] sanitizedArgs = CommandLineArgsHelper.SanitizeArgs(
 			originalArgs,
 			typeof(MeshConvertOptions),
+			typeof(RmeshExtractSourceImageOptions),
 			typeof(TextureConvertOptions),
 			typeof(AudioConvertOptions),
 			typeof(FbxToRanimOptions),
@@ -36,12 +37,14 @@ public static class Program
 			typeof(GenerateManifestSchemaOptions),
 			typeof(GenerateMetadataSchemaOptions),
 			typeof(GenerateTerrainSchemaOptions),
-			typeof(GenerateSchemasOptions));
+			typeof(GenerateSchemasOptions),
+			typeof(VerifySchemasOptions));
 
-		return Parser.Default.ParseArguments<MeshConvertOptions, TextureConvertOptions, AudioConvertOptions, FbxToRanimOptions, RanimRenderOptions, MetadataOptions, Blake3Options, MeshPlayerColorCliOptions, RigHumanoidOptions, KeygenOptions, GenerateManifestSchemaOptions, GenerateMetadataSchemaOptions, GenerateTerrainSchemaOptions, GenerateSchemasOptions>(sanitizedArgs)
+		return Parser.Default.ParseArguments<MeshConvertOptions, RmeshExtractSourceImageOptions, TextureConvertOptions, AudioConvertOptions, FbxToRanimOptions, RanimRenderOptions, MetadataOptions, Blake3Options, MeshPlayerColorCliOptions, RigHumanoidOptions, KeygenOptions, GenerateManifestSchemaOptions, GenerateMetadataSchemaOptions, GenerateTerrainSchemaOptions, GenerateSchemasOptions, VerifySchemasOptions>(sanitizedArgs)
 			.WithParsed(options => CommandLineArgsHelper.ApplyBooleanOverrides(options, originalArgs))
 			.MapResult(
 				(MeshConvertOptions options) => MeshConvertCommands.Execute(options),
+				(RmeshExtractSourceImageOptions options) => RmeshExtractSourceImageCommand.Execute(options),
 				(TextureConvertOptions options) => TextureConvertCommand.Execute(options),
 				(AudioConvertOptions options) => AudioConvertCommand.Execute(options),
 				(FbxToRanimOptions options) => RanimCommands.ExecuteFromFbx(options),
@@ -55,6 +58,7 @@ public static class Program
 				(GenerateMetadataSchemaOptions options) => SchemaCommands.ExecuteMetadata(options),
 				(GenerateTerrainSchemaOptions options) => SchemaCommands.ExecuteTerrain(options),
 				(GenerateSchemasOptions options) => SchemaCommands.ExecuteAll(options),
+				(VerifySchemasOptions options) => SchemaCommands.ExecuteVerify(options),
 				errors => 1);
 	}
 

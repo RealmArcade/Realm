@@ -115,6 +115,43 @@ public static class MapMaintainerHelper
 		return maintainers.Count > 0 ? maintainers[0] : string.Empty;
 	}
 
+	/// <summary>
+	///     Pins a map title to the key that may publish it, which is what keeps a title nobody has published yet from being
+	///     taken by whoever asks first. A title that already has maintainers is untouched and answers true only for one of
+	///     them, so a claim can never move a map from the creator who holds it to another key.
+	/// </summary>
+	/// <param name="db">The store the ownership lives in.</param>
+	/// <param name="mapTitle">The title being claimed.</param>
+	/// <param name="publicKey">The key claiming the title.</param>
+	/// <param name="existingOwner">The key that already holds the title, or nothing when it was unowned.</param>
+	/// <returns>Whether the title is now held by that key.</returns>
+	public static bool TryClaimOwnership(DataStoreService db, string mapTitle, string publicKey, out string existingOwner)
+	{
+		existingOwner = string.Empty;
+		if (string.IsNullOrWhiteSpace(mapTitle) || string.IsNullOrWhiteSpace(publicKey)) return false;
+
+		string trimmedKey = publicKey.Trim();
+		List<string> maintainers = GetMaintainers(db, mapTitle);
+		if (maintainers.Count > 0)
+		{
+			existingOwner = GetOwner(db, mapTitle);
+			return maintainers.Any(maintainer => string.Equals(maintainer, trimmedKey, StringComparison.OrdinalIgnoreCase));
+		}
+
+		string trimmed = mapTitle.Trim();
+		string slug = trimmed.ToLowerInvariant().Replace(" ", "-");
+		string lower = trimmed.ToLowerInvariant();
+		string norm = NameNormalizationHelper.NormalizeMapName(trimmed);
+
+		// Every spelling the lookups read is written, so the claim is found by whichever one a later request uses.
+		db.Upsert("map_ownership", trimmed, trimmedKey);
+		db.Upsert("map_ownership", slug, trimmedKey);
+		db.Upsert("map_ownership", lower, trimmedKey);
+		if (!string.IsNullOrEmpty(norm)) db.Upsert("map_ownership", norm, trimmedKey);
+
+		return true;
+	}
+
 	public static bool IsAuthorizedMaintainer(DataStoreService db, string mapTitle, string publicKey)
 	{
 		if (string.IsNullOrWhiteSpace(publicKey)) return false;

@@ -13,6 +13,7 @@ using Realm.Shared;
 using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
+using Realm.Shared.Reachability;
 using Realm.AdminServer.Helpers;
 
 namespace Realm.AdminServer;
@@ -28,7 +29,8 @@ public record ServerSetup(
 	bool ServesClientDownloads,
 	ConcurrentDictionary<string, WebSocket> HostConnections,
 	string SeederId,
-	int CapacityPercent);
+	int CapacityPercent,
+	UdpReachabilityProbeService ReachabilityProbe);
 
 public static class ServerHost
 {
@@ -135,6 +137,13 @@ public static class ServerHost
 
 	builder.Services.AddCors(options => { options.AddPolicy("AllowAll", policy => { policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader(); }); });
 
+	// A lobby is only registered once this node has reached its game port itself, so the socket that check is made from
+	// is part of the node rather than of one route.
+	var reachabilityProbePort = builder.Configuration.GetValue<int?>("ReachabilityProbePort") ?? UdpReachabilityProbeService.DefaultProbePort;
+	var reachabilityProbePublicIp = builder.Configuration.GetValue<string>("ReachabilityProbePublicIp") ?? string.Empty;
+	var reachabilityProbe = new UdpReachabilityProbeService(reachabilityProbePort, reachabilityProbePublicIp);
+	builder.Services.AddSingleton(reachabilityProbe);
+
 	var app = builder.Build();
 
 	app.UseCors("AllowAll");
@@ -162,6 +171,9 @@ public static class ServerHost
 
 
 	var hostConnections = new ConcurrentDictionary<string, WebSocket>();
+
+	app.Lifetime.ApplicationStopping.Register(reachabilityProbe.Dispose);
+	Console.WriteLine($"[Reachability] Lobbies are registered only after this node reaches their game port from UDP port {reachabilityProbePort}; that port must be reachable over UDP at this node's public address, and ReachabilityProbePublicIp names that address when it differs from the HTTP host name.");
 
 
 	_ = Task.Run(async () =>
@@ -195,7 +207,7 @@ public static class ServerHost
 		}
 	});
 
-		return new ServerSetup(app, cas, adminPublicKeys, servesClientDownloads, hostConnections, seederId, capacityPercent);
+		return new ServerSetup(app, cas, adminPublicKeys, servesClientDownloads, hostConnections, seederId, capacityPercent, reachabilityProbe);
 	}
 
 	/// <summary>Every 63 seconds, pull cluster state from the peers and drop events older than a day.</summary>

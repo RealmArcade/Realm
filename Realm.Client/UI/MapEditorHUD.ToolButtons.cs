@@ -64,8 +64,8 @@ namespace Realm.Client.UI
 
 			if (_btnReplaceTexture != null)
 			{
-				_btnReplaceTexture.Text = $"{UnicodeIcons.UPLOAD} {TranslationServer.Translate("REPLACE TEXTURE")}";
-				_btnReplaceTexture.TooltipText = TranslationServer.Translate("Replace all instances of a texture with another texture across the map");
+				LocalizedText.Bind(_btnReplaceTexture, () => $"{UnicodeIcons.UPLOAD} {TranslationServer.Translate("REPLACE TEXTURE")}");
+				LocalizedText.SetTooltip(_btnReplaceTexture, "Replace all instances of a texture with another texture across the map");
 			}
 		}
 

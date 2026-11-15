@@ -67,7 +67,7 @@ public class GlbOptimizer
 		return UvChartReducer.DefaultTexCoordTolerance;
 	}
 
-	private void ProcessOptimization(byte[] glbBytes, OptimizationOptions options, ref OptimizationResult result)
+	private static byte[] PackBaseMesh(byte[] glbBytes, OptimizationOptions options, ref OptimizationResult result)
 	{
 		byte[] smoothed = GlbMeshSmoother.SmoothMesh(glbBytes, ResolveCreaseAngleDegrees(options));
 		byte[] sanitized = GlbManifestUtils.SanitizeMaterials(smoothed);
@@ -80,17 +80,71 @@ public class GlbOptimizer
 		);
 
 		byte[] packedBaseMesh = GetPackedBaseMesh(toolSuccess, toolBytes, sanitized);
+		RecordUvChartStatistics(packedBaseMesh, options, ref result);
+		return packedBaseMesh;
+	}
 
+	private static void RecordUvChartStatistics(byte[] packedBaseMesh, OptimizationOptions options, ref OptimizationResult result)
+	{
 		float uvChartMergeTolerance = ResolveUvChartMergeTolerance(options);
-		if (uvChartMergeTolerance > 0f)
+		if (uvChartMergeTolerance <= 0f) return;
+
+		var chartStatistics = UvChartReducer.Analyze(packedBaseMesh, uvChartMergeTolerance);
+		result.UvIslandCountBefore = chartStatistics.IslandCountBefore;
+		result.UvIslandCountAfter = chartStatistics.IslandCountAfter;
+		result.UvChartMergeTolerance = chartStatistics.TexCoordTolerance;
+	}
+
+	private static byte[] CompressTextures(byte[] glbBytes, OptimizationOptions options)
+	{
+		return options.CompressTextures
+			? GlbManifestUtils.EncodeGlbTexturesWebp(glbBytes, options.MaxTextureResolution)
+			: glbBytes;
+	}
+
+	private static BaseTierDecimationOptions ResolveBaseTierDecimationOptions(OptimizationOptions options)
+	{
+		float allowedPixelError = options.AllowedPixelError > 0f ? options.AllowedPixelError : 1.5f;
+
+		return new BaseTierDecimationOptions
 		{
-			var chartStatistics = UvChartReducer.Analyze(packedBaseMesh, uvChartMergeTolerance);
-			result.UvIslandCountBefore = chartStatistics.IslandCountBefore;
-			result.UvIslandCountAfter = chartStatistics.IslandCountAfter;
-			result.UvChartMergeTolerance = chartStatistics.TexCoordTolerance;
+			TargetError = Math.Clamp(allowedPixelError / GlbLodGenerator.BaseTierReferenceViewportHeight, 0.0001f, 0.5f),
+			MaximumTriangleCount = options.MaxBaseTierTriangleCount
+		};
+	}
+
+	private static bool TryDecimateBaseTier(byte[] packedBaseMesh, OptimizationOptions options, ref OptimizationResult result, out byte[] decimatedBaseMesh)
+	{
+		decimatedBaseMesh = packedBaseMesh;
+
+		var decimation = GlbLodGenerator.DecimateBaseMesh(
+			packedBaseMesh,
+			ResolveBaseTierDecimationOptions(options),
+			options.DecimationProfile,
+			ResolveUvChartMergeTolerance(options));
+
+		if (!decimation.Success)
+		{
+			result.Success = false;
+			result.ErrorMessage = $"Base tier decimation failed: {decimation.ErrorMessage}";
+			return false;
 		}
 
-		var (lodSuccess, lodGlbBytes, lodError, lodTriangleCounts) = GlbLodGenerator.GenerateLods(packedBaseMesh, decimationProfile: options.DecimationProfile, uvSeamMergeTolerance: uvChartMergeTolerance);
+		decimatedBaseMesh = decimation.OutputGlbBytes;
+		return true;
+	}
+
+	private void ProcessOptimization(byte[] glbBytes, OptimizationOptions options, ref OptimizationResult result)
+	{
+		byte[] packedBaseMesh = PackBaseMesh(glbBytes, options, ref result);
+		if (!TryDecimateBaseTier(packedBaseMesh, options, ref result, out byte[] masterTierBytes)) return;
+
+		GenerateLodTiers(masterTierBytes, options, compressTextures: true, ref result);
+	}
+
+	private void GenerateLodTiers(byte[] masterTierBytes, OptimizationOptions options, bool compressTextures, ref OptimizationResult result)
+	{
+		var (lodSuccess, lodGlbBytes, lodError, lodTriangleCounts) = GlbLodGenerator.GenerateLods(masterTierBytes, decimationProfile: options.DecimationProfile, uvSeamMergeTolerance: ResolveUvChartMergeTolerance(options));
 		if (!lodSuccess)
 		{
 			result.Success = false;
@@ -100,21 +154,28 @@ public class GlbOptimizer
 
 		result.LodTriangleCounts = lodTriangleCounts;
 
-		byte[] workingBytes = lodGlbBytes.Length > 0 ? lodGlbBytes : packedBaseMesh;
-
-		if (options.CompressTextures)
-		{
-			workingBytes = GlbManifestUtils.EncodeGlbTexturesWebp(workingBytes, options.MaxTextureResolution);
-		}
-
+		byte[] workingBytes = lodGlbBytes.Length > 0 ? lodGlbBytes : masterTierBytes;
+		byte[] texturedBytes = compressTextures ? CompressTextures(workingBytes, options) : workingBytes;
 		byte[] finalBytes = GlbManifestUtils.InjectOptimizationMetadata(
-			workingBytes,
+			texturedBytes,
 			new Dictionary<string, object>
 			{
 				{ "original_size", result.OriginalSize },
 				{ "simplification_ratio", options.SimplificationRatio }
 			}
 		);
+
+		result.Success = true;
+		result.OutputGlbBytes = finalBytes;
+		result.OptimizedSize = finalBytes.Length;
+	}
+
+	private void ProcessBaseMeshOptimization(byte[] glbBytes, OptimizationOptions options, ref OptimizationResult result)
+	{
+		byte[] packedBaseMesh = PackBaseMesh(glbBytes, options, ref result);
+		if (!TryDecimateBaseTier(packedBaseMesh, options, ref result, out byte[] masterTierBytes)) return;
+
+		byte[] finalBytes = CompressTextures(masterTierBytes, options);
 
 		result.Success = true;
 		result.OutputGlbBytes = finalBytes;
@@ -144,13 +205,101 @@ public class GlbOptimizer
 
 		if (!options.ForceReDecimate && IsOptimized(glbBytes))
 		{
+			if (GlbLodGenerator.HasGeneratedLodTiers(glbBytes))
+			{
+				result.Success = true;
+				result.DecimationSkipped = true;
+				result.OptimizedSize = glbBytes.Length;
+				return result;
+			}
+
+			GenerateLodTiers(glbBytes, options, compressTextures: false, ref result);
+			return result;
+		}
+
+		ProcessOptimization(glbBytes, options, ref result);
+		return result;
+	}
+
+	public OptimizationResult PrepareForAutoRigging(byte[] glbBytes, int maxTextureResolution)
+	{
+		return OptimizeBaseMesh(glbBytes, new OptimizationOptions
+		{
+			MaxTextureResolution = maxTextureResolution,
+			ForceReDecimate = true
+		});
+	}
+
+	public OptimizationResult PrepareForAutoRiggingFile(string inputPath, string? outputPath, int maxTextureResolution)
+	{
+		return OptimizeBaseMeshFile(inputPath, outputPath, new OptimizationOptions
+		{
+			MaxTextureResolution = maxTextureResolution,
+			ForceReDecimate = true
+		});
+	}
+
+	public OptimizationResult OptimizeBaseMesh(byte[] glbBytes, OptimizationOptions options = default)
+	{
+		var result = new OptimizationResult
+		{
+			Success = false,
+			OriginalSize = glbBytes?.Length ?? 0,
+			OptimizedSize = glbBytes?.Length ?? 0,
+			OutputGlbBytes = glbBytes
+		};
+
+		if (options.MaxTextureResolution <= 0)
+		{
+			options = new OptimizationOptions();
+		}
+
+		if (glbBytes == null || glbBytes.Length == 0)
+		{
+			result.ErrorMessage = "Empty or null GLB buffer.";
+			return result;
+		}
+
+		if (!options.ForceReDecimate && IsOptimized(glbBytes))
+		{
 			result.Success = true;
 			result.DecimationSkipped = true;
 			result.OptimizedSize = glbBytes.Length;
 			return result;
 		}
 
-		ProcessOptimization(glbBytes, options, ref result);
+		ProcessBaseMeshOptimization(glbBytes, options, ref result);
+		return result;
+	}
+
+	public OptimizationResult OptimizeBaseMeshFile(string inputPath, string? outputPath = null, OptimizationOptions options = default)
+	{
+		if (!File.Exists(inputPath))
+		{
+			return new OptimizationResult
+			{
+				Success = false,
+				ErrorMessage = $"Input file does not exist: {inputPath}"
+			};
+		}
+
+		byte[] inputBytes = File.ReadAllBytes(inputPath);
+		var result = OptimizeBaseMesh(inputBytes, options);
+
+		if (result.Success && result.OutputGlbBytes != null)
+		{
+			string target = string.IsNullOrEmpty(outputPath) ? inputPath : outputPath;
+			string? dir = Path.GetDirectoryName(target);
+			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+			{
+				Directory.CreateDirectory(dir);
+			}
+
+			File.WriteAllBytes(target, result.OutputGlbBytes);
+			RealmMetadataHelper.SyncBlake3Metadata(target);
+			result.OutputFilePath = target;
+		}
+
 		return result;
 	}
 

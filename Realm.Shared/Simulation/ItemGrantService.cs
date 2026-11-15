@@ -11,8 +11,6 @@ namespace Realm.Shared.Simulation;
 
 public class ItemGrantService
 {
-	public const int CarriedItemLimit = 6;
-
 	private readonly SimulationContext _context;
 	private readonly DefinitionCatalog _catalog;
 
@@ -30,22 +28,88 @@ public class ItemGrantService
 		if (!World.Has<Inventory>(entity)) return true;
 
 		ref Inventory inventory = ref World.Get<Inventory>(entity);
-		return inventory.Count < CarriedItemLimit || inventory.HasItem(itemId);
+		ItemMetadata? item = _catalog.FindItem(itemId);
+		if (item != null && !string.IsNullOrEmpty(item.ResourceType))
+		{
+			return inventory.AvailableRoom(itemId, StackLimitOf(item), SlotLimit) > 0;
+		}
+
+		return CountEquippedKinds(ref inventory) < SlotLimit || inventory.HasItem(itemId);
 	}
 
-	public bool Equip(Entity entity, string itemId, int charges = 1)
+	/// <summary>
+	///     Counts the distinct equipped items a unit carries, ignoring the resource pieces a worker hauls: those take
+	///     slots in their own right, and a carried resource is not an equipment choice.
+	/// </summary>
+	/// <param name="inventory">The inventory being read.</param>
+	/// <returns>The number of carried item kinds that are not resources.</returns>
+	private int CountEquippedKinds(ref Inventory inventory)
+	{
+		int kinds = 0;
+		for (int index = 0; index < inventory.Count; index++)
+		{
+			string? carriedId = inventory.GetItemId(index);
+			if (string.IsNullOrEmpty(carriedId)) continue;
+
+			ItemMetadata? carried = _catalog.FindItem(carriedId);
+			if (carried != null && !string.IsNullOrEmpty(carried.ResourceType)) continue;
+
+			kinds++;
+		}
+
+		return kinds;
+	}
+
+	/// <summary>The number of inventory slots the match grants a unit, which equipment and resources share.</summary>
+	private int SlotLimit => _context.MapRules.InventorySlotLimit;
+
+	private static int StackLimitOf(ItemMetadata item)
+	{
+		return item.MaxStacks > 0 ? item.MaxStacks : 1;
+	}
+
+	/// <summary>
+	///     Puts an item into a unit's inventory. An item granted rather than collected is bound to the unit that was given
+	///     it, so it stays with that unit and cannot be put down.
+	/// </summary>
+	/// <param name="entity">The unit receiving the item.</param>
+	/// <param name="itemId">The item definition identifier to add.</param>
+	/// <param name="charges">How many pieces to add.</param>
+	/// <param name="soulbound">Whether the pieces are bound to this unit for as long as it holds them.</param>
+	/// <returns>True when the inventory took the item; otherwise false.</returns>
+	public bool Equip(Entity entity, string itemId, int charges = 1, bool soulbound = false)
 	{
 		if (!World.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId)) return false;
 		if (!CanCarry(entity, itemId)) return false;
 
 		if (!World.Has<Inventory>(entity)) World.Add(entity, default(Inventory));
 
-		int carried = CarriedCharges(entity, itemId);
+		ItemMetadata? metadata = _catalog.FindItem(itemId);
+		int limit = metadata != null ? StackLimitOf(metadata) : 1;
 		int added = Math.Max(1, charges);
-		if (!WriteCharges(entity, itemId, carried > 0 ? carried + added : added)) return false;
+		ref Inventory inventory = ref World.Get<Inventory>(entity);
+		if (!inventory.AddItem(itemId, added, limit, SlotLimit)) return false;
 
 		ApplyGrants(entity, itemId);
+		if (soulbound) BindItem(entity, itemId);
 		return true;
+	}
+
+	/// <summary>
+	///     Binds an item the unit already holds to that unit, which is what stops it being put down.
+	/// </summary>
+	/// <param name="entity">The unit holding the item.</param>
+	/// <param name="itemId">The item definition identifier to bind.</param>
+	/// <returns>True when the item became bound; false when it was already bound or the unit does not carry it.</returns>
+	public bool BindItem(Entity entity, string itemId)
+	{
+		if (!World.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId)) return false;
+		if (!World.Has<Inventory>(entity) || !World.Get<Inventory>(entity).HasItem(itemId)) return false;
+
+		if (!World.Has<SoulboundItems>(entity)) World.Add(entity, default(SoulboundItems));
+
+		ref SoulboundItems bound = ref World.Get<SoulboundItems>(entity);
+		return bound.Add(itemId);
 	}
 
 	public bool Unequip(Entity entity, string itemId)
@@ -56,7 +120,49 @@ public class ItemGrantService
 		if (!WriteCharges(entity, itemId, 0)) return false;
 
 		WithdrawGrants(entity, itemId);
+		ReleaseItemIfGone(entity, itemId);
 		return true;
+	}
+
+	/// <summary>
+	///     Takes up to the stated number of pieces of one item out of a unit's inventory, which is how an item leaves
+	///     the unit for the ground. What is left of the item keeps its grants; the unit drops them with its last piece.
+	/// </summary>
+	/// <param name="entity">The unit giving the item up.</param>
+	/// <param name="itemId">The item definition identifier to take.</param>
+	/// <param name="charges">How many pieces to take, clamped to what the unit carries.</param>
+	/// <returns>The number of pieces actually taken, which is zero when the unit carries none.</returns>
+	public int TakeCharges(Entity entity, string itemId, int charges)
+	{
+		if (!World.IsAlive(entity) || string.IsNullOrWhiteSpace(itemId)) return 0;
+		if (!World.Has<Inventory>(entity)) return 0;
+
+		ref Inventory inventory = ref World.Get<Inventory>(entity);
+		int taken = Math.Min(inventory.GetItemCount(itemId), Math.Max(1, charges));
+		if (taken <= 0) return 0;
+
+		inventory.RemoveItem(itemId, taken);
+
+		if (inventory.HasItem(itemId))
+		{
+			ApplyGrants(entity, itemId);
+		}
+		else
+		{
+			WithdrawGrants(entity, itemId);
+			ReleaseItemIfGone(entity, itemId);
+		}
+
+		return taken;
+	}
+
+	private void ReleaseItemIfGone(Entity entity, string itemId)
+	{
+		if (!World.IsAlive(entity) || !World.Has<SoulboundItems>(entity)) return;
+		if (World.Has<Inventory>(entity) && World.Get<Inventory>(entity).HasItem(itemId)) return;
+
+		ref SoulboundItems bound = ref World.Get<SoulboundItems>(entity);
+		bound.Remove(itemId);
 	}
 
 	public bool Carries(Entity entity, string itemId)
@@ -90,8 +196,15 @@ public class ItemGrantService
 		int wanted = Math.Max(0, charges);
 		if (!WriteCharges(entity, itemId, wanted)) return false;
 
-		if (wanted == 0) WithdrawGrants(entity, itemId);
-		else ApplyGrants(entity, itemId);
+		if (wanted == 0)
+		{
+			WithdrawGrants(entity, itemId);
+			ReleaseItemIfGone(entity, itemId);
+		}
+		else
+		{
+			ApplyGrants(entity, itemId);
+		}
 
 		return true;
 	}

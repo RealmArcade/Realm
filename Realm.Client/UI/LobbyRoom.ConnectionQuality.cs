@@ -73,31 +73,45 @@ public partial class LobbyRoom
 		return -1f;
 	}
 
-	private string GetPingColorCode(string latency)
+	/// <summary>
+	///     Reads the worst of a seat's three link measurements as one colour, so a single glyph can say what the numbers on
+	///     the row used to spell out. A seat whose measurements have not arrived yet reads neutral rather than healthy.
+	/// </summary>
+	/// <param name="player">The seat whose link is read.</param>
+	/// <returns>The colour the seat's link glyph is drawn in.</returns>
+	private Color GetLinkQualityColor(PlayerInfo player)
 	{
-		int val = ParsePingValue(latency);
-		if (val < 0) return "#a0a0a0";
-		if (val < 100) return "#4ce66a";
-		if (val < 200) return "#ffd700";
-		return "#ff5555";
-	}
+		bool measured = false;
+		bool degraded = false;
+		bool failing = false;
 
-	private string GetJitterColorCode(string jitter)
-	{
-		int val = ParseJitterValue(jitter);
-		if (val < 0) return "#a0a0a0";
-		if (val < 20) return "#4ce66a";
-		if (val < 50) return "#ffd700";
-		return "#ff5555";
-	}
+		int ping = ParsePingValue(player.Latency);
+		if (ping >= 0)
+		{
+			measured = true;
+			if (ping >= 200) failing = true;
+			else if (ping >= 100) degraded = true;
+		}
 
-	private string GetLossColorCode(string loss)
-	{
-		float val = ParseLossValue(loss);
-		if (val < 0f) return "#a0a0a0";
-		if (val < 1.0f) return "#4ce66a";
-		if (val < 5.0f) return "#ffd700";
-		return "#ff5555";
+		int jitter = ParseJitterValue(player.Jitter);
+		if (jitter >= 0)
+		{
+			measured = true;
+			if (jitter >= 50) failing = true;
+			else if (jitter >= 20) degraded = true;
+		}
+
+		float loss = ParseLossValue(player.PacketLoss);
+		if (loss >= 0f)
+		{
+			measured = true;
+			if (loss >= 5.0f) failing = true;
+			else if (loss >= 1.0f) degraded = true;
+		}
+
+		if (failing) return new Color(0.95f, 0.34f, 0.34f);
+		if (degraded) return new Color(0.95f, 0.8f, 0.25f);
+		return measured ? new Color(0.35f, 0.9f, 0.45f) : new Color(0.62f, 0.64f, 0.7f);
 	}
 
 	private bool IsAnyMetricRed()

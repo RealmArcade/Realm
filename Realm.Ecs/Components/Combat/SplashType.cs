@@ -3,6 +3,7 @@ namespace Realm.Ecs.Components.Combat;
 /// <summary>
 /// Defines area-of-effect splash damage distribution patterns.
 /// </summary>
+[MapApiComponent]
 public enum SplashType : byte
 {
 	None = 0,

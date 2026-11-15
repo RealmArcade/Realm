@@ -25,8 +25,10 @@ public partial class CommandAuthorityService
 		if (DispatchMovementCommand(peerId, cmd, stopVelocityEntityIds, holdVelocityEntityIds, rejectedServerEntityIds, ref rejectionReason)) return;
 		if (DispatchActionCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
 		if (DispatchTrainingCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
+		if (DispatchConstructionCommand(peerId, cmd, ref rejectionReason)) return;
 		if (DispatchResearchCommand(peerId, cmd, ref rejectionReason)) return;
 		if (DispatchConsumableCommand(peerId, cmd, ref rejectionReason)) return;
+		if (DispatchAutoCastCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason)) return;
 		DispatchCheatCommand(peerId, cmd, ref rejectionReason);
 	}
 
@@ -77,6 +79,17 @@ public partial class CommandAuthorityService
 			case "gather":
 			case "gather_queued":
 				HandleGatherCommand(peerId, cmd, isQueued, rejectedServerEntityIds, ref rejectionReason);
+				return true;
+			case "repair":
+			case "repair_queued":
+				HandleRepairCommand(peerId, cmd, isQueued, rejectedServerEntityIds, ref rejectionReason);
+				return true;
+			case "pickup":
+			case "pickup_queued":
+				HandlePickupCommand(peerId, cmd, isQueued, rejectedServerEntityIds, ref rejectionReason);
+				return true;
+			case "drop_item":
+				HandleDropItemCommand(peerId, cmd, rejectedServerEntityIds, ref rejectionReason);
 				return true;
 		}
 

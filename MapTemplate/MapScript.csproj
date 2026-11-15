@@ -36,21 +36,22 @@
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>embedded</DebugType>
-    <Optimize>true</Optimize>
+    <Optimize>false</Optimize>
     <StripSymbols>false</StripSymbols>
     <IlcGenerateCompleteTypeMetadata>true</IlcGenerateCompleteTypeMetadata>
+    <IlcDwarfVersion>5</IlcDwarfVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <DebugSymbols>false</DebugSymbols>
-    <DebugType>none</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>embedded</DebugType>
     <Optimize>true</Optimize>
-    <StripSymbols>true</StripSymbols>
+    <StripSymbols>false</StripSymbols>
   </PropertyGroup>
   <ItemGroup>
     <DirectPInvoke Include="env" />
     <LinkerArg Include="-Wl,--allow-undefined" />
     <LinkerArg Include="-g" Condition="'$(Configuration)' == 'Debug'" />
-    <LinkerArg Include="-gdwarf-4" Condition="'$(Configuration)' == 'Debug'" />
+    <LinkerArg Include="-gdwarf-5" Condition="'$(Configuration)' == 'Debug'" />
   </ItemGroup>
   <Target Name="EnableAotLate" BeforeTargets="ImportRuntimeIlcPackageTarget;IlcCompile;_ComputeAssembliesToCompileToNative">
     <PropertyGroup>

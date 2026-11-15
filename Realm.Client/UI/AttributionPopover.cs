@@ -5,23 +5,36 @@ using Realm.Client.Utils;
 
 namespace Realm.Client.UI;
 
+/// <summary>
+///     One titled list the attribution dialog shows: what the list is about, what to say while it holds nothing, and the
+///     entries themselves.
+/// </summary>
+/// <param name="Subtitle">The line that introduces the list.</param>
+/// <param name="EmptyText">The line shown instead of the list when it holds nothing.</param>
+/// <param name="Entries">The entries the list shows.</param>
+public readonly record struct AttributionSection(string Subtitle, string EmptyText, IReadOnlyList<string> Entries);
+
 [GlobalClass]
 public partial class AttributionPopover : Control
 {
 	private const float PanelWidth = 440.0f;
 	private const float PanelBaseHeight = 168.0f;
+	private const float SectionHeadingHeight = 24.0f;
 	private const float RowHeight = 30.0f;
-	private const float PanelMaximumHeight = 420.0f;
+	private const float EmptyLineHeight = 22.0f;
+	private const float PanelMaximumHeight = 460.0f;
 
 	private ColorRect _dismissOverlay = null!;
 	private PanelContainer _panel = null!;
 	private Label _titleLabel = null!;
-	private Label _subtitleLabel = null!;
-	private ScrollContainer _sourceScroll = null!;
-	private VBoxContainer _sourceList = null!;
-	private Label _emptyLabel = null!;
+	private ScrollContainer _sectionsScroll = null!;
+	private VBoxContainer _sectionsList = null!;
 	private Button _closeButton = null!;
 	private bool _built;
+
+	private int _sectionCount;
+	private int _rowCount;
+	private int _emptyLineCount;
 
 	public override void _Ready()
 	{
@@ -57,39 +70,18 @@ public partial class AttributionPopover : Control
 		_titleLabel.AddThemeFontSizeOverride("font_size", 16);
 		vbox.AddChild(_titleLabel);
 
-		_subtitleLabel = new Label();
-		_subtitleLabel.Name = "Subtitle_Label";
-		_subtitleLabel.Text = LocalizationManager.Translate("This map contains content imported from:");
-		_subtitleLabel.AutowrapMode = TextServer.AutowrapMode.Word;
-		_subtitleLabel.CustomMinimumSize = new Vector2(PanelWidth - 32, 0);
-		_subtitleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_subtitleLabel.AddThemeColorOverride("font_color", new Color(0.78f, 0.8f, 0.86f));
-		_subtitleLabel.AddThemeFontSizeOverride("font_size", 11);
-		vbox.AddChild(_subtitleLabel);
+		_sectionsScroll = new ScrollContainer();
+		_sectionsScroll.Name = "SectionScroll_ScrollContainer";
+		_sectionsScroll.CustomMinimumSize = new Vector2(0, 80);
+		_sectionsScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
+		_sectionsScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+		vbox.AddChild(_sectionsScroll);
 
-		_sourceScroll = new ScrollContainer();
-		_sourceScroll.Name = "SourceScroll_ScrollContainer";
-		_sourceScroll.CustomMinimumSize = new Vector2(0, 80);
-		_sourceScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		_sourceScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		vbox.AddChild(_sourceScroll);
-
-		_sourceList = new VBoxContainer();
-		_sourceList.Name = "SourceList_VBoxContainer";
-		_sourceList.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_sourceList.AddThemeConstantOverride("separation", 4);
-		_sourceScroll.AddChild(_sourceList);
-
-		_emptyLabel = new Label();
-		_emptyLabel.Name = "EmptyLabel_Label";
-		_emptyLabel.Text = LocalizationManager.Translate("No imported content has been attributed to this map.");
-		_emptyLabel.AutowrapMode = TextServer.AutowrapMode.Word;
-		_emptyLabel.CustomMinimumSize = new Vector2(PanelWidth - 32, 0);
-		_emptyLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_emptyLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.72f, 0.78f));
-		_emptyLabel.AddThemeFontSizeOverride("font_size", 11);
-		_emptyLabel.Visible = false;
-		vbox.AddChild(_emptyLabel);
+		_sectionsList = new VBoxContainer();
+		_sectionsList.Name = "SectionList_VBoxContainer";
+		_sectionsList.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_sectionsList.AddThemeConstantOverride("separation", 4);
+		_sectionsScroll.AddChild(_sectionsList);
 
 		_closeButton = new Button();
 		_closeButton.Name = "Close_Button";
@@ -106,20 +98,20 @@ public partial class AttributionPopover : Control
 
 	public void ShowFor(Control anchor, IReadOnlyList<string> sourceMapNames)
 	{
-		ShowFor(anchor,
-			LocalizationManager.Translate("ATTRIBUTION"),
-			LocalizationManager.Translate("This map contains content imported from:"),
-			LocalizationManager.Translate("No imported content has been attributed to this map."),
-			sourceMapNames);
+		ShowFor(anchor, new[]
+		{
+			new AttributionSection(
+				LocalizationManager.Translate("This map contains content imported from:"),
+				LocalizationManager.Translate("No imported content has been attributed to this map."),
+				sourceMapNames)
+		});
 	}
 
-	public void ShowFor(Control anchor, string title, string subtitle, string emptyText, IReadOnlyList<string> entries)
+	public void ShowFor(Control anchor, IReadOnlyList<AttributionSection> sections)
 	{
 		EnsureBuilt();
-		_titleLabel.Text = title;
-		_subtitleLabel.Text = subtitle;
-		_emptyLabel.Text = emptyText;
-		Populate(entries);
+		_titleLabel.Text = LocalizationManager.Translate("ATTRIBUTION");
+		Populate(sections);
 		Visible = true;
 
 		Node? parent = GetParent();
@@ -136,28 +128,67 @@ public partial class AttributionPopover : Control
 		Visible = false;
 	}
 
-	private void Populate(IReadOnlyList<string> sourceMapNames)
+	private void Populate(IReadOnlyList<AttributionSection> sections)
 	{
-		foreach (Node child in _sourceList.GetChildren())
+		foreach (Node child in _sectionsList.GetChildren())
 		{
-			_sourceList.RemoveChild(child);
+			_sectionsList.RemoveChild(child);
 			child.QueueFree();
 		}
 
-		var distinctSourceMaps = MapAttributionLookup.Clean(sourceMapNames);
-		_emptyLabel.Visible = distinctSourceMaps.Count == 0;
-		_sourceScroll.Visible = distinctSourceMaps.Count > 0;
+		_sectionCount = 0;
+		_rowCount = 0;
+		_emptyLineCount = 0;
 
-		foreach (string sourceMapName in distinctSourceMaps)
+		if (sections != null)
 		{
-			_sourceList.AddChild(CreateSourceRow(sourceMapName));
+			foreach (AttributionSection section in sections) AppendSection(section);
+		}
+
+		_sectionsScroll.Visible = _sectionCount > 0;
+	}
+
+	private void AppendSection(AttributionSection section)
+	{
+		var heading = new Label();
+		heading.Name = "SectionHeading_Label";
+		heading.Text = section.Subtitle;
+		heading.AutowrapMode = TextServer.AutowrapMode.Word;
+		heading.CustomMinimumSize = new Vector2(PanelWidth - 32, 0);
+		heading.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		heading.AddThemeColorOverride("font_color", new Color(0.78f, 0.8f, 0.86f));
+		heading.AddThemeFontSizeOverride("font_size", 11);
+		_sectionsList.AddChild(heading);
+
+		_sectionCount++;
+
+		IReadOnlyList<string> entries = MapAttributionLookup.Clean(section.Entries);
+		if (entries.Count == 0)
+		{
+			var emptyLabel = new Label();
+			emptyLabel.Name = "SectionEmpty_Label";
+			emptyLabel.Text = section.EmptyText;
+			emptyLabel.AutowrapMode = TextServer.AutowrapMode.Word;
+			emptyLabel.CustomMinimumSize = new Vector2(PanelWidth - 32, 0);
+			emptyLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			emptyLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.72f, 0.78f));
+			emptyLabel.AddThemeFontSizeOverride("font_size", 11);
+			_sectionsList.AddChild(emptyLabel);
+			_emptyLineCount++;
+			return;
+		}
+
+		foreach (string entry in entries)
+		{
+			_sectionsList.AddChild(CreateEntryRow(entry));
+			_rowCount++;
 		}
 	}
 
-	private static PanelContainer CreateSourceRow(string sourceMapName)
+	private static PanelContainer CreateEntryRow(string entry)
 	{
 		var row = new PanelContainer();
-		row.Name = "SourceRow_PanelContainer";
+		row.Name = "AttributionEntry_PanelContainer";
 		row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
 		var rowStyle = UIStyle.CreateCardPlate(new Color(0.04f, 0.05f, 0.07f, 0.75f),
@@ -165,8 +196,8 @@ public partial class AttributionPopover : Control
 		row.AddThemeStyleboxOverride("panel", rowStyle);
 
 		var label = new Label();
-		label.Name = "SourceMapName_Label";
-		label.Text = sourceMapName;
+		label.Name = "AttributionEntry_Label";
+		label.Text = entry;
 		label.AutowrapMode = TextServer.AutowrapMode.Word;
 		label.CustomMinimumSize = new Vector2(PanelWidth - 52, 0);
 		label.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -179,8 +210,8 @@ public partial class AttributionPopover : Control
 
 	private void PositionPanelNear(Control anchor)
 	{
-		float itemCount = Mathf.Max(1, _sourceList.GetChildCount());
-		float panelHeight = Mathf.Clamp(PanelBaseHeight + itemCount * RowHeight, PanelBaseHeight + RowHeight, PanelMaximumHeight);
+		float contentHeight = _sectionCount * SectionHeadingHeight + _rowCount * RowHeight + _emptyLineCount * EmptyLineHeight;
+		float panelHeight = Mathf.Clamp(PanelBaseHeight + contentHeight, PanelBaseHeight, PanelMaximumHeight);
 		Vector2 viewportSize = GetViewportRect().Size;
 
 		Vector2 position = anchor != null

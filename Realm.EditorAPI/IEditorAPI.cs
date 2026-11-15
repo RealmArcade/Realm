@@ -33,34 +33,31 @@ public interface IEditorAPI
 	void SelectCoordinate(string name);
 
 	/// <summary>
-	/// Places the spawn anchor of a player slot, which is where that seat begins a match on this board.
+	/// Seats a player in a named coordinate, which is where that seat begins a match on this board.
 	/// </summary>
 	/// <remarks>
-	/// An anchor is authored the way a coordinate is: the coordinate tool draws a box on the terrain and the centre of that
-	/// box becomes the point the seat starts on. The editor keeps one anchor per slot, so committing a slot that already has
-	/// one moves it rather than adding a second. Anchors are written to the board's terrain file beside its coordinates,
-	/// which is where the authority reads them and where a rules script finds them through
-	/// <c>IGameAPI.GetSpawnAnchor</c>.
+	/// An anchor is a region, not a spot: the board states the coordinate a seat starts inside and the authority picks a
+	/// point within it when the match begins, so one board can seat players where their ground is and never twice on the
+	/// same step. The editor keeps one anchor per player, so seating a player who already has one moves it rather than
+	/// adding a second. Anchors are written to the board's terrain file beside its coordinates, which is where the
+	/// authority reads them and where a rules script finds them through <c>IGameAPI.GetSpawnAnchor</c>.
 	/// </remarks>
-	/// <param name="player">The player slot the anchor seats, from 1 to the largest slot a match can hold.</param>
-	/// <param name="minCellX">West grid cell boundary of the drawn area.</param>
-	/// <param name="minCellZ">South grid cell boundary of the drawn area.</param>
-	/// <param name="maxCellX">East grid cell boundary of the drawn area.</param>
-	/// <param name="maxCellZ">North grid cell boundary of the drawn area.</param>
+	/// <param name="player">The zero-based player index the anchor seats, as the board's placement player picker states it.</param>
+	/// <param name="coordinateName">The name of an authored coordinate, or empty to remove the player's anchor.</param>
 	/// <returns>A result stating whether the anchor was placed, and why not when it was not.</returns>
-	EditorOperationResult CommitSpawnAnchor(int player, int minCellX, int minCellZ, int maxCellX, int maxCellZ);
+	EditorOperationResult CommitSpawnAnchor(int player, string coordinateName);
 
 	/// <summary>
-	/// Removes the spawn anchor of a player slot, so that slot is not seated on this board.
+	/// Removes the spawn anchor of a player, so that player is not seated in a coordinate of this board.
 	/// </summary>
-	/// <param name="player">The player slot whose anchor is removed.</param>
+	/// <param name="player">The player whose anchor is removed.</param>
 	/// <returns>A result stating whether an anchor was removed, and why not when it was not.</returns>
 	EditorOperationResult DeleteSpawnAnchor(int player);
 
 	/// <summary>
-	/// Selects the spawn anchor of a player slot and shows where it stands on the terrain.
+	/// Selects the spawn anchor of a player and shows the coordinate it seats that player in.
 	/// </summary>
-	/// <param name="player">The player slot whose anchor is selected.</param>
+	/// <param name="player">The player whose anchor is selected.</param>
 	/// <returns>A result stating whether the anchor exists to be selected, and why not when it does not.</returns>
 	EditorOperationResult SelectSpawnAnchor(int player);
 
@@ -179,6 +176,17 @@ public interface IEditorAPI
 	/// <param name="scale">Uniform scale multiplier.</param>
 	/// <returns>True when the prop was spawned; otherwise false.</returns>
 	bool PlaceProp(string propId, float x, float y, float z, float rotationY, float scale);
+
+	/// <summary>
+	/// Places an item template on the ground as a drop a unit can be sent to collect. The item is saved in
+	/// terrain.json and spawned as ground loot when the map is played, so it is the map's item and not a prop.
+	/// </summary>
+	/// <param name="itemId">Item template id the drop holds.</param>
+	/// <param name="x">World X position.</param>
+	/// <param name="y">World Y position of the drop.</param>
+	/// <param name="z">World Z position.</param>
+	/// <returns>True when the drop was placed; otherwise false, which is what an unknown item template reports.</returns>
+	bool PlaceItem(string itemId, float x, float y, float z);
 
 	/// <summary>
 	/// Resolves prop and resource template ids whose id, display name or model path matches any keyword.

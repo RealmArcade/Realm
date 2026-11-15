@@ -1,20 +1,45 @@
 using Realm.Shared.Animation;
+using Realm.Shared.Serialization;
 
 namespace Realm.Shared.Metadata;
 
+[SchemaDescription("Which attachments a unit's model carries and on which socket, one alternative per socket so a unit can hold a sword or a shield in the same hand.")]
 public class UnitObjectAttachments
 {
+	[SchemaDescription("The attachments carried in the model's right hand, one alternative per entry.")]
 	public List<Dictionary<string, HandAttachmentOrientation>>? right_hand { get; set; }
+
+	[SchemaDescription("The attachments carried in the model's left hand, one alternative per entry.")]
 	public List<Dictionary<string, HandAttachmentOrientation>>? left_hand { get; set; }
+
+	[SchemaDescription("The attachments worn on the model's chest, one alternative per entry.")]
 	public List<Dictionary<string, HandAttachmentOrientation>>? chest { get; set; }
+
+	[SchemaDescription("The attachments carried at the model's root, which follow the unit without being held.")]
 	public List<Dictionary<string, HandAttachmentOrientation>>? root { get; set; }
+
+	[SchemaDescription("The attachments worn on the model's head, one alternative per entry.")]
 	public List<Dictionary<string, HandAttachmentOrientation>>? head { get; set; }
+
+	[SchemaDescription("The attachments worn on the model's left foot.")]
 	public List<Dictionary<string, HandAttachmentOrientation>>? left_foot { get; set; }
+
+	[SchemaDescription("The attachments worn on the model's right foot.")]
 	public List<Dictionary<string, HandAttachmentOrientation>>? right_foot { get; set; }
+
+	[SchemaDescription("The attachments placed on the ground under the model, such as a banner planted on the spot.")]
 	public List<Dictionary<string, HandAttachmentOrientation>>? ground { get; set; }
+
+	[SchemaDescription("The attachments placed at the model's centre of mass.")]
 	public List<Dictionary<string, HandAttachmentOrientation>>? center { get; set; }
+
+	[SchemaDescription("The attachments drawn above the model, such as a crest or a carried standard.")]
 	public List<Dictionary<string, HandAttachmentOrientation>>? overhead { get; set; }
+
+	[SchemaDescription("The attachments placed at the model's pivot, which is the point it turns around.")]
 	public List<Dictionary<string, HandAttachmentOrientation>>? pivot { get; set; }
+
+	[SchemaDescription("The attachments carried on sockets the model or the map declares itself, keyed by the socket's name.")]
 	public Dictionary<string, List<Dictionary<string, HandAttachmentOrientation>>>? custom_sockets { get; set; }
 
 	public bool HasAny() => HasAnyUpper() || HasAnyLower() || HasAnyMisc() || (custom_sockets?.Count > 0);
@@ -45,6 +70,8 @@ public class UnitObjectAttachments
 		return null;
 	}
 
+	[SchemaDescription("The custom socket attachments read back as a dictionary, which is the same content as the custom sockets field and never written on its own.")]
+	[SchemaDerived("custom_sockets")]
 	public IReadOnlyDictionary<string, List<Dictionary<string, HandAttachmentOrientation>>>? CustomSocketLists => custom_sockets;
 
 	private static string NormalizeSocketKey(string? socket)

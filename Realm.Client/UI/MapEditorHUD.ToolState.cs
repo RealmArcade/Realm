@@ -322,6 +322,7 @@ namespace Realm.Client.UI
 				case EditorTool.PlaceUnit:
 				case EditorTool.PlaceProp:
 				case EditorTool.PlaceDecal:
+				case EditorTool.PlaceItem:
 					targetBtn = _toolPanel.AddObjectButton;
 					break;
 				case EditorTool.DeleteObject: targetBtn = _toolPanel.DeleteObjectButton; break;

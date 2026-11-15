@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Client.UI.InGame;
 using Realm.Shared.Distribution;
 using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
@@ -43,6 +44,8 @@ public partial class GameOver : Control
 	private VBoxContainer _tableRowsContainer = null!;
 	private Control _graphContainer = null!;
 
+	private Label _placementColHeader = null!;
+	private Label _friendColHeader = null!;
 	private Label _playerColHeader = null!;
 	private Label _factionColHeader = null!;
 	private Label _scoreColHeader = null!;
@@ -53,12 +56,21 @@ public partial class GameOver : Control
 	private const int EconomyTabIndex = 1;
 	private const int MilitaryTabIndex = 2;
 	private const int FiveStarRatingOptionIndex = 0;
+	private const int TwoTeamMatchTeamCount = 2;
+	private const int FirstPlace = 1;
+	private const int SecondPlace = 2;
+	private const float PlacementRefreshSeconds = 2f;
+	private const float PlacementColumnWidth = 88f;
+	private const float FriendColumnWidth = 196f;
 	private const string UnknownAuthorContributorName = "Realm Builder";
 
 	private bool _isVictory = true;
 	private int _activeTab = OverviewTabIndex;
 
 	private readonly List<MatchPlayerResult> _results = new();
+	private readonly List<MatchPlayerResult> _placementProbe = new();
+	private ulong _placementSignature;
+	private double _placementRefreshRemaining;
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
 
@@ -83,6 +95,24 @@ public partial class GameOver : Control
 		_graphContainer = GetNode<Control>("MainPanel/VBox/GraphFrame/VBox/TimelineGraph");
 
 
+		_placementColHeader = new Label();
+		_placementColHeader.Name = "PlacementColHeader_Label";
+		_placementColHeader.Text = TranslationServer.Translate("RANK");
+		_placementColHeader.CustomMinimumSize = new Vector2(PlacementColumnWidth, 0);
+		_placementColHeader.ClipText = true;
+		_placementColHeader.Visible = false;
+
+		_friendColHeader = new Label();
+		_friendColHeader.Name = "FriendColHeader_Label";
+		_friendColHeader.Text = string.Empty;
+		_friendColHeader.CustomMinimumSize = new Vector2(FriendColumnWidth, 0);
+		_friendColHeader.Visible = false;
+
+		var tableHeader = GetNode<HBoxContainer>("MainPanel/VBox/TableFrame/VBox/TableHeader");
+		tableHeader.AddChild(_placementColHeader);
+		tableHeader.MoveChild(_placementColHeader, 0);
+		tableHeader.AddChild(_friendColHeader);
+
 		_playerColHeader = GetNode<Label>("MainPanel/VBox/TableFrame/VBox/TableHeader/PlayerCol");
 		_factionColHeader = GetNode<Label>("MainPanel/VBox/TableFrame/VBox/TableHeader/FactionCol");
 		_scoreColHeader = GetNode<Label>("MainPanel/VBox/TableFrame/VBox/TableHeader/ScoreCol");
@@ -96,6 +126,7 @@ public partial class GameOver : Control
 		SetupWriteReviewButton();
 
 		UpdateTabDisplay();
+		_placementRefreshRemaining = PlacementRefreshSeconds;
 
 		string mapName = GetActiveMapName();
 		double playtimeMinutes = 0.0;
@@ -107,6 +138,18 @@ public partial class GameOver : Control
 		AddLocalPlaytime(mapName, playtimeMinutes);
 
 		_ = ReportMetricsAsync(mapName, playtimeMinutes, stars: 0, isComplete: true);
+	}
+
+	public override void _Process(double delta)
+	{
+		if (_tableRowsContainer == null || _placementRefreshRemaining <= 0) return;
+		_placementRefreshRemaining -= delta;
+
+		MatchScoreboardReader.Collect(_placementProbe);
+		if (ComputePlacementSignature(_placementProbe) == _placementSignature) return;
+
+		_placementRefreshRemaining = 0;
+		PopulateRows();
 	}
 
 	private void ApplyThemeStyles()
@@ -135,7 +178,7 @@ public partial class GameOver : Control
 		SetStatus(_isVictory);
 
 
-		var headers = new[] { _playerColHeader, _factionColHeader, _scoreColHeader, _killsColHeader, _resourcesColHeader };
+		var headers = new[] { _placementColHeader, _playerColHeader, _factionColHeader, _scoreColHeader, _killsColHeader, _resourcesColHeader };
 		foreach (var lbl in headers)
 		{
 			lbl.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -250,14 +293,7 @@ public partial class GameOver : Control
 			GameContext.UserInterface?.PlayClickSound();
 			if (GameContext.SessionState.IsTestMode)
 			{
-				GameContext.SessionState.IsTestMode = false;
-				GameContext.SessionState.ReturningFromTest = true;
-				if (GameContext.Lobby != null)
-				{
-					GameContext.Lobby.Disconnect();
-				}
-
-				GameContext.UserInterface?.TransitionTo(GameScreen.MapEditorHUD);
+				BackToEditorButton.Return();
 			}
 			else
 			{
@@ -356,7 +392,11 @@ public partial class GameOver : Control
 		}
 
 		MatchScoreboardReader.Collect(_results);
-		_results.Sort(_activeTab == MilitaryTabIndex ? CompareByKills : CompareByTotalResources);
+		_results.Sort(_activeTab == MilitaryTabIndex ? CompareByPlacementThenKills : CompareByPlacementThenResources);
+		_placementSignature = ComputePlacementSignature(_results);
+
+		bool showPlacements = HasPlacements(_results);
+		_placementColHeader.Visible = showPlacements;
 
 		var rows = new List<StatsRow>(_results.Count);
 		for (int index = 0; index < _results.Count; index++)
@@ -387,7 +427,11 @@ public partial class GameOver : Control
 
 			rows.Add(new StatsRow
 			{
+				Rank = FormatPlacement(result),
+				IsFirstPlace = result.Placement == FirstPlace,
 				Player = result.Name,
+				SteamId = result.SteamId,
+				IsComputer = result.IsComputer,
 				Faction = string.IsNullOrWhiteSpace(result.Faction) ? result.TeamName : result.Faction,
 				Col3 = thirdColumn,
 				Col4 = fourthColumn,
@@ -395,11 +439,36 @@ public partial class GameOver : Control
 			});
 		}
 
+		bool showFriendColumn = false;
+		foreach (StatsRow row in rows)
+		{
+			if (OffersFriendRequest(row))
+			{
+				showFriendColumn = true;
+				break;
+			}
+		}
+
+		_friendColHeader.Visible = showFriendColumn;
+
 		foreach (var r in rows)
 		{
 			var rowContainer = new HBoxContainer();
 			rowContainer.Name = "RowContainer_HBoxContainer";
 			rowContainer.CustomMinimumSize = new Vector2(0, 32);
+
+			if (showPlacements)
+			{
+				var rankLabel = new Label();
+				rankLabel.Name = "Rank_Label";
+				rankLabel.Text = r.Rank;
+				rankLabel.CustomMinimumSize = new Vector2(PlacementColumnWidth, 0);
+				rankLabel.ClipText = true;
+				rankLabel.AddThemeFontSizeOverride("font_size", 13);
+				rankLabel.AddThemeColorOverride("font_color", r.IsFirstPlace ? UIStyle.ColorGold : new Color(0.75f, 0.72f, 0.62f));
+				rankLabel.VerticalAlignment = VerticalAlignment.Center;
+				rowContainer.AddChild(rankLabel);
+			}
 
 			var pLbl = new Label();
 			pLbl.Name = "PLbl_Label";
@@ -447,8 +516,124 @@ public partial class GameOver : Control
 			c5Lbl.VerticalAlignment = VerticalAlignment.Center;
 			rowContainer.AddChild(c5Lbl);
 
+			if (showFriendColumn) rowContainer.AddChild(CreateFriendCell(r));
+
 			_tableRowsContainer.AddChild(rowContainer);
 		}
+	}
+
+	/// <summary>
+	///     Whether a row gets the friend-request button: a seat played by a person, whose own client stated a Steam id, who is
+	///     not already this screen's Steam friend, and not this screen's own seat. Steam has nothing to add for a computer
+	///     seat, nothing to name for a player who is not running inside Steam, nothing to do with a request to itself, and
+	///     nothing to ask for somebody it already lists as a friend.
+	/// </summary>
+	private static bool OffersFriendRequest(in StatsRow row)
+	{
+		if (row.IsComputer || row.SteamId == 0) return false;
+
+		ulong ownSteamId = GameContext.Steam.SteamId;
+		if (ownSteamId != 0 && ownSteamId == row.SteamId) return false;
+
+		return !GameContext.Steam.IsFriend(row.SteamId);
+	}
+
+	/// <summary>
+	///     Puts Steam's add-friend dialog in front of the player for the person behind a seat. Steam owns the request itself:
+	///     no game can send one on a player's behalf, so the dialog is the whole of the action and its confirmation is Steam's.
+	/// </summary>
+	private static void RequestSteamFriend(string playerName, ulong playerSteamId)
+	{
+		if (!GameContext.Steam.IsAvailable)
+		{
+			GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("STEAM UNAVAILABLE"), GameContext.Steam.UnavailableExplanation);
+			return;
+		}
+
+		if (GameContext.Steam.OpenAddFriendDialog(playerSteamId)) return;
+
+		GameContext.UserInterface?.PlayWarningSound();
+		GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("STEAM FRIEND REQUEST"), string.Format(TranslationServer.Translate("Steam could not open the add friend dialog for {0}."), playerName));
+	}
+
+	/// <summary>
+	///     The last cell of a row, which is the one place a player can act on the people they just played with. Every row
+	///     holds the cell whether or not it offers the button, so the columns above and below it stay lined up, and a row whose
+	///     seat is a computer or belongs to this screen holds an empty one.
+	/// </summary>
+	private Control CreateFriendCell(in StatsRow row)
+	{
+		if (!OffersFriendRequest(row)) return new Control { Name = "FriendCell_Spacer", CustomMinimumSize = new Vector2(FriendColumnWidth, 0) };
+
+		string playerName = row.Player;
+		ulong playerSteamId = row.SteamId;
+
+		Button friendButton = UIStyle.CreateActionButton("SendSteamFriendRequest_Button", TranslationServer.Translate("Send Steam Friend Request"), 12);
+		friendButton.CustomMinimumSize = new Vector2(FriendColumnWidth, 24);
+		friendButton.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		friendButton.TooltipText = string.Format(TranslationServer.Translate("Open Steam's add friend dialog for {0}."), playerName);
+		friendButton.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			RequestSteamFriend(playerName, playerSteamId);
+		};
+		friendButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		return friendButton;
+	}
+
+	private static bool HasPlacements(List<MatchPlayerResult> results)
+	{
+		for (int index = 0; index < results.Count; index++)
+		{
+			if (results[index].Placement > 0) return true;
+		}
+
+		return false;
+	}
+
+	private static ulong ComputePlacementSignature(List<MatchPlayerResult> results)
+	{
+		ulong signature = (ulong)results.Count;
+		for (int index = 0; index < results.Count; index++)
+		{
+			MatchPlayerResult result = results[index];
+			signature = (signature * 31) + (ulong)result.Slot;
+			signature = (signature * 31) + (ulong)result.Placement;
+		}
+
+		return signature;
+	}
+
+	private static string FormatPlacement(MatchPlayerResult result)
+	{
+		if (result.Placement <= 0) return string.Empty;
+
+		if (result.TeamCount == TwoTeamMatchTeamCount)
+		{
+			if (result.Placement == FirstPlace) return TranslationServer.Translate("Winner");
+			if (result.Placement == SecondPlace) return TranslationServer.Translate("Loser");
+		}
+
+		return $"#{result.Placement}";
+	}
+
+	private static int CompareByPlacement(MatchPlayerResult left, MatchPlayerResult right)
+	{
+		int leftRank = left.Placement > 0 ? left.Placement : int.MaxValue;
+		int rightRank = right.Placement > 0 ? right.Placement : int.MaxValue;
+		return leftRank.CompareTo(rightRank);
+	}
+
+	private static int CompareByPlacementThenKills(MatchPlayerResult left, MatchPlayerResult right)
+	{
+		int comparison = CompareByPlacement(left, right);
+		return comparison != 0 ? comparison : CompareByKills(left, right);
+	}
+
+	private static int CompareByPlacementThenResources(MatchPlayerResult left, MatchPlayerResult right)
+	{
+		int comparison = CompareByPlacement(left, right);
+		return comparison != 0 ? comparison : CompareByTotalResources(left, right);
 	}
 
 	private static int CompareByKills(MatchPlayerResult left, MatchPlayerResult right)

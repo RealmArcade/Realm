@@ -10,6 +10,20 @@ function getTempGlbPath(rmeshFsPath: string): string {
     return getPreviewTempPath(rmeshFsPath, '.glb');
 }
 
+function getTempSourceImagePath(rmeshFsPath: string): string {
+    return getPreviewTempPath(rmeshFsPath, '.webp');
+}
+
+async function extractSourceImageTo(rmeshFsPath: string, outputPath: string): Promise<boolean> {
+    fs.rmSync(outputPath, { force: true });
+    const response = await sendGodotIpc({
+        action: 'extractRmeshSourceImage',
+        inputPath: rmeshFsPath,
+        outputPath
+    });
+    return !!(response && response.success && fs.existsSync(outputPath));
+}
+
 async function ensureGlbExtracted(rmeshFsPath: string): Promise<{ glbPath: string; metadata: any } | null> {
     const glbPath = getTempGlbPath(rmeshFsPath);
     const response = await sendGodotIpc({
@@ -170,6 +184,39 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
         webviewPanel.webview.onDidReceiveMessage(async message => {
             if (message.command === 'open3d') {
                 await openRmeshInGlbViewer(rmeshPath);
+            } else if (message.command === 'exportSourceImage') {
+                const confirmed = await vscode.window.showWarningMessage(
+                    REALM_ASSET_AGREEMENT_WARNING,
+                    { modal: true },
+                    'Yes, Export Source Image'
+                );
+
+                if (confirmed === 'Yes, Export Source Image') {
+                    try {
+                        const defaultUri = vscode.Uri.file(path.join(path.dirname(rmeshPath), `${path.basename(rmeshPath, path.extname(rmeshPath))}.source.webp`));
+                        const targetUri = await vscode.window.showSaveDialog({
+                            defaultUri,
+                            filters: { 'WebP Image': ['webp'] },
+                            saveLabel: 'Export Source Image'
+                        });
+
+                        if (targetUri) {
+                            if (await extractSourceImageTo(rmeshPath, targetUri.fsPath)) {
+                                vscode.window.showInformationMessage(`Successfully exported source reference image to: ${targetUri.fsPath}`);
+                            } else {
+                                const tempSourceImagePath = getTempSourceImagePath(rmeshPath);
+                                if (fs.existsSync(tempSourceImagePath)) {
+                                    fs.copyFileSync(tempSourceImagePath, targetUri.fsPath);
+                                    vscode.window.showInformationMessage(`Successfully exported source reference image to: ${targetUri.fsPath}`);
+                                } else {
+                                    vscode.window.showErrorMessage('Failed to extract the embedded source reference image. Make sure Godot is running.');
+                                }
+                            }
+                        }
+                    } catch (err: any) {
+                        vscode.window.showErrorMessage(`Export failed: ${err?.message || err}`);
+                    }
+                }
             } else if (message.command === 'exportGlb') {
                 const confirmed = await vscode.window.showWarningMessage(
                     REALM_ASSET_AGREEMENT_WARNING,
@@ -207,19 +254,31 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
             const ipcResult = await ensureGlbExtracted(rmeshPath);
             const glbSize = ipcResult && fs.existsSync(ipcResult.glbPath) ? fs.statSync(ipcResult.glbPath).size : 0;
             const metadata = ipcResult?.metadata || {};
+            const sourceImageDataUri = await this.loadSourceImageDataUri(rmeshPath, metadata);
 
             webviewPanel.webview.html = this.getPreviewHtml(
                 path.basename(rmeshPath),
                 stats.size,
                 metadata,
-                glbSize
+                glbSize,
+                sourceImageDataUri
             );
         } catch (error: any) {
             webviewPanel.webview.html = getErrorHtml('Error Loading .rmesh', error?.message || 'Failed to load RMESH file.');
         }
     }
 
-    private getPreviewHtml(fileName: string, fileSize: number, metadata: any, glbSize: number): string {
+    private async loadSourceImageDataUri(rmeshPath: string, metadata: any): Promise<string | null> {
+        if (!metadata?.source_profile_image) return null;
+
+        const sourceImagePath = getTempSourceImagePath(rmeshPath);
+        if (!await extractSourceImageTo(rmeshPath, sourceImagePath)) return null;
+
+        const webpBytes = fs.readFileSync(sourceImagePath);
+        return `data:image/webp;base64,${webpBytes.toString('base64')}`;
+    }
+
+    private getPreviewHtml(fileName: string, fileSize: number, metadata: any, glbSize: number, sourceImageDataUri: string | null): string {
         const nonce = crypto.randomBytes(16).toString('base64');
 
         const author = metadata?.author || 'Unknown';
@@ -234,7 +293,7 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
     <style>
         body {
             display: flex;
@@ -302,6 +361,21 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
             font-weight: 600;
             background-color: var(--vscode-badge-background, #388bfd33);
             color: var(--vscode-badge-foreground, #58a6ff);
+        }
+        .source-image {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+        .source-image img {
+            max-width: 100%;
+            max-height: 260px;
+            object-fit: contain;
+            border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+            border-radius: 6px;
+            background-color: rgba(0, 0, 0, 0.2);
         }
         .actions {
             display: flex;
@@ -376,7 +450,13 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
             <div class="meta-value"><small>${createdUtc}</small></div>
         </div>
 
+        ${sourceImageDataUri ? `<div class="source-image">
+            <div class="meta-label">Source Reference Image:</div>
+            <img src="${sourceImageDataUri}" alt="Source reference image" />
+        </div>` : ''}
+
         <div class="actions">
+            ${sourceImageDataUri ? '<button id="btn-export-source-image" class="btn btn-secondary">🖼 Export Source Image...</button>' : ''}
             <button id="btn-open3d" class="btn btn-primary">🎮 Open in 3D Viewer (OHZI)</button>
             <button id="btn-export-glb" class="btn btn-secondary">📤 Export to GLB...</button>
         </div>
@@ -390,6 +470,12 @@ export class RealmRmeshViewerProvider implements vscode.CustomReadonlyEditorProv
         document.getElementById('btn-export-glb').addEventListener('click', function() {
             vscode.postMessage({ command: 'exportGlb' });
         });
+        const btnExportSourceImage = document.getElementById('btn-export-source-image');
+        if (btnExportSourceImage) {
+            btnExportSourceImage.addEventListener('click', function() {
+                vscode.postMessage({ command: 'exportSourceImage' });
+            });
+        }
     </script>
 </body>
 </html>`;

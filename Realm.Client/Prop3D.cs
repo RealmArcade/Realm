@@ -373,17 +373,9 @@ public partial class Prop3D : Node3D
 	{
 		get
 		{
-			if (GameHost.PropRegistry.TryGetValue(PropId, out var meta))
-			{
-				return string.Equals(meta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
-			}
+			if (!GameHost.Placeables.TryGet(PropId, out PlaceableTemplate template)) return false;
 
-			if (GameHost.ResourceRegistry.TryGetValue(PropId, out var rMeta))
-			{
-				return string.Equals(rMeta.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
-			}
-
-			return false;
+			return string.Equals(template.Metadata.VisualMode, "SlopeAlignedQuad", StringComparison.OrdinalIgnoreCase);
 		}
 	}
 

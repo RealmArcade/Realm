@@ -101,6 +101,8 @@ public partial class GameHost
 
 	private Node3D? _buildingPreviewMesh { get; set; }
 
+	private bool _buildingPlacementNeedsBuilder = true;
+
 	private RuntimeTerrain? _groundTerrain { get; set; }
 
 	public RuntimeTerrain? GroundTerrain

@@ -51,11 +51,12 @@ public static class RigCommand
 
 		string tempGlbOutput = Path.Combine(Path.GetTempPath(), $"realm_rig_out_{Guid.NewGuid():N}.glb");
 		string? tempExtractedGlb = null;
+		string tempGlbInput = inputPath;
+		string preparedGlbInput = inputPath;
 
 		try
 		{
 			bool isRmeshInput = Path.GetExtension(inputPath).Equals(".rmesh", StringComparison.OrdinalIgnoreCase);
-			string tempGlbInput = inputPath;
 			string? existingMeta = null;
 
 			if (isRmeshInput)
@@ -64,7 +65,9 @@ public static class RigCommand
 				tempGlbInput = tempExtractedGlb;
 			}
 
-			var result = GlbAutoRigger.RigHumanoid(tempGlbInput, tempGlbOutput, new GlbAutoRiggerOptions
+			preparedGlbInput = PrepareInputForAutoRigging(tempGlbInput, options.AssetType);
+
+			var result = GlbAutoRigger.RigHumanoid(preparedGlbInput, tempGlbOutput, new GlbAutoRiggerOptions
 			{
 				NoFingers = options.NoFingers,
 				UseNormals = options.UseNormals,
@@ -83,7 +86,24 @@ public static class RigCommand
 		{
 			TryDeleteFile(tempExtractedGlb);
 			TryDeleteFile(tempGlbOutput);
+			if (!string.Equals(preparedGlbInput, tempGlbInput, StringComparison.Ordinal)) TryDeleteFile(preparedGlbInput);
 		}
+	}
+
+	private static string PrepareInputForAutoRigging(string inputPath, string? assetType)
+	{
+		int maxTextureResolution = ModelConverter.GetAutomaticOptimizationOptions(assetType, true).MaxTextureResolution;
+		string preparedPath = Path.Combine(Path.GetTempPath(), $"realm_rig_prepared_{Guid.NewGuid():N}.glb");
+
+		var preparation = new GlbOptimizer().PrepareForAutoRiggingFile(inputPath, preparedPath, maxTextureResolution);
+		if (!preparation.Success)
+		{
+			Console.WriteLine($"  Warning: pre-rig optimization skipped: {preparation.ErrorMessage}");
+			return inputPath;
+		}
+
+		Console.WriteLine($"  Pre-rig optimized {preparation.OriginalSize} -> {preparation.OptimizedSize} bytes before rigging.");
+		return preparedPath;
 	}
 
 	private static int ProcessRiggedOutput(string inputPath, string targetOutput, string tempGlbOutput, string? existingMeta, RigHumanoidOptions options)
@@ -101,6 +121,12 @@ public static class RigCommand
 		else
 		{
 			File.WriteAllBytes(targetOutput, riggedGlb);
+			var optimizeResult = new GlbOptimizer().OptimizeFile(targetOutput, targetOutput, new OptimizationOptions { ForceReDecimate = true });
+			if (!optimizeResult.Success)
+			{
+				Console.Error.WriteLine($"  Warning: LOD generation failed for {targetOutput}: {optimizeResult.ErrorMessage}");
+			}
+
 			RealmMetadataHelper.SyncBlake3Metadata(targetOutput);
 			Console.WriteLine($"Successfully rigged and saved GLB: {targetOutput}");
 		}
@@ -129,7 +155,7 @@ public static class RigCommand
 		byte[] rmeshBytes = File.ReadAllBytes(inputPath);
 		var (meta, glbBytes, _) = RmeshFile.Parse(rmeshBytes);
 		string tempExtractedGlb = Path.Combine(Path.GetTempPath(), $"realm_rig_in_{Guid.NewGuid():N}.glb");
-		File.WriteAllBytes(tempExtractedGlb, glbBytes);
+		File.WriteAllBytes(tempExtractedGlb, GlbLodGenerator.ReduceToBaseTier(glbBytes));
 
 		return (tempExtractedGlb, meta);
 	}

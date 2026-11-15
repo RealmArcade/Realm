@@ -120,7 +120,7 @@ public static partial class MapAssetManager
 				GameContext.AssetIndexService.ClearP2PIndex();
 				if (Directory.Exists(P2PArchiveDirectory))
 				{
-					Directory.Delete(P2PArchiveDirectory, true);
+					DirectoryDeletion.TryDelete(P2PArchiveDirectory, out _);
 					Directory.CreateDirectory(P2PArchiveDirectory);
 				}
 

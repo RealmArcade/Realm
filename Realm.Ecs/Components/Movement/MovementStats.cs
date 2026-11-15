@@ -7,6 +7,7 @@ namespace Realm.Ecs.Components.Movement;
 /// Defines the movement, locomotion, and crowd footprint properties of an entity.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct MovementStats
 {
 	public float Speed;

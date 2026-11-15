@@ -24,6 +24,8 @@ namespace Realm.Client.UI.InGame;
 
 public partial class InGameHUDViewModel
 {
+	private const string StateNoteKey = "state.note";
+
 	public void UpdateSelectedUnits(List<Unit3D>? selectedUnits)
 	{
 		if (selectedUnits == null)
@@ -117,6 +119,11 @@ public partial class InGameHUDViewModel
 		if (world.Has<Name>(u.Entity))
 			info.Name = world.Get<Name>(u.Entity).Value;
 
+		// The description belongs to the portrait's tooltip now, not the stat sheet, and it is available as soon as
+		// the unit is known rather than only after the authority has described its ability list.
+		if (info.Description == null && GameHost.TryGetUnitOrBuildingMetadata(u.UnitId, out var registryMetadata))
+			info.Description = registryMetadata.Description;
+
 		if (u.IsBuilding && world.Has<UnderConstruction>(u.Entity))
 			info.IsUnderConstruction = true;
 
@@ -145,7 +152,23 @@ public partial class InGameHUDViewModel
 
 	private void UpdateUnitStateText(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
+		// A ruin is still a unit a player can select, so it says in its state line how it comes back. The stat sheet has no
+		// readings block to carry that sentence any more, and the line is where a player already looks for what a unit is doing.
+		if (world.Has<Dormant>(u.Entity))
+		{
+			info.StateText = TranslationServer.Translate("Destroyed (repair to restore)");
+			return;
+		}
+
 		info.StateText = GetBaseStateText(world, u);
+
+		// A map states what a unit is doing in its own words when the engine's reading would say nothing useful, which is
+		// how a site that has not been committed to a building yet tells every player what the deck has reserved there.
+		string? publishedNote = ReadPublishedStateNote(u.Entity);
+		if (!string.IsNullOrEmpty(publishedNote))
+		{
+			info.StateText = string.IsNullOrEmpty(info.StateText) ? publishedNote : $"{info.StateText}\n{publishedNote}";
+		}
 
 		if (u.UnitId == "tower" && world.Has<TowerUpgradeLevel>(u.Entity))
 		{
@@ -154,10 +177,28 @@ public partial class InGameHUDViewModel
 		}
 	}
 
+	/// <summary>
+	///     Reads the note a map published for a unit, which is text any player reads on the unit they select rather than
+	///     something only its owner sees. Whitespace is treated as no note, so a map clears one by publishing nothing.
+	/// </summary>
+	/// <param name="entity">The selected unit.</param>
+	/// <returns>The note the map published for that unit, or null when it published none.</returns>
+	private static string? ReadPublishedStateNote(Entity entity)
+	{
+		TooltipValueStore? published = GameContext.RegistryService?.TooltipValues;
+		if (published == null) return null;
+		if (!published.TryGetText(TooltipValueStore.UnitOwnerKey(entity), StateNoteKey, out string note)) return null;
+		if (string.IsNullOrWhiteSpace(note)) return null;
+
+		return TranslationServer.Translate(note);
+	}
+
 	private string? GetBaseStateText(EcsWorld world, Unit3D u)
 	{
+		if (world.Has<UnderConstruction>(u.Entity)) return "● " + TranslationServer.Translate("UNDER CONSTRUCTION");
+
 		if (world.Has<Gatherer>(u.Entity))
-			return GetGathererStateText(world.Get<Gatherer>(u.Entity));
+			return GetGathererStateText(world, u.Entity, world.Get<Gatherer>(u.Entity));
 
 		if (world.Has<BuildTask>(u.Entity))
 			return GetBuildTaskStateText(world.Get<BuildTask>(u.Entity));
@@ -165,12 +206,31 @@ public partial class InGameHUDViewModel
 		return null;
 	}
 
-	private string GetGathererStateText(Gatherer gather)
+	private string GetGathererStateText(EcsWorld world, Entity entity, Gatherer gather)
 	{
 		string cachedDelivering = TranslationServer.Translate("DELIVERING");
 		string cachedHarvesting = TranslationServer.Translate("HARVESTING");
 		string stateLabel = gather.ReturningToBase ? "● " + cachedDelivering : "● " + cachedHarvesting;
-		return $"{stateLabel} ({gather.CarriedAmount:F0} / {gather.MaxCapacity:F0} {TranslationServer.Translate(gather.ResourceType.ToUpper())})";
+		string resource = TranslationServer.Translate(gather.ResourceType.ToUpper());
+		int carried = CarriedPiecesOf(world, entity, gather.ItemStringId);
+
+		return carried > 0 ? $"{stateLabel} ({carried} {resource})" : $"{stateLabel} ({resource})";
+	}
+
+	/// <summary>
+	///     Counts the pieces of the gathered item the unit is actually holding, so the state line reads the inventory
+	///     rather than a carried total the gathering state keeps of its own.
+	/// </summary>
+	/// <param name="world">The world the unit belongs to.</param>
+	/// <param name="entity">The unit whose inventory is read.</param>
+	/// <param name="itemStringId">The item the node yields, or zero when the unit has not worked one yet.</param>
+	/// <returns>The pieces of that item across every slot, or zero when it carries none.</returns>
+	private static int CarriedPiecesOf(EcsWorld world, Entity entity, int itemStringId)
+	{
+		if (itemStringId == 0) return 0;
+		if (!world.Has<Inventory>(entity)) return 0;
+
+		return world.Get<Inventory>(entity).GetItemCount(StringRegistry.Get(itemStringId));
 	}
 
 	private string GetBuildTaskStateText(BuildTask bt)
@@ -193,7 +253,7 @@ public partial class InGameHUDViewModel
 			{
 				string? itemId = inv.GetItemId(itemIndex);
 				if (itemId == null) continue;
-				info.InventoryItems[itemId] = inv.GetCharges(itemIndex);
+				info.InventoryItems.Add(new CarriedItemInfo(itemId, inv.GetCharges(itemIndex)));
 			}
 		}
 
@@ -208,15 +268,11 @@ public partial class InGameHUDViewModel
 
 	private void UpdateUnitProduction(EcsWorld world, Unit3D u, SelectedUnitInfo info)
 	{
-		if (!info.IsEnemy && world.Has<ConstructionState>(u.Entity))
-		{
-			var cs = world.Get<ConstructionState>(u.Entity);
-			info.HasProduction = true;
-			info.ProductionTitle = TranslationServer.Translate("UNDER CONSTRUCTION");
-			info.ProductionProgress = cs.Progress;
-			info.ProductionMaxProgress = cs.TotalBuildTime;
-		}
-		else if (!info.IsEnemy && world.Has<ProductionQueue>(u.Entity))
+		// A site being raised has no production to draw: the work on it is its health, so the bar over the building is
+		// where its progress reads, and the panel keeps no second clock for it.
+		if (world.Has<UnderConstruction>(u.Entity)) return;
+
+		if (!info.IsEnemy && world.Has<ProductionQueue>(u.Entity))
 		{
 			var prod = world.Get<ProductionQueue>(u.Entity);
 			info.HasProduction = true;
@@ -278,11 +334,6 @@ public partial class InGameHUDViewModel
 	{
 		info.Abilities.Clear();
 		info.AbilityListHandle = world.Has<AbilityState>(u.Entity) ? world.Get<AbilityState>(u.Entity).Handle : 0;
-
-		if (info.Description == null && GameHost.TryGetUnitOrBuildingMetadata(u.UnitId, out var regMeta))
-		{
-			info.Description = regMeta.Description;
-		}
 
 		if (!world.Has<AbilityState>(u.Entity)) return;
 

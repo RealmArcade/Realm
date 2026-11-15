@@ -170,38 +170,6 @@ public readonly unsafe record struct UnitId(int Value)
 	}
 
 	/// <summary>
-	/// Gets the number of charges the unit holds right now, which is zero when it holds none.
-	/// </summary>
-	public int Charges
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<UnitCharges>(ComponentIds.UnitCharges, Value)->Charges : 0;
-	}
-
-	/// <summary>
-	/// Gets the greatest number of charges the unit may hold, which is zero when it holds none.
-	/// </summary>
-	public int MaximumCharges
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<UnitCharges>(ComponentIds.UnitCharges, Value)->MaximumCharges : 0;
-	}
-
-	/// <summary>
-	/// Gets the seconds the unit takes to regain one charge, which is zero when it holds none.
-	/// </summary>
-	public float ChargeRechargeSeconds
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<UnitCharges>(ComponentIds.UnitCharges, Value)->RechargeSeconds : 0f;
-	}
-
-	/// <summary>
-	/// Gets the seconds left until the unit regains its next charge, which is zero when it already holds all it may.
-	/// </summary>
-	public float ChargeRechargeRemainingSeconds
-	{
-		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 ? EcsSharedMemory.GetComponent<UnitCharges>(ComponentIds.UnitCharges, Value)->RemainingSecondsToNextCharge() : 0f;
-	}
-
-	/// <summary>
 	/// Gets or sets the visual scaling factor of the unit model.
 	/// </summary>
 	public float Scale
@@ -246,6 +214,21 @@ public readonly unsafe record struct UnitId(int Value)
 	{
 		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.CommandsFrozen);
 		set => HandleCommands.Current?.SetUnitCommandsFrozen(this, value);
+	}
+
+	/// <summary>
+	/// Gets or sets a value indicating whether the unit refuses the orders of the player who owns it.
+	/// </summary>
+	/// <remarks>
+	/// A locked unit is still a player's unit: it keeps its owner, its abilities and its place in the army, but the
+	/// player cannot move, attack, hold, patrol or gather with it, and clients show its ability cards disabled. Orders
+	/// the map script issues itself still apply, which is what lets a ruleset drive an autonomous army while the player
+	/// can only watch it. Setting the property to the value it already has does nothing.
+	/// </remarks>
+	public bool PlayerOrdersLocked
+	{
+		get => Value > 0 && Value < EcsSharedMemory.MAX_ENTITIES && EcsSharedMemory.Alive[Value] != 0 && EcsSharedMemory.HasComponent(Value, ComponentIds.PlayerOrdersLocked);
+		set => HandleCommands.Current?.SetUnitPlayerOrdersLocked(this, value);
 	}
 
 	/// <summary>

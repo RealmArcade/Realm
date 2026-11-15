@@ -119,6 +119,7 @@ public partial class GameHost
 		ScaleEntityPositions(AllProps, scaleX, scaleZ);
 		ScaleDecals(scaleX, scaleZ);
 		ScaleVfx(scaleX, scaleZ);
+		ScaleLootItems(scaleX, scaleZ);
 
 		ScalePropEntitiesOnly(scaleX, scaleZ);
 
@@ -202,6 +203,16 @@ public partial class GameHost
 		}
 	}
 
+	private void ScaleLootItems(float scaleX, float scaleZ)
+	{
+		foreach (var lootItem in AllLootItems)
+		{
+			if (lootItem == null || !GodotObject.IsInstanceValid(lootItem)) continue;
+
+			lootItem.Position = new Vector3(lootItem.Position.X * scaleX, lootItem.Position.Y, lootItem.Position.Z * scaleZ);
+		}
+	}
+
 	private void ScaleCoordinateBounds(float scaleX, float scaleZ)
 	{
 		GameContext.EditorService.ScaleCoordinateBounds(scaleX, scaleZ);
@@ -234,6 +245,7 @@ public partial class GameHost
 		DeleteNodesOutsideBounds(AllUnits, halfW, halfD);
 		DeleteNodesOutsideBounds(AllProps, halfW, halfD);
 		DeleteNodesOutsideBounds(AllDecals, halfW, halfD);
+		DeleteNodesOutsideBounds(AllLootItems, halfW, halfD);
 		if (AllVfx != null)
 		{
 			DeleteNodesOutsideBounds(AllVfx, halfW, halfD);

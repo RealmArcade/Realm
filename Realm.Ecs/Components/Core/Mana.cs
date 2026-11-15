@@ -6,6 +6,7 @@ namespace Realm.Ecs.Components.Core;
 /// Represents the mana energy capacity and regeneration rate of an entity.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct Mana
 {
 	public float Current;

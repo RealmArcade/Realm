@@ -33,7 +33,7 @@ namespace Realm.Ecs.Services
 				_targetCandidateCount = 0;
 				_context.World.Query(in _enemyQuery, (Entity potentialEnemy, ref Position enemyPos, ref Owner enemyOwner) =>
 				{
-					if (_context.World.Has<Invulnerable>(potentialEnemy)) return;
+					if (_context.World.Has<Invulnerable>(potentialEnemy) || _context.World.Has<Dormant>(potentialEnemy)) return;
 					int pIdx = GetPlayerIndexForEntity(potentialEnemy);
 					bool flying = IsFlying(potentialEnemy);
 					float colRadius = GetTargetCollisionRadius(potentialEnemy);
@@ -52,7 +52,7 @@ namespace Realm.Ecs.Services
 			int timeOfDay = GetTimeOfDayIndex();
 			_context.World.Query(in _targetAcquisitionQuery, (Entity entity, ref Position pos, ref Attack atk, ref Owner owner) =>
 			{
-				if (atk.Damage <= 0f || _context.World.Has<Invulnerable>(entity) || _context.World.Has<CommandsFrozen>(entity)) return;
+				if (atk.Damage <= 0f || _context.World.Has<Invulnerable>(entity) || _context.World.Has<Dormant>(entity) || _context.World.Has<CommandsFrozen>(entity)) return;
 				if (!ShouldSimulateEntity(entity)) return;
 
 				bool isAutoCombat = _context.World.Has<AutoCombatState>(entity) && _context.World.Get<AutoCombatState>(entity).Enabled;
@@ -154,7 +154,7 @@ namespace Realm.Ecs.Services
 						var entry = list[idx];
 						Entity potentialEnemy = entry.Entity;
 						if (potentialEnemy == attacker.Entity) continue;
-						if (!world.IsAlive(potentialEnemy) || world.Has<Dead>(potentialEnemy) || world.Has<Invulnerable>(potentialEnemy)) continue;
+						if (!world.IsAlive(potentialEnemy) || world.Has<Dead>(potentialEnemy) || world.Has<Invulnerable>(potentialEnemy) || world.Has<Dormant>(potentialEnemy)) continue;
 
 						int candidatePlayer = GetPlayerIndexForEntity(potentialEnemy);
 						if (!ArePlayerIndicesEnemies(attacker.PlayerIndex, candidatePlayer)) continue;

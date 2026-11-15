@@ -94,7 +94,6 @@ public partial class Unit3D
 		{
 			float safeScale = globalScale <= 0.001f ? 1.0f : globalScale;
 			_cachedBaseModelScale = safeScale;
-			_isLaborPulsing = false;
 			_modelNode.Scale = new Vector3(safeScale, safeScale, safeScale);
 			float yOffset = GameContext.Host != null ? GameContext.Host.GetModelYOffset(this) : 0f;
 			_modelNode.Position = new Vector3(_modelNode.Position.X, yOffset, _modelNode.Position.Z);
@@ -160,7 +159,6 @@ public partial class Unit3D
 		_isCulled = false;
 		_hasEvaluatedFrustum = false;
 		_animStepAccumulator = 0f;
-		_isLaborPulsing = false;
 		_rightHandAttachment = null;
 		_leftHandAttachment = null;
 		_currentRightAttachmentId = null;
@@ -232,7 +230,6 @@ public partial class Unit3D
 		float globalScale = GameContext.Host != null ? GameContext.Host.GetModelScale(this) : 1.0f;
 		float safeScale = globalScale <= 0.001f ? 1.0f : globalScale;
 		_cachedBaseModelScale = safeScale;
-		_isLaborPulsing = false;
 		_modelNode.Scale = new Vector3(safeScale, safeScale, safeScale);
 
 		UpdateLodVisibility();

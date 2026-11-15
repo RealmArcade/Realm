@@ -13,6 +13,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
+using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
@@ -23,6 +24,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Simulation;
 using Realm.Shared.Services;
 using Environment = System.Environment;
@@ -38,11 +40,29 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool AllowsCheats => IsSinglePlayer;
 	public string? LastHostError { get; private set; }
 
+	public void ReportHostError(string message)
+	{
+		LastHostError = message;
+		GD.PushError($"[LobbyManager] {message}");
+	}
+
 	public string LastAuthorityLogPath { get; private set; } = string.Empty;
 
 	public string LastAuthorityConsoleLogPath { get; private set; } = string.Empty;
 
 	public bool IsRestrictedHost { get; private set; }
+
+	/// <summary>
+	///     Why the last attempt to host was refused before the lobby was published, when it was refused because no other
+	///     player could reach it. The screen states this with the steps that fix it rather than as a bare failure.
+	/// </summary>
+	public HostReachabilityResult? LastHostFailure { get; private set; }
+
+	/// <summary>What the local firewall said when this lobby asked it for an inbound allowance.</summary>
+	public WindowsFirewallGrantResult LastFirewallGrant { get; private set; }
+
+	/// <summary>The UDP port this lobby listens on, which is the port a router and the local firewall must let through.</summary>
+	public int LobbyPort { get; private set; }
 
 	/// <summary>The factions the lobby's map offers, in the order its roster numbers them.</summary>
 	public IReadOnlyList<string> LobbyFactions { get; private set; } = Array.Empty<string>();
@@ -83,11 +103,53 @@ public partial class LobbyManager : BaseMapTransferNode
 	public List<string> RegistryServers => OfficialServers;
 	private int _currentServerIndex = 0;
 	public string RegistryServerUrl => OfficialServers.Count > 0 && _currentServerIndex < OfficialServers.Count && !string.IsNullOrWhiteSpace(OfficialServers[_currentServerIndex]) ? OfficialServers[_currentServerIndex] : ServersConfigHelper.GetDefaultServerUrl();
-	private const int DefaultGamePort = 8999;
+	/// <summary>The port a lobby listens on when nothing asked for another one, and the port a direct connect assumes.</summary>
+	public const int DefaultGamePort = 8999;
 	private const int StunPort = 19302;
 
 	public int ENetPort { get; private set; } = DefaultGamePort;
+
+	/// <summary>
+	///     The player slots the lobby's map states in its metadata, which is the shape a match started from this screen is
+	///     seated with. The lobby itself is sized by the slots it leaves open, which its own rows show.
+	/// </summary>
 	public int MaxPlayers { get; private set; } = MapInfoMetadata.DefaultPlayablePlayerSlots;
+
+	/// <summary>Every player slot the lobby carries, which is the number of rows its screen draws.</summary>
+	public int SlotCount { get; private set; } = LobbyLimits.MaximumSeats;
+
+	/// <summary>How many player slots the lobby leaves open to a player.</summary>
+	public int OpenSlotCount { get; private set; } = LobbyLimits.MaximumSeats;
+
+	/// <summary>Whether one player slot accepts a player, as the lobby last published it.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>Whether the slot is open.</returns>
+	public bool IsSlotOpen(int slot) => slot > 0 && slot < _openSlots.Length && _openSlots[slot];
+
+	/// <summary>
+	///     Answers whether the slot holds nobody and accepts a player, which is where a joining peer or a new computer
+	///     seat is placed.
+	/// </summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>Whether the slot is open and free.</returns>
+	public bool IsSlotFree(int slot) => IsSlotOpen(slot) && !PlayerList.Exists(player => player.Slot == slot);
+
+	/// <summary>How many player slots are open and hold nobody.</summary>
+	public int FreeSlotCount
+	{
+		get
+		{
+			int count = 0;
+			for (int slot = 1; slot < _openSlots.Length; slot++)
+			{
+				if (IsSlotFree(slot)) count++;
+			}
+
+			return count;
+		}
+	}
+
+	private readonly bool[] _openSlots = new bool[Realm.Ecs.EcsSharedMemory.MAX_PLAYERS];
 
 	/// <summary>
 	///     How many seats in this lobby are playing rather than watching. A spectator holds no player seat, so it is not
@@ -143,6 +205,83 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public NatType LocalNatType { get; private set; } = NatType.Open;
 	public bool IsHost { get; set; }
+
+	/// <summary>
+	///     Whether this screen's lobby is reachable only by the players it gives its address to, rather than being listed on
+	///     a registry. A direct lobby is opened and administered exactly as a listed one is; the difference is that no lobby
+	///     server knows it exists.
+	/// </summary>
+	public bool IsDirectLobby { get; private set; }
+
+	/// <summary>
+	///     The address a player on this network joins this screen's lobby with, in the `address:port` form every player
+	///     pastes into the direct connect dialog. It is the address a host sends to the people they want to play with.
+	/// </summary>
+	public string DirectConnectAddress => $"{GetLocalIPAddress()}:{(LobbyPort > 0 ? LobbyPort : ENetPort)}";
+
+	/// <summary>
+	///     The address this lobby was confirmed to be reachable at from outside this network, or nothing while nothing
+	///     confirmed it. What confirms it is something outside acting on it: a registry node reached the game port through it,
+	///     or this network's router accepted a forward and serves the same address the measurement saw. A public address this
+	///     machine merely measured for itself is a guess, because a router reports the same mapping whether or not its outside
+	///     face forwards anything, and it is offered separately as <see cref="MeasuredPublicConnectAddress" /> so a host can
+	///     read it without being told that it works.
+	/// </summary>
+	public string? PublicConnectAddress => RouterReachability == RouterReachability.Confirmed ? MeasuredPublicConnectAddress : null;
+
+	/// <summary>
+	///     Why the address outside this network is, or is not, offered to the players this lobby is shared with. The lobby room
+	///     tells its host, so a failed check names the thing to change rather than only the address to read.
+	/// </summary>
+	public RouterReachability RouterReachability => _routerReachability;
+
+	/// <summary>
+	///     The address this machine measured for its own lobby with a STUN query, or nothing while the measurement failed or
+	///     named the address this machine already holds. It is where the router maps the lobby's port when a forward exists at
+	///     all, and nothing more than that: nothing outside has reached the port through it yet.
+	/// </summary>
+	public string? MeasuredPublicConnectAddress
+	{
+		get
+		{
+			if (string.IsNullOrEmpty(_hostPublicIp)) return null;
+			if (_hostPublicIp is "127.0.0.1" or "0.0.0.0") return null;
+			if (string.Equals(_hostPublicIp, GetLocalIPAddress(), StringComparison.Ordinal)) return null;
+
+			return DirectConnectHistory.DescribeAddress(_hostPublicIp, PublicPort);
+		}
+	}
+
+	/// <summary>
+	///     The address this screen joined the lobby at, or nothing while it hosts. A player who reached a lobby this way can
+	///     pass the address on, which is what a lobby that is not listed depends on.
+	/// </summary>
+	public string? JoinedLobbyAddress => !IsHost && _connectedHostIp is { Length: > 0 } host ? DirectConnectHistory.DescribeAddress(host, BoundPort) : null;
+
+	/// <summary>
+	///     The message a host pastes into a chat to bring players into the lobby they opened, or nothing while this screen
+	///     is not hosting. It names the map being played and the address those players join at, and says where that address
+	///     goes in the game, because an address sent on its own leaves a friend guessing what to do with it. The address is
+	///     the one confirmed to be reachable from outside this network, because a friend in a chat is usually not on this
+	///     one, and it falls back to this network's own address when nothing confirmed anything, which is the only address
+	///     that is certainly right.
+	/// </summary>
+	public string DirectConnectInviteMessage
+	{
+		get
+		{
+			if (!IsHost) return string.Empty;
+
+			string mapName = !string.IsNullOrEmpty(HostedMapDisplayName) ? HostedMapDisplayName : ActiveMapName;
+			string address = PublicConnectAddress ?? DirectConnectAddress;
+
+			return string.Join(
+				"\n",
+				string.Format(TranslationServer.Translate("Join my Realm lobby: {0}"), mapName),
+				string.Format(TranslationServer.Translate("Address: {0}"), address),
+				TranslationServer.Translate("In Realm, choose PLAY, then Join Private Lobby via IP Address, and paste the address."));
+		}
+	}
 	public string? ActiveLobbyId { get; private set; }
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
@@ -152,17 +291,82 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool SpectatorDelay { get; set; } = false;
 
 	/// <summary>
-	///     The parameters the lobby's host configured for the match, as the lobby last published them. Every seat shows the
-	///     same list; only the host may change it.
+	///     Whether the match groups each team's players into consecutive player slots. It starts at the value the lobby's
+	///     map states and follows the host from the moment the host changes it; every seat reads it to show the setting.
 	/// </summary>
-	public MatchOptionSet MatchOptions { get; } = new();
+	public bool TeamsTogether { get; set; } = false;
 
-	public event Action? MatchOptionsChanged;
+	/// <summary>
+	///     The shroud this lobby will play, as the lobby published it: the host's own choice, or the mode the map's lobby
+	///     script states, or <see cref="MatchShroudMode.FromMap" /> while neither has said anything.
+	/// </summary>
+	public MatchShroudMode ShroudMode { get; private set; } = MatchShroudMode.FromMap;
+
+	/// <summary>
+	///     The shroud the next match will actually play. A lobby that states no mode falls back to the mode the board's
+	///     properties state, which is what a map that never runs a lobby script plays.
+	/// </summary>
+	/// <summary>
+	///     The display name the lobby waiting to be published was opened with, which is what the registry lists it as.
+	/// </summary>
+	public string HostedMapDisplayName { get; private set; } = string.Empty;
+
+	/// <summary>The map version the lobby waiting to be published plays.</summary>
+	public string HostedMapVersion { get; private set; } = string.Empty;
+
+	public MatchShroudMode EffectiveShroudMode =>
+		ShroudMode != MatchShroudMode.FromMap
+			? ShroudMode
+			: MapPropertiesLoader.ReadMapShroudMode(ActiveMapName);
+
+	/// <summary>
+	///     The match settings this lobby's map declared, as the lobby last published them. Every seat shows the same list;
+	///     only the host may change one, and the map that declared them reads the values.
+	/// </summary>
+	public List<LobbyMatchSetting> MatchSettings { get; } = new();
+
+	public event Action? MatchSettingsChanged;
 	public string? LobbyJoinError { get; set; }
 	public string HostStability { get; set; } = "Excellent";
 	public event Action<string>? HostStabilityUpdated;
 
 	public List<PlayerInfo> PlayerList { get; } = new();
+
+	/// <summary>
+	///     The colour the lobby's map keeps for each player index, indexed by player index and packed as 0xRRGGBBAA, zero
+	///     for an index that keeps the colour its seat states. It names the colours of the player indexes nobody holds -
+	///     the players a map drives itself - which a seat list has nowhere to carry.
+	/// </summary>
+	public uint[] ColorOverlays { get; private set; } = new uint[LobbyLimits.MaximumSeats + 1];
+
+	/// <summary>
+	///     The colour each player index's units are drawn in on a minimap that paints every player in its own colour, as the
+	///     lobby's map stated it, zero for an index it stated none for.
+	/// </summary>
+	public uint[] MinimapPlayerColors { get; private set; } = new uint[LobbyLimits.MaximumSeats + 1];
+
+	/// <summary>
+	///     The colour each player index's units are drawn in on a minimap that paints players by their relation to the screen
+	///     looking at it, as the lobby's map stated it, zero for an index it stated none for.
+	/// </summary>
+	public uint[] MinimapTeamColors { get; private set; } = new uint[LobbyLimits.MaximumSeats + 1];
+
+	/// <summary>
+	///     The player index each player index stands in for, as the lobby's map stated it, zero for an index that stands in
+	///     for nobody. The minimap that paints players by their relation to the screen looking at it draws a standing-in
+	///     index as the player it stands in for.
+	/// </summary>
+	public int[] ProxyOwners { get; private set; } = new int[LobbyLimits.MaximumSeats + 1];
+
+	/// <summary>Reads one entry of a published colour array, answering zero for an index the array does not carry.</summary>
+	/// <param name="colors">The published array.</param>
+	/// <param name="playerIndex">The player index.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA, or zero.</returns>
+	public static uint ColorAt(uint[]? colors, int playerIndex)
+	{
+		if (colors == null || playerIndex < 0 || playerIndex >= colors.Length) return 0u;
+		return colors[playerIndex];
+	}
 
 	public int LocalPeerId => _lobbySession?.LocalPeerId ?? -1;
 
@@ -197,6 +401,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private CancellationTokenSource? _wsCts;
 	private string? _hostPublicIp;
 	private int _hostPublicPort;
+	private RouterReachability _routerReachability = RouterReachability.NoRouterForward;
 	public string PublicIP => _hostPublicIp ?? "127.0.0.1";
 	public int PublicPort => _hostPublicPort > 0 ? _hostPublicPort : BoundPort;
 	private string? _hostToken;
@@ -263,6 +468,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	public event Action? MapDownloadCompleted;
 	public event Action? MapDownloadFailed;
 	public event Action<bool>? SpectatorDelayChanged;
+	public event Action<bool>? TeamsTogetherChanged;
 	public event Action<string, int>? CountdownStarted;
 	public event Action<int>? CountdownTick;
 	public event Action? CountdownCancelled;
@@ -387,4 +593,34 @@ public partial class LobbyManager : BaseMapTransferNode
 		}).CallDeferred();
 	}
 
+}
+
+/// <summary>
+///     Why the address players outside this network would join at is, or is not, offered to them. Each state names a thing
+///     the host can do something about, rather than the check that produced it, because this is what the lobby room tells
+///     the host when an address it expected is not there to send.
+/// </summary>
+public enum RouterReachability
+{
+	/// <summary>No forward exists on this network's router, so nothing outside has reached the port and the port is what is missing.</summary>
+	NoRouterForward,
+
+	/// <summary>A forward exists, but the router stated no outside address of its own, so nothing showed that the port is reachable from outside.</summary>
+	RouterAddressUnreadable,
+
+	/// <summary>
+	///     A forward exists and the router stated an outside address, but this machine measured no outside address of its
+	///     own, so there is nothing to compare the router's with. It is not a second network in front of the router as far as
+	///     anything here can tell: the missing half is the measurement, not a forward.
+	/// </summary>
+	PublicAddressUnmeasured,
+
+	/// <summary>
+	///     A forward exists, but the router's own outside address is not the one this network measured, so another network
+	///     sits in front of it and that forward reaches nobody outside. Opening the port on this router cannot help.
+	/// </summary>
+	BehindAnotherNetwork,
+
+	/// <summary>A forward serves the address this network measured, which is the address players outside join at.</summary>
+	Confirmed
 }

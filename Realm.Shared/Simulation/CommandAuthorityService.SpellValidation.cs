@@ -52,11 +52,11 @@ public partial class CommandAuthorityService
 			mana.Current -= definition.ManaCost;
 		}
 
-		if (definition.Cooldown > 0f && _context.World.Has<SpellCooldowns>(playerEntity))
-		{
-			ref var cooldowns = ref _context.World.Get<SpellCooldowns>(playerEntity);
-			cooldowns.Set(spellId, definition.Cooldown, definition.Cooldown);
-		}
+		// The cooldown belongs to the caster rather than to the player: two buildings raising the same soldier line are
+		// two casters, and a player-wide clock stopped the second one from producing for as long as the first. It is
+		// stated after the caster's own cooldown reduction, the same arithmetic the engine's auto-cast uses.
+		float cooldown = UnitOrderService.EffectiveAbilityCooldown(_context.World, casterEntity, definition.Cooldown);
+		if (cooldown > 0f) UnitOrderService.SetAbilityCooldown(_context.World, casterEntity, spellId, cooldown);
 
 		return true;
 	}
@@ -98,14 +98,11 @@ public partial class CommandAuthorityService
 			return false;
 		}
 
-		if (!_context.UnlimitedPowerEnabled && definition.Cooldown > 0f && _context.World.Has<SpellCooldowns>(playerEntity))
+		float remainingCooldown = UnitOrderService.GetAbilityCooldownRemaining(_context.World, casterEntity, spellId);
+		if (!_context.UnlimitedPowerEnabled && remainingCooldown > 0f)
 		{
-			ref var cooldowns = ref _context.World.Get<SpellCooldowns>(playerEntity);
-			if (cooldowns.TryGetValue(spellId, out float remaining) && remaining > 0f)
-			{
-				rejectionReason = $"spell '{spellId}' is on cooldown for {remaining:F1} s";
-				return false;
-			}
+			rejectionReason = $"spell '{spellId}' is on cooldown for {remainingCooldown:F1} s";
+			return false;
 		}
 
 		if (!_context.UnlimitedPowerEnabled && definition.ManaCost > 0f && _context.World.Has<Mana>(casterEntity))

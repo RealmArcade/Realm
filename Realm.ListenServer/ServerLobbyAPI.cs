@@ -17,8 +17,6 @@ public class ServerLobbyAPI : ILobbyAPI
 		_roster = roster;
 	}
 
-	public int MaximumPlayerCount => _roster.MaximumPlayerCount;
-
 	public int SlotCount => EcsSharedMemory.MAX_PLAYERS;
 
 	public int FactionCount => _roster.FactionCount;
@@ -60,12 +58,15 @@ public class ServerLobbyAPI : ILobbyAPI
 
 	public void SetTeamLocked(int playerIndex, bool locked) => _roster.SetTeamLocked(playerIndex, locked);
 
-	public uint GetPlayerColor(int playerIndex)
-	{
-		return _roster.TryGetSeat(playerIndex, out LobbySeat seat) ? seat.ColorRgba : 0u;
-	}
+	public uint GetPlayerColor(int playerIndex) => _roster.GetPlayerColor(playerIndex);
 
 	public bool SetPlayerColor(int playerIndex, uint colorRgba) => _roster.TrySetPlayerColor(playerIndex, colorRgba);
+
+	public uint GetPlayerMinimapColor(int playerIndex, MinimapColorMode mode) => _roster.GetPlayerMinimapColor(playerIndex, mode);
+
+	public bool SetPlayerMinimapColor(int playerIndex, MinimapColorMode mode, uint colorRgba) => _roster.SetPlayerMinimapColor(playerIndex, mode, colorRgba);
+
+	public bool SetPlayerProxyOwner(int playerIndex, int ownerPlayerIndex) => _roster.SetPlayerProxyOwner(playerIndex, ownerPlayerIndex);
 
 	public bool IsColorLocked(int playerIndex) => _roster.IsColorLocked(playerIndex);
 
@@ -83,5 +84,45 @@ public class ServerLobbyAPI : ILobbyAPI
 		return _roster.TryGetSeat(playerIndex, out LobbySeat seat) && seat.IsHost;
 	}
 
-	public void SetMaximumPlayerCount(int maximumPlayerCount) => _roster.TrySetMaximumPlayerCount(maximumPlayerCount);
+	public bool IsSlotOpen(int playerIndex) => _roster.IsSlotOpen(playerIndex);
+
+	public bool SetSlotOpen(int playerIndex, bool open) => _roster.TrySetSlotOpen(playerIndex, open);
+
+	public bool SetOpenSlotCount(int count) => _roster.TrySetOpenSlotCount(count);
+
+	public bool SetPlayerSlotLimit(int maximumPlayers) => _roster.TrySetPlayerSlotLimit(maximumPlayers);
+
+	public bool AddMatchSetting(int settingId, LobbySettingControl control, string label, string tooltip, int defaultValue)
+	{
+		if (settingId <= 0 || string.IsNullOrWhiteSpace(label)) return false;
+
+		_roster.DeclareMatchSetting(settingId, control, label, tooltip ?? string.Empty, defaultValue);
+		return true;
+	}
+
+	public bool AddMatchSettingOption(int settingId, string optionLabel)
+	{
+		if (settingId <= 0 || string.IsNullOrWhiteSpace(optionLabel)) return false;
+
+		_roster.DeclareMatchSettingOption(settingId, optionLabel);
+		return true;
+	}
+
+	public bool SetMatchSettingRange(int settingId, int minimum, int maximum)
+	{
+		if (settingId <= 0 || minimum < 0 || maximum < minimum) return false;
+
+		_roster.DeclareMatchSettingRange(settingId, minimum, maximum);
+		return true;
+	}
+
+	public int GetMatchSettingValue(int settingId) => _roster.GetMatchSettingValue(settingId);
+
+	public void SetTeamsTogetherDefault(bool teamsTogether) => _roster.SetTeamsTogetherDefault(teamsTogether);
+
+	public void SetShroudModeDefault(MatchShroudMode shroudMode) => _roster.SetShroudModeDefault(shroudMode);
+
+	public void SetSpectatorDelayDefault(bool enabled) => _roster.SetSpectatorDelayDefault(enabled);
+
+	public bool SetTeamSpawnCoordinate(int teamIndex, string coordinateName) => _roster.SetTeamSpawnCoordinate(teamIndex, coordinateName);
 }

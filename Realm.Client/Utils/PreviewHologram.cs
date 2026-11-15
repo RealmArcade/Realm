@@ -17,6 +17,8 @@ public static class PreviewHologram
 
 		if (root is MeshInstance3D meshInstance)
 		{
+			if (meshInstance.HasMeta(ModelShaderManager.OverlayMaterialMetaName)) return;
+
 			var material = new StandardMaterial3D();
 			material.AlbedoColor = new Color(color.R, color.G, color.B, 0.4f);
 			material.Transparency = BaseMaterial3D.TransparencyEnum.Alpha;

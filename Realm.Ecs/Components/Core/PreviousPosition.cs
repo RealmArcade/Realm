@@ -7,6 +7,7 @@ namespace Realm.Ecs.Components.Core;
 /// Stores prior simulation tick 3D spatial world position vector coordinates for visual state-snapshot interpolation.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct PreviousPosition
 {
 	public Vector3 Value;

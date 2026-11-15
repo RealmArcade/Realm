@@ -82,9 +82,7 @@ public static unsafe class EcsSharedMemory
 	public const int LOBBY_FACTION_NAMES_OFFSET = 1651840;
 	/// <summary>Offset to the per-player roster slots, one for every player slot the lobby may seat.</summary>
 	public const int PLAYER_ROSTER_SLOTS_OFFSET = 1652608;
-	/// <summary>Offset to the entity charges array, which is placed after the lobby's tables so adding it moved nothing.</summary>
-	public const int UNIT_CHARGES_OFFSET = 1653248;
-	/// <summary>Offset to the per-player damage effectiveness tables, placed after the charges array.</summary>
+	/// <summary>Offset to the per-player damage effectiveness tables, placed after the lobby's tables.</summary>
 	public const int PLAYER_DAMAGE_EFFECTIVENESS_OFFSET = 1784320;
 	/// <summary>Total byte capacity of the contiguous shared memory block.</summary>
 	public const int TOTAL_SIZE_BYTES = 4194304;
@@ -179,8 +177,6 @@ public static unsafe class EcsSharedMemory
 	public static ScriptPlayer* ScriptPlayer => (ScriptPlayer*)GetArrayBasePointer(ComponentIds.ScriptPlayer);
 	/// <summary>Gets the raw pointer to the player population limits array.</summary>
 	public static PlayerPopulation* PlayerPopulation => (PlayerPopulation*)GetArrayBasePointer(ComponentIds.PlayerPopulation);
-	/// <summary>Gets the raw pointer to the unit charges array.</summary>
-	public static UnitCharges* UnitCharges => (UnitCharges*)GetArrayBasePointer(ComponentIds.UnitCharges);
 	/// <summary>Gets the raw pointer to the per-player damage effectiveness tables.</summary>
 	public static PlayerDamageEffectiveness* PlayerDamageEffectiveness => (PlayerDamageEffectiveness*)GetArrayBasePointer(ComponentIds.PlayerDamageEffectiveness);
 
@@ -231,8 +227,6 @@ public static unsafe class EcsSharedMemory
 		RegisterComponent(ComponentIds.PlayerResources, MAX_PLAYER_ENTITIES * sizeof(PlayerResources), sizeof(PlayerResources));
 		RegisterComponent(ComponentIds.ScriptPlayer, MAX_PLAYERS * sizeof(ScriptPlayer), sizeof(ScriptPlayer));
 		RegisterComponent(ComponentIds.PlayerPopulation, MAX_PLAYER_ENTITIES * sizeof(PlayerPopulation), sizeof(PlayerPopulation));
-		_componentArrayBaseOffsets[ComponentIds.UnitCharges] = (int)(_basePtr + UNIT_CHARGES_OFFSET);
-		_componentStrides[ComponentIds.UnitCharges] = sizeof(UnitCharges);
 		_componentArrayBaseOffsets[ComponentIds.PlayerDamageEffectiveness] = (int)(_basePtr + PLAYER_DAMAGE_EFFECTIVENESS_OFFSET);
 		_componentStrides[ComponentIds.PlayerDamageEffectiveness] = sizeof(PlayerDamageEffectiveness);
 	}

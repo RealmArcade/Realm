@@ -1,52 +1,87 @@
 using Realm.EditorAPI;
 using Realm.Shared.Metadata;
+using Realm.Shared.Serialization;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Realm.Shared.Distribution;
 
+[SchemaDescription("Every asset a map ships, grouped by kind. Each category maps a file name or map-relative path to the content hash the file is stored under.")]
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public class MapManifestAssets
 {
-	[JsonPropertyName("Animation")] public Dictionary<string, string>? Animation { get; set; }
+	[JsonPropertyName("Animation")]
+	[SchemaDescription("The map's animation files, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Animation { get; set; }
 
-	[JsonPropertyName("Building")] public Dictionary<string, string>? Building { get; set; }
+	[JsonPropertyName("Building")]
+	[SchemaDescription("The map's building models, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Building { get; set; }
 
-	[JsonPropertyName("Character")] public Dictionary<string, string>? Character { get; set; }
+	[JsonPropertyName("Character")]
+	[SchemaDescription("The map's unit and character models, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Character { get; set; }
 
-	[JsonPropertyName("Decal")] public Dictionary<string, string>? Decal { get; set; }
+	[JsonPropertyName("Decal")]
+	[SchemaDescription("The map's decal textures, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Decal { get; set; }
 
-	[JsonPropertyName("Icon")] public Dictionary<string, string>? Icon { get; set; }
+	[JsonPropertyName("Icon")]
+	[SchemaDescription("The map's command card icons, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Icon { get; set; }
 
-	[JsonPropertyName("Item")] public Dictionary<string, string>? Item { get; set; }
+	[JsonPropertyName("Item")]
+	[SchemaDescription("The map's item, attachment and projectile models, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Item { get; set; }
 
-	[JsonPropertyName("Music")] public Dictionary<string, string>? Music { get; set; }
+	[JsonPropertyName("Music")]
+	[SchemaDescription("The map's music tracks, keyed by their path inside the map's audio folder and hashed by content.")]
+	public Dictionary<string, string>? Music { get; set; }
 
-	[JsonPropertyName("Noise")] public Dictionary<string, string>? Noise { get; set; }
+	[JsonPropertyName("Noise")]
+	[SchemaDescription("The map's noise textures, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Noise { get; set; }
 
-	[JsonPropertyName("Prop")] public Dictionary<string, string>? Prop { get; set; }
+	[JsonPropertyName("Prop")]
+	[SchemaDescription("The map's prop and resource models, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Prop { get; set; }
 
-	[JsonPropertyName("Ribbon")] public Dictionary<string, string>? Ribbon { get; set; }
+	[JsonPropertyName("Ribbon")]
+	[SchemaDescription("The map's ribbon trail textures, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Ribbon { get; set; }
 
-	[JsonPropertyName("Shader")] public Dictionary<string, string>? Shader { get; set; }
+	[JsonPropertyName("Shader")]
+	[SchemaDescription("The map's shader configurations, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Shader { get; set; }
 
-	[JsonPropertyName("Skybox")] public Dictionary<string, string>? Skybox { get; set; }
+	[JsonPropertyName("Skybox")]
+	[SchemaDescription("The map's skyboxes, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Skybox { get; set; }
 
-	[JsonPropertyName("SoundEffect")] public Dictionary<string, string>? SoundEffect { get; set; }
+	[JsonPropertyName("SoundEffect")]
+	[SchemaDescription("The map's sound effects, keyed by their path inside the map's audio folder and hashed by content.")]
+	public Dictionary<string, string>? SoundEffect { get; set; }
 
-	[JsonPropertyName("Spritesheet")] public Dictionary<string, string>? Spritesheet { get; set; }
+	[JsonPropertyName("Spritesheet")]
+	[SchemaDescription("The map's visual effect sprite sheets, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Spritesheet { get; set; }
 
-	[JsonPropertyName("Terrain")] public Dictionary<string, string>? Terrain { get; set; }
+	[JsonPropertyName("Terrain")]
+	[SchemaDescription("The map's terrain textures, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? Terrain { get; set; }
 
-	[JsonPropertyName("vfx_radial")] public Dictionary<string, string>? VfxRadial { get; set; }
+	[JsonPropertyName("vfx_radial")]
+	[SchemaDescription("The map's radial visual effect textures, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? VfxRadial { get; set; }
 
-	[JsonPropertyName("vfx_vertical")] public Dictionary<string, string>? VfxVertical { get; set; }
+	[JsonPropertyName("vfx_vertical")]
+	[SchemaDescription("The map's vertical visual effect textures, keyed by file name and hashed by content.")]
+	public Dictionary<string, string>? VfxVertical { get; set; }
 
 	[JsonPropertyName("Other")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	[SchemaDescription("The files that belong to no asset category, keyed by their map-relative path and hashed by content.")]
 	public Dictionary<string, string>? Other { get; set; }
-
-	[JsonExtensionData] public Dictionary<string, JsonElement>? AdditionalProperties { get; set; }
 
 	[IndexerName("CategoryItems")]
 	public Dictionary<string, string>? this[string category]
@@ -131,24 +166,17 @@ public class MapManifestAssets
 
 	public Dictionary<string, string>? GetCategory(string category)
 	{
-		if (CategoryGetters.TryGetValue(category, out var getter))
-		{
-			return getter(this);
-		}
-
-		return GetFromAdditionalProperties(category);
+		return CategoryGetters.TryGetValue(category, out var getter) ? getter(this) : null;
 	}
 
 	public void SetCategory(string category, Dictionary<string, string> dictionary)
 	{
-		if (CategorySetters.TryGetValue(category, out var setter))
+		if (!CategorySetters.TryGetValue(category, out var setter))
 		{
-			setter(this, dictionary);
-			return;
+			throw new ArgumentException($"'{category}' is not an asset category the manifest can hold.", nameof(category));
 		}
 
-		AdditionalProperties ??= new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-		AdditionalProperties[category] = JsonSerializer.SerializeToElement(dictionary);
+		setter(this, dictionary);
 	}
 
 	public IEnumerable<KeyValuePair<string, Dictionary<string, string>>> GetAllCategories()
@@ -158,31 +186,6 @@ public class MapManifestAssets
 			var dict = CategoryGetters[prop](this);
 			if (dict != null) yield return new(prop, dict);
 		}
-
-		if (AdditionalProperties != null)
-		{
-			foreach (var kvp in AdditionalProperties)
-			{
-				var dict = GetFromAdditionalProperties(kvp.Key);
-				if (dict != null) yield return new(kvp.Key, dict);
-			}
-		}
-	}
-
-	private Dictionary<string, string>? GetFromAdditionalProperties(string category)
-	{
-		if (AdditionalProperties != null && AdditionalProperties.TryGetValue(category, out var element) && element.ValueKind == JsonValueKind.Object)
-		{
-			var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			foreach (var prop in element.EnumerateObject())
-			{
-				dict[prop.Name] = prop.Value.ValueKind == JsonValueKind.String ? prop.Value.GetString() ?? string.Empty : prop.Value.ToString();
-			}
-
-			return dict;
-		}
-
-		return null;
 	}
 
 	public void MergeCategoryInto(string category, System.Text.Json.Nodes.JsonObject sourceObject)

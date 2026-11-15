@@ -52,6 +52,8 @@ namespace Realm.Ecs.Services
 		}
 
 		private const float StuckEscalationTime = 1.5f;
+		private const float HeadOnLateralLeanThreshold = 0.02f;
+		private const float HeadOnLateralLean = 0.35f;
 
 		private const float NavMeshMaxSnapClimb = 0.5f;
 		private static readonly RcVec3f NavMeshSnapExtents = new RcVec3f(1.5f, 2.0f, 1.5f);

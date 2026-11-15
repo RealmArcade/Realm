@@ -96,6 +96,7 @@ public partial class MultiplayerSimulationHarness : Node
 		// The authority writes what it measured as the match ends, so it has to be parked before this process exits: a
 		// child authority that is killed with its parent takes the tick and publish numbers of the whole run with it.
 		await PauseAuthorityAndWaitForItsReportAsync();
+		CopyAuthorityLogIntoRunArtifacts();
 
 		_hardeningFailureCount = MultiplayerHardeningChecks.Run(_outputDirectory, true, _session?.LogPath ?? string.Empty);
 
@@ -179,6 +180,28 @@ public partial class MultiplayerSimulationHarness : Node
 		catch (IOException)
 		{
 			return 0;
+		}
+	}
+
+	/// <summary>
+	///     Copies the authority's own log into the run's artifacts. The authority comes up with the screen and is only
+	///     paused when a match ends, so it writes to the log folder the screen named at startup rather than to the one this
+	///     match was given, and the verifier counts the repairs it logged out of the run's own directory.
+	/// </summary>
+	private void CopyAuthorityLogIntoRunArtifacts()
+	{
+		string logPath = _session?.LogPath ?? string.Empty;
+		if (logPath.Length == 0 || !File.Exists(logPath)) return;
+
+		try
+		{
+			string directory = Path.Combine(_outputDirectory, "listen_server");
+			Directory.CreateDirectory(directory);
+			File.Copy(logPath, Path.Combine(directory, Path.GetFileName(logPath)), overwrite: true);
+		}
+		catch (IOException exception)
+		{
+			GameLog.LogError($"[MP_HARNESS] Failed to copy the authority log into the run artifacts: {exception.Message}");
 		}
 	}
 

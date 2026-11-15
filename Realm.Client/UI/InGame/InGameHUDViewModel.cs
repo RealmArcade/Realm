@@ -198,6 +198,8 @@ public partial class InGameHUDViewModel
 
 	public bool IsConnectionLost { get; set; }
 
+	public bool IsWaitingForAuthorityDebugger { get; set; }
+
 	public bool CountdownActive
 	{
 		get
@@ -446,6 +448,9 @@ public partial class InGameHUDViewModel
 
 	public List<SelectedUnitInfo> SelectedUnits { get; } = new();
 	public Prop3D? SelectedProp { get; set; }
+	public LootItem3D? SelectedLootItem { get; set; }
+	public Entity SelectedResourceNode { get; set; } = Entity.Null;
+	public string SelectedResourceNodePropId { get; set; } = string.Empty;
 	public int CycleSelectionIndex { get; set; }
 
 	public bool IsChatActive { get; set; }
@@ -475,6 +480,7 @@ public partial class InGameHUDViewModel
 			return;
 
 		IsConnectionLost = GameContext.Host.IsConnectionLost;
+		IsWaitingForAuthorityDebugger = GameContext.Host.IsWaitingForAuthorityDebugger;
 		CycleSelectionIndex = GameContext.Host.CycleSelectionIndex;
 	}
 

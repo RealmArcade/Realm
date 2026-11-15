@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Realm.Ecs;
@@ -26,8 +26,23 @@ public partial class GameHost
 {
 	public void EnterBuildingPlacement(string type)
 	{
+		EnterBuildingPlacement(type, needsBuilder: true);
+	}
+
+	/// <summary>
+	///     Arms the standard placement preview for one template: the coloured silhouette that follows the cursor and turns
+	///     red over ground the match would refuse.
+	/// </summary>
+	/// <param name="type">The template the click raises.</param>
+	/// <param name="needsBuilder">
+	///     Whether the order has to name one of this player's builders. A placement the player's own card makes raises the
+	///     template directly and names no unit, which is the order the match places without a construction task.
+	/// </param>
+	public void EnterBuildingPlacement(string type, bool needsBuilder)
+	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
 		ActiveBuildingPlacementType = type;
+		_buildingPlacementNeedsBuilder = needsBuilder;
 
 		if (_buildingPreviewMesh != null && GodotObject.IsInstanceValid(_buildingPreviewMesh))
 		{
@@ -35,18 +50,9 @@ public partial class GameHost
 		}
 		_buildingPreviewMesh = null;
 
-		bool isBuilding = false;
-		if (TryGetUnitOrBuildingMetadata(type, out var meta))
-		{
-			if (BuildingRegistry != null && (BuildingRegistry.ContainsKey(type) || (meta.TemplateID != null && BuildingRegistry.ContainsKey(meta.TemplateID))))
-			{
-				isBuilding = true;
-			}
-		}
-		else if (BuildingRegistry != null && BuildingRegistry.TryGetValue(type, out meta))
-		{
-			isBuilding = true;
-		}
+		TryGetUnitOrBuildingMetadata(type, out var meta);
+		bool isBuilding = Placeables.TryGet(type, out PlaceableTemplate placementTemplate) && placementTemplate.Kind == PlaceableKind.Building;
+		if (!isBuilding && meta?.TemplateID != null) isBuilding = Placeables.ContainsKey(meta.TemplateID, PlaceableKind.Building);
 
 		Node3D? previewNode = null;
 		if (meta != null && meta.TemplateID != null && !string.IsNullOrEmpty(meta.ModelPath))
@@ -93,6 +99,7 @@ public partial class GameHost
 	public void CancelBuildingPlacement()
 	{
 		ActiveBuildingPlacementType = null;
+		_buildingPlacementNeedsBuilder = true;
 		if (_buildingPreviewMesh != null)
 		{
 			_buildingPreviewMesh.QueueFree();
@@ -163,17 +170,25 @@ public partial class GameHost
 			return;
 		}
 
-		if (_multiplayerActive && !Multiplayer.IsServer())
+		// A building this player has no food to hold is refused by the match before it is charged for, so the click says
+		// so here rather than paying for a site the match would never raise.
+		if (!CanPlaceWithinFoodCap(type))
+		{
+			GameContext.InGameHud?.ShowFeedbackWarning(TranslationServer.Translate("Cannot construct: food cap exceeded!"));
+			ClearBuildingPlacementState();
+			return;
+		}
+
+		if ((_multiplayerActive && !Multiplayer.IsServer()) || GameContext.ServerSession != null)
 		{
 			// The worker is resolved before the order is announced or paid for: an order the screen cannot name a worker for
 			// is one the match will refuse, and telling the player it is constructing something it never asked for is worse
 			// than saying nothing.
-			Unit3D? placementWorker = FindWorkerForPlacement(type, position);
+			Unit3D? placementWorker = _buildingPlacementNeedsBuilder ? FindWorkerForPlacement(type, position) : null;
 			int placementWorkerServerId = placementWorker != null ? GetServerEntityId(placementWorker.Entity) : -1;
-			if (placementWorkerServerId <= 0)
+			if (_buildingPlacementNeedsBuilder && placementWorkerServerId <= 0)
 			{
-				GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Cannot construct: no builder is available"), new Color(1.0f, 0.2f, 0.2f));
-				GameContext.UserInterface?.PlayWarningSound();
+				GameContext.InGameHud?.ShowFeedbackWarning(TranslationServer.Translate("Cannot construct: no builder is available"));
 				ClearBuildingPlacementState();
 				return;
 			}
@@ -184,7 +199,8 @@ public partial class GameHost
 				Hud.ShowFeedbackText($"Constructing {meta.Name}...", new Color(0.3f, 0.9f, 0.4f));
 			}
 
-			SubmitRemoteCommand("build", new List<int> { placementWorkerServerId }, position, 0, type);
+			var placementWorkerIds = placementWorkerServerId > 0 ? new List<int> { placementWorkerServerId } : new List<int>();
+			SubmitRemoteCommand("build", placementWorkerIds, position, 0, type, allowsNoUnits: !_buildingPlacementNeedsBuilder);
 
 			if (!shiftHeld) ClearBuildingPlacementState();
 			return;
@@ -206,14 +222,13 @@ public partial class GameHost
 			    Hud.Stone
 		    ))
 		{
-			Hud.ShowFeedbackText("Cannot construct: Insufficient resources!", new Color(1.0f, 0.2f, 0.2f));
-			GameContext.UserInterface?.PlayWarningSound();
+			Hud.ShowFeedbackWarning("Cannot construct: Insufficient resources!");
 		}
 		else
 		{
 			DeductResourcesForBuilding(meta);
 			var buildingPos = new System.Numerics.Vector3(position.X, position.Y, position.Z);
-			Unit3D? firstWorker = SelectedUnits.Find(u => CanUnitConstructType(u, type));
+			Unit3D? firstWorker = _buildingPlacementNeedsBuilder ? SelectedUnits.Find(u => CanUnitConstructType(u, type)) : null;
 			if (firstWorker != null && World.IsAlive(firstWorker.Entity))
 			{
 				OnUnitOrdered?.Invoke((UnitId)firstWorker.Entity.Id, type, buildingPos);
@@ -232,8 +247,7 @@ public partial class GameHost
 
 	private void ViewHandleObstructedPlacement()
 	{
-		Hud.ShowFeedbackText("Cannot construct: Area is obstructed!", new Color(1.0f, 0.2f, 0.2f));
-		GameContext.UserInterface?.PlayWarningSound();
+		Hud.ShowFeedbackWarning("Cannot construct: Area is obstructed!");
 		ClearBuildingPlacementState();
 	}
 
@@ -287,13 +301,14 @@ public partial class GameHost
 	{
 		var bldEntity = GameContext.InputService.CreateInstantBuildingEcsUnit(type, meta, new System.Numerics.Vector3(position.X, position.Y, position.Z), GetPlayerEntityForPlayerIndex(GameContext.PerspectiveFilter.ControlledPlayerIndex));
 		string modelPath = GetFallbackModelPath(meta.ModelPath, true);
-		SpawnUnit3D(bldEntity, type, modelPath, position, true, GameContext.PerspectiveFilter.ControlledPlayerIndex);
+		SpawnUnit3D(bldEntity, type, modelPath, position, true, GameContext.PerspectiveFilter.ControlledPlayerIndex, executeSpawnShader: true);
 		GameContext.InGameHud?.ShowFeedbackText($"Constructed: {meta.Name}", new Color(0.3f, 0.9f, 0.4f));
 	}
 
 	private void ClearBuildingPlacementState()
 	{
 		ActiveBuildingPlacementType = null;
+		_buildingPlacementNeedsBuilder = true;
 		if (_buildingPreviewMesh != null)
 		{
 			_buildingPreviewMesh.QueueFree();
@@ -301,6 +316,25 @@ public partial class GameHost
 		}
 
 		GameContext.InGameHud?.ExitBuildSubMenu();
+	}
+
+	/// <summary>
+	///     Takes down one of this player's own unfinished sites and has the match pay back what the placement charged.
+	///     A site is not a building yet, so it is taken down rather than demolished: nothing about it was ever whole, and
+	///     the order gives back the whole price instead of a share of it.
+	/// </summary>
+	/// <param name="buildingEntity">The site the player is looking at.</param>
+	public void CancelConstruction(Entity buildingEntity)
+	{
+		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (!World.IsAlive(buildingEntity) || !World.Has<UnderConstruction>(buildingEntity)) return;
+		if (!TryGetUnit3D(buildingEntity, out var siteUnit) || !GameContext.PerspectiveFilter.CanControl(siteUnit.Player)) return;
+
+		SubmitOrderCommand("cancel_construction", new List<int> { GetServerEntityId(buildingEntity) }, Vector3.Zero, 0, string.Empty);
+
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Construction cancelled"), new Color(0.9f, 0.2f, 0.2f));
+		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 
 	public void CancelLastQueuedUnit(Entity buildingEntity)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Realm.Ecs;
@@ -8,6 +8,7 @@ using Realm.Client.Services;
 using Realm.Ecs.Components.Movement;
 using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Services;
+using Realm.Shared.Metadata;
 
 namespace Realm.Client.UI.InGame;
 
@@ -21,6 +22,7 @@ public class PortraitPanel
 	private UnitStatsPanel _unitStatsPanel;
 	private VBoxContainer _productionBox;
 	private Label _productionTitle;
+	private Label _productionCapacity;
 	private ProgressBar _productionProgress;
 	private Label _productionQueueLabel;
 	private HBoxContainer _queueSlotsContainer;
@@ -46,9 +48,11 @@ public class PortraitPanel
 
 	private Entity _lastPropEntity = Entity.Null;
 	private string _lastPropId = null!;
+	private LootItem3D _lastLootItem = null!;
 	private float _lastPropRemaining = -1f;
+	private string _lastPortraitDescription = string.Empty;
 
-	private enum SelectionType { None, Prop, Empty, Single, Multi }
+	private enum SelectionType { None, Prop, LootItem, ResourceNode, Empty, Single, Multi }
 	private SelectionType _lastSelectionType = SelectionType.None;
 
 	private readonly string?[] _lastUnitStatuses;
@@ -58,7 +62,7 @@ public class PortraitPanel
 	public PortraitPanel(PanelContainer portraitFrame, PanelContainer selectionFrame,
 		HBoxContainer unitsContainer, List<Button> unitButtons, HBoxContainer statsContainer,
 		UnitStatsPanel unitStatsPanel,
-		VBoxContainer productionBox, Label productionTitle, ProgressBar productionProgress,
+		VBoxContainer productionBox, Label productionTitle, Label productionCapacity, ProgressBar productionProgress,
 		Label productionQueueLabel, HBoxContainer queueSlotsContainer, Label armyCompositionLabel,
 		Label unitNameLabel, TextureRect? portraitTexture)
 	{
@@ -70,6 +74,7 @@ public class PortraitPanel
 		_unitStatsPanel = unitStatsPanel;
 		_productionBox = productionBox;
 		_productionTitle = productionTitle;
+		_productionCapacity = productionCapacity;
 		_productionProgress = productionProgress;
 		_productionQueueLabel = productionQueueLabel;
 		_queueSlotsContainer = queueSlotsContainer;
@@ -161,6 +166,14 @@ public class PortraitPanel
 		{
 			UpdatePropSelection(viewModel);
 		}
+		else if (IsLootItemSelected(viewModel))
+		{
+			UpdateLootItemSelection(viewModel);
+		}
+		else if (IsResourceNodeSelected(viewModel))
+		{
+			UpdateResourceNodeSelection(viewModel);
+		}
 		else
 		{
 			UpdateEmptySelection();
@@ -195,16 +208,108 @@ public class PortraitPanel
 
 			_unitStatsPanel.ShowMessage($"{TranslationServer.Translate("REMAINING")}: {remainingAmount:F0}");
 			_productionBox.Visible = false;
+			ApplyPortraitDescription(null, Entity.Null);
 		}
+	}
+
+	/// <summary>
+	///     Whether the local player is reading a drop rather than a unit. A drop the authority has already taken is
+	///     skipped, so a selected item never outlives the pickup it was selected for.
+	/// </summary>
+	private static bool IsLootItemSelected(InGameHUDViewModel viewModel)
+	{
+		LootItem3D? lootItem = viewModel.SelectedLootItem;
+		return lootItem != null && GodotObject.IsInstanceValid(lootItem) && !lootItem.IsDespawned && lootItem.Visible;
+	}
+
+	/// <summary>
+	///     Writes a selected ground item: its name and icon on the portrait, its description as the portrait's tooltip,
+	///     and the item's own sheet in the stat panel. A drop is not a unit, so nothing here reads a health bar or an
+	///     ability grid.
+	/// </summary>
+	private void UpdateLootItemSelection(InGameHUDViewModel viewModel)
+	{
+		if (viewModel.SelectedLootItem is not { } lootItem) return;
+
+		_statsContainer.Visible = true;
+		_armyCompositionLabel?.Hide();
+		_productionBox.Visible = false;
+
+		bool itemChanged = _lastSelectionType != SelectionType.LootItem || lootItem != _lastLootItem;
+		if (itemChanged)
+		{
+			_lastSelectionType = SelectionType.LootItem;
+			_lastLootItem = lootItem;
+			_lastPropEntity = Entity.Null;
+			_lastPropId = string.Empty;
+			_lastPropRemaining = -1f;
+
+			ItemMetadata? metadata = null;
+			GameContext.RegistryService?.ItemRegistry.TryGetValue(lootItem.ItemTypeId, out metadata);
+
+			_unitNameLabel.Text = metadata != null && !string.IsNullOrEmpty(metadata.Name)
+				? MapText.TranslateName(metadata.Name)
+				: lootItem.ItemTypeId.ToUpperInvariant();
+
+			if (_portraitTexture != null)
+			{
+				string iconPath = metadata != null && !string.IsNullOrEmpty(metadata.IconPath)
+					? metadata.IconPath
+					: "res://Assets/UI/unit_placeholder.webp";
+				_portraitTexture.Texture = RtexIconLoader.Load(iconPath);
+			}
+
+			ApplyPortraitDescription(metadata?.Description, Entity.Null);
+		}
+
+		_unitStatsPanel.UpdateGroundItem(lootItem);
+	}
+
+	private static bool IsResourceNodeSelected(InGameHUDViewModel viewModel)
+	{
+		if (viewModel.SelectedResourceNode == Entity.Null) return false;
+		if (GameContext.World is not { } world) return false;
+
+		return world.IsAlive(viewModel.SelectedResourceNode) && world.Has<ResourceNode>(viewModel.SelectedResourceNode);
+	}
+
+	private void UpdateResourceNodeSelection(InGameHUDViewModel viewModel)
+	{
+		_statsContainer.Visible = true;
+		_armyCompositionLabel?.Hide();
+		_productionBox.Visible = false;
+
+		string propId = viewModel.SelectedResourceNodePropId;
+		bool nodeChanged = _lastSelectionType != SelectionType.ResourceNode
+		                   || viewModel.SelectedResourceNode != _lastPropEntity
+		                   || propId != _lastPropId;
+
+		if (nodeChanged)
+		{
+			_lastSelectionType = SelectionType.ResourceNode;
+			_lastPropEntity = viewModel.SelectedResourceNode;
+			_lastPropId = propId;
+			_lastPropRemaining = -1f;
+
+			_unitNameLabel.Text = TranslationServer.Translate(GetPropDisplayName(propId));
+
+			if (_portraitTexture != null)
+			{
+				_portraitTexture.Texture = RtexIconLoader.Load(GetPropIconPath(propId));
+			}
+
+			ApplyPortraitDescription(null, Entity.Null);
+			_unitStatsPanel.DismissCategoryPopup();
+		}
+
+		_unitStatsPanel.UpdateResourceNode(viewModel.SelectedResourceNode);
 	}
 
 	private string GetPropDisplayName(string propId)
 	{
 		string propDisplayName = propId.ToUpper();
-		if (GameHost.ResourceRegistry.TryGetValue(propId, out var rMeta) && !string.IsNullOrEmpty(rMeta.Name))
-			propDisplayName = rMeta.Name.ToUpper();
-		else if (GameHost.PropRegistry.TryGetValue(propId, out var pMeta) && !string.IsNullOrEmpty(pMeta.Name))
-			propDisplayName = pMeta.Name.ToUpper();
+		if (GameHost.Placeables.Find(propId)?.Name is { Length: > 0 } name) propDisplayName = name.ToUpper();
+
 		return propDisplayName;
 	}
 
@@ -230,6 +335,7 @@ public class PortraitPanel
 	private void UpdateEmptySelection()
 	{
 		_statsContainer.Visible = false;
+		_unitStatsPanel.DismissCategoryPopup();
 		_armyCompositionLabel?.Hide();
 
 		if (_lastSelectionType != SelectionType.Empty)
@@ -241,6 +347,8 @@ public class PortraitPanel
 				_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
 			}
 		}
+
+		ApplyPortraitDescription(null, Entity.Null);
 	}
 
 	private void UpdateSingleSelection(InGameHUDViewModel viewModel)
@@ -266,9 +374,10 @@ public class PortraitPanel
 			}
 		}
 
+		ApplyPortraitDescription(info.Description, info.Entity);
 		_unitStatsPanel.UpdateSingleSelection(info, unitHeaderChanged);
 
-		if (info.IsBuilding && !info.IsEnemy && info.HasProduction)
+		if (info.IsBuilding && info.HasProduction)
 		{
 			_productionBox.Visible = true;
 			UpdateProductionBox(info);
@@ -298,6 +407,7 @@ public class PortraitPanel
 	private void UpdateSimpleProductionBox(SelectedUnitInfo info)
 	{
 		_productionTitle.Text = info.ProductionTitle;
+		ApplyProductionCapacity(info);
 		_productionProgress.Visible = true;
 		_productionProgress.Value = info.ProductionProgress;
 		_productionProgress.MaxValue = info.ProductionMaxProgress;
@@ -312,6 +422,7 @@ public class PortraitPanel
 	private void UpdateQueueProductionBox(SelectedUnitInfo info)
 	{
 		_productionTitle.Text = info.ProductionTitle;
+		ApplyProductionCapacity(info);
 		_productionProgress.Visible = true;
 		_productionProgress.Value = info.ProductionProgress;
 		_productionProgress.MaxValue = info.ProductionMaxProgress;
@@ -324,6 +435,18 @@ public class PortraitPanel
 			_lastProductionQueue.AddRange(info.ProductionQueue);
 			PopulateQueueSlots(info.Entity, info.ProductionQueue);
 		}
+	}
+
+	private void ApplyProductionCapacity(SelectedUnitInfo info)
+	{
+		string owner = TooltipValueStore.UnitOwnerKey(info.Entity);
+		string reading = string.Empty;
+		bool published = GameContext.RegistryService != null
+			&& GameContext.RegistryService.TooltipValues.TryGetText(owner, "production.soldier_capacity", out reading)
+			&& !string.IsNullOrEmpty(reading);
+
+		_productionCapacity.Visible = published;
+		if (published) _productionCapacity.Text = string.Format(TranslationServer.Translate("SOLDIERS: {0}"), reading);
 	}
 
 	private bool HasProductionQueueChanged(List<string> productionQueue)
@@ -348,6 +471,7 @@ public class PortraitPanel
 	{
 		_unitsContainer.Visible = true;
 		_statsContainer.Visible = false;
+		_unitStatsPanel.DismissCategoryPopup();
 
 		if (_lastSelectionType != SelectionType.Multi)
 		{
@@ -357,6 +481,8 @@ public class PortraitPanel
 				_portraitTexture.Texture = RtexIconLoader.Load("res://Assets/UI/alliance_flag.webp");
 			}
 		}
+
+		ApplyPortraitDescription(null, Entity.Null);
 
 		_unitNameLabel.Text = string.Format(TranslationServer.Translate("{0} Units Selected"), viewModel.SelectedUnits.Count);
 
@@ -510,6 +636,24 @@ public class PortraitPanel
 		if (world.Has<Follow>(entity)) return "F";
 		if (world.Has<MoveTo>(entity)) return "M";
 		return "";
+	}
+
+	/// <summary>
+	///     Puts the unit's description on the portrait, which is where a player reads what the unit is without taking
+	///     room in the stat sheet. Values the description names are resolved against the selected unit, so map text keeps
+	///     working the same way it does on an ability card.
+	/// </summary>
+	private void ApplyPortraitDescription(string? description, Entity entity)
+	{
+		string resolved = string.IsNullOrEmpty(description)
+			? string.Empty
+			: TooltipTemplate.Resolve(TranslationServer.Translate(description), TooltipContext.ForUnit(entity));
+
+		if (resolved == _lastPortraitDescription) return;
+
+		_lastPortraitDescription = resolved;
+		if (_portraitTexture != null) _portraitTexture.TooltipText = resolved;
+		_portraitFrame.TooltipText = resolved;
 	}
 
 	private string GetUnitIcon(string unitId)

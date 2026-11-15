@@ -6,6 +6,7 @@ namespace Realm.Ecs.Components.Meta;
 /// Defines visual mesh scaling factor for an entity.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct ModelScale
 {
 	public float Value;

@@ -73,7 +73,7 @@ public partial class GameHost
 		var result = GameContext.ReplayService.SpawnUnitFromReplaySnapshot(snap);
 		if (result.Entity == Entity.Null) return;
 
-		SpawnUnit3D(result.Entity, snap.UnitId, result.ModelPath, new Godot.Vector3(snap.Position.X, snap.Position.Y, snap.Position.Z), snap.IsBuilding, result.Player);
+		SpawnUnit3D(result.Entity, snap.UnitId, result.ModelPath, new Godot.Vector3(snap.Position.X, snap.Position.Y, snap.Position.Z), snap.IsBuilding, result.Player, executeSpawnShader: true);
 	}
 
 	private void RecordGameplayTick()

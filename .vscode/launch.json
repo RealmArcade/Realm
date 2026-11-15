@@ -27,7 +27,7 @@
       ],
       "cwd": "${workspaceFolder}",
       "env": {
-        "GODOT_BIN": "C:\\Program Files\\Godot_v4.7-stable_mono_win64\\Godot_v4.7-stable_mono_win64.exe"
+        "GODOT_BIN": "${env:GODOT_BIN}"
       },
       "console": "integratedTerminal"
     },
@@ -42,7 +42,7 @@
       ],
       "cwd": "${workspaceFolder}",
       "env": {
-        "GODOT_BIN": "C:\\Program Files\\Godot_v4.7-stable_mono_win64\\Godot_v4.7-stable_mono_win64.exe"
+        "GODOT_BIN": "${env:GODOT_BIN}"
       },
       "console": "integratedTerminal"
     },

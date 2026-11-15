@@ -105,38 +105,4 @@ public partial class LobbyRoom
 
 	private void OnStartButtonMouseEntered() => GameContext.UserInterface?.PlayHoverSound();
 
-	private void CreateSpectatorDelayUI()
-	{
-		_spectatorDelayCheck = new CheckBox();
-		_spectatorDelayCheck.Name = "SpectatorDelayCheck_CheckBox";
-		_spectatorDelayCheck.Text = Tr("Spectator Delay (5m)");
-		_spectatorDelayCheck.Position = new Vector2(1450, 770);
-		_spectatorDelayCheck.Size = new Vector2(340, 40);
-		_spectatorDelayCheck.ButtonPressed = Lobby.SpectatorDelay;
-		_spectatorDelayCheck.Disabled = !Lobby.IsHost;
-
-		if (_connectingPopup != null && GodotObject.IsInstanceValid(_connectingPopup))
-		{
-			_spectatorDelayCheck.Visible = false;
-		}
-
-		UIStyle.ApplyCheckboxStyle(_spectatorDelayCheck);
-
-		_spectatorDelayCheck.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			Lobby.UpdateSpectatorDelay(_spectatorDelayCheck.ButtonPressed);
-		};
-
-		_spectatorDelayCheck.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-		AddChild(_spectatorDelayCheck);
-	}
-
-	private void OnSpectatorDelayChanged(bool enabled)
-	{
-		if (_spectatorDelayCheck != null)
-		{
-			_spectatorDelayCheck.ButtonPressed = enabled;
-		}
-	}
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.Services.Steam;
 using Realm.Client.UI;
 using Realm.Client.VFX;
 using Realm.Ecs;
@@ -231,6 +232,7 @@ public partial class GameHost
 				break;
 
 			case PresentationKind.UnitAnimationSet:
+			case PresentationKind.UnitAnimationPulse:
 				PresentUnitAnimation(message);
 				break;
 
@@ -244,6 +246,14 @@ public partial class GameHost
 
 			case PresentationKind.ResourceMeshImpulse:
 				PresentResourceImpulse(message);
+				break;
+
+			case PresentationKind.ResourceNodeDepleted:
+				PresentResourceNodeDepleted(message);
+				break;
+
+			case PresentationKind.ResourceNodeAmountChanged:
+				PresentResourceNodeAmount(message);
 				break;
 
 			case PresentationKind.PlayerAbilityRegistered:
@@ -293,6 +303,30 @@ public partial class GameHost
 
 			case PresentationKind.PlayerKicked:
 				clientRpc.ShowFeedbackText(message.PlayerIndex, message.Text, color);
+				break;
+
+			case PresentationKind.CameraScriptLockChanged:
+			case PresentationKind.CameraScriptMoveTo:
+			case PresentationKind.CameraScriptFollowUnit:
+			case PresentationKind.CameraScriptFollowStopped:
+			case PresentationKind.CameraScriptReleased:
+			case PresentationKind.CinematicBarsVisibility:
+			case PresentationKind.CinematicSubtitle:
+			case PresentationKind.ScreenFadeSet:
+				ApplyCinematicPresentation(in message);
+				break;
+
+			case PresentationKind.SteamAchievementUnlocked:
+			case PresentationKind.SteamAchievementProgress:
+			case PresentationKind.SteamStatIntSet:
+			case PresentationKind.SteamStatIntAdd:
+			case PresentationKind.SteamStatFloatSet:
+			case PresentationKind.SteamCloudFilesRequested:
+			case PresentationKind.SteamCloudFileWritten:
+			case PresentationKind.SteamCloudFileDeleted:
+				// The map asked this screen's Steam account for something. The bridge checks the seat itself, because an
+				// ally's or a spectator's own Steam account is not the one the map meant.
+				SteamScriptBridge.Apply(in message);
 				break;
 
 			default:

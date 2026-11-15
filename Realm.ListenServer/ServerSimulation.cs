@@ -5,6 +5,7 @@ using Realm.Ecs.Common;
 using Realm.Ecs.Components.Combat;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Resources;
+using Realm.Ecs.Components.Tags;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Replication;
 using Realm.Ecs.Services;
@@ -19,20 +20,22 @@ public class ServerSimulation : IDisposable
 	private readonly LoadedMap _map;
 	private readonly ServerLog _log;
 	private readonly MatchTick _matchTick;
-	private readonly AutoCastSystem _autoCast;
 	private readonly CommandAuthorityService _commands;
 	private readonly Dictionary<int, int> _peerPlayerSlots = new();
 	private readonly Dictionary<int, int> _lastAnsweredCommandIdPerPeer = new();
 	private readonly SnapshotFanOut _snapshots;
 	private readonly ServerProductionStep _production;
 	private readonly ConstructionTick _construction;
+	private readonly BuildingRepairTick _repair;
 	private readonly ServerSimulationEvents _events;
 	private readonly ServerPresentationQueue _presentation = new();
 	private readonly ServerMapScript _script;
 	private readonly NeutralRespawnService _neutralRespawns;
+	private readonly MatchBountyService _bounties;
 	private readonly GroundLootService _loot;
 	private readonly HashSet<int> _peersNeedingBaseline = new();
 	private readonly HashSet<int> _peersNeedingDescriptionRepeat = new();
+	private readonly List<(Entity Entity, long DestroyAtTick)> _pendingKilledUnitRemovals = new();
 	private readonly SortedSet<int> _unseatedPlayerSlots = new();
 	private readonly bool _hasRoster;
 	private int _snapshotSequence;
@@ -41,9 +44,9 @@ public class ServerSimulation : IDisposable
 	private bool _disposed;
 	private long _navMeshRebakeTick = -1;
 
-	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null, MatchOptionSet? matchOptions = null)
+	public ServerSimulation(LoadedMap map, ServerMatchPaths paths, ServerLog log, int randomSeed = 0, bool cheatsEnabled = false, bool wasmDebug = false, string? mapWorkspacePath = null, IReadOnlyList<MatchRosterSeat>? roster = null, int hostPlayerSlot = 0, WasmScriptHost? preparedScriptHost = null, string? scriptPathOverride = null, MatchShroudMode shroudMode = MatchShroudMode.FromMap, LobbySettingSet? lobbySettings = null, IReadOnlyList<string?>? teamSpawnCoordinates = null)
 	{
-		MatchOptions = matchOptions ?? new MatchOptionSet();
+		LobbySettings = lobbySettings ?? new LobbySettingSet();
 		_map = map;
 		_hasRoster = roster is { Count: > 0 };
 		if (roster != null)
@@ -57,10 +60,9 @@ public class ServerSimulation : IDisposable
 		map.Simulation.CheatsEnabled = cheatsEnabled;
 		map.Simulation.HostPlayerSlot = hostPlayerSlot;
 
-		// Shroud is the one option the authority evaluates itself rather than handing to the map: a host that revealed the
-		// board leaves the authority publishing every unit to every peer instead of only what each peer can see.
-		MatchShroudMode shroudMode = MatchOptions.GetShroudMode();
-		if (shroudMode != MatchShroudMode.FromMap) map.Simulation.ShroudDisabled = shroudMode == MatchShroudMode.Revealed;
+		// Shroud is the one core setting the authority evaluates itself rather than handing to the map: a lobby that revealed
+		// the board leaves the authority publishing every unit to every peer instead of only what each peer can see.
+		if (shroudMode != MatchShroudMode.FromMap) map.Simulation.ShroudDisabled = shroudMode == MatchShroudMode.None;
 
 		// The stream the simulation and its script draw from is established here, by the owner of the match, before
 		// anything can step or describe it.
@@ -76,18 +78,24 @@ public class ServerSimulation : IDisposable
 		EnsureMatchClock(map);
 		_production = new ServerProductionStep(map.World, map, log);
 		_construction = new ConstructionTick(map.Simulation, map.Catalog);
+		_repair = new BuildingRepairTick(map.Simulation, map.Catalog);
 		Items = new ItemGrantService(map.Simulation, map.Catalog);
 		_loot = new GroundLootService(map.Simulation, Items);
-		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, MatchOptions);
+		_script = ServerMapScript.Load(map, paths, randomSeed, log, _presentation, Items, _loot, wasmDebug, mapWorkspacePath, preparedScriptHost, scriptPathOverride, LobbySettings, teamSpawnCoordinates);
+		_commands.ScriptAbilityRulesProvider = spellId =>
+			_script.Api.Abilities.TryGetRules(spellId, out AbilityRules scriptRules) ? scriptRules : null;
 		if (roster != null) ApplyRosterBotDifficulties(roster);
 		_script.Api.Metrics = Metrics;
-		_autoCast = new AutoCastSystem(map.Simulation, _script.Api.Abilities, _script.Api);
-		_script.Api.AutoCast = _autoCast;
-		if (!MatchOptions.IsEmpty) log.Write($"the lobby configured this match: {MatchOptions.Describe()}");
+		if (!LobbySettings.IsEmpty) log.Write($"the lobby configured this match: {LobbySettings.Describe()}");
 		_commands.ConsumableChangedSink = (unitId, consumableId) => _script.Api.RaiseConsumableChanged(unitId, consumableId);
+		_commands.ConstructionCancelledSink = site => _script.Api.Abilities.ForgetUnit(site.Id);
 		_snapshots.Abilities = _script.Api.Abilities;
 		_snapshots.TechLevels = _script.Api.TechLevels;
 		_script.Api.PlayerDroppedSink = DropPlayer;
+
+		// The map's Steam surface answers from the hello each screen sent: a seat is on Steam when its own client said
+		// which Steam account it plays as.
+		_script.Api.BindSteamSeats(IsPlayerOnSteam);
 
 		_events = new ServerSimulationEvents(map.World);
 		_events.Attach(_script.Api);
@@ -98,6 +106,7 @@ public class ServerSimulation : IDisposable
 
 		_neutralRespawns = new NeutralRespawnService(map, _script.Api, log);
 		_neutralRespawns.Start();
+		_bounties = new MatchBountyService(map, _script.Api);
 
 		PlayerResourceService resources = map.Simulation.PlayerResourceService;
 		map.Simulation.ResourceEconomyService.SetRuntimeReferences(
@@ -105,6 +114,7 @@ public class ServerSimulation : IDisposable
 			resources.GoldResourceId,
 			resources.WoodResourceId,
 			resources.StoneResourceId);
+		map.Simulation.ResourceEconomyService.ItemMaxStacksProvider = itemId => map.Catalog.FindItem(itemId)?.MaxStacks ?? 1;
 
 		BakeNavMesh();
 	}
@@ -131,8 +141,8 @@ public class ServerSimulation : IDisposable
 		if (!map.World.Has<ScriptZonesState>(worldEntity)) map.World.Add(worldEntity, new ScriptZonesState(null));
 	}
 
-	/// <summary>Gets the parameters the lobby's host configured for this match.</summary>
-	public MatchOptionSet MatchOptions { get; }
+	/// <summary>Gets the values the lobby's host chose for the match settings the map declared.</summary>
+	public LobbySettingSet LobbySettings { get; }
 
 	public LoadedMap Map => _map;
 
@@ -159,15 +169,17 @@ public class ServerSimulation : IDisposable
 
 		float deltaSeconds = (float)MatchTiming.FixedTickSeconds;
 		_matchTick.AdvanceCooldowns(deltaSeconds);
-		_autoCast.Step();
 		_map.Simulation.MovementPathfindingService.StepMovement(deltaSeconds);
 		_map.Simulation.CombatDamageService.StepCombat(deltaSeconds, _map.Simulation.MovementPathfindingService);
 		_map.Simulation.ResourceEconomyService.StepEconomy(deltaSeconds);
 		_production.Step(deltaSeconds);
 		_construction.Step(deltaSeconds);
+		_repair.Step(deltaSeconds);
 		_loot.Step(deltaSeconds);
 		_neutralRespawns.Step(deltaSeconds);
 		_script.Step(deltaSeconds);
+		_script.Api.StepAutoCast(deltaSeconds);
+		_script.Api.PublishResourceNodeAmounts(deltaSeconds);
 		_script.Api.AdvanceTimers(deltaSeconds);
 		RecomputePopulationWhenDue();
 		RefreshNavMeshWhenObstaclesChange();
@@ -177,6 +189,7 @@ public class ServerSimulation : IDisposable
 		_matchTick.AdvanceRegeneration(deltaSeconds);
 
 		_events.Step();
+		DestroyExpiredKilledUnits();
 	}
 
 	private const int PopulationRecomputeIntervalTicks = 5;
@@ -197,6 +210,8 @@ public class ServerSimulation : IDisposable
 		simulation.CombatDamageService.ItemGrantedWeaponsProvider = itemId => _map.Catalog.FindItem(itemId)?.GrantedWeapons;
 		simulation.CombatDamageService.UnlimitedPowerProvider = () => simulation.UnlimitedPowerEnabled;
 		simulation.CombatDamageService.OnKillUnitRequested = KillUnit;
+		simulation.CombatDamageService.OnBuildingDormantRequested = HandleBuildingDormant;
+		simulation.ResourceEconomyService.OnPropDepleted = node => _script.Api.NotifyResourceNodeDepleted(new ResourceNodeId(node.Id));
 		simulation.CombatDamageService.DamageEffectivenessProvider = (attacker, target) =>
 		{
 			if (!_map.World.TryGet<UnitOwnerPlayer>(attacker, out UnitOwnerPlayer attackingOwner)) return 1f;
@@ -233,20 +248,102 @@ public class ServerSimulation : IDisposable
 		return !_script.Api.ArePlayersAllied(playerIndex, otherPlayerIndex);
 	}
 
-	private void KillUnit(Entity entity)
+	/// <summary>
+	///     Answers a building that just ran out of health while the map lets it be repaired. The building stays standing
+	///     and dormant, so this pays whoever broke it the same bounty their kill would have paid and leaves the rest to the
+	///     repair: no death event is raised, because the unit is still there for its owner to raise again.
+	/// </summary>
+	private void HandleBuildingDormant(Entity entity)
 	{
 		if (!_map.World.IsAlive(entity)) return;
 
 		Entity killer = _map.World.TryGet<LastAttacker>(entity, out LastAttacker lastAttacker) ? lastAttacker.Value : Entity.Null;
-		_neutralRespawns.OnPlacementDestroyed(new UnitId(entity.Id), killer == Entity.Null ? UnitId.Invalid : new UnitId(killer.Id));
-		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
+		if (killer == Entity.Null) return;
 
-		if (_map.World.IsAlive(entity)) _map.World.Destroy(entity);
+		_bounties.PayKill(new UnitId(entity.Id), new UnitId(killer.Id));
+	}
+
+	private void KillUnit(Entity entity)
+	{
+		if (!_map.World.IsAlive(entity)) return;
+		if (IsKillAlreadyAnswered(entity)) return;
+
+		Entity killer = _map.World.TryGet<LastAttacker>(entity, out LastAttacker lastAttacker) ? lastAttacker.Value : Entity.Null;
+		var victimId = new UnitId(entity.Id);
+		UnitId killerId = killer == Entity.Null ? UnitId.Invalid : new UnitId(killer.Id);
+		_neutralRespawns.OnPlacementDestroyed(victimId);
+		_bounties.PayKill(victimId, killerId);
+
+		// A peer learns a unit died from a description that says so, and it builds the death effect from that description
+		// rather than from the unit leaving the world. Destroying the body in the tick it died meant the next description
+		// retired it instead, so a screen across a network freed the node without ever being told it had died and the
+		// death shader was never played. The body stays, described as dead, for the grace below and is removed after it.
+		if (!_map.World.Has<Dead>(entity)) _map.World.Add<Dead>(entity);
+		_pendingKilledUnitRemovals.Add((entity, TickCount + DeathPublishGraceTicks));
 
 		// A match recycles a destroyed identifier the moment a unit is spared it, and what the map declared about the unit
 		// that held it would be read as the new unit's own: neither the state it withheld nor who was told about it
-		// belongs to whoever takes the identifier next.
+		// belongs to whoever takes the identifier next. That is answered with the identifier, so it is answered now.
 		_script.Api.Abilities.ForgetUnit(entity.Id);
+
+		// The death is announced last, once the body is already marked and queued: a handler that retires the corpse and
+		// creates a unit frees this identifier during the call, and the unit that takes it must not inherit a removal or
+		// a forgotten ability list that were decided for the unit before it.
+		_script.Api.RaiseUnitDied(entity.Id, killer.Id);
+	}
+
+	/// <summary>
+	///     How many ticks a killed unit is kept in the world after it dies, so the death is described before the body is
+	///     retired. Every peer applies descriptions in sequence, so one that says the unit died is enough for the death
+	///     effect to be built; the rest of the grace is room for a description lost on the way.
+	/// </summary>
+	private const int DeathPublishGraceTicks = 3;
+
+	/// <summary>
+	///     Whether this is the body whose kill was already paid. An identifier is recycled the moment the body holding it
+	///     is destroyed, so the queued entity only answers for the kill while it is still the dead body that was queued: a
+	///     unit that took the identifier afterwards is a different unit and has to have its own death answered.
+	/// </summary>
+	private bool IsKillAlreadyAnswered(Entity entity)
+	{
+		if (!_map.World.IsAlive(entity) || !_map.World.Has<Dead>(entity)) return false;
+
+		for (int index = 0; index < _pendingKilledUnitRemovals.Count; index++)
+		{
+			if (_pendingKilledUnitRemovals[index].Entity == entity) return true;
+		}
+
+		return false;
+	}
+
+	private void DestroyExpiredKilledUnits()
+	{
+		for (int index = _pendingKilledUnitRemovals.Count - 1; index >= 0; index--)
+		{
+			(Entity entity, long destroyAtTick) = _pendingKilledUnitRemovals[index];
+			if (TickCount < destroyAtTick) continue;
+
+			_pendingKilledUnitRemovals.RemoveAt(index);
+
+			// Only the body that was queued is retired. An identifier is handed to the next unit the match creates, so a
+			// body that is not marked dead is a unit this removal knows nothing about, and an entry queued later for the
+			// same identifier means that identifier has died again since and answers to that later entry.
+			if (!_map.World.IsAlive(entity) || !_map.World.Has<Dead>(entity)) continue;
+			if (HasNewerPendingRemoval(entity, destroyAtTick)) continue;
+
+			_map.World.Destroy(entity);
+		}
+	}
+
+	private bool HasNewerPendingRemoval(Entity entity, long destroyAtTick)
+	{
+		for (int index = 0; index < _pendingKilledUnitRemovals.Count; index++)
+		{
+			(Entity pendingEntity, long pendingDestroyAtTick) = _pendingKilledUnitRemovals[index];
+			if (pendingEntity == entity && pendingDestroyAtTick > destroyAtTick) return true;
+		}
+
+		return false;
 	}
 
 	private const int ObstacleScanIntervalTicks = 20;
@@ -380,6 +477,54 @@ public class ServerSimulation : IDisposable
 
 	public void SetPlayerLanguage(int playerSlot, string? language) => _script.Api.Localization.SetPlayerLanguage(playerSlot, language);
 
+	private readonly Dictionary<int, ulong> _peerSteamIds = new();
+
+	/// <summary>
+	///     Records the Steam account the connection seated in this slot plays as, which is how the map's Steam surface knows
+	///     a seat is a person inside Steam rather than a computer or a screen without it.
+	/// </summary>
+	/// <param name="peerId">The connection that stated it.</param>
+	/// <param name="steamId">The SteamID64 the hello named, or zero when that screen is not running Steam.</param>
+	public void SetPeerSteamId(int peerId, ulong steamId)
+	{
+		if (peerId <= 0) return;
+
+		if (steamId == 0) _peerSteamIds.Remove(peerId);
+		else _peerSteamIds[peerId] = steamId;
+	}
+
+	/// <summary>
+	///     Whether the seat at this player slot is a person whose screen is running Steam.
+	/// </summary>
+	/// <param name="playerSlot">The seat to test.</param>
+	/// <returns>True when that seat's connection stated a Steam account.</returns>
+	public bool IsPlayerOnSteam(int playerSlot)
+	{
+		if (playerSlot <= 0) return false;
+
+		foreach (var pair in _peerPlayerSlots)
+		{
+			if (pair.Value != playerSlot) continue;
+
+			return _peerSteamIds.TryGetValue(pair.Key, out ulong steamId) && steamId != 0;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	///     Takes the cloud files a seat's screen uploaded for this map and hands them to the map script's copy.
+	/// </summary>
+	/// <param name="peerId">The connection that uploaded them.</param>
+	/// <param name="upload">What that screen holds.</param>
+	public void ApplySteamCloudUpload(int peerId, in SteamCloudUpload upload)
+	{
+		if (!_peerPlayerSlots.TryGetValue(peerId, out int playerSlot)) return;
+
+		_script.Api.ApplySteamCloudUpload(playerSlot, in upload);
+	}
+
+
 	public string MapSavedDataDirectory() => _script.Api.SavedDataDirectory;
 
 	private void DropPlayer(int playerSlot)
@@ -505,6 +650,7 @@ public class ServerSimulation : IDisposable
 	{
 		_snapshots.ForgetPeer(peerId);
 		if (_hasRoster && _peerPlayerSlots.Remove(peerId, out int releasedSlot)) _unseatedPlayerSlots.Add(releasedSlot);
+		_peerSteamIds.Remove(peerId);
 		_lastAnsweredCommandIdPerPeer.Remove(peerId);
 		_peersNeedingBaseline.Remove(peerId);
 		_peersNeedingDescriptionRepeat.Remove(peerId);
@@ -618,11 +764,15 @@ public class ServerSimulation : IDisposable
 		}
 
 		var buildPosition = new Vector3(result.BuildPosition.X, result.BuildPosition.Y, result.BuildPosition.Z);
-		if (!BuildingPlacementService.TryPlace(_map.World, _map.Catalog, templateId, buildPosition, new PlayerEntity(playerEntity), workerEntity, out Entity buildingEntity))
+		if (!BuildingPlacementService.TryPlace(_map.World, _map.Catalog, templateId, buildPosition, new PlayerEntity(playerEntity), workerEntity, out Entity buildingEntity, out BuildingPlacementRefusal refusal))
 		{
-			return RefusePlacement(_map.Catalog.FindUnitOrBuilding(templateId) == null
-				? $"'{command.CommandType}' naming '{templateId}' could not be placed: this map defines no such template"
-				: $"'{command.CommandType}' naming '{templateId}' could not be placed: the player cannot pay for it");
+			return RefusePlacement(refusal switch
+			{
+				BuildingPlacementRefusal.TemplateNotDefined => $"'{command.CommandType}' naming '{templateId}' could not be placed: this map defines no such template",
+				BuildingPlacementRefusal.BuildingSupplyReached => $"'{command.CommandType}' naming '{templateId}' could not be placed: the player holds every building their allowance permits",
+				BuildingPlacementRefusal.FoodCapReached => "Cannot construct: food cap exceeded!",
+				_ => $"'{command.CommandType}' naming '{templateId}' could not be placed: the player cannot pay for it"
+			});
 		}
 
 		_log.Write(workerEntity == Entity.Null

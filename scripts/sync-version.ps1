@@ -1,5 +1,6 @@
 param(
-    [string]$VersionNumber = ""
+    [string]$VersionNumber = "",
+    [switch]$Publish
 )
 
 $ErrorActionPreference = "Stop"
@@ -112,5 +113,28 @@ if ($env:GITHUB_OUTPUT) {
     Add-Content -Path $env:GITHUB_OUTPUT -Value "version_number=$infoVersion"
     Add-Content -Path $env:GITHUB_OUTPUT -Value "raw_version=$version"
 }
+
+function Get-GameBuildNumber {
+    $versionPath = Join-Path $rootDir "Realm.Shared\RealmVersion.cs"
+    if (-not (Test-Path $versionPath)) { return "(unknown)" }
+
+    $match = [regex]::Match([System.IO.File]::ReadAllText($versionPath, [System.Text.Encoding]::UTF8), 'GameBuildNumber\s*=\s*"(?<value>[^"]+)"')
+    if ($match.Success) { return $match.Groups["value"].Value }
+    return "(unknown)"
+}
+
+$commit = if ($env:GITHUB_SHA) { $env:GITHUB_SHA } else { "(unknown)" }
+$builtAt = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", [System.Globalization.CultureInfo]::InvariantCulture)
+
+$stampLines = @(
+    "Version            : $version",
+    "Game build number  : $(Get-GameBuildNumber)",
+    "Built (UTC)        : $builtAt",
+    "Commit             : $commit"
+)
+
+$stampPath = Join-Path $rootDir "version.txt"
+[System.IO.File]::WriteAllText($stampPath, ($stampLines -join "`r`n") + "`r`n", $utf8NoBom)
+Write-Host "Wrote $stampPath"
 
 Write-Host "Version sync completed successfully."

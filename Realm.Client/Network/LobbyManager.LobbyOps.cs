@@ -119,20 +119,73 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
-	///     Sets one parameter the host configures for the match. Zero returns an option to the map's own default, which is
-	///     how the standard lobby states all of them.
+	///     Asks the lobby to group each team's players into consecutive player slots when the match starts. Only the host
+	///     may change it, and the authority's answer is what every seat reads back.
 	/// </summary>
-	/// <param name="matchOption">The option being configured.</param>
-	/// <param name="value">The value to play, or zero for the map's default.</param>
-	public void SetMatchOption(MatchOption matchOption, int value)
+	/// <param name="enabled">Whether the match should group each team's players.</param>
+	public void UpdateTeamsTogether(bool enabled)
+	{
+		if (!IsHost) return;
+
+		TeamsTogether = enabled;
+		TeamsTogetherChanged?.Invoke(enabled);
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.SetTeamsTogether,
+			Flag = enabled
+		});
+	}
+
+	/// <summary>
+	///     Sets one of the match settings the lobby's map declared. Only the host may change one, and the authority's answer
+	///     is what every seat reads back.
+	/// </summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="value">The value to play.</param>
+	public void SetLobbySetting(int settingId, int value)
 	{
 		if (!IsHost) return;
 
 		_lobbySession?.SendLobbyCommand(new LobbyCommand
 		{
-			Kind = LobbyCommandKind.SetMatchOption,
-			Option = (int)matchOption,
-			OptionValue = value
+			Kind = LobbyCommandKind.SetLobbySetting,
+			SettingId = settingId,
+			SettingValue = value
+		});
+	}
+
+	/// <summary>
+	///     Chooses the shroud mode the next match plays. Only the host may change it, and the authority's answer is what
+	///     every seat reads back.
+	/// </summary>
+	/// <param name="shroudMode">The mode the match should play.</param>
+	public void UpdateShroudMode(MatchShroudMode shroudMode)
+	{
+		if (!IsHost) return;
+
+		ShroudMode = shroudMode;
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.SetShroudMode,
+			Progress = (int)shroudMode
+		});
+	}
+
+	/// <summary>
+	///     Opens or closes one player slot, which is how the host decides which seats the board offers. Only the host may do
+	///     it, and the authority's answer is what every seat reads back.
+	/// </summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="open">Whether the slot should accept a player.</param>
+	public void SetSlotOpen(int slot, bool open)
+	{
+		if (!IsHost) return;
+
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.SetSlotOpen,
+			Slot = slot,
+			Flag = open
 		});
 	}
 
@@ -154,16 +207,20 @@ public partial class LobbyManager
 		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.CancelCountdown });
 	}
 
-	public bool AddAIBot()
+	/// <summary>
+	///     Seats a computer player in one player slot. Only the host may do it, the slot is opened first when the host had
+	///     closed it, and the authority's answer - which refuses a slot its map keeps or somebody still holds - is what
+	///     every seat reads back.
+	/// </summary>
+	/// <param name="slot">The player slot the computer should play in.</param>
+	/// <returns>Whether the lobby was asked to seat a computer in that slot.</returns>
+	public bool AddAIBot(int slot)
 	{
 		if (!IsHost) return false;
-		if (PlayingPlayerCount >= MaxPlayers)
-		{
-			LastLobbyWarning = string.Format(Tr("Cannot add an AI player: all {0} playable slots are taken."), MaxPlayers);
-			return false;
-		}
 
-		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.AddComputer });
+		if (!IsSlotOpen(slot)) SetSlotOpen(slot, true);
+
+		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.AddComputer, Slot = slot });
 		return true;
 	}
 

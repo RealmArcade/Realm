@@ -1,13 +1,19 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
+using Realm.Shared.Serialization;
 
 namespace Realm.Shared.Terrain;
 
+[SchemaDescription("A pair of numbers such as a uv scale or a scroll speed, written as one number per axis.")]
 public struct Vector2Data
 {
-	[JsonPropertyName("X")] public float X { get; set; }
+	[JsonPropertyName("X")]
+	[SchemaDescription("The value along the first axis.")]
+	public float X { get; set; }
 
-	[JsonPropertyName("Y")] public float Y { get; set; }
+	[JsonPropertyName("Y")]
+	[SchemaDescription("The value along the second axis.")]
+	public float Y { get; set; }
 
 	public Vector2Data(float x, float y)
 	{

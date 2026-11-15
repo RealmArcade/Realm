@@ -1,8 +1,10 @@
 using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Tags;
 using Realm.MapAPI;
 using Realm.Shared.Abilities;
+using Realm.Shared.Animation;
 using Realm.Shared.Network;
 
 namespace Realm.ListenServer;
@@ -20,7 +22,7 @@ public partial class ServerGameAPI
 		if (AbilityEffectRunner.HasEffects(definition)) _effects.Execute(caster, casterPosition, definition, targetPosition);
 		else OnSpellCast?.Invoke(unit, abilityId, targetPosition);
 
-		PublishCast(unit, definition, casterPosition, targetPosition);
+		PublishCast(caster, unit, definition, casterPosition, targetPosition);
 	}
 
 	public void IssueCastOrder(UnitId caster, string abilityId, UnitId target)
@@ -43,8 +45,12 @@ public partial class ServerGameAPI
 		OnUnitOrdered?.Invoke(caster, abilityId ?? "CastAt", position);
 	}
 
-	private void PublishCast(UnitId unit, AbilityDefinition definition, Vector3 casterPosition, Vector3 targetPosition)
+	private void PublishCast(Entity caster, UnitId unit, AbilityDefinition definition, Vector3 casterPosition, Vector3 targetPosition)
 	{
+		// A unit takes its casting pose towards the point it cast at, which is the pose a player reads a spell by. A building's
+		// abilities are its production, which is not something it poses for, so a building casts without one.
+		if (!_context.World.Has<Building>(caster)) PulseUnitAnimation(unit, nameof(RealmAnimationType.Spell_Cast));
+
 		// An ability that names a projectile fires it as its own visual, and its landing is reported back to the map.
 		LaunchAbilityProjectile(unit, definition, casterPosition, targetPosition);
 

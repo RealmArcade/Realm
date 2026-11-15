@@ -14,9 +14,21 @@ public class MapEditorEntityPaletteController
 	private readonly VBoxContainer _palettesVBox;
 	private readonly Button _btnAddObject;
 
+	private static readonly string[] Categories =
+	{
+		"Units",
+		"Buildings",
+		"Resources",
+		"Props",
+		"Decals",
+		"VFX",
+		"Items"
+	};
+
 	private string _currentCategory = "Units";
 	private readonly List<string> _categoryFiles = new();
 	private readonly Dictionary<string, string> _idToDisplayName = new(StringComparer.OrdinalIgnoreCase);
+	private OptionButton _optCategory;
 	private OptionButton _optCategoryItems;
 
 	private string GetDisplayNameForId(string file)
@@ -58,6 +70,11 @@ public class MapEditorEntityPaletteController
 		if (TryGetResourceName(file, out string? resourceName))
 		{
 			return resourceName;
+		}
+
+		if (TryGetItemName(file, out string? itemName))
+		{
+			return itemName;
 		}
 
 		return Path.GetFileNameWithoutExtension(file).Replace("_", " ");
@@ -143,15 +160,29 @@ public class MapEditorEntityPaletteController
 		return false;
 	}
 
-	private Button _btnChars;
-	private Button _btnBuilds;
-	private Button _btnEnv;
-	private Button _btnProps;
-	private Button _btnDecals;
-	private Button _btnVfx;
+	private bool TryGetItemName(string key, [NotNullWhen(true)] out string? name)
+	{
+		name = null;
+		if (GameHost.ItemRegistry == null)
+		{
+			return false;
+		}
+
+		if (GameHost.ItemRegistry.TryGetValue(key, out var meta))
+		{
+			if (!string.IsNullOrEmpty(meta.Name))
+			{
+				name = meta.Name;
+				return true;
+			}
+		}
+
+		return false;
+	}
 
 	public string CurrentCategory => _currentCategory;
 	public List<string> CategoryFiles => _categoryFiles;
+	public OptionButton OptCategory => _optCategory;
 	public OptionButton OptCategoryItems => _optCategoryItems;
 
 	public MapEditorEntityPaletteController(MapEditorHUD hud, VBoxContainer palettesVBox, Button btnAddObject)
@@ -160,20 +191,19 @@ public class MapEditorEntityPaletteController
 		_palettesVBox = palettesVBox;
 		_btnAddObject = btnAddObject;
 
+		_optCategory = CreateRow(TranslationServer.Translate("Category"), TranslationServer.Translate("Select which kind of object to place"), "OptCategory");
+		foreach (string category in Categories)
+		{
+			_optCategory.AddItem(GetCategoryLabel(category));
+		}
 
-		var categoryGrid = new GridContainer();
-		categoryGrid.Name = "CategoryGrid_GridContainer";
-		categoryGrid.Columns = 2;
-		categoryGrid.AddThemeConstantOverride("h_separation", 6);
-		categoryGrid.AddThemeConstantOverride("v_separation", 6);
-		_palettesVBox.AddChild(categoryGrid);
-		_palettesVBox.MoveChild(categoryGrid, 0);
+		_optCategory.ItemSelected += (index) =>
+		{
+			if (index < 0 || index >= Categories.Length) return;
+			SelectCategory(Categories[(int)index]);
+		};
 
-		_optCategoryItems = new OptionButton();
-		_optCategoryItems.Name = "OptCategoryItems";
-		_optCategoryItems.CustomMinimumSize = new Vector2(180, 30);
-		_palettesVBox.AddChild(_optCategoryItems);
-		_palettesVBox.MoveChild(_optCategoryItems, 1);
+		_optCategoryItems = CreateRow(TranslationServer.Translate("Template"), TranslationServer.Translate("Select the template to place"), "OptCategoryItems");
 
 		_optCategoryItems.ItemSelected += (index) =>
 		{
@@ -181,43 +211,61 @@ public class MapEditorEntityPaletteController
 			TriggerAddObjectMode();
 		};
 
-		_btnChars = new Button();
-		_btnChars.Name = "BtnChars_Button";
-		_btnChars.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnChars, TranslationServer.Translate("👥 Units"), () => SelectCategory("Units"), 12, TranslationServer.Translate("Select Units category"));
-		categoryGrid.AddChild(_btnChars);
-
-		_btnBuilds = new Button();
-		_btnBuilds.Name = "BtnBuilds_Button";
-		_btnBuilds.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnBuilds, TranslationServer.Translate("🏢 Buildings"), () => SelectCategory("Buildings"), 12, TranslationServer.Translate("Select Buildings category"));
-		categoryGrid.AddChild(_btnBuilds);
-
-		_btnEnv = new Button();
-		_btnEnv.Name = "BtnEnv_Button";
-		_btnEnv.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnEnv, TranslationServer.Translate("🪵 Resources"), () => SelectCategory("Resources"), 12, TranslationServer.Translate("Select Resources category"));
-		categoryGrid.AddChild(_btnEnv);
-
-		_btnProps = new Button();
-		_btnProps.Name = "BtnProps_Button";
-		_btnProps.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnProps, TranslationServer.Translate("📦 Props"), () => SelectCategory("Props"), 12, TranslationServer.Translate("Select Props category"));
-		categoryGrid.AddChild(_btnProps);
-
-		_btnDecals = new Button();
-		_btnDecals.Name = "BtnDecals_Button";
-		_btnDecals.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnDecals, TranslationServer.Translate("🎨 Decals"), () => SelectCategory("Decals"), 12, TranslationServer.Translate("Select Decals category"));
-		categoryGrid.AddChild(_btnDecals);
-
-		_btnVfx = new Button();
-		_btnVfx.Name = "BtnVfx_Button";
-		_btnVfx.Set("icon_max_width", 0);
-		UIStyle.SetupButton(_btnVfx, TranslationServer.Translate("✨ VFX"), () => SelectCategory("VFX"), 12, TranslationServer.Translate("Select VFX category"));
-		categoryGrid.AddChild(_btnVfx);
-
 		SelectCategory("Units", triggerAddObject: false);
+	}
+
+	/// <summary>
+	///     Names a category the way the list shows it. Each label is a literal translation call site, which is what keeps the
+	///     category names in the catalogs rather than only in the code that builds the list.
+	/// </summary>
+	/// <param name="category">The category whose label is wanted.</param>
+	/// <returns>The translated label, or the category id itself when the category has no label of its own.</returns>
+	private static string GetCategoryLabel(string category)
+	{
+		return category switch
+		{
+			"Units" => TranslationServer.Translate("👥 Units"),
+			"Buildings" => TranslationServer.Translate("🏢 Buildings"),
+			"Resources" => TranslationServer.Translate("🪵 Resources"),
+			"Props" => TranslationServer.Translate("📦 Props"),
+			"Decals" => TranslationServer.Translate("🎨 Decals"),
+			"VFX" => TranslationServer.Translate("✨ VFX"),
+			"Items" => TranslationServer.Translate("🎒 Items"),
+			_ => category
+		};
+	}
+
+	/// <summary>
+	///     Builds one labelled row of the selector: the name of what the row chooses, then the list itself. The two rows
+	///     read as one control, so the object palette is a category and a template rather than a wall of category buttons.
+	/// </summary>
+	/// <param name="labelText">The text naming what the row chooses.</param>
+	/// <param name="labelTooltip">What the row's list is for.</param>
+	/// <param name="optionName">The node name the list is registered under, which names the row after it.</param>
+	/// <returns>The list the row holds.</returns>
+	private OptionButton CreateRow(string labelText, string labelTooltip, string optionName)
+	{
+		var row = new HBoxContainer();
+		row.Name = $"{optionName}Row_HBoxContainer";
+		row.AddThemeConstantOverride("separation", 6);
+		_palettesVBox.AddChild(row);
+
+		var label = new Label();
+		label.Name = "Label_Label";
+		label.Text = labelText;
+		label.TooltipText = labelTooltip;
+		label.CustomMinimumSize = new Vector2(76, 0);
+		label.VerticalAlignment = VerticalAlignment.Center;
+		row.AddChild(label);
+
+		var option = new OptionButton();
+		option.Name = optionName;
+		option.CustomMinimumSize = new Vector2(140, 30);
+		option.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		option.TooltipText = labelTooltip;
+		row.AddChild(option);
+
+		return option;
 	}
 
 	public void RefreshCurrentCategoryItems()
@@ -228,7 +276,7 @@ public class MapEditorEntityPaletteController
 	public void SelectCategory(string category, bool triggerAddObject = true)
 	{
 		_currentCategory = category;
-		UpdateCategoryButtonsStyle(category);
+		SyncCategorySelection(category);
 
 		string? previousSelectedId = GetPreviousSelectedId();
 
@@ -254,28 +302,27 @@ public class MapEditorEntityPaletteController
 		}
 	}
 
-	private void UpdateCategoryButtonsStyle(string category)
+	/// <summary>
+	///     Points the category list at the category the editor is placing from, so a category chosen anywhere else - an
+	///     eyedropper pick or a restored session - reads in the list rather than leaving it on a category nothing uses.
+	/// </summary>
+	/// <param name="category">The category the palette is showing.</param>
+	private void SyncCategorySelection(string category)
 	{
-		var activeStyle = UIStyle.CreateEditorPaletteCategoryActive();
+		if (_optCategory == null) return;
 
-		_btnChars.RemoveThemeStyleboxOverride("normal");
-		_btnBuilds.RemoveThemeStyleboxOverride("normal");
-		_btnEnv.RemoveThemeStyleboxOverride("normal");
-		_btnProps.RemoveThemeStyleboxOverride("normal");
-		_btnDecals.RemoveThemeStyleboxOverride("normal");
-		_btnVfx.RemoveThemeStyleboxOverride("normal");
+		for (int index = 0; index < Categories.Length; index++)
+		{
+			if (!string.Equals(Categories[index], category, StringComparison.OrdinalIgnoreCase) &&
+			    !(category is "Characters" && Categories[index] == "Units") &&
+			    !(category is "Environment" && Categories[index] == "Resources"))
+			{
+				continue;
+			}
 
-		ApplyCategoryButton(_btnChars, category is "Units" or "Characters", activeStyle);
-		ApplyCategoryButton(_btnBuilds, category is "Buildings", activeStyle);
-		ApplyCategoryButton(_btnEnv, category is "Resources" or "Environment", activeStyle);
-		ApplyCategoryButton(_btnProps, category is "Props", activeStyle);
-		ApplyCategoryButton(_btnDecals, category is "Decals", activeStyle);
-		ApplyCategoryButton(_btnVfx, category is "VFX", activeStyle);
-	}
-
-	private static void ApplyCategoryButton(Button button, bool isActive, StyleBox activeStyle)
-	{
-		button.AddThemeStyleboxOverride("normal", isActive ? activeStyle : UIStyle.CreateButtonNormal());
+			_optCategory.Selected = index;
+			return;
+		}
 	}
 
 	private string? GetPreviousSelectedId()
@@ -344,6 +391,7 @@ public class MapEditorEntityPaletteController
 			case "Resources":
 			case "Environment": LoadResourcesMetadata(metadata); break;
 			case "Props": LoadPropsMetadata(metadata); break;
+			case "Items": LoadItemsMetadata(metadata); break;
 		}
 	}
 
@@ -476,6 +524,25 @@ public class MapEditorEntityPaletteController
 		}
 	}
 
+	private void LoadItemsMetadata(MapMetadata metadata)
+	{
+		if (metadata.Templates?.Items != null)
+		{
+			foreach (var i in metadata.Templates.Items)
+			{
+				AddCategoryItem(i.TemplateID, i.Name);
+			}
+		}
+
+		if (GameContext.RegistryService?.ItemRegistry != null)
+		{
+			foreach (var kvp in GameContext.RegistryService.ItemRegistry)
+			{
+				AddCategoryItem(kvp.Key, kvp.Value.Name);
+			}
+		}
+	}
+
 	public void SelectCategoryItem(int index)
 	{
 		if (index >= 0 && index < _categoryFiles.Count)
@@ -515,6 +582,11 @@ public class MapEditorEntityPaletteController
 		if (category == "VFX")
 		{
 			return EditorTool.PlaceVfx;
+		}
+
+		if (category == "Items")
+		{
+			return EditorTool.PlaceItem;
 		}
 
 		return EditorTool.PlaceProp;
@@ -570,6 +642,10 @@ public class MapEditorEntityPaletteController
 			else if (category == "VFX")
 			{
 				targetTool = EditorTool.PlaceVfx;
+			}
+			else if (category == "Items")
+			{
+				targetTool = EditorTool.PlaceItem;
 			}
 
 			_hud.TriggerToolSelection(targetTool, _btnAddObject, filename);

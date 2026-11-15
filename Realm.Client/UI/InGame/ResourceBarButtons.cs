@@ -228,6 +228,17 @@ public sealed class ResourceBarButtons
 	private void OnQuitMatchPressed()
 	{
 		GameContext.UserInterface?.PlayClickSound();
+
+		if (GameContext.SessionState.IsTestMode)
+		{
+			GameContext.UserInterface?.ShowConfirmationDialog(
+				TranslationServer.Translate("Are you sure you want to quit the current match and return to the map editor?"),
+				BackToEditorButton.Return,
+				confirmText: TranslationServer.Translate("QUIT"),
+				cancelText: TranslationServer.Translate("CANCEL"));
+			return;
+		}
+
 		GameContext.UserInterface?.ShowConfirmationDialog(
 			TranslationServer.Translate("Are you sure you want to quit the current match and return to the main menu?"),
 			QuitMatchToMainMenu,

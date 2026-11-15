@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Realm.Ecs;
 using Godot;
@@ -107,8 +107,8 @@ public partial class GameHost
 		if (!World.Has<DefinitionId>(buildingEntity)) return;
 
 		string bType = World.Get<DefinitionId>(buildingEntity).Value;
-		bool isBuilding = false;
-		if (!UnitRegistry.TryGetValue(bType, out var m) && !(isBuilding = BuildingRegistry.TryGetValue(bType, out m))) return;
+		if (!Placeables.TryGetUnitOrBuilding(bType, out var m)) return;
+		bool isBuilding = Placeables.TryGet(bType, out PlaceableTemplate buildingTemplate) && buildingTemplate.Kind == PlaceableKind.Building;
 		if (TryGetUnit3D(buildingEntity, out _)) return;
 
 		if (m == null) return;
@@ -119,12 +119,29 @@ public partial class GameHost
 		int ownerPlayer = World.Has<UnitOwnerPlayer>(buildingEntity)
 			? World.Get<UnitOwnerPlayer>(buildingEntity).PlayerIndex
 			: 0;
-		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, ownerPlayer, false, false);
+		SpawnUnit3D(buildingEntity, bType, modelPath, new Godot.Vector3(buildingPos.X, buildingPos.Y, buildingPos.Z), isBuilding, ownerPlayer, executeSpawnShader: true);
 
 		if (TryGetUnit3D(buildingEntity, out var bNode) && GodotObject.IsInstanceValid(bNode))
 		{
 			bNode.Modulate = new Color(1f, 1f, 1f, 0.4f);
 		}
+	}
+
+	/// <summary>
+	///     Reports whether a site is held short of completion because its owner has no food cap room for the building it
+	///     would become. The match stops the work at the progress it had reached, so the reading is the same arithmetic the
+	///     authority pauses with, taken from the population the match describes and the template's own cost.
+	/// </summary>
+	/// <param name="site">The entity to read.</param>
+	/// <returns>True when the site cannot be raised yet.</returns>
+	private bool IsConstructionHeldByFoodCap(Entity site)
+	{
+		if (!World.IsAlive(site) || !World.Has<UnderConstruction>(site)) return false;
+		if (!World.TryGet<DefinitionId>(site, out DefinitionId definition)) return false;
+		if (!TryGetUnitOrBuildingMetadata(definition.Value, out UnitMetadata? metadata) || metadata.PopCost <= 0) return false;
+		if (!World.TryGet<UnitOwnerPlayer>(site, out UnitOwnerPlayer owner)) return false;
+
+		return !PlayerPopulationRules.FitsWithinCap(World, GetPlayerEntityForPlayerIndex(owner.Value), metadata.PopCost);
 	}
 
 	private void UpdateBuildingConstructionState(Entity buildingEntity, float progressGain)
@@ -332,7 +349,7 @@ public partial class GameHost
 
 	private void AssignBuildTaskToWorker(Entity workerEntity, string buildType, Vector3 targetPos)
 	{
-		if (!UnitRegistry.TryGetValue(buildType, out var meta) && !BuildingRegistry.TryGetValue(buildType, out meta)) return;
+		if (!Placeables.TryGetUnitOrBuilding(buildType, out var meta)) return;
 		if (meta == null) return;
 		string? targetModel = meta.ModelPath;
 		if (string.IsNullOrEmpty(targetModel)) return;
@@ -349,6 +366,7 @@ public partial class GameHost
 
 		World.Add(bldEntity, new ConstructionState(buildTime));
 		World.Add(bldEntity, new UnderConstruction());
+		World.Add(bldEntity, new Invulnerable());
 
 		if (!World.Has<CollisionRadius>(bldEntity))
 		{

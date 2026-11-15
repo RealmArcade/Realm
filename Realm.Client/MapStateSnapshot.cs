@@ -7,6 +7,8 @@ using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.VFX;
+using Realm.Ecs;
+using Realm.Ecs.Components.Meta;
 using Realm.Ecs.Components.Terrain;
 
 namespace Realm.Client;
@@ -54,6 +56,7 @@ public class MapStateSnapshot
 	public List<SavedUnit> Units = new List<SavedUnit>();
 	public List<SavedProp> Props = new List<SavedProp>();
 	public List<SavedDecal> Decals = new List<SavedDecal>();
+	public List<SavedItem> Items = new List<SavedItem>();
 	public List<VfxSaveData> Vfx = new List<VfxSaveData>();
 	public List<CoordinateSaveData> Coordinates = new List<CoordinateSaveData>();
 
@@ -100,6 +103,12 @@ public class MapStateSnapshot
 				host.DeleteNodeExternal(vfx);
 			}
 		}
+
+		// A static prop is drawn from a multimesh and owns no node, so the nodes above are not the whole world. Emptying
+		// the ECS is what makes the restore replace the placements rather than stack a second copy of each on top of them.
+		GameContext.SaveLoadService.ClearPlacedEntities();
+		host.AllProps.Clear();
+		GameHost.EntityToProp3D.Clear();
 	}
 
 	private static void RestoreTerrain(GameHost host, MapStateSnapshot snapshot)
@@ -125,17 +134,22 @@ public class MapStateSnapshot
 	{
 		foreach (var unit in snapshot.Units)
 		{
-			host.SpawnUnitExternal(unit.Id, unit.Position, unit.RotationY, unit.Scale, unit.Player);
+			host.SpawnUnitExternal(unit.Id, unit.Position, unit.RotationY, unit.Scale, unit.Player, unit.Level);
 		}
 
 		foreach (var prop in snapshot.Props)
 		{
-			host.SpawnPropExternalWithParams(prop.Id, prop.Position, prop.RotationY, prop.Scale);
+			host.SpawnPropExternalWithParams(prop.Id, prop.Position, prop.RotationY, prop.Scale, prop.Level);
 		}
 
 		foreach (var decal in snapshot.Decals)
 		{
 			host.SpawnDecalExternalWithParams(decal.Id, decal.Position, decal.RotationY, decal.Scale);
+		}
+
+		foreach (var item in snapshot.Items)
+		{
+			host.SpawnItemExternal(item.Id, item.Position);
 		}
 
 		if (snapshot.Vfx == null) return;
@@ -215,6 +229,7 @@ public class MapStateSnapshot
 		SaveUnitsToSnapshot(host, snapshot);
 		SavePropsToSnapshot(host, snapshot);
 		SaveDecalsToSnapshot(host, snapshot);
+		SaveItemsToSnapshot(host, snapshot);
 		SaveVfxToSnapshot(host, snapshot);
 
 		snapshot.Coordinates = GameContext.EditorService.EditorCoordinates.Select(r => new CoordinateSaveData
@@ -240,7 +255,8 @@ public class MapStateSnapshot
 				Position = unit.Position,
 				RotationY = unit.RotationDegrees.Y,
 				Scale = unit.Scale.X,
-				Player = unit.Player
+				Player = unit.Player,
+				Level = SaveLoadService.ReadStatedPlacementLevel(unit.Entity, unit.UnitId)
 			});
 		}
 	}
@@ -255,7 +271,8 @@ public class MapStateSnapshot
 				Id = prop.PropId,
 				Position = prop.Position,
 				RotationY = prop.RotationDegrees.Y,
-				Scale = prop.Scale.X
+				Scale = prop.Scale.X,
+				Level = SaveLoadService.ReadStatedPlacementLevel(prop.Entity, prop.PropId)
 			});
 		}
 	}
@@ -272,6 +289,27 @@ public class MapStateSnapshot
 				Position = decal.Position,
 				RotationY = decal.RotationDegrees.Y,
 				Scale = decal.Scale.X
+			});
+		}
+	}
+
+	/// <summary>
+	///     Captures the drops the map itself places. A drop is a Godot node rather than an ECS entity, so the nodes are the
+	///     placements: clearing the world for a playtest throws them away, and this is what puts them back when the editor
+	///     returns. Only an authored placement is captured, because loot a map script spawned belongs to the match that
+	///     spawned it.
+	/// </summary>
+	private static void SaveItemsToSnapshot(GameHost host, MapStateSnapshot snapshot)
+	{
+		foreach (var lootItem in host.AllLootItems)
+		{
+			if (lootItem == null || !GodotObject.IsInstanceValid(lootItem) || lootItem.IsDespawned) continue;
+			if (!lootItem.IsAuthoredPlacement) continue;
+
+			snapshot.Items.Add(new SavedItem
+			{
+				Id = lootItem.ItemTypeId,
+				Position = lootItem.Position
 			});
 		}
 	}

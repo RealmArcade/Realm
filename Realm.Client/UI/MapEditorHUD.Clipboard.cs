@@ -38,10 +38,10 @@ namespace Realm.Client.UI
 
 		public void UpdatePasteAnchorButtonText()
 		{
-			if (_pastePanel?.PasteAnchor != null)
-			{
-				_pastePanel.PasteAnchor.Text = $"{UnicodeIcons.MOUSE_POINTER} " + string.Format(TranslationServer.Translate("ANCHOR: {0}"), TranslationServer.Translate(EditorToolCatalog.PasteAnchorNames[GameContext.EditorService.Clipboard.PasteAnchorIndex]));
-			}
+			if (_pastePanel?.PasteAnchor == null) return;
+
+			string anchorName = EditorToolCatalog.PasteAnchorNames[GameContext.EditorService.Clipboard.PasteAnchorIndex];
+			LocalizedText.Bind(_pastePanel.PasteAnchor, () => $"{UnicodeIcons.MOUSE_POINTER} " + string.Format(TranslationServer.Translate("ANCHOR: {0}"), TranslationServer.Translate(anchorName)));
 		}
 
 		private void CyclePasteReflection()
@@ -54,10 +54,10 @@ namespace Realm.Client.UI
 
 		public void UpdatePasteReflectionButtonText()
 		{
-			if (_pastePanel?.PasteReflection != null && GameContext.Host != null)
-			{
-				_pastePanel.PasteReflection.Text = $"{UnicodeIcons.ARROWS_H} " + string.Format(TranslationServer.Translate("REFLECT: {0}"), TranslationServer.Translate(GameContext.EditorService.Tools.PasteReflectionMode.ToString().ToUpperInvariant()));
-			}
+			if (_pastePanel?.PasteReflection == null || GameContext.Host == null) return;
+
+			string modeName = GameContext.EditorService.Tools.PasteReflectionMode.ToString().ToUpperInvariant();
+			LocalizedText.Bind(_pastePanel.PasteReflection, () => $"{UnicodeIcons.ARROWS_H} " + string.Format(TranslationServer.Translate("REFLECT: {0}"), TranslationServer.Translate(modeName)));
 		}
 	}
 }

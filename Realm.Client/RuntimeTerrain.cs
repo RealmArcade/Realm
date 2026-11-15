@@ -29,6 +29,18 @@ public partial class RuntimeTerrain : Node3D
 	public const uint TerrainDecalCullMask = 1 << 2;
 	public static bool IsMinimapRendering { get; set; } = false;
 
+	/// <summary>
+	///     Whether editor tools may act on this terrain. It is raised while a floating dialog is on screen so a click aimed
+	///     at a control on the dialog's edge cannot reach the world behind it; camera pan and zoom are not tools and stay
+	///     available.
+	/// </summary>
+	public bool IsToolInteractionBlocked { get; private set; }
+
+	public void SetToolInteractionBlocked(bool blocked)
+	{
+		IsToolInteractionBlocked = blocked;
+	}
+
 	// Terrain data lives in the ECS world; asking for it before one exists is a caller bug. State changes go through
 	// TerrainStateStore; this stays for the swatch-config writes that still edit the component in place.
 	private static EcsWorld World => GameContext.World

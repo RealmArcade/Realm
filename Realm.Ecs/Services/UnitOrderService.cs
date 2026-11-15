@@ -38,6 +38,9 @@ public static class UnitOrderService
 		RemoveIfPresent<HealingTarget>(world, entity);
 		RemoveIfPresent<WaypointQueue>(world, entity);
 		RemoveIfPresent<Gatherer>(world, entity);
+		RemoveIfPresent<RepairTask>(world, entity);
+		RemoveIfPresent<PickupTask>(world, entity);
+		RemoveIfPresent<DropItemTask>(world, entity);
 		RemoveIfPresent<BuildTask>(world, entity);
 		RemoveIfPresent<BuildQueue>(world, entity);
 	}
@@ -80,6 +83,34 @@ public static class UnitOrderService
 		if (resourceNode == Entity.Null || !world.IsAlive(resourceNode)) return;
 
 		world.SetOrAdd(entity, new Gatherer(resourceType, resourceNode));
+	}
+
+	/// <summary>
+	///     Sends a unit that carries a repair rate to mend a repairable building, or to raise a construction site. The unit
+	///     walks there and works only while it stands within reach, so a unit called away leaves the building as far along
+	///     as it was. A site is work like any other: nothing about a building advances from a unit merely standing near it.
+	/// </summary>
+	public static void Repair(EcsWorld world, Entity entity, Entity building)
+	{
+		if (!CanTakeOrders(world, entity)) return;
+		if (building == Entity.Null || !world.IsAlive(building)) return;
+		if (!world.Has<RepairWorker>(entity)) return;
+
+		if (world.Has<UnderConstruction>(building))
+		{
+			if (!world.TryGet<ConstructionState>(building, out ConstructionState construction)) return;
+
+			ClearOrders(world, entity);
+			world.SetOrAdd(entity, new BuildTask(building, construction.TotalBuildTime));
+			if (world.TryGet<Position>(building, out Position sitePosition)) world.SetOrAdd(entity, new MoveTo(sitePosition.Value));
+			return;
+		}
+
+		if (!world.Has<RepairableBuilding>(building)) return;
+
+		ClearOrders(world, entity);
+		world.SetOrAdd(entity, new RepairTask(building));
+		if (world.TryGet<Position>(building, out Position buildingPosition)) world.SetOrAdd(entity, new MoveTo(buildingPosition.Value));
 	}
 
 	/// <summary>Stops a unit where it stands without holding it there.</summary>
@@ -238,6 +269,21 @@ public static class UnitOrderService
 		}
 
 		return 0f;
+	}
+
+	/// <summary>
+	///     The seconds a unit actually waits before it can use an ability again, after its own cooldown reduction. A
+	///     cooldown is authored as the full duration, so this is what every path that starts one writes and every path
+	///     that reads one compares against.
+	/// </summary>
+	public static float EffectiveAbilityCooldown(EcsWorld world, Entity entity, float cooldown)
+	{
+		if (cooldown <= 0f) return 0f;
+		if (!world.IsAlive(entity)) return cooldown;
+		if (!world.TryGet<Stats>(entity, out Stats stats)) return cooldown;
+		if (!stats.TryGetValue(new StatId(StatKeys.CooldownReduction), out float reduction)) return cooldown;
+
+		return cooldown * (1f - Math.Clamp(reduction, 0f, 1f));
 	}
 
 	/// <summary>Puts an ability on cooldown, in both cooldown tables the match advances.</summary>

@@ -26,10 +26,34 @@ public partial class ServerLobby
 		BroadcastState();
 	}
 
+	/// <summary>
+	///     Takes the host's own answer for the spectator delay, which overrules whatever the map stated and holds for the
+	///     rest of the lobby.
+	/// </summary>
+	/// <param name="enabled">Whether late joiners wait before they see the board.</param>
 	private void SetSpectatorDelay(bool enabled)
 	{
+		_hostChoseSpectatorDelay = true;
 		if (SpectatorDelay == enabled) return;
+
 		SpectatorDelay = enabled;
+		_log.Write($"the lobby's host set the spectator delay {(enabled ? "on" : "off")}");
+		BroadcastState();
+	}
+
+	/// <summary>
+	///     States the value the spectator delay starts at, which is how a map says whether late joiners wait on its board. A
+	///     default stated after the host has changed the switch is remembered for the next lobby rather than undoing the
+	///     host's choice.
+	/// </summary>
+	/// <param name="enabled">Whether late joiners wait before they see the board.</param>
+	public void SetSpectatorDelayDefault(bool enabled)
+	{
+		if (_hostChoseSpectatorDelay) return;
+		if (SpectatorDelay == enabled) return;
+
+		SpectatorDelay = enabled;
+		_log.Write($"the lobby's map states the spectator delay: {(enabled ? "on" : "off")}");
 		BroadcastState();
 	}
 

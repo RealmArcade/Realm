@@ -169,11 +169,6 @@ public partial class MapEditorHUD
 			return false;
 		}
 
-		if (!CheckAssetSizeValidation(wsPath))
-		{
-			return false;
-		}
-
 		return true;
 	}
 

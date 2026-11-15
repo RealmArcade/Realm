@@ -7,22 +7,72 @@ using Realm.Shared.Services;
 
 namespace Realm.Shared.Distribution;
 
+[SchemaDescription("The published identity of a map: what it is called, who made it, which version it is, and every asset file it ships, keyed by content hash.")]
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public class MapManifest
 {
+	private static readonly string[] GeneratedWorkspaceFileNames =
+	{
+		"MapTemplates.g.cs",
+		"WasmEntryPoint.g.cs"
+	};
+
+	/// <summary>
+	///     Answers whether a path names code a workspace writes for itself from the map's own content, which is never
+	///     packaged and never hashed into a manifest: a package that carried one would carry another workspace's generated
+	///     types, and a hash over it would move the map's published identity whenever a workspace was rebuilt.
+	/// </summary>
+	/// <param name="relativePath">A path inside a map folder.</param>
+	/// <returns>True for the generated workspace code.</returns>
+	public static bool IsGeneratedWorkspaceFile(string relativePath)
+	{
+		string fileName = Path.GetFileName(relativePath);
+		for (int index = 0; index < GeneratedWorkspaceFileNames.Length; index++)
+		{
+			if (string.Equals(fileName, GeneratedWorkspaceFileNames[index], StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private Dictionary<string, string> _files = new(StringComparer.OrdinalIgnoreCase);
 	private HashSet<string>? _fileNamesSet;
 
+	[SchemaDescription("The name the map is published and downloaded under.")]
 	public string MapName { get; set; } = string.Empty;
+
+	[SchemaDescription("The name the map credits as its author, which is the identity its publisher proves ownership against.")]
 	public string Author { get; set; } = string.Empty;
+
+	[SchemaDescription("The published version of the map, which a dependency pins and the lobby shows.")]
+	[SchemaSensitive]
 	public string Version { get; set; } = "1.0.0";
+
+	[SchemaDescription("The short introduction shown beside the map in the lobby and in the published listing.")]
+	[SchemaControl(RealmSchemaControl.Textarea)]
 	public string Description { get; set; } = string.Empty;
+
+	[SchemaDescription("The labels the map is discovered and filtered by.")]
+	[SchemaControl(RealmSchemaControl.Tags)]
 	public List<string> Tags { get; set; } = new();
+
+	[SchemaDescription("The other authors allowed to publish new versions of this map.")]
 	public List<string> Maintainers { get; set; } = new();
+
+	[SchemaDescription("The maps this map's publication was greenlit from, kept so a derived release can be traced back.")]
 	public List<string> GreenlitReferences { get; set; } = new();
+
+	[SchemaDescription("The maps this map's assets were imported from, kept so attribution is carried into the published listing.")]
 	public List<string> Attribution_SourceMap { get; set; } = new();
+
+	[SchemaDescription("Whether this publication is a test build, which is kept out of the public listing.")]
 	public bool IsTestVersion { get; set; }
 
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	[SchemaDescription("Every asset file the map ships, grouped by the kind of asset it is.")]
 	public MapManifestAssets? Assets { get; set; }
 
 	[JsonIgnore]
@@ -395,6 +445,15 @@ public class MapManifest
 			foreach (var itemPair in catSource)
 			{
 				string sourceKey = itemPair.Key;
+
+				// The scan ignores build output and the code a workspace generates for itself, so an entry an older manifest
+				// stated for one of those is not carried forward: it would put the generated file back in the published
+				// identity of a map whose content never changed.
+				if (IsIgnoredPath(sourceKey))
+				{
+					continue;
+				}
+
 				string? targetMatchKey = null;
 
 				if (catTarget.ContainsKey(sourceKey))
@@ -515,8 +574,16 @@ public class MapManifest
 
 	private static bool IsIgnoredBuildDirectory(string relativePath)
 	{
-		if (relativePath.StartsWith("bin/", StringComparison.OrdinalIgnoreCase) && !relativePath.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase))
-			return true;
+		if (relativePath.StartsWith("bin/", StringComparison.OrdinalIgnoreCase))
+		{
+			if (!relativePath.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase)) return true;
+			if (MapFileService.IsDebugScriptFileName(relativePath)) return true;
+
+			string belowBin = relativePath.Substring("bin/".Length);
+			if (belowBin.Length > 1 && belowBin[0] == '.' && belowBin.IndexOf('/') > 0) return true;
+
+			return false;
+		}
 
 		return relativePath.StartsWith("obj/", StringComparison.OrdinalIgnoreCase);
 	}
@@ -537,6 +604,11 @@ public class MapManifest
 			return true;
 
 		if (string.Equals(relativePath, MapMetadataMerger.MetadataPartialFileName, StringComparison.OrdinalIgnoreCase))
+			return true;
+
+		// Generated workspace code is written from the map's own merge on every workspace setup and is never taken from a
+		// referenced map, so hashing it would move the package pin whenever a workspace was rebuilt.
+		if (IsGeneratedWorkspaceFile(relativePath))
 			return true;
 
 		return string.Equals(Path.GetFileName(relativePath), "authorship_key.pem", StringComparison.OrdinalIgnoreCase);

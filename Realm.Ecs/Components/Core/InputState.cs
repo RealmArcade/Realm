@@ -11,6 +11,8 @@ public struct InputState
 	public int SpellStringId;
 	public int CommandStringId;
 	public int BuildingStringId;
+	public int DropItemStringId;
+	public int DropItemCharges;
 	public int CycleSelectionIndex;
 	public byte ActivePingModeByte;
 
@@ -30,6 +32,8 @@ public struct InputState
 		SpellStringId = StringRegistry.GetOrAdd(activeSpellTargeting);
 		CommandStringId = StringRegistry.GetOrAdd(activeCommandTargeting);
 		BuildingStringId = StringRegistry.GetOrAdd(activeBuildingPlacementType);
+		DropItemStringId = 0;
+		DropItemCharges = 0;
 		ActivePingModeByte = activePingMode ? (byte)1 : (byte)0;
 		CycleSelectionIndex = cycleSelectionIndex;
 	}
@@ -44,6 +48,8 @@ public struct InputState
 		SpellStringId = spellStringId != 0 ? spellStringId : StringRegistry.GetOrAdd(activeSpellTargeting);
 		CommandStringId = StringRegistry.GetOrAdd(activeCommandTargeting);
 		BuildingStringId = StringRegistry.GetOrAdd(activeBuildingPlacementType);
+		DropItemStringId = 0;
+		DropItemCharges = 0;
 		ActivePingModeByte = activePingMode ? (byte)1 : (byte)0;
 		CycleSelectionIndex = 0;
 	}
@@ -64,5 +70,11 @@ public struct InputState
 	{
 		get => BuildingStringId != 0 ? StringRegistry.Get(BuildingStringId) : null;
 		set => BuildingStringId = StringRegistry.GetOrAdd(value);
+	}
+
+	public string? ActiveDropItemId
+	{
+		get => DropItemStringId != 0 ? StringRegistry.Get(DropItemStringId) : null;
+		set => DropItemStringId = StringRegistry.GetOrAdd(value);
 	}
 }

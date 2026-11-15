@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 namespace Realm.Ecs.Components.Resources;
 
@@ -10,11 +11,16 @@ public struct ConstructionState
 	public float TotalBuildTime;
 	public float Progress;
 
+	public float CompletionCeilingFraction;
+
 	public ConstructionState(float totalBuildTime)
 	{
 		TotalBuildTime = totalBuildTime;
 		Progress = 0f;
+		CompletionCeilingFraction = 1f;
 	}
 
-	public readonly bool IsComplete => Progress >= TotalBuildTime;
+	public readonly float ProgressCeiling => TotalBuildTime * Math.Clamp(CompletionCeilingFraction, 0f, 1f);
+
+	public readonly bool IsComplete => CompletionCeilingFraction >= 1f && Progress >= TotalBuildTime;
 }

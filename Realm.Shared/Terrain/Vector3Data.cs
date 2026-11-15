@@ -1,15 +1,23 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
+using Realm.Shared.Serialization;
 
 namespace Realm.Shared.Terrain;
 
+[SchemaDescription("A point, direction or size in three dimensions, written as one number per axis.")]
 public struct Vector3Data
 {
-	[JsonPropertyName("X")] public float X { get; set; }
+	[JsonPropertyName("X")]
+	[SchemaDescription("The distance along the first horizontal axis.")]
+	public float X { get; set; }
 
-	[JsonPropertyName("Y")] public float Y { get; set; }
+	[JsonPropertyName("Y")]
+	[SchemaDescription("The distance along the vertical axis.")]
+	public float Y { get; set; }
 
-	[JsonPropertyName("Z")] public float Z { get; set; }
+	[JsonPropertyName("Z")]
+	[SchemaDescription("The distance along the second horizontal axis.")]
+	public float Z { get; set; }
 
 	public Vector3Data(float x, float y, float z)
 	{

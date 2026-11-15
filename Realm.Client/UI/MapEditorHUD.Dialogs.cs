@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -18,11 +18,13 @@ using Realm.Client.Services.ModelOptimization;
 using Realm.Client.Services.Publishing;
 using Realm.Client.UI.MapEditor;
 using Realm.Client.VFX;
+using Realm.Ecs.Components.Core;
 using Realm.Ecs.Components.Terrain;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
 using Realm.Shared;
 using Realm.Shared.Distribution;
+using Realm.Shared.Metadata;
 using Realm.Shared.ModelOptimization;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
@@ -40,16 +42,6 @@ namespace Realm.Client.UI
 {
 	public partial class MapEditorHUD
 	{
-		public void OpenWeaponVfxDialog(string weaponId, WeaponMetadata? weapon, Action<WeaponMetadata>? onApplied = null)
-		{
-			if (_weaponVfxDialog == null)
-			{
-				_weaponVfxDialog = new WeaponVfxDialog(this);
-			}
-
-			_weaponVfxDialog.OpenForWeapon(weaponId, weapon, onApplied);
-		}
-
 		public void OpenVfxStudioDialog(VfxAttachmentConfig? initialConfig = null, Action<VfxAttachmentConfig>? onApplied = null)
 		{
 			if (_vfxStudioDialog == null)
@@ -203,16 +195,6 @@ namespace Realm.Client.UI
 			_proceduralAnimationStudioDialog.OpenForConfig(initialConfig, onApplied, previewModelKey);
 		}
 
-		public void OpenModelPickerDialog(string entityId, string fieldName, string domain, string currentPath, Action<string>? onApplied = null)
-		{
-			if (_modelPickerDialog == null)
-			{
-				_modelPickerDialog = new ModelPickerDialog(this);
-			}
-
-			_modelPickerDialog.OpenForEntity(entityId, fieldName, domain, currentPath, onApplied);
-		}
-
 		public void OpenAnimationPreviewDialog(string unitId, string? modelPath = null)
 		{
 			if (_animationPreviewDialog == null)
@@ -241,7 +223,7 @@ namespace Realm.Client.UI
 		{
 			if (GameContext.Host == null) return;
 
-			if (GameContext.Host.AllUnits.Count == 0)
+			if (!LocalTestSeatHasUnits())
 			{
 				ShowConfirmationDialog(
 					"Warning: You have not placed any units, you won't see anything due to Shroud.",
@@ -264,6 +246,51 @@ namespace Realm.Client.UI
 			{
 				await ProceedToTestMap();
 			}
+		}
+
+		/// <summary>
+		///     Reports whether the seat the player will test from has anything on the board, which is what decides whether a
+		///     run has anything to show through the shroud. The seat is read from the map's own test settings with the same
+		///     plan the run is seated by, so a run that randomizes its slots is warned about the seat it will actually take
+		///     rather than the first one. A run that randomizes without a seed rolls the seat when it starts, so any seat the
+		///     roll could land on counts: the warning then holds only when no seat could show anything.
+		/// </summary>
+		/// <returns>True when the board holds a unit for a seat the player could test from.</returns>
+		private bool LocalTestSeatHasUnits()
+		{
+			GameHost? host = GameContext.Host;
+			EcsWorld? world = GameContext.World;
+			if (host == null || world == null) return true;
+
+			MapMetadata metadata;
+			try
+			{
+				string workspace = GameContext.EditorService._editingDirectory;
+				metadata = string.IsNullOrEmpty(workspace) ? new MapMetadata() : MapFileService.LoadMetadata(workspace);
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+			{
+				// A map whose settings cannot be read is not a map this warning can be right about, so it says nothing.
+				GameLog.LogError($"[MapEditorHUD] The map's test settings could not be read, so the shroud warning was skipped: {exception.Message}");
+				return true;
+			}
+
+			int playableSlots = metadata.MapProperties?.GetPlayablePlayerSlots() ?? MapInfoMetadata.DefaultPlayablePlayerSlots;
+			MapTestSeatingPlan seating = MapTestSeating.Plan(metadata.MapProperties, playableSlots);
+
+			foreach (Unit3D unit in host.AllUnits)
+			{
+				if (!GodotObject.IsInstanceValid(unit)) continue;
+				if (!world.IsAlive(unit.Entity)) continue;
+				if (!world.TryGet<UnitOwnerPlayer>(unit.Entity, out UnitOwnerPlayer owner)) continue;
+
+				// Gaia is the palette's own default owner, so a board an author never gave a seat to is a board they consider
+				// populated: warning there would call their scenery unplaced.
+				if (owner.PlayerIndex == PlayerColorConfig.NEUTRAL_PLAYER_INDEX) return true;
+				if (MapTestSeating.CouldSeatLocalPlayer(owner.PlayerIndex, in seating, playableSlots)) return true;
+			}
+
+			return false;
 		}
 
 		public void OpenNoiseTextureDialog(Action<string>? onSaved = null)

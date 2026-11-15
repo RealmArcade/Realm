@@ -42,6 +42,33 @@ public static partial class MapProjectFileNormalizer
 		csprojContent = ProjectReferenceMapApiRegex().Replace(csprojContent,
 			$"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>");
 
+		csprojContent = DebugOptimizeTrueRegex().Replace(csprojContent, "$1false$2");
+
+		if (IlcDwarfVersionRegex().IsMatch(csprojContent))
+		{
+			csprojContent = IlcDwarfVersionRegex().Replace(csprojContent, "<IlcDwarfVersion>5</IlcDwarfVersion>");
+		}
+		else
+		{
+			Match debugPropertyGroup = DebugPropertyGroupRegex().Match(csprojContent);
+			if (debugPropertyGroup.Success)
+			{
+				int closingTagIndex = csprojContent.IndexOf("</PropertyGroup>", debugPropertyGroup.Index, StringComparison.OrdinalIgnoreCase);
+				if (closingTagIndex >= 0)
+				{
+					csprojContent = csprojContent.Insert(closingTagIndex, "    <IlcDwarfVersion>5</IlcDwarfVersion>\n  ");
+				}
+			}
+			else
+			{
+				string debugPropertyGroupText = "  <PropertyGroup Condition=\"'$(Configuration)' == 'Debug'\">\n    <IlcDwarfVersion>5</IlcDwarfVersion>\n  </PropertyGroup>\n";
+				int projectEnd = csprojContent.LastIndexOf("</Project>", StringComparison.OrdinalIgnoreCase);
+				csprojContent = projectEnd >= 0 ? csprojContent.Insert(projectEnd, debugPropertyGroupText) : csprojContent + debugPropertyGroupText;
+			}
+		}
+
+		csprojContent = DwarfLinkerArgRegex().Replace(csprojContent, "-gdwarf-5");
+
 		csprojContent = ReferenceMapApiRegex().Replace(csprojContent,
 			$"<Reference Include=\"Realm.MapAPI\">\n      <HintPath>{MapApiDllRelativePath}</HintPath>\n    </Reference>");
 
@@ -133,4 +160,16 @@ public static partial class MapProjectFileNormalizer
 
 	[GeneratedRegex(@"<Target\s+Name=""ClearComponentWit""[^>]*>.*?</Target>", RegexOptions.Singleline)]
 	private static partial Regex ClearComponentWitTargetRegex();
+
+	[GeneratedRegex(@"(<PropertyGroup[^>]*Condition=""'\$\(Configuration\)'\s*==\s*'Debug'""[^>]*>(?:(?!</PropertyGroup>)[\s\S])*?<Optimize>)true(</Optimize>)", RegexOptions.IgnoreCase)]
+	private static partial Regex DebugOptimizeTrueRegex();
+
+	[GeneratedRegex(@"<IlcDwarfVersion>\s*[^<]*\s*</IlcDwarfVersion>", RegexOptions.IgnoreCase)]
+	private static partial Regex IlcDwarfVersionRegex();
+
+	[GeneratedRegex(@"<PropertyGroup\s+Condition=""'\$\(Configuration\)'\s*==\s*'Debug'""[^>]*>", RegexOptions.IgnoreCase)]
+	private static partial Regex DebugPropertyGroupRegex();
+
+	[GeneratedRegex(@"-gdwarf-(?:2|3|4|5)", RegexOptions.IgnoreCase)]
+	private static partial Regex DwarfLinkerArgRegex();
 }

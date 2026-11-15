@@ -6,6 +6,7 @@ namespace Realm.Ecs.Components.Meta;
 /// Tracks current hero advancement level.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct Level
 {
 	public int Value;

@@ -11,9 +11,12 @@ public partial class ServerGameAPI
 	private readonly LootItemId[] _lootBuffer = new LootItemId[LootBufferCapacity];
 	private const int LootBufferCapacity = 4096;
 
-	public LootItemId SpawnLootItem(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f)
+	public LootItemId SpawnLootItem(string itemTypeId, Vector2 position, int charges = 1, float lifetime = 0f)
 	{
-		LootItemId lootItemId = Loot.Spawn(itemTypeId, position, charges, lifetime);
+		Vector3 groundPoint = new(position.X, 0f, position.Y);
+		var placed = new Vector3(groundPoint.X, ReadTerrainHeight(groundPoint), groundPoint.Z);
+
+		LootItemId lootItemId = Loot.Spawn(itemTypeId, placed, charges, lifetime);
 		if (lootItemId.IsValid) _log.Write($"dropped '{itemTypeId}' x{Math.Max(1, charges)} as loot {lootItemId.Value}");
 
 		return lootItemId;
@@ -82,7 +85,7 @@ public partial class ServerGameAPI
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return false;
 
-		return Items.Equip(entity, itemId, charges);
+		return Items.Equip(entity, itemId, charges, soulbound: true);
 	}
 
 	public bool RemoveItemFromUnit(UnitId unit, string itemId)
@@ -106,7 +109,28 @@ public partial class ServerGameAPI
 		Entity entity = ResolveUnit(unit);
 		if (entity == Entity.Null) return Array.Empty<string>();
 
-		return Items.List(entity);
+		return DistinctItemIds(Items.List(entity));
+	}
+
+	/// <summary>
+	///     Names each carried item once, however many slots it fills. A script reading the list to copy or reroll a unit
+	///     would otherwise meet the same item again for every slot of it and grant its charges that many times over.
+	/// </summary>
+	/// <param name="carriedSlots">The carried item ids in slot order, which repeats an item that spills across slots.</param>
+	/// <returns>The distinct item ids, keeping the order they were first carried in.</returns>
+	private static List<string> DistinctItemIds(List<string> carriedSlots)
+	{
+		var distinct = new List<string>(carriedSlots.Count);
+		for (int index = 0; index < carriedSlots.Count; index++)
+		{
+			string itemId = carriedSlots[index];
+			if (string.IsNullOrEmpty(itemId)) continue;
+			if (distinct.Exists(knownId => string.Equals(knownId, itemId, StringComparison.OrdinalIgnoreCase))) continue;
+
+			distinct.Add(itemId);
+		}
+
+		return distinct;
 	}
 
 	public int GetUnitItemCharges(UnitId unit, string itemId)

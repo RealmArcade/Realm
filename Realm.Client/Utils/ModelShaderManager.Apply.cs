@@ -50,14 +50,43 @@ public static partial class ModelShaderManager
 		       || nodeName.StartsWith("SocketAttachment_", StringComparison.OrdinalIgnoreCase);
 	}
 
+	public const string OverlayMaterialMetaName = "realm_overlay_material";
+
+	public const string GroundPlaneMaterialMetaName = "realm_ground_plane_material";
+
+	public static void MarkOverlayMaterialMesh(GeometryInstance3D geometryInstance)
+	{
+		if (geometryInstance == null || !GodotObject.IsInstanceValid(geometryInstance)) return;
+		geometryInstance.SetMeta(OverlayMaterialMetaName, true);
+	}
+
+	/// <summary>
+	///     Marks a quad whose material already samples its albedo texture with the shared shader. Such a quad is drawn
+	///     with the material it was built with, so a refresh may change its instance parameters but must not replace the
+	///     material: a replacement built from the mesh would drop the albedo and the alpha blend the ground plane needs.
+	/// </summary>
+	/// <param name="geometryInstance">The textured ground plane instance.</param>
+	public static void MarkGroundPlaneMaterialMesh(GeometryInstance3D geometryInstance)
+	{
+		if (geometryInstance == null || !GodotObject.IsInstanceValid(geometryInstance)) return;
+		geometryInstance.SetMeta(GroundPlaneMaterialMetaName, true);
+	}
+
+	public static bool HasGroundPlaneMaterial(GeometryInstance3D geometryInstance)
+	{
+		return geometryInstance != null && GodotObject.IsInstanceValid(geometryInstance) && geometryInstance.HasMeta(GroundPlaneMaterialMetaName);
+	}
+
 	private static bool IsExcludedMesh(GeometryInstance3D geomInst)
 	{
 		if (geomInst == null) return true;
+		if (geomInst.HasMeta(OverlayMaterialMetaName)) return true;
 		string nodeName = geomInst.Name.ToString();
 		return nodeName.StartsWith("_selection", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("Selection", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("_hover", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("Hover", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("PlayerColorGlow", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("BrushIndicator", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("DropShadow", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.Contains("SelectionRing", StringComparison.OrdinalIgnoreCase)
@@ -74,8 +103,11 @@ public static partial class ModelShaderManager
 	{
 		if (IsExcludedMesh(meshInst)) return;
 
-		ApplyPlayerColorShaderToSurfaces(meshInst, normalizeLuminance);
-		ApplyPlayerColorShaderToOverrideMaterial(meshInst, normalizeLuminance);
+		if (!HasGroundPlaneMaterial(meshInst))
+		{
+			ApplyPlayerColorShaderToSurfaces(meshInst, normalizeLuminance);
+			ApplyPlayerColorShaderToOverrideMaterial(meshInst, normalizeLuminance);
+		}
 
 		meshInst.SetInstanceShaderParameter(_paramPlayerColor, playerColor);
 		meshInst.SetInstanceShaderParameter(_paramIgnorePlayerColor, ignorePlayerColor ? 1.0f : 0.0f);
@@ -85,6 +117,11 @@ public static partial class ModelShaderManager
 
 	private static void ApplyPlayerColorShaderToSurfaces(MeshInstance3D meshInst, bool normalizeLuminance)
 	{
+		// An instance override draws every surface, and it is converted on its own right after this call. A mesh with that
+		// override set has no surface material to read, so a surface override built here would be a shader with no albedo
+		// in front of the textured one: that is how a ground plane drawn from a texture read as a flat quad.
+		if (meshInst.MaterialOverride != null) return;
+
 		int surfaceCount = meshInst.Mesh != null ? meshInst.Mesh.GetSurfaceCount() : 1;
 		for (int i = 0; i < surfaceCount; i++)
 		{
@@ -133,6 +170,68 @@ public static partial class ModelShaderManager
 	{
 		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
 		SetUnitReadabilityRecursive(rootNode, isUnitOrBuilding ? 0.10f : 0.0f, isUnitOrBuilding ? 0.25f : 0.0f);
+	}
+
+	public static void SetRuinSilhouette(Node rootNode, bool enabled)
+	{
+		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
+		SetRuinSilhouetteRecursive(rootNode, enabled);
+	}
+
+	private static void SetRuinSilhouetteRecursive(Node node, bool enabled)
+	{
+		if (node is GeometryInstance3D geomInst)
+		{
+			if (!IsExcludedMesh(geomInst))
+			{
+				geomInst.SetInstanceShaderParameter(_paramSilhouette, enabled ? 1.0f : 0.0f);
+			}
+		}
+
+		foreach (var child in node.GetChildren())
+		{
+			if (child is Node childNode && !IsAttachmentNode(childNode))
+			{
+				SetRuinSilhouetteRecursive(childNode, enabled);
+			}
+		}
+	}
+
+	/// <summary>
+	///     Colours a silhouette, which is how a site that cannot be raised reads in red while a dormant or ruined building
+	///     keeps the dark fill it has always had.
+	/// </summary>
+	/// <param name="rootNode">The model whose meshes the colour is written to.</param>
+	/// <param name="tint">The fill colour, with its alpha stating how brightly it glows.</param>
+	public static void SetSilhouetteTint(Node rootNode, Color tint)
+	{
+		if (rootNode == null || !GodotObject.IsInstanceValid(rootNode)) return;
+		SetSilhouetteTintRecursive(rootNode, tint);
+	}
+
+	/// <summary>The dark fill a silhouette wears unless something gives it a reason to wear another.</summary>
+	public static Color DefaultSilhouetteTint { get; } = new(0.030f, 0.028f, 0.040f, 0.0f);
+
+	/// <summary>The red a site that cannot be raised dresses its silhouette in, glowing enough to read at night.</summary>
+	public static Color BlockedSilhouetteTint { get; } = new(0.75f, 0.10f, 0.08f, 1.2f);
+
+	private static void SetSilhouetteTintRecursive(Node node, Color tint)
+	{
+		if (node is GeometryInstance3D geomInst)
+		{
+			if (!IsExcludedMesh(geomInst))
+			{
+				geomInst.SetInstanceShaderParameter(_paramSilhouetteTint, tint);
+			}
+		}
+
+		foreach (var child in node.GetChildren())
+		{
+			if (child is Node childNode && !IsAttachmentNode(childNode))
+			{
+				SetSilhouetteTintRecursive(childNode, tint);
+			}
+		}
 	}
 
 	private static void SetUnitReadabilityRecursive(Node node, float ambientBoost, float rimIntensity)

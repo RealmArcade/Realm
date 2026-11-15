@@ -64,6 +64,8 @@ public partial class CommandAuthorityService
 				continue;
 			}
 
+			if (RejectsPlayerOrder(entity, serverId, rejectedServerEntityIds, ref rejectionReason)) continue;
+
 			var scattered = CalculateScatteredPosition(cmd.TargetPosition, ctx.MoveDir, ctx.Right, unitIndex, ctx.Cols, ctx.Spacing);
 			processAction(entity, scattered);
 			unitIndex++;
@@ -75,6 +77,20 @@ public partial class CommandAuthorityService
 		{
 			DroppedOrderSink?.Invoke($"[Network] Dropped '{cmd.CommandType}' from peer {peerId}: none of its {cmd.UnitEntityIds.Count} units could take the order ({rejection}).");
 		}
+	}
+
+	/// <summary>
+	///     Answers whether this entity is one the map script drives, which is a unit its owner may select and inspect but
+	///     may not order.
+	/// </summary>
+	private bool RejectsPlayerOrder(Entity entity, int serverId, List<int> rejectedServerEntityIds, ref string rejectionReason)
+	{
+		if (!_context.World.Has<PlayerOrdersLocked>(entity)) return false;
+
+		const string reason = "the unit is driven by its map and takes no player order";
+		RecordCommandRejection(rejectedServerEntityIds, serverId, reason);
+		if (string.IsNullOrEmpty(rejectionReason)) rejectionReason = reason;
+		return true;
 	}
 
 	private static void RecordCommandRejection(List<int> rejectedServerEntityIds, int serverId, string reason)

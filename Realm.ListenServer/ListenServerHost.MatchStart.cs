@@ -33,7 +33,7 @@ public partial class ListenServerHost
 			MarkStartStage("map loaded");
 			var paths = ServerMatchPaths.From(_arguments);
 			int hostPlayerSlot = ResolveLobbyHostPlayerSlot(assignments);
-			_simulation = new ServerSimulation(worldOwnedHere, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, hostPlayerSlot, preparedScriptHost, matchOptions: _lobby?.MatchOptions);
+			_simulation = new ServerSimulation(worldOwnedHere, paths, _log, seed, _arguments.Cheats, _arguments.WasmDebug, _arguments.WorkspacePath, roster, hostPlayerSlot, preparedScriptHost, shroudMode: _lobby?.EffectiveShroudMode ?? MatchShroudMode.FromMap, lobbySettings: _lobby?.MatchSettingValues, teamSpawnCoordinates: _lobby?.Roster?.CopyTeamSpawnCoordinates());
 			preparedScriptHost = null;
 			if (hostPlayerSlot > 0) _log.Write($"player slot {hostPlayerSlot} hosts this match: its seat is the one that administered the lobby");
 
@@ -82,6 +82,10 @@ public partial class ListenServerHost
 
 			BeginSeatedPeerBookkeeping(peerId, slot, _simulation.TickCount);
 			if (_peerLanguages.TryGetValue(peerId, out string? language)) _simulation.SetPlayerLanguage(slot, language);
+
+			// A lobby connection carries its Steam account from the hello it was admitted with, so the match inherits it: the
+			// seat does not say hello again when the lobby hands it over.
+			if (_lobby != null && _lobby.TryGetSeat(peerId, out LobbySeat lobbySeat)) _simulation.SetPeerSteamId(peerId, lobbySeat.SteamId);
 
 			var assignment = new PeerRosterAssignment
 			{
@@ -133,12 +137,13 @@ public partial class ListenServerHost
 		return 0;
 	}
 
-	private MatchRosterSeat[] ReadRoster(out MatchOptionSet matchOptions)
+	private MatchRosterSeat[] ReadRoster(out MatchShroudMode shroudMode, out LobbySettingSet settings)
 	{
-		matchOptions = new MatchOptionSet();
+		shroudMode = MatchShroudMode.FromMap;
+		settings = new LobbySettingSet();
 		if (string.IsNullOrWhiteSpace(_arguments.RosterPath)) return Array.Empty<MatchRosterSeat>();
 
-		if (!MatchRosterFile.TryRead(_arguments.RosterPath, out MatchRosterSeat[] roster, out matchOptions, out string error))
+		if (!MatchRosterFile.TryRead(_arguments.RosterPath, out MatchRosterSeat[] roster, out shroudMode, out settings, out string error))
 		{
 			throw new InvalidDataException(error);
 		}
@@ -152,7 +157,7 @@ public partial class ListenServerHost
 		}
 
 		_log.Write($"the match was started for {people} player(s) and {computers} computer(s) on the roster");
-		if (!matchOptions.IsEmpty) _log.Write($"the roster states {matchOptions.Count} match option(s), which the match plays instead of the map's own defaults");
+		if (!settings.IsEmpty) _log.Write($"the roster states {settings.Count} match setting(s), which the match plays instead of the map's own defaults");
 		return roster;
 	}
 

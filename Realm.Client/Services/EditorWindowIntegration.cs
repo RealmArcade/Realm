@@ -10,8 +10,7 @@ namespace Realm.Client.Services;
 
 /// <summary>
 ///     The Windows half of hosting the external editor: keep the child process inside a job object so it dies with the game,
-///     give its window the game's taskbar identity and icon, and bring the game window back to the foreground when the
-///     editor asks it to. Every entry point is a no-op off Windows.
+///     and give its window the game's taskbar identity and icon. Every entry point is a no-op off Windows.
 /// </summary>
 public static class EditorWindowIntegration
 {
@@ -25,49 +24,6 @@ public static class EditorWindowIntegration
 
 	[DllImport("user32.dll")]
 	public static extern bool BringWindowToTop(IntPtr hWnd);
-
-	[DllImport("user32.dll")]
-	private static extern void SwitchToThisWindow(IntPtr hWnd, bool fUnknown);
-
-	public static void RestoreAndFocusGodotWindow()
-	{
-		Callable.From(() =>
-		{
-			try
-			{
-				var currentMode = DisplayServer.WindowGetMode();
-				if (currentMode == DisplayServer.WindowMode.Minimized)
-				{
-					var targetMode = GameSettings.WindowModeIdx switch
-					{
-						WindowMode.Fullscreen => DisplayServer.WindowMode.ExclusiveFullscreen,
-						WindowMode.Borderless => DisplayServer.WindowMode.Windowed,
-						_ => DisplayServer.WindowMode.Windowed
-					};
-					DisplayServer.WindowSetMode(targetMode);
-				}
-
-				DisplayServer.WindowMoveToForeground();
-
-				if (OperatingSystem.IsWindows())
-				{
-					long rawHandle = DisplayServer.WindowGetNativeHandle(DisplayServer.HandleType.WindowHandle);
-					if (rawHandle != 0)
-					{
-						IntPtr hWnd = (IntPtr)rawHandle;
-						ShowWindow(hWnd, SW_RESTORE);
-						SwitchToThisWindow(hWnd, true);
-						SetForegroundWindow(hWnd);
-						BringWindowToTop(hWnd);
-					}
-				}
-			}
-			catch (Exception ex)
-			{
-				GameLog.LogError($"[VSCodeManager] RestoreAndFocusGodotWindow error: {ex.Message}");
-			}
-		}).CallDeferred();
-	}
 
 	[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
 	private static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string? lpName);

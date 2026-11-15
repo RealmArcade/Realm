@@ -74,7 +74,7 @@ public readonly struct UpgradeRules
 /// </summary>
 public class CommandTargetResolver
 {
-	private static readonly QueryDescription PropQuery = QueryCache.AllPropIdentityAndPositionQuery;
+	private static readonly QueryDescription PropQuery = QueryCache.AllPropIdentityAndPositionNoneDeadQuery;
 
 	private readonly SimulationContext _context;
 	private readonly EntityCallback<Position> _collectClosestProp;

@@ -11,25 +11,16 @@ namespace Realm.MapAPI;
 public partial interface IGameAPI
 {
 	/// <summary>
-	/// Spawns a pickup loot item at the specified 3D world space coordinates.
+	/// Spawns a pickup loot item at a point on the ground, the way <see cref="SpawnUnitForPlayer(string, System.Numerics.Vector2, int, bool, bool)" /> does:
+	/// the point states where on the board the item lies and the engine reads the terrain's height there, so a map never
+	/// has to sample the height field to drop something that lands on the ground.
 	/// </summary>
 	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
-	/// <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
+	/// <param name="position">The ground position in 2D board space (X, Z); the height comes from the terrain.</param>
 	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
 	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
 	/// <returns>The spawned loot item identifier.</returns>
-	LootItemId SpawnLootItem(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f);
-
-	/// <summary>
-	/// Spawns a pickup loot item at the specified 3D world space coordinates.
-	/// </summary>
-	/// <param name="itemTypeId">The identifier of the item type from the item registry.</param>
-	/// <param name="position">The coordinates in 3D world space where the item will be spawned.</param>
-	/// <param name="charges">The initial charge count or stacked quantity for the item.</param>
-	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
-	/// <returns>The spawned loot item identifier.</returns>
-	LootItemId SpawnLootItemAtLocation(string itemTypeId, Vector3 position, int charges = 1, float lifetime = 0f) =>
-		SpawnLootItem(itemTypeId, position, charges, lifetime);
+	LootItemId SpawnLootItem(string itemTypeId, Vector2 position, int charges = 1, float lifetime = 0f);
 
 	/// <summary>
 	/// Spawns a pickup loot item at the specified named coordinate marker.
@@ -41,7 +32,7 @@ public partial interface IGameAPI
 	/// <returns>The spawned loot item identifier.</returns>
 	LootItemId SpawnLootItem(string itemTypeId, string coordinateName, int charges = 1, float lifetime = 0f) =>
 		TryGetCoordinate(coordinateName, out var coord)
-			? SpawnLootItem(itemTypeId, coord.Center, charges, lifetime)
+			? SpawnLootItem(itemTypeId, new Vector2(coord.Center.X, coord.Center.Z), charges, lifetime)
 			: LootItemId.Invalid;
 
 	/// <summary>
@@ -53,7 +44,7 @@ public partial interface IGameAPI
 	/// <param name="lifetime">The duration in seconds before the item automatically despawns, or 0 if indefinite.</param>
 	/// <returns>The spawned loot item identifier.</returns>
 	LootItemId SpawnLootItem(string itemTypeId, Coordinate coordinate, int charges = 1, float lifetime = 0f) =>
-		SpawnLootItem(itemTypeId, coordinate.Center, charges, lifetime);
+		SpawnLootItem(itemTypeId, new Vector2(coordinate.Center.X, coordinate.Center.Z), charges, lifetime);
 
 	/// <summary>
 	/// Retrieves an active ground loot item by its unique runtime identifier.

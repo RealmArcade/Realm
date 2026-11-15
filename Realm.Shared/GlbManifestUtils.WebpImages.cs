@@ -61,6 +61,8 @@ public static partial class GlbManifestUtils
 			using var img = SKBitmap.Decode(raw);
 			if (img == null) return raw;
 
+			if (IsWebpImage(raw) && img.Width <= maxResolution && img.Height <= maxResolution) return raw;
+
 			SKBitmap workingImg = img;
 			bool ownsResized = false;
 			if (img.Width > maxResolution || img.Height > maxResolution)
@@ -96,5 +98,12 @@ public static partial class GlbManifestUtils
 		{
 			return raw;
 		}
+	}
+
+	private static bool IsWebpImage(ReadOnlySpan<byte> imageBytes)
+	{
+		if (imageBytes.Length < 12) return false;
+		if (imageBytes[0] != (byte)'R' || imageBytes[1] != (byte)'I' || imageBytes[2] != (byte)'F' || imageBytes[3] != (byte)'F') return false;
+		return imageBytes[8] == (byte)'W' && imageBytes[9] == (byte)'E' && imageBytes[10] == (byte)'B' && imageBytes[11] == (byte)'P';
 	}
 }

@@ -27,7 +27,7 @@ namespace Realm.Ecs.Services
 		{
 			if (amount <= 0f) return;
 			if (!_context.World.IsAlive(target) || _context.World.Has<Dead>(target) || !_context.World.Has<Health>(target)) return;
-			if (_context.World.Has<Invulnerable>(target)) return;
+			if (_context.World.Has<Invulnerable>(target) || _context.World.Has<Dormant>(target)) return;
 
 			_aoeKillList.Clear();
 			_aoeLastAttackerList.Clear();
@@ -100,7 +100,7 @@ namespace Realm.Ecs.Services
 
 		private bool IsAoeTargetValid(Entity entity, Vector3 entityPos, Vector3 aoePosition, float aoeRadius, bool enemyOnly, Entity casterEntity)
 		{
-			if (_context.World.Has<Invulnerable>(entity)) return false;
+			if (_context.World.Has<Invulnerable>(entity) || _context.World.Has<Dormant>(entity)) return false;
 
 			if (enemyOnly)
 			{
@@ -172,6 +172,8 @@ namespace Realm.Ecs.Services
 
 		private void ApplyResolvedDamage(Entity entity, ref Health hp, float finalDamage, Entity casterEntity)
 		{
+			if (_context.World.Has<Dormant>(entity)) return;
+
 			float effectiveness = ResolveDamageEffectiveness(casterEntity, entity);
 			float scaledDamage = AbsorbDamage(entity, finalDamage * effectiveness);
 			if (scaledDamage <= 0f) return;
@@ -207,6 +209,8 @@ namespace Realm.Ecs.Services
 			foreach (var entity in _aoeKillList)
 			{
 				if (!_context.World.IsAlive(entity) || _context.World.Has<Dead>(entity)) continue;
+
+				if (TryFallDormant(entity)) continue;
 
 				_context.World.Add<Dead>(entity);
 				ClearReferencesTo(entity);

@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
@@ -31,6 +32,12 @@ using HttpClient = System.Net.Http.HttpClient;
 namespace Realm.Client.Network;
 public partial class LobbyManager
 {
+	private const string LoopbackAddress = "127.0.0.1";
+
+	private const int LoopbackAnswerWaitMilliseconds = 3000;
+
+	private const int LoopbackPollMilliseconds = 25;
+
 	private void LoadServersConfig()
 	{
 		var config = ServersConfigHelper.Load();
@@ -49,10 +56,17 @@ public partial class LobbyManager
 		CallDeferred(nameof(EmitNatTestCompleted));
 	}
 
+	/// <summary>
+	///     Measures the endpoint this machine's router maps a local port to. Nothing is confirmed by it: a router reports the
+	///     mapping it would give the port whether or not anything on its outside face forwards traffic, so the address is
+	///     remembered as a measurement until a registry node reaches the port through it or the router accepts a mapping.
+	/// </summary>
+	/// <param name="localPort">The local port the lobby listens on.</param>
 	private async Task ResolvePublicEndpointAsync(int localPort)
 	{
 		_hostPublicIp = null;
 		_hostPublicPort = 0;
+		_routerReachability = RouterReachability.NoRouterForward;
 
 		try
 		{
@@ -130,6 +144,84 @@ public partial class LobbyManager
 		}
 
 		await RunNatTypeTestAsync();
+	}
+
+	/// <summary>
+	///     Proves this screen can play the seat it is holding: its own client must be seated over the loopback address, and the
+	///     authority must have described the lobby back to it. A host that cannot reach its own lobby cannot control its own
+	///     player, so the lobby is not worth publishing for anybody, and this is checked before anything is opened or
+	///     registered.
+	/// </summary>
+	private async Task<HostReachabilityResult> VerifyLobbyLoopbackAsync(ClientServerSession session)
+	{
+		bool connectedOverLoopback = session.ConnectedOverLoopback;
+
+		if (!connectedOverLoopback)
+		{
+			GameLog.LogError("[Reachability] this screen's own seat is not held over loopback, so the host could not control its own player.");
+			return HostReachabilityResult.Refused(HostReachabilityFailure.LoopbackNotOnLocalAddress, "this screen's own seat is not held over the loopback address");
+		}
+
+		long deadlineMilliseconds = Environment.TickCount64 + LoopbackAnswerWaitMilliseconds;
+		while (!HasLobbyState && Environment.TickCount64 < deadlineMilliseconds) await Task.Delay(LoopbackPollMilliseconds);
+
+		LoopbackJoinOutcome loopback = LobbyJoinability.DescribeLoopback(connectedOverLoopback, HasLobbyState);
+		HostReachabilityFailure decision = LobbyJoinability.Decide(publicLobby: false, loopback, HostReachabilityFailure.None);
+		if (decision != HostReachabilityFailure.None)
+		{
+			GameLog.LogError($"[Reachability] the authority did not describe the lobby back to this screen over loopback ({loopback}).");
+			return HostReachabilityResult.Refused(decision, $"the authority did not describe the lobby back over loopback ({loopback})");
+		}
+
+		GameLog.LogToConsole($"[Reachability] this screen's own seat is held over loopback on port {session.Port} and the lobby answered.");
+		return new HostReachabilityResult(HostReachabilityFailure.None, string.Empty, LoopbackAddress, session.Port, $"the lobby answered this screen's own client over loopback on port {session.Port}");
+	}
+
+	/// <summary>
+	///     Rehearses the join the lobby is about to offer, with the registry node that is about to publish it playing the part
+	///     of the joining player. Nothing is registered until this answers, because a lobby other players can see and cannot
+	///     reach is worse than a lobby that states what is wrong on the machine that tried to host it.
+	/// </summary>
+	private async Task<HostReachabilityResult> VerifyLobbyReachabilityAsync(string registryUrl, int lobbyPort)
+	{
+		var verifier = new HostReachabilityVerifier(_httpClient, message => GameLog.LogToConsole($"[Reachability] {message}"));
+		HostReachabilityResult result = await verifier.VerifyAsync(registryUrl, _hostPublicIp ?? string.Empty, lobbyPort, PunchProbeEndpointAsync);
+		if (result.Verified)
+		{
+			GameLog.LogToConsole($"[Reachability] The registry reached this lobby's game port and measured {result.PublicIp}:{result.PublicPort} ({LocalNatType} NAT).");
+		}
+		else
+		{
+			GameLog.LogError($"[Reachability] {result.Failure}: {result.Detail}");
+		}
+
+		return result;
+	}
+
+	/// <summary>
+	///     Asks the authority to send a datagram from the port the lobby listens on to the endpoint the registry is probing
+	///     from, which is what opens a router that drops unsolicited traffic for the probes that follow it. The datagram
+	///     names the check it is for, so a registry node checking two hosts behind one router can tell their punches apart.
+	/// </summary>
+	private bool PunchProbeEndpointAsync(string address, int port, string probeId)
+	{
+		ClientServerSession? session = _lobbySession;
+		if (session == null) return false;
+
+		Callable.From(() =>
+		{
+			if (!ReferenceEquals(session, _lobbySession)) return;
+
+			session.SendLobbyCommand(new LobbyCommand
+			{
+				Kind = LobbyCommandKind.PunchAddress,
+				Address = address,
+				Port = port,
+				Text = probeId
+			});
+		}).CallDeferred();
+
+		return true;
 	}
 
 	private void EmitNatTestCompleted()

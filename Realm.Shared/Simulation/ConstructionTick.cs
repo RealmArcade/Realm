@@ -55,7 +55,7 @@ public class ConstructionTick
 			if (_simulation.World.IsAlive(worker) && _simulation.World.Has<BuildTask>(worker)) _simulation.World.Remove<BuildTask>(worker);
 		}
 
-		CollectSitesAlreadyComplete();
+		ApplyProgressToSites();
 
 		for (int index = 0; index < _completedSites.Count; index++)
 		{
@@ -74,6 +74,14 @@ public class ConstructionTick
 
 		if (!_simulation.World.TryGet<Position>(site, out Position sitePosition)) return;
 
+		if (!FitsUnderFoodCap(site))
+		{
+			// The site cannot be raised while the player holds nothing of their food cap to hold it with, so its work
+			// stands where it is and the builder is let go rather than left walking to a site that will not move.
+			_abandonedWorkers.Add(workerEntity);
+			return;
+		}
+
 		float reach = ReadConstructionRange(workerEntity) + ReadCollisionRadius(site);
 		bool inRange = Vector3.DistanceSquared(workerPosition.Value, sitePosition.Value) <= reach * reach;
 
@@ -89,22 +97,58 @@ public class ConstructionTick
 		float progressGain = BaseWorkRatePerSecond * (_simulation.FastBuildEnabled ? WorkRateMultiplierFastBuild : 1f) * _deltaSeconds;
 
 		ref ConstructionState construction = ref _simulation.World.Get<ConstructionState>(site);
-		construction.Progress = MathF.Min(construction.Progress + progressGain, construction.TotalBuildTime);
 
-		buildTask.Progress = MathF.Min(buildTask.Progress + progressGain, MathF.Max(buildTask.TotalBuildTime, construction.TotalBuildTime));
+		// A site a map is holding short of completion takes work up to its ceiling and no more, which is how a site that
+		// has not been committed to a building yet stands finished to look at without ever becoming one.
+		construction.Progress = MathF.Min(construction.Progress + progressGain, construction.ProgressCeiling);
+
+		buildTask.Progress = MathF.Min(buildTask.Progress + progressGain, MathF.Max(buildTask.TotalBuildTime, construction.ProgressCeiling));
 
 		_workingPairs.Add((workerEntity, site));
 
 		if (construction.IsComplete) QueueCompleted(site);
 	}
 
-	private void CollectSitesAlreadyComplete()
+	/// <summary>
+	///     Makes every site read the work it has taken: a site's health is its progress, so one percent of the building
+	///     raised is one percent of its maximum health and the bar over it grows as the hero works. Only sites that are
+	///     still being raised are written, so a completed or destroyed building keeps the health combat gave it.
+	/// </summary>
+	private void ApplyProgressToSites()
 	{
 		foreach (Entity site in _simulation.World.Query<ConstructionState>())
 		{
+			ApplyProgressHealth(_simulation.World, site);
+
 			ref ConstructionState construction = ref _simulation.World.Get<ConstructionState>(site);
 			if (construction.IsComplete) QueueCompleted(site);
 		}
+	}
+
+	/// <summary>
+	///     Writes a site's health as the share of its construction that is done, so the bar over a building being raised
+	///     is the work standing on it rather than a second reading of the same thing. A site the map has not started, has
+	///     just revealed as another building, or has pulled back under a lower ceiling takes the reading that matches it at
+	///     once, which is why the map calls this itself rather than waiting a tick for the pass above. A site that is no
+	///     longer being raised keeps the health combat and repair gave it.
+	/// </summary>
+	/// <param name="world">The world the site stands in.</param>
+	/// <param name="site">The entity to write the reading to.</param>
+	public static void ApplyProgressHealth(EcsWorld world, Entity site)
+	{
+		if (!world.Has<UnderConstruction>(site)) return;
+		if (!world.TryGet<ConstructionState>(site, out ConstructionState construction)) return;
+		if (!world.TryGet<Health>(site, out Health health)) return;
+		if (health.Max <= 0f) return;
+
+		float fraction = construction.TotalBuildTime > 0f
+			? Math.Clamp(construction.Progress / construction.TotalBuildTime, 0f, 1f)
+			: 1f;
+		float workedHealth = health.Max * fraction;
+		if (MathF.Abs(health.Current - workedHealth) < 0.5f) return;
+
+		health.Current = workedHealth;
+		world.Set(site, health);
 	}
 
 	private void QueueCompleted(Entity site)
@@ -118,6 +162,7 @@ public class ConstructionTick
 	{
 		if (_simulation.World.Has<ConstructionState>(site)) _simulation.World.Remove<ConstructionState>(site);
 		if (_simulation.World.Has<UnderConstruction>(site)) _simulation.World.Remove<UnderConstruction>(site);
+		if (_simulation.World.Has<Invulnerable>(site)) _simulation.World.Remove<Invulnerable>(site);
 
 		for (int index = 0; index < _workingPairs.Count; index++)
 		{
@@ -129,6 +174,25 @@ public class ConstructionTick
 
 		_simulation.MovementPathfindingService.InvalidateObstacleGrid();
 		Completed?.Invoke(site);
+	}
+
+	/// <summary>
+	///     Reports whether the owner of a site has room under its food cap for the building the site will become. A site
+	///     takes nothing from the cap while it stands unfinished, so this asks only whether the finished building would fit;
+	///     when it would not, the work stops where it is and the site stays a site instead of becoming a building the player
+	///     could not hold. A site whose template costs nothing, or whose owner is gone, is under no rule this can read.
+	/// </summary>
+	/// <param name="site">The site being raised.</param>
+	/// <returns>Whether the building the site will become fits under its owner's food cap.</returns>
+	private bool FitsUnderFoodCap(Entity site)
+	{
+		if (!_simulation.World.TryGet<UnitOwnerPlayer>(site, out UnitOwnerPlayer owner)) return true;
+		if (!_simulation.World.TryGet<DefinitionId>(site, out DefinitionId definition)) return true;
+
+		UnitMetadata? metadata = _catalog.FindUnitOrBuilding(definition.Value);
+		if (metadata == null || metadata.PopCost <= 0) return true;
+
+		return PlayerPopulationRules.FitsWithinCap(_simulation.World, _simulation.GetPlayerEntity(owner.Value), metadata.PopCost);
 	}
 
 	private float ReadConstructionRange(Entity workerEntity)

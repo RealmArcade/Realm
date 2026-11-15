@@ -1,5 +1,6 @@
 using Realm.Ecs;
 using Realm.Shared.Network;
+using Realm.Shared.Terrain;
 
 namespace Realm.ListenServer;
 
@@ -17,9 +18,14 @@ public class ServerLobbyRoster
 	private readonly bool[] _factionLocked = new bool[EcsSharedMemory.MAX_PLAYERS];
 	private readonly bool[] _teamLocked = new bool[EcsSharedMemory.MAX_PLAYERS];
 	private readonly bool[] _colorLocked = new bool[EcsSharedMemory.MAX_PLAYERS];
+	private readonly string?[] _teamSpawnCoordinates = new string?[EcsSharedMemory.MAX_PLAYERS];
+	private readonly List<string> _boardCoordinates = new();
 	private IntPtr _sharedMemoryBase = IntPtr.Zero;
 	private uint _revision;
 	private int _teamCount = LobbyLimits.DefaultTeamCount;
+	private bool _teamsTogether = true;
+	private bool _hostChoseTeamsTogether;
+	private MatchShroudMode _shroudMode = MatchShroudMode.FromMap;
 
 	public ServerLobbyRoster(ILobbySeatTable lobby, ServerLog log, int teamCount = LobbyLimits.DefaultTeamCount)
 	{
@@ -32,7 +38,18 @@ public class ServerLobbyRoster
 
 	public int TeamCount => _teamCount;
 
-	public int MaximumPlayerCount => _lobby.MaximumPlayers;
+	/// <summary>
+	///     Whether the match groups each team's players into consecutive player slots when it starts. It begins at the
+	///     default the map states and follows the host from the moment the host changes it.
+	/// </summary>
+	public bool TeamsTogether => _teamsTogether;
+
+	/// <summary>
+	///     The shroud mode the lobby plays unless its host chooses another: the mode the map's lobby script stated, or
+	///     <see cref="MatchShroudMode.FromMap" /> while the map has stated nothing.
+	/// </summary>
+	public MatchShroudMode ShroudMode => _shroudMode;
+
 
 	public void SetTeamCount(int teamCount)
 	{
@@ -41,6 +58,7 @@ public class ServerLobbyRoster
 
 		_teamCount = clamped;
 		_log.Write($"the lobby now offers {_teamCount} team(s)");
+		Publish();
 		_lobby.BroadcastState();
 	}
 
@@ -57,6 +75,7 @@ public class ServerLobbyRoster
 
 		_factions.Add(name);
 		_log.Write($"lobby faction '{name}' added to the roster");
+		Publish();
 		return true;
 	}
 
@@ -134,9 +153,225 @@ public class ServerLobbyRoster
 		return _lobby.ApplyRosterColor(slot, colorRgba);
 	}
 
-	public bool TrySetMaximumPlayerCount(int maximumPlayerCount)
+	/// <summary>Reads the colour a slot's units are drawn in, which is its seat's colour or the one the map keeps for it.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA.</returns>
+	public uint GetPlayerColor(int slot)
 	{
-		return _lobby.TrySetMaximumPlayers(maximumPlayerCount);
+		if (_lobby.TryGetSeatBySlot(slot, out LobbySeat seat)) return seat.ColorRgba;
+		return _lobby.ColorOverrideOf(slot);
+	}
+
+	/// <summary>Reads the minimap colour the lobby's map stated for one scheme, or zero while it stated none.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <returns>The colour, packed as 0xRRGGBBAA.</returns>
+	public uint GetPlayerMinimapColor(int slot, MinimapColorMode mode) => _lobby.MinimapColorOf(slot, mode);
+
+	/// <summary>States the colour a slot's units are drawn in on one minimap scheme, or clears the statement.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="mode">Which of the minimap's two colourings the colour applies to.</param>
+	/// <param name="colorRgba">The colour, packed as 0xRRGGBBAA, or zero to clear the statement.</param>
+	/// <returns>Whether the lobby holds that statement afterwards.</returns>
+	public bool SetPlayerMinimapColor(int slot, MinimapColorMode mode, uint colorRgba)
+	{
+		if (!InRange(slot)) return false;
+		return _lobby.ApplyRosterMinimapColor(slot, mode, colorRgba);
+	}
+
+	/// <summary>States that one player index stands in for another, which is what the allied-colour minimap reads.</summary>
+	/// <param name="slot">The player index standing in for another.</param>
+	/// <param name="ownerSlot">The player index it stands in for, or zero to clear the statement.</param>
+	/// <returns>Whether the lobby holds that statement afterwards.</returns>
+	public bool SetPlayerProxyOwner(int slot, int ownerSlot)
+	{
+		if (!InRange(slot)) return false;
+		return _lobby.ApplyRosterProxyOwner(slot, ownerSlot);
+	}
+
+	/// <summary>Keeps every player index above a count for the lobby's map.</summary>
+	/// <param name="maximumPlayers">The highest player index a person may be seated in.</param>
+	/// <returns>Whether the lobby holds that limit afterwards.</returns>
+	public bool TrySetPlayerSlotLimit(int maximumPlayers) => _lobby.TrySetPlayerSlotLimit(maximumPlayers);
+
+	/// <summary>Answers whether one player slot accepts a player.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>Whether the slot is open.</returns>
+	public bool IsSlotOpen(int slot) => _lobby.IsSlotOpen(slot);
+
+	/// <summary>Reads the value one of the settings the lobby's map declared currently holds.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <returns>The value the setting holds, or zero when the map declared no such setting.</returns>
+	public int GetMatchSettingValue(int settingId) => _lobby.GetMatchSettingValue(settingId);
+
+	/// <summary>Opens or closes one player slot, which is how a map states the seats its board is authored for.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="open">Whether the slot accepts a player.</param>
+	/// <returns>Whether the lobby offers that slot afterwards.</returns>
+	public bool TrySetSlotOpen(int slot, bool open)
+	{
+		return _lobby.TrySetSlotOpen(slot, open);
+	}
+
+	/// <summary>Opens the first slots up to a count and closes the rest, up to the limit the map reserved.</summary>
+	/// <param name="count">How many slots, counted from the first, the lobby should offer.</param>
+	/// <returns>Whether the lobby offers those slots afterwards.</returns>
+	public bool TrySetOpenSlotCount(int count)
+	{
+		return _lobby.TrySetOpenSlotCount(count);
+	}
+
+	/// <summary>Declares one match setting of the map's own, which is what its host is then offered.</summary>
+	/// <param name="settingId">The identifier the map declares the setting under.</param>
+	/// <param name="control">How the host edits the setting.</param>
+	/// <param name="label">The label the host reads.</param>
+	/// <param name="tooltip">The sentence that explains the setting, or empty for none.</param>
+	/// <param name="defaultValue">The value the setting holds until the host changes it.</param>
+	public void DeclareMatchSetting(int settingId, LobbySettingControl control, string label, string tooltip, int defaultValue)
+	{
+		_lobby.DeclareMatchSetting(settingId, control, label, tooltip, defaultValue);
+	}
+
+	/// <summary>Adds one option to a setting the map declared as a choice.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="optionLabel">The text the host reads in the dropdown.</param>
+	public void DeclareMatchSettingOption(int settingId, string optionLabel)
+	{
+		_lobby.DeclareMatchSettingOption(settingId, optionLabel);
+	}
+
+	/// <summary>States the values a count setting the map declared may hold.</summary>
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <param name="minimum">The lowest value the host may choose.</param>
+	/// <param name="maximum">The highest value the host may choose.</param>
+	public void DeclareMatchSettingRange(int settingId, int minimum, int maximum)
+	{
+		_lobby.DeclareMatchSettingRange(settingId, minimum, maximum);
+	}
+
+	/// <summary>States whether late joiners wait before the board is described to them.</summary>
+	/// <param name="enabled">Whether the delay is on.</param>
+	public void SetSpectatorDelayDefault(bool enabled)
+	{
+		_lobby.SetSpectatorDelayDefault(enabled);
+	}
+
+	/// <summary>
+	///     Points the roster at the coordinates this board authors, which is what a team's spawn assignment is checked
+	///     against: a team seated in ground the board does not describe is a team the match could not place.
+	/// </summary>
+	/// <param name="coordinates">The board's coordinates, or nothing when the board authors none.</param>
+	public void BindBoardCoordinates(IReadOnlyList<CoordinateSaveData>? coordinates)
+	{
+		_boardCoordinates.Clear();
+		if (coordinates == null) return;
+
+		for (int index = 0; index < coordinates.Count; index++)
+		{
+			string name = coordinates[index].Name;
+			if (string.IsNullOrWhiteSpace(name)) continue;
+			if (_boardCoordinates.Contains(name, StringComparer.OrdinalIgnoreCase)) continue;
+
+			_boardCoordinates.Add(name);
+		}
+	}
+
+	/// <summary>
+	///     States the value the lobby's Teams Together checkbox starts at. The host keeps the last word: a default stated
+	///     after the host has changed the checkbox is remembered for the next lobby rather than undoing the host's choice.
+	/// </summary>
+	/// <param name="teamsTogether">Whether the checkbox starts checked.</param>
+	public void SetTeamsTogetherDefault(bool teamsTogether)
+	{
+		if (_hostChoseTeamsTogether) return;
+		if (_teamsTogether == teamsTogether) return;
+
+		_teamsTogether = teamsTogether;
+		_log.Write($"the lobby's map states teams together: {(teamsTogether ? "on" : "off")}");
+		_lobby.BroadcastState();
+	}
+
+	/// <summary>
+	///     Takes the host's own answer for the Teams Together checkbox, which overrules the default its map stated and
+	///     holds for the rest of the lobby.
+	/// </summary>
+	/// <param name="teamsTogether">Whether the match should group each team's players.</param>
+	/// <returns>Whether the lobby now holds that setting.</returns>
+	public bool TrySetTeamsTogether(bool teamsTogether)
+	{
+		_hostChoseTeamsTogether = true;
+		if (_teamsTogether == teamsTogether) return true;
+
+		_teamsTogether = teamsTogether;
+		_log.Write($"the lobby's host set teams together {(teamsTogether ? "on" : "off")}");
+		_lobby.BroadcastState();
+		return true;
+	}
+
+	/// <summary>
+	///     States the shroud mode a lobby starts on, which is how a map says whether its board is played with vision limited
+	///     or with the whole thing visible. The host keeps the last word: a mode the host chose is what the lobby plays, and
+	///     this is the answer the lobby returns to when the host clears that choice.
+	/// </summary>
+	/// <param name="mode">The mode the lobby should start on.</param>
+	public void SetShroudModeDefault(MatchShroudMode mode)
+	{
+		if (!Enum.IsDefined(mode)) return;
+		if (_shroudMode == mode) return;
+
+		_shroudMode = mode;
+		_log.Write($"the lobby's map states the shroud mode: {mode}");
+		_lobby.BroadcastState();
+	}
+
+	/// <summary>
+	///     Assigns a team the board coordinate its players begin inside, or clears that assignment when the name is empty.
+	///     A team the lobby does not offer and a coordinate this board does not author are both refused.
+	/// </summary>
+	/// <param name="teamIndex">The team number.</param>
+	/// <param name="coordinateName">The board coordinate, or empty to clear the team's assignment.</param>
+	/// <returns>Whether the lobby holds that assignment afterwards.</returns>
+	public bool SetTeamSpawnCoordinate(int teamIndex, string? coordinateName)
+	{
+		if (teamIndex <= 0 || teamIndex >= EcsSharedMemory.MAX_PLAYERS) return false;
+
+		string name = (coordinateName ?? string.Empty).Trim();
+		if (name.Length == 0)
+		{
+			_teamSpawnCoordinates[teamIndex] = null;
+			return true;
+		}
+
+		string? authored = FindBoardCoordinate(name);
+		if (authored == null)
+		{
+			_log.Write($"team {teamIndex} was seated in coordinate '{name}', which this board does not author; the order is refused");
+			return false;
+		}
+
+		_teamSpawnCoordinates[teamIndex] = authored;
+		_log.Write($"team {teamIndex} begins inside coordinate '{authored}'");
+		return true;
+	}
+
+	/// <summary>
+	///     Reads the coordinate every team begins inside, as the match seats them, so a match that starts from this lobby
+	///     places each team on the ground the map stated for it.
+	/// </summary>
+	/// <returns>One entry per team number, null for a team the map seated at the board's own anchors.</returns>
+	public string?[] CopyTeamSpawnCoordinates()
+	{
+		return (string?[])_teamSpawnCoordinates.Clone();
+	}
+
+	private string? FindBoardCoordinate(string coordinateName)
+	{
+		for (int index = 0; index < _boardCoordinates.Count; index++)
+		{
+			if (string.Equals(_boardCoordinates[index], coordinateName, StringComparison.OrdinalIgnoreCase)) return _boardCoordinates[index];
+		}
+
+		return null;
 	}
 
 	/// <summary>
@@ -160,7 +395,7 @@ public class ServerLobbyRoster
 		if (sharedMemoryBase == IntPtr.Zero) return;
 
 		LobbyRosterHeader* header = EcsSharedMemory.LobbyRosterHeaderAt(sharedMemoryBase);
-		header->MaximumPlayerCount = _lobby.MaximumPlayers;
+		header->OpenSlotCount = _lobby.OpenSlotCount;
 		header->FactionCount = _factions.Count;
 		header->TeamCount = _teamCount;
 		header->SlotCount = EcsSharedMemory.MAX_PLAYERS;
@@ -188,6 +423,9 @@ public class ServerLobbyRoster
 			entry->FactionLocked = (byte)(_factionLocked[slot] ? 1 : 0);
 			entry->TeamLocked = (byte)(_teamLocked[slot] ? 1 : 0);
 			entry->ColorLocked = (byte)(_colorLocked[slot] ? 1 : 0);
+			entry->Open = (byte)(_lobby.IsSlotOpen(slot) ? 1 : 0);
+			entry->MinimapPlayerColorRgba = _lobby.MinimapColorOf(slot, MinimapColorMode.PlayerColors);
+			entry->MinimapTeamColorRgba = _lobby.MinimapColorOf(slot, MinimapColorMode.TeamColors);
 
 			if (!_lobby.TryGetSeatBySlot(slot, out LobbySeat seat))
 			{
@@ -196,7 +434,7 @@ public class ServerLobbyRoster
 				entry->Host = 0;
 				entry->FactionIndex = -1;
 				entry->TeamIndex = 0;
-				entry->ColorRgba = 0;
+				entry->ColorRgba = _lobby.ColorOverrideOf(slot);
 				continue;
 			}
 
