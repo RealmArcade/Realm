@@ -9,10 +9,18 @@ public static class BlenderSetup
 		Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
 		"Realm.Tools.Cli");
 
+	private static readonly (string ResourceFileName, string TargetFileName)[] EmbeddedScripts =
+	{
+		("render_ranim.py", "render_ranim.py"),
+		("render_mesh.py", "render_mesh.py")
+	};
+
 	public static readonly string NodeDir = Path.Combine(AppDataRoot, "BlenderEnv");
 	public static readonly string VenvDir = Path.Combine(NodeDir, "venv311");
 
 	public static string RenderScriptPath => Path.Combine(NodeDir, "render_ranim.py");
+
+	public static string MeshRenderScriptPath => Path.Combine(NodeDir, "render_mesh.py");
 
 	public static string PythonExePath
 	{
@@ -31,7 +39,8 @@ public static class BlenderSetup
 	public static bool IsSetupComplete() =>
 		File.Exists(MarkerPath) &&
 		File.Exists(PythonExePath) &&
-		File.Exists(RenderScriptPath);
+		File.Exists(RenderScriptPath) &&
+		File.Exists(MeshRenderScriptPath);
 
 	public static void EnsureSetup(Action<string>? logCallback = null)
 	{
@@ -42,7 +51,7 @@ public static class BlenderSetup
 		}
 
 		Directory.CreateDirectory(NodeDir);
-		ExtractRenderScript(Log);
+		ExtractScripts();
 
 		if (IsSetupComplete())
 		{
@@ -93,34 +102,45 @@ public static class BlenderSetup
 		Log("[Blender] Python environment ready.");
 	}
 
-	private static void ExtractRenderScript(Action<string>? log = null)
+	private static void ExtractScripts()
 	{
 		var assembly = Assembly.GetExecutingAssembly();
+
+		foreach (var (resourceFileName, targetFileName) in EmbeddedScripts)
+		{
+			ExtractScript(assembly, resourceFileName, targetFileName);
+		}
+	}
+
+	private static void ExtractScript(Assembly assembly, string resourceFileName, string targetFileName)
+	{
+		string targetPath = Path.Combine(NodeDir, targetFileName);
+
 		var stream = assembly.GetManifestResourceNames()
-			.Where(name => name.EndsWith("render_ranim.py", StringComparison.OrdinalIgnoreCase))
+			.Where(name => name.EndsWith(resourceFileName, StringComparison.OrdinalIgnoreCase))
 			.Select(name => assembly.GetManifestResourceStream(name))
 			.FirstOrDefault(s => s != null);
 
 		if (stream == null)
 		{
-			if (File.Exists(RenderScriptPath))
+			if (File.Exists(targetPath))
 			{
 				return;
 			}
 
 			throw new FileNotFoundException(
-				$"Embedded resource render_ranim.py not found. Available resources: {string.Join(", ", assembly.GetManifestResourceNames())}");
+				$"Embedded resource {resourceFileName} not found. Available resources: {string.Join(", ", assembly.GetManifestResourceNames())}");
 		}
 
 		try
 		{
 			using (stream)
-			using (var fileStream = File.Create(RenderScriptPath))
+			using (var fileStream = File.Create(targetPath))
 			{
 				stream.CopyTo(fileStream);
 			}
 		}
-		catch (IOException) when (File.Exists(RenderScriptPath))
+		catch (IOException) when (File.Exists(targetPath))
 		{
 		}
 	}

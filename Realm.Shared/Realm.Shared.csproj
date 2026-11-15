@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="BlenderSetup\*.py" />
     <EmbeddedResource Include="..\ThirdPartyBinaries\**\*.*">
       <Link>ThirdPartyBinaries\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </EmbeddedResource>

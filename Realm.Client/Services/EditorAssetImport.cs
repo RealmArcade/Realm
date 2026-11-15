@@ -337,7 +337,35 @@ public static class EditorAssetImport
 
 	public static (bool Success, string Message, string FileName, string Blake3) ImportIconAsset(string sourceFilePath, string wsPath)
 	{
-		return ImportImageAsAsset(sourceFilePath, wsPath, "icons");
+		try
+		{
+			string fileName = Path.GetFileNameWithoutExtension(sourceFilePath) + ".rtex";
+			string iconsDir = Path.Combine(wsPath, "Assets", "icons");
+			Directory.CreateDirectory(iconsDir);
+			string targetPath = Path.Combine(iconsDir, fileName);
+
+			if (Path.GetExtension(sourceFilePath).Equals(".rtex", StringComparison.OrdinalIgnoreCase))
+			{
+				File.Copy(sourceFilePath, targetPath, true);
+			}
+			else
+			{
+				var conversion = TextureConverter.ConvertTextureFile(sourceFilePath, targetPath, "Icon");
+				if (!conversion.Success)
+				{
+					return (false, conversion.ErrorMessage ?? "Icon conversion failed.", fileName, string.Empty);
+				}
+			}
+
+			byte[] bytes = File.ReadAllBytes(targetPath);
+			string blake3 = RealmMetadataHelper.ComputeBlake3(bytes, ".rtex");
+
+			return (true, string.Empty, fileName, blake3);
+		}
+		catch (Exception ex)
+		{
+			return (false, ex.Message, string.Empty, string.Empty);
+		}
 	}
 
 	private static (bool Success, string Message, string FileName, string Blake3) ImportImageAsAsset(string sourceFilePath, string wsPath, string subFolder)

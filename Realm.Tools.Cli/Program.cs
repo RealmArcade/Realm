@@ -5,6 +5,28 @@ namespace Realm.Tools.Cli;
 
 public static class Program
 {
+	private static readonly Type[] VerbOptions =
+	{
+		typeof(MeshConvertOptions),
+		typeof(MeshRenderOptions),
+		typeof(ImageSheetOptions),
+		typeof(RmeshExtractSourceImageOptions),
+		typeof(TextureConvertOptions),
+		typeof(AudioConvertOptions),
+		typeof(FbxToRanimOptions),
+		typeof(RanimRenderOptions),
+		typeof(MetadataOptions),
+		typeof(Blake3Options),
+		typeof(MeshPlayerColorCliOptions),
+		typeof(RigHumanoidOptions),
+		typeof(KeygenOptions),
+		typeof(GenerateManifestSchemaOptions),
+		typeof(GenerateMetadataSchemaOptions),
+		typeof(GenerateTerrainSchemaOptions),
+		typeof(GenerateSchemasOptions),
+		typeof(VerifySchemasOptions)
+	};
+
 	public static int Main(string[] args)
 	{
 		var unhandledArgs = new List<string>(args.Length);
@@ -21,45 +43,39 @@ public static class Program
 		}
 
 		string[] originalArgs = unhandledArgs.ToArray();
-		string[] sanitizedArgs = CommandLineArgsHelper.SanitizeArgs(
-			originalArgs,
-			typeof(MeshConvertOptions),
-			typeof(RmeshExtractSourceImageOptions),
-			typeof(TextureConvertOptions),
-			typeof(AudioConvertOptions),
-			typeof(FbxToRanimOptions),
-			typeof(RanimRenderOptions),
-			typeof(MetadataOptions),
-			typeof(Blake3Options),
-			typeof(MeshPlayerColorCliOptions),
-			typeof(RigHumanoidOptions),
-			typeof(KeygenOptions),
-			typeof(GenerateManifestSchemaOptions),
-			typeof(GenerateMetadataSchemaOptions),
-			typeof(GenerateTerrainSchemaOptions),
-			typeof(GenerateSchemasOptions),
-			typeof(VerifySchemasOptions));
+		string[] sanitizedArgs = CommandLineArgsHelper.SanitizeArgs(originalArgs, VerbOptions);
 
-		return Parser.Default.ParseArguments<MeshConvertOptions, RmeshExtractSourceImageOptions, TextureConvertOptions, AudioConvertOptions, FbxToRanimOptions, RanimRenderOptions, MetadataOptions, Blake3Options, MeshPlayerColorCliOptions, RigHumanoidOptions, KeygenOptions, GenerateManifestSchemaOptions, GenerateMetadataSchemaOptions, GenerateTerrainSchemaOptions, GenerateSchemasOptions, VerifySchemasOptions>(sanitizedArgs)
+		return Parser.Default.ParseArguments(sanitizedArgs, VerbOptions)
 			.WithParsed(options => CommandLineArgsHelper.ApplyBooleanOverrides(options, originalArgs))
 			.MapResult(
-				(MeshConvertOptions options) => MeshConvertCommands.Execute(options),
-				(RmeshExtractSourceImageOptions options) => RmeshExtractSourceImageCommand.Execute(options),
-				(TextureConvertOptions options) => TextureConvertCommand.Execute(options),
-				(AudioConvertOptions options) => AudioConvertCommand.Execute(options),
-				(FbxToRanimOptions options) => RanimCommands.ExecuteFromFbx(options),
-				(RanimRenderOptions options) => RanimCommands.ExecuteRender(options),
-				(MetadataOptions options) => MetadataCommands.Execute(options),
-				(Blake3Options options) => Blake3Command.Execute(options),
-				(MeshPlayerColorCliOptions options) => MeshPlayerColorCommand.Execute(options),
-				(RigHumanoidOptions options) => RigCommand.Execute(options),
-				(KeygenOptions options) => KeygenCommand.Execute(options),
-				(GenerateManifestSchemaOptions options) => SchemaCommands.ExecuteManifest(options),
-				(GenerateMetadataSchemaOptions options) => SchemaCommands.ExecuteMetadata(options),
-				(GenerateTerrainSchemaOptions options) => SchemaCommands.ExecuteTerrain(options),
-				(GenerateSchemasOptions options) => SchemaCommands.ExecuteAll(options),
-				(VerifySchemasOptions options) => SchemaCommands.ExecuteVerify(options),
+				Dispatch,
 				errors => 1);
+	}
+
+	private static int Dispatch(object options)
+	{
+		return options switch
+		{
+			MeshConvertOptions value => MeshConvertCommands.Execute(value),
+			MeshRenderOptions value => MeshRenderCommand.Execute(value),
+			ImageSheetOptions value => ImageSheetCommand.Execute(value),
+			RmeshExtractSourceImageOptions value => RmeshExtractSourceImageCommand.Execute(value),
+			TextureConvertOptions value => TextureConvertCommand.Execute(value),
+			AudioConvertOptions value => AudioConvertCommand.Execute(value),
+			FbxToRanimOptions value => RanimCommands.ExecuteFromFbx(value),
+			RanimRenderOptions value => RanimCommands.ExecuteRender(value),
+			MetadataOptions value => MetadataCommands.Execute(value),
+			Blake3Options value => Blake3Command.Execute(value),
+			MeshPlayerColorCliOptions value => MeshPlayerColorCommand.Execute(value),
+			RigHumanoidOptions value => RigCommand.Execute(value),
+			KeygenOptions value => KeygenCommand.Execute(value),
+			GenerateManifestSchemaOptions value => SchemaCommands.ExecuteManifest(value),
+			GenerateMetadataSchemaOptions value => SchemaCommands.ExecuteMetadata(value),
+			GenerateTerrainSchemaOptions value => SchemaCommands.ExecuteTerrain(value),
+			GenerateSchemasOptions value => SchemaCommands.ExecuteAll(value),
+			VerifySchemasOptions value => SchemaCommands.ExecuteVerify(value),
+			_ => 1
+		};
 	}
 
 }
