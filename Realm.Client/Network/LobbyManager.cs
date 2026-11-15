@@ -402,6 +402,19 @@ public partial class LobbyManager : BaseMapTransferNode
 	private string? _hostPublicIp;
 	private int _hostPublicPort;
 	private int _hostPublicPortMeasuredForLocalPort;
+
+	/// <summary>
+	///     Puts one line in front of the host without pretending a player said it. It is the only status surface the lobby
+	///     room already has, and the room is the one place a host is looking while a lobby is being published in the
+	///     background, so a listing that fails is reported where the address is shown rather than in a dialog that is gone.
+	/// </summary>
+	/// <param name="message">The already-translated sentence to show.</param>
+	private void NotifyHostLine(string message)
+	{
+		if (string.IsNullOrWhiteSpace(message)) return;
+
+		ChatReceived?.Invoke(TranslationServer.Translate("System"), message, false, DateTime.UtcNow.Ticks);
+	}
 	private RouterReachability _routerReachability = RouterReachability.NoRouterForward;
 	public string PublicIP => _hostPublicIp ?? "127.0.0.1";
 	public int PublicPort => _hostPublicPort > 0 ? _hostPublicPort : BoundPort;

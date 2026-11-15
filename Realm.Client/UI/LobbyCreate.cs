@@ -441,16 +441,18 @@ public partial class LobbyCreate : Control
 			return;
 		}
 
-		// The lobby is open and nobody can see it yet. Hosting publishes it straight away and takes the host into its room,
-		// where every setting its map states is changed: a host no longer confirms a panel of settings before its lobby
-		// exists, because the lobby room is where those settings are read and edited.
+		// The lobby is open and nobody can see it yet. The host goes into its room first, because that is where the map's
+		// settings are read and edited, and publishing a listed lobby means waiting on a registry node: making a host sit
+		// through that before they can touch a single setting is the wait this flow exists to remove. The room's chat says
+		// what is happening, and says so again if the lobby could not be listed.
 		if (directOnly)
 		{
 			await PublishDirectLobbyAsync();
 			return;
 		}
 
-		await PublishPreparedLobbyAsync();
+		GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
+		_ = PublishListedLobbyAsync();
 	}
 
 	private void ReportLobbyHostingFailure(LobbyManager lobby, bool directOnly = false)
@@ -470,26 +472,33 @@ public partial class LobbyCreate : Control
 		ShowHostErrorModal(errorMsg);
 	}
 
-	private async Task PublishPreparedLobbyAsync()
+	/// <summary>
+	///     Publishes the lobby the host is already sitting in, without holding the screen it was started from. A failure
+	///     leaves the lobby open to players who are given its address and reports that in the room's chat, so the host is
+	///     never left in a room that silently nobody can find.
+	/// </summary>
+	private async Task PublishListedLobbyAsync()
 	{
 		LobbyManager? lobby = GameContext.Lobby;
 		if (lobby == null) return;
 
-		_createButton.Disabled = true;
-		ShowHostProgressOverlay();
 		lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
-		bool published = await lobby.PublishPreparedLobbyAsync();
-		lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
-		HideHostProgressOverlay();
-		_createButton.Disabled = false;
-
-		if (published)
+		bool listed;
+		try
 		{
-			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
-			return;
+			listed = await lobby.PublishPreparedLobbyDirectlyOnFailureAsync();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[LobbyCreate] The lobby could not be published: {exception.Message}");
+			listed = false;
+		}
+		finally
+		{
+			lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
 		}
 
-		ReportLobbyHostingFailure(lobby);
+		if (!listed) GameContext.UserInterface?.PlayWarningSound();
 	}
 
 	/// <summary>

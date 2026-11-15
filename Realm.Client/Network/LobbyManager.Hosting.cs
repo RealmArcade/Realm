@@ -300,7 +300,18 @@ public partial class LobbyManager
 	///     host may have changed any setting the lobby offers in between, and the match plays the settings the lobby holds
 	///     when it starts.
 	/// </summary>
-	public async Task<bool> PublishPreparedLobbyAsync()
+	public Task<bool> PublishPreparedLobbyAsync() => PublishPreparedLobbyAsync(keepLobbyOnFailure: false);
+
+	/// <summary>
+	///     Publishes the prepared lobby without taking it away when it cannot be listed, which is what a host already sitting
+	///     in its room needs: the lobby is open and reachable by anybody who is given its address, so a registry that cannot
+	///     confirm it costs the host the listing rather than the lobby. The host is told in the room's own chat, because the
+	///     screen that asked for the lobby has already moved on to it.
+	/// </summary>
+	/// <returns>Whether the lobby is listed on a registry node. False means it is open to players holding its address.</returns>
+	public Task<bool> PublishPreparedLobbyDirectlyOnFailureAsync() => PublishPreparedLobbyAsync(keepLobbyOnFailure: true);
+
+	private async Task<bool> PublishPreparedLobbyAsync(bool keepLobbyOnFailure)
 	{
 		ClientServerSession? prepared = _lobbySession;
 		if (prepared == null || !prepared.IsRunning || !IsHost)
@@ -313,6 +324,7 @@ public partial class LobbyManager
 		string mapDisplayName = string.IsNullOrEmpty(HostedMapDisplayName) ? ActiveMapName : HostedMapDisplayName;
 
 		IsDirectLobby = false;
+		if (keepLobbyOnFailure) NotifyHostLine(TranslationServer.Translate("Checking whether players elsewhere can reach this lobby. You can set up the match while this runs."));
 		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
 		await OpenLobbyEndpointAsync(prepared.Port);
 
@@ -323,12 +335,25 @@ public partial class LobbyManager
 		bool registered = await RegisterLobbyWithRegistryAsync(ActiveMapName, mapDisplayName, HostedMapVersion, prepared.Port);
 		if (!registered)
 		{
-			TeardownHostedLobby(prepared);
+			if (!keepLobbyOnFailure)
+			{
+				TeardownHostedLobby(prepared);
+				return false;
+			}
+
+			// The port is already open and the router's forward, if any, is already held, so the lobby is still joinable by
+			// anybody who is given its address. Losing the listing is not a reason to close it under the host's feet.
+			IsDirectLobby = true;
+			ActiveLobbyId = null;
+			NotifyHostLine($"{TranslationServer.Translate("This lobby could not be listed, so only players you send the address to can join it.")} {LastHostError}");
+			GameLog.LogError($"[LobbyManager] The lobby is not listed; players who are given {DirectConnectAddress} can still join it.");
+			PlayerListUpdated?.Invoke();
 			return false;
 		}
 
 		StartHostReachabilityKeepAlive();
 
+		NotifyHostLine($"{TranslationServer.Translate("This lobby is listed now; players browsing the lobby list can join it at")} {PublicConnectAddress ?? DirectConnectAddress}");
 		PlayerListUpdated?.Invoke();
 		return true;
 	}
