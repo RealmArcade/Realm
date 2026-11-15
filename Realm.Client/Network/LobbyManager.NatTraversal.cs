@@ -56,10 +56,17 @@ public partial class LobbyManager
 		CallDeferred(nameof(EmitNatTestCompleted));
 	}
 
+	/// <summary>
+	///     Measures the endpoint this machine's router maps a local port to. Nothing is confirmed by it: a router reports the
+	///     mapping it would give the port whether or not anything on its outside face forwards traffic, so the address is
+	///     remembered as a measurement until a registry node reaches the port through it or the router accepts a mapping.
+	/// </summary>
+	/// <param name="localPort">The local port the lobby listens on.</param>
 	private async Task ResolvePublicEndpointAsync(int localPort)
 	{
 		_hostPublicIp = null;
 		_hostPublicPort = 0;
+		_routerReachability = RouterReachability.NoRouterForward;
 
 		try
 		{
@@ -193,19 +200,26 @@ public partial class LobbyManager
 
 	/// <summary>
 	///     Asks the authority to send a datagram from the port the lobby listens on to the endpoint the registry is probing
-	///     from, which is what opens a router that drops unsolicited traffic for the probes that follow it.
+	///     from, which is what opens a router that drops unsolicited traffic for the probes that follow it. The datagram
+	///     names the check it is for, so a registry node checking two hosts behind one router can tell their punches apart.
 	/// </summary>
-	private bool PunchProbeEndpointAsync(string address, int port)
+	private bool PunchProbeEndpointAsync(string address, int port, string probeId)
 	{
 		ClientServerSession? session = _lobbySession;
 		if (session == null) return false;
 
-		Callable.From(() => session.SendLobbyCommand(new LobbyCommand
+		Callable.From(() =>
 		{
-			Kind = LobbyCommandKind.PunchAddress,
-			Address = address,
-			Port = port
-		})).CallDeferred();
+			if (!ReferenceEquals(session, _lobbySession)) return;
+
+			session.SendLobbyCommand(new LobbyCommand
+			{
+				Kind = LobbyCommandKind.PunchAddress,
+				Address = address,
+				Port = port,
+				Text = probeId
+			});
+		}).CallDeferred();
 
 		return true;
 	}

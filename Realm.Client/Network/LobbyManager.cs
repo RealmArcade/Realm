@@ -103,7 +103,8 @@ public partial class LobbyManager : BaseMapTransferNode
 	public List<string> RegistryServers => OfficialServers;
 	private int _currentServerIndex = 0;
 	public string RegistryServerUrl => OfficialServers.Count > 0 && _currentServerIndex < OfficialServers.Count && !string.IsNullOrWhiteSpace(OfficialServers[_currentServerIndex]) ? OfficialServers[_currentServerIndex] : ServersConfigHelper.GetDefaultServerUrl();
-	private const int DefaultGamePort = 8999;
+	/// <summary>The port a lobby listens on when nothing asked for another one, and the port a direct connect assumes.</summary>
+	public const int DefaultGamePort = 8999;
 	private const int StunPort = 19302;
 
 	public int ENetPort { get; private set; } = DefaultGamePort;
@@ -204,6 +205,83 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public NatType LocalNatType { get; private set; } = NatType.Open;
 	public bool IsHost { get; set; }
+
+	/// <summary>
+	///     Whether this screen's lobby is reachable only by the players it gives its address to, rather than being listed on
+	///     a registry. A direct lobby is opened and administered exactly as a listed one is; the difference is that no lobby
+	///     server knows it exists.
+	/// </summary>
+	public bool IsDirectLobby { get; private set; }
+
+	/// <summary>
+	///     The address a player on this network joins this screen's lobby with, in the `address:port` form every player
+	///     pastes into the direct connect dialog. It is the address a host sends to the people they want to play with.
+	/// </summary>
+	public string DirectConnectAddress => $"{GetLocalIPAddress()}:{(LobbyPort > 0 ? LobbyPort : ENetPort)}";
+
+	/// <summary>
+	///     The address this lobby was confirmed to be reachable at from outside this network, or nothing while nothing
+	///     confirmed it. What confirms it is something outside acting on it: a registry node reached the game port through it,
+	///     or this network's router accepted a forward and serves the same address the measurement saw. A public address this
+	///     machine merely measured for itself is a guess, because a router reports the same mapping whether or not its outside
+	///     face forwards anything, and it is offered separately as <see cref="MeasuredPublicConnectAddress" /> so a host can
+	///     read it without being told that it works.
+	/// </summary>
+	public string? PublicConnectAddress => RouterReachability == RouterReachability.Confirmed ? MeasuredPublicConnectAddress : null;
+
+	/// <summary>
+	///     Why the address outside this network is, or is not, offered to the players this lobby is shared with. The lobby room
+	///     tells its host, so a failed check names the thing to change rather than only the address to read.
+	/// </summary>
+	public RouterReachability RouterReachability => _routerReachability;
+
+	/// <summary>
+	///     The address this machine measured for its own lobby with a STUN query, or nothing while the measurement failed or
+	///     named the address this machine already holds. It is where the router maps the lobby's port when a forward exists at
+	///     all, and nothing more than that: nothing outside has reached the port through it yet.
+	/// </summary>
+	public string? MeasuredPublicConnectAddress
+	{
+		get
+		{
+			if (string.IsNullOrEmpty(_hostPublicIp)) return null;
+			if (_hostPublicIp is "127.0.0.1" or "0.0.0.0") return null;
+			if (string.Equals(_hostPublicIp, GetLocalIPAddress(), StringComparison.Ordinal)) return null;
+
+			return DirectConnectHistory.DescribeAddress(_hostPublicIp, PublicPort);
+		}
+	}
+
+	/// <summary>
+	///     The address this screen joined the lobby at, or nothing while it hosts. A player who reached a lobby this way can
+	///     pass the address on, which is what a lobby that is not listed depends on.
+	/// </summary>
+	public string? JoinedLobbyAddress => !IsHost && _connectedHostIp is { Length: > 0 } host ? DirectConnectHistory.DescribeAddress(host, BoundPort) : null;
+
+	/// <summary>
+	///     The message a host pastes into a chat to bring players into the lobby they opened, or nothing while this screen
+	///     is not hosting. It names the map being played and the address those players join at, and says where that address
+	///     goes in the game, because an address sent on its own leaves a friend guessing what to do with it. The address is
+	///     the one confirmed to be reachable from outside this network, because a friend in a chat is usually not on this
+	///     one, and it falls back to this network's own address when nothing confirmed anything, which is the only address
+	///     that is certainly right.
+	/// </summary>
+	public string DirectConnectInviteMessage
+	{
+		get
+		{
+			if (!IsHost) return string.Empty;
+
+			string mapName = !string.IsNullOrEmpty(HostedMapDisplayName) ? HostedMapDisplayName : ActiveMapName;
+			string address = PublicConnectAddress ?? DirectConnectAddress;
+
+			return string.Join(
+				"\n",
+				string.Format(TranslationServer.Translate("Join my Realm lobby: {0}"), mapName),
+				string.Format(TranslationServer.Translate("Address: {0}"), address),
+				TranslationServer.Translate("In Realm, choose PLAY, then Join Private Lobby via IP Address, and paste the address."));
+		}
+	}
 	public string? ActiveLobbyId { get; private set; }
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
@@ -323,6 +401,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private CancellationTokenSource? _wsCts;
 	private string? _hostPublicIp;
 	private int _hostPublicPort;
+	private RouterReachability _routerReachability = RouterReachability.NoRouterForward;
 	public string PublicIP => _hostPublicIp ?? "127.0.0.1";
 	public int PublicPort => _hostPublicPort > 0 ? _hostPublicPort : BoundPort;
 	private string? _hostToken;
@@ -514,4 +593,34 @@ public partial class LobbyManager : BaseMapTransferNode
 		}).CallDeferred();
 	}
 
+}
+
+/// <summary>
+///     Why the address players outside this network would join at is, or is not, offered to them. Each state names a thing
+///     the host can do something about, rather than the check that produced it, because this is what the lobby room tells
+///     the host when an address it expected is not there to send.
+/// </summary>
+public enum RouterReachability
+{
+	/// <summary>No forward exists on this network's router, so nothing outside has reached the port and the port is what is missing.</summary>
+	NoRouterForward,
+
+	/// <summary>A forward exists, but the router stated no outside address of its own, so nothing showed that the port is reachable from outside.</summary>
+	RouterAddressUnreadable,
+
+	/// <summary>
+	///     A forward exists and the router stated an outside address, but this machine measured no outside address of its
+	///     own, so there is nothing to compare the router's with. It is not a second network in front of the router as far as
+	///     anything here can tell: the missing half is the measurement, not a forward.
+	/// </summary>
+	PublicAddressUnmeasured,
+
+	/// <summary>
+	///     A forward exists, but the router's own outside address is not the one this network measured, so another network
+	///     sits in front of it and that forward reaches nobody outside. Opening the port on this router cannot help.
+	/// </summary>
+	BehindAnotherNetwork,
+
+	/// <summary>A forward serves the address this network measured, which is the address players outside join at.</summary>
+	Confirmed
 }

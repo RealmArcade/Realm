@@ -312,21 +312,9 @@ public partial class LobbyManager
 
 		string mapDisplayName = string.IsNullOrEmpty(HostedMapDisplayName) ? ActiveMapName : HostedMapDisplayName;
 
+		IsDirectLobby = false;
 		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
-
-		// Asked for on every attempt, because a dismissed prompt leaves the port closed and is almost always a misclick
-		// rather than a decision to host unreachable lobbies.
-		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(prepared.Port);
-
-		await ResolvePublicEndpointAsync(prepared.Port);
-
-		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(prepared.Port);
-		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
-		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
-		if (IsRestrictedHost)
-		{
-			GameLog.LogToConsole($"[LobbyManager] Warning: UPnP port mapping not available on {LocalNatType} NAT. External players may require Direct Connect.");
-		}
+		await OpenLobbyEndpointAsync(prepared.Port);
 
 		Diagnostics.StartHostListener(prepared.Port + 1);
 
@@ -339,8 +327,145 @@ public partial class LobbyManager
 			return false;
 		}
 
+		StartHostReachabilityKeepAlive();
+
 		PlayerListUpdated?.Invoke();
 		return true;
+	}
+
+	/// <summary>
+	///     Opens a lobby that only a player holding its address can reach, so hosting does not depend on a registry: the
+	///     lobby is prepared exactly as a listed one is, its port is opened in the local firewall and on the router, and it
+	///     is not registered anywhere. The host hands the address the lobby room shows to the players who should join.
+	/// </summary>
+	/// <param name="mapPathName">The map whose lobby is opened.</param>
+	/// <param name="mapDisplayName">The name the lobby lists the map under.</param>
+	/// <param name="explicitVersion">The map version to play, or the newest the screen holds when omitted.</param>
+	/// <returns>Whether the lobby is open, administered by this screen and waiting for players it can be told about.</returns>
+	public async Task<bool> HostDirectLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
+	{
+		return await PrepareHostedLobbyAsync(mapPathName, mapDisplayName, explicitVersion) && await PublishDirectLobbyAsync();
+	}
+
+	/// <summary>
+	///     Opens the joining half of the lobby <see cref="PrepareHostedLobbyAsync" /> prepared without a registry: the port is
+	///     opened for players on other machines and the address they can reach is measured. Nothing can refuse a direct
+	///     lobby for reachability, because no public node was asked to reach it - the host shares the address and the players
+	///     who receive it are the check. What a router accepting a mapping does decide is whether the address outside this
+	///     network is offered at all, because an address nothing confirmed is one a host would be sending at random.
+	/// </summary>
+	/// <returns>Whether the lobby now accepts players on its address.</returns>
+	public async Task<bool> PublishDirectLobbyAsync()
+	{
+		ClientServerSession? prepared = _lobbySession;
+		if (prepared == null || !prepared.IsRunning || !IsHost)
+		{
+			LastHostError = "There is no lobby waiting to be shared.";
+			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			return false;
+		}
+
+		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
+		await OpenLobbyEndpointAsync(prepared.Port);
+
+		IsDirectLobby = true;
+		ActiveLobbyId = null;
+		GameLog.LogToConsole($"[LobbyManager] This lobby is not listed anywhere; share {DirectConnectAddress} with the players who should join.");
+		if (PublicConnectAddress is { Length: > 0 } publicAddress)
+		{
+			GameLog.LogToConsole($"[LobbyManager] This lobby's router accepted a forward, so players outside this network join at {publicAddress}.");
+		}
+		else if (MeasuredPublicConnectAddress is { Length: > 0 } measuredAddress)
+		{
+			GameLog.LogToConsole($"[LobbyManager] Nothing confirmed this lobby is reachable from outside; {measuredAddress} is the address its router maps the port to, which works once UDP port {prepared.Port} is forwarded.");
+		}
+		else if (RouterReachability == RouterReachability.PublicAddressUnmeasured)
+		{
+			GameLog.LogToConsole($"[LobbyManager] This network measured no outside address of its own, so nothing confirmed this lobby is reachable from outside; the router's forward for UDP port {prepared.Port} is untested.");
+		}
+
+		PlayerListUpdated?.Invoke();
+		return true;
+	}
+
+	/// <summary>
+	///     Makes a prepared lobby's game port reachable and measures the address it is reached on. A dismissed firewall prompt
+	///     is recorded rather than treated as a failure: hosting still works on this machine, and the lobby room states what
+	///     other machines will meet.
+	/// </summary>
+	/// <param name="port">The game port the lobby listens on.</param>
+	private async Task OpenLobbyEndpointAsync(int port)
+	{
+		// Asked for on every attempt, because a dismissed prompt leaves the port closed and is almost always a misclick
+		// rather than a decision to host unreachable lobbies.
+		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(port);
+
+		await ResolvePublicEndpointAsync(port);
+
+		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(port);
+
+		// A mapping is the only confirmation a lobby that is not listed anywhere can gather on its own, but accepting one is
+		// not by itself proof: the address the mapping serves traffic at is the router's own outside face, and only that
+		// face reaching the network the measurement saw makes the measured address one somebody outside can join at. A
+		// router behind another one accepts the mapping and answers with a private address of its own, and the forward it
+		// holds then carries nothing from the carrier's network inward.
+		// The port advertised is the one the mapping states rather than the one the STUN query saw the router rewrite,
+		// because a static forward sets the external port itself.
+		string routerExternalAddress = upnpSuccess ? GameContext.Upnp.QueryExternalAddress() : string.Empty;
+		string measuredAddress = _hostPublicIp ?? string.Empty;
+
+		// Recorded before the confirmed case below returns, because a lobby that was warned about on an earlier attempt has
+		// nothing else to clear the warning with: a later attempt that does secure a forward would otherwise leave the
+		// lobby room saying the router is doing nothing beside the sentence confirming that it is.
+		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
+		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
+		if (IsRestrictedHost)
+		{
+			GameLog.LogToConsole($"[LobbyManager] Warning: UPnP port mapping not available on {LocalNatType} NAT. External players may require Direct Connect.");
+		}
+
+		if (!upnpSuccess)
+		{
+			_routerReachability = RouterReachability.NoRouterForward;
+		}
+		else if (routerExternalAddress.Length == 0)
+		{
+			_routerReachability = RouterReachability.RouterAddressUnreadable;
+		}
+		else if (measuredAddress.Length == 0)
+		{
+			// The measurement is the only thing that says which network this machine sits behind, so without one there are
+			// not two addresses to compare and the router cannot be called a second network: it may well be the only one,
+			// and sending the host to look for a forward somewhere else would be a search for a machine that is not there.
+			_routerReachability = RouterReachability.PublicAddressUnmeasured;
+		}
+		else if (string.Equals(routerExternalAddress, measuredAddress, StringComparison.Ordinal))
+		{
+			_routerReachability = RouterReachability.Confirmed;
+		}
+		else
+		{
+			_routerReachability = RouterReachability.BehindAnotherNetwork;
+		}
+
+		if (_routerReachability == RouterReachability.Confirmed)
+		{
+			_hostPublicPort = port;
+			return;
+		}
+
+		if (upnpSuccess)
+		{
+			string reason = _routerReachability switch
+			{
+				RouterReachability.RouterAddressUnreadable =>
+					$"the router accepted a forward for UDP port {port} but stated no outside address of its own",
+				RouterReachability.PublicAddressUnmeasured =>
+					$"the router accepted a forward for UDP port {port} and gives its outside address as '{routerExternalAddress}', but this network measured no outside address of its own to compare it with",
+				_ => $"the router accepted a forward for UDP port {port} but gives its outside address as '{routerExternalAddress}' while this network measured '{measuredAddress}'"
+			};
+			GameLog.LogToConsole($"[LobbyManager] {reason}; nothing outside was reached through that forward, so the measured address is offered as the guess it is.");
+		}
 	}
 
 	/// <summary>
@@ -470,6 +595,7 @@ public partial class LobbyManager
 	{
 		ReleaseSeedingSlot();
 
+		IsDirectLobby = false;
 		IsHost = true;
 		MaxPlayers = ResolvePlayablePlayerSlots(mapPathName, explicitVersion);
 		LastLobbyWarning = null;

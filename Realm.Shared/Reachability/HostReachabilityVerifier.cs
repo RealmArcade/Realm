@@ -34,6 +34,16 @@ public record HostReachabilityResult(HostReachabilityFailure Failure, string Pro
 {
 	public bool Verified => Failure == HostReachabilityFailure.None;
 
+	/// <summary>
+	///     The endpoint the rehearsal punched, which is the endpoint the host's router made a mapping toward. A router keeps
+	///     that mapping only while it sees traffic toward the endpoint it was made for, so this is what a published lobby has
+	///     to keep sending to for as long as it advertises the port the mapping exposes.
+	/// </summary>
+	public string ProbeIp { get; init; } = string.Empty;
+
+	/// <summary>The port the rehearsal punched, or zero when nothing was punched.</summary>
+	public int ProbePort { get; init; }
+
 	public static HostReachabilityResult Refused(HostReachabilityFailure failure, string detail) => new(failure, string.Empty, string.Empty, 0, detail);
 }
 
@@ -70,9 +80,10 @@ public class HostReachabilityVerifier
 	/// <summary>
 	///     Runs the rehearsal. <paramref name="punch" /> is how the host's authority is asked to send a datagram from the game
 	///     port to an address, which is what an ENet peer performs before it connects and what opens a restricted router for
-	///     the registry's probes.
+	///     the registry's probes. It is handed the name of the check it is punching for, which the datagram states so that a
+	///     host sharing a public address with another host cannot move that neighbour's check.
 	/// </summary>
-	public async Task<HostReachabilityResult> VerifyAsync(string registryBaseUrl, string advertisedIp, int advertisedPort, Func<string, int, bool> punch, CancellationToken cancellationToken = default)
+	public async Task<HostReachabilityResult> VerifyAsync(string registryBaseUrl, string advertisedIp, int advertisedPort, Func<string, int, string, bool> punch, CancellationToken cancellationToken = default)
 	{
 		ReachabilityTicket? ticket = await BeginAsync(registryBaseUrl, advertisedIp, advertisedPort, cancellationToken).ConfigureAwait(false);
 		if (ticket == null) return HostReachabilityResult.Refused(HostReachabilityFailure.RegistryUnreachable, $"the registry node '{registryBaseUrl}' did not start a reachability check");
@@ -92,9 +103,9 @@ public class HostReachabilityVerifier
 
 		while (Environment.TickCount64 < deadlineMilliseconds && !cancellationToken.IsCancellationRequested)
 		{
-			lastPunchAccepted |= punch(probeAddress, ticket.ProbePort);
+			lastPunchAccepted |= punch(probeAddress, ticket.ProbePort, ticket.ProbeId);
 			lastReport = await ReadAsync(registryBaseUrl, ticket.ProbeId, cancellationToken).ConfigureAwait(false);
-			if (lastReport is { Answered: true }) return Verified(ticket.ProbeId, lastReport, advertisedIp, advertisedPort);
+			if (lastReport is { Answered: true }) return Verified(ticket.ProbeId, lastReport, advertisedIp, advertisedPort, probeAddress, ticket.ProbePort);
 
 			await Task.Delay(PollIntervalMilliseconds, cancellationToken).ConfigureAwait(false);
 		}
@@ -103,11 +114,15 @@ public class HostReachabilityVerifier
 		return HostReachabilityResult.Refused(HostReachabilityFailure.ProbeUnanswered, detail);
 	}
 
-	private static HostReachabilityResult Verified(string probeId, ReachabilityReport report, string advertisedIp, int advertisedPort)
+	private static HostReachabilityResult Verified(string probeId, ReachabilityReport report, string advertisedIp, int advertisedPort, string probeAddress, int probePort)
 	{
 		string observedIp = string.IsNullOrEmpty(report.ObservedIp) ? advertisedIp : report.ObservedIp;
 		int observedPort = report.ObservedPort > 0 ? report.ObservedPort : advertisedPort;
-		return new HostReachabilityResult(HostReachabilityFailure.None, probeId, observedIp, observedPort, $"the registry node reached the game port and measured the public endpoint {observedIp}:{observedPort}");
+		return new HostReachabilityResult(HostReachabilityFailure.None, probeId, observedIp, observedPort, $"the registry node reached the game port and measured the public endpoint {observedIp}:{observedPort}")
+		{
+			ProbeIp = probeAddress,
+			ProbePort = probePort
+		};
 	}
 
 	private static string DescribeSilence(ReachabilityTicket ticket, string probeAddress, string advertisedIp, int advertisedPort, ReachabilityReport? lastReport, bool punchAccepted)

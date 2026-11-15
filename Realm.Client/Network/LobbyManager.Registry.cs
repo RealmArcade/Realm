@@ -118,6 +118,9 @@ public partial class LobbyManager
 
 	private void ReleaseHostedEndpoint(int port)
 	{
+		StopHostReachabilityKeepAlive();
+		_publishedReachability = null;
+
 		if (!IsHost) return;
 		if (IsSinglePlayer) return;
 
@@ -160,6 +163,7 @@ public partial class LobbyManager
 		_loadReadyReported = false;
 		_matchPresentationOpen = false;
 		_isConnectedToHost = false;
+		IsDirectLobby = false;
 		IsHost = false;
 		IsGameStarted = false;
 		_countdownActive = false;
@@ -314,6 +318,7 @@ public partial class LobbyManager
 
 			_hostPublicIp = reachability.PublicIp;
 			_hostPublicPort = reachability.PublicPort;
+			_routerReachability = RouterReachability.Confirmed;
 
 			ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
 
@@ -347,6 +352,7 @@ public partial class LobbyManager
 
 				if (response.IsSuccessStatusCode)
 				{
+					_publishedReachability = reachability;
 					await ProcessSuccessfulRegistrationAsync(response);
 					return true;
 				}

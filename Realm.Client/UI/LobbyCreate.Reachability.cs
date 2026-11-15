@@ -15,7 +15,7 @@ namespace Realm.Client.UI;
 /// </summary>
 public partial class LobbyCreate
 {
-	private void ShowReachabilityHelpModal(HostReachabilityResult failure)
+	private void ShowReachabilityHelpModal(HostReachabilityResult failure, bool offerDirectHosting)
 	{
 		GameContext.UserInterface?.PlayWarningSound();
 
@@ -67,6 +67,23 @@ public partial class LobbyCreate
 			OnCreatePressed();
 		};
 		buttons.AddChild(retryButton);
+
+		// A lobby server that cannot be reached, or a port no public node could reach, does not stop friends from playing:
+		// the same lobby can be opened without being listed and its address handed out instead.
+		if (offerDirectHosting && failure.Failure is not (HostReachabilityFailure.LoopbackUnanswered or HostReachabilityFailure.LoopbackNotOnLocalAddress))
+		{
+			var directButton = UIStyle.CreateActionButton("ReachabilityHelpDirect_Button", Tr("HOST DIRECT INSTEAD"), 14);
+			directButton.CustomMinimumSize = new Vector2(200, 40);
+			directButton.AddThemeConstantOverride("icon_max_width", 0);
+			directButton.TooltipText = TranslationServer.Translate("Open the same lobby without listing it anywhere. You then send its address to the players you want to join.");
+			directButton.Pressed += () =>
+			{
+				GameContext.UserInterface?.PlayClickSound();
+				overlay.QueueFree();
+				HostAsDirectLobby();
+			};
+			buttons.AddChild(directButton);
+		}
 
 		var closeButton = UIStyle.CreateActionButton("ReachabilityHelpClose_Button", Tr("CLOSE"), 14);
 		closeButton.CustomMinimumSize = new Vector2(170, 40);
@@ -131,6 +148,7 @@ public partial class LobbyCreate
 			{
 				Tr("The lobby server could not be reached, so this game could not confirm that other players can reach you. The lobby was not published."),
 				Tr("Check your internet connection and try again. A network that blocks the lobby server also blocks the players who would join you."),
+				Tr("You can also host the same lobby directly, without the lobby server: choose HOST DIRECT INSTEAD and send the address the lobby room shows to the players you want to play with."),
 				string.Format(Tr("Players on your own network can still join you with Direct Connect at {0}."), directConnectEndpoint)
 			};
 		}

@@ -15,6 +15,12 @@ public readonly record struct ProbeTarget(IPAddress Address, int Port);
 ///     socket first, which is exactly the path a real peer takes, so a lobby is never refused for relying on hole
 ///     punching and is refused when neither route works.
 /// </summary>
+/// <remarks>
+///     The endpoint a host is reachable at is the one its punch arrived from, not the port it listens on: a router that
+///     translates the game port hands out an external port the host cannot measure and its own STUN query cannot see, so a
+///     check that only probed the advertised port would be refused on every such router while passing on a node that sits
+///     on the host's own network and reaches it directly.
+/// </remarks>
 public class UdpReachabilityProbeService : IDisposable
 {
 	public const int DefaultProbePort = 8998;
@@ -268,7 +274,7 @@ public class UdpReachabilityProbeService : IDisposable
 			try
 			{
 				UdpReceiveResult received = await socket.ReceiveAsync(cancellationToken).ConfigureAwait(false);
-				RecordAnswer(received.Buffer, received.RemoteEndPoint);
+				RecordDatagram(received.Buffer, received.RemoteEndPoint);
 				ForgetStale();
 			}
 			catch (OperationCanceledException)
@@ -285,13 +291,43 @@ public class UdpReachabilityProbeService : IDisposable
 		}
 	}
 
-	private void RecordAnswer(ReadOnlySpan<byte> datagram, IPEndPoint remoteEndPoint)
+	private void RecordDatagram(ReadOnlySpan<byte> datagram, IPEndPoint remoteEndPoint)
 	{
-		if (!EnetConnectProbe.TryReadVerifyConnect(datagram, out EnetConnectReply reply)) return;
+		if (EnetConnectProbe.TryReadVerifyConnect(datagram, out EnetConnectReply reply))
+		{
+			RecordAnswer(reply, remoteEndPoint);
+			return;
+		}
+
+		RecordPunch(datagram, remoteEndPoint);
+	}
+
+	private void RecordAnswer(EnetConnectReply reply, IPEndPoint remoteEndPoint)
+	{
 		if (!_pendingByConnectId.TryGetValue(reply.ConnectId, out string? probeId)) return;
 		if (!_pending.TryGetValue(probeId, out PendingProbe? probe)) return;
 
 		probe.RecordAnswer(remoteEndPoint.Address, remoteEndPoint.Port);
+	}
+
+	/// <summary>
+	///     Reads a punch and makes the endpoint it came from the one the check it names probes. The punch is what opened the
+	///     path through the host's router, so the endpoint it arrived from is both where that host is reachable and the one
+	///     endpoint the router will let a probe in at, and the attempt is sent at once rather than at the next tick.
+	/// </summary>
+	/// <remarks>
+	///     The punch is matched by the check it names, never by the address it arrived from: two hosts behind one router, an
+	///     office, or two screens on one machine reach this socket from the same public address, so an address match would
+	///     hand one host's punch to another host's check and point that check at a game port that belongs to somebody else.
+	/// </remarks>
+	private void RecordPunch(ReadOnlySpan<byte> datagram, IPEndPoint remoteEndPoint)
+	{
+		if (!ReachabilityPunch.TryReadProbeId(datagram, out string probeId)) return;
+		if (!_pending.TryGetValue(probeId, out PendingProbe? probe)) return;
+		if (probe.IsExpired(_clock.ElapsedMilliseconds)) return;
+		if (!probe.LearnPunchedEndpoint(remoteEndPoint.Address, remoteEndPoint.Port)) return;
+
+		SendAttempt(probe);
 	}
 
 	private void ForgetStale() => ForgetStale(_clock.ElapsedMilliseconds);
@@ -342,6 +378,24 @@ public class UdpReachabilityProbeService : IDisposable
 		private IPAddress? _observedAddress;
 		private int _observedPort;
 		private int _attempts;
+		private PunchedTarget? _punchedTarget;
+
+		/// <summary>
+		///     The endpoint one punch arrived from, held as one value so a check can only ever be given an address and a port
+		///     that came from the same datagram. Publishing the two halves separately let a punch that lost the race write its
+		///     port over the port of the punch that won, which pointed the check at an endpoint no punch ever came from.
+		/// </summary>
+		private class PunchedTarget
+		{
+			public PunchedTarget(ProbeTarget target)
+			{
+				Target = target;
+			}
+
+			public ProbeTarget Target { get; }
+		}
+
+		private PunchedTarget? Punched => Volatile.Read(ref _punchedTarget);
 
 		public PendingProbe(string probeId, uint connectId, ProbeTarget[] targets, IPAddress requestSourceAddress, int requestSourcePort, long deadlineMilliseconds)
 		{
@@ -373,11 +427,32 @@ public class UdpReachabilityProbeService : IDisposable
 
 		public bool IsExpired(long nowMilliseconds) => nowMilliseconds >= DeadlineMilliseconds;
 
-		/// <summary>The endpoint the next attempt is sent to, so every candidate is tried while the window is open.</summary>
+		/// <summary>
+		///     The endpoint the next attempt is sent to. Once the host has punched, that is the endpoint the punch came from,
+		///     because it is the only one its router will let a probe in at; the stated endpoints are kept every fourth attempt,
+		///     so a host that is reachable there as well is still measured at the address players would use.
+		/// </summary>
 		public ProbeTarget NextTarget()
 		{
 			int attempt = Interlocked.Increment(ref _attempts) - 1;
-			return _targets[attempt % _targets.Length];
+			PunchedTarget? punched = Punched;
+			if (punched == null) return _targets[attempt % _targets.Length];
+
+			if ((attempt & 3) == 3) return _targets[attempt / 4 % _targets.Length];
+			return punched.Target;
+		}
+
+		/// <summary>
+		///     Records the endpoint a punch arrived from, which is the endpoint this host's router made it reachable at. Only
+		///     the first punch is taken: it is the one that opened the path, and taking a later one would let a stray datagram
+		///     move a check that is already running. The punch named this check before it reached here, so a punch meant for a
+		///     check running beside this one cannot arrive.
+		/// </summary>
+		/// <returns>Whether this punch was the one this check learned from.</returns>
+		public bool LearnPunchedEndpoint(IPAddress address, int port)
+		{
+			var candidate = new PunchedTarget(new ProbeTarget(address, port));
+			return Interlocked.CompareExchange(ref _punchedTarget, candidate, null) == null;
 		}
 
 		/// <summary>
@@ -391,6 +466,14 @@ public class UdpReachabilityProbeService : IDisposable
 				IPAddress? observed = _observedAddress;
 				if (observed != null)
 				{
+					PunchedTarget? punched = Punched;
+					if (punched != null && punched.Target.Address.Equals(observed) && punched.Target.Port == _observedPort) return punched.Target;
+
+					foreach (ProbeTarget target in _targets)
+					{
+						if (target.Address.Equals(observed) && target.Port == _observedPort) return target;
+					}
+
 					foreach (ProbeTarget target in _targets)
 					{
 						if (target.Address.Equals(observed)) return target;

@@ -65,14 +65,36 @@ offset_right = 250.0
 offset_bottom = 85.0
 focus_mode = 0
 
-[node name="InviteButton" type="Button" parent="."]
-custom_minimumSize = Vector2(180, 45)
+[node name="SteamInviteButton" type="Button" parent="."]
+custom_minimumSize = Vector2(190, 45)
 layout_mode = 0
 offset_left = 280.0
 offset_top = 40.0
-offset_right = 460.0
+offset_right = 470.0
 offset_bottom = 85.0
 focus_mode = 0
+
+[node name="ShareAddressButton" type="Button" parent="."]
+custom_minimumSize = Vector2(190, 45)
+layout_mode = 0
+offset_left = 280.0
+offset_top = 40.0
+offset_right = 470.0
+offset_bottom = 85.0
+focus_mode = 0
+
+[node name="PrivateLobbyHint" type="Label" parent="."]
+custom_minimumSize = Vector2(600, 0)
+layout_mode = 0
+offset_left = 280.0
+offset_top = 84.0
+offset_right = 880.0
+offset_bottom = 118.0
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.9, 0.25, 0.25, 1)
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+vertical_alignment = 1
 
 [node name="InviteFeedback" type="Label" parent="."]
 layout_mode = 0

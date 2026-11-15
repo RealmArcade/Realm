@@ -50,6 +50,27 @@ public class UpnpService
 		});
 	}
 
+	/// <summary>
+	///     The address the router gives its own outside face, which is the network the mapping a lobby created is reachable
+	///     from. A router behind another one answers with an address of its own rather than the one a STUN query measured, and
+	///     a mapping it accepts then moves nothing between the two networks.
+	/// </summary>
+	/// <returns>The address the router states, or an empty string when it maps no port or states nothing readable.</returns>
+	public string QueryExternalAddress()
+	{
+		if (_upnp == null || !IsPortMapped) return string.Empty;
+
+		try
+		{
+			return _upnp.GetGateway()?.QueryExternalAddress() ?? string.Empty;
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[UpnpService] Error asking the router for its external address: {exception.Message}");
+			return string.Empty;
+		}
+	}
+
 	public void ClosePort(int port)
 	{
 		if (_upnp != null && IsPortMapped)

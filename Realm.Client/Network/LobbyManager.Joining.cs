@@ -67,7 +67,12 @@ public partial class LobbyManager
 		string directLobbyId = $"direct-{Guid.NewGuid():N}";
 		InitializeClientState(directLobbyId);
 		_connectedHostIp = targetIp;
-		return await EstablishLobbyConnectionAsync(targetIp, targetPort, IsPrivateIp(targetIp));
+		bool joined = await EstablishLobbyConnectionAsync(targetIp, targetPort, IsPrivateIp(targetIp));
+
+		// Only an address that seated this player is worth going back to: a typo, or a lobby that never answered, is not
+		// somewhere to send them a second time.
+		if (joined) DirectConnectHistory.Remember(targetIp, targetPort);
+		return joined;
 	}
 
 	private void InitializeClientState(string lobbyId)
