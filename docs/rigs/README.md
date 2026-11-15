@@ -112,3 +112,21 @@ between that and a rig run:
 Beneath both sits the cost of running the game client itself: it is a Godot project with full assets, so its first
 headless launch on this checkout has to import them. That is minutes of one-off work on `/mnt/d`, and it is why this is
 the next step rather than part of the runs recorded above.
+
+## Driving the rig by hand
+
+`realm-rig.sh up` creates six namespaces, and their names are the ones to use rather than a guess:
+
+| Namespace | Role |
+| --- | --- |
+| `realm-host` | the hosting machine |
+| `realm-host-router` | that machine's router (NAT, optional forwarded port) |
+| `realm-player` | the joining machine |
+| `realm-player-router` | that machine's router |
+| `realm-public` | the internet between the two routers; the registry runs here |
+| `realm-admin` | the administration node |
+
+Two things to know before running a scenario by hand:
+
+- **Run the whole scenario in one shell invocation.** A WSL that restarts reclaims every namespace, so a command that brings the rig up and a later command that uses it are not the same environment. Bring the rig up, start the registry, run both clients and tear down inside one script.
+- **The host namespace needs a way out to a public STUN server**, otherwise the NAT measurement reports `Resource temporarily unavailable` and the host is classified from a partial reading. Starting the registry in `realm-public` before the client is the cheapest check that the path out works at all.
