@@ -18,7 +18,22 @@ on:
         required: false
         default: ''
 
+env:
+  SHIP_TOXIC_FILTER_MODEL: "false"
+
 jobs:
+  check-large-files:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: ${{ github.event_name == 'pull_request' && 0 || 2 }}
+
+      - name: Warn on Large Files
+        run: ./scripts/check-large-files.ps1 -Base ${{ github.event.pull_request.base.sha || 'HEAD~1' }} -Head HEAD
+
   build:
     runs-on: windows-latest
 
@@ -71,6 +86,10 @@ jobs:
               Copy-Item -Path "Realm.Client\servers.template.json" -Destination "Realm.Client\servers.json" -Force
             }
           }
+
+      - name: Fetch the Toxic Language Model
+        if: ${{ env.SHIP_TOXIC_FILTER_MODEL == 'true' && github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
+        run: ./scripts/fetch-ml-model.ps1
 
       - name: Import Godot Assets
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}

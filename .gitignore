@@ -38,3 +38,7 @@ Realm.AdminServer/appsettings.json
 Realm.MapEditorExtension/dist/
 *.jit.elf
 godot_test_output.txt
+# Fetched by scripts/fetch-ml-model.ps1 and shipped by the build that needs it.
+Realm.Client/Assets/MLModels/toxic-xlm-roberta/*.onnx
+# MSBuild binary logs written by /bl.
+*.binlog
