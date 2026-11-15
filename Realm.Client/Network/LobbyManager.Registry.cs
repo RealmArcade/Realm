@@ -367,14 +367,14 @@ public partial class LobbyManager
 
 		string step = phase switch
 		{
-			JoinPhases.Registry => Tr("the lobby could not be found through the lobby server"),
-			JoinPhases.Resolve => Tr("the lobby server did not say where the lobby is"),
-			JoinPhases.Report => Tr("the player could not report where it is, so this lobby could not send toward it"),
-			JoinPhases.Punch => Tr("the player never received the answer this lobby sent toward it"),
-			JoinPhases.Answer => Tr("this lobby's game port never answered the player"),
-			JoinPhases.Admission => Tr("this lobby refused the player"),
-			JoinPhases.Session => Tr("this lobby admitted the player but never described itself to it"),
-			_ => Tr("the handshake failed")
+			JoinPhases.Registry => Tr(JoinPhaseSentences.HostRegistry),
+			JoinPhases.Resolve => Tr(JoinPhaseSentences.HostResolve),
+			JoinPhases.Report => Tr(JoinPhaseSentences.HostReport),
+			JoinPhases.Punch => Tr(JoinPhaseSentences.HostPunch),
+			JoinPhases.Answer => Tr(JoinPhaseSentences.HostAnswer),
+			JoinPhases.Admission => Tr(JoinPhaseSentences.HostAdmission),
+			JoinPhases.Session => Tr(JoinPhaseSentences.HostSession),
+			_ => Tr(JoinPhaseSentences.HostUnnamed)
 		};
 
 		string advice = reachabilityClass == ReachabilityClasses.Unverified

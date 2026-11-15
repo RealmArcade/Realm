@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -147,14 +147,14 @@ public partial class LobbyManager
 	{
 		return phase switch
 		{
-			JoinPhases.Registry => Tr("The lobby server could not be reached, so this lobby could not be found."),
-			JoinPhases.Resolve => Tr("The lobby server answered without saying where this lobby is."),
-			JoinPhases.Report => Tr("This screen could not tell the lobby where it is, so the host could not send toward it."),
-			JoinPhases.Punch => Tr("The lobby's host never sent toward this screen, so the way back was never opened. The host may need UPnP enabled or this UDP port forwarded."),
-			JoinPhases.Answer => Tr("The lobby's host sent toward this screen but its game port never answered. The host may need this UDP port forwarded, or this network may need a VPN or an overlay network."),
-			JoinPhases.Admission => Tr("The lobby's authority refused this screen."),
-			JoinPhases.Session => Tr("The lobby admitted this screen but never described itself to it."),
-			_ => Tr("The lobby's authority did not answer in time.")
+			JoinPhases.Registry => Tr(JoinPhaseSentences.Registry),
+			JoinPhases.Resolve => Tr(JoinPhaseSentences.Resolve),
+			JoinPhases.Report => Tr(JoinPhaseSentences.Report),
+			JoinPhases.Punch => Tr(JoinPhaseSentences.Punch),
+			JoinPhases.Answer => Tr(JoinPhaseSentences.Answer),
+			JoinPhases.Admission => Tr(JoinPhaseSentences.Admission),
+			JoinPhases.Session => Tr(JoinPhaseSentences.Session),
+			_ => Tr(JoinPhaseSentences.Unnamed)
 		};
 	}
 
@@ -355,9 +355,13 @@ public partial class LobbyManager
 
 					failure = admission.Failure;
 					rejected = admission.Answered;
-					_joinPhase = rejected ? JoinPhases.Admission : JoinPhases.Answer;
+					_joinPhase = JoinPhaseMachine.PhaseOfUnadmittedAttempt(rejected);
 					MarkJoinPhase(_joinPhase, rejected ? "refused" : "silent", answerStarted);
 					DropLobbySession(session);
+
+					// A refusal is an answer: another attempt would be told the same thing again. Silence is the only outcome
+					// worth spending the rest of the budget on.
+					if (!JoinPhaseMachine.IsRetryable(JoinPhaseMachine.OutcomeOf(admission.Answered, rejected))) break;
 				}
 
 				if (nearRoute && !rejected)
@@ -375,7 +379,7 @@ public partial class LobbyManager
 		if (!string.IsNullOrEmpty(failure) && !rejected && punchCoordinated)
 		{
 			JoinPunchOutcome punchOutcome = await ReadPunchStateAsync(target.Punch.Token);
-			_joinPhase = punchOutcome == JoinPunchOutcome.Punched ? JoinPhases.Answer : JoinPhases.Punch;
+			_joinPhase = JoinPhaseMachine.PhaseOfSilenceAfterPunch(punchCoordinated, punchOutcome == JoinPunchOutcome.Punched);
 			failure = JoinFailureSentence(_joinPhase);
 		}
 
