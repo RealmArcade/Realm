@@ -104,6 +104,31 @@ public static class ReachabilityClasses
 	/// <returns>Whether a lobby measured this way may be listed.</returns>
 	public static bool IsPublishable(string? reachabilityClass) => reachabilityClass is Open or PunchOnly;
 
+	/// <summary>Whether a string is one of the three classes, which is what makes it safe to compare or to store.</summary>
+	/// <param name="reachabilityClass">The class to recognise.</param>
+	/// <returns>Whether the class is one this build knows.</returns>
+	public static bool IsKnown(string? reachabilityClass) => reachabilityClass is Open or PunchOnly or Unverified;
+
+	/// <summary>
+	///     How strong the claim a class makes is, from the strongest to the weakest. It is what decides whether a fresh
+	///     measurement is a downgrade of what a lobby is listed with, and it is deliberately separate from the order the
+	///     browser shows rows in: this one is about the claim, that one is about what a player should look at first.
+	/// </summary>
+	/// <param name="reachabilityClass">The class to rank.</param>
+	/// <returns>Zero for a lobby reachable without a punch, then one that needs a punch, then one that was not shown to be reachable at all, including a class this build does not know.</returns>
+	public static int Rank(string? reachabilityClass) => reachabilityClass switch
+	{
+		Open => 0,
+		PunchOnly => 1,
+		_ => 2
+	};
+
+	/// <summary>Whether a measured class claims less than the class a lobby is listed with, which is the only direction a re-check may move it.</summary>
+	/// <param name="measured">The class a fresh check produced.</param>
+	/// <param name="listed">The class the lobby is listed with.</param>
+	/// <returns>Whether the lobby must be downgraded to the measured class.</returns>
+	public static bool IsWeaker(string? measured, string? listed) => IsKnown(measured) && Rank(measured) > Rank(listed);
+
 	/// <summary>
 	///     What a class becomes when real players fail to get in. A lobby shown to be reachable without a punch stops claiming
 	///     that the moment players cannot reach it, and one that only punching opened stops claiming even that. Nothing is

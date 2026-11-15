@@ -33,7 +33,8 @@ public sealed record LobbyEndpointInfo(
 	string Family,
 	bool Verified,
 	string? ObservedAddress = null,
-	int ObservedPort = 0)
+	int ObservedPort = 0,
+	bool AnsweredCold = false)
 {
 	/// <summary>The family this endpoint belongs to.</summary>
 	public LobbyAddressFamily FamilyValue => LobbyAddresses.ParseFamilyName(Family);
@@ -47,6 +48,12 @@ public sealed record LobbyEndpointInfo(
 
 	/// <summary>The port a player joining over this family must dial.</summary>
 	public int DialPort => ObservedPort > 0 ? ObservedPort : Port;
+
+	/// <summary>
+	///     Whether this endpoint answered a socket the registry node had never punched, and therefore whether a player has
+	///     to punch before dialling it. An endpoint that answered cold is what makes a lobby Open rather than PunchOnly.
+	/// </summary>
+	public bool AnsweredCold { get; } = AnsweredCold;
 
 	/// <summary>Writes this endpoint in the form a player types it into the direct connect field.</summary>
 	/// <returns>The address and port, with an IPv6 address bracketed.</returns>

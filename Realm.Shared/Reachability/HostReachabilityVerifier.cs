@@ -96,6 +96,13 @@ public record HostReachabilityResult(HostReachabilityFailure Failure, string Pro
 	/// </summary>
 	public string Family { get; init; } = string.Empty;
 
+	/// <summary>
+	///     Whether the game port answered a socket this node never punched. That is the whole difference between a lobby a
+	///     stranger can dial and one only a punch opens, and it is a measurement rather than a property of the address's
+	///     family, so it is stated beside the endpoint instead of being guessed from it.
+	/// </summary>
+	public bool ColdAnswered { get; init; }
+
 	public static HostReachabilityResult Refused(HostReachabilityFailure failure, string detail) => new(failure, string.Empty, string.Empty, 0, detail);
 }
 
@@ -225,7 +232,7 @@ public class HostReachabilityVerifier
 		}
 		else
 		{
-			detail = $"the registry node reached the game port and measured the public endpoint {LobbyAddresses.Describe(observedIp, observedPort)} ({reachabilityClass}, mapping {mappingBehaviour})";
+			detail = $"the registry node reached the game port and measured the public endpoint {LobbyAddresses.Describe(observedIp, observedPort)} ({reachabilityClass}, mapping {mappingBehaviour}, cold answer {report.ColdAnswered}, second destination {report.SecondObservedPort}, lobby port {advertisedPort})";
 		}
 
 		return new HostReachabilityResult(failure, probeId, observedIp, observedPort, detail)
@@ -235,7 +242,8 @@ public class HostReachabilityVerifier
 			MappingBehaviour = mappingBehaviour,
 			ProbeIp = probeAddress,
 			ProbePort = probePort,
-			Family = LobbyAddresses.FamilyName(measuredFamily)
+			Family = LobbyAddresses.FamilyName(measuredFamily),
+			ColdAnswered = report.ColdAnswered
 		};
 	}
 

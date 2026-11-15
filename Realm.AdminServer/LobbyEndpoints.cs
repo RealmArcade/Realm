@@ -189,9 +189,11 @@ public static class LobbyEndpoints
 			LobbyEndpointInfo primary = PrimaryEndpoint(endpoints);
 			hostIp = primary.DialAddress;
 			hostPort = primary.Port;
-			// A class says whether a player needs to punch at all, so a lobby that offers one endpoint needing no punch is
-			// open however many of its other endpoints a router sits in front of.
-			reachabilityClass = endpoints.Exists(endpoint => !LobbyAddresses.NeedsHolePunch(endpoint.FamilyValue)) ? ReachabilityClasses.Open : ReachabilityClasses.PunchOnly;
+			// A class says whether a player needs to punch at all, so a lobby that offers one endpoint that answered a socket
+			// this node had never punched is open however many of its other endpoints a router sits in front of. The
+			// measurement is what says so: an IPv4 endpoint that reached the check without a punch is as open as an IPv6
+			// one, and stating PunchOnly for it would tell every player to expect a hole punch that is not needed.
+			reachabilityClass = endpoints.Exists(endpoint => endpoint.AnsweredCold) ? ReachabilityClasses.Open : ReachabilityClasses.PunchOnly;
 		}
 		else
 		{
@@ -400,6 +402,15 @@ public static class LobbyEndpoints
 			if (req.IsGameInProgress.HasValue)
 			{
 				lobby.IsGameInProgress = req.IsGameInProgress.Value;
+			}
+
+			// A host that measured its own lobby again may only withdraw the class this node measured. Accepting a better
+			// class from the host would let a screen promote a lobby the node already disproved, and accepting an unknown
+			// class would let it write anything into a field the browser sorts and filters on.
+			if (ReachabilityClasses.IsWeaker(req.ReachabilityClass, lobby.ReachabilityClass))
+			{
+				Console.WriteLine($"[Registry] Lobby {lobby.LobbyId} withdrew its reachability class from '{lobby.ReachabilityClass}' to '{req.ReachabilityClass}' on its own measurement");
+				lobby.ReachabilityClass = req.ReachabilityClass;
 			}
 
 
@@ -689,7 +700,10 @@ public static class LobbyEndpoints
 			// it would be sent to a port the host's router has no mapping for. The player's own punch is what makes the
 			// mapping for the player, at the port the transport is listening on.
 			string observedIp = string.IsNullOrEmpty(report.ObservedIp) ? endpoint.Address : report.ObservedIp;
-			verified.Add(new LobbyEndpointInfo(observedIp, endpoint.Port, LobbyAddresses.FamilyName(family), true, observedIp, endpoint.Port));
+			// An IPv6 check runs from an unpunched socket by definition, because an IPv6 endpoint is an address the host
+			// holds rather than a translation a router makes, so its answer is always a cold one.
+			bool answeredCold = family != LobbyAddressFamily.IPv4 || report.ColdAnswered;
+			verified.Add(new LobbyEndpointInfo(observedIp, endpoint.Port, LobbyAddresses.FamilyName(family), true, observedIp, endpoint.Port, answeredCold));
 		}
 
 		return verified;

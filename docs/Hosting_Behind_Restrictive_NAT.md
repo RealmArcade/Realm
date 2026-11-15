@@ -19,6 +19,13 @@ which do not, and what to do about each.
 A lobby that fails 2 or 3 is still playable: Realm says why it was not published and hands you the address to send to the
 people you want to play with. That is not a fallback that "sometimes" works — it is the honest result of the measurement.
 
+A listed lobby stays measured. Every 20 seconds Realm refreshes the router's mapping and every 45 seconds it measures the
+lobby again with the same lobby server. If the port stops answering — an UPnP lease expired, the forward was removed, the
+machine's address changed — the listing moves down to `PunchOnly` (players must punch, and the lobby says so) or to
+`Unverified` (nobody can be told where to connect, and the browser hides it unless asked). The lobby room is told at the
+same moment, and the host is told what happened. Measured on the one-machine rig: withdrawing the forward behind a listed
+lobby moved it from `Open` to `PunchOnly` 40 seconds later, while the players who had already punched kept playing.
+
 ## The three shapes a home network takes
 
 | What the lobby server measured | What Realm calls it | What it means for a player |

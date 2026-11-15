@@ -37,6 +37,13 @@ its own network" rule is exercised rather than bypassed. Nothing leaves the mach
 What it proves: a datagram from the host reaches the registry, the registry cannot reach the host unsolicited, a punch
 opens the path, and the published endpoint is the one the router exposed — under every mapping mode.
 
+`tools/rig/reachability-withdrawal.sh [--mapping reuse|translating] [--wait 75]` is the other half: a lobby is published
+through a forwarded port, the forward and the destination translation are withdrawn while the host keeps playing, and the
+check reports how long the listing took to stop saying `Open`. It exits 0 only if the registry states the weaker class
+within the wait, 5 if the lobby still claims `Open`, and 4 if the host never published. Measured: the listing moved from
+`Open` to `PunchOnly` 40 seconds after the forward was withdrawn, the lobby room was told, and a stranger's first
+datagram no longer reached the game port while the player who had already punched kept playing.
+
 What it cannot show: a real ISP's carrier-grade NAT, a real router's firmware, a real VPN exit.
 
 ## 3. Two machines
@@ -92,6 +99,9 @@ ip netns exec realm-host-router iptables -I FORWARD 1 -i wan-host -o lan-host -p
   host — which is the failure the whole ticket is about, reproduced on one machine in about six seconds.
 - The same joiner, against the same lobby, answers in **8 ms** once the host's router forwards the port. So the silence
   above is the host's router refusing unsolicited traffic, and not the rig failing to carry packets.
+- A listed lobby whose forward is withdrawn stops claiming `Open` on the registry **40 s** later and is listed as
+  `PunchOnly`, with the host and the lobby room told (`tools/rig/reachability-withdrawal.sh`). A forwarded lobby is listed
+  as `Open`: the class a listing states is derived from the cold answer the node measured, not from the address's family.
 
 That last distinction cost a rig fix: the internet namespace routes between the two routers' segments, and without
 `ip_forward` there every "blocked by NAT" result would have been "blocked by the rig" — a test that reports the right

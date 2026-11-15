@@ -33,6 +33,7 @@ public partial class LobbyManager
 			$"address measured for this machine: {MeasuredPublicConnectAddress ?? "not measured"}",
 			$"address confirmed from outside: {PublicConnectAddress ?? "not confirmed by anything outside this network"}",
 			$"reachability class: {ReachabilityClass}",
+			$"reachability re-checks: {_reachabilityReverifyCount} (last: {_lastReverifyOutcome})",
 			$"router mapping: {MappingBehaviour}",
 			$"local NAT: {LocalNatType}",
 			$"router: {RouterReachability}",

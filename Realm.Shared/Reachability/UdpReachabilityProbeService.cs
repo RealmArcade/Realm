@@ -75,7 +75,6 @@ public class UdpReachabilityProbeService : IDisposable
 	private CancellationTokenSource? _stop;
 	private UdpClient? _ipv4Socket;
 	private UdpClient? _ipv6Socket;
-	private UdpClient? _coldSocket;
 	private UdpClient? _mappingSocket;
 	private readonly List<Task> _receiveLoops = new(4);
 	private bool _disposed;
@@ -89,13 +88,6 @@ public class UdpReachabilityProbeService : IDisposable
 
 	/// <summary>The port this service probes from, which is the port a host is told to punch.</summary>
 	public int ProbePort { get; private set; }
-
-	/// <summary>
-	///     The port the cold probe is sent from, or zero when this node could not open that socket. A cold probe leaves from
-	///     a socket no host ever punches, which is the only way to tell a game port a router forwards from one only a punch
-	///     opens.
-	/// </summary>
-	public int ColdProbePort { get; private set; }
 
 	/// <summary>
 	///     The port a host punches only to measure its router's mapping, or zero when this node could not open that socket.
@@ -183,33 +175,8 @@ public class UdpReachabilityProbeService : IDisposable
 			}
 		}
 
-		TryStartColdSocket();
 		TryStartMappingSocket();
 		return true;
-	}
-
-	/// <summary>
-	///     Binds the socket a cold probe is sent from. It is a second IPv4 socket rather than the probe socket because the
-	///     probe socket is the one a host punches, and a check sent from a port the host has sent toward proves only that
-	///     the punch worked. A node that cannot open this socket still runs every check; it simply cannot state that a game
-	///     port is reachable without a punch, and says so instead of guessing. No IPv6 cold socket is opened: an IPv6 check
-	///     needs no punch at all, so every IPv6 answer is already cold.
-	/// </summary>
-	private void TryStartColdSocket()
-	{
-		if (_coldSocket != null || _disposed || _stop == null) return;
-
-		try
-		{
-			UdpClient socket = Bind(AddressFamily.InterNetwork, 0);
-			ColdProbePort = ((IPEndPoint)socket.Client.LocalEndPoint!).Port;
-			_coldSocket = socket;
-			_receiveLoops.Add(Task.Run(() => ReceiveAsync(socket, _stop.Token, ProbeSocketKind.Cold)));
-		}
-		catch (SocketException)
-		{
-			ColdProbePort = 0;
-		}
 	}
 
 	/// <summary>
@@ -234,6 +201,23 @@ public class UdpReachabilityProbeService : IDisposable
 		catch (SocketException)
 		{
 			MappingProbePort = 0;
+		}
+	}
+
+	/// <summary>
+	///     Binds a socket for one cold probe. A node that cannot open one still runs every check; it simply cannot state that
+	///     a game port is reachable without a punch, and says so instead of guessing.
+	/// </summary>
+	/// <returns>The socket, or nothing when this node could not open one.</returns>
+	private static UdpClient? TryBindColdSocket()
+	{
+		try
+		{
+			return Bind(AddressFamily.InterNetwork, 0);
+		}
+		catch (SocketException)
+		{
+			return null;
 		}
 	}
 
@@ -290,10 +274,15 @@ public class UdpReachabilityProbeService : IDisposable
 		string probeId = Guid.NewGuid().ToString("N");
 		uint connectId = (uint)Random.Shared.NextInt64(1, uint.MaxValue);
 
-		bool coldPossible = family == LobbyAddressFamily.IPv4 && _coldSocket != null;
+		// The cold probe leaves from a socket nothing has ever sent toward, and it is opened per check rather than once per
+		// node: a router keeps a translation for a flow it has already seen, so a cold socket that was used while the port
+		// was still forwarded keeps reaching the game port long after the forward is gone, and every later check would judge
+		// a closed port open. A player arriving for the first time is a new source port, and so is this.
+		UdpClient? coldSocket = family == LobbyAddressFamily.IPv4 ? TryBindColdSocket() : null;
+		bool coldPossible = coldSocket != null;
 		uint coldConnectId = coldPossible ? (uint)Random.Shared.NextInt64(1, uint.MaxValue) : 0;
 
-		var probe = new PendingProbe(probeId, connectId, coldConnectId, targets, family, requestSourceAddress, requestSourcePort, now + window);
+		var probe = new PendingProbe(probeId, connectId, coldConnectId, coldSocket, targets, family, requestSourceAddress, requestSourcePort, now + window);
 		_pending[probeId] = probe;
 		_pendingByConnectId[connectId] = probeId;
 		if (coldPossible) _pendingByColdConnectId[coldConnectId] = probeId;
@@ -466,12 +455,41 @@ public class UdpReachabilityProbeService : IDisposable
 	///     answer is the only thing that makes a lobby reachable without hole punching, so this is the check that separates a
 	///     forwarded port from one that only a punch opens.
 	/// </summary>
+	/// <remarks>
+	///     This socket belongs to this check and is closed when the check stops, which is what keeps the answer cold: a
+	///     socket reused across checks would be a source port the router has already translated, and the translation outlives
+	///     the rule that made it.
+	/// </remarks>
 	private async Task RunColdProbeAsync(PendingProbe probe)
 	{
-		while (!probe.ColdAnswered && !probe.IsExpired(_clock.ElapsedMilliseconds))
+		UdpClient? socket = probe.ColdSocket;
+		if (socket == null) return;
+
+		CancellationToken token = _stop?.Token ?? CancellationToken.None;
+		Task receiver = Task.Run(() => ReceiveAsync(socket, token, ProbeSocketKind.Cold));
+
+		try
 		{
-			SendColdAttempt(probe);
-			await Task.Delay(ColdAttemptIntervalMilliseconds).ConfigureAwait(false);
+			while (!probe.ColdAnswered && !probe.IsExpired(_clock.ElapsedMilliseconds))
+			{
+				SendColdAttempt(probe);
+				await Task.Delay(ColdAttemptIntervalMilliseconds, token).ConfigureAwait(false);
+			}
+		}
+		catch (OperationCanceledException)
+		{
+		}
+		finally
+		{
+			socket.Dispose();
+
+			try
+			{
+				await receiver.ConfigureAwait(false);
+			}
+			catch (Exception exception) when (exception is SocketException or ObjectDisposedException or OperationCanceledException)
+			{
+			}
 		}
 	}
 
@@ -496,7 +514,7 @@ public class UdpReachabilityProbeService : IDisposable
 
 	private void SendColdAttempt(PendingProbe probe)
 	{
-		UdpClient? socket = _coldSocket;
+		UdpClient? socket = probe.ColdSocket;
 		if (socket == null) return;
 
 		Span<byte> datagram = stackalloc byte[EnetConnectProbe.ConnectDatagramBytes];
@@ -638,8 +656,6 @@ public class UdpReachabilityProbeService : IDisposable
 		_ipv4Socket = null;
 		_ipv6Socket?.Dispose();
 		_ipv6Socket = null;
-		_coldSocket?.Dispose();
-		_coldSocket = null;
 		_mappingSocket?.Dispose();
 		_mappingSocket = null;
 
@@ -695,11 +711,15 @@ public class UdpReachabilityProbeService : IDisposable
 		/// <summary>Whether the host has punched this check, which is what says the punched route is the one to probe.</summary>
 		public bool HasPunched => Volatile.Read(ref _punchedTarget) != null;
 
-		public PendingProbe(string probeId, uint connectId, uint coldConnectId, ProbeTarget[] targets, LobbyAddressFamily family, IPAddress requestSourceAddress, int requestSourcePort, long deadlineMilliseconds)
+		/// <summary>The socket this check's cold probe leaves from and is answered on, closed when the check stops.</summary>
+		public UdpClient? ColdSocket { get; }
+
+		public PendingProbe(string probeId, uint connectId, uint coldConnectId, UdpClient? coldSocket, ProbeTarget[] targets, LobbyAddressFamily family, IPAddress requestSourceAddress, int requestSourcePort, long deadlineMilliseconds)
 		{
 			ProbeId = probeId;
 			ConnectId = connectId;
 			ColdConnectId = coldConnectId;
+			ColdSocket = coldSocket;
 			_targets = targets;
 			Family = family;
 			RequestSourceAddress = requestSourceAddress;

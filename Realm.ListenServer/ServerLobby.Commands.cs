@@ -111,6 +111,14 @@ public partial class ServerLobby
 				}
 				AddSystemChat(command.Text ?? string.Empty);
 				break;
+			case LobbyCommandKind.ReportReachability:
+				if (!isAdmin)
+				{
+					_log.Write($"peer {peerId} stated a reachability change without administering this lobby, so nothing was published to its chat");
+					return;
+				}
+				AddSystemChat(command.Text ?? string.Empty);
+				break;
 			case LobbyCommandKind.RequestChatHistory:
 				foreach (LobbyChatMessage line in _chatHistory)
 				{

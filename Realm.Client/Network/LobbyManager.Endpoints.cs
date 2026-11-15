@@ -133,8 +133,13 @@ public partial class LobbyManager
 	/// <param name="lobbyPort">The game port the lobby listens on.</param>
 	/// <param name="capabilities">What the node stated it can check.</param>
 	/// <param name="cancellationToken">Cancels the rehearsal.</param>
+	/// <param name="reportStage">
+	///     Whether this measurement is the one a host is waiting on. A re-check of a lobby that is already listed states no
+	///     stage, because the room has finished publishing and telling the host it is verifying again would be a step the
+	///     host cannot act on.
+	/// </param>
 	/// <returns>What the lobby can be registered with, and what could not be shown.</returns>
-	private async Task<LobbyReachabilitySet> VerifyPublishedEndpointsAsync(string registryUrl, int lobbyPort, RegistryCapabilities capabilities, CancellationToken cancellationToken)
+	private async Task<LobbyReachabilitySet> VerifyPublishedEndpointsAsync(string registryUrl, int lobbyPort, RegistryCapabilities capabilities, CancellationToken cancellationToken, bool reportStage = true)
 	{
 		var registrations = new List<LobbyEndpointRegistration>(2);
 		var verified = new List<LobbyEndpointInfo>(2);
@@ -145,13 +150,13 @@ public partial class LobbyManager
 		// list an older client reads as its primary one.
 		if (_offersIpv4)
 		{
-			await MeasureOfferedEndpointAsync(registryUrl, _hostPublicIp ?? string.Empty, lobbyPort, LobbyAddressFamily.IPv4, capabilities, registrations, verified, uncheckedFamilies, cancellationToken).ConfigureAwait(false);
+			await MeasureOfferedEndpointAsync(registryUrl, _hostPublicIp ?? string.Empty, lobbyPort, LobbyAddressFamily.IPv4, capabilities, registrations, verified, uncheckedFamilies, cancellationToken, reportStage).ConfigureAwait(false);
 			firstFailure ??= _lastMeasuredFailure;
 		}
 
 		if (_offeredIpv6Endpoint is { } ipv6)
 		{
-			await MeasureOfferedEndpointAsync(registryUrl, ipv6.Address.ToString(), lobbyPort, LobbyAddressFamily.IPv6, capabilities, registrations, verified, uncheckedFamilies, cancellationToken).ConfigureAwait(false);
+			await MeasureOfferedEndpointAsync(registryUrl, ipv6.Address.ToString(), lobbyPort, LobbyAddressFamily.IPv6, capabilities, registrations, verified, uncheckedFamilies, cancellationToken, reportStage).ConfigureAwait(false);
 			firstFailure ??= _lastMeasuredFailure;
 		}
 
@@ -170,7 +175,8 @@ public partial class LobbyManager
 		List<LobbyEndpointRegistration> registrations,
 		List<LobbyEndpointInfo> verified,
 		List<string> uncheckedFamilies,
-		CancellationToken cancellationToken)
+		CancellationToken cancellationToken,
+		bool reportStage = true)
 	{
 		_lastMeasuredFailure = null;
 		string familyName = LobbyAddresses.FamilyName(family);
@@ -196,7 +202,7 @@ public partial class LobbyManager
 			return;
 		}
 
-		ReportHostLobbyStage(HostLobbyStage.VerifyingNetwork);
+		if (reportStage) ReportHostLobbyStage(HostLobbyStage.VerifyingNetwork);
 
 		var verifier = new HostReachabilityVerifier(_httpClient, message => GameLog.LogToConsole($"[Reachability] {message}"));
 		HostReachabilityResult result = await verifier.VerifyAsync(registryUrl, advertisedAddress, lobbyPort, PunchProbeEndpointAsync, cancellationToken).ConfigureAwait(false);
@@ -213,12 +219,12 @@ public partial class LobbyManager
 
 		string observedFamily = string.IsNullOrEmpty(result.Family) ? familyName : result.Family;
 		registrations.Add(new LobbyEndpointRegistration(result.PublicIp, result.PublicPort, observedFamily, result.ProbeId));
-		verified.Add(new LobbyEndpointInfo(result.PublicIp, result.PublicPort, observedFamily, true, result.PublicIp, result.PublicPort));
+		verified.Add(new LobbyEndpointInfo(result.PublicIp, result.PublicPort, observedFamily, true, result.PublicIp, result.PublicPort, result.ColdAnswered));
 
 		// A measurement is stated with what it proved, so a lobby published as punch-only says so on the screen that published it.
 		GameLog.LogToConsole(familyLabel.Length == 0
-			? $"[Reachability] The registry reached this lobby's game port and measured {result.PublicIp}:{result.PublicPort} ({result.ReachabilityClass}, {LocalNatType} NAT, mapping {result.MappingBehaviour})."
-			: $"[Reachability] The registry reached this lobby's game port over {familyName} and measured {LobbyAddresses.Describe(result.PublicIp, result.PublicPort)} ({result.ReachabilityClass}, {LocalNatType} NAT, mapping {result.MappingBehaviour}).");
+			? $"[Reachability] The registry reached this lobby's game port and measured {result.PublicIp}:{result.PublicPort} ({result.ReachabilityClass}, {LocalNatType} NAT, mapping {result.MappingBehaviour}): {result.Detail}."
+			: $"[Reachability] The registry reached this lobby's game port over {familyName} and measured {LobbyAddresses.Describe(result.PublicIp, result.PublicPort)} ({result.ReachabilityClass}, {LocalNatType} NAT, mapping {result.MappingBehaviour}): {result.Detail}.");
 
 		if (family != LobbyAddressFamily.IPv4) return;
 

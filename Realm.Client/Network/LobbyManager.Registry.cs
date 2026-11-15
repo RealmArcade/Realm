@@ -405,7 +405,10 @@ public partial class LobbyManager
 			{
 				try
 				{
-					var heartbeat = new { LobbyId = lobbyId, SlotsUsed = PlayerList.Count, IsGameInProgress = IsGameStarted };
+					// The class travels with the heartbeat so a lobby that withdraws its own claim stops being listed as
+					// reachable without waiting for a player to fail: the node only ever takes this downward, so a screen
+					// cannot promote its own lobby back by stating a better class.
+					var heartbeat = new { LobbyId = lobbyId, SlotsUsed = PlayerList.Count, IsGameInProgress = IsGameStarted, ReachabilityClass = ReachabilityClass };
 					var jsonContent = new StringContent(JsonSerializer.Serialize(heartbeat), Encoding.UTF8, "application/json");
 					await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/heartbeat", jsonContent, token);
 				}
