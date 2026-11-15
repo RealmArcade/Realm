@@ -172,6 +172,22 @@ public class Ipv6EndpointTests
 	}
 
 	[Test]
+	public void AnIPv4OnlyLobbyIsAFamilyMismatchForAScreenWithNoIpv4()
+	{
+		var endpoints = new[]
+		{
+			new LobbyEndpointInfo("203.0.113.9", 8999, "ipv4", true, "203.0.113.9", 8999)
+		};
+
+		LobbyEndpointChoice choice = LobbyEndpointSelection.Choose(endpoints, hasIpv4: false, hasIpv6: true);
+		Assert.That(choice.Chosen, Is.False, "a screen with no IPv4 address of its own cannot reach an IPv4 endpoint");
+		Assert.That(choice.Failure, Is.EqualTo(LobbyEndpointSelectionFailure.AddressFamilyMismatch));
+		Assert.That(choice.LobbyFamilies, Is.EqualTo(new[] { LobbyAddressFamily.IPv4 }), "the refusal names the family it is missing");
+
+		Assert.That(LobbyEndpointSelection.Choose(endpoints, hasIpv4: true, hasIpv6: false).Family, Is.EqualTo(LobbyAddressFamily.IPv4));
+	}
+
+	[Test]
 	public void AnUnverifiedEndpointIsNotOffered()
 	{
 		var offered = new List<LobbyEndpointInfo>

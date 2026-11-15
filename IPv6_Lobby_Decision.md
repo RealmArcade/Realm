@@ -121,9 +121,10 @@ machine without IPv6 reads the same log it read before this existed.
 ## 6. Verification
 
 `Realm.Network.Tests` holds the contract tests the ticket asked for, plus the ones added after the first pass,
-and the rest of the suite is unchanged: **51/51 pass**. `Realm.Ecs.Tests` 14/14, `Realm.Simulation.Tests` 5/5,
-and `Realm.Distribution.Tests` 17/18 with the one `ContentAddressableStorage` merge failure that fails
-identically with these changes stashed. `dotnet build Realm.slnx` is clean.
+and the rest of the suite is unchanged: **52/52 pass**. `Realm.Ecs.Tests` 14/14, `Realm.Simulation.Tests` 5/5,
+`Realm.Distribution.Tests` 17/18 and `Realm.Client.Tests` 10/11, with one failure in each that fails
+identically on the commit before this work (`ContentAddressableStorage` merge, and `Gatherer`/`RepairTask`
+classified twice). `dotnet build Realm.slnx` is clean.
 
 ### The IPv6 rig — `Realm.Client/Testing/LobbyDirectConnectHarness`, role `ipv6`
 
@@ -156,6 +157,14 @@ endpoint lists) and drives it: the capabilities route is absent (404), this buil
 the node lists that lobby with no endpoint list and answers a join with the single address it always stated,
 and a real screen joins through it. That is the "operator runs an older node" cell of the deployment matrix,
 proven rather than reasoned about.
+
+The node it drives is not committed, because it is not this build; recreate it with:
+
+```
+git worktree add /c/temp/realm-oldnode 10d18a7a
+dotnet build /c/temp/realm-oldnode/Realm.AdminServer/Realm.AdminServer.csproj
+cd Realm.Client && godot --headless --path . res://Testing/LobbyDirectConnectHarness.tscn --     --role=oldnode --map=<map folder>     --old-registry-dll=/c/temp/realm-oldnode/Realm.AdminServer/bin/Debug/net10.0/Realm.AdminServer.dll
+```
 
 ### The IPv4 regression rig — role `driver`
 
