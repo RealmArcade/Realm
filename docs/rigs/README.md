@@ -154,3 +154,26 @@ Two conclusions worth keeping:
 The registry publishes for Linux but its `appsettings.json` is not in the published folder: copy
 `appsettings.template.json` beside `Realm.AdminServer.dll` before starting it, or it aborts on startup with
 `StorageDirectory is required`.
+
+### The authority is not what stalls
+
+Fed one control line on its own stdin, the authority does everything it is asked and does it immediately:
+
+```bash
+( printf 'REALM_CONTROL {"requestId":1,"kind":"StartMatch","mapFolderPath":"/opt/realm-rig/map","port":8999,"seed":1234,"token":"rigtoken","lobby":true,"maxPlayers":8,"mapName":"MapTemplate"}\n'; sleep 25 ) \
+    | ip netns exec realm-host <godot> --headless --path Realm.ListenServerHost -- --log /opt/realm-rig/logs/manual.log
+```
+
+It prints `REALM_RESIDENT_AUTHORITY_READY`, logs `match start: lobby listening at 164 ms`, opens the lobby on port
+8999 and answers with `REALM_CONTROL_REPLY {"accepted":true,"state":"Running",…,"port":8999,…}`. So on Linux the
+authority reads its stdin, starts a match, binds the port and replies.
+
+That moves the stall onto the client's half of the pipe: the client starts the authority (its log names the parent as
+the client's pid) and the authority says it is ready, but no command is ever written. Two things are worth checking
+next, in this order:
+
+1. The console capture beside the authority log (`ServerConsoleCapture.ResolvePath`), which holds every line the client
+   read from the authority's stdout. If `REALM_RESIDENT_AUTHORITY_READY` is in it, the client saw readiness and failed
+   to write; if it is not, the client's reader never received it across a pipe that Godot opened.
+2. Whether the process the client spawns is the process that answers. The launcher runs one Godot binary, but the mono
+   build may hand off to another process, and a client waiting on the first one's stdout waits on a pipe nobody writes.
