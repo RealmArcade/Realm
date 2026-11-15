@@ -155,7 +155,7 @@ public static class RigCommand
 		byte[] rmeshBytes = File.ReadAllBytes(inputPath);
 		var (meta, glbBytes, _) = RmeshFile.Parse(rmeshBytes);
 		string tempExtractedGlb = Path.Combine(Path.GetTempPath(), $"realm_rig_in_{Guid.NewGuid():N}.glb");
-		File.WriteAllBytes(tempExtractedGlb, glbBytes);
+		File.WriteAllBytes(tempExtractedGlb, GlbLodGenerator.ReduceToBaseTier(glbBytes));
 
 		return (tempExtractedGlb, meta);
 	}

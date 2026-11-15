@@ -13,14 +13,14 @@ namespace Realm.ListenServer;
 /// <summary>
 ///     Keeps the units a board places that nobody owns and that come back after they are killed. A placed unit whose
 ///     template states a respawn time stands as nobody's unit, so it is hostile to every seat and contestable by all of
-///     them; killing it pays the gold and experience its template states to the team that landed the killing blow, and it
-///     returns where it was placed once its recalimed time has run out.
+///     them, and it returns where it was placed once its recalimed time has run out.
 /// </summary>
 /// <remarks>
-///     The board places these units like any other, through its terrain file, and states what they are worth and how long
-///     they take to return on the template in its metadata. Nothing here is specific to one ruleset: a creep camp, a
-///     wandering monster and a guarded resource are all the same thing to this service, which is a placed unit its owner
-///     never had and a template that tells it to come back.
+///     The board places these units like any other, through its terrain file, and states how long they take to return on
+///     the template in its metadata. Nothing here is specific to one ruleset: a creep camp, a wandering monster and a
+///     guarded resource are all the same thing to this service, which is a placed unit its owner never had and a template
+///     that tells it to come back. What the kill is worth is paid by <see cref="MatchBountyService" />, which pays every
+///     unit's authored bounty without this service having to know it kept that unit.
 /// </remarks>
 public class NeutralRespawnService
 {
@@ -66,8 +66,6 @@ public class NeutralRespawnService
 				TemplateId = definition.Value,
 				Position = position,
 				RespawnSeconds = metadata.RespawnSeconds,
-				BountyGold = metadata.GoldBounty,
-				BountyExperience = metadata.XpBounty,
 				Living = unit,
 				RespawnTimer = 0f
 			});
@@ -98,13 +96,10 @@ public class NeutralRespawnService
 	}
 
 	/// <summary>
-	///     Records that a placed unit was destroyed and pays what its template says the kill is worth. A kill by nothing -
-	///     a unit that died to a timer or to a map command - earns no bounty, and a kill by another unit nobody owns earns
-	///     none either, because a bounty belongs to a seat.
+	///     Records that a placed unit was destroyed and starts the wait for it to return.
 	/// </summary>
 	/// <param name="victim">The unit that was destroyed.</param>
-	/// <param name="killer">The unit that landed the killing blow, or an invalid identifier when nothing did.</param>
-	public void OnPlacementDestroyed(UnitId victim, UnitId killer)
+	public void OnPlacementDestroyed(UnitId victim)
 	{
 		int index = IndexOfLiving(victim);
 		if (index < 0) return;
@@ -112,14 +107,6 @@ public class NeutralRespawnService
 		NeutralPlacement placement = _placements[index];
 		placement.Living = UnitId.Invalid;
 		if (placement.RespawnSeconds > 0f) placement.RespawnTimer = placement.RespawnSeconds;
-		if (!killer.IsValid) return;
-
-		Entity killerEntity = new(killer.Value);
-		if (!_map.World.IsAlive(killerEntity)) return;
-		if (!_map.World.TryGet<UnitOwnerPlayer>(killerEntity, out UnitOwnerPlayer owner)) return;
-		if (owner.Value <= 0) return;
-
-		AwardBounty(owner.Value, killer, placement);
 	}
 
 	private UnitId Spawn(NeutralPlacement placement)
@@ -137,83 +124,6 @@ public class NeutralRespawnService
 		}
 
 		return unit;
-	}
-
-	/// <summary>
-	///     Pays the bounty to the team that landed the killing blow. Gold is shared across the team, so two allied players
-	///     receive half each rather than the last hitter taking it all, and experience goes to the killing player's hero,
-	///     which is the unit whose level every soldier of that player follows.
-	/// </summary>
-	private void AwardBounty(int killerPlayerIndex, UnitId killer, in NeutralPlacement placement)
-	{
-		if (placement.BountyGold > 0f)
-		{
-			int members = 0;
-			for (int slot = 1; slot < EcsSharedMemory.MAX_PLAYERS; slot++)
-			{
-				if (IsActiveTeamMember(killerPlayerIndex, slot)) members++;
-			}
-
-			if (members > 0)
-			{
-				// Gold is whole, so an even split that does not divide evenly leaves a remainder. The killing seat takes it,
-				// because the alternative is paying out less than the monster states and losing the difference entirely.
-				int wholeBounty = (int)MathF.Round(placement.BountyGold);
-				int share = wholeBounty / members;
-				int remainder = wholeBounty - share * members;
-
-				for (int slot = 1; slot < EcsSharedMemory.MAX_PLAYERS; slot++)
-				{
-					if (!IsActiveTeamMember(killerPlayerIndex, slot)) continue;
-
-					int payable = share;
-					if (slot == killerPlayerIndex)
-					{
-						payable += remainder;
-						remainder = 0;
-					}
-
-					_api.AdjustPlayerGold(slot, payable);
-				}
-			}
-		}
-
-		if (placement.BountyExperience <= 0f) return;
-
-		UnitId recipient = FindHero(killerPlayerIndex);
-		if (!recipient.IsValid) recipient = killer;
-		if (!recipient.IsValid) return;
-
-		float current = _map.World.TryGet(new Entity(recipient.Value), out Experience experience) ? experience.Current : 0f;
-		_api.SetUnitExperience(recipient, current + placement.BountyExperience);
-	}
-
-	private bool IsActiveTeamMember(int killerPlayerIndex, int candidateSlot)
-	{
-		if (candidateSlot == killerPlayerIndex) return true;
-
-		Realm.Ecs.Common.PlayerEntity playerEntity = _map.GetPlayerEntity(candidateSlot);
-		if (!_map.World.IsAlive(playerEntity.Value)) return false;
-
-		ScriptPlayersState players = _map.World.Get<ScriptPlayersState>(_map.WorldEntity);
-		ScriptPlayer candidate = players.Get(candidateSlot);
-		if (!candidate.Active) return false;
-
-		return candidate.Team == players.Get(killerPlayerIndex).Team;
-	}
-
-	private UnitId FindHero(int playerIndex)
-	{
-		ReadOnlySpan<UnitId> owned = _api.GetUnitsOwnedByPlayer(playerIndex);
-		for (int index = 0; index < owned.Length; index++)
-		{
-			UnitId unit = owned[index];
-			if (!_map.World.IsAlive(new Entity(unit.Value))) continue;
-			if (_map.World.Has<Dead>(new Entity(unit.Value))) continue;
-			if (_map.World.Has<Hero>(new Entity(unit.Value))) return unit;
-		}
-
-		return UnitId.Invalid;
 	}
 
 	private int IndexOfLiving(UnitId victim)
@@ -242,8 +152,6 @@ public class NeutralRespawnService
 		public string TemplateId = string.Empty;
 		public Vector3 Position;
 		public float RespawnSeconds;
-		public float BountyGold;
-		public float BountyExperience;
 		public UnitId Living;
 		public float RespawnTimer;
 	}

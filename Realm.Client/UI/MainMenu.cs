@@ -50,6 +50,7 @@ public partial class MainMenu : Control
 	private Button _bugReportButton = null!;
 	private PlayerProfileDialog? _profileDialog;
 	private AnnouncementsDialog _announcementsDialog = null!;
+	private DiscordCommunityDialog? _discordDialog;
 	private OptionButton _versionDropdown = null!;
 	private Label _outdatedLabel = null!;
 
@@ -288,12 +289,34 @@ public partial class MainMenu : Control
 	private void SetupSocialButtons()
 	{
 		SetupWishlistButton();
+		SetupDiscordButton();
 		SetupSocialLinkButton(_websiteButton, "WEBSITE", "https://www.realm-game.com/", "res://Assets/UI/globe_icon.webp");
-		SetupSocialLinkButton(_discordButton, "DISCORD", "http://discord.realm-game.com", "res://Assets/UI/discord_icon.webp");
 		SetupSocialLinkButton(_youtubeButton, "YOUTUBE", "https://www.youtube.com/@Realm-Game", "res://Assets/UI/youtube_icon.webp");
 		SetupSocialLinkButton(_donateButton, "DONATE", "http://realm-game.com/#donate", "res://Assets/UI/donate_icon.webp");
 		SetupSocialLinkButton(_bugReportButton, "BUG REPORT", "https://github.com/RealmArcade/Realm/issues", "res://Assets/UI/bug_icon.webp");
 		SetupAnnouncementsButton();
+	}
+
+	private void SetupDiscordButton()
+	{
+		if (_discordButton == null) return;
+		SetupMenuButton(_discordButton, "DISCORD", () =>
+		{
+			HideSocialPopover();
+			OpenDiscordDialog();
+		}, "res://Assets/UI/options_menu_button.webp", null, "res://Assets/UI/discord_icon.webp");
+	}
+
+	private void OpenDiscordDialog()
+	{
+		if (_discordDialog != null && GodotObject.IsInstanceValid(_discordDialog))
+		{
+			_discordDialog.QueueFree();
+		}
+
+		_discordDialog = new DiscordCommunityDialog { Name = "DiscordCommunityDialog" };
+		AddChild(_discordDialog);
+		_discordDialog.Open();
 	}
 
 	private void SetupWishlistButton()

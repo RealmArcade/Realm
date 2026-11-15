@@ -68,6 +68,8 @@ public partial class Unit3D
 
 	public bool AnimationsFrozen { get; private set; }
 
+	public bool HasHeldAnimation => _heldAnimationSecondsRemaining > 0f;
+
 	public void SetAnimationsFrozen(bool frozen)
 	{
 		if (AnimationsFrozen == frozen) return;
@@ -99,13 +101,16 @@ public partial class Unit3D
 	///     neighbours, by its own share of the transition window, so a group given the same order never moves in lockstep.
 	///     The animation is never entered partway through: whatever is playing carries on for that moment and the new one
 	///     then cross-fades in from its own first frame, which is what keeps a switch from moving to attacking a blend into a
-	///     swing instead of a jump to a frame in the middle of one.
+	///     swing instead of a jump to a frame in the middle of one. A pose <see cref="PlayAnimationHeld" /> is holding is left
+	///     alone until it has been drawn, apart from walking, which always wins.
 	/// </summary>
 	public void PlayAnimation(string animName)
 	{
 		if (AnimationsFrozen) return;
 		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
 		if (string.IsNullOrEmpty(animName)) return;
+
+		if (HasHeldAnimation && !IsMovementAnimation(animName) && !string.Equals(_heldAnimationName, animName, StringComparison.Ordinal)) return;
 
 		if (string.Equals(_deferredAnimationName, animName, StringComparison.Ordinal)) return;
 		if (string.Equals(_lastRequestedAnimName, animName, StringComparison.Ordinal) && _animationPlayer.IsPlaying())
@@ -124,6 +129,47 @@ public partial class Unit3D
 
 		_deferredAnimationName = animName;
 		_deferredAnimationDelayRemaining = entryDelay;
+	}
+
+	/// <summary>
+	///     Hands the unit an animation that the state its own orders describe does not, and keeps it there for a cycle of
+	///     that animation so the pose is actually seen. <see cref="PlayAnimation" /> is the animation a unit's orders ask
+	///     for and never interrupts a held pose, so anything a cast, a death or a map stages goes through here instead of
+	///     being taken back by the next animation the unit's orders choose.
+	/// </summary>
+	/// <param name="animName">The animation to play and hold.</param>
+	/// <param name="seconds">
+	///     How long to hold it, or zero or less to hold it for the length of one cycle of the animation that was played.
+	/// </param>
+	public void PlayAnimationHeld(string animName, float seconds = 0f)
+	{
+		if (AnimationsFrozen) return;
+		if (_animationPlayer == null || !GodotObject.IsInstanceValid(_animationPlayer)) return;
+		if (string.IsNullOrEmpty(animName)) return;
+		if (IsPreview) return;
+
+		CancelDeferredAnimation();
+		ApplyAnimation(animName);
+
+		if (!_animationPlayer.IsPlaying()) return;
+
+		float holdSeconds = seconds > 0f ? seconds : (float)_animationPlayer.CurrentAnimationLength;
+		if (holdSeconds <= 0f) return;
+
+		_heldAnimationName = animName;
+		_heldAnimationSecondsRemaining = holdSeconds;
+	}
+
+	/// <summary>
+	///     Answers whether the animation a unit's own orders asked for is the one that carries its movement, which is the
+	///     one the state of the unit's orders always wins: a unit that is walking is drawn walking rather than in whatever
+	///     pose it was last handed, because a pose that outlived the order that carried the unit would slide it.
+	/// </summary>
+	/// <param name="animName">The animation the unit's orders asked for.</param>
+	/// <returns>True when that animation is the movement animation.</returns>
+	private static bool IsMovementAnimation(string animName)
+	{
+		return string.Equals(animName, "Walk", StringComparison.Ordinal);
 	}
 
 	private void ApplyAnimation(string animName)
@@ -184,10 +230,29 @@ public partial class Unit3D
 		ApplyAnimation(_deferredAnimationName);
 	}
 
+	/// <summary>
+	///     Runs down the moment a held animation still has to cover. A held pose lasts one cycle of its animation and no
+	///     longer, so the animation the unit's own orders describe takes the unit back once it is over.
+	/// </summary>
+	/// <param name="fDelta">The seconds this frame covers.</param>
+	private void AdvanceHeldAnimation(float fDelta)
+	{
+		if (_heldAnimationSecondsRemaining <= 0f) return;
+
+		_heldAnimationSecondsRemaining -= fDelta;
+		if (_heldAnimationSecondsRemaining > 0f) return;
+
+		_heldAnimationSecondsRemaining = 0f;
+		_heldAnimationName = null;
+		_lastRequestedAnimName = null;
+	}
+
 	private void CancelDeferredAnimation()
 	{
 		_deferredAnimationName = null;
 		_deferredAnimationDelayRemaining = 0f;
+		_heldAnimationName = null;
+		_heldAnimationSecondsRemaining = 0f;
 
 		// The request is dropped with the delay that carried it, so the next one is asked for again rather than being
 		// mistaken for an animation this unit is already in.

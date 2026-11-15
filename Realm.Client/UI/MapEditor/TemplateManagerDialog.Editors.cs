@@ -464,20 +464,48 @@ public partial class TemplateManagerDialog
 		RefreshObjectList();
 	}
 
+	private void OpenTemplateEditDialog(IconTemplateEditDialogBase dialog, ObjectItemInfo item)
+	{
+		dialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
+		{
+			_currentPreviewTemplateID = newId;
+			RefreshObjectList();
+		});
+		dialog.SetRandomizeAssetsAction(() =>
+		{
+			dialog.RandomizeAssets();
+			RefreshObjectList();
+		});
+	}
+
+	/// <summary>
+	///     Opens the item template editor on one item template. This is the only dialog an item is edited in, so a drop
+	///     selected on the terrain reaches its ground model, its icon and its grants through it rather than through the
+	///     visual inspector, which has no item controls.
+	/// </summary>
+	/// <param name="templateId">The item template a placed drop is spawned from.</param>
+	public void OpenItemEditor(string templateId)
+	{
+		if (string.IsNullOrWhiteSpace(templateId)) return;
+
+		_itemEditDialog.OpenForObject("items", templateId, (_, newId) =>
+		{
+			if (!Visible) return;
+
+			_currentPreviewTemplateID = newId;
+			RefreshObjectList();
+		});
+	}
+
 	private void OpenDefaultEditDialog(ObjectItemInfo item)
 	{
-		if (item.Category == "upgrades" || item.Category == "items")
+		if (item.Category == "items")
 		{
-			_itemUpgradeEditDialog.OpenForObject(item.Category, item.TemplateID, (oldId, newId) =>
-			{
-				_currentPreviewTemplateID = newId;
-				RefreshObjectList();
-			});
-			_itemUpgradeEditDialog.SetRandomizeAssetsAction(() =>
-			{
-				_itemUpgradeEditDialog.RandomizeAssets();
-				RefreshObjectList();
-			});
+			OpenTemplateEditDialog(_itemEditDialog, item);
+		}
+		else if (item.Category == "upgrades")
+		{
+			OpenTemplateEditDialog(_upgradeEditDialog, item);
 		}
 		else
 		{

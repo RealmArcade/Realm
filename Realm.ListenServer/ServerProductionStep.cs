@@ -2,6 +2,7 @@ using System.Numerics;
 using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Tags;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 
@@ -11,7 +12,7 @@ public class ServerProductionStep
 {
 	private const float FallbackProductionSeconds = 5f;
 
-	private static readonly QueryDescription TrainingQuery = new QueryDescription().WithAll<ProductionQueue, Position>();
+	private static readonly QueryDescription TrainingQuery = new QueryDescription().WithAll<ProductionQueue, Position>().WithNone<Dormant>();
 	private static readonly Vector3 DefaultSpawnOffset = new(0f, 0f, 8f);
 
 	private readonly EcsWorld _world;

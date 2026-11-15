@@ -357,16 +357,16 @@ public partial class CameraControl : Camera3D
 	}
 
 	private bool _isAltRightDragging = false;
-	private bool _hasScriptFollowConfig = false;
-	public bool HasScriptFollowConfig => _hasScriptFollowConfig;
-	private bool _hasScriptViewActive = false;
-	private float _scriptFollowDistance = 18.0f;
-	private float _scriptFollowHeightOffset = 8.0f;
-	private float _scriptFollowPitchDegrees = -30.0f;
-	private float _scriptFollowYawOffsetDegrees = 0.0f;
-	private bool _scriptFollowAlignToUnitFacing = false;
-	private float _scriptFollowSmoothing = 8.0f;
-	private int _pendingFollowUnitServerId = 0;
-	private bool _scriptFollowNeedsSnap = false;
+	private bool _attachedFollowConfigured = false;
+	public bool HasScriptFollowConfig => _attachedFollowConfigured;
+	private bool _attachedViewActive = false;
+	private float _attachedFollowDistance = 18.0f;
+	private float _attachedFollowHeightOffset = 8.0f;
+	private float _attachedFollowPitchDegrees = -30.0f;
+	private float _attachedFollowYawOffsetDegrees = 0.0f;
+	private bool _attachedFollowAlignToUnitFacing = false;
+	private float _attachedFollowSmoothing = 8.0f;
+	private int _pendingAttachedFollowUnitServerId = 0;
+	private bool _attachedFollowNeedsSnap = false;
 
 }

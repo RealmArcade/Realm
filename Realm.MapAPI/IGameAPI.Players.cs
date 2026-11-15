@@ -45,18 +45,18 @@ public partial interface IGameAPI
 	void SetPlayerBuildingLimit(int playerIndex, int limit);
 
 	/// <summary>
-	/// Reads a parameter the lobby's host configured for this match, which is how a map lets a host change a limit or a
-	/// mode it would otherwise have stated as a constant.
+	/// Reads the value the lobby's host chose for one of the match settings the map declared, which is how a map acts on
+	/// the rule it offered rather than on the constant it authored.
 	/// </summary>
 	/// <remarks>
-	/// Every option modifies a value the game already evaluates rather than selecting a different set of rules, so a map
-	/// reads it once while it starts and falls back to its own default when the host left the option alone. A host that
-	/// left an option alone answers zero, which is the value no option treats as a real setting, and a map that reads an
-	/// option it does not act on simply ignores it.
+	/// A setting the map declared through <see cref="ILobbyAPI.AddMatchSetting" /> carries the value it was declared with
+	/// until the host changes it, so a map reads it once while it starts and uses that value in place of its own default.
+	/// A setting the map never declared, or one no lobby held a value for, answers zero; a map that reads a setting it does
+	/// not act on simply ignores it.
 	/// </remarks>
-	/// <param name="matchOption">The option being read, named by <see cref="Realm.Ecs.MatchOption" />.</param>
-	/// <returns>The value the host set, or zero when the host left the option to the map.</returns>
-	int GetMatchOption(MatchOption matchOption);
+	/// <param name="settingId">The identifier the map declared the setting under.</param>
+	/// <returns>The value the setting holds, or zero when the lobby held no value for it.</returns>
+	int GetLobbySetting(int settingId);
 
 	/// <summary>
 	/// Sets the gold resource for the specified player slot.

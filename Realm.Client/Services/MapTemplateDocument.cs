@@ -1,10 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Realm.Client.Core;
 using Realm.Client.Network;
+using Realm.Shared.Metadata;
+using Realm.Shared.Services;
 
 namespace Realm.Client.Services;
 
@@ -16,11 +17,6 @@ public static class MapTemplateDocument
 {
 		public const string TemplatesRootKey = "Templates";
 		private static readonly string[] TemplateIdentityKeys = { "TemplateID", "AttachmentId", "VfxId", "Id" };
-		private static readonly JsonSerializerOptions MetadataWriteOptions = new()
-		{
-			WriteIndented = true,
-			Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-		};
 
 	private static string? ResolveSourceMetadataPath(MapAssetImportSource source)
 	{
@@ -99,8 +95,14 @@ public static class MapTemplateDocument
 	{
 		try
 		{
-			File.WriteAllText(metadataPath, destinationRoot.ToJsonString(MetadataWriteOptions));
-			EditorWorkspaceWatcher.NoteInternalFileWrite(metadataPath);
+			List<string> removedMembers = MetadataDocumentRepair.RemoveUnknownMembers(destinationRoot);
+			if (removedMembers.Count > 0)
+			{
+				GameLog.LogToConsole($"[MapTemplateImportService] Left out {removedMembers.Count} member(s) this build does not state: {string.Join(", ", removedMembers)}");
+			}
+
+			MapMetadata metadata = MapFileService.LoadMetadataFromJson(destinationRoot.ToJsonString());
+			MapFileService.SaveMetadata(metadataPath, metadata);
 		}
 		catch (Exception ex)
 		{

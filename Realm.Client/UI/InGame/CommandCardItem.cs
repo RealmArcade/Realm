@@ -1,4 +1,5 @@
 using System;
+using Godot;
 using Realm.Client.Core;
 using Realm.Client.UI;
 using Realm.Ecs;
@@ -9,6 +10,12 @@ public class CommandCardItem
 {
 	public string Id { get; set; } = null!;
 	public string IconPath { get; set; } = null!;
+
+	/// <summary>
+	///     The colour the card's icon is drawn in, or nothing for the colour the icon ships with. A card that takes
+	///     something down states it in red, so the one destructive choice in a grid is not read as another command.
+	/// </summary>
+	public Color? IconTint { get; set; }
 	public string Tooltip { get; set; } = null!;
 	public TooltipContext TooltipContext { get; set; }
 	public Action Callback { get; set; } = null!;

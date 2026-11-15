@@ -34,6 +34,12 @@ public partial class ListenServerHost : IServerTransportSink
 
 	private ServerLobbyScript? _lobbyScript;
 
+	/// <summary>
+	///     The roster a match started without a lobby ran its map's lobby rules on, which is where the map's team spawn
+	///     assignments are read from when that match is built. An open lobby keeps its own roster instead.
+	/// </summary>
+	private ServerLobbyRoster? _mapLobbyRoster;
+
 	private bool _preparedLobbyWorldAttempted;
 
 	private readonly HashSet<int> _connectedPeers = new();
@@ -189,6 +195,10 @@ public partial class ListenServerHost : IServerTransportSink
 	{
 		ServerLobbyRoster? roster = _lobby?.Roster;
 		if (roster == null) return;
+
+		// The board's coordinates are in place before the script runs, because a map seats its teams in them while its
+		// lobby starts and the roster refuses a team seated in ground the board does not author.
+		roster.BindBoardCoordinates(world.SaveData.Coordinates);
 
 		var paths = ServerMatchPaths.From(_arguments);
 		_lobbyScript = ServerLobbyScript.Start(world, paths, _log, roster, _arguments.WasmDebug, _arguments.WorkspacePath);

@@ -22,16 +22,23 @@ namespace Realm.Client.Core;
 
 public partial class GameHost
 {
+	/// <summary>
+	///     The animation a unit's own orders call for. Death is deliberately absent: a description states that a unit is
+	///     dead when it arrives, while the node is retired by the tick that draws that description, so taking the death
+	///     pose from here began the fall a presentation delay early and then played it again when the clock reached it.
+	/// </summary>
+	/// <param name="entity">The unit to name an animation for.</param>
+	/// <returns>The animation the unit's orders describe, as the name this unit's model declares it by.</returns>
 	private string DetermineUnitAnimation(Entity entity)
 	{
 		if (World.Has<AnimationsFrozen>(entity)) return "Idle";
 		if (TryGetReplayAnimation(entity, out string replayAnim)) return replayAnim;
-		if (World.Has<Dead>(entity)) return "Death";
 		if (IsEntityMoving(entity)) return "Walk";
 		if (World.Has<AttackTarget>(entity)) return "Attack";
 		if (World.Has<HealingTarget>(entity)) return "Spell_Cast";
 		if (IsEntityGathering(entity)) return "Labor";
-		if (World.Has<BuildTask>(entity)) return DetermineBuildTaskAnimation(entity, World.Get<BuildTask>(entity));
+		if (World.Has<BuildTask>(entity)) return "Labor";
+		if (World.Has<RepairTask>(entity)) return "Labor";
 
 		return "Idle";
 	}
@@ -56,22 +63,6 @@ public partial class GameHost
 	private bool IsEntityGathering(Entity entity)
 	{
 		return World.Has<Gatherer>(entity) && !World.Get<Gatherer>(entity).ReturningToBase;
-	}
-
-	private string DetermineBuildTaskAnimation(Entity entity, BuildTask task)
-	{
-		var target = task.BuildingEntity;
-		if (!World.IsAlive(target) || !World.Has<Position>(target))
-			return "Labor";
-
-		var tPos = World.Get<Position>(target).Value;
-		var wPos = World.Has<Position>(entity) ? World.Get<Position>(entity).Value : Vector3.Zero;
-		if (Vector3.Distance(wPos, tPos) < 4.0f)
-		{
-			return "Labor";
-		}
-
-		return "Walk";
 	}
 
 }

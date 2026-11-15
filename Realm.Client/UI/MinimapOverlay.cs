@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Ecs;
 
 namespace Realm.Client.UI;
 
@@ -20,6 +22,11 @@ public partial class MinimapOverlay : Control
 	private static readonly Color FriendlyColor = new Color(0.2f, 0.6f, 1.0f);
 	private static readonly Color SelfColor = new Color(1f, 1f, 1f);
 	private static readonly Color BuildingOutlineColor = new Color(0f, 0f, 0f, 0.6f);
+	private static readonly Color AttackTargetColor = new Color(1f, 0.25f, 0.15f, 0.9f);
+
+	private readonly AttackTargetResolver _attackTargetResolver = new();
+
+	public int AttackTargetRingsDrawn { get; private set; }
 
 	public override void _Draw()
 	{
@@ -31,6 +38,7 @@ public partial class MinimapOverlay : Control
 		DrawRadarBackground(size);
 		DrawShroudGrid(size);
 		DrawAllUnits(size, physicalWidth, physicalDepth);
+		DrawAttackTargets(size);
 		DrawActivePings(size);
 	}
 
@@ -97,21 +105,32 @@ public partial class MinimapOverlay : Control
 
 	private Color ResolveUnitColor(int playerIndex, bool usesPlayerColors)
 	{
+		// A colour the match's map stated for one of its players is drawn on that scheme before the scheme's own reading
+		// of the player, which is how a map that drives a player beside a real one shows both as one side.
+		if (MatchPlayerColorAssignment.TryGetMinimapColor(playerIndex, usesPlayerColors ? MinimapColorScheme.PlayerColors : MinimapColorScheme.TeamColors, out Color statedColor))
+		{
+			return statedColor;
+		}
+
 		if (usesPlayerColors)
 		{
 			return GetPlayerMinimapColor(playerIndex);
 		}
 
 		// A team is one colour on the map: the player this screen holds is white, that player's allies are blue, and
-		// anything hostile to it is red. A screen observing every player at once is nobody's enemy.
+		// anything hostile to it is red. A screen observing every player at once is nobody's enemy. A player the match's
+		// map drives for a real player is drawn by that player's own standing, so each screen reads its own army as itself
+		// and every other player's army by that player's relation to it.
 		var perspective = GameContext.PerspectiveFilter;
 		if (!perspective.IsConfigured || perspective.ObservesAllPlayers)
 		{
 			return FriendlyColor;
 		}
 
-		if (perspective.ObservedPlayerIndex == playerIndex) return SelfColor;
-		return perspective.IsHostileToObserved(playerIndex) ? EnemyColor : FriendlyColor;
+		int readsAs = MatchPlayerColorAssignment.ProxyOwnerOf(playerIndex);
+
+		if (perspective.ObservedPlayerIndex == readsAs) return SelfColor;
+		return perspective.IsHostileToObserved(readsAs) ? EnemyColor : FriendlyColor;
 	}
 
 	private void DrawUnitIcon(Unit3D unit, Vector2 drawPos, Texture2D circleTexture, bool usesPlayerColors)
@@ -145,6 +164,59 @@ public partial class MinimapOverlay : Control
 	private Color GetPlayerMinimapColor(int playerIndex)
 	{
 		return MatchPlayerColorAssignment.Get(playerIndex);
+	}
+
+	private void DrawAttackTargets(Vector2 size)
+	{
+		AttackTargetRingsDrawn = 0;
+
+		IReadOnlyList<Entity> targets = _attackTargetResolver.Collect();
+		if (targets.Count == 0) return;
+
+		var allUnits = GameContext.Host?.AllUnits;
+		if (allUnits == null) return;
+
+		var shroudService = GameContext.ShroudService;
+		float pulse = 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() * 0.006f);
+		float radius = 6f + 3f * pulse;
+
+		for (int index = 0; index < targets.Count; index++)
+		{
+			Unit3D? targetUnit = FindUnitById(allUnits, targets[index]);
+			if (targetUnit == null) continue;
+			if (shroudService != null && !shroudService.IsUnitVisibleOnMinimap(targetUnit)) continue;
+
+			Vector2 drawPos = MinimapHelper.WorldToMinimap(targetUnit.GlobalPosition, size);
+			DrawArc(drawPos, radius, 0f, Mathf.Tau, 24, AttackTargetColor, 2f, true);
+			AttackTargetRingsDrawn++;
+		}
+	}
+
+	public bool IsAttackTargetRinged(Unit3D unit)
+	{
+		if (unit == null || !GodotObject.IsInstanceValid(unit)) return false;
+
+		IReadOnlyList<Entity> targets = _attackTargetResolver.Collect();
+		for (int index = 0; index < targets.Count; index++)
+		{
+			if (targets[index].Id == unit.Entity.Id) return true;
+		}
+
+		return false;
+	}
+
+	private static Unit3D? FindUnitById(IReadOnlyList<Unit3D> units, Entity target)
+	{
+		for (int index = 0; index < units.Count; index++)
+		{
+			Unit3D unit = units[index];
+			if (unit == null || !GodotObject.IsInstanceValid(unit)) continue;
+			if (unit.Entity.Id != target.Id) continue;
+
+			return unit;
+		}
+
+		return null;
 	}
 
 	private void DrawActivePings(Vector2 size)

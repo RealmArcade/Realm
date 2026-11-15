@@ -61,14 +61,14 @@ A co-op level uses the parent ruleset. "Authored" does not mean exempt.
 - Hero selection is disabled. Every player plays the mission's predefined hero.
 - The hero is the only directly controlled unit.
 - The army is autonomous. Its targeting rules and formations are properties of the soldiers the drafted buildings bring, not orders the player issues.
-- Soldiers carry no per-unit customization, and army strength comes from the hero's level, capacity, charges, and production cadence.
-- Production queues are automatic. Charges feed them whenever the soldier type has room, and no player command starts production.
+- Soldiers carry no per-unit customization, and army strength comes from the hero's level, capacity, mana throughput, and production cadence.
+- Production is automatic. A building's two production abilities are auto-cast from its mana pool whenever the type they raise has room, and no player command starts production.
 - A building is the unlock. Construction is the only unlock step.
 - Buildings are unique, permanent, and carry both an economic and a military function.
 - Active gathering is faster than passive gathering, and the hero can perform one major non-combat activity at a time.
 - Gatherable gold and wood are finite. Depleting the nearest node can leave an expansion walking to a distant node, reducing its income to practical uselessness even if the building survives. Bounty gold is separate from node income; wood has no bounty source.
 - The nexus is the elimination condition and the revival location.
-- Hero death removes the army and clears production queues; revival replenishes charges.
+- Hero death removes the army and clears production queues; revival replenishes every building's mana.
 - Building damage is repairable by any allied hero, and the nexus is the exception.
 - Bulwark makes small forces inefficient against buildings and against a hero surrounded by its own soldiers, without making either invulnerable.
 - Relics are player-wide upgrades purchased at the Nexus for 100 gold each, never drafted.
@@ -111,8 +111,8 @@ Every co-op level follows the same macro arc so that players learn the shape of 
 | :--- | :--- | :--- | :--- |
 | 1. Establishment | Introduce the hero, the nexus, and the map | Move, look, hear the briefing | This is my home; this is what I am protecting |
 | 2. Active economy | Fund the first commitment | Gather by hand, and feel the attention cost | Gathering is fast but costs hero time |
-| 3. First draft | Make the first construction commitment | Begin a construction, watch the silhouette, pick one of the three offered buildings during construction | Buildings are the draft, and the building is the unlock |
-| 4. First production | Field an army | Let the first building's charge enter its queue | Soldiers appear from charges and production time, without a command |
+| 3. First draft | Make the first construction commitment | Begin a construction, pick one of the three offered buildings from the site's silhouette, and let the hero raise it | Buildings are the draft, and the building is the unlock |
+| 4. First production | Field an army | Let the first building auto-cast its production ability | Soldiers appear from mana, cooldown, and capacity, without a command |
 | 5. First contact | Learn the hero's combat identity | Fight a modest opposing force | The army's targeting rules and formations change the outcome, and the hero's kit has a shape |
 | 6. Escalation | Pressure the economy and the army at once | Clear creeps, deny an expansion, repair | Passive income frees attention; bounties reward activity, and an expansion is denied by destruction, not captured |
 | 7. Climax | Defend and break | Survive an assault, then destroy the opposing nexus | The nexus is the only win condition, and Bulwark makes force size matter |

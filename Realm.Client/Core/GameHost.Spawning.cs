@@ -235,7 +235,7 @@ public partial class GameHost
 		string spawnShader = GetModelSpawnShader(unit3D);
 		if (string.IsNullOrEmpty(spawnShader)) spawnShader = GetModelSpawnShader(id);
 
-		if (!string.IsNullOrEmpty(spawnShader)) SpawnDeathShaderManager.AnimateTransition(unit3D, spawnShader, true);
+		unit3D.TryPlaySpawnShader(spawnShader);
 	}
 
 }

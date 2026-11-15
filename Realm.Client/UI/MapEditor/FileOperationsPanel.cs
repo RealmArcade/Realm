@@ -67,7 +67,7 @@ public sealed class FileOperationsPanel
 		Header = hooks.Owner.GetNode<Button>(AccordionPath + "/BtnHeaderFile");
 		Content = hooks.Owner.GetNode<VBoxContainer>(ContentPath);
 		hooks.StyleAccordionHeader(Header);
-		hooks.SetupAccordion(Header, Content, TranslationServer.Translate("File"));
+		hooks.SetupAccordion(Header, Content, "File");
 	}
 
 	private void BuildLoadControls(FileOperationsHooks hooks)

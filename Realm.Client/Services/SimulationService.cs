@@ -584,7 +584,7 @@ public class SimulationService
 
 		if (worldEntity != Entity.Null && World.IsAlive(worldEntity) && World.Has<ShroudState>(worldEntity))
 		{
-			World.Mutate<ShroudState>(worldEntity, (ref ShroudState state) => { state.VisibilityMode = ShroudVisibilityMode.Revealed; });
+			World.Mutate<ShroudState>(worldEntity, (ref ShroudState state) => { state.VisibilityMode = ShroudVisibilityMode.None; });
 		}
 
 		viewAction?.Invoke();
@@ -770,6 +770,11 @@ public class SimulationService
 		_abilities.SetAbilityAutoCast(unit, abilityId, active);
 	}
 
+	public bool IsAbilityAutoCast(UnitId unit, string abilityId)
+	{
+		return _abilities.IsAbilityAutoCast(unit, abilityId);
+	}
+
 	public void EnableUnitAutoCombat(UnitId unit, bool enabled)
 	{
 		_abilities.EnableUnitAutoCombat(unit, enabled);
@@ -920,6 +925,15 @@ public class SimulationService
 
 		var moveTo = new MoveTo(targetPos);
 		World.SetOrAdd(entity, moveTo);
+		return true;
+	}
+
+	public bool ExecutePickupCommandDomain(Entity entity, Vector3 targetPos, Entity targetEntity)
+	{
+		if (targetEntity == Entity.Null || !World.IsAlive(targetEntity)) return false;
+
+		World.SetOrAdd(entity, new PickupTask(targetEntity));
+		World.SetOrAdd(entity, new MoveTo(targetPos));
 		return true;
 	}
 

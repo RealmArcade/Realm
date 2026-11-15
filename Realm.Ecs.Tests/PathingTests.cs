@@ -109,6 +109,29 @@ namespace Realm.Ecs.Tests
 			);
 		}
 
+		/// <summary>
+		///     Builds a wall of prop bodies across the road with one opening at the origin, the way a map author leaves a
+		///     gap between two tree lines. The opening's half-width decides whether the bake keeps a walkable sliver there:
+		///     a gap of roughly nine world units between prop centres bakes walkable, while the four-and-a-half-unit
+		///     opening map authors used to leave is sealed by the hardened bake.
+		/// </summary>
+		private int SpawnSqueezeWall(float gapHalfWidth)
+		{
+			int obstacles = 0;
+			SpawnObstacle(new Vector3(0f, 0f, -gapHalfWidth), 1.5f);
+			SpawnObstacle(new Vector3(0f, 0f, gapHalfWidth), 1.5f);
+			obstacles += 2;
+
+			for (float z = -64.0f; z <= 64.0f; z += 3.0f)
+			{
+				if (MathF.Abs(z) < gapHalfWidth) continue;
+				SpawnObstacle(new Vector3(0f, 0f, z), 1.5f);
+				obstacles++;
+			}
+
+			return obstacles;
+		}
+
 		private Entity SpawnUnit(Vector3 pos, float speed = 5.0f)
 		{
 			return _world.Create(
@@ -247,9 +270,12 @@ namespace Realm.Ecs.Tests
 			float quadSize = 2.0f;
 			InitializeTerrain(width, depth, quadSize);
 
-			const float slopePerCell = 1.5f;
-			const float coneRadiusCells = 6.0f;
-			const float peakHeight = 6.0f;
+			// The bake refuses terrain steeper than AgentMaxSlope (55 degrees), which is a gradient of 1.43 per world
+			// unit; three units of height per two-unit cell is 56.3 degrees, so this cone is terrain a ground unit has to
+			// walk around rather than over.
+			const float slopePerCell = 3.0f;
+			const float coneRadiusCells = 3.0f;
+			const float peakHeight = 9.0f;
 			const int centerCell = 32;
 
 			var heights = new float[width, depth];
@@ -298,8 +324,8 @@ namespace Realm.Ecs.Tests
 
 			Assert.That(_world.Has<MoveTo>(unit), Is.False,
 				$"Unit should round the steep slope and arrive; max stuck run = {maxStuckRun} ticks, final = {_world.Get<Position>(unit).Value}.");
-			Assert.That(maxY, Is.LessThan(peakHeight - 2.0f),
-				$"Ground unit must not climb the >30deg slope (max Y reached {maxY:F2}).");
+			Assert.That(maxY, Is.LessThan(1.5f),
+				$"Ground unit must not climb the >55deg slope (max Y reached {maxY:F2}).");
 		}
 
 		[Test]
@@ -394,7 +420,7 @@ namespace Realm.Ecs.Tests
 		{
 			InitializeTerrain();
 
-			for (float z = -6.0f; z <= 6.0f; z += 2.0f)
+			for (float z = -4.0f; z <= 4.0f; z += 2.0f)
 			{
 				_world.Create(
 					new Position(new Vector3(0f, 0f, z)),
@@ -438,17 +464,9 @@ namespace Realm.Ecs.Tests
 		{
 			InitializeTerrain(128, 128, 0.5f);
 
-			int obstacles = 0;
-			SpawnObstacle(new Vector3(0f, 0f, -2.3f), 1.5f);
-			SpawnObstacle(new Vector3(0f, 0f, 2.3f), 1.5f);
-			obstacles += 2;
-			for (float z = -64.0f; z <= 64.0f; z += 3.0f)
-			{
-				if (z > -3.5f && z < 3.5f) continue;
-				SpawnObstacle(new Vector3(0f, 0f, z), 1.5f);
-				obstacles++;
-			}
-
+			// 4.5 is the narrowest opening the hardened bake still leaves walkable: each prop is padded by the agent
+			// radius and the mesh erodes by it again, so the sliver at the origin is only about 0.7 wide.
+			int obstacles = SpawnSqueezeWall(4.5f);
 			BakeAndAssert(obstacles);
 
 			var start = new Vector3(-20f, 0f, 0f);
@@ -457,16 +475,21 @@ namespace Realm.Ecs.Tests
 
 			_world.Add(unit, new MoveTo(destination));
 
+			var path = new List<Vector3> { start };
 			int ticks = 0;
 			while (_world.Has<MoveTo>(unit) && ticks < 1000)
 			{
 				_movementService.StepMovement(0.0333f);
+				path.Add(_world.Get<Position>(unit).Value);
 				ticks++;
 			}
 
 			Assert.That(_world.Has<MoveTo>(unit), Is.False);
 			var finalPos = _world.Get<Position>(unit).Value;
 			Assert.That(Vector3.Distance(finalPos, destination), Is.LessThan(1.5f));
+
+			bool crossedTheOpening = path.Exists(point => point.X > -1.5f && point.X < 1.5f && MathF.Abs(point.Z) < 4.5f);
+			Assert.That(crossedTheOpening, Is.True, "The unit has to leave the wall through the narrow opening, not around its end or through it.");
 		}
 
 		[Test]
@@ -474,17 +497,7 @@ namespace Realm.Ecs.Tests
 		{
 			InitializeTerrain(128, 128, 0.5f);
 
-			int obstacles = 0;
-			SpawnObstacle(new Vector3(0f, 0f, -2.3f), 1.5f);
-			SpawnObstacle(new Vector3(0f, 0f, 2.3f), 1.5f);
-			obstacles += 2;
-			for (float z = -64.0f; z <= 64.0f; z += 3.0f)
-			{
-				if (z > -3.5f && z < 3.5f) continue;
-				SpawnObstacle(new Vector3(0f, 0f, z), 1.5f);
-				obstacles++;
-			}
-
+			int obstacles = SpawnSqueezeWall(4.5f);
 			BakeAndAssert(obstacles);
 
 			var start = new Vector3(-20f, 0f, 0f);
@@ -509,6 +522,35 @@ namespace Realm.Ecs.Tests
 			Assert.That(_world.Has<MoveTo>(unit), Is.False, $"Unit failed to squeeze through the gap within {ticks} ticks.");
 			var finalPos = _world.Get<Position>(unit).Value;
 			Assert.That(Vector3.Distance(finalPos, destination), Is.LessThan(1.5f));
+		}
+
+		[Test]
+		public void TestPathingRefusesAGapTheBakeSeals()
+		{
+			InitializeTerrain(128, 128, 0.5f);
+
+			// A 4.6-unit opening between prop centres is what the hardened bake seals: it pads each prop by the agent
+			// radius before the mesh erodes by it again, so the wall has no walkable crossways and a unit has to be
+			// refused rather than squeeze through it.
+			int obstacles = SpawnSqueezeWall(2.3f);
+			BakeAndAssert(obstacles);
+
+			var start = new Vector3(-20f, 0f, 0f);
+			var destination = new Vector3(20f, 0f, 0f);
+			var unit = SpawnUnit(start);
+
+			_world.Add(unit, new MoveTo(destination));
+
+			int ticks = 0;
+			while (_world.Has<MoveTo>(unit) && ticks < 600)
+			{
+				_movementService.StepMovement(0.0333f);
+				ticks++;
+			}
+
+			var finalPos = _world.Get<Position>(unit).Value;
+			Assert.That(finalPos.X, Is.LessThan(0f), $"The unit crossed a wall the bake sealed (final {finalPos}).");
+			Assert.That(Vector3.Distance(finalPos, destination), Is.GreaterThan(10f), "A sealed wall cannot let the unit reach its destination.");
 		}
 
 		[Test]

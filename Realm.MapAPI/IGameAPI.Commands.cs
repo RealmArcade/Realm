@@ -177,6 +177,18 @@ public partial interface IGameAPI
 	void IssueGatherOrder(UnitId unit, ResourceNodeId resourceNode);
 
 	/// <summary>
+	/// Issues a repair order, sending a unit that can mend buildings to put a standing building back together.
+	/// </summary>
+	/// <remarks>
+	/// The unit walks to the building and mends it at its own repair rate while it stands there; walking away leaves the
+	/// building exactly as far along as the unit left it. Any allied unit that carries a repair rate may mend any allied
+	/// repairable building, and the building keeps its charges and its production queue while it waits.
+	/// </remarks>
+	/// <param name="unit">The unit doing the mending.</param>
+	/// <param name="building">The allied building to mend.</param>
+	void IssueRepairOrder(UnitId unit, UnitId building);
+
+	/// <summary>
 	/// Orders the unit to stop its current action immediately.
 	/// </summary>
 	/// <param name="unit">The unit identifier.</param>

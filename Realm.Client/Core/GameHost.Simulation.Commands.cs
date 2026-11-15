@@ -32,6 +32,7 @@ public partial class GameHost
 			"follow" => ExecuteFollowCommand(entity, targetEntity),
 			"patrol" => ExecutePatrolCommand(entity, targetPos),
 			"gather" => ExecuteGatherCommand(entity, targetPos, targetEntity),
+			"pickup" => ExecutePickupCommand(entity, targetPos, targetEntity),
 			_ => ExecuteFallbackCommand(entity, commandType, targetPos, targetEntity)
 		};
 	}
@@ -64,6 +65,11 @@ public partial class GameHost
 	private bool ExecuteGatherCommand(Entity entity, Vector3 targetPos, Entity targetEntity)
 	{
 		return GameContext.SimulationService.ExecuteGatherCommandDomain(entity, targetPos, targetEntity);
+	}
+
+	private bool ExecutePickupCommand(Entity entity, Vector3 targetPos, Entity targetEntity)
+	{
+		return GameContext.SimulationService.ExecutePickupCommandDomain(entity, targetPos, targetEntity);
 	}
 
 	private bool ExecuteFallbackCommand(Entity entity, string? commandType, Vector3 targetPos, Entity targetEntity)

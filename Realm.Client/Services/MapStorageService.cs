@@ -42,22 +42,11 @@ public class MapStorageService
 		return $"{cleanMapName}_{cleanMapVersion}_{shortHash}.rmap";
 	}
 
-	public (bool Success, List<string> MissingAssets, List<(string RelativePath, long SizeBytes, double SizeMB)> OversizedAssets) ValidateWorkspaceForExportDomain(string wsPath)
+	public (bool Success, List<string> MissingAssets) ValidateWorkspaceAssetsForExportDomain(string wsPath)
 	{
 		MapAssetHelper.PruneNonExistentAssetsFromManifest(wsPath);
 		var (assetsValid, missingAssets) = MapAssetHelper.ValidateWorkspaceAssets(wsPath);
-		if (!assetsValid)
-		{
-			return (false, missingAssets, new List<(string RelativePath, long SizeBytes, double SizeMB)>());
-		}
-
-		var (sizesValid, oversizedAssets) = MapAssetHelper.ValidateWorkspaceAssetSizes(wsPath);
-		if (!sizesValid)
-		{
-			return (false, new List<string>(), oversizedAssets);
-		}
-
-		return (true, new List<string>(), new List<(string RelativePath, long SizeBytes, double SizeMB)>());
+		return (assetsValid, missingAssets);
 	}
 
 	public string ResolveExportDestinationPath(string destinationPath, string mapTitle, string mapVersion, string manifestBlake3)
@@ -164,9 +153,14 @@ public class MapStorageService
 			return false;
 		}
 
+		if (!DirectoryDeletion.TryDelete(targetDir, out string deletionError))
+		{
+			MapAssetManager.LogErr($"[MapStorageService] Error deleting map version '{mapTitle}' v{mapVersion}: {deletionError}");
+			return false;
+		}
+
 		try
 		{
-			Directory.Delete(targetDir, true);
 			CleanupEmptyParentDirectories(targetDir);
 
 			if (!string.IsNullOrEmpty(manifestHash))
@@ -559,6 +553,7 @@ public class MapStorageService
 			string csprojName = Path.GetFileName(csproj);
 			string configuration = isDebug ? MapWorkspaceService.DebugBuildFlavor : MapWorkspaceService.ReleaseBuildFlavor;
 			string scriptOutputDirectory = MapWorkspaceService.GetScriptOutputDirectory(workspace);
+			string stagingDirectory = MapWorkspaceService.GetScriptStagingDirectory(workspace, isDebug);
 			string dotnetExecutablePath = DotnetSdkResolver.ResolveSdkExecutablePath();
 			if (string.IsNullOrEmpty(dotnetExecutablePath))
 			{
@@ -566,11 +561,11 @@ public class MapStorageService
 				return (false, -1, true);
 			}
 
-			ClearScriptOutput(workspace, scriptOutputDirectory);
+			ClearStagingOutput(stagingDirectory);
 
 			var compileProcess = new Process();
 			compileProcess.StartInfo.FileName = dotnetExecutablePath;
-			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c {configuration} -r wasi-wasm -o \"{scriptOutputDirectory}\" -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"";
+			compileProcess.StartInfo.Arguments = $"publish \"{csprojName}\" -c {configuration} -r wasi-wasm -o \"{stagingDirectory}\" -p:WASI_SDK_PATH=\"{resolvedWasiSdk}\"{ResolveBuildPropertyOverrides(isDebug)}";
 			compileProcess.StartInfo.EnvironmentVariables["WASI_SDK_PATH"] = resolvedWasiSdk;
 			compileProcess.StartInfo.WorkingDirectory = workspace;
 			compileProcess.StartInfo.CreateNoWindow = true;
@@ -616,45 +611,92 @@ public class MapStorageService
 			compileProcess.WaitForExit();
 
 			bool succeeded = compileProcess.ExitCode == 0 && !streamHadErrors;
-			if (succeeded) RecordScriptOutput(workspace, scriptOutputDirectory, isDebug);
+			if (succeeded) succeeded = PublishCompiledScript(scriptOutputDirectory, stagingDirectory, isDebug, onError);
 
 			return (succeeded, compileProcess.ExitCode, streamHadErrors);
 		});
 	}
 
-	private static void ClearScriptOutput(string workspace, string scriptOutputDirectory)
+	private const string DebugBuildPropertyOverrides = " -p:Optimize=false -p:DebugSymbols=true -p:DebugType=embedded -p:StripSymbols=false -p:IlcGenerateCompleteTypeMetadata=true";
+
+	private const string ReleaseBuildPropertyOverrides = " -p:Optimize=true -p:DebugSymbols=false -p:DebugType=none -p:StripSymbols=true";
+
+	private static string ResolveBuildPropertyOverrides(bool isDebug) => isDebug ? DebugBuildPropertyOverrides : ReleaseBuildPropertyOverrides;
+
+	private static void ClearStagingOutput(string stagingDirectory)
 	{
 		try
 		{
-			if (Directory.Exists(scriptOutputDirectory)) Directory.Delete(scriptOutputDirectory, true);
-			string legacyBinRoot = Path.Combine(workspace, "bin");
-			if (!Directory.Exists(legacyBinRoot)) return;
-
-			foreach (string strayScript in Directory.GetFiles(legacyBinRoot, "*.wasm", SearchOption.TopDirectoryOnly))
-			{
-				File.Delete(strayScript);
-			}
+			if (Directory.Exists(stagingDirectory)) Directory.Delete(stagingDirectory, true);
 		}
 		catch (Exception exception)
 		{
-			GameLog.LogError($"[MapStorageService] Could not clear the previous script output: {exception.Message}");
+			GameLog.LogError($"[MapStorageService] Could not clear the previous build folder '{stagingDirectory}': {exception.Message}");
 		}
 	}
 
-	private static void RecordScriptOutput(string workspace, string scriptOutputDirectory, bool isDebug)
+	/// <summary>
+	///     Moves the script a build produced out of its staging folder and into the one the map runs its scripts from,
+	///     under the name that states its flavor. The other flavor's artifact is left exactly as it was, so a playtest and a
+	///     release build of the same workspace both stay available.
+	/// </summary>
+	/// <param name="scriptOutputDirectory">The folder the map's scripts are published into.</param>
+	/// <param name="stagingDirectory">The folder this build wrote into.</param>
+	/// <param name="isDebug">Whether this build carries debug information.</param>
+	/// <param name="onError">Reports why the artifact could not be published.</param>
+	/// <returns>Whether the artifact was published.</returns>
+	private static bool PublishCompiledScript(string scriptOutputDirectory, string stagingDirectory, bool isDebug, Action<string>? onError)
+	{
+		string? builtScript = null;
+		if (Directory.Exists(stagingDirectory))
+		{
+			foreach (string candidate in Directory.GetFiles(stagingDirectory, "*.wasm", SearchOption.TopDirectoryOnly))
+			{
+				builtScript = candidate;
+				break;
+			}
+		}
+
+		if (builtScript == null)
+		{
+			onError?.Invoke("[COMPILER ERROR] The build reported success but wrote no compiled script.");
+			return false;
+		}
+
+		try
+		{
+			Directory.CreateDirectory(scriptOutputDirectory);
+			string publishedName = MapFileService.ScriptFileNameForFlavor(Path.GetFileName(builtScript), isDebug);
+			File.Move(builtScript, Path.Combine(scriptOutputDirectory, publishedName), true);
+			RemoveStaleLibraryCopies(scriptOutputDirectory);
+			return true;
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			onError?.Invoke("[COMPILER ERROR] The compiled script could not be put in place: " + exception.Message);
+			return false;
+		}
+		finally
+		{
+			ClearStagingOutput(stagingDirectory);
+		}
+	}
+
+	private static void RemoveStaleLibraryCopies(string scriptOutputDirectory)
 	{
 		try
 		{
-			MapWorkspaceService.WriteBuildFlavorDomain(workspace, isDebug);
-
 			foreach (string copiedLibraryFile in Directory.GetFiles(scriptOutputDirectory, "Realm.*", SearchOption.TopDirectoryOnly))
 			{
 				File.Delete(copiedLibraryFile);
 			}
+
+			string retiredFlavorMarker = Path.Combine(scriptOutputDirectory, MapFileService.RetiredBuildFlavorFileName);
+			if (File.Exists(retiredFlavorMarker)) File.Delete(retiredFlavorMarker);
 		}
 		catch (Exception exception)
 		{
-			GameLog.LogError($"[MapStorageService] Could not record the script output of '{workspace}': {exception.Message}");
+			GameLog.LogError($"[MapStorageService] Could not clean '{scriptOutputDirectory}': {exception.Message}");
 		}
 	}
 
@@ -664,36 +706,28 @@ public class MapStorageService
 		if (!File.Exists(metadataJsonPath)) return false;
 
 		try
-		{
-			if (JsonNode.Parse(File.ReadAllText(metadataJsonPath)) is not JsonObject mapDoc) return false;
+			{
+				MapMetadata metadata = GameContext.MetadataService.LoadMetadata(metadataJsonPath);
 
-			var contributorsList = ExtractExistingContributors(mapDoc);
-			if (!string.IsNullOrWhiteSpace(authorName)) contributorsList.Add(authorName);
+				var contributorsList = ExtractExistingContributors(metadata);
+				if (!string.IsNullOrWhiteSpace(authorName)) contributorsList.Add(authorName);
 
-			var authorCounts = await CollectWorkspaceAssetAuthorsAsync(workspace, mapTitle, mapVersion, authorName, seedServerUrl, contributorsList);
+				var authorCounts = await CollectWorkspaceAssetAuthorsAsync(workspace, mapTitle, mapVersion, authorName, seedServerUrl, contributorsList);
 
-			UpdateMetadataContributorsAndAttributions(mapDoc, contributorsList, authorCounts, publicKeyBase64);
+				ApplyContributorsAndAttributions(metadata, contributorsList, authorCounts, publicKeyBase64);
 
-			string lineEnding = MapJsonFormatter.DetectLineEnding(metadataJsonPath);
-			byte[] unsignedBytes = Encoding.UTF8.GetBytes(ApplyLineEnding(MapJsonFormatter.FormatNode(mapDoc), lineEnding));
-			string mapBlake3 = RealmMetadataHelper.ComputeBlake3(unsignedBytes, ".json");
-			byte[] signatureBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, Encoding.UTF8.GetBytes($"{mapBlake3}.json"));
+				byte[] unsignedBytes = Encoding.UTF8.GetBytes(MapFileService.SaveUnsignedMetadataToJson(metadata));
+				string mapBlake3 = RealmMetadataHelper.ComputeBlake3(unsignedBytes, ".json");
+				byte[] signatureBytes = SignatureAlgorithm.Ed25519.Sign(authorshipKey, Encoding.UTF8.GetBytes($"{mapBlake3}.json"));
 
-			mapDoc["signature"] = Convert.ToBase64String(signatureBytes);
-			AtomicFileWriter.WriteAllBytes(metadataJsonPath, Encoding.UTF8.GetBytes(ApplyLineEnding(MapJsonFormatter.FormatNode(mapDoc), lineEnding)));
-			MapFileService.NotifyFileWritten(metadataJsonPath);
-			return true;
-		}
+				MapFileService.SaveSignedMetadata(metadataJsonPath, metadata, Convert.ToBase64String(signatureBytes));
+				return true;
+			}
 		catch (Exception exception)
 		{
 			GameLog.LogError($"[MapStorageService] Could not sign '{metadataJsonPath}': {exception.Message}");
 			return false;
 		}
-	}
-
-	private static string ApplyLineEnding(string text, string lineEnding)
-	{
-		return lineEnding == "\r\n" ? text.Replace("\n", "\r\n") : text;
 	}
 
 	private async Task<Dictionary<string, int>> CollectWorkspaceAssetAuthorsAsync(string workspace, string mapTitle, string mapVersion, string authorName, string seedServerUrl, HashSet<string> contributorsList)
@@ -716,15 +750,14 @@ public class MapStorageService
 		return await CollectAssetAuthorsAsync(referencedHashes, seedServerUrl, httpClient, contributorsList);
 	}
 
-	public HashSet<string> ExtractExistingContributors(JsonObject mapDoc)
+	public HashSet<string> ExtractExistingContributors(MapMetadata metadata)
 	{
 		var contributorsList = new HashSet<string>();
-		if (mapDoc.TryGetPropertyValue("Contributors", out var contNode) && contNode is JsonArray arr)
+		if (metadata?.Contributors == null) return contributorsList;
+
+		foreach (string contributor in metadata.Contributors)
 		{
-			foreach (var node in arr)
-			{
-				if (node != null) contributorsList.Add(node.GetValue<string>());
-			}
+			if (!string.IsNullOrWhiteSpace(contributor)) contributorsList.Add(contributor);
 		}
 
 		return contributorsList;
@@ -763,21 +796,18 @@ public class MapStorageService
 		}
 	}
 
-	public void UpdateMetadataContributorsAndAttributions(JsonObject mapDoc, HashSet<string> contributorsList, Dictionary<string, int> authorCounts, string pubKeyStr)
+	public void ApplyContributorsAndAttributions(MapMetadata metadata, HashSet<string> contributorsList, Dictionary<string, int> authorCounts, string pubKeyStr)
 	{
-		var newContributorsArr = new JsonArray();
-		foreach (var cont in contributorsList) newContributorsArr.Add(cont);
-		mapDoc["Contributors"] = newContributorsArr;
+		metadata.Contributors = contributorsList.ToList();
 
-		var attributionsArr = new JsonArray();
 		var sortedAuthors = authorCounts.Keys.ToList();
 		sortedAuthors.Sort((a, b) => authorCounts[b].CompareTo(authorCounts[a]));
-		foreach (var a in sortedAuthors) attributionsArr.Add(a);
-		mapDoc["Attributions"] = attributionsArr;
-		mapDoc["EngineVersion"] = RealmVersion.GameBinaryVersion;
-		mapDoc["author_key"] = pubKeyStr;
-		if (mapDoc.ContainsKey("signature")) mapDoc.Remove("signature");
+		metadata.Attributions = sortedAuthors;
+		metadata.EngineVersion = RealmVersion.GameBinaryVersion;
+		metadata.AuthorKey = pubKeyStr;
+		metadata.Signature = null;
 	}
+
 	public string ResolveMapDirectoryDomain(string customPath, string currentDir, string defaultPath, bool ensureGlbOptimized, Func<string, string> globalizePath)
 	{
 		string path = string.IsNullOrEmpty(customPath) ? Path.Combine(currentDir ?? defaultPath, "terrain.json") : customPath;

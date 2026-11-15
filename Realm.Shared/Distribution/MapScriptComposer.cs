@@ -63,7 +63,6 @@ public static class MapScriptComposer
 
 	private static readonly string[] SkippedFileNames =
 	{
-		"WasmEntryPoint.g.cs",
 		"WasmEntryPoint.cs"
 	};
 
@@ -287,6 +286,11 @@ public static class MapScriptComposer
 
 	private static bool IsSkipped(string relativePath)
 	{
+		if (MapManifest.IsGeneratedWorkspaceFile(relativePath))
+		{
+			return true;
+		}
+
 		foreach (string fileName in SkippedFileNames)
 		{
 			if (string.Equals(relativePath, fileName, StringComparison.OrdinalIgnoreCase))

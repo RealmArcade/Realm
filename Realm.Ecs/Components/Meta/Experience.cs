@@ -6,6 +6,7 @@ namespace Realm.Ecs.Components.Meta;
 /// Tracks accumulated hero experience points.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct Experience
 {
 	public float Current;

@@ -51,18 +51,68 @@ public partial class GameHost
 		if (!ReferenceEquals(_hologramPreviewNode, _buildingPreviewMesh))
 		{
 			_hologramPreviewNode = _buildingPreviewMesh;
-			_hologramPreviewBlocked = false;
+			_hologramPreviewState = HologramPreviewState.Legal;
 		}
 
-		if (_hologramPreviewBlocked == blocked) return;
+		HologramPreviewState state = blocked
+			? HologramPreviewState.Blocked
+			: CanPlaceWithinFoodCap(activeType) ? CanAffordActivePlacement(activeType) ? HologramPreviewState.Legal : HologramPreviewState.Unaffordable : HologramPreviewState.FoodCapReached;
 
-		_hologramPreviewBlocked = blocked;
-		Color targetColor = blocked ? new Color(0.9f, 0.2f, 0.2f) : new Color(0.15f, 0.65f, 1.0f);
+		if (_hologramPreviewState == state) return;
+
+		_hologramPreviewState = state;
+		Color targetColor = state switch
+		{
+			HologramPreviewState.Blocked => new Color(0.9f, 0.2f, 0.2f),
+			HologramPreviewState.FoodCapReached => new Color(0.9f, 0.2f, 0.2f),
+			HologramPreviewState.Unaffordable => new Color(0.55f, 0.55f, 0.55f),
+			_ => new Color(0.15f, 0.65f, 1.0f)
+		};
 		MakeHologramRecursive(_buildingPreviewMesh, targetColor);
 	}
 
+	private enum HologramPreviewState
+	{
+		Legal,
+		Blocked,
+		FoodCapReached,
+		Unaffordable
+	}
+
+	/// <summary>
+	///     Reports whether the armed placement fits under the player's food cap. A placement that would take the player over
+	///     it is refused by the match and raises no site at all, so the silhouette says so in red before the click, with the
+	///     same arithmetic the match refusal is made with.
+	/// </summary>
+	/// <param name="type">The template the armed placement raises.</param>
+	/// <returns>True when the building fits under the cap.</returns>
+	private bool CanPlaceWithinFoodCap(string type)
+	{
+		if (!TryGetUnitOrBuildingMetadata(type, out UnitMetadata? metadata)) return true;
+		if (metadata.PopCost <= 0) return true;
+
+		int playerIndex = GameContext.PerspectiveFilter.ControlledPlayerIndex;
+		Entity playerEntity = GetPlayerEntityForPlayerIndex(playerIndex);
+		return PlayerPopulationRules.FitsWithinCap(World, playerEntity, metadata.PopCost);
+	}
+
+	/// <summary>
+	///     Reports whether the player can pay the price the placement's own template states. A placement the player cannot
+	///     afford is refused by the match, so the silhouette says so before the click rather than after it, and the price is
+	///     read from the same template metadata the match charges.
+	/// </summary>
+	/// <param name="type">The template the armed placement raises.</param>
+	/// <returns>True when the player holds enough gold, wood and stone for one placement.</returns>
+	private bool CanAffordActivePlacement(string type)
+	{
+		if (GameContext.InGameHud == null) return true;
+		if (!TryGetUnitOrBuildingMetadata(type, out UnitMetadata? metadata)) return true;
+
+		return GameContext.InputService.HasSufficientResources(metadata, Hud.Gold, Hud.Wood, Hud.Stone);
+	}
+
 	private Node3D? _hologramPreviewNode;
-	private bool _hologramPreviewBlocked;
+	private HologramPreviewState _hologramPreviewState;
 
 	public void TrainUnitAtBuilding(string unitId)
 	{
@@ -81,7 +131,7 @@ public partial class GameHost
 			    Hud.Stone
 		    ))
 		{
-			ShowTrainingFeedback("Cannot train unit: Insufficient resources!", new Color(1f, 0.2f, 0.2f), isWarning: true);
+			ShowTrainingWarning("Cannot train unit: Insufficient resources!");
 			return;
 		}
 
@@ -97,12 +147,12 @@ public partial class GameHost
 
 		if (result == InputService.TryGetCandidateBuildingResult.NoProducingBuildingSelected)
 		{
-			ShowTrainingFeedback(TranslationServer.Translate("Cannot train unit: No producing building selected!"), new Color(1f, 0.3f, 0.3f), isWarning: true);
+			ShowTrainingWarning(TranslationServer.Translate("Cannot train unit: No producing building selected!"));
 			return false;
 		}
 		else if (result == InputService.TryGetCandidateBuildingResult.TrainingQueueFull)
 		{
-			ShowTrainingFeedback(TranslationServer.Translate("Training queue is full! (Max 5)"), new Color(1f, 0.3f, 0.3f), isWarning: true);
+			ShowTrainingWarning(TranslationServer.Translate("Training queue is full! (Max 5)"));
 			return false;
 		}
 
@@ -119,7 +169,7 @@ public partial class GameHost
 		if (result == InputService.ValidateTrainingConstraintsResult.PopulationCapReached)
 		{
 			string msg = string.Format(TranslationServer.Translate("Population cap reached! ({0}/{1})"), curPop, maxPop);
-			ShowTrainingFeedback(msg, new Color(1f, 0.3f, 0.3f), isWarning: true);
+			ShowTrainingWarning(msg);
 			return false;
 		}
 
@@ -142,17 +192,16 @@ public partial class GameHost
 		int curPop = GetCurrentPopulation(localSlot);
 		int maxPop = GetMaxPopulation(localSlot);
 		string msg = string.Format(TranslationServer.Translate("Queued {0} ({1}/{2} pop)"), meta.Name, curPop, maxPop);
-		ShowTrainingFeedback(msg, new Color(0.2f, 0.8f, 1f), isWarning: false);
+		ShowTrainingQueued(msg, new Color(0.2f, 0.8f, 1f));
 		Hud.RefreshUI(SelectedUnits);
 	}
 
-	private void ShowTrainingFeedback(string message, Color color, bool isWarning)
+	private void ShowTrainingWarning(string message) => Hud.ShowFeedbackWarning(message);
+
+	private void ShowTrainingQueued(string message, Color color)
 	{
 		Hud.ShowFeedbackText(message, color);
-		if (isWarning)
-			GameContext.UserInterface?.PlayWarningSound();
-		else
-			GameContext.UserInterface?.PlayClickSound();
+		GameContext.UserInterface?.PlayClickSound();
 	}
 
 	public void SaveCameraLocation(int slotIndex)
@@ -290,7 +339,7 @@ public partial class GameHost
 
 		var entity = CreateEcsUnit(unitId, name, meta.MaxHp, meta.Damage, meta.Range, meta.Armor, meta.Speed, godotPosition, playerOwner);
 
-		var unit3D = SpawnUnit3D(entity, unitId, modelPath, godotPosition, false, parentPlayer, isFromQueue);
+		var unit3D = SpawnUnit3D(entity, unitId, modelPath, godotPosition, false, parentPlayer, isFromQueue, executeSpawnShader: true);
 
 		if (meta.Speed > 0f)
 		{
@@ -380,6 +429,8 @@ public partial class GameHost
 			return true;
 		}
 
+		if (TryIssueGatherCommandAt(rayResult.HitPos, shiftHeld)) return true;
+
 		return false;
 	}
 
@@ -468,6 +519,7 @@ public partial class GameHost
 			       tool == EditorTool.PlaceProp ||
 			       tool == EditorTool.PlaceDecal ||
 			       tool == EditorTool.PlaceVfx ||
+			       tool == EditorTool.PlaceItem ||
 			       tool == EditorTool.PlacePropClump;
 		}
 

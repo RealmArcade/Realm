@@ -27,6 +27,18 @@ namespace Realm.Client.Utils
 			GltfDocumentExtensionMsftLod.RegisterExtension();
 		}
 
+		/// <summary>
+		///     The lift that puts a model's lowest point on the ground at the scale a template draws it. The offset is in world
+		///     metres while the model is scaled about its own origin, so a template drawn larger needs a larger lift: measuring
+		///     a re-imported asset at the importing category's default scale instead left every model whose scale had been
+		///     changed since it was first imported sunk into the terrain.
+		/// </summary>
+		public static float RestingOffsetFor(float minY, float scale)
+		{
+			if (!float.IsFinite(minY) || Math.Abs(minY) <= 0.0001f) return 0f;
+			return (float)Math.Round(-minY * (scale <= 0.001f ? 1f : scale), 4);
+		}
+
 		public static (float MinY, float YOffset) CalculateModelBounds(string modelPath, float scale = 1.0f)
 		{
 			if (string.IsNullOrEmpty(modelPath)) return (0f, 0f);

@@ -4,6 +4,7 @@ using Realm.Client.Services;
 using Realm.Ecs;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
+using Realm.Ecs.Components.Resources;
 using Realm.Ecs.Components.Stats;
 
 namespace Realm.Client.UI.InGame;
@@ -102,11 +103,50 @@ public class UnitVitalsBars
 		_root.Visible = hasHealth || hasMana;
 	}
 
+	/// <summary>
+	///     Writes a placed resource node into the console: what it still holds against what it held, which is the capacity
+	///     its health component states. A node stores no mana, so the second slot stays hidden for it.
+	/// </summary>
+	/// <param name="entity">The placed node the local player selected.</param>
+	public void UpdateResourceNode(Entity entity)
+	{
+		var world = GameContext.World;
+		if (world == null || !world.IsAlive(entity) || !world.Has<ResourceNode>(entity))
+		{
+			_root.Visible = false;
+			return;
+		}
+
+		float current = 0f;
+		float maximum = 0f;
+
+		if (world.TryGet(entity, out Health capacity) && capacity.Max > 0f)
+		{
+			current = capacity.Current;
+			maximum = capacity.Max;
+		}
+		else if (world.TryGet(entity, out ResourceNode resourceNode) && resourceNode.MaxCapacity > 0f)
+		{
+			current = resourceNode.Amount;
+			maximum = resourceNode.MaxCapacity;
+		}
+
+		if (maximum <= 0f)
+		{
+			_root.Visible = false;
+			return;
+		}
+
+		_healthBar.Root.Visible = true;
+		_healthBar.SetValue(current, maximum);
+		_manaBar.Root.Visible = false;
+		_root.Visible = true;
+	}
+
 	public void Hide()
 	{
 		_root.Visible = false;
 	}
-
 	private class VitalsBar
 	{
 		private readonly ColorRect _fill;

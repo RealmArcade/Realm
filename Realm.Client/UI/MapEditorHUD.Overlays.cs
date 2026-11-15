@@ -92,6 +92,9 @@ namespace Realm.Client.UI
 				() => GameContext.Host?.EditorHasUnsavedChanges ?? false,
 				() =>
 				{
+					// A save made outside the editor can introduce members this build does not state, so the document is
+					// brought to this build's shape before either refresh reads it.
+					CanonicalizeMetadataForOpen(GameContext.EditorService._editingDirectory);
 					ReadMetadataAndRefreshTextures();
 					ViewLoadMapProperties();
 					UpdateMapNameHeader();
@@ -118,7 +121,7 @@ namespace Realm.Client.UI
 				if (shouldShowInspector)
 				{
 					if (_contentInspector != null) _contentInspector.Visible = true;
-					if (_btnHeaderInspector != null) _btnHeaderInspector.Text = "▼ " + TranslationServer.Translate("Selected Object Inspector");
+					UpdateInspectorHeaderText();
 				}
 
 				_accordionContainer?.QueueSort();
@@ -177,6 +180,7 @@ namespace Realm.Client.UI
 		public void RefreshCoordinateListExternal()
 		{
 			_instanceManagerDialog?.RefreshIfOpen();
+			_spawnAnchorDialog?.RefreshIfOpen();
 		}
 
 
@@ -650,6 +654,7 @@ namespace Realm.Client.UI
 			{
 				int count = EditorToolCatalog.SpokeCountOptions[i];
 				opt.AddItem($"{UnicodeIcons.COMPASS} " + string.Format(TranslationServer.Translate("SPOKES: {0}"), count), count);
+				LocalizedText.BindOptionItem(opt, i, () => $"{UnicodeIcons.COMPASS} " + string.Format(TranslationServer.Translate("SPOKES: {0}"), count));
 			}
 
 			if (!string.IsNullOrEmpty(tooltip))
@@ -757,17 +762,6 @@ namespace Realm.Client.UI
 		private void ShowAgreementModal(Action? onAccepted = null) => Agreement.Show(onAccepted);
 
 
-		public void OpenAbilityVfxDialog(string abilityId, JsonObject? abilityData, Action<JsonObject>? onApplied = null)
-		{
-			if (_abilityVfxDialog == null)
-			{
-				_abilityVfxDialog = new AbilityVfxDialog(this);
-			}
-
-			_abilityVfxDialog.OpenForAbility(abilityId, abilityData, onApplied);
-		}
-
-
 		private MapEditorOverlayDismissal? _overlayDismissal;
 
 		private MapEditorOverlayDismissal OverlayDismissal => _overlayDismissal ??= new MapEditorOverlayDismissal(
@@ -801,6 +795,12 @@ namespace Realm.Client.UI
 			}
 
 			_instanceManagerDialog.OpenDialog(initialTypeFilter);
+		}
+
+		public void OpenSpawnAnchorDialog()
+		{
+			_spawnAnchorDialog ??= new SpawnAnchorDialog(this);
+			_spawnAnchorDialog.OpenDialog();
 		}
 
 		public void ApplyEditorPreferences(EditorPreferencesData prefs)

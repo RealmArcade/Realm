@@ -71,9 +71,22 @@ public partial class CommandPanel
 	private int _lastPageIndex = -1;
 	private bool _lastIsBuildSubMenuOpen = false;
 	private int _lastAbilityStateRevision = int.MinValue;
+	private int _lastLanguageRevision = LocalizationManager.LanguageRevision;
 	private string _lastItemSignature = string.Empty;
 
 	private const string BuildCommandAbilityId = "ability/build";
+
+	private const string AutoCastMarqueeName = "AutoCastMarquee";
+	private const string AutoCastMarqueeShaderPath = "res://Assets/shaders/ability_autocast_marquee.gdshader";
+	private static readonly StringName AutoCastScrollScaleParameter = new("scroll_scale");
+	private static readonly StringName AutoCastEnabledParameter = new("cast_enabled");
+	private static Shader? s_autoCastMarqueeShader;
+
+	private static Shader? GetAutoCastMarqueeShader()
+	{
+		s_autoCastMarqueeShader ??= GD.Load<Shader>(AutoCastMarqueeShaderPath);
+		return s_autoCastMarqueeShader;
+	}
 
 	private void ClearCommandGrid()
 	{
@@ -99,7 +112,11 @@ public partial class CommandPanel
 
 	private static bool IsCommandsFrozen(Entity entity)
 	{
-		return entity != Entity.Null && GameContext.World != null && GameContext.World.IsAlive(entity) && GameContext.World.Has<CommandsFrozen>(entity);
+		if (entity == Entity.Null || GameContext.World == null || !GameContext.World.IsAlive(entity)) return false;
+
+		// A unit the map drives keeps its ability cards so a player can read them, but the order commands are left off
+		// its grid entirely: the player cannot issue them, and a card that only refuses is a card that lies.
+		return GameContext.World.Has<CommandsFrozen>(entity) || GameContext.World.Has<PlayerOrdersLocked>(entity);
 	}
 
 	private void UpdateExistingButtons()
@@ -136,6 +153,33 @@ public partial class CommandPanel
 
 		UpdateAbilityLabelsAndSweep(btn, manaCost, cdRemaining, maxCd);
 		UpdateAbilityButtonState(btn, item, currentMana, manaCost, cdRemaining);
+		UpdateAutoCastMarquee(btn, item);
+	}
+
+	/// <summary>
+	///     Draws the frame around an icon whose ability supports auto-cast, and keeps it drawn whether that auto-cast is on
+	///     or off: the dashes travel while this caster is casting on its own and hold still while it is not, and the whole
+	///     frame is drawn dimmer while it is off, so the switched-on state is read at a glance instead of taken from the
+	///     dashes being in motion. The state is the replicated one, so the frame follows what the authority actually does
+	///     rather than the last click this screen made.
+	/// </summary>
+	private static void UpdateAutoCastMarquee(Button btn, CommandCardItem item)
+	{
+		var marquee = btn.GetNodeOrNull<ColorRect>(AutoCastMarqueeName);
+		if (marquee == null) return;
+
+		bool active = item.CasterEntity != Entity.Null
+			&& GameContext.SimulationService.IsAbilityAutoCast(new UnitId(item.CasterEntity.Id), item.AbilityId);
+
+		if (!marquee.Visible) marquee.Visible = true;
+
+		if (marquee.Material is not ShaderMaterial material) return;
+
+		float scrollScale = active ? 1f : 0f;
+		if (MathF.Abs(material.GetShaderParameter(AutoCastScrollScaleParameter).AsSingle() - scrollScale) < 0.001f) return;
+
+		material.SetShaderParameter(AutoCastScrollScaleParameter, scrollScale);
+		material.SetShaderParameter(AutoCastEnabledParameter, scrollScale);
 	}
 
 	private float GetMaxCooldown(CommandCardItem item, AbilityDefinition? abilityDef, float cdRemaining)
@@ -177,11 +221,6 @@ public partial class CommandPanel
 
 		var caster = item.CasterEntity != Entity.Null && world.IsAlive(item.CasterEntity) ? item.CasterEntity : _lastFocusedEntity;
 		GetCasterState(caster, world, item.AbilityId, ref currentMana, ref cdRemaining);
-
-		if (cdRemaining <= 0f && GameContext.Host != null)
-		{
-			cdRemaining = GameContext.Host.GetPlayerSpellCooldown(GameContext.PerspectiveFilter.ControlledPlayerIndex, item.AbilityId);
-		}
 	}
 
 	private void UpdateAbilityLabelsAndSweep(Button btn, float manaCost, float cdRemaining, float maxCd)
@@ -278,7 +317,8 @@ public partial class CommandPanel
 			|| focusedUnit.IsUnderConstruction != _lastIsUnderConstruction
 			|| isMobile != _lastIsMobile
 			|| abilityCount != _lastAbilityCount
-			|| GameContext.RegistryService.AbilityStateRevision != _lastAbilityStateRevision;
+			|| GameContext.RegistryService.AbilityStateRevision != _lastAbilityStateRevision
+			|| LocalizationManager.LanguageRevision != _lastLanguageRevision;
 
 		bool subMenuChanged = subMenuOpen != _lastIsBuildSubMenuOpen;
 
@@ -298,6 +338,7 @@ public partial class CommandPanel
 			_lastAbilityCount = abilityCount;
 			_lastIsBuildSubMenuOpen = subMenuOpen;
 			_lastAbilityStateRevision = GameContext.RegistryService.AbilityStateRevision;
+			_lastLanguageRevision = LocalizationManager.LanguageRevision;
 
 			_activeItems = GetCommandCardItems(focusedUnit, subMenuOpen);
 			UpdateItemHotkeys();
@@ -326,6 +367,7 @@ public partial class CommandPanel
 	{
 		var builder = new StringBuilder(64);
 		builder.Append(_pageIndex).Append('|');
+		builder.Append(LocalizationManager.LanguageRevision).Append('|');
 		for (int i = 0; i < _activeItems.Count; i++)
 		{
 			CommandCardItem item = _activeItems[i];
@@ -596,6 +638,11 @@ public partial class CommandPanel
 		if (!string.IsNullOrEmpty(item.AbilityId))
 		{
 			AddAbilityUIElements(btn, item);
+			if (GameContext.Host?.GetAbilityDefinition(item.AbilityId)?.AutoCastEnabled == true)
+			{
+				btn.RightClicked += () => GameContext.Host?.ToggleAbilityAutoCast(item.AbilityId);
+			}
+
 			UpdateAbilityButtonVisuals(btn, item);
 		}
 		else
@@ -613,6 +660,14 @@ public partial class CommandPanel
 		btn.Text = item.GetButtonText?.Invoke() ?? "";
 		btn.ExpandIcon = true;
 		btn.Icon = !string.IsNullOrEmpty(item.IconPath) ? LoadCommandIcon(item.IconPath) : null;
+		bool hasIconTint = item.IconTint.HasValue;
+		if (hasIconTint)
+		{
+			btn.AddThemeColorOverride("icon_normal_color", item.IconTint!.Value);
+			btn.AddThemeColorOverride("icon_hover_color", item.IconTint!.Value);
+			btn.AddThemeColorOverride("icon_pressed_color", item.IconTint!.Value);
+			btn.AddThemeColorOverride("icon_focus_color", item.IconTint!.Value);
+		}
 
 		string transTooltip = TranslationServer.Translate(item.Tooltip);
 		if (string.IsNullOrEmpty(transTooltip)) transTooltip = item.Tooltip;

@@ -46,31 +46,24 @@ public partial class LobbyRoom : Control
 	private PanelContainer _chatPanel = null!;
 
 	private Button _backButton = null!;
-	private Button _inviteButton = null!;
+	private Button _steamInviteButton = null!;
+	private Button _shareAddressButton = null!;
+	private Label _privateLobbyHint = null!;
 	private SteamFriendsDialog? _friendsDialog;
-	private Button _addBotButton = null!;
 	private Button _startButton = null!;
 	private Label _mapNameLabel = null!;
 	private LineEdit _chatInput = null!;
 	private ColorPickerPopover? _colorPickerPopover;
+	private AiSettingsPopover? _aiSettingsPopover;
 	private RichTextLabel _chatLog = null!;
 	private VBoxContainer _playersContainer = null!;
-	private readonly Dictionary<int, PanelContainer> _playerRowsByPeerId = new();
+	private readonly Dictionary<int, PanelContainer> _playerRowsBySlot = new();
 	private Label _inviteFeedback = null!;
-	private CheckBox _spectatorDelayCheck = null!;
 	private Panel? _countdownPopup;
 	private Label? _countdownTextLabel;
 	private Panel? _connectingPopup;
 	private Button? _matchSettingsButton;
-	private Panel? _matchSettingsPopup;
-	private SpinBox? _maximumPlayersSpin;
-	private SpinBox? _draftCountSpin;
-	private SpinBox? _uniqueBuildingsSpin;
-	private SpinBox? _capacityMultiplierSpin;
-	private SpinBox? _chargeMultiplierSpin;
-	private OptionButton? _shroudModeOption;
-	private CheckBox? _mirroredDraftCheck;
-	private CheckBox? _openPoolDraftingCheck;
+	private MatchSettingsPanel? _matchSettingsPanel;
 
 	private Label _lobbyTitle = null!;
 	private Label _playersTitle = null!;
@@ -85,10 +78,8 @@ public partial class LobbyRoom : Control
 	private Label _authorshipWarningLabel = null!;
 	private Label _primaryAuthorLabel = null!;
 	private string? _authorshipMapJsonPath;
-	private Button _otherAuthorsButton = null!;
 	private Button _attributionButton = null!;
 	private AttributionPopover _attributionPopover = null!;
-	private AttributionPopover _otherAuthorsPopover = null!;
 	private List<string> _otherAuthorsList = new List<string>();
 
 
@@ -99,14 +90,22 @@ public partial class LobbyRoom : Control
 
 	private List<MapBriefingDetails> _lobbyRoomMaps = new List<MapBriefingDetails>();
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
-	private const int ReadyColumnWidth = 100;
-	private const int TeamColumnWidth = 150;
-	private const int ColorColumnWidth = 56;
-	private const int NameColumnWidth = 140;
-	private const int FactionColumnWidth = 100;
-	private const int DifficultyColumnWidth = 120;
-	private const int RowColumnSeparation = 16;
+	private const int ReadyColumnWidth = 82;
+	private const int TeamColumnWidth = 126;
+	private const int ColorColumnWidth = 70;
+	private const int SlotColumnWidth = 104;
+	private const int NameColumnWidth = 226;
+	private const int FactionColumnWidth = 98;
+	private const int BootColumnWidth = 100;
+	private const int RowColumnSeparation = 10;
 	private const int RowContentInset = 8;
+
+	/// <summary>
+	///     The width the player column takes: what the row has left once the columns that are always there have taken
+	///     theirs. A map that offers factions spends that width on them, and a map that offers none leaves the player's
+	///     name the room instead.
+	/// </summary>
+	private static int NameCellWidth => HasFactions ? NameColumnWidth : NameColumnWidth + FactionColumnWidth + RowColumnSeparation;
 
 	private static IReadOnlyList<string> FactionList => GameContext.Lobby?.LobbyFactions ?? Array.Empty<string>();
 
@@ -114,7 +113,6 @@ public partial class LobbyRoom : Control
 
 	private static int TeamCount => Math.Max(1, GameContext.Lobby?.LobbyTeamCount ?? LobbyLimits.DefaultTeamCount);
 
-	private int _renderedTeamCount = -1;
 
 	public override void _Ready()
 	{
@@ -125,11 +123,12 @@ public partial class LobbyRoom : Control
 
 
 		_backButton = GetNode<Button>("BackButton");
-		_inviteButton = GetNode<Button>("InviteButton");
-		_addBotButton = GetNode<Button>("AddBotButton");
+		_steamInviteButton = GetNode<Button>("SteamInviteButton");
+		_shareAddressButton = GetNode<Button>("ShareAddressButton");
+		_privateLobbyHint = GetNode<Label>("PrivateLobbyHint");
 		_startButton = GetNode<Button>("StartButton");
-		_addBotButton.Visible = Lobby.IsHost;
-		_inviteButton.Visible = !Lobby.IsSinglePlayer;
+		_privateLobbyHint.Text = TranslationServer.Translate("Private Lobby: Send your IP address to players so they can join.");
+		ApplyInviteVisibility();
 
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");
@@ -234,10 +233,9 @@ public partial class LobbyRoom : Control
 			ShowConnectingPopup();
 		}
 
-		CreateSpectatorDelayUI();
+		Lobby.MatchSettingsChanged += OnMatchSettingsChanged;
+		Lobby.TeamsTogetherChanged += OnTeamsTogetherChanged;
 		Lobby.SpectatorDelayChanged += OnSpectatorDelayChanged;
-		CreateMatchSettingsUI();
-		Lobby.MatchOptionsChanged += OnMatchOptionsChanged;
 
 		_chatLog.Text = $"[color=#ffd700]{Tr("System: Connected to Lobby.")}[/color]\n";
 		_chatInput.TextSubmitted += OnChatSubmitted;
@@ -279,17 +277,8 @@ public partial class LobbyRoom : Control
 		var authorsSpacer = new Control { CustomMinimumSize = new Vector2(0, 24) };
 		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(authorsSpacer);
 
-		_otherAuthorsButton = new Button();
-		_otherAuthorsButton.Name = "OtherAuthorsButton_Button";
-		_otherAuthorsButton.Text = Tr("Other Authors");
-		_otherAuthorsButton.CustomMinimumSize = new Vector2(160, 32);
-		_otherAuthorsButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
-		_otherAuthorsButton.Visible = false;
-		UIStyle.ApplyButtonStyleBoxes(_otherAuthorsButton);
-		_otherAuthorsButton.Pressed += OnOtherAuthorsPressed;
-		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_otherAuthorsButton);
-
 		SetupAttributionButton();
+		CreateMatchSettingsUI();
 
 		UpdateSelectedMapUI();
 	}
@@ -336,13 +325,38 @@ public partial class LobbyRoom : Control
 
 
 
+	/// <summary>
+	///     Whether this lobby is played at an address its host sends around instead of being listed for the lobby browser
+	///     to find. The staging id the authority opens a direct lobby under states the same thing as the flag, and a screen
+	///     that joined by address reads it from there.
+	/// </summary>
+	private static bool IsDirectConnectLobby =>
+		Lobby.IsDirectLobby ||
+		(Lobby.ActiveLobbyId is { Length: > 0 } activeLobbyId && activeLobbyId.StartsWith("direct-", StringComparison.Ordinal));
+
+	/// <summary>
+	///     Shows the one invite button this lobby can use. A Steam invite needs a lobby the lobby browser lists, because that
+	///     list is what a friend's client finds and joins; a lobby that is not listed hands out the address its host reads
+	///     from the dialog instead. The note beside that button is the host's, since an address a joining player passes on is
+	///     the host's and not their own.
+	/// </summary>
+	private void ApplyInviteVisibility()
+	{
+		bool invitesPlayers = !Lobby.IsSinglePlayer;
+		bool directLobby = IsDirectConnectLobby;
+
+		_steamInviteButton.Visible = invitesPlayers && !directLobby;
+		_shareAddressButton.Visible = invitesPlayers && directLobby;
+		_privateLobbyHint.Visible = invitesPlayers && directLobby && Lobby.IsHost;
+	}
+
 	private void OpenInviteFriendsDialog()
 	{
-		if (Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId || lobbyId.StartsWith("direct-", StringComparison.Ordinal))
+		if (Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId)
 		{
 			GameContext.UserInterface?.ShowPopupMessage(
 				Tr("LOBBY INVITES"),
-				Tr("Invites need a lobby the server lists. A direct connection cannot be invited to."));
+				Tr("Invites need a lobby the server lists. Share the lobby's direct connect address instead."));
 			return;
 		}
 
@@ -390,11 +404,13 @@ public partial class LobbyRoom : Control
 			Lobby.KickReceived -= OnLobbyKickReceived;
 
 			Lobby.SpectatorDelayChanged -= OnSpectatorDelayChanged;
-			Lobby.MatchOptionsChanged -= OnMatchOptionsChanged;
+			Lobby.TeamsTogetherChanged -= OnTeamsTogetherChanged;
+			Lobby.MatchSettingsChanged -= OnMatchSettingsChanged;
 
 			Lobby.MapDownloadProgressChanged -= OnMapDownloadProgress;
 			Lobby.MapDownloadCompleted -= OnMapDownloadCompleted;
 			Lobby.MapDownloadFailed -= OnMapDownloadFailed;
+			CloseMatchSettingsPanel();
 
 			Lobby.CountdownStarted -= OnCountdownStarted;
 			Lobby.CountdownTick -= OnCountdownTick;
@@ -523,31 +539,36 @@ public partial class LobbyRoom : Control
 		UpdateFactionColumnVisibility();
 
 		var existingRows = GetExistingPlayerRows();
-		if (_renderedTeamCount != TeamCount)
-		{
-			foreach (var row in existingRows.Values) ReleasePlayerRow(row);
+		int slotCount = Lobby.SlotCount;
 
-			existingRows.Clear();
-			_playerRowsByPeerId.Clear();
-			_renderedTeamCount = TeamCount;
+		for (int slot = 1; slot <= slotCount; slot++)
+		{
+			PlayerInfo? player = FindPlayerInSlot(slot);
+			if (existingRows.TryGetValue(slot, out var row))
+			{
+				UpdatePlayerRow(row, slot, player);
+				_playersContainer.MoveChild(row, slot - 1);
+			}
+			else
+			{
+				var newRow = CreatePlayerRow(slot, player);
+				newRow.Name = $"PlayerRow_Slot{slot}";
+				_playersContainer.AddChild(newRow);
+				_playersContainer.MoveChild(newRow, slot - 1);
+				existingRows[slot] = newRow;
+				_playerRowsBySlot[slot] = newRow;
+			}
 		}
 
-		var activePeerIds = SyncPlayerRows(existingRows);
+		ReleaseStalePlayerRows(existingRows, slotCount);
 
-		CleanupStalePlayerRows(existingRows, activePeerIds);
-
-		UpdateAddBotAvailability();
+		UpdatePlayersHeading();
 		SetupStartButton();
 	}
 
-	private void UpdateAddBotAvailability()
+	private void UpdatePlayersHeading()
 	{
-		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({Lobby.PlayingPlayerCount}/{Lobby.MaxPlayers})";
-
-		if (_addBotButton == null || !GodotObject.IsInstanceValid(_addBotButton)) return;
-		if (!Lobby.IsHost) return;
-
-		_addBotButton.Disabled = Lobby.PlayingPlayerCount >= Lobby.MaxPlayers;
+		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({Lobby.PlayingPlayerCount}/{Lobby.OpenSlotCount})";
 	}
 
 	private bool CheckHostVersionMismatch()
@@ -576,15 +597,15 @@ public partial class LobbyRoom : Control
 
 	private Dictionary<int, PanelContainer> GetExistingPlayerRows()
 	{
-		var existingRows = new Dictionary<int, PanelContainer>(_playerRowsByPeerId.Count);
-		foreach (var pair in _playerRowsByPeerId)
+		var existingRows = new Dictionary<int, PanelContainer>(_playerRowsBySlot.Count);
+		foreach (var pair in _playerRowsBySlot)
 		{
 			if (!GodotObject.IsInstanceValid(pair.Value)) continue;
 			existingRows[pair.Key] = pair.Value;
 		}
 
-		_playerRowsByPeerId.Clear();
-		foreach (var pair in existingRows) _playerRowsByPeerId[pair.Key] = pair.Value;
+		_playerRowsBySlot.Clear();
+		foreach (var pair in existingRows) _playerRowsBySlot[pair.Key] = pair.Value;
 
 		return existingRows;
 	}
@@ -597,44 +618,31 @@ public partial class LobbyRoom : Control
 		row.QueueFree();
 	}
 
-	private HashSet<int> SyncPlayerRows(Dictionary<int, PanelContainer> existingRows)
+	/// <summary>Releases every row above the number of slots the lobby now carries.</summary>
+	/// <param name="existingRows">The rows that were on screen, keyed by slot.</param>
+	/// <param name="slotCount">The number of slots the lobby carries.</param>
+	private void ReleaseStalePlayerRows(Dictionary<int, PanelContainer> existingRows, int slotCount)
 	{
-		var activePeerIds = new HashSet<int>();
-
-		for (int i = 0; i < Lobby.PlayerList.Count; i++)
+		var stale = new List<int>();
+		foreach (var pair in existingRows)
 		{
-			var player = Lobby.PlayerList[i];
-			activePeerIds.Add(player.PeerId);
-
-			if (existingRows.TryGetValue(player.PeerId, out var row))
-			{
-				UpdatePlayerRow(row, player);
-				_playersContainer.MoveChild(row, i);
-			}
-			else
-			{
-				var newRow = CreatePlayerRow(player);
-				newRow.Name = $"PlayerRow_{player.PeerId}";
-				_playersContainer.AddChild(newRow);
-				_playersContainer.MoveChild(newRow, i);
-				existingRows[player.PeerId] = newRow;
-				_playerRowsByPeerId[player.PeerId] = newRow;
-			}
+			if (pair.Key <= slotCount) continue;
+			stale.Add(pair.Key);
 		}
 
-		return activePeerIds;
+		for (int index = 0; index < stale.Count; index++)
+		{
+			_playerRowsBySlot.Remove(stale[index]);
+			ReleasePlayerRow(existingRows[stale[index]]);
+		}
 	}
 
-	private void CleanupStalePlayerRows(Dictionary<int, PanelContainer> existingRows, HashSet<int> activePeerIds)
+	/// <summary>Answers the seat one player slot holds, or nothing while nobody sits in it.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <returns>The seat in that slot, when one is seated.</returns>
+	private static PlayerInfo? FindPlayerInSlot(int slot)
 	{
-		foreach (var kvp in existingRows)
-		{
-			if (!activePeerIds.Contains(kvp.Key))
-			{
-				_playerRowsByPeerId.Remove(kvp.Key);
-				ReleasePlayerRow(kvp.Value);
-			}
-		}
+		return Lobby.PlayerList.Find(candidate => candidate.Slot == slot);
 	}
 
 
@@ -692,11 +700,6 @@ public partial class LobbyRoom : Control
 			_connectingPopup.QueueFree();
 		}
 
-		if (_spectatorDelayCheck != null && GodotObject.IsInstanceValid(_spectatorDelayCheck))
-		{
-			_spectatorDelayCheck.Visible = false;
-		}
-
 		_connectingPopup = new Panel();
 		_connectingPopup.Name = "ConnectingPopup_Panel";
 		_connectingPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -746,16 +749,13 @@ public partial class LobbyRoom : Control
 			_connectingPopup = null;
 		}
 
-		if (_spectatorDelayCheck != null && GodotObject.IsInstanceValid(_spectatorDelayCheck))
-		{
-			_spectatorDelayCheck.Visible = true;
-		}
+
 	}
+
 	/// <summary>
-	///     Offers the lobby's host the parameters it may set for the match: how many players are seated, how many building
-	///     options a draft offers, how many copies of a building one player may hold, which vision mode applies, and the
-	///     three switches the standard lobby leaves off. Every control states zero or its neutral position as the map's own
-	///     default, so a host that touches nothing plays the map exactly as it was authored.
+	///     Offers the lobby's host the one button the match settings are reached through. The settings themselves are the
+	///     panel's, and it is the same panel the lobby was confirmed with before it was published, so the two places a host
+	///     meets them cannot drift apart.
 	/// </summary>
 	private void CreateMatchSettingsUI()
 	{
@@ -763,209 +763,62 @@ public partial class LobbyRoom : Control
 
 		_matchSettingsButton = new Button();
 		_matchSettingsButton.Name = "MatchSettingsButton_Button";
-		_matchSettingsButton.Position = new Vector2(1450, 720);
-		_matchSettingsButton.Size = new Vector2(340, 40);
+		_matchSettingsButton.CustomMinimumSize = new Vector2(280, 36);
+		_matchSettingsButton.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
 		_matchSettingsButton.AddThemeConstantOverride("icon_max_width", 20);
 		_matchSettingsButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
 		_matchSettingsButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
 		_matchSettingsButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
 		_matchSettingsButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		UIStyle.ApplyButtonText(_matchSettingsButton, TranslationServer.Translate("Match Settings"), 16);
-		_matchSettingsButton.TooltipText = TranslationServer.Translate("Set how many players, building options and building copies this match allows, and which modes it plays with.");
+		_matchSettingsButton.TooltipText = TranslationServer.Translate("Set the shroud, the teams and the spectator delay this match plays with, and the rules this map adds to them.");
 		_matchSettingsButton.Pressed += () =>
 		{
 			GameContext.UserInterface.PlayClickSound();
 			ToggleMatchSettingsPopup();
 		};
 		_matchSettingsButton.MouseEntered += () => GameContext.UserInterface.PlayHoverSound();
-		AddChild(_matchSettingsButton);
+		GetNode<VBoxContainer>("BriefingPanel/VBoxContainer").AddChild(_matchSettingsButton);
 	}
 
 	private void ToggleMatchSettingsPopup()
 	{
-		if (_matchSettingsPopup != null && GodotObject.IsInstanceValid(_matchSettingsPopup))
+		if (_matchSettingsPanel != null && GodotObject.IsInstanceValid(_matchSettingsPanel))
 		{
-			_matchSettingsPopup.QueueFree();
-			_matchSettingsPopup = null;
+			CloseMatchSettingsPanel();
 			return;
 		}
 
-		_matchSettingsPopup = new Panel();
-		_matchSettingsPopup.Name = "MatchSettingsPopup_Panel";
-		_matchSettingsPopup.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		_matchSettingsPopup.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
-		AddChild(_matchSettingsPopup);
-
-		var centerContainer = new CenterContainer();
-		centerContainer.Name = "Center_CenterContainer";
-		centerContainer.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		_matchSettingsPopup.AddChild(centerContainer);
-
-		var cardPanel = new Panel();
-		cardPanel.Name = "CardPanel_Panel";
-		cardPanel.CustomMinimumSize = new Vector2(640, 520);
-		cardPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBackdropPanel());
-		centerContainer.AddChild(cardPanel);
-
-		var content = new VBoxContainer();
-		content.Name = "Content_VBoxContainer";
-		content.CustomMinimumSize = new Vector2(600, 480);
-		content.AddThemeConstantOverride("separation", 10);
-		cardPanel.AddChild(content);
-
-		var title = new Label();
-		title.Name = "Title_Label";
-		UIStyle.ApplyTitle(title, TranslationServer.Translate("MATCH SETTINGS"), 22);
-		title.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		content.AddChild(title);
-
-		var hint = new Label();
-		hint.Name = "Hint_Label";
-		hint.Text = TranslationServer.Translate("Zero leaves each setting to the map. Changes reach the next match this lobby starts.");
-		hint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		hint.CustomMinimumSize = new Vector2(580, 0);
-		hint.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		hint.AddThemeFontSizeOverride("font_size", 13);
-		hint.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
-		content.AddChild(hint);
-
-		var grid = new GridContainer();
-		grid.Name = "Grid_GridContainer";
-		grid.Columns = 2;
-		grid.AddThemeConstantOverride("h_separation", 16);
-		grid.AddThemeConstantOverride("v_separation", 8);
-		grid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		content.AddChild(grid);
-
-		_maximumPlayersSpin = AddCountSetting(grid, TranslationServer.Translate("Players:"), 0, LobbyLimits.MaximumSeats, MatchOption.MaximumPlayers, TranslationServer.Translate("How many players this match seats. Zero seats the number the map states."));
-		_draftCountSpin = AddCountSetting(grid, TranslationServer.Translate("Building options per draft:"), 0, 24, MatchOption.MaximumBuildingDraftCount, TranslationServer.Translate("How many building options a draft offers at once. Zero offers the number the ruleset states."));
-		_uniqueBuildingsSpin = AddCountSetting(grid, TranslationServer.Translate("Copies of one building:"), 0, 24, MatchOption.MaximumUniqueBuildingInstances, TranslationServer.Translate("How many unique instances of one building a player may own. Zero uses the ruleset's own limit."));
-		_capacityMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Capacity multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.CapacityMultiplierPercent, TranslationServer.Translate("The percentage every player's capacity ceiling is multiplied by. Zero uses the ruleset's own values."));
-		_chargeMultiplierSpin = AddCountSetting(grid, TranslationServer.Translate("Charge multiplier (%):"), 0, MatchOptionSet.MaximumMultiplierPercent, MatchOption.ChargeMultiplierPercent, TranslationServer.Translate("The percentage every player's maximum charges is multiplied by. Zero uses the ruleset's own values."));
-
-		var visionLabel = new Label();
-		visionLabel.Name = "VisionLabel_Label";
-		visionLabel.Text = TranslationServer.Translate("Vision:");
-		visionLabel.AddThemeFontSizeOverride("font_size", 13);
-		visionLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		grid.AddChild(visionLabel);
-
-		_shroudModeOption = new OptionButton();
-		_shroudModeOption.Name = "ShroudMode_OptionButton";
-		_shroudModeOption.AddThemeConstantOverride("icon_max_width", 20);
-		_shroudModeOption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_shroudModeOption.AddItem(TranslationServer.Translate("Map default"), (int)MatchShroudMode.FromMap);
-		_shroudModeOption.AddItem(TranslationServer.Translate("Revealed"), (int)MatchShroudMode.Revealed);
-		_shroudModeOption.AddItem(TranslationServer.Translate("Vision shroud"), (int)MatchShroudMode.VisionShroud);
-		_shroudModeOption.AddItem(TranslationServer.Translate("Exploration shroud"), (int)MatchShroudMode.ExplorationShroud);
-		_shroudModeOption.TooltipText = TranslationServer.Translate("Whether this match is played with the whole board visible or with vision limited to what each player's units can see.");
-		_shroudModeOption.ItemSelected += index => GameContext.Lobby.SetMatchOption(MatchOption.ShroudMode, (int)_shroudModeOption.GetItemId((int)index));
-		grid.AddChild(_shroudModeOption);
-
-		_mirroredDraftCheck = AddToggleSetting(grid, TranslationServer.Translate("Mirrored draft:"), MatchOption.MirroredAutoDraft, TranslationServer.Translate("Every player draws the same heroes and the same building options, which removes draft asymmetry."));
-		_openPoolDraftingCheck = AddToggleSetting(grid, TranslationServer.Translate("Open pool drafting:"), MatchOption.OpenPoolDrafting, TranslationServer.Translate("Drafted buildings stay in the deck instead of leaving it, so the same building can be drafted again."));
-
-		var closeButton = new Button();
-		closeButton.Name = "Close_Button";
-		closeButton.CustomMinimumSize = new Vector2(180, 40);
-		closeButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		closeButton.AddThemeConstantOverride("icon_max_width", 20);
-		closeButton.AddThemeStyleboxOverride("normal", UIStyle.CreateButtonNormal());
-		closeButton.AddThemeStyleboxOverride("hover", UIStyle.CreateButtonHover());
-		closeButton.AddThemeStyleboxOverride("pressed", UIStyle.CreateButtonPressed());
-		closeButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		UIStyle.ApplyButtonText(closeButton, TranslationServer.Translate("CLOSE"), 14);
-		closeButton.Pressed += () =>
-		{
-			GameContext.UserInterface.PlayClickSound();
-			ToggleMatchSettingsPopup();
-		};
-		content.AddChild(closeButton);
-
-		LoadMatchOptionsIntoSettings();
+		_matchSettingsPanel = new MatchSettingsPanel();
+		_matchSettingsPanel.Closed += CloseMatchSettingsPanel;
+		AddChild(_matchSettingsPanel);
+		_matchSettingsPanel.Open();
 	}
 
-	private SpinBox AddCountSetting(GridContainer grid, string labelText, double minimum, double maximum, MatchOption matchOption, string tooltip)
+	private void CloseMatchSettingsPanel()
 	{
-		var label = new Label();
-		label.Name = $"{matchOption}Label_Label";
-		label.Text = labelText;
-		label.AddThemeFontSizeOverride("font_size", 13);
-		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		label.TooltipText = tooltip;
-		grid.AddChild(label);
+		if (_matchSettingsPanel == null) return;
 
-		var spin = new SpinBox();
-		spin.Name = $"{matchOption}_SpinBox";
-		spin.MinValue = minimum;
-		spin.MaxValue = maximum;
-		spin.Step = 1;
-		spin.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		spin.TooltipText = tooltip;
-		spin.ValueChanged += value => GameContext.Lobby.SetMatchOption(matchOption, (int)value);
-		grid.AddChild(spin);
-		return spin;
-	}
-
-	private CheckBox AddToggleSetting(GridContainer grid, string labelText, MatchOption matchOption, string tooltip)
-	{
-		var label = new Label();
-		label.Name = $"{matchOption}Label_Label";
-		label.Text = labelText;
-		label.AddThemeFontSizeOverride("font_size", 13);
-		label.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		label.TooltipText = tooltip;
-		grid.AddChild(label);
-
-		var check = new CheckBox();
-		check.Name = $"{matchOption}_CheckBox";
-		check.Text = TranslationServer.Translate("Enabled");
-		check.AddThemeConstantOverride("icon_max_width", 20);
-		check.TooltipText = tooltip;
-		UIStyle.ApplyCheckboxStyle(check);
-		check.Toggled += toggled => GameContext.Lobby.SetMatchOption(matchOption, toggled ? 1 : 0);
-		grid.AddChild(check);
-		return check;
+		if (GodotObject.IsInstanceValid(_matchSettingsPanel)) _matchSettingsPanel.QueueFree();
+		_matchSettingsPanel = null;
 	}
 
 	/// <summary>
-	///     Shows the settings the lobby currently holds, so a host that opens the panel reads what the match will play
-	///     rather than the values it typed before the lobby refused one of them.
+	///     A setting the lobby changed is redrawn in the panel, which is the only surface those settings are edited on: the
+	///     host's own change and another seat's arrive the same way, so the panel always reads what the match will play.
 	/// </summary>
-	private void LoadMatchOptionsIntoSettings()
+	private void OnMatchSettingsChanged()
 	{
-		MatchOptionSet options = GameContext.Lobby.MatchOptions;
-
-		SetSpinValue(_maximumPlayersSpin, options.Get(MatchOption.MaximumPlayers));
-		SetSpinValue(_draftCountSpin, options.Get(MatchOption.MaximumBuildingDraftCount));
-		SetSpinValue(_uniqueBuildingsSpin, options.Get(MatchOption.MaximumUniqueBuildingInstances));
-		SetSpinValue(_capacityMultiplierSpin, options.Get(MatchOption.CapacityMultiplierPercent));
-		SetSpinValue(_chargeMultiplierSpin, options.Get(MatchOption.ChargeMultiplierPercent));
-
-		if (_shroudModeOption != null)
-		{
-			int shroudMode = options.Get(MatchOption.ShroudMode);
-			for (int index = 0; index < _shroudModeOption.ItemCount; index++)
-			{
-				if (_shroudModeOption.GetItemId(index) != shroudMode) continue;
-				_shroudModeOption.Select(index);
-				break;
-			}
-		}
-
-		if (_mirroredDraftCheck != null) _mirroredDraftCheck.ButtonPressed = options.IsEnabled(MatchOption.MirroredAutoDraft);
-		if (_openPoolDraftingCheck != null) _openPoolDraftingCheck.ButtonPressed = options.IsEnabled(MatchOption.OpenPoolDrafting);
+		if (_matchSettingsPanel != null && GodotObject.IsInstanceValid(_matchSettingsPanel)) _matchSettingsPanel.RefreshFromLobby();
 	}
 
-	private static void SetSpinValue(SpinBox? spin, int value)
+	private void OnTeamsTogetherChanged(bool enabled)
 	{
-		if (spin == null) return;
-
-		spin.SetValueNoSignal(value);
+		if (_matchSettingsPanel != null && GodotObject.IsInstanceValid(_matchSettingsPanel)) _matchSettingsPanel.RefreshFromLobby();
 	}
 
-	private void OnMatchOptionsChanged()
+	private void OnSpectatorDelayChanged(bool enabled)
 	{
-		LoadMatchOptionsIntoSettings();
+		if (_matchSettingsPanel != null && GodotObject.IsInstanceValid(_matchSettingsPanel)) _matchSettingsPanel.RefreshFromLobby();
 	}
 }

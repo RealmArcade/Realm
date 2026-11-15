@@ -16,11 +16,17 @@ namespace Realm.Client.Services;
 ///     the demo and the base game, so asking Steam to restart it under either id would send the other product's install to the
 ///     wrong store page. It initialises against whichever application Steam launched it as instead.
 /// </summary>
-public class SteamService
+public partial class SteamService
 {
 	private const string NativeLibraryName = "steam_api64";
 
 	private const string GameLobbyIdMetadataKey = "realm_game_lobby_id";
+
+	/// <summary>
+	///     The overlay dialog Steam opens for a user it should add as a friend. The name is Steamworks' own spelling of the
+	///     dialog, and it is the only way a game can put a request in front of the player who has to confirm it.
+	/// </summary>
+	private const string FriendDialogAddFriend = "friendadd";
 
 	private static readonly TimeSpan TicketTimeout = TimeSpan.FromSeconds(15);
 
@@ -579,6 +585,82 @@ public class SteamService
 				GameLog.LogError($"[Steam] the persona name could not be read: {exception.Message}");
 				return string.Empty;
 			}
+		}
+	}
+
+	/// <summary>
+	///     The SteamID64 this process plays as, or <c>0</c> while Steamworks is not running. It is the identity a seat states
+	///     to the lobby so that the table at the end of a match can point Steam at the person behind it.
+	/// </summary>
+	public ulong SteamId
+	{
+		get
+		{
+			if (!_initialized) return 0;
+
+			try
+			{
+				return SteamUser.GetSteamID().m_SteamID;
+			}
+			catch (Exception exception)
+			{
+				GameLog.LogError($"[Steam] this player's Steam id could not be read: {exception.Message}");
+				return 0;
+			}
+		}
+	}
+
+	/// <summary>
+	///     Whether Steam already lists a person among this player's friends, which is what decides if a friend request is
+	///     still worth a place in the game-over table: an add-friend dialog for somebody Steam has already accepted asks the
+	///     player to do what is already done. A session without Steamworks has no friend list to read and answers nothing.
+	/// </summary>
+	/// <param name="steamId">The SteamID64 of the person to look up.</param>
+	/// <returns>Whether Steam lists that person as this player's friend.</returns>
+	public bool IsFriend(ulong steamId)
+	{
+		if (!_initialized || steamId == 0) return false;
+
+		try
+		{
+			return SteamFriends.HasFriend(new CSteamID(steamId), EFriendFlags.k_EFriendFlagImmediate);
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[Steam] whether {steamId} is a friend could not be read: {exception.Message}");
+			return false;
+		}
+	}
+
+	/// <summary>
+	///     Asks Steam to add a player as a friend, by opening Steam's own add-friend dialog for that SteamID64. Steam has no
+	///     interface that sends a request silently - the request is the player's to confirm in Steam's own window - so this is
+	///     the whole of what a game can do, and it carries the same meaning as any other game's "add friend" button.
+	/// </summary>
+	/// <param name="steamId">The SteamID64 of the player to add.</param>
+	/// <returns>Whether Steam was asked, which is false when Steamworks is not running or the id names nobody.</returns>
+	public bool OpenAddFriendDialog(ulong steamId)
+	{
+		if (!_initialized || steamId == 0) return false;
+
+		ulong ownSteamId = SteamId;
+		if (ownSteamId != 0 && ownSteamId == steamId) return false;
+
+		try
+		{
+			if (!SteamUtils.IsOverlayEnabled())
+			{
+				GameLog.LogError("[Steam] the Steam overlay is disabled for this game, so the add-friend dialog will not be shown");
+			}
+
+			SteamFriends.ActivateGameOverlayToUser(FriendDialogAddFriend, new CSteamID(steamId));
+			GameLog.LogToConsole($"[Steam] asked Steam to add {steamId} as a friend");
+			return true;
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[Steam] Steam's add-friend dialog for {steamId} could not be opened: {exception.Message}");
+			return false;
 		}
 	}
 

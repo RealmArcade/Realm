@@ -216,6 +216,19 @@ public interface IHandleCommands
 	void SetUnitCommandsFrozen(UnitId unit, bool value);
 
 	/// <summary>
+	/// Locks the unit to the map script that drives it, or gives it back to its player.
+	/// </summary>
+	/// <remarks>
+	/// A locked unit keeps its owner, abilities and position, but its player cannot move, attack, hold, patrol or gather
+	/// with it, and clients draw its ability cards disabled. Orders the script issues itself still apply, so a ruleset can
+	/// run an autonomous army the player can watch but not command. Setting the flag again is a no-op rather than a
+	/// stacked count, and false removes it cleanly.
+	/// </remarks>
+	/// <param name="unit">The unit to lock to its map.</param>
+	/// <param name="value">True to refuse player orders; false to accept them again.</param>
+	void SetUnitPlayerOrdersLocked(UnitId unit, bool value);
+
+	/// <summary>
 	/// Pins the unit in place, or releases it again, by freezing its animation and its orders together.
 	/// </summary>
 	/// <remarks>

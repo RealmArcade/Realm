@@ -344,12 +344,17 @@ public partial class GameHost
 					var collider = hit["collider"].As<Node>();
 					var clickedUnit = FindUnit3DInParentChain(collider);
 					var clickedProp = FindProp3DInParentChain(collider);
+					var clickedLoot = FindLootItemInParentChain(collider);
 					bool shiftHeld = Input.IsKeyPressed(Key.Shift);
 					bool isClickedEnemy = clickedUnit != null && GameContext.PerspectiveFilter.IsHostileToObserved(clickedUnit.Player);
 
 					if (clickedUnit != null && isClickedEnemy && clickedUnit.Visible)
 					{
 						IssueAttackCommand(clickedUnit, shiftHeld);
+					}
+					else if (clickedUnit != null && !isClickedEnemy && HasSelectedRepairerFor(clickedUnit))
+					{
+						IssueRepairCommand(clickedUnit, shiftHeld);
 					}
 					else if (clickedUnit != null && !isClickedEnemy && clickedUnit != SelectedUnits.Find(u => GameContext.PerspectiveFilter.CanControl(u.Player)))
 					{
@@ -383,7 +388,11 @@ public partial class GameHost
 					{
 						IssueGatherCommand(clickedProp, shiftHeld);
 					}
-					else
+					else if (clickedLoot != null && clickedLoot.Visible)
+					{
+						IssuePickupCommand(clickedLoot, shiftHeld);
+					}
+					else if (!TryIssueGatherCommandAt(hitPos, shiftHeld) && !TryIssuePickupCommandAt(hitPos, shiftHeld))
 					{
 						IssueMoveCommand(hitPos, shiftHeld);
 					}
@@ -448,6 +457,19 @@ public partial class GameHost
 						Input.SetCustomMouseCursor(null);
 						Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
 					}
+					else if (ActiveCommandTargeting == DropItemTargetingMode)
+					{
+						var hit = RaycastTerrainFromMouse(mouseBtn.Position) ?? RaycastFromMouse(mouseBtn.Position);
+						if (hit != null && hit.ContainsKey("position"))
+						{
+							var hitPos = hit["position"].AsVector3();
+							hitPos.Y = GetTerrainHeightAt(hitPos);
+							IssueDropItemCommand(hitPos, GameContext.InputService?.ActiveDropItemId ?? string.Empty, GameContext.InputService?.ActiveDropItemCharges ?? 0);
+						}
+
+						ActiveCommandTargeting = null;
+						Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
+					}
 					else if (ActiveCommandTargeting != null)
 					{
 						var hit = RaycastFromMouse(mouseBtn.Position);
@@ -456,6 +478,7 @@ public partial class GameHost
 							var hitPos = hit["position"].AsVector3();
 							var collider = hit["collider"].As<Node>();
 							var clickedUnit = FindUnit3DInParentChain(collider);
+							var clickedProp = FindProp3DInParentChain(collider);
 
 							bool shiftHeld = Input.IsKeyPressed(Key.Shift);
 							if (ActiveCommandTargeting == "attack")
@@ -463,6 +486,10 @@ public partial class GameHost
 								if (clickedUnit != null && clickedUnit.Entity != Entity.Null)
 								{
 									IssueAttackCommand(clickedUnit, shiftHeld);
+								}
+								else if (clickedProp != null && clickedProp.Visible && clickedProp.IsResource)
+								{
+									IssueGatherCommand(clickedProp, shiftHeld);
 								}
 								else
 								{
@@ -559,6 +586,7 @@ public partial class GameHost
 					var collider = hit["collider"].As<Node>();
 					var clickedUnit = FindUnit3DInParentChain(collider);
 					var clickedProp = FindProp3DInParentChain(collider);
+					var clickedLoot = FindLootItemInParentChain(collider);
 
 					if (SelectedUnits.Count == 1 && GameContext.PerspectiveFilter.CanControl(SelectedUnits[0].Player) && CanProduceUnits(SelectedUnits[0]))
 					{
@@ -581,6 +609,10 @@ public partial class GameHost
 					else if (clickedProp != null && clickedProp.Visible && clickedProp.IsResource)
 					{
 						IssueGatherCommand(clickedProp);
+					}
+					else if (clickedLoot != null && clickedLoot.Visible)
+					{
+						IssuePickupCommand(clickedLoot);
 					}
 					else
 					{

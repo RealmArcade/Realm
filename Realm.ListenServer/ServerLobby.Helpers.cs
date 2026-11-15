@@ -36,11 +36,11 @@ public partial class ServerLobby
 
 	private int FindFreePlayingSlot(int preferredSlot)
 	{
-		if (PlayingSeatCount >= _maximumPlayers) return -1;
-		if (preferredSlot > 0 && preferredSlot <= _maximumPlayers && !_seats.ContainsKey(preferredSlot)) return preferredSlot;
+		if (preferredSlot > 0 && IsSlotOpen(preferredSlot) && !_seats.ContainsKey(preferredSlot)) return preferredSlot;
 
-		for (int slot = 1; slot <= _maximumPlayers; slot++)
+		for (int slot = 1; slot < _openSlots.Length; slot++)
 		{
+			if (!_openSlots[slot]) continue;
 			if (!_seats.ContainsKey(slot)) return slot;
 		}
 
@@ -48,30 +48,15 @@ public partial class ServerLobby
 	}
 
 	/// <summary>
-	///     Finds a seat a spectator may hold. Spectators sit outside the player seats, so the seats above the player count
-	///     are offered first and the player seats are left for players.
-	/// </summary>
-	private int FindFreeSpectatorSlot()
-	{
-		for (int slot = _maximumPlayers + 1; slot <= LobbyLimits.MaximumSeats; slot++)
-		{
-			if (!_seats.ContainsKey(slot)) return slot;
-		}
-
-		return -1;
-	}
-
-	/// <summary>
-	///     Whether the seat may hold a team. A seat on team zero is a spectator, which takes no player seat and so is always
-	///     allowed; a seat that plays has to sit inside the player seats and has to find one free.
+	///     Whether the seat may hold a team. A seat on team zero is a spectator, which sits in the row it already holds; a
+	///     seat that plays has to sit in a slot the lobby leaves open.
 	/// </summary>
 	private bool CanSeatPlayTeam(int slot, int team, int heldTeam)
 	{
 		if (team < 1) return true;
 		if (heldTeam >= 1) return true;
-		if (slot > _maximumPlayers) return false;
 
-		return PlayingSeatCount < _maximumPlayers;
+		return IsSlotOpen(slot);
 	}
 
 	private string ResolveJoinTeamName()
@@ -194,21 +179,4 @@ public partial class ServerLobby
 		return "1.0.0";
 	}
 
-	private int ResolveMaximumPlayers(ServerArguments arguments)
-	{
-		if (arguments.MaxPlayers > 0) return Math.Min(arguments.MaxPlayers, LobbyLimits.MaximumSeats);
-
-		try
-		{
-			var metadata = MapFileService.LoadMetadata(arguments.MapPath);
-			int slots = metadata.MapProperties?.GetPlayablePlayerSlots() ?? 0;
-			if (slots > 0) return Math.Min(slots, LobbyLimits.MaximumSeats);
-		}
-		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-		{
-			_log.Write($"the lobby could not read its map's metadata: {exception.Message}");
-		}
-
-		return 8;
-	}
 }

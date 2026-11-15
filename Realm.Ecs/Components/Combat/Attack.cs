@@ -7,6 +7,7 @@ namespace Realm.Ecs.Components.Combat;
 /// Defines combat attack parameters including damage, range, cooldowns, and area-of-effect splash.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct Attack
 {
 	public float Damage;

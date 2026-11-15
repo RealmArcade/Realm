@@ -52,7 +52,7 @@ public partial class CommandPanel
 		string shortfall = MathF.Ceiling(cost - held).ToString("F0");
 		string message = string.Format(TranslationServer.Translate("{0} needs {1} more {2}"), name, shortfall, resourceName);
 
-		GameContext.InGameHud?.ShowFeedbackText(message, new Color(1.0f, 0.3f, 0.25f));
+		GameContext.InGameHud?.ShowFeedbackWarning(message);
 	}
 
 	private CommandCardItem? CreateBuildOptionItem(string unitId, Entity builderEntity = default)
@@ -146,7 +146,7 @@ public partial class CommandPanel
 			Hotkey = ParseHotkey(abilityDef?.Hotkey),
 			GridX = abilityDef?.GridX ?? -1,
 			GridY = abilityDef?.GridY ?? -1,
-			Callback = GetAbilityCallback(abilityId, abilityDef?.IsInstant ?? false),
+			Callback = GetAbilityCallback(abilityId, abilityDef),
 			IsDisabled = () => IsAbilityDisabled(host, unitWrapper, casterEntity, abilityId, manaCost)
 		};
 	}

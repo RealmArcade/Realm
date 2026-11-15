@@ -23,7 +23,13 @@ namespace Realm.Ecs.Services
 		{
 			if (!ShouldSimulateEntity(entity)) return;
 
-			if (!_context.World.IsAlive(target.Target) || _context.World.Has<Dead>(target.Target) || _context.World.Has<Invulnerable>(target.Target))
+			if (_context.World.Has<Dormant>(entity))
+			{
+				_tickActionsToRemoveTarget.Add(entity);
+				return;
+			}
+
+			if (!_context.World.IsAlive(target.Target) || _context.World.Has<Dead>(target.Target) || _context.World.Has<Invulnerable>(target.Target) || _context.World.Has<Dormant>(target.Target))
 			{
 				_tickActionsToRemoveTarget.Add(entity);
 				return;
@@ -139,6 +145,8 @@ namespace Realm.Ecs.Services
 
 		private void ApplyDamageAndEffects(Entity entity, Entity target, float damage, float baseDamage, ref Attack atk, Vector3 targetPos, Owner owner)
 		{
+			if (_context.World.Has<Dormant>(target)) return;
+
 			RecordLastAttacker(target, entity);
 
 			OnUnitAttackedCallback?.Invoke(entity, target);

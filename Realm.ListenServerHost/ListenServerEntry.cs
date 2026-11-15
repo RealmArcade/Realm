@@ -214,7 +214,7 @@ public partial class ListenServerEntry : Node
 		EndMatch("a new match was put on this authority");
 
 		ServerArguments arguments = ServerArguments.From(command, _logPath, _dataFolderPath);
-		var transport = new EnetServerTransport(channel, command.Port);
+		var transport = new EnetServerTransport(channel, command.Port, command.WasmDebug);
 		var host = new MatchHost(arguments, log, transport);
 
 		try

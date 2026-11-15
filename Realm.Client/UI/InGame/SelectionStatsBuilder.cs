@@ -12,6 +12,7 @@ public sealed record SelectionStatsNodes(
 	UnitStatsPanel StatsPanel,
 	VBoxContainer ProductionBox,
 	Label ProductionTitle,
+	Label ProductionCapacity,
 	ProgressBar ProductionProgress,
 	Label ProductionQueueLabel,
 	HBoxContainer QueueSlots);
@@ -68,6 +69,17 @@ public static class SelectionStatsBuilder
 		productionTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
 		productionBox.AddChild(productionTitle);
 
+		// The capacity reading belongs to the map, not to the engine: a map that gates production by capacity publishes the
+		// soldiers a building maintains against what it grants, and this line shows whatever it published. A map with no
+		// such reading keeps the line hidden, so a queue-based map loses nothing.
+		var productionCapacity = new Label();
+		productionCapacity.Name = "ProductionCapacity_Label";
+		productionCapacity.HorizontalAlignment = HorizontalAlignment.Center;
+		productionCapacity.AddThemeFontSizeOverride("font_size", 11);
+		productionCapacity.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		productionCapacity.Visible = false;
+		productionBox.AddChild(productionCapacity);
+
 		var productionProgress = new ProgressBar();
 		productionProgress.Name = "ProductionProgress_ProgressBar";
 		productionProgress.CustomMinimumSize = new Vector2(120, 16);
@@ -89,8 +101,8 @@ public static class SelectionStatsBuilder
 		queueSlots.AddThemeConstantOverride("separation", 6);
 		productionBox.AddChild(queueSlots);
 
-		return new SelectionStatsNodes(container, statsPanel, productionBox, productionTitle, productionProgress,
-			productionQueueLabel, queueSlots);
+		return new SelectionStatsNodes(container, statsPanel, productionBox, productionTitle, productionCapacity,
+			productionProgress, productionQueueLabel, queueSlots);
 	}
 
 }

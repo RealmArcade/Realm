@@ -187,7 +187,7 @@ namespace Realm.Client.UI
 				this, ShowFeedback, AppendWasmConsoleLog, () => _wasmHasErrors, hasErrors => _wasmHasErrors = hasErrors,
 				SetWasmConsoleStatus, EnsureSignedInForPublishing,
 				(out NSec.Cryptography.Key? key) => TryGetSelectedAuthorshipKey(out key, out _, out _),
-				CheckAssetSizeValidation, () => GetMapNameFromMetadata(), () => GetMapVersionFromMetadata(),
+				CheckScriptIsOptimized, CheckAssetSizeValidation, () => GetMapNameFromMetadata(), () => GetMapVersionFromMetadata(),
 				SignMapMetadataAsync, GetPublishAuthorName, path => CompileWorkspaceScriptAsync(path),
 				_minimapController == null ? null : path => _minimapController.GenerateAndSaveMinimapThumbnailAsync(path),
 				InvalidateMetadataCache,

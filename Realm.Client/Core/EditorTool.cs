@@ -26,5 +26,6 @@ public enum EditorTool
 	FloodFillPathing,
 	DrawCoordinate,
 	Water,
-	Measure
+	Measure,
+	PlaceItem
 }

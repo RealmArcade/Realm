@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -137,7 +137,7 @@ namespace Realm.Client.UI
 			_btnHeaderInspector = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/BtnHeaderInspector");
 			_contentInspector = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/InspectorAccordion/ContentInspector");
 			StyleAccordionHeader(_btnHeaderInspector);
-			SetupAccordion(_btnHeaderInspector, _contentInspector, TranslationServer.Translate("Selected Object Inspector"));
+			SetupAccordion(_btnHeaderInspector, _contentInspector, "Selected Object Inspector");
 
 			BuildPlacementAccordion();
 		}
@@ -273,7 +273,8 @@ namespace Realm.Client.UI
 
 				if (GameContext.SessionState.SavedActiveTool == EditorTool.PlaceUnit ||
 				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceProp ||
-				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceDecal)
+				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceDecal ||
+				    GameContext.SessionState.SavedActiveTool == EditorTool.PlaceItem)
 				{
 					_entityPaletteController?.SelectCategoryItemExternal(GameContext.SessionState.SavedEntityCategory, GameContext.SessionState.SavedActivePlaceId);
 				}
@@ -422,7 +423,7 @@ namespace Realm.Client.UI
 			_toolPanel.Build(new ToolAccordionHooks(
 				this, StyleAccordionHeader, SetupAccordion, SetupButton, SetupOptionButton, (tool, btn) => TriggerToolSelection(tool, btn),
 				GetFontAwesomeFont, () => _entityPaletteController?.TriggerAddObjectMode(), DeleteSelectedObjectAction,
-				ShowFeedback, RefreshCoordinateListExternal, OpenInstanceManagerDialog));
+				ShowFeedback, RefreshCoordinateListExternal, OpenInstanceManagerDialog, OpenSpawnAnchorDialog));
 		}
 
 
@@ -458,7 +459,7 @@ namespace Realm.Client.UI
 			_btnHeaderToolSettings = GetNode<Button>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/BtnHeaderToolSettings");
 			_contentToolSettings = GetNode<VBoxContainer>("RightSlidePanel/RightScroll/AccordionContainer/ToolSettingsAccordion/ContentToolSettings");
 			StyleAccordionHeader(_btnHeaderToolSettings);
-			SetupAccordion(_btnHeaderToolSettings, _contentToolSettings, TranslationServer.Translate("Tool Settings"));
+			SetupAccordion(_btnHeaderToolSettings, _contentToolSettings, "Tool Settings");
 
 			BuildTextureSettingsPanel();
 
@@ -598,6 +599,16 @@ namespace Realm.Client.UI
 		}
 
 
+		/// <summary>
+		/// Opens the item template editor, which is where a selected drop's ground model, icon, name and grants live. The
+		/// visual inspector has no item controls, so an item is never handed to it.
+		/// </summary>
+		/// <param name="templateId">The item template the selected drop is spawned from.</param>
+		public void OpenItemTemplateEditor(string templateId)
+		{
+			_templateManagerDialog?.OpenItemEditor(templateId);
+		}
+
 		/// <summary>Opens the visual template editor for the object selected in the inspector.</summary>
 		private void EditSelectedTemplate()
 		{
@@ -630,9 +641,6 @@ namespace Realm.Client.UI
 		{
 			_entityVisualEditDialog = new EntityVisualEditDialog(this);
 			_animationPreviewDialog = new AnimationPreviewDialog(this);
-			_weaponVfxDialog = new WeaponVfxDialog(this);
-			_modelPickerDialog = new ModelPickerDialog(this);
-			_abilityVfxDialog = new AbilityVfxDialog(this);
 			_assetManagerDialog = new AssetManagerDialog(this);
 			_importFromMapDialog = new ImportFromMapDialog(this);
 			_templateManagerDialog = new TemplateManagerDialog(this);

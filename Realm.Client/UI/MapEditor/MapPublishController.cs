@@ -34,6 +34,7 @@ public sealed record PublishHooks(
 	Action<string, Color> SetWasmConsoleStatus,
 	Func<bool> EnsureSignedIn,
 	AuthorshipKeyProvider TryGetAuthorshipKey,
+	Func<string, bool> CheckScriptOptimized,
 	Func<string, bool> CheckAssetSize,
 	Func<string> MapName,
 	Func<string> MapVersion,
@@ -86,16 +87,6 @@ public sealed class MapPublishController
 		{
 			_hooks.Feedback(string.Format(TranslationServer.Translate("Publish failed: Map is missing required asset files:\n{0}"), string.Join(", ", missingAssets.Take(4)) + (missingAssets.Count > 4 ? "..." : "")));
 			_hooks.AppendLog($"[ERROR] Publish failed. Missing required asset files:\n  {string.Join("\n  ", missingAssets)}");
-			if (GameContext.EditorService != null)
-			{
-				GameContext.EditorService.IsSyncing = false;
-				GameContext.EditorService.IsPaused = false;
-			}
-			return;
-		}
-
-		if (!_hooks.CheckAssetSize(workspace))
-		{
 			if (GameContext.EditorService != null)
 			{
 				GameContext.EditorService.IsSyncing = false;
@@ -175,12 +166,6 @@ public sealed class MapPublishController
 				return;
 			}
 
-			if (!_hooks.CheckAssetSize(workspace))
-			{
-				view.Fail(TranslationServer.Translate("Asset exceeds 15 MB size limit. Publish aborted."));
-				return;
-			}
-
 			view.Stage(20, TranslationServer.Translate("Compiling WASM map script..."));
 			await _hooks.Owner.ToSignal(_hooks.Owner.GetTree(), SceneTree.SignalName.ProcessFrame);
 
@@ -205,6 +190,18 @@ public sealed class MapPublishController
 					_hooks.Feedback(TranslationServer.Translate("Compiled WASM binary missing. Publish aborted."));
 					return;
 				}
+			}
+
+			if (!_hooks.CheckScriptOptimized(workspace))
+			{
+				view.Fail(TranslationServer.Translate("The compiled map script still carries debug information. Publish aborted."));
+				return;
+			}
+
+			if (!_hooks.CheckAssetSize(workspace))
+			{
+				view.Fail(TranslationServer.Translate("Asset exceeds 15 MB size limit. Publish aborted."));
+				return;
 			}
 
 			GameContext.MapStorageService.DeduplicateWorkspaceBuildArtifacts(workspace);

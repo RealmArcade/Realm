@@ -5,7 +5,8 @@ namespace Realm.Client.UI.InGame;
 
 /// <summary>
 ///     The one control that only exists in a mode of its own: the way back to the editor after a test run of a map. It is
-///     separate from the HUD's other buttons because it leaves the match rather than commanding anything in it.
+///     separate from the HUD's other buttons because it leaves the match rather than commanding anything in it, and the
+///     match's own quit button leaves a test run the same way through <see cref="Return" />.
 /// </summary>
 public static class BackToEditorButton
 {
@@ -29,6 +30,16 @@ public static class BackToEditorButton
 	private static void OnPressed()
 	{
 		GameContext.UserInterface?.PlayClickSound();
+		Return();
+	}
+
+	/// <summary>
+	///     Leaves the test run and puts the editor back on screen with the board it was showing, which is the one way out of
+	///     a test run: the button that offers it and the match's quit button both end here, so neither can leave the editor
+	///     in a state the other does not.
+	/// </summary>
+	public static void Return()
+	{
 		GameContext.SessionState.IsTestMode = false;
 		GameContext.SessionState.ReturningFromTest = true;
 		if (GameContext.Lobby != null)

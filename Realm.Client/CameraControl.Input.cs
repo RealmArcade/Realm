@@ -75,12 +75,16 @@ public partial class CameraControl : Camera3D
 
 		if (!HasCameraState) return;
 
-		if (_pendingFollowUnitServerId > 0 && GameContext.Host != null && GameContext.Host.TryGetUnit3DByServerId(_pendingFollowUnitServerId, out Unit3D? pendingUnit))
+		if (_pendingAttachedFollowUnitServerId > 0 && GameContext.Host != null && GameContext.Host.TryGetUnit3DByServerId(_pendingAttachedFollowUnitServerId, out Unit3D? pendingUnit))
 		{
 			FollowTarget = pendingUnit;
-			_pendingFollowUnitServerId = 0;
-			_scriptFollowNeedsSnap = true;
+			_pendingAttachedFollowUnitServerId = 0;
+			_attachedFollowNeedsSnap = true;
 		}
+
+		// A map driving the camera owns it for as long as it says so: the player's panning, zooming, edge scrolling and
+		// rotation are not read, and the shot places the camera itself.
+		if (UpdateScriptCamera(fDelta)) return;
 
 		ref var state = ref World.Get<CameraState>(GameContext.Simulation.WorldEntity);
 		state.MoveSpeed = 10.0f + (GameSettings.ScrollSpeed / 100.0f) * 50.0f;

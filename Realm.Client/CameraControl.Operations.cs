@@ -18,10 +18,10 @@ public partial class CameraControl : Camera3D
 		TargetHeight = 35.0f;
 		_isTopDown = false;
 		FollowTarget = null;
-		_pendingFollowUnitServerId = 0;
-		_hasScriptFollowConfig = false;
-		_hasScriptViewActive = false;
-		_scriptFollowNeedsSnap = false;
+		_pendingAttachedFollowUnitServerId = 0;
+		_attachedFollowConfigured = false;
+		_attachedViewActive = false;
+		_attachedFollowNeedsSnap = false;
 		if (IsFreeCamera)
 		{
 			SetFreeCamera(false);
@@ -39,44 +39,44 @@ public partial class CameraControl : Camera3D
 		bool lockCameraInput)
 	{
 		IsLocked = lockCameraInput;
-		_hasScriptViewActive = false;
+		_attachedViewActive = false;
 
 		if (serverUnitId <= 0)
 		{
 			FollowTarget = null;
-			_pendingFollowUnitServerId = 0;
-			_hasScriptFollowConfig = false;
+			_pendingAttachedFollowUnitServerId = 0;
+			_attachedFollowConfigured = false;
 			return;
 		}
 
-		_scriptFollowDistance = Mathf.Max(0.5f, distance);
-		_scriptFollowHeightOffset = heightOffset;
-		_scriptFollowPitchDegrees = Mathf.Clamp(pitchDegrees, -89.0f, 89.0f);
-		_scriptFollowYawOffsetDegrees = yawOffsetDegrees;
-		_scriptFollowAlignToUnitFacing = alignToUnitFacing;
-		_scriptFollowSmoothing = smoothing;
-		_hasScriptFollowConfig = true;
-		_scriptFollowNeedsSnap = true;
-		_targetPitch = _scriptFollowPitchDegrees;
+		_attachedFollowDistance = Mathf.Max(0.5f, distance);
+		_attachedFollowHeightOffset = heightOffset;
+		_attachedFollowPitchDegrees = Mathf.Clamp(pitchDegrees, -89.0f, 89.0f);
+		_attachedFollowYawOffsetDegrees = yawOffsetDegrees;
+		_attachedFollowAlignToUnitFacing = alignToUnitFacing;
+		_attachedFollowSmoothing = smoothing;
+		_attachedFollowConfigured = true;
+		_attachedFollowNeedsSnap = true;
+		_targetPitch = _attachedFollowPitchDegrees;
 
 		if (GameContext.Host != null && GameContext.Host.TryGetUnit3DByServerId(serverUnitId, out Unit3D? unit3D))
 		{
 			FollowTarget = unit3D;
-			_pendingFollowUnitServerId = 0;
+			_pendingAttachedFollowUnitServerId = 0;
 		}
 		else
 		{
 			FollowTarget = null;
-			_pendingFollowUnitServerId = serverUnitId;
+			_pendingAttachedFollowUnitServerId = serverUnitId;
 		}
 	}
 
 	public void SetScriptCameraView(float yawDegrees, float pitchDegrees, float height, bool lockCameraInput)
 	{
 		FollowTarget = null;
-		_pendingFollowUnitServerId = 0;
-		_hasScriptFollowConfig = false;
-		_hasScriptViewActive = true;
+		_pendingAttachedFollowUnitServerId = 0;
+		_attachedFollowConfigured = false;
+		_attachedViewActive = true;
 		_targetYaw = yawDegrees;
 		_targetPitch = Mathf.Clamp(pitchDegrees, -89.0f, 89.0f);
 		TargetHeight = Mathf.Max(1.0f, height);
@@ -86,9 +86,9 @@ public partial class CameraControl : Camera3D
 	public void ResetScriptCamera()
 	{
 		IsLocked = false;
-		_hasScriptFollowConfig = false;
-		_hasScriptViewActive = false;
-		_pendingFollowUnitServerId = 0;
+		_attachedFollowConfigured = false;
+		_attachedViewActive = false;
+		_pendingAttachedFollowUnitServerId = 0;
 		ResetCamera();
 	}
 
@@ -267,13 +267,22 @@ public partial class CameraControl : Camera3D
 
 	public void FocusOnPosition(Vector3 targetPos)
 	{
-		float yawRadians = Mathf.DegToRad(_currentYaw);
-		float pitchRadians = Mathf.DegToRad(_currentPitch);
-		Vector3 forwardXZ = new Vector3(-Mathf.Sin(yawRadians), 0.0f, -Mathf.Cos(yawRadians));
+		// The rendered forward is the one the player sees, and it carries the pitch and yaw swings the rotation fields
+		// do not. Centring on the raw yaw and pitch fields put the target off the middle of the screen whenever a swing
+		// was in progress, which is exactly when a focus or a control-group recall is used.
+		Vector3 forward = -GlobalTransform.Basis.Z;
+		float horizontalLength = new Vector2(forward.X, forward.Z).Length();
+		if (horizontalLength < 0.001f)
+		{
+			Position = new Vector3(targetPos.X, Position.Y, targetPos.Z);
+			return;
+		}
+
+		Vector3 forwardXZ = new Vector3(forward.X / horizontalLength, 0.0f, forward.Z / horizontalLength);
 		float heightAboveTarget = Mathf.Max(0.0f, Position.Y - targetPos.Y);
-		float pitchTangent = Mathf.Tan(Mathf.Abs(pitchRadians));
+		float pitchTangent = Mathf.Max(0.001f, -forward.Y) / horizontalLength;
 		float horizontalDistance = pitchTangent > 0.0001f ? heightAboveTarget / pitchTangent : 0.0f;
-		Vector3 focusPosition = new Vector3(targetPos.X, Position.Y, targetPos.Z) - (forwardXZ * horizontalDistance);
+		Vector3 focusPosition = new Vector3(targetPos.X, Position.Y, targetPos.Z) - forwardXZ * horizontalDistance;
 		Position = focusPosition;
 	}
 

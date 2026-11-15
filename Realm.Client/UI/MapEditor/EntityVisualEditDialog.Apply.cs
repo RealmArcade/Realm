@@ -135,9 +135,11 @@ public partial class EntityVisualEditDialog
 
 	private void FlushAndRefreshGameHost(string newTemplateID, string spawnKey, string deathKey, string animKey, string wsPath, VisualOverridesSnapshot currentSnapshot)
 	{
+		bool templateRenamed = !string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID);
+
 		FlushModelPropertiesToGameHost(newTemplateID, spawnKey, deathKey, animKey);
 
-		if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
+		if (templateRenamed)
 		{
 			FlushModelPropertiesToGameHost(_originalTemplateID, spawnKey, deathKey, animKey);
 			GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
@@ -151,7 +153,7 @@ public partial class EntityVisualEditDialog
 		EditorHistoryManager.RecordAction(action);
 
 		GameContext.IEditorAPI.RefreshPlacedObjectModels(newTemplateID);
-		if (!string.Equals(_originalTemplateID, newTemplateID, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_originalTemplateID))
+		if (templateRenamed)
 		{
 			GameContext.IEditorAPI.RefreshPlacedObjectModels(_originalTemplateID);
 		}

@@ -48,7 +48,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 	private ShaderEditorDialog _shaderEditDialog = null!;
 	private SpritesheetAssetEditDialog _spritesheetEditDialog = null!;
 	private TerrainTextureEditDialog _textureEditDialog = null!;
-	private ItemUpgradeEditDialog _itemUpgradeEditDialog = null!;
+	private ItemEditDialog _itemEditDialog = null!;
+	private UpgradeEditDialog _upgradeEditDialog = null!;
 
 	private string _currentCategory = "units";
 	private string _searchFilter = "";
@@ -78,7 +79,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_shaderEditDialog = new ShaderEditorDialog(hud);
 		_spritesheetEditDialog = new SpritesheetAssetEditDialog(hud);
 		_textureEditDialog = new TerrainTextureEditDialog(hud);
-		_itemUpgradeEditDialog = new ItemUpgradeEditDialog(hud);
+		_itemEditDialog = new ItemEditDialog(hud);
+		_upgradeEditDialog = new UpgradeEditDialog(hud);
 
 		_entityVisualEditDialog.DialogClosed += ReloadCurrentPreview;
 		_weaponVfxDialog.DialogClosed += ReloadCurrentPreview;
@@ -89,7 +91,8 @@ public partial class TemplateManagerDialog : FloatingPreview3DDialogBase
 		_shaderEditDialog.DialogClosed += ReloadCurrentPreview;
 		_spritesheetEditDialog.DialogClosed += ReloadCurrentPreview;
 		_textureEditDialog.DialogClosed += ReloadCurrentPreview;
-		_itemUpgradeEditDialog.DialogClosed += ReloadCurrentPreview;
+		_itemEditDialog.DialogClosed += ReloadCurrentPreview;
+		_upgradeEditDialog.DialogClosed += ReloadCurrentPreview;
 
 		DefaultDistance = 5.0f;
 		CameraDistance = 5.0f;

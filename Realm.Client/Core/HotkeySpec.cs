@@ -52,7 +52,7 @@ public readonly record struct HotkeySpec(Key Key, KeyModifierMask Modifiers)
 
 		if (!TryParseKey(keyToken, out Key key))
 		{
-			errorMessage = $"'{keyToken}' is not a key name. Use a key name such as 'Q', 'F1' or 'Escape'.";
+			errorMessage = $"'{keyToken}' is not a key name. Use a key name such as 'Q', '1', 'F1' or 'Escape'.";
 			return false;
 		}
 
@@ -99,7 +99,16 @@ public readonly record struct HotkeySpec(Key Key, KeyModifierMask Modifiers)
 		string trimmed = token.Trim();
 		if (trimmed.Length == 0) return false;
 		if (trimmed.Contains(',') || trimmed.Contains('|') || trimmed.Contains(' ')) return false;
-		if (int.TryParse(trimmed, out _)) return false;
+
+		// A numbered command row is the ordinary way an RTS card is driven, and the grid slots themselves are
+		// written as digits by every map author. Rejecting the digit the map wrote sent those cards to a hotkey
+		// nobody could press instead of the key the player sees printed on them.
+		if (trimmed.Length == 1 && trimmed[0] >= '0' && trimmed[0] <= '9')
+		{
+			key = (Key)((int)Key.Key0 + (trimmed[0] - '0'));
+			return true;
+		}
+
 		if (!Enum.TryParse(trimmed, true, out key)) return false;
 
 		return key != Key.None;
@@ -121,11 +130,17 @@ public readonly record struct HotkeySpec(Key Key, KeyModifierMask Modifiers)
 		return remainingPressedModifiers == (Modifiers & TrackedModifiers);
 	}
 
-	public string DisplayName => IsNone ? string.Empty : $"{FormatModifiers()}{Key}";
+	public string DisplayName => IsNone ? string.Empty : $"{FormatModifiers()}{FormatKey(Key)}";
 
 	public override string ToString()
 	{
 		return DisplayName;
+	}
+
+	private static string FormatKey(Key key)
+	{
+		if (key >= Key.Key0 && key <= Key.Key9) return ((int)key - (int)Key.Key0).ToString();
+		return key.ToString();
 	}
 
 	private string FormatModifiers()

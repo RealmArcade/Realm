@@ -27,7 +27,7 @@ public class CombatService
 	{
 		EcsWorld? world = _context.World;
 		if (world == null || !world.Has<Attack>(attacker) || !world.Has<Health>(defender)) return;
-		if (world.Has<Invulnerable>(defender)) return;
+		if (world.Has<Invulnerable>(defender) || world.Has<Dormant>(defender)) return;
 
 		var attack = world.Get<Attack>(attacker);
 		var health = world.Get<Health>(defender);

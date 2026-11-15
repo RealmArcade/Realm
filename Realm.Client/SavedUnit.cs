@@ -9,4 +9,5 @@ public class SavedUnit
 	public float RotationY;
 	public float Scale;
 	public int Player;
+	public int Level;
 }

@@ -85,11 +85,6 @@ public partial class EcsWorld
 		BindComponent<ScriptPlayer>(ComponentIds.ScriptPlayer, MAX_PLAYERS);
 		BindComponent<PlayerPopulation>(ComponentIds.PlayerPopulation, MAX_PLAYERS + 1);
 
-		const int chargesOffset = EcsSharedMemory.UNIT_CHARGES_OFFSET;
-		tableDir[ComponentIds.UnitCharges] = baseAddr + chargesOffset;
-		stridesDir[ComponentIds.UnitCharges] = sizeof(UnitCharges);
-		BindExternalComponentMemory<UnitCharges>(basePtr + chargesOffset, MAX_ENTITIES * sizeof(UnitCharges), MAX_ENTITIES);
-
 		const int effectivenessOffset = EcsSharedMemory.PLAYER_DAMAGE_EFFECTIVENESS_OFFSET;
 		tableDir[ComponentIds.PlayerDamageEffectiveness] = baseAddr + effectivenessOffset;
 		stridesDir[ComponentIds.PlayerDamageEffectiveness] = sizeof(PlayerDamageEffectiveness);

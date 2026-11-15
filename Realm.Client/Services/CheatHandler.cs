@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Realm.Ecs;
 using Realm.Ecs.Services;
+using Realm.Shared.Simulation;
 
 namespace Realm.Client.Services;
 

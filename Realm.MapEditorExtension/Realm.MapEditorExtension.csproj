@@ -6,8 +6,14 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);node_modules\**;dist\**</DefaultItemExcludes>
   </PropertyGroup>
 
-  <Target Name="GenerateSchemas" BeforeTargets="NpmBuild;Build;SyncToEmbedded" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
-    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/generate-schemas.ps1&quot;" />
+  <!-- The schema check runs the generator, so the generator is built first and the check itself never builds
+       anything: a build of the same project inside this one raced the solution build and failed the gate at random. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Realm.Tools.Cli\Realm.Tools.Cli.csproj" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <Target Name="VerifySchemas" BeforeTargets="NpmBuild;Build;SyncToEmbedded" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../scripts/verify-schemas.ps1&quot; -Configuration $(Configuration)" />
   </Target>
 
   <Target Name="SyncVersion" BeforeTargets="NpmBuild" Condition="$([MSBuild]::IsOSPlatform('Windows'))">

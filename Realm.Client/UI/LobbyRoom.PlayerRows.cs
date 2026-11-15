@@ -1,54 +1,87 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Text.Json.Nodes;
-using System.Threading.Tasks;
 using Godot;
-using NSec.Cryptography;
 using Realm.Client.Network;
-using Realm.Shared;
-using Realm.Shared.Network;
-using HttpClient = System.Net.Http.HttpClient;
-using static Godot.Control;
-using static Godot.CanvasItem;
-using Realm.Client.Utils;
-using Realm.Client.UI.InGame;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Shared.Accounts;
+using Realm.Shared.Network;
 
 namespace Realm.Client.UI;
 
 public partial class LobbyRoom
 {
-	private PanelContainer CreatePlayerRow(PlayerInfo p)
-	{
-		bool isLocalPlayer = CheckIfLocalPlayer(p);
-		bool canEditSeat = isLocalPlayer || Lobby.IsHost;
+	private const int BootButtonWidth = 60;
+	private const int LinkIconWidth = 24;
+	private const int BootRowSeparation = 14;
 
-		var panel = CreatePlayerRowPanel();
-		var hBox = new HBoxContainer();
-		hBox.Name = "HBox_HBoxContainer";
+	/// <summary>The width the pencil beside a computer seat's name takes, and the gap that separates it from the name.</summary>
+	private const int AiEditButtonWidth = 24;
+	private const int AiEditButtonSeparation = 6;
+
+	/// <summary>The option a player slot's dropdown lists as open, which is also the state of a slot a person holds.</summary>
+	private const int SlotStateOpenOption = 0;
+
+	/// <summary>The option a player slot's dropdown lists as closed, which is a slot that accepts nobody.</summary>
+	private const int SlotStateClosedOption = 1;
+
+	/// <summary>The option a player slot's dropdown lists as AI, which is a slot a computer player holds.</summary>
+	private const int SlotStateComputerOption = 2;
+
+	private PanelContainer CreatePlayerRow(int slot, PlayerInfo? player)
+	{
+		var panel = new PanelContainer { Name = "Panel_PanelContainer" };
+		panel.CustomMinimumSize = new Vector2(0, 46);
+		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateLobbyPlayerRowPlate());
+
+		var hBox = new HBoxContainer { Name = "HBox_HBoxContainer" };
 		hBox.AddThemeConstantOverride("separation", RowColumnSeparation);
 		panel.AddChild(hBox);
 
-		AddReadyCheckToRow(hBox, p, isLocalPlayer);
-		AddTeamOptionToRow(hBox, p, canEditSeat);
-		AddColorButtonToRow(hBox, p, canEditSeat);
-		AddNameElementToRow(hBox, p, isLocalPlayer);
-		AddFactionOptionToRow(hBox, p, canEditSeat);
-		AddDifficultyOptionToRow(hBox, p, canEditSeat);
-		AddDiagnosticLabelToRow(hBox, p, isLocalPlayer);
-		AddBootButtonToRow(hBox, p);
+		CreateReadyCell(hBox);
+		CreateTeamCell(hBox);
+		CreateColorCell(hBox);
+		CreateSlotCell(hBox);
+		CreateNameCell(hBox);
+		CreateFactionCell(hBox);
+		CreateBootCell(hBox);
 
+		ApplyPlayerRow(panel, slot, player);
 		return panel;
+	}
+
+	private void UpdatePlayerRow(PanelContainer row, int slot, PlayerInfo? player)
+	{
+		ApplyPlayerRow(row, slot, player);
+	}
+
+	private void ApplyPlayerRow(PanelContainer row, int slot, PlayerInfo? player)
+	{
+		if (!GodotObject.IsInstanceValid(row)) return;
+
+		var hBox = row.GetChildCount() > 0 ? row.GetChild(0) as HBoxContainer : null;
+		if (hBox == null) return;
+
+		bool occupied = player != null;
+		bool isLocalPlayer = player != null && CheckIfLocalPlayer(player);
+		bool canEditSeat = player != null && (isLocalPlayer || Lobby.IsHost);
+
+		row.TooltipText = string.Empty;
+
+		UpdateReadyCell(hBox, player, isLocalPlayer);
+		UpdateTeamCell(hBox, player, canEditSeat);
+		UpdateColorCell(hBox, player, canEditSeat);
+		UpdateSlotCell(hBox, slot, player, isLocalPlayer);
+		UpdateNameCell(hBox, player, canEditSeat);
+		UpdateFactionCell(hBox, player, canEditSeat);
+		UpdateBootCell(hBox, player, isLocalPlayer);
+
+		hBox.Modulate = occupied ? new Color(1f, 1f, 1f) : new Color(1f, 1f, 1f, Lobby.IsSlotOpen(slot) ? 0.72f : 0.55f);
 	}
 
 	private static Control CreateColumnCell(string name, int width)
 	{
-		var cell = new Control();
-		cell.Name = name;
-		cell.CustomMinimumSize = new Vector2(width, 0);
+		var cell = new Control { Name = name, CustomMinimumSize = new Vector2(width, 0) };
 		cell.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
 		cell.ClipContents = true;
 		return cell;
@@ -56,10 +89,8 @@ public partial class LobbyRoom
 
 	private static CenterContainer FillColumnCell(Control cell, Control content)
 	{
-		var center = new CenterContainer();
-		center.Name = "CellCenter";
+		var center = new CenterContainer { Name = "CellCenter", MouseFilter = MouseFilterEnum.Ignore };
 		center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-		center.MouseFilter = MouseFilterEnum.Ignore;
 		cell.AddChild(center);
 		center.AddChild(content);
 		return center;
@@ -81,45 +112,47 @@ public partial class LobbyRoom
 		return Lobby.PlayerList.Find(CheckIfLocalPlayer);
 	}
 
-	private PanelContainer CreatePlayerRowPanel()
-	{
-		var panel = new PanelContainer();
-		panel.Name = "Panel_PanelContainer";
-		panel.CustomMinimumSize = new Vector2(0, 46);
-
-		panel.AddThemeStyleboxOverride("panel", UIStyle.CreateLobbyPlayerRowPlate());
-		return panel;
-	}
-
-	private void AddReadyCheckToRow(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
+	private void CreateReadyCell(HBoxContainer hBox)
 	{
 		var cell = CreateColumnCell("ReadyCell", ReadyColumnWidth);
 
-		if (p.PeerId >= 1 || isLocalPlayer)
+		var readyCheck = new CheckBox { Name = "ReadyCheck", Text = Tr("READY"), ClipText = true };
+		readyCheck.AddThemeConstantOverride("icon_max_width", 20);
+		UIStyle.ApplyCheckboxStyle(readyCheck);
+		readyCheck.Toggled += toggled =>
 		{
-			var readyCheck = new CheckBox();
-			readyCheck.Name = "ReadyCheck";
-			readyCheck.Text = Tr("READY");
-			readyCheck.ButtonPressed = p.IsReady;
-			readyCheck.ClipText = true;
-			readyCheck.AddThemeConstantOverride("icon_max_width", 20);
-			UIStyle.ApplyCheckboxStyle(readyCheck);
+			PlayerInfo? seat = Lobby.PlayerList.Find(candidate => candidate.Slot == ReadCellSlot(hBox));
+			if (seat == null) return;
 
-			if (isLocalPlayer)
-			{
-				readyCheck.Disabled = false;
-				readyCheck.Toggled += (toggled) => OnReadyCheckToggled(toggled, p);
-			}
-			else
-			{
-				readyCheck.Disabled = true;
-				readyCheck.AddThemeColorOverride("font_disabled_color", new Color(0.6f, 0.6f, 0.6f));
-			}
+			OnReadyCheckToggled(toggled, seat);
+		};
 
-			FillColumnCell(cell, readyCheck);
-		}
-
+		FillColumnCell(cell, readyCheck);
 		hBox.AddChild(cell);
+	}
+
+	/// <summary>
+	///     Reads the slot a row is drawing, which every cell is named after, so a control's own callback can find the seat
+	///     it belongs to without holding a reference to a seat the lobby may have replaced.
+	/// </summary>
+	/// <param name="hBox">The row's column.</param>
+	/// <returns>The player slot the row draws.</returns>
+	private static int ReadCellSlot(HBoxContainer hBox)
+	{
+		var row = hBox.GetParent() as PanelContainer;
+		string? rowName = row?.Name;
+		if (string.IsNullOrEmpty(rowName)) return 0;
+
+		int separator = rowName.LastIndexOf("Slot", StringComparison.Ordinal);
+		if (separator < 0) return 0;
+
+		return int.TryParse(rowName.AsSpan(separator + 4), out int slot) ? slot : 0;
+	}
+
+	private static PlayerInfo? FindSeatInSlot(int slot)
+	{
+		if (slot <= 0) return null;
+		return GameContext.Lobby?.PlayerList.Find(candidate => candidate.Slot == slot);
 	}
 
 	private void OnReadyCheckToggled(bool toggled, PlayerInfo p)
@@ -130,33 +163,20 @@ public partial class LobbyRoom
 		SetupStartButton();
 	}
 
-	private void AddTeamOptionToRow(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
+	private void CreateTeamCell(HBoxContainer hBox)
 	{
 		var cell = CreateColumnCell("TeamCell", TeamColumnWidth);
 
-		var optTeam = new OptionButton();
-		optTeam.Name = "OptTeam";
-		optTeam.CustomMinimumSize = new Vector2(TeamColumnWidth, 30);
-		optTeam.Flat = false;
-		optTeam.ClipText = true;
-
+		var optTeam = new OptionButton { Name = "OptTeam", CustomMinimumSize = new Vector2(TeamColumnWidth, 30), Flat = false, ClipText = true };
 		ApplyTeamOptionStyle(optTeam);
-		FillTeamOptions(optTeam, p);
-
-		optTeam.ItemSelected += (idx) => OnTeamOptionSelected(idx, p);
+		optTeam.ItemSelected += idx => OnTeamOptionSelected(idx, ReadCellSlot(hBox));
 		optTeam.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-		if (!canEditSeat)
-		{
-			optTeam.Disabled = true;
-			optTeam.AddThemeColorOverride("font_disabled_color", new Color(0.5f, 0.5f, 0.5f));
-		}
 
 		FillColumnCell(cell, optTeam);
 		hBox.AddChild(cell);
 	}
 
-	private static void FillTeamOptions(OptionButton optTeam, PlayerInfo p)
+	private static void FillTeamOptions(OptionButton optTeam, PlayerInfo? p)
 	{
 		optTeam.Clear();
 
@@ -167,7 +187,7 @@ public partial class LobbyRoom
 		}
 
 		optTeam.AddItem(TranslationServer.Translate("Spectator"));
-		optTeam.Select(GetTeamOptionIndex(p, teamCount));
+		optTeam.Select(p == null ? -1 : GetTeamOptionIndex(p, teamCount));
 	}
 
 	private static int GetTeamOptionIndex(PlayerInfo p, int teamCount)
@@ -185,11 +205,11 @@ public partial class LobbyRoom
 		optTeam.AddThemeFontSizeOverride("font_size", 13);
 	}
 
-	private void OnTeamOptionSelected(long idx, PlayerInfo p)
+	private void OnTeamOptionSelected(long idx, int slot)
 	{
 		GameContext.UserInterface?.PlayClickSound();
 
-		PlayerInfo? seat = ResolveLiveSeat(p);
+		PlayerInfo? seat = FindSeatInSlot(slot);
 		if (seat == null) return;
 
 		int teamCount = TeamCount;
@@ -206,31 +226,21 @@ public partial class LobbyRoom
 		Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
 	}
 
-	private void AddColorButtonToRow(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
+	private void CreateColorCell(HBoxContainer hBox)
 	{
 		var cell = CreateColumnCell("ColorCell", ColorColumnWidth);
 
-		var colorBtn = new Button();
-		colorBtn.Name = "ColorBtn";
-		colorBtn.CustomMinimumSize = new Vector2(24, 24);
-
-		UIStyle.ApplySeatColorSwatch(colorBtn, p.Color);
-
-		colorBtn.Pressed += () => OpenColorPicker(colorBtn, p);
+		var colorBtn = new Button { Name = "ColorBtn", CustomMinimumSize = new Vector2(24, 24) };
+		colorBtn.Pressed += () => OpenColorPicker(colorBtn, ReadCellSlot(hBox));
 		colorBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-		if (!canEditSeat || p.TeamIndex < 1)
-		{
-			colorBtn.Disabled = true;
-		}
 
 		FillColumnCell(cell, colorBtn);
 		hBox.AddChild(cell);
 	}
 
-	private void OpenColorPicker(Control anchor, PlayerInfo p)
+	private void OpenColorPicker(Control anchor, int slot)
 	{
-		PlayerInfo? seat = ResolveLiveSeat(p);
+		PlayerInfo? seat = FindSeatInSlot(slot);
 		if (seat == null) return;
 
 		if (_colorPickerPopover == null || !GodotObject.IsInstanceValid(_colorPickerPopover))
@@ -240,12 +250,12 @@ public partial class LobbyRoom
 			AddChild(_colorPickerPopover);
 		}
 
-		_colorPickerPopover.ShowFor(anchor, CollectFreeColorIndices(seat), PlayerColorConfig.GetColorIndex(seat.Color), paletteIndex => OnColorPicked(p, paletteIndex));
+		_colorPickerPopover.ShowFor(anchor, CollectFreeColorIndices(seat), PlayerColorConfig.GetColorIndex(seat.Color), paletteIndex => OnColorPicked(seat.PeerId, paletteIndex));
 	}
 
-	private void OnColorPicked(PlayerInfo p, int paletteIndex)
+	private void OnColorPicked(int peerId, int paletteIndex)
 	{
-		PlayerInfo? seat = ResolveLiveSeat(p);
+		PlayerInfo? seat = Lobby.PlayerList.Find(candidate => candidate.PeerId == peerId);
 		if (seat == null) return;
 		if (paletteIndex <= PlayerColorConfig.NEUTRAL_PLAYER_INDEX || paletteIndex >= PlayerColorConfig.Palette.Length) return;
 
@@ -277,109 +287,212 @@ public partial class LobbyRoom
 		return available;
 	}
 
-	private void AddNameElementToRow(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
+	/// <summary>
+	///     Creates the cell holding the dropdown the host decides a player slot's state with: open to a player, closed to
+	///     everyone, or held by a computer player. It has a column of its own so that neither it nor the name beside it has
+	///     to give up width to the other.
+	/// </summary>
+	/// <param name="hBox">The row's column.</param>
+	private void CreateSlotCell(HBoxContainer hBox)
 	{
-		var cell = CreateColumnCell("NameCell", NameColumnWidth);
+		var cell = CreateColumnCell("SlotCell", SlotColumnWidth);
 
-		if (isLocalPlayer)
+		var stateSelect = new OptionButton { Name = "SlotStateSelect", CustomMinimumSize = new Vector2(SlotColumnWidth, 30), ClipText = true };
+		ApplyTeamOptionStyle(stateSelect);
+		stateSelect.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+		stateSelect.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+		stateSelect.AddThemeFontSizeOverride("font_size", 12);
+		stateSelect.AddItem(TranslationServer.Translate("Open"));
+		stateSelect.AddItem(TranslationServer.Translate("Closed"));
+		stateSelect.AddItem(TranslationServer.Translate("AI"));
+		stateSelect.ItemSelected += index => OnSlotStateSelected(index, ReadCellSlot(hBox), stateSelect);
+		stateSelect.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+
+		FillColumnCell(cell, stateSelect);
+		hBox.AddChild(cell);
+	}
+
+	/// <summary>
+	///     Creates the cell that names the player in a slot, and the pencil a computer seat's own settings are opened with.
+	/// </summary>
+	/// <param name="hBox">The row's column.</param>
+	private void CreateNameCell(HBoxContainer hBox)
+	{
+		var cell = CreateColumnCell("NameCell", NameCellWidth);
+
+		var nameRow = new HBoxContainer { Name = "NameRow", MouseFilter = MouseFilterEnum.Ignore };
+		nameRow.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		nameRow.AddThemeConstantOverride("separation", AiEditButtonSeparation);
+		cell.AddChild(nameRow);
+
+		var lblName = new Label
 		{
-			var nameEdit = new LineEdit();
-			nameEdit.Name = "NameEdit";
-			nameEdit.Text = p.Name;
-			nameEdit.CustomMinimumSize = new Vector2(NameColumnWidth, 30);
+			Name = "LblName",
+			ClipText = true,
+			VerticalAlignment = VerticalAlignment.Center,
+			SizeFlagsHorizontal = SizeFlags.ShrinkBegin,
+			MouseFilter = MouseFilterEnum.Ignore
+		};
+		lblName.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		lblName.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+		lblName.AddThemeFontSizeOverride("font_size", 14);
+		nameRow.AddChild(lblName);
 
-			nameEdit.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
-			nameEdit.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
-			nameEdit.AddThemeColorOverride("font_color", new Color(1, 1, 1));
-			nameEdit.AddThemeFontSizeOverride("font_size", 14);
-			nameEdit.TextSubmitted += (text) =>
-			{
-				PlayerInfo? seat = ResolveLiveSeat(p);
-				if (seat == null) return;
-
-				seat.Name = text;
-				Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
-			};
-			FillColumnCell(cell, nameEdit);
-		}
-		else
-		{
-			var lblName = new Label();
-			lblName.Name = "LblName";
-			lblName.Text = GetPlayerRowDisplayName(p);
-			lblName.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			lblName.ClipText = true;
-			lblName.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
-			lblName.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
-			lblName.AddThemeFontSizeOverride("font_size", 14);
-			lblName.VerticalAlignment = VerticalAlignment.Center;
-			cell.AddChild(lblName);
-		}
+		nameRow.AddChild(CreateAiEditButton(hBox));
 
 		hBox.AddChild(cell);
 	}
 
-	private void AddFactionOptionToRow(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
+	/// <summary>Creates the pencil that opens one computer seat's settings, which only a row that holds one draws.</summary>
+	/// <param name="hBox">The row's column.</param>
+	/// <returns>The button the seat's settings are opened with.</returns>
+	private Button CreateAiEditButton(HBoxContainer hBox)
 	{
-		var cell = CreateColumnCell("FactionCell", FactionColumnWidth);
-		cell.Visible = HasFactions;
-
-		var optFaction = new OptionButton();
-		optFaction.Name = "OptFaction";
-		optFaction.CustomMinimumSize = new Vector2(FactionColumnWidth, 30);
-		optFaction.Flat = false;
-		optFaction.ClipText = true;
-
-		ApplyTeamOptionStyle(optFaction);
-
-		if (p.TeamIndex < 1)
+		var aiEditBtn = new Button
 		{
-			SetupSpectatorFactionOption(optFaction);
+			Name = "AiEditBtn",
+			Text = UnicodeIcons.EDIT,
+			CustomMinimumSize = new Vector2(AiEditButtonWidth, 24),
+			FocusMode = FocusModeEnum.None,
+			MouseDefaultCursorShape = CursorShape.PointingHand,
+			SizeFlagsVertical = SizeFlags.ShrinkCenter,
+			Visible = false
+		};
+		aiEditBtn.AddThemeConstantOverride("icon_max_width", 0);
+		if (UIStyle.FontAwesome != null) aiEditBtn.AddThemeFontOverride("font", UIStyle.FontAwesome);
+		aiEditBtn.AddThemeFontSizeOverride("font_size", 14);
+		aiEditBtn.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		UIStyle.ApplyGoldHoverColors(aiEditBtn);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(aiEditBtn);
+		aiEditBtn.TooltipText = Tr("Change this AI player's settings");
+		aiEditBtn.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		aiEditBtn.Pressed += () => OpenAiSettings(aiEditBtn, ReadCellSlot(hBox));
+
+		return aiEditBtn;
+	}
+
+	/// <summary>Reads which of the three states a slot is in: held by a computer, held by a person, or empty.</summary>
+	/// <param name="slot">The player slot.</param>
+	/// <param name="seat">The seat the slot holds, or nothing.</param>
+	/// <returns>The option the slot's dropdown shows.</returns>
+	private static int GetSlotStateOptionIndex(int slot, PlayerInfo? seat)
+	{
+		if (seat != null) return seat.IsComputer ? SlotStateComputerOption : SlotStateOpenOption;
+		return Lobby.IsSlotOpen(slot) ? SlotStateOpenOption : SlotStateClosedOption;
+	}
+
+	/// <summary>
+	///     Applies the state the host picked for one player slot. A slot holding somebody is only emptied after the host
+	///     confirms it, and the dropdown is put back to the state the lobby still holds until the authority answers.
+	/// </summary>
+	/// <param name="index">The option the host picked.</param>
+	/// <param name="slot">The player slot the row draws.</param>
+	/// <param name="stateSelect">The dropdown that raised the change.</param>
+	private void OnSlotStateSelected(long index, int slot, OptionButton stateSelect)
+	{
+		GameContext.UserInterface?.PlayClickSound();
+
+		PlayerInfo? seat = FindSeatInSlot(slot);
+
+		if (index == SlotStateComputerOption)
+		{
+			RequestComputerSeat(slot, seat);
+		}
+		else if (index == SlotStateClosedOption)
+		{
+			RequestSlotClosed(slot, seat);
+		}
+		else if (seat != null && seat.IsComputer)
+		{
+			Lobby.BootPlayer(seat.PeerId);
+			Lobby.SetSlotOpen(slot, true);
 		}
 		else
 		{
-			SetupPlayerFactionOption(optFaction, p, canEditSeat);
+			Lobby.SetSlotOpen(slot, true);
 		}
+
+		if (GodotObject.IsInstanceValid(stateSelect)) stateSelect.Select(GetSlotStateOptionIndex(slot, FindSeatInSlot(slot)));
+	}
+
+	private void RequestComputerSeat(int slot, PlayerInfo? seat)
+	{
+		if (seat != null && !seat.IsComputer)
+		{
+			ConfirmRemovingSeat(seat, () =>
+			{
+				Lobby.BootPlayer(seat.PeerId);
+				SeatComputerInSlot(slot);
+			});
+
+			return;
+		}
+
+		SeatComputerInSlot(slot);
+	}
+
+	private void RequestSlotClosed(int slot, PlayerInfo? seat)
+	{
+		if (seat == null)
+		{
+			Lobby.SetSlotOpen(slot, false);
+			return;
+		}
+
+		ConfirmRemovingSeat(seat, () =>
+		{
+			Lobby.BootPlayer(seat.PeerId);
+			Lobby.SetSlotOpen(slot, false);
+		});
+	}
+
+	/// <summary>Asks the lobby to seat a computer player in one player slot.</summary>
+	/// <param name="slot">The player slot the computer should hold.</param>
+	private static void SeatComputerInSlot(int slot)
+	{
+		Lobby.AddAIBot(slot);
+	}
+
+	private static void ConfirmRemovingSeat(PlayerInfo seat, Action onConfirm)
+	{
+		string message = string.Format(
+			TranslationServer.Translate("{0} will be removed from the lobby."),
+			GetPlayerRowDisplayName(seat));
+
+		GameContext.UserInterface?.ShowConfirmationDialog(message, onConfirm,
+			confirmText: TranslationServer.Translate("REMOVE"),
+			cancelText: TranslationServer.Translate("CANCEL"),
+			titleOverride: TranslationServer.Translate("REMOVE PLAYER"));
+	}
+
+	private void CreateFactionCell(HBoxContainer hBox)
+	{
+		var cell = CreateColumnCell("FactionCell", FactionColumnWidth);
+
+		var optFaction = new OptionButton { Name = "OptFaction", CustomMinimumSize = new Vector2(FactionColumnWidth, 30), Flat = false, ClipText = true };
+		ApplyTeamOptionStyle(optFaction);
+		optFaction.ItemSelected += idx => OnFactionOptionSelected(idx, ReadCellSlot(hBox));
+		optFaction.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		FillColumnCell(cell, optFaction);
 		hBox.AddChild(cell);
 	}
 
-	private void SetupSpectatorFactionOption(OptionButton optFaction)
+	private void OnFactionOptionSelected(long idx, int slot)
 	{
-		optFaction.AddItem(Tr("SPECTATOR"));
-		optFaction.Select(0);
-		optFaction.Disabled = true;
-		optFaction.AddThemeColorOverride("font_disabled_color", new Color(0.5f, 0.5f, 0.5f));
+		GameContext.UserInterface?.PlayClickSound();
+
+		PlayerInfo? seat = FindSeatInSlot(slot);
+		if (seat == null) return;
+
+		IReadOnlyList<string> factions = FactionList;
+		if (idx < 0 || idx > factions.Count) return;
+
+		seat.Faction = idx == factions.Count ? LobbyLimits.RandomFactionName : factions[(int)idx];
+		Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
 	}
 
-	private void SetupPlayerFactionOption(OptionButton optFaction, PlayerInfo p, bool canEditSeat)
-	{
-		FillFactionOptions(optFaction, p);
-
-		optFaction.ItemSelected += (idx) =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-
-			PlayerInfo? seat = ResolveLiveSeat(p);
-			if (seat == null) return;
-
-			IReadOnlyList<string> factions = FactionList;
-			if (idx < 0 || idx >= factions.Count) return;
-
-			seat.Faction = factions[(int)idx];
-			Lobby.UpdatePlayerSlot(seat.PeerId, seat.Faction, seat.Team, seat.Color, seat.Name);
-		};
-		optFaction.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-		if (!canEditSeat)
-		{
-			optFaction.Disabled = true;
-			optFaction.AddThemeColorOverride("font_disabled_color", new Color(0.5f, 0.5f, 0.5f));
-		}
-	}
-
-	private static void FillFactionOptions(OptionButton optFaction, PlayerInfo p)
+	private static void FillFactionOptions(OptionButton optFaction, PlayerInfo? p)
 	{
 		IReadOnlyList<string> factions = FactionList;
 
@@ -389,8 +502,23 @@ public partial class LobbyRoom
 			optFaction.AddItem(factions[factionIndex]);
 		}
 
-		int selectedIndex = IndexOfFaction(factions, p.Faction);
+		optFaction.AddItem(TranslationServer.Translate("Random"));
+
+		if (p == null)
+		{
+			optFaction.Select(-1);
+			return;
+		}
+
+		int selectedIndex = GetFactionOptionIndex(factions, p.Faction);
 		if (selectedIndex >= 0) optFaction.Select(selectedIndex);
+	}
+
+	private static int GetFactionOptionIndex(IReadOnlyList<string> factions, string faction)
+	{
+		if (LobbyLimits.IsRandomFaction(faction)) return factions.Count;
+
+		return IndexOfFaction(factions, faction);
 	}
 
 	private static int IndexOfFaction(IReadOnlyList<string> factions, string faction)
@@ -403,126 +531,92 @@ public partial class LobbyRoom
 		return -1;
 	}
 
-	private void AddDifficultyOptionToRow(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
+	/// <summary>
+	///     Opens one computer seat's settings next to the pencil of its row, naming the seat so a host with several
+	///     computer seats knows which one it is editing.
+	/// </summary>
+	/// <param name="anchor">The pencil the card is placed beside.</param>
+	/// <param name="slot">The player slot whose seat is edited.</param>
+	private void OpenAiSettings(Control anchor, int slot)
 	{
-		var cell = CreateColumnCell("DifficultyCell", DifficultyColumnWidth);
+		PlayerInfo? seat = FindSeatInSlot(slot);
+		if (seat == null || !seat.IsComputer) return;
 
-		if (p.IsComputer)
+		if (_aiSettingsPopover == null || !GodotObject.IsInstanceValid(_aiSettingsPopover))
 		{
-			var optDifficulty = new OptionButton();
-			optDifficulty.Name = "OptDifficulty";
-			optDifficulty.CustomMinimumSize = new Vector2(DifficultyColumnWidth, 30);
-			optDifficulty.Flat = false;
-			optDifficulty.ClipText = true;
-
-			ApplyTeamOptionStyle(optDifficulty);
-			FillDifficultyOptions(optDifficulty, p);
-
-			optDifficulty.ItemSelected += (idx) => OnDifficultyOptionSelected(idx, p);
-			optDifficulty.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-
-			if (!canEditSeat)
-			{
-				optDifficulty.Disabled = true;
-				optDifficulty.AddThemeColorOverride("font_disabled_color", new Color(0.5f, 0.5f, 0.5f));
-			}
-
-			FillColumnCell(cell, optDifficulty);
+			_aiSettingsPopover = new AiSettingsPopover();
+			_aiSettingsPopover.Name = "AiSettingsPopover";
+			AddChild(_aiSettingsPopover);
 		}
 
-		hBox.AddChild(cell);
-	}
-
-	private static void FillDifficultyOptions(OptionButton optDifficulty, PlayerInfo p)
-	{
-		optDifficulty.Clear();
-		optDifficulty.AddItem(TranslationServer.Translate("EASY"));
-		optDifficulty.AddItem(TranslationServer.Translate("MEDIUM"));
-		optDifficulty.AddItem(TranslationServer.Translate("HARD"));
-		optDifficulty.Select(GetDifficultyOptionIndex(p));
-	}
-
-	private static int GetDifficultyOptionIndex(PlayerInfo p)
-	{
-		return Math.Clamp((int)p.Difficulty - (int)LobbyBotDifficulty.Easy, 0, 2);
-	}
-
-	private void OnDifficultyOptionSelected(long idx, PlayerInfo p)
-	{
 		GameContext.UserInterface?.PlayClickSound();
+		_aiSettingsPopover.ShowFor(anchor, GetPlayerRowDisplayName(seat), seat.Difficulty, difficulty => OnAiDifficultyChanged(seat.PeerId, difficulty));
+	}
 
-		PlayerInfo? seat = ResolveLiveSeat(p);
+	private void OnAiDifficultyChanged(int peerId, LobbyBotDifficulty difficulty)
+	{
+		PlayerInfo? seat = Lobby.PlayerList.Find(candidate => candidate.PeerId == peerId);
 		if (seat == null) return;
 
-		var difficulty = (LobbyBotDifficulty)((int)idx + (int)LobbyBotDifficulty.Easy);
 		seat.Difficulty = difficulty;
-		Lobby.SetComputerDifficulty(seat.PeerId, difficulty);
+		Lobby.SetComputerDifficulty(peerId, difficulty);
+		PopulatePlayersList();
 	}
 
-	private void AddDiagnosticLabelToRow(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
+	/// <summary>
+	///     Creates the cell the host removes a seat from, and the one glyph that says how good that seat's link is. The
+	///     glyph keeps the width the number-and-colour text used to take, follows the kick button, and carries the measured
+	///     numbers in its tooltip.
+	/// </summary>
+	/// <param name="hBox">The row's column.</param>
+	private void CreateBootCell(HBoxContainer hBox)
 	{
-		var diagLabel = new RichTextLabel();
-		diagLabel.Name = "DiagLabel";
-		diagLabel.BbcodeEnabled = true;
-		diagLabel.ScrollActive = false;
-		diagLabel.AutowrapMode = TextServer.AutowrapMode.Off;
-		diagLabel.CustomMinimumSize = new Vector2(200, 24);
-		diagLabel.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-		diagLabel.AddThemeFontSizeOverride("normal_font_size", 13);
+		var cell = CreateColumnCell("BootCell", BootColumnWidth);
 
-		if (p.IsHost)
-		{
-			diagLabel.MouseFilter = MouseFilterEnum.Pass;
-			diagLabel.TooltipText = Tr("Host: Average connection with all players in lobby");
-		}
+		// The cell takes whatever width the row has left, and its contents sit at its far edge, so the actions end where
+		// the row does whatever the other columns measure.
+		cell.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
-		diagLabel.Text = BuildDiagnosticText(p, isLocalPlayer);
-		hBox.AddChild(diagLabel);
-	}
+		var bootRow = new HBoxContainer { Name = "BootRow", MouseFilter = MouseFilterEnum.Ignore };
+		bootRow.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		bootRow.Alignment = BoxContainer.AlignmentMode.End;
+		bootRow.AddThemeConstantOverride("separation", BootRowSeparation);
+		cell.AddChild(bootRow);
 
-	private string BuildDiagnosticText(PlayerInfo p, bool isLocalPlayer)
-	{
-		if (!p.IsHost && !p.IsMapReady)
-		{
-			int downloadPercent = Math.Clamp(p.MapDownloadPercent, 0, 100);
-			return $"  [color=#ffa040]{Tr("downloading...")} {downloadPercent}%[/color]";
-		}
+		var buttonSlot = new Control { Name = "BootSlot", CustomMinimumSize = new Vector2(BootButtonWidth, 0), MouseFilter = MouseFilterEnum.Ignore };
+		bootRow.AddChild(buttonSlot);
 
-		if (!isLocalPlayer && !p.IsHost && !p.IsLoadReady)
-		{
-			return $"  [color=#ffa040]{Tr("loading...")}[/color]";
-		}
-
-		string latencyText = p.Latency == "--" ? Tr("measuring...") : p.Latency;
-		string jitterText = p.Jitter == "--" ? Tr("n/a") : p.Jitter;
-		string lossText = p.PacketLoss == "--" ? Tr("n/a") : p.PacketLoss;
-
-		string pingColor = GetPingColorCode(p.Latency);
-		string jitterColor = GetJitterColorCode(p.Jitter);
-		string lossColor = GetLossColorCode(p.PacketLoss);
-
-		return $"  {Tr("Ping")}: [color={pingColor}]{latencyText}[/color] | {Tr("Jitter")}: [color={jitterColor}]{jitterText}[/color] | {Tr("Loss")}: [color={lossColor}]{lossText}[/color]";
-	}
-
-	private void AddBootButtonToRow(HBoxContainer hBox, PlayerInfo p)
-	{
-		if (!Lobby.IsHost || Lobby.IsLocalPlayer(p)) return;
-
-		var bootBtn = new Button();
-		bootBtn.Name = "BootBtn";
-		bootBtn.Text = Tr("KICK");
-		bootBtn.CustomMinimumSize = new Vector2(60, 26);
-		bootBtn.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-
+		var bootBtn = new Button { Name = "BootBtn", Text = Tr("KICK"), CustomMinimumSize = new Vector2(BootButtonWidth, 26) };
 		ApplyBootButtonStyle(bootBtn);
-
+		bootBtn.SetAnchorsPreset(LayoutPreset.CenterLeft);
+		bootBtn.OffsetLeft = 0;
+		bootBtn.OffsetRight = BootButtonWidth;
+		bootBtn.OffsetTop = -13;
+		bootBtn.OffsetBottom = 13;
 		bootBtn.Pressed += () =>
 		{
-			GameContext.UserInterface?.PlayWarningSound();
-			Lobby.BootPlayer(p.PeerId);
-		};
+			PlayerInfo? seat = FindSeatInSlot(ReadCellSlot(hBox));
+			if (seat == null) return;
 
-		hBox.AddChild(bootBtn);
+			GameContext.UserInterface?.PlayWarningSound();
+			Lobby.BootPlayer(seat.PeerId);
+		};
+		buttonSlot.AddChild(bootBtn);
+
+		var linkIcon = new Label
+		{
+			Name = "LinkIcon",
+			Text = UnicodeIcons.WIFI,
+			CustomMinimumSize = new Vector2(LinkIconWidth, 0),
+			HorizontalAlignment = HorizontalAlignment.Center,
+			VerticalAlignment = VerticalAlignment.Center,
+			MouseFilter = MouseFilterEnum.Stop
+		};
+		linkIcon.AddThemeFontSizeOverride("font_size", 16);
+		if (UIStyle.FontAwesome != null) linkIcon.AddThemeFontOverride("font", UIStyle.FontAwesome);
+		bootRow.AddChild(linkIcon);
+
+		hBox.AddChild(cell);
 	}
 
 	private void ApplyBootButtonStyle(Button bootBtn)
@@ -547,40 +641,25 @@ public partial class LobbyRoom
 		bootBtn.AddThemeFontSizeOverride("font_size", 12);
 	}
 
-	private void UpdatePlayerRow(PanelContainer row, PlayerInfo p)
-	{
-		var hBox = row.GetChildCount() > 0 ? row.GetChild(0) as HBoxContainer : null;
-		if (hBox == null) return;
-
-		bool isLocalPlayer = CheckIfLocalPlayer(p);
-		bool canEditSeat = isLocalPlayer || Lobby.IsHost;
-
-		UpdateRowReadyCheck(hBox, p, isLocalPlayer);
-		UpdateRowTeamOption(hBox, p, canEditSeat);
-		UpdateRowColorButton(hBox, p, canEditSeat);
-		UpdateRowNameElements(hBox, p);
-		UpdateRowFactionOption(hBox, p, canEditSeat);
-		UpdateRowDifficultyOption(hBox, p, canEditSeat);
-		UpdateRowDiagnosticLabel(hBox, p, isLocalPlayer);
-	}
-
-	private void UpdateRowReadyCheck(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
+	private void UpdateReadyCell(HBoxContainer hBox, PlayerInfo? p, bool isLocalPlayer)
 	{
 		var readyCheck = hBox.GetNodeOrNull<CheckBox>("ReadyCell/CellCenter/ReadyCheck");
 		if (readyCheck == null) return;
 
-		if (readyCheck.ButtonPressed != p.IsReady)
-		{
-			readyCheck.SetPressedNoSignal(p.IsReady);
-		}
-
+		readyCheck.Visible = p != null && !p.IsComputer;
 		readyCheck.Disabled = !isLocalPlayer;
+		if (p == null || p.IsComputer) return;
+
+		if (readyCheck.ButtonPressed != p.IsReady) readyCheck.SetPressedNoSignal(p.IsReady);
 	}
 
-	private void UpdateRowTeamOption(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
+	private void UpdateTeamCell(HBoxContainer hBox, PlayerInfo? p, bool canEditSeat)
 	{
 		var optTeam = hBox.GetNodeOrNull<OptionButton>("TeamCell/CellCenter/OptTeam");
 		if (optTeam == null) return;
+
+		optTeam.Visible = p != null;
+		if (p == null) return;
 
 		int teamCount = TeamCount;
 		if (optTeam.ItemCount != teamCount + 1)
@@ -596,40 +675,80 @@ public partial class LobbyRoom
 		optTeam.Disabled = !canEditSeat;
 	}
 
-	private void UpdateRowColorButton(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
+	private void UpdateColorCell(HBoxContainer hBox, PlayerInfo? p, bool canEditSeat)
 	{
 		var colorBtn = hBox.GetNodeOrNull<Button>("ColorCell/CellCenter/ColorBtn");
 		if (colorBtn == null) return;
 
-		colorBtn.Disabled = !canEditSeat || p.TeamIndex < 1;
+		colorBtn.Visible = p != null;
+		if (p == null) return;
 
+		colorBtn.Disabled = !canEditSeat || p.TeamIndex < 1;
 		if (colorBtn.GetThemeStylebox("normal") is StyleBoxFlat colorStyle && colorStyle.BgColor == p.Color) return;
 
 		UIStyle.ApplySeatColorSwatch(colorBtn, p.Color);
 	}
 
-	private void UpdateRowNameElements(HBoxContainer hBox, PlayerInfo p)
+	private void UpdateSlotCell(HBoxContainer hBox, int slot, PlayerInfo? p, bool isLocalPlayer)
 	{
-		var nameEdit = hBox.GetNodeOrNull<LineEdit>("NameCell/CellCenter/NameEdit");
-		if (nameEdit != null && nameEdit.Text != p.Name)
-		{
-			nameEdit.Text = p.Name;
-		}
+		var stateSelect = hBox.GetNodeOrNull<OptionButton>("SlotCell/CellCenter/SlotStateSelect");
+		if (stateSelect == null) return;
 
-		var lblName = hBox.GetNodeOrNull<Label>("NameCell/LblName");
-		if (lblName == null) return;
+		bool canChooseState = Lobby.IsHost && !isLocalPlayer;
+		stateSelect.Disabled = !canChooseState;
+		stateSelect.TooltipText = canChooseState
+			? Tr("Choose whether this player slot is open to a player, closed to everyone, or held by an AI player.")
+			: string.Empty;
+
+		int stateIndex = GetSlotStateOptionIndex(slot, p);
+		if (stateSelect.Selected != stateIndex) stateSelect.Select(stateIndex);
+	}
+
+	/// <summary>
+	///     Names the seat a row holds and, for a computer seat, states the settings it plays on in the name's tooltip and
+	///     reveals the pencil that edits them.
+	/// </summary>
+	/// <param name="hBox">The row's column.</param>
+	/// <param name="p">The seat the row holds, or nothing.</param>
+	/// <param name="canEditSeat">Whether this screen may change that seat's settings.</param>
+	private void UpdateNameCell(HBoxContainer hBox, PlayerInfo? p, bool canEditSeat)
+	{
+		var lblName = hBox.GetNodeOrNull<Label>("NameCell/NameRow/LblName");
+		var aiEditBtn = hBox.GetNodeOrNull<Button>("NameCell/NameRow/AiEditBtn");
+		if (lblName == null || aiEditBtn == null) return;
+
+		lblName.Visible = p != null;
+		aiEditBtn.Visible = p != null && p.IsComputer;
+		lblName.MouseFilter = p != null && p.IsComputer ? MouseFilterEnum.Stop : MouseFilterEnum.Ignore;
+		LocalizedText.BindTooltip(lblName, () => p != null && p.IsComputer ? AiSettingsPopover.BuildSummary(p.Difficulty) : string.Empty);
+		if (p == null) return;
 
 		string displayName = GetPlayerRowDisplayName(p);
-		if (lblName.Text != displayName)
-		{
-			lblName.Text = displayName;
-		}
+		if (lblName.Text != displayName) lblName.Text = displayName;
+		ApplyNameLabelWidth(lblName, displayName);
 
 		Color nameColor = p.IsDisconnected ? new Color(0.95f, 0.65f, 0.3f) : new Color(0.9f, 0.9f, 0.9f);
-		if (lblName.GetThemeColor("font_color") != nameColor)
-		{
-			lblName.AddThemeColorOverride("font_color", nameColor);
-		}
+		if (lblName.GetThemeColor("font_color") != nameColor) lblName.AddThemeColorOverride("font_color", nameColor);
+
+		aiEditBtn.Disabled = !canEditSeat;
+	}
+
+	/// <summary>
+	///     Widths the name to the text it holds, as far as the column leaves once the pencil beside it has its room, so the
+	///     pencil sits against the end of the name and a name too long for the row is trimmed rather than pushing it out.
+	/// </summary>
+	/// <param name="lblName">The label the seat is named in.</param>
+	/// <param name="displayName">The name the label states.</param>
+	private static void ApplyNameLabelWidth(Label lblName, string displayName)
+	{
+		Font? font = lblName.GetThemeFont("font");
+		if (font == null) return;
+
+		int fontSize = lblName.GetThemeFontSize("font_size");
+		float textWidth = font.GetStringSize(displayName, HorizontalAlignment.Left, -1, fontSize).X;
+		float maximumWidth = Mathf.Max(0, NameCellWidth - AiEditButtonWidth - AiEditButtonSeparation);
+		var labelWidth = new Vector2(Mathf.Min(Mathf.Ceil(textWidth) + 2, maximumWidth), 0);
+		if (lblName.CustomMinimumSize != labelWidth) lblName.CustomMinimumSize = labelWidth;
 	}
 
 	private static string GetPlayerRowDisplayName(PlayerInfo player)
@@ -641,16 +760,18 @@ public partial class LobbyRoom
 			: name;
 	}
 
-	private void UpdateRowFactionOption(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
+	private void UpdateFactionCell(HBoxContainer hBox, PlayerInfo? p, bool canEditSeat)
 	{
 		var factionCell = hBox.GetNodeOrNull<Control>("FactionCell");
 		if (factionCell == null) return;
 
 		factionCell.Visible = HasFactions;
-		if (!HasFactions) return;
 
 		var optFaction = factionCell.GetNodeOrNull<OptionButton>("CellCenter/OptFaction");
 		if (optFaction == null) return;
+
+		optFaction.Visible = p != null;
+		if (!HasFactions || p == null) return;
 
 		if (p.TeamIndex < 1)
 		{
@@ -666,46 +787,60 @@ public partial class LobbyRoom
 		}
 
 		IReadOnlyList<string> factions = FactionList;
-		if (optFaction.ItemCount != factions.Count)
+		if (optFaction.ItemCount != factions.Count + 1)
 		{
 			FillFactionOptions(optFaction, p);
 		}
 		else
 		{
-			int selectedIndex = IndexOfFaction(factions, p.Faction);
+			int selectedIndex = GetFactionOptionIndex(factions, p.Faction);
 			if (selectedIndex >= 0 && optFaction.Selected != selectedIndex) optFaction.Select(selectedIndex);
 		}
 
 		optFaction.Disabled = !canEditSeat;
 	}
 
-	private void UpdateRowDifficultyOption(HBoxContainer hBox, PlayerInfo p, bool canEditSeat)
+	private void UpdateBootCell(HBoxContainer hBox, PlayerInfo? p, bool isLocalPlayer)
 	{
-		var optDifficulty = hBox.GetNodeOrNull<OptionButton>("DifficultyCell/CellCenter/OptDifficulty");
-		if (optDifficulty == null) return;
+		var bootBtn = hBox.GetNodeOrNull<Button>("BootCell/BootRow/BootSlot/BootBtn");
+		var linkIcon = hBox.GetNodeOrNull<Label>("BootCell/BootRow/LinkIcon");
+		if (bootBtn == null || linkIcon == null) return;
 
-		int optionIndex = GetDifficultyOptionIndex(p);
-		if (optDifficulty.ItemCount != 3)
+		bootBtn.Visible = p != null && Lobby.IsHost && !Lobby.IsLocalPlayer(p);
+
+		linkIcon.Visible = p != null;
+		if (p == null)
 		{
-			FillDifficultyOptions(optDifficulty, p);
-		}
-		else if (optDifficulty.Selected != optionIndex)
-		{
-			optDifficulty.Select(optionIndex);
+			linkIcon.TooltipText = string.Empty;
+			return;
 		}
 
-		optDifficulty.Disabled = !canEditSeat;
+		Color qualityColor = GetLinkQualityColor(p);
+		if (linkIcon.GetThemeColor("font_color") != qualityColor) linkIcon.AddThemeColorOverride("font_color", qualityColor);
+
+		linkIcon.TooltipText = BuildLinkStatistics(p, isLocalPlayer);
 	}
 
-	private void UpdateRowDiagnosticLabel(HBoxContainer hBox, PlayerInfo p, bool isLocalPlayer)
+	/// <summary>Writes the three link measurements a row used to spell out, which its glyph shows as a tooltip.</summary>
+	/// <param name="p">The seat the row holds.</param>
+	/// <param name="isLocalPlayer">Whether the row is this screen's own seat.</param>
+	/// <returns>The measurement text, and what it means for the host's row.</returns>
+	private string BuildLinkStatistics(PlayerInfo p, bool isLocalPlayer)
 	{
-		var diagLabel = hBox.GetNodeOrNull<RichTextLabel>("DiagLabel");
-		if (diagLabel == null) return;
-
-		string newText = BuildDiagnosticText(p, isLocalPlayer);
-		if (diagLabel.Text != newText)
+		if (!p.IsHost && !p.IsMapReady)
 		{
-			diagLabel.Text = newText;
+			int downloadPercent = Math.Clamp(p.MapDownloadPercent, 0, 100);
+			return $"{Tr("downloading...")} {downloadPercent}%";
 		}
+
+		if (!isLocalPlayer && !p.IsHost && !p.IsLoadReady) return Tr("loading...");
+
+		string latencyText = p.Latency == "--" ? Tr("measuring...") : p.Latency;
+		string jitterText = p.Jitter == "--" ? Tr("n/a") : p.Jitter;
+		string lossText = p.PacketLoss == "--" ? Tr("n/a") : p.PacketLoss;
+
+		string statistics = $"{Tr("Ping")}: {latencyText} | {Tr("Jitter")}: {jitterText} | {Tr("Loss")}: {lossText}";
+
+		return p.IsHost ? $"{statistics}\n{Tr("Host: Average connection with all players in lobby")}" : statistics;
 	}
 }

@@ -38,14 +38,57 @@ public partial class InGameHUD
 
 	public void QueueMinimapRedraw() => MinimapCapture.QueueRedraw();
 
+	private const float FeedbackHoldSeconds = 0.5f;
+
+	private const float FeedbackFadeSeconds = 1.5f;
+
+	private const int FeedbackWarningOutlineSize = 6;
+
+	/// <summary>
+	///     The colour a refused action is stated in: the one red the player already meets in a warning dialog, so a hint about
+	///     something that did not happen reads the same wherever it appears.
+	/// </summary>
+	private static readonly Color FeedbackWarningColor = new(1.0f, 0.25f, 0.2f);
+
+	private static readonly Color FeedbackWarningOutlineColor = new(0.0f, 0.0f, 0.0f, 0.85f);
+
+	private Tween? _feedbackTween;
+
 	public void ShowFeedbackText(string text, Color color)
 	{
+		ShowFeedbackMessage(text, color, isWarning: false);
+	}
+
+	/// <summary>
+	///     States why something the player just asked for did not happen - an unaffordable price, a full queue, an order the
+	///     match refused. It is drawn in the warning red with an outline that keeps it readable over any battlefield, and the
+	///     warning sound carries it to a player whose eyes are on the fight rather than on the middle of the screen: a hint
+	///     about a click that did nothing is worth nothing if it can be missed.
+	/// </summary>
+	public void ShowFeedbackWarning(string text)
+	{
+		ShowFeedbackMessage(text, FeedbackWarningColor, isWarning: true);
+		GameContext.UserInterface?.PlayWarningSound();
+	}
+
+	private void ShowFeedbackMessage(string text, Color color, bool isWarning)
+	{
+		// One message is on screen at a time, so the fade the previous one is running is ended first. A player who presses an
+		// unaffordable button twice was otherwise told the second time by a message already on its way out.
+		_feedbackTween?.Kill();
+		_feedbackTween = null;
+
 		_feedbackLabel.Text = UIHelper.StripBbCode(TranslationServer.Translate(text));
 		_feedbackLabel.AddThemeColorOverride("font_color", color);
-		_feedbackLabel.Modulate = new Color(color.R, color.G, color.B, 1.0f);
+		_feedbackLabel.AddThemeConstantOverride("outline_size", isWarning ? FeedbackWarningOutlineSize : 0);
+		_feedbackLabel.AddThemeColorOverride("font_outline_color", FeedbackWarningOutlineColor);
 
-		var tween = CreateTween();
-		tween.TweenProperty(_feedbackLabel, "modulate:a", 0.0f, 1.5f).SetDelay(0.5f);
+		// The colour is stated once, by the font. Tinting the whole label with it as well drew a red message in squared red,
+		// which is darker than the colour asked for and hides the outline that keeps it legible.
+		_feedbackLabel.Modulate = Colors.White;
+
+		_feedbackTween = CreateTween();
+		_feedbackTween.TweenProperty(_feedbackLabel, "modulate:a", 0.0f, FeedbackFadeSeconds).SetDelay(FeedbackHoldSeconds);
 	}
 
 	public void ToggleMinimapTerrain()

@@ -47,15 +47,15 @@ public partial class GameHost
 
 	private void ProcessUnitSpawnRequests()
 	{
-		GameContext.UnitSpawnService.ProcessUnitSpawnRequestsDomain((unitId, pos, rotY, scale, player) => {
-			SpawnUnitExternal(unitId, new Godot.Vector3(pos.X, pos.Y, pos.Z), rotY, scale, player);
+		GameContext.UnitSpawnService.ProcessUnitSpawnRequestsDomain((unitId, pos, rotY, scale, player, level) => {
+			SpawnUnitExternal(unitId, new Godot.Vector3(pos.X, pos.Y, pos.Z), rotY, scale, player, level);
 		});
 	}
 
 	private void ProcessPropSpawnRequests()
 	{
-		GameContext.UnitSpawnService.ProcessPropSpawnRequests((propId, pos, rotY, scale) => {
-			SpawnPropExternalWithParams(propId, new Godot.Vector3(pos.X, pos.Y, pos.Z), rotY, scale);
+		GameContext.UnitSpawnService.ProcessPropSpawnRequests((propId, pos, rotY, scale, level) => {
+			SpawnPropExternalWithParams(propId, new Godot.Vector3(pos.X, pos.Y, pos.Z), rotY, scale, level);
 		});
 	}
 

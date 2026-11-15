@@ -123,11 +123,17 @@ public sealed class MapEditorHelpPanel
 		var scroll = UIStyle.CreateScrollingBody();
 		vbox.AddChild(scroll);
 
+		var content = new VBoxContainer();
+		content.Name = "HelpContent_VBoxContainer";
+		content.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		content.AddThemeConstantOverride("separation", 12);
+		scroll.AddChild(content);
+
 		var grid = UIStyle.CreateGrid(2);
 		grid.AddThemeConstantOverride("h_separation", 30);
 		grid.AddThemeConstantOverride("v_separation", 10);
 		grid.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		scroll.AddChild(grid);
+		content.AddChild(grid);
 
 		AddHelpSectionHeader(grid, TranslationServer.Translate("PRIMARY MODULE SWITCHING"));
 		AddHelpShortcutRow(grid, "F1", TranslationServer.Translate("Terrain Module"));
@@ -181,6 +187,36 @@ public sealed class MapEditorHelpPanel
 		AddHelpShortcutRow(grid, "Ctrl + Z / Ctrl + Y", TranslationServer.Translate("Undo / Redo editor actions"));
 		AddHelpShortcutRow(grid, "Ctrl + S / Ctrl + O", TranslationServer.Translate("Save Map File / Load Map File"));
 		AddHelpShortcutRow(grid, "Escape Key", TranslationServer.Translate("Close open dialog"));
+
+		AddDebuggingSection(content);
+	}
+
+	private void AddDebuggingSection(VBoxContainer parent)
+	{
+		var spacer = new Control();
+		spacer.Name = "DebugSpacer_Control";
+		spacer.CustomMinimumSize = new Vector2(0, 8);
+		parent.AddChild(spacer);
+
+		var lblTitle = new Label();
+		lblTitle.Name = "LblDebugTitle_Label";
+		lblTitle.Text = DebuggingHelpText.GetTitle();
+		lblTitle.AddThemeColorOverride("font_color", UIStyle.ColorBronze);
+		lblTitle.AddThemeFontSizeOverride("font_size", 12);
+		parent.AddChild(lblTitle);
+
+		foreach (string line in DebuggingHelpText.GetLines())
+		{
+			var lblLine = new Label();
+			lblLine.Name = "LblDebugLine_Label";
+			lblLine.Text = line;
+			lblLine.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+			lblLine.CustomMinimumSize = new Vector2(860, 0);
+			lblLine.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			lblLine.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
+			lblLine.AddThemeFontSizeOverride("font_size", 11);
+			parent.AddChild(lblLine);
+		}
 	}
 
 

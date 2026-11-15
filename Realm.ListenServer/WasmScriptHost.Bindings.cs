@@ -36,8 +36,32 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 		_linker.DefineFunction(LobbyImportModule, "add-lobby-faction", (Caller caller, int namePtr, int nameLength) =>
 			LobbyApi?.AddFaction(ReadGuestString(caller, namePtr, nameLength)) == true ? 1 : 0);
 
-		_linker.DefineFunction(LobbyImportModule, "set-lobby-maximum-player-count", (int maximumPlayerCount) =>
-			LobbyApi?.SetMaximumPlayerCount(maximumPlayerCount));
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-slot-open", (int playerIndex, int open) =>
+			LobbyApi?.SetSlotOpen(playerIndex, open != 0) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-open-slot-count", (int count) =>
+			LobbyApi?.SetOpenSlotCount(count) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-player-slot-limit", (int maximumPlayers) =>
+			LobbyApi?.SetPlayerSlotLimit(maximumPlayers) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-player-minimap-color", (int playerIndex, int mode, int colorRgba) =>
+			LobbyApi?.SetPlayerMinimapColor(playerIndex, (global::Realm.Ecs.MinimapColorMode)mode, (uint)colorRgba) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-player-proxy-owner", (int playerIndex, int ownerPlayerIndex) =>
+			LobbyApi?.SetPlayerProxyOwner(playerIndex, ownerPlayerIndex) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "add-lobby-match-setting", (Caller caller, int settingId, int control, int labelPtr, int labelLength, int tooltipPtr, int tooltipLength, int defaultValue) =>
+			LobbyApi?.AddMatchSetting(settingId, (global::Realm.Ecs.LobbySettingControl)control, ReadGuestString(caller, labelPtr, labelLength), ReadGuestString(caller, tooltipPtr, tooltipLength), defaultValue) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "add-lobby-match-setting-option", (Caller caller, int settingId, int labelPtr, int labelLength) =>
+			LobbyApi?.AddMatchSettingOption(settingId, ReadGuestString(caller, labelPtr, labelLength)) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-match-setting-range", (int settingId, int minimum, int maximum) =>
+			LobbyApi?.SetMatchSettingRange(settingId, minimum, maximum) == true ? 1 : 0);
+
+		_linker.DefineFunction(LobbyImportModule, "get-lobby-match-setting-value", (int settingId) =>
+			LobbyApi?.GetMatchSettingValue(settingId) ?? 0);
 
 		_linker.DefineFunction(LobbyImportModule, "set-lobby-team-count", (int teamCount) =>
 			LobbyApi?.SetTeamCount(teamCount));
@@ -59,5 +83,17 @@ public partial class WasmScriptHost : IWasmRuntime, IWasmEvaluationEngine, IDisp
 
 		_linker.DefineFunction(LobbyImportModule, "set-lobby-color-locked", (int playerIndex, int locked) =>
 			LobbyApi?.SetColorLocked(playerIndex, locked != 0));
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-spectator-delay-default", (int enabled) =>
+			LobbyApi?.SetSpectatorDelayDefault(enabled != 0));
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-shroud-mode-default", (int shroudMode) =>
+			LobbyApi?.SetShroudModeDefault((global::Realm.Ecs.MatchShroudMode)shroudMode));
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-teams-together-default", (int teamsTogether) =>
+			LobbyApi?.SetTeamsTogetherDefault(teamsTogether != 0));
+
+		_linker.DefineFunction(LobbyImportModule, "set-lobby-team-spawn-coordinate", (Caller caller, int teamIndex, int namePtr, int nameLength) =>
+			LobbyApi?.SetTeamSpawnCoordinate(teamIndex, ReadGuestString(caller, namePtr, nameLength)) == true ? 1 : 0);
 	}
 }

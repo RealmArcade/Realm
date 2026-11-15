@@ -109,6 +109,8 @@ public static class UnicodeIcons
 	public static readonly string FEATHER_POINTED = char.ConvertFromUtf32(0xF56B);
 	public static readonly string HAND_MEDICAL = char.ConvertFromUtf32(0xE05C);
 	public static readonly string HOURGLASS_HALF = char.ConvertFromUtf32(0xF252);
+	public static readonly string COINS = char.ConvertFromUtf32(0xF51E);
+	public static readonly string TROPHY = char.ConvertFromUtf32(0xF091);
 	public static readonly string SHIELD_HEART = char.ConvertFromUtf32(0xE574);
 	public static readonly string EXPLOSION = char.ConvertFromUtf32(0xE4E9);
 	public static readonly string CIRCLE_EXCLAMATION = char.ConvertFromUtf32(0xF06A);
@@ -121,4 +123,5 @@ public static class UnicodeIcons
 	public static readonly string LOCK = char.ConvertFromUtf32(0xF023);
 	public static readonly string ID_CARD = char.ConvertFromUtf32(0xF2C2);
 	public static readonly string SCALE = char.ConvertFromUtf32(0xF24E);
+	public static readonly string WIFI = char.ConvertFromUtf32(0xF1EB);
 }

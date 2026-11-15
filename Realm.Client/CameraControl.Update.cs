@@ -16,9 +16,9 @@ public partial class CameraControl : Camera3D
 		{
 			if (FollowTarget != null && GodotObject.IsInstanceValid(FollowTarget))
 			{
-				if (_hasScriptFollowConfig)
+				if (_attachedFollowConfigured)
 				{
-					UpdateScriptFollowCamera(ref state, fDelta);
+					UpdateAttachedFollowCamera(ref state, fDelta);
 					return;
 				}
 
@@ -40,7 +40,7 @@ public partial class CameraControl : Camera3D
 				return;
 			}
 
-			if (!_hasScriptViewActive)
+			if (!_attachedViewActive)
 			{
 				float minAllowedTargetHeight = terrainHeight + state.MinZoom;
 				if (state.TargetHeight < minAllowedTargetHeight)
@@ -71,29 +71,29 @@ public partial class CameraControl : Camera3D
 		}
 	}
 
-	private void UpdateScriptFollowCamera(ref CameraState state, float fDelta)
+	private void UpdateAttachedFollowCamera(ref CameraState state, float fDelta)
 	{
 		if (FollowTarget == null || !GodotObject.IsInstanceValid(FollowTarget)) return;
 
-		float desiredYawDeg = _scriptFollowYawOffsetDegrees;
-		if (_scriptFollowAlignToUnitFacing)
+		float desiredYawDeg = _attachedFollowYawOffsetDegrees;
+		if (_attachedFollowAlignToUnitFacing)
 		{
 			float unitYawRad = FollowTarget is Unit3D unit3D ? unit3D.CachedRotationY : FollowTarget.Rotation.Y;
-			desiredYawDeg = Mathf.RadToDeg(unitYawRad) + 180.0f + _scriptFollowYawOffsetDegrees;
+			desiredYawDeg = Mathf.RadToDeg(unitYawRad) + 180.0f + _attachedFollowYawOffsetDegrees;
 		}
 
 		state.TargetYaw = desiredYawDeg;
-		state.TargetPitch = _scriptFollowPitchDegrees;
+		state.TargetPitch = _attachedFollowPitchDegrees;
 
-		if (_scriptFollowNeedsSnap || _scriptFollowSmoothing <= 0f)
+		if (_attachedFollowNeedsSnap || _attachedFollowSmoothing <= 0f)
 		{
 			state.CurrentYaw = state.TargetYaw;
 			state.CurrentPitch = state.TargetPitch;
-			_scriptFollowNeedsSnap = false;
+			_attachedFollowNeedsSnap = false;
 
 			float snapYawRad = Mathf.DegToRad(state.CurrentYaw);
 			Vector3 snapForwardXZ = new Vector3(-Mathf.Sin(snapYawRad), 0f, -Mathf.Cos(snapYawRad));
-			Vector3 snapPos = FollowTarget.Position - snapForwardXZ * _scriptFollowDistance + new Vector3(0f, _scriptFollowHeightOffset, 0f);
+			Vector3 snapPos = FollowTarget.Position - snapForwardXZ * _attachedFollowDistance + new Vector3(0f, _attachedFollowHeightOffset, 0f);
 			if (GameContext.Host?.GroundTerrain != null)
 			{
 				GameContext.Host.GroundTerrain.GetHeightAndNormal(snapPos.X, snapPos.Z, out float groundY, out _);
@@ -105,7 +105,7 @@ public partial class CameraControl : Camera3D
 			return;
 		}
 
-		float rotSmoothing = _scriptFollowSmoothing > 0f ? _scriptFollowSmoothing : 3.5f;
+		float rotSmoothing = _attachedFollowSmoothing > 0f ? _attachedFollowSmoothing : 3.5f;
 		float rotAlpha = 1.0f - Mathf.Exp(-rotSmoothing * fDelta);
 
 		float curYawRad = Mathf.DegToRad(state.CurrentYaw);
@@ -120,7 +120,7 @@ public partial class CameraControl : Camera3D
 
 		float camYawRad = Mathf.DegToRad(state.CurrentYaw);
 		Vector3 forwardXZ = new Vector3(-Mathf.Sin(camYawRad), 0f, -Mathf.Cos(camYawRad));
-		Vector3 desiredPos = FollowTarget.Position - forwardXZ * _scriptFollowDistance + new Vector3(0f, _scriptFollowHeightOffset, 0f);
+		Vector3 desiredPos = FollowTarget.Position - forwardXZ * _attachedFollowDistance + new Vector3(0f, _attachedFollowHeightOffset, 0f);
 
 		if (GameContext.Host?.GroundTerrain != null)
 		{
@@ -182,7 +182,7 @@ public partial class CameraControl : Camera3D
 
 	private void ApplyCameraRotation(ref CameraState state, float fDelta)
 	{
-		if (_hasScriptFollowConfig)
+		if (_attachedFollowConfigured)
 		{
 			RotationDegrees = new Vector3(state.CurrentPitch + state.PitchSwing, state.CurrentYaw + state.YawSwing, 0.0f);
 			return;
@@ -297,8 +297,8 @@ public partial class CameraControl : Camera3D
 	private void ApplyCameraVelocity(ref CameraState state, Vector3 velocity, float fDelta, bool isEditor)
 	{
 		FollowTarget = null;
-		_pendingFollowUnitServerId = 0;
-		_hasScriptFollowConfig = false;
+		_pendingAttachedFollowUnitServerId = 0;
+		_attachedFollowConfigured = false;
 		float speedMult = Input.IsKeyPressed(Key.Shift) ? 2.5f : (Input.IsKeyPressed(Key.Ctrl) ? 0.35f : 1.0f);
 		velocity = velocity.Normalized() * state.MoveSpeed * speedMult * fDelta;
 

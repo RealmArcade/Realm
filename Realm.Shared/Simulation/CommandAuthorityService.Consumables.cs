@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Realm.Ecs;
@@ -51,7 +51,7 @@ public partial class CommandAuthorityService
 			return;
 		}
 
-		ConsumableMetadata? consumable = ConsumableProvider(cardId);
+		ItemMetadata? consumable = ConsumableProvider(cardId);
 		if (consumable == null)
 		{
 			rejectionReason = $"the map sells no consumable '{cardId}'";
@@ -77,12 +77,12 @@ public partial class CommandAuthorityService
 			return;
 		}
 
-		Entity target = FindConsumableTarget(building, playerEntity, consumable, cmd.TargetPosition.ToNumerics());
+		Entity target = FindConsumableTarget(building, playerEntity, consumable, cmd.TargetPosition.ToNumerics(), out bool aimedAtRefusingUnit);
 		if (target == Entity.Null)
 		{
-			rejectionReason = consumable.ClearsSlot
-				? "nothing of the buyer's is close enough to purge"
-				: "no unit of the buyer's is close enough to receive it";
+			rejectionReason = aimedAtRefusingUnit
+				? "that unit cannot be given a consumable"
+				: consumable.ClearsSlot ? "nothing of the buyer's is close enough to purge" : "no unit of the buyer's is close enough to receive it";
 			return;
 		}
 
@@ -116,7 +116,7 @@ public partial class CommandAuthorityService
 		ConsumableChangedSink?.Invoke(target.Id, consumable.TemplateID);
 	}
 
-	private Entity FindConsumableTarget(Entity building, Entity playerEntity, ConsumableMetadata consumable, Vector3 position)
+	private Entity FindConsumableTarget(Entity building, Entity playerEntity, ItemMetadata consumable, Vector3 position, out bool aimedAtRefusingUnit)
 	{
 		bool ownOnly = !string.Equals(consumable.TargetScope, "AnyUnit", StringComparison.OrdinalIgnoreCase);
 		float bestDistance = consumable.PurchaseRange;
@@ -135,10 +135,23 @@ public partial class CommandAuthorityService
 			best = candidate;
 		});
 
-		return best;
+		aimedAtRefusingUnit = best != Entity.Null && !ReceivesConsumable(best);
+		return aimedAtRefusingUnit ? Entity.Null : best;
 	}
 
-	private bool CarriesAttachment(Entity unit, ConsumableMetadata consumable)
+	/// <summary>
+	///     Answers whether one unit may be given a consumable. The rule belongs to the unit's type and to the match, so a
+	///     map that never states it leaves every unit accepting one.
+	/// </summary>
+	/// <param name="unit">The unit a purchase would land on.</param>
+	/// <returns>Whether that unit accepts a consumable.</returns>
+	private bool ReceivesConsumable(Entity unit)
+	{
+		string definitionId = _context.World.Has<DefinitionId>(unit) ? _context.World.Get<DefinitionId>(unit).Value : string.Empty;
+		return _context.MapRules.UnitTypeReceivesConsumables(definitionId);
+	}
+
+	private bool CarriesAttachment(Entity unit, ItemMetadata consumable)
 	{
 		if (!_context.World.TryGet<ConsumableAttachment>(unit, out ConsumableAttachment attachment)) return false;
 		if (!attachment.HasDefinition) return false;

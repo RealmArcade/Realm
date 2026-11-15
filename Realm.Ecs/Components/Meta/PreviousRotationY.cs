@@ -6,6 +6,7 @@ namespace Realm.Ecs.Components.Meta;
 /// Stores prior simulation tick rotational azimuth heading around the vertical Y-axis in radians for visual state-snapshot interpolation.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
+[MapApiComponent]
 public struct PreviousRotationY
 {
 	public float Value;

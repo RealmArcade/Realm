@@ -107,7 +107,6 @@ public static class AuthorSignatureHelper
 			}
 
 			MergeDependencies(existing, incoming);
-			MergeRemainingHeaders(existing, incoming);
 
 			return MapFileService.SaveMetadataToJson(existing);
 		}
@@ -129,69 +128,6 @@ public static class AuthorSignatureHelper
 		if (!string.IsNullOrEmpty(incoming.MapProperties.MapDescription)) existing.MapProperties.MapDescription = incoming.MapProperties.MapDescription;
 		if (!string.IsNullOrEmpty(incoming.MapProperties.Author)) existing.MapProperties.Author = incoming.MapProperties.Author;
 		if (!string.IsNullOrEmpty(incoming.MapProperties.Version)) existing.MapProperties.Version = incoming.MapProperties.Version;
-	}
-
-	/// <summary>
-	///     Merges the header keys the map metadata type does not name. Asset headers are open-ended JSON, so every key a
-	///     seeder states that this copy does not hold is carried over: a nested object merges key by key, an array gains
-	///     the entries it is missing, and a value both copies state keeps the one already held unless the author signed an
-	///     overwrite. Without this an unauthorized share silently loses the headers of the peer it merged from.
-	/// </summary>
-	/// <param name="existing">The headers this copy states, which the merge keeps as the senior side.</param>
-	/// <param name="incoming">The headers the other copy states.</param>
-	private static void MergeRemainingHeaders(MapMetadata existing, MapMetadata incoming)
-	{
-		if (incoming.ExtensionData == null || incoming.ExtensionData.Count == 0) return;
-
-		existing.ExtensionData ??= new Dictionary<string, JsonElement>();
-
-		foreach (KeyValuePair<string, JsonElement> incomingHeader in incoming.ExtensionData)
-		{
-			if (!existing.ExtensionData.TryGetValue(incomingHeader.Key, out JsonElement existingHeader))
-			{
-				existing.ExtensionData[incomingHeader.Key] = incomingHeader.Value.Clone();
-				continue;
-			}
-
-			existing.ExtensionData[incomingHeader.Key] = JsonSerializer.SerializeToElement(MergeHeaderNodes(ToHeaderNode(existingHeader), ToHeaderNode(incomingHeader.Value)));
-		}
-	}
-
-	private static JsonNode ToHeaderNode(JsonElement element) => JsonNode.Parse(element.GetRawText())!;
-
-	private static JsonNode MergeHeaderNodes(JsonNode existing, JsonNode incoming)
-	{
-		if (existing is JsonObject existingObject && incoming is JsonObject incomingObject)
-		{
-			foreach (KeyValuePair<string, JsonNode?> incomingProperty in incomingObject.ToList())
-			{
-				if (incomingProperty.Value == null) continue;
-
-				if (existingObject.TryGetPropertyValue(incomingProperty.Key, out JsonNode? existingProperty) && existingProperty != null)
-				{
-					existingObject[incomingProperty.Key] = MergeHeaderNodes(existingProperty, incomingProperty.Value);
-					continue;
-				}
-
-				existingObject[incomingProperty.Key] = incomingProperty.Value.DeepClone();
-			}
-
-			return existingObject;
-		}
-
-		if (existing is JsonArray existingArray && incoming is JsonArray incomingArray)
-		{
-			foreach (JsonNode? incomingItem in incomingArray.ToList())
-			{
-				string incomingText = incomingItem?.ToJsonString() ?? "null";
-				bool alreadyHeld = existingArray.Any(existingItem => string.Equals(existingItem?.ToJsonString(), incomingText, StringComparison.Ordinal));
-				if (!alreadyHeld) existingArray.Add(incomingItem?.DeepClone());
-			}
-
-			return existingArray;
-		}
-
-		return existing;
 	}
 
 	private static void MergeDependencies(MapMetadata existing, MapMetadata incoming)

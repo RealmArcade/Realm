@@ -141,8 +141,8 @@ public partial interface IGameAPI
 
 	/// <summary>
 	/// Gets how many player starting points the map instance the match is playing declares.
-	/// A spawn anchor joins a player slot to a point on the board, and it is authored with the board's terrain instead
-	/// of in a script, so one ruleset can be played on any board that seats its players. A map that declares none
+	/// A spawn anchor joins a player slot to a named coordinate of the board, and it is authored with the board's terrain
+	/// instead of in a script, so one ruleset can be played on any board that seats its players. A map that declares none
 	/// answers zero, which is how a script tells a board meant for it apart from one it was pointed at by mistake.
 	/// </summary>
 	/// <returns>The number of spawn anchors the loaded map declares.</returns>
@@ -150,17 +150,29 @@ public partial interface IGameAPI
 
 	/// <summary>
 	/// Gets where the map instance places the starting point of one player slot.
-	/// The point is snapped to the ground of the loaded terrain, so it is a position a starting building can be placed
-	/// at and a camera can be moved to without the script reading a height field itself. A slot the map declares no
-	/// anchor for answers <see cref="Vector3.Zero"/>.
+	/// The anchor is the coordinate the board seats that slot inside, and the point is picked within it when the match
+	/// begins, so two players assigned the same ground do not stand on the identical step. The point is snapped to the
+	/// ground of the loaded terrain, so it is a position a starting building can be placed at and a camera can be moved to
+	/// without the script reading a height field itself. A slot the map declares no usable anchor for is seated anywhere on
+	/// the board, so this never answers a point a match cannot use.
+	/// <para>
+	/// The lobby's map may seat a whole team inside one coordinate instead, through
+	/// <see cref="ILobbyAPI.SetTeamSpawnCoordinate" />. That assignment outranks the board's own anchor for every slot on
+	/// the team it names, so a side that shares ground begins together inside that coordinate while each of its players
+	/// still picks its own point there.
+	/// </para>
 	/// </summary>
 	/// <param name="playerSlot">The one-based player slot the lobby seats a player in, as the map's own slot numbering states it.</param>
-	/// <returns>The ground position of that slot's anchor, or <see cref="Vector3.Zero"/> when the map declares none for it.</returns>
+	/// <returns>The ground position of that slot's anchor, or a point anywhere on the board when the map declares none for it.</returns>
 	Vector3 GetSpawnAnchor(int playerSlot);
 
 	/// <summary>
 	/// Reports how far a building site has been built, as a fraction from zero to one. A unit that is not a building
 	/// site answers one, so a caller may ask any unit without first knowing what state it is in.
+	/// A site's health is this same fraction of its maximum health, because the bar over a building being raised is its
+	/// construction rather than a second reading of it; a site also regenerates no health and no mana until it is whole,
+	/// so a map cannot bank a building's production before the building exists and must not treat a site's missing health
+	/// as damage to be mended.
 	/// </summary>
 	/// <param name="unit">The building site.</param>
 	/// <returns>The completed fraction of its construction time.</returns>
@@ -188,4 +200,48 @@ public partial interface IGameAPI
 	/// <param name="totalConstructionSeconds">How much build time the site needs before it completes.</param>
 	/// <returns>The site unit, or an invalid handle when the template is not a building this map defines.</returns>
 	UnitId SpawnBuildingUnderConstruction(string buildingTypeId, Vector3 position, int playerIndex, float totalConstructionSeconds);
+
+	/// <summary>
+	/// Turns a unit that already stands into a building site, which is how a map raises something from where it was
+	/// placed instead of spawning a second entity beside it. The unit takes the work it was given before it completes and
+	/// is announced through <see cref="OnConstructionFinished" /> like any other site.
+	/// <para>
+	/// Whether a site may be attacked, ordered or worked on is the map's own decision, so nothing but the construction
+	/// itself is written here: a unit that should not be attacked is made invulnerable by the map, and a unit a worker
+	/// should be able to raise is one the map made a building.
+	/// </para>
+	/// </summary>
+	/// <param name="unit">The unit to raise as a building site.</param>
+	/// <param name="totalConstructionSeconds">How much work the site needs before it completes, which has to be greater than zero.</param>
+	void StartUnitConstruction(UnitId unit, float totalConstructionSeconds);
+
+	/// <summary>
+	/// Holds a construction site short of completion: it takes work up to the given fraction of its construction time and
+	/// stops there, so it never becomes a building until the ceiling is lifted. This is what lets a map stand a site on the
+	/// board before it is known what is being raised there, because a site that could complete would become a building nobody
+	/// chose. A ceiling of zero denies the site any work at all, which is how a map keeps a site whose choice is still open
+	/// from being built in advance.
+	/// </summary>
+	/// <param name="unit">The building site to hold, or to release when the fraction given is one.</param>
+	/// <param name="finishedFraction">
+	/// The furthest the site may be built, from zero to one. One releases the site and is the state every site starts in;
+	/// a site held below one keeps the progress it has already been given, shortened to the new ceiling.
+	/// </param>
+	void SetUnitConstructionCeiling(UnitId unit, float finishedFraction);
+
+	/// <summary>
+	/// Reveals what a construction site is being raised as: the site takes the chosen building's template, so every screen
+	/// draws that building from the next description it receives, and the work it now needs is the building's own. The
+	/// work the site has already taken stays with it rather than being paid for twice, so a site held at a ceiling of zero
+	/// is revealed with nothing banked and starts its construction from the beginning.
+	/// <para>
+	/// A site held by <see cref="SetUnitConstructionCeiling" /> stays held until the map lifts the ceiling, so revealing a
+	/// site does not on its own make it possible for the site to complete.
+	/// </para>
+	/// </summary>
+	/// <param name="site">The building site to reveal.</param>
+	/// <param name="buildingTypeId">The template of the building the site is being raised as.</param>
+	/// <param name="totalConstructionSeconds">How much work the revealed site needs in total, which has to be greater than zero.</param>
+	/// <returns>True when the site now stands as that building, or false when it or the template is unknown to this map.</returns>
+	bool RevealBuildingSite(UnitId site, string buildingTypeId, float totalConstructionSeconds);
 }

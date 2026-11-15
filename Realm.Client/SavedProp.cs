@@ -8,4 +8,5 @@ public class SavedProp
 	public Vector3 Position;
 	public float RotationY;
 	public float Scale;
+	public int Level;
 }

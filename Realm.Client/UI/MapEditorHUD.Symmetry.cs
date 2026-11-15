@@ -93,6 +93,7 @@ namespace Realm.Client.UI
 			{
 				float spacing = EditorService.PolarRingSpacingOptions[i];
 				opt.AddItem($"{UnicodeIcons.CIRCLE} " + string.Format(TranslationServer.Translate("RINGS: {0:F0}T"), spacing), (int)spacing);
+				LocalizedText.BindOptionItem(opt, i, () => $"{UnicodeIcons.CIRCLE} " + string.Format(TranslationServer.Translate("RINGS: {0:F0}T"), spacing));
 			}
 
 			if (!string.IsNullOrEmpty(tooltip))

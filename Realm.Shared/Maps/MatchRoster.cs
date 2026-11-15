@@ -80,7 +80,7 @@ public static class MatchRoster
 			players[seat.Slot].IsComputer = seat.IsComputer;
 			players[seat.Slot].Team = seat.Team;
 			players[seat.Slot].TeamNameStringId = StringRegistry.GetOrAdd(teamName);
-			players[seat.Slot].Faction = seat.Faction ?? string.Empty;
+			players[seat.Slot].Faction = LobbyLimits.IsRandomFaction(seat.Faction) ? string.Empty : seat.Faction ?? string.Empty;
 		}
 	}
 
@@ -97,25 +97,26 @@ public static class MatchRosterFile
 {
 	public const string FileSuffix = ".roster.txt";
 
-	private const string Header = "realm-match-roster 5";
-	private const string OptionsSection = "options";
+	private const string Header = "realm-match-roster 6";
+	private const string ShroudSection = "shroud";
+	private const string SettingsSection = "settings";
 	private const char Separator = '\t';
 	private const int ColumnCount = 8;
 
-	public static void Write(string path, IReadOnlyList<MatchRosterSeat> seats, MatchOptionSet? matchOptions = null)
+	public static void Write(string path, IReadOnlyList<MatchRosterSeat> seats, MatchShroudMode shroudMode = MatchShroudMode.FromMap, LobbySettingSet? settings = null)
 	{
 		var builder = new StringBuilder();
 		builder.Append(Header).Append('\n');
 
-		builder.Append(OptionsSection);
-		if (matchOptions != null)
-		{
-			MatchOptionValue[] values = matchOptions.ToValues();
-			Array.Sort(values, static (left, right) => left.Option.CompareTo(right.Option));
+		builder.Append(ShroudSection).Append(Separator).Append((int)shroudMode).Append('\n');
 
+		builder.Append(SettingsSection);
+		if (settings != null)
+		{
+			LobbySettingValue[] values = settings.ToValues();
 			for (int index = 0; index < values.Length; index++)
 			{
-				builder.Append(Separator).Append((int)values[index].Option).Append('=').Append(values[index].Value);
+				builder.Append(Separator).Append(values[index].SettingId.ToString(CultureInfo.InvariantCulture)).Append('=').Append(values[index].Value.ToString(CultureInfo.InvariantCulture));
 			}
 		}
 
@@ -139,10 +140,11 @@ public static class MatchRosterFile
 		File.WriteAllText(path, builder.ToString());
 	}
 
-	public static bool TryRead(string path, out MatchRosterSeat[] seats, out MatchOptionSet matchOptions, out string error)
+	public static bool TryRead(string path, out MatchRosterSeat[] seats, out MatchShroudMode shroudMode, out LobbySettingSet settings, out string error)
 	{
 		seats = Array.Empty<MatchRosterSeat>();
-		matchOptions = new MatchOptionSet();
+		shroudMode = MatchShroudMode.FromMap;
+		settings = new LobbySettingSet();
 		error = string.Empty;
 
 		string[] lines;
@@ -162,34 +164,46 @@ public static class MatchRosterFile
 			return false;
 		}
 
-		string[] optionColumns = lines.Length < 2 ? Array.Empty<string>() : lines[1].Split(Separator);
-		if (optionColumns.Length == 0 || !string.Equals(optionColumns[0], OptionsSection, StringComparison.Ordinal))
+		string[] shroudColumns = lines.Length < 2 ? Array.Empty<string>() : lines[1].Split(Separator);
+		if (shroudColumns.Length != 2 || !string.Equals(shroudColumns[0], ShroudSection, StringComparison.Ordinal))
 		{
-			error = $"the match roster '{path}' does not state the match options on its second line.";
+			error = $"the match roster '{path}' does not state the shroud mode on its second line.";
 			return false;
 		}
 
-		for (int column = 1; column < optionColumns.Length; column++)
+		if (!int.TryParse(shroudColumns[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int shroudModeValue)
+			|| !Enum.IsDefined(typeof(MatchShroudMode), shroudModeValue))
 		{
-			string entry = optionColumns[column];
-			int separator = entry.IndexOf('=');
-			if (separator <= 0 || !int.TryParse(entry[..separator], NumberStyles.Integer, CultureInfo.InvariantCulture, out int option)
-				|| !Enum.IsDefined(typeof(MatchOption), option)
-				|| !int.TryParse(entry[(separator + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
-			{
-				error = $"the match roster '{path}' states the option '{entry}', which is not one an option and a value.";
-				return false;
-			}
-
-			if (!matchOptions.Set((MatchOption)option, value))
-			{
-				error = $"the match roster '{path}' states the option '{entry}', which the match could not play.";
-				return false;
-			}
+			error = $"the match roster '{path}' states the shroud mode '{shroudColumns[1]}', which no match plays.";
+			return false;
 		}
 
-		var parsed = new List<MatchRosterSeat>(lines.Length - 2);
-		for (int index = 2; index < lines.Length; index++)
+		shroudMode = (MatchShroudMode)shroudModeValue;
+
+		string[] settingColumns = lines.Length < 3 ? Array.Empty<string>() : lines[2].Split(Separator);
+		if (settingColumns.Length == 0 || !string.Equals(settingColumns[0], SettingsSection, StringComparison.Ordinal))
+		{
+			error = $"the match roster '{path}' does not state the match settings on its third line.";
+			return false;
+		}
+
+		for (int column = 1; column < settingColumns.Length; column++)
+		{
+			string entry = settingColumns[column];
+			int separator = entry.IndexOf('=');
+			if (separator <= 0
+				|| !int.TryParse(entry[..separator], NumberStyles.Integer, CultureInfo.InvariantCulture, out int settingId)
+				|| !int.TryParse(entry[(separator + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out int settingValue))
+			{
+				error = $"the match roster '{path}' states the setting '{entry}', which is not an identifier and a value.";
+				return false;
+			}
+
+			settings.Set(settingId, settingValue);
+		}
+
+		var parsed = new List<MatchRosterSeat>(lines.Length - 3);
+		for (int index = 3; index < lines.Length; index++)
 		{
 			string line = lines[index];
 			if (line.Length == 0) continue;

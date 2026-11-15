@@ -6,6 +6,9 @@ namespace Realm.Client.UI.InGame;
 
 public readonly record struct CarriedConsumableInfo(string DefinitionId, string SlotGroup);
 
+/// <summary>One filled inventory slot: the item it holds and how many pieces of it that slot carries.</summary>
+public readonly record struct CarriedItemInfo(string ItemId, int Count);
+
 public class SelectedUnitInfo
 {
 	public Entity Entity { get; set; }
@@ -27,7 +30,7 @@ public class SelectedUnitInfo
 	public List<string> Abilities { get; set; } = new();
 	public int AbilityListHandle { get; set; }
 	public int Potions { get; set; }
-	public Dictionary<string, int> InventoryItems { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+	public List<CarriedItemInfo> InventoryItems { get; set; } = new();
 	public List<CarriedConsumableInfo> CarriedConsumables { get; set; } = new();
 	public bool HasInventory { get; set; }
 

@@ -51,6 +51,14 @@ public partial class WasmConsoleWindow : Window
 	private RichTextLabel? _logLabel;
 	private LineEdit? _commandInput;
 
+	/// <summary>
+	///     Whether the console is on screen under the pointer. The console floats over the world without being a map editor
+	///     dialog, so the terrain asks this to keep a click aimed at the console from reaching the world behind it.
+	/// </summary>
+	public static bool IsAnyConsoleUnderPointer => GameContext.HasWasmConsole && GameContext.WasmConsole.IsPointerOver;
+
+	private bool IsPointerOver => Visible && GuiGetHoveredControl() != null;
+
 	public static bool IsSinglePlayerOrTestMode()
 	{
 		if (GameContext.SessionState.IsTestMode) return true;

@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using Realm.Client.Utils;
+using Realm.Shared.Metadata;
+using Realm.Shared.Services;
 
 namespace Realm.Client.Services;
 
@@ -124,7 +126,7 @@ public class {mapName} : IMapScript
 		}
 
 		File.WriteAllText(Path.Combine(mapDir, "MapScript.cs"), scriptContent);
-		MapJsonFormatter.SaveFormattedJson(Path.Combine(mapDir, "metadata.json"), "{}");
+		MapFileService.SaveMetadata(mapDir, new MapMetadata());
 		MapJsonFormatter.SaveFormattedJson(Path.Combine(mapDir, "terrain.json"), "{}");
 	}
 

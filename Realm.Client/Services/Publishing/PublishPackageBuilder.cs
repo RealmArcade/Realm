@@ -49,12 +49,9 @@ public static class PublishPackageBuilder
 		{
 			try
 			{
-				var metaDoc = JsonNode.Parse(File.ReadAllText(metadataPath)) as JsonObject;
-				if (metaDoc != null)
-				{
-					metaDoc["EngineVersion"] = RealmVersion.GameBinaryVersion;
-					MapJsonFormatter.SaveFormattedJson(metadataPath, metaDoc);
-				}
+				MapMetadata metadata = GameContext.MetadataService.LoadMetadata(metadataPath);
+				metadata.EngineVersion = RealmVersion.GameBinaryVersion;
+				GameContext.MetadataService.SaveMetadata(metadataPath, metadata);
 			}
 			catch
 			{

@@ -1,4 +1,4 @@
-﻿using Realm.Client.Services;
+using Realm.Client.Services;
 using System;
 using Godot;
 using Realm.Client.Core;
@@ -18,6 +18,7 @@ public class InventoryPanel
 		public Label CountLabel;
 		public string? LastItemId;
 		public int LastCount;
+		public int LastTotal;
 		public bool LastIsCarriedConsumable;
 	}
 
@@ -25,6 +26,7 @@ public class InventoryPanel
 	{
 		public string ItemId;
 		public int Count;
+		public int Total;
 
 		public bool IsCarriedConsumable;
 	}
@@ -137,6 +139,7 @@ public class InventoryPanel
 
 			int slotIndex = i;
 			btn.Pressed += () => OnSlotPressed(slotIndex);
+			btn.GuiInput += @event => OnSlotGuiInput(slotIndex, @event);
 
 			_slots[i] = new SlotControls
 			{
@@ -146,6 +149,7 @@ public class InventoryPanel
 				CountLabel = countLabel,
 				LastItemId = null,
 				LastCount = -1,
+				LastTotal = -1,
 				LastIsCarriedConsumable = false
 			};
 		}
@@ -166,6 +170,32 @@ public class InventoryPanel
 		{
 			host.UseItem(selected[focusIdx], itemId);
 		}
+	}
+
+	/// <summary>
+	///     Starts a drop from the clicked slot: the next left-click on the ground walks the focused unit there and puts
+	///     the pieces that slot holds down as one ground item. A consumable is a card rather than an inventory item, so it
+	///     has nothing to put down and keeps its card behaviour only.
+	/// </summary>
+	/// <param name="slotIndex">The inventory slot the pointer was over.</param>
+	/// <param name="@event">The input event the slot received.</param>
+	private void OnSlotGuiInput(int slotIndex, InputEvent @event)
+	{
+		if (@event is not InputEventMouseButton mouseButton) return;
+		if (mouseButton.ButtonIndex != MouseButton.Right || !mouseButton.Pressed) return;
+		if (_slots[slotIndex].LastIsCarriedConsumable) return;
+
+		string? itemId = _slots[slotIndex].LastItemId;
+		if (string.IsNullOrEmpty(itemId)) return;
+		if (GameContext.Host is not { } host) return;
+
+		var selected = host.SelectedUnits;
+		int focusIdx = _currentFocusIdx;
+		if (selected.Count <= focusIdx) return;
+		if (selected[focusIdx].Player != GameContext.PerspectiveFilter.ControlledPlayerIndex) return;
+
+		host.EnterItemDropTargeting(itemId, _slots[slotIndex].LastCount);
+		_slots[slotIndex].ItemButton.AcceptEvent();
 	}
 
 	public void Update(InGameHUDViewModel viewModel)
@@ -195,12 +225,19 @@ public class InventoryPanel
 		int currentItemCount = 0;
 		if (focusedUnit.InventoryItems != null)
 		{
-			foreach (var kvp in focusedUnit.InventoryItems)
+			for (int slotIndex = 0; slotIndex < focusedUnit.InventoryItems.Count; slotIndex++)
 			{
 				if (currentItemCount >= 6) break;
-				if (kvp.Value <= 0) continue;
 
-				_scratchItems[currentItemCount] = new ItemSlotData { ItemId = kvp.Key, Count = kvp.Value };
+				CarriedItemInfo carried = focusedUnit.InventoryItems[slotIndex];
+				if (carried.Count <= 0) continue;
+
+				_scratchItems[currentItemCount] = new ItemSlotData
+				{
+					ItemId = carried.ItemId,
+					Count = carried.Count,
+					Total = TotalCarriedOf(focusedUnit, carried.ItemId)
+				};
 				currentItemCount++;
 			}
 		}
@@ -224,6 +261,7 @@ public class InventoryPanel
 			{
 				if (_scratchItems[i].ItemId != _lastItemSlots[i].ItemId
 				    || _scratchItems[i].Count != _lastItemSlots[i].Count
+				    || _scratchItems[i].Total != _lastItemSlots[i].Total
 				    || _scratchItems[i].IsCarriedConsumable != _lastItemSlots[i].IsCarriedConsumable)
 				{
 					dirty = true;
@@ -248,7 +286,7 @@ public class InventoryPanel
 				var itemData = _scratchItems[i];
 				_lastItemSlots[i] = itemData;
 
-				if (_slots[i].LastItemId != itemData.ItemId || _slots[i].LastCount != itemData.Count || _slots[i].LastIsCarriedConsumable != itemData.IsCarriedConsumable)
+				if (_slots[i].LastItemId != itemData.ItemId || _slots[i].LastCount != itemData.Count || _slots[i].LastTotal != itemData.Total || _slots[i].LastIsCarriedConsumable != itemData.IsCarriedConsumable)
 				{
 					UpdateItemSlot(i, itemData);
 				}
@@ -261,6 +299,7 @@ public class InventoryPanel
 				_lastItemSlots[i] = default;
 				_slots[i].LastItemId = null;
 				_slots[i].LastCount = -1;
+				_slots[i].LastTotal = -1;
 				_slots[i].LastIsCarriedConsumable = false;
 
 				_slots[i].BlackTile.Visible = true;
@@ -269,11 +308,35 @@ public class InventoryPanel
 		}
 	}
 
+	/// <summary>
+	///     Adds up every slot that holds one item, which is what a tooltip reports as the amount carried rather than the
+	///     pieces of the one slot the cursor is over.
+	/// </summary>
+	/// <param name="focusedUnit">The unit whose inventory is being read.</param>
+	/// <param name="itemId">The item definition identifier to add up.</param>
+	/// <returns>The number of pieces of that item across every slot, or zero when it is not carried.</returns>
+	private static int TotalCarriedOf(SelectedUnitInfo focusedUnit, string itemId)
+	{
+		int total = 0;
+		if (focusedUnit.InventoryItems == null) return total;
+
+		for (int slotIndex = 0; slotIndex < focusedUnit.InventoryItems.Count; slotIndex++)
+		{
+			CarriedItemInfo carried = focusedUnit.InventoryItems[slotIndex];
+			if (!string.Equals(carried.ItemId, itemId, StringComparison.OrdinalIgnoreCase)) continue;
+
+			total += carried.Count;
+		}
+
+		return total;
+	}
+
 	private void UpdateItemSlot(int index, ItemSlotData itemData)
 	{
 		ref var slot = ref _slots[index];
 		slot.LastItemId = itemData.ItemId;
 		slot.LastCount = itemData.Count;
+		slot.LastTotal = itemData.Total;
 		slot.LastIsCarriedConsumable = itemData.IsCarriedConsumable;
 
 		if (itemData.IsCarriedConsumable)
@@ -293,8 +356,8 @@ public class InventoryPanel
 			if (!string.IsNullOrEmpty(itemMeta.IconPath)) iconPath = itemMeta.IconPath;
 		}
 
-		string statBlock = TooltipStatBlock.ForItem(itemMeta, itemData.Count);
-		string rawTooltip = $"{name} (Have: {itemData.Count})\n{desc}";
+		string statBlock = TooltipStatBlock.ForItem(itemMeta, itemData.Total);
+		string rawTooltip = $"{name} (Have: {itemData.Total})\n{desc}";
 		if (statBlock.Length > 0) rawTooltip += "\n" + statBlock;
 		string transTooltip = TranslationServer.Translate(rawTooltip);
 
@@ -302,7 +365,7 @@ public class InventoryPanel
 		slot.ItemButton.TooltipText = TooltipTemplate.Resolve(
 			string.IsNullOrEmpty(transTooltip) ? rawTooltip : transTooltip,
 			TooltipContext.ForUnit(_lastFocusedEntity));
-		slot.CountLabel.Text = itemData.Count.ToString();
+		slot.CountLabel.Text = itemData.Count > 1 ? itemData.Count.ToString() : string.Empty;
 	}
 
 	private void RenderCarriedConsumable(ref SlotControls slot, string definitionId)
@@ -312,7 +375,7 @@ public class InventoryPanel
 		string tooltip = string.Empty;
 
 		var registry = GameContext.RegistryService;
-		ConsumableMetadata? consumable = registry?.GetConsumable(definitionId);
+		ItemMetadata? consumable = registry?.GetConsumable(definitionId);
 		if (consumable != null)
 		{
 			AbilityDefinition? card = registry?.GetAbilityDefinition(consumable.CardId);
@@ -345,6 +408,7 @@ public class InventoryPanel
 			_slots[i].SlotRoot.Visible = false;
 			_slots[i].LastItemId = null;
 			_slots[i].LastCount = -1;
+			_slots[i].LastTotal = -1;
 			_slots[i].LastIsCarriedConsumable = false;
 			_lastItemSlots[i] = default;
 		}

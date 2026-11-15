@@ -208,6 +208,12 @@ layout_mode = 2
 theme_override_constants/separation = 8
 alignment = 1
 
+[node name="DiscordButton" type="Button" parent="SocialPopover/MarginContainer/PopoverVBox"]
+custom_minimumSize = Vector2(270, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 0
+
 [node name="WishlistButton" type="Button" parent="SocialPopover/MarginContainer/PopoverVBox"]
 custom_minimumSize = Vector2(270, 44)
 layout_mode = 2
@@ -215,12 +221,6 @@ size_flags_horizontal = 4
 focus_mode = 0
 
 [node name="WebsiteButton" type="Button" parent="SocialPopover/MarginContainer/PopoverVBox"]
-custom_minimumSize = Vector2(270, 44)
-layout_mode = 2
-size_flags_horizontal = 4
-focus_mode = 0
-
-[node name="DiscordButton" type="Button" parent="SocialPopover/MarginContainer/PopoverVBox"]
 custom_minimumSize = Vector2(270, 44)
 layout_mode = 2
 size_flags_horizontal = 4

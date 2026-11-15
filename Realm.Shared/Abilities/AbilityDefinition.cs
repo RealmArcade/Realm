@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Realm.Shared.Metadata;
 
 namespace Realm.Shared.Abilities;
 
@@ -12,6 +13,12 @@ public class AbilityDefinition
 	public string TooltipTemplate { get; set; } = "";
 	public string IconPath { get; set; } = "";
 	public bool IsInstant { get; set; }
+
+	/// <summary>
+	///     A passive ability is part of a unit's kit without being castable: its card shows the icon and tooltip a
+	///     player reads, and pressing it does nothing because there is no cast to begin.
+	/// </summary>
+	public bool IsPassive { get; set; }
 	public string Hotkey { get; set; } = "";
 	public int GridX { get; set; } = -1;
 	public int GridY { get; set; } = -1;
@@ -26,8 +33,8 @@ public class AbilityDefinition
 	public float Damage { get; set; } = 0f;
 
 	public float Healing { get; set; } = 0f;
-	public bool AutoCastEnabled { get; set; } = true;
-	public bool AutoCastRequiresEnemy { get; set; } = true;
+	public bool AutoCastEnabled { get; set; }
+	public AutoCastTargetRule AutoCastTargetRule { get; set; } = AutoCastTargetRule.NearestEnemy;
 	public float AutoCastAllyHealthPercentBelow { get; set; } = 1f;
 	public float AutoCastManaReserve { get; set; }
 	public float AutoCastMinManaPercent { get; set; }
@@ -38,5 +45,10 @@ public class AbilityDefinition
 	///     through <c>OnSpellImpact</c>.
 	/// </summary>
 	public string? ProjectileId { get; set; }
+
+	/// <summary>
+	///     The template this card places with the standard construction placement, or null when the card is a cast.
+	/// </summary>
+	public string? PlacementTemplateId { get; set; }
 	public string? CastSound { get; set; }
 }

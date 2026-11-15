@@ -194,11 +194,14 @@ public static class SpawnDeathShaderManager
 	private static bool IsExcludedMesh(Node node)
 	{
 		if (node == null) return true;
+		if (node.HasMeta(ModelShaderManager.OverlayMaterialMetaName)) return true;
+		if (node is GeometryInstance3D groundPlane && ModelShaderManager.HasGroundPlaneMaterial(groundPlane)) return true;
 		string nodeName = node.Name.ToString();
 		return nodeName.StartsWith("_selection", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("Selection", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("_hover", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("Hover", StringComparison.OrdinalIgnoreCase)
+		       || nodeName.StartsWith("PlayerColorGlow", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("BrushIndicator", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.StartsWith("DropShadow", StringComparison.OrdinalIgnoreCase)
 		       || nodeName.Contains("SelectionRing", StringComparison.OrdinalIgnoreCase)
@@ -356,16 +359,12 @@ public static class SpawnDeathShaderManager
 		};
 	}
 
-	public static void AnimateTransition(Node3D targetNode, string shaderKey, bool isSpawn, float? durationOverride = null, Action? onComplete = null)
+	public static Tween? AnimateTransition(Node3D targetNode, string shaderKey, bool isSpawn, float? durationOverride = null, Action? onComplete = null)
 	{
 		if (!IsValidForTransition(targetNode))
 		{
-			if (onComplete != null)
-			{
-				onComplete();
-			}
-
-			return;
+			onComplete?.Invoke();
+			return null;
 		}
 
 		var config = GetTransitionConfig(shaderKey, isSpawn);
@@ -378,7 +377,7 @@ public static class SpawnDeathShaderManager
 		if (GetOrCreateShader() is not { } shader)
 		{
 			onComplete?.Invoke();
-			return;
+			return null;
 		}
 
 		var materials = new List<ShaderMaterial>(4);
@@ -389,6 +388,7 @@ public static class SpawnDeathShaderManager
 		tween.TweenMethod(Callable.From((float prog) => UpdateTransitionMaterialsProgress(targetNode, materials, prog)), startProgress, endProgress, duration);
 
 		tween.TweenCallback(Callable.From(() => CompleteTransition(targetNode, isSpawn, onComplete)));
+		return tween;
 	}
 
 	private static bool IsValidForTransition(Node3D targetNode)

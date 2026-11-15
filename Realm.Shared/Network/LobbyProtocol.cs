@@ -39,8 +39,17 @@ public enum LobbyCommandKind : byte
 
 	SetComputerDifficulty = 16,
 
-	/// <summary>Sets one of the parameters the host configures for the match, in <see cref="LobbyCommand.Option" />.</summary>
-	SetMatchOption = 17
+	/// <summary>Sets one match setting the lobby's map declared, named by <see cref="LobbyCommand.SettingId" />.</summary>
+	SetLobbySetting = 17,
+
+	/// <summary>Sets whether the match groups each team's players into consecutive player slots, in <see cref="LobbyCommand.Flag" />.</summary>
+	SetTeamsTogether = 18,
+
+	/// <summary>Opens or closes one player slot, named by <see cref="LobbyCommand.Slot" /> and opened when <see cref="LobbyCommand.Flag" /> is set.</summary>
+	SetSlotOpen = 19,
+
+	/// <summary>Chooses the shroud mode the match plays, in <see cref="LobbyCommand.Progress" />.</summary>
+	SetShroudMode = 20
 }
 
 /// <summary>
@@ -152,6 +161,13 @@ public partial struct LobbySeat
 	///     The <see cref="LobbyBotDifficulty" /> this computer seat plays on, or zero for a seat no one seated as a computer.
 	/// </summary>
 	public int Difficulty;
+
+	/// <summary>
+	///     The SteamID64 the seat's own client plays as, or 0 for a computer seat, a guest who is not running inside Steam, or
+	///     a seat whose player has not sent a hello this build can read. It is stated by that client, exactly like the name it
+	///     plays under, and it is only used to point Steam's add-friend dialog at the right person.
+	/// </summary>
+	public ulong SteamId;
 }
 
 [MemoryPackable]
@@ -160,7 +176,16 @@ public partial struct LobbyStateMessage
 	public LobbySeat[] Seats;
 	public string MapName;
 	public string MapVersion;
-	public int MaxPlayers;
+
+	/// <summary>How many player slots the lobby carries, which is every row its screens draw.</summary>
+	public int SlotCount;
+
+	/// <summary>
+	///     Which player slots the host left open, indexed by slot. A closed slot holds no player and accepts none, and a
+	///     map that stated no slot closed leaves every slot open.
+	/// </summary>
+	public bool[] OpenSlots;
+
 	public string[] Factions;
 	public int TeamCount;
 	public bool SpectatorDelay;
@@ -168,10 +193,83 @@ public partial struct LobbyStateMessage
 	public bool CountdownActive;
 	public int CountdownRemainingSeconds;
 
-	/// <summary>The parameters the host configured for the match, which every seat reads to show them.</summary>
-	public Realm.Shared.Simulation.MatchOptionValue[] Options;
+	/// <summary>
+	///     The match settings this lobby's map declared, which every seat reads to show them and only the host may change.
+	///     A map that declared none leaves the list empty, and the lobby then offers the core settings alone.
+	/// </summary>
+	public LobbyMatchSettingMessage[] Settings;
 
 	public long Revision;
+
+	/// <summary>
+	///     Whether the match groups each team's players into consecutive player slots, which every seat reads to show the
+	///     setting and only the host may change. It is last so the seats a peer already reads keep their wire position.
+	/// </summary>
+	public bool TeamsTogether;
+
+	/// <summary>
+	///     The <see cref="Realm.Ecs.MatchShroudMode" /> this lobby will play: the host's own choice when it made one, the
+	///     mode the map's lobby script states otherwise, and <c>FromMap</c> when neither says anything. It is last so the
+	///     fields a peer already reads keep their wire position.
+	/// </summary>
+	public int ShroudMode;
+
+	/// <summary>
+	///     The colour each player index's units are drawn in, indexed by player index, packed as 0xRRGGBBAA, where zero
+	///     means the index keeps the colour its seat states. It carries the colours a map keeps for the player indexes
+	///     nobody holds - the players such a map drives itself - which a seat list has nowhere to name.
+	/// </summary>
+	public uint[] ColorOverlays;
+
+	/// <summary>
+	///     The colour each player index's units are drawn in on a minimap that paints every player in its own colour,
+	///     indexed by player index and packed as 0xRRGGBBAA, zero while the map stated none.
+	/// </summary>
+	public uint[] MinimapPlayerColors;
+
+	/// <summary>
+	///     The colour each player index's units are drawn in on a minimap that paints players by their relation to the
+	///     screen looking at it, indexed by player index and packed as 0xRRGGBBAA, zero while the map stated none.
+	/// </summary>
+	public uint[] MinimapTeamColors;
+
+	/// <summary>
+	///     The player index each player index stands in for, indexed by player index, zero for an index that stands in for
+	///     nobody. A map uses it to say that a player it drives itself carries a real player's army, which the minimap that
+	///     paints players by their relation to the screen reads as that player.
+	/// </summary>
+	public int[] ProxyOwners;
+}
+
+/// <summary>
+///     One match setting a lobby's map declared, as the lobby publishes it to the screens sitting in it.
+/// </summary>
+[MemoryPackable]
+public partial struct LobbyMatchSettingMessage
+{
+	/// <summary>The identifier the map declared the setting under.</summary>
+	public int SettingId;
+
+	/// <summary>The label the host reads.</summary>
+	public string Label;
+
+	/// <summary>The sentence that explains the setting, empty when the map offered none.</summary>
+	public string Tooltip;
+
+	/// <summary>The <see cref="Realm.Ecs.LobbySettingControl" /> the setting is edited with.</summary>
+	public int Control;
+
+	/// <summary>The value the host chose, or the value the map stated while nobody changed it.</summary>
+	public int Value;
+
+	/// <summary>The lowest value a count may hold.</summary>
+	public int Minimum;
+
+	/// <summary>The highest value a count may hold.</summary>
+	public int Maximum;
+
+	/// <summary>The options a choice offers, in the order their indices name them.</summary>
+	public string[] Options;
 }
 
 [MemoryPackable]
@@ -199,13 +297,14 @@ public partial struct LobbyCommand
 
 	public int Progress;
 
-	/// <summary>The <see cref="Realm.Ecs.MatchOption" /> a <see cref="LobbyCommandKind.SetMatchOption" /> sets.</summary>
-	public int Option;
+	/// <summary>The identifier a <see cref="LobbyCommandKind.SetLobbySetting" /> sets, as the map declared it.</summary>
+	public int SettingId;
 
-	/// <summary>
-	///     The value the option is set to, where zero returns the option to the map's own default.
-	/// </summary>
-	public int OptionValue;
+	/// <summary>The value the setting is set to.</summary>
+	public int SettingValue;
+
+	/// <summary>The player slot a <see cref="LobbyCommandKind.SetSlotOpen" /> opens or closes.</summary>
+	public int Slot;
 }
 
 [MemoryPackable]
@@ -288,17 +387,39 @@ public static class LobbyLimits
 	/// <summary>The ceiling on the warning a map may ask its lobby's host to read before the match starts.</summary>
 	public const int MaximumStartWarningLength = 300;
 
-	public const int MaximumSeats = 16;
+	/// <summary>
+	///     How many player slots a lobby carries. It is the shared roster's own ceiling minus the neutral slot, so the
+	///     default lobby shows one row per player a match could ever seat.
+	/// </summary>
+	public const int MaximumSeats = Realm.Ecs.EcsSharedMemory.MAX_PLAYERS - 1;
+
 	public const int CountdownSeconds = 5;
 
-	/// <summary>The number of teams a lobby whose map states none offers, which is the two teams lobbies have always had.</summary>
-	public const int DefaultTeamCount = 2;
+	/// <summary>
+	///     The number of teams a lobby whose map states none offers. Every seat sits on its own team, which is what the
+	///     default free-for-all board offers.
+	/// </summary>
+	public const int DefaultTeamCount = MaximumSeats;
 
 	/// <summary>
 	///     The team name a seat carries while it watches the match instead of playing it. Such a seat holds no player seat,
 	///     so it is not counted against the players a map seats.
 	/// </summary>
 	public const string SpectatorTeamName = "Spectator";
+
+	/// <summary>
+	///     The faction a seat holds while it leaves the choice to the match. The lobby offers it as Random, and the authority
+	///     resolves it to one of the factions the map offers when it seats the match, so nothing that plays the match ever
+	///     reads it as a faction.
+	/// </summary>
+	public const string RandomFactionName = "@random";
+
+	/// <summary>
+	///     Answers whether a seat's faction is the lobby's random choice rather than a faction the map offers.
+	/// </summary>
+	/// <param name="factionName">The faction a seat holds.</param>
+	/// <returns>Whether the seat left its faction to the match.</returns>
+	public static bool IsRandomFaction(string? factionName) => string.Equals(factionName, RandomFactionName, StringComparison.Ordinal);
 
 	public const int MaximumMapBundleBytes = 2 * 1024 * 1024;
 
