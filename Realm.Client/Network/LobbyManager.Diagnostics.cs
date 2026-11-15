@@ -1,4 +1,7 @@
+using System.Text;
+using Realm.Client.UI;
 using Realm.Shared;
+using Realm.Shared.Network;
 
 namespace Realm.Client.Network;
 
@@ -21,26 +24,92 @@ public partial class LobbyManager
 		string firewall = LastFirewallGrant.Detail;
 		if (string.IsNullOrEmpty(firewall)) firewall = "not asked for";
 
-		return string.Join('\n', new[]
+		var block = new StringBuilder();
+		block.AppendLine("Realm lobby network diagnostics");
+		block.AppendLine($"game version: {RealmVersion.GameBinaryVersion}");
+		block.AppendLine($"lobby id: {ActiveLobbyId ?? "none"}");
+		block.AppendLine($"lobby server: {RegistryServerUrl}");
+		block.AppendLine($"game port (listed): {listedPort}");
+		block.AppendLine($"game port (transport holds): {BoundPort}");
+		block.AppendLine($"address on this network: {DirectConnectAddress}");
+		block.AppendLine($"address measured for this machine: {MeasuredPublicConnectAddress ?? "not measured"}");
+		block.AppendLine($"address confirmed from outside: {PublicConnectAddress ?? "not confirmed by anything outside this network"}");
+		block.AppendLine($"reachability class: {ReachabilityClass}");
+		block.AppendLine($"reachability re-checks: {_reachabilityReverifyCount} (last: {_lastReverifyOutcome})");
+		block.AppendLine($"router mapping: {MappingBehaviour}");
+		block.AppendLine($"local NAT: {LocalNatType}");
+		block.AppendLine($"router: {RouterReachability}");
+		block.AppendLine($"firewall: {firewall}");
+		block.AppendLine($"last hosting failure: {LastHostError ?? "none"}");
+		block.AppendLine($"last player join failure: {LastPlayerJoinFailure ?? "none"}");
+		block.AppendLine($"last warning shown: {LastLobbyWarning ?? "none"}");
+		AppendHandoverDiagnostics(block);
+		return block.ToString().TrimEnd();
+	}
+
+	/// <summary>
+	///     States the lobby's host handover in the same shape on every screen that can report it, so the page a screen that
+	///     offered a handover copies and the page the screen it was offered to copies describe one transfer rather than two
+	///     accounts of it. A lobby nobody offered a handover in states the stage it is at and no numbers.
+	/// </summary>
+	/// <param name="block">The page being written.</param>
+	private void AppendHandoverDiagnostics(StringBuilder block)
+	{
+		block.AppendLine($"handover stage: {HandoverStage}");
+		block.AppendLine($"handover candidate: {DescribeSeatByPeerId(HandoverCandidatePeerId)}");
+		block.AppendLine($"handover seconds remaining: {HandoverSecondsRemaining}");
+		block.AppendLine($"handover suggested candidate: {DescribeSeatByPeerId(SuggestedCandidatePeerId)}");
+		block.AppendLine($"handover notice: {(HandoverNoticeKey.Length == 0 ? "none" : HandoverNoticeKey)}");
+
+		if (!HasHandoverReport)
 		{
-			"Realm lobby network diagnostics",
-			$"game version: {RealmVersion.GameBinaryVersion}",
-			$"lobby id: {ActiveLobbyId ?? "none"}",
-			$"lobby server: {RegistryServerUrl}",
-			$"game port (listed): {listedPort}",
-			$"game port (transport holds): {BoundPort}",
-			$"address on this network: {DirectConnectAddress}",
-			$"address measured for this machine: {MeasuredPublicConnectAddress ?? "not measured"}",
-			$"address confirmed from outside: {PublicConnectAddress ?? "not confirmed by anything outside this network"}",
-			$"reachability class: {ReachabilityClass}",
-			$"reachability re-checks: {_reachabilityReverifyCount} (last: {_lastReverifyOutcome})",
-			$"router mapping: {MappingBehaviour}",
-			$"local NAT: {LocalNatType}",
-			$"router: {RouterReachability}",
-			$"firewall: {firewall}",
-			$"last hosting failure: {LastHostError ?? "none"}",
-			$"last player join failure: {LastPlayerJoinFailure ?? "none"}",
-			$"last warning shown: {LastLobbyWarning ?? "none"}"
-		});
+			block.AppendLine("handover measurements: none");
+			return;
+		}
+
+		LobbyHandoverReport report = HandoverReport;
+		LobbyReportSummary summary = LobbyReportSummary.Read(report);
+		block.AppendLine($"handover verdict: {(LobbyHandoverVerdict)report.Verdict}");
+		block.AppendLine($"handover reason: {(string.IsNullOrEmpty(report.Failure) ? "none" : report.Failure)}");
+		block.AppendLine($"handover round trip now (best/worst/mean): {summary.CurrentBest}/{summary.CurrentWorst}/{summary.CurrentMean} ms");
+		block.AppendLine($"handover round trip proposed (best/worst/mean): {summary.CandidateBest}/{summary.CandidateWorst}/{summary.CandidateMean} ms");
+		block.AppendLine($"handover machine stability now: {DescribeStabilityRank(report.CurrentHostStabilityRank)}");
+		block.AppendLine($"handover machine stability proposed: {DescribeStabilityRank(report.CandidateStabilityRank)}");
+		block.AppendLine($"handover new endpoint measured from outside: {(report.CandidateEndpointVerified ? "yes" : "not measured")}");
+		block.AppendLine($"handover map held at the lobby's version: {(report.MapMatched ? "yes" : "no")}");
+
+		LobbyHandoverSeatMetric[] seats = report.Seats ?? [];
+		for (int index = 0; index < seats.Length; index++)
+		{
+			LobbyHandoverSeatMetric seat = seats[index];
+			block.AppendLine($"handover seat {seat.Slot} ({seat.Name}): now {DescribeDiagnosticLink(seat.CurrentHostMeasured, seat.CurrentHostRoundTripMilliseconds, seat.CurrentHostJitterMilliseconds, seat.CurrentHostPacketLossPercent)}; proposed {DescribeDiagnosticLink(seat.CandidateMeasured, seat.CandidateRoundTripMilliseconds, seat.CandidateJitterMilliseconds, seat.CandidatePacketLossPercent)}");
+		}
+	}
+
+	private static string DescribeDiagnosticLink(bool measured, int roundTripMilliseconds, int jitterMilliseconds, float packetLossPercent)
+	{
+		return measured ? $"{roundTripMilliseconds} ms / {jitterMilliseconds} ms jitter / {packetLossPercent:0.#}% loss" : "not measured";
+	}
+
+	private static string DescribeStabilityRank(int rank)
+	{
+		return rank switch
+		{
+			HostStabilityRanks.Excellent => "excellent",
+			HostStabilityRanks.Average => "average",
+			HostStabilityRanks.Poor => "poor",
+			_ => "not measured"
+		};
+	}
+
+	private string DescribeSeatByPeerId(int peerId)
+	{
+		if (peerId <= 0) return "none";
+		foreach (PlayerInfo player in PlayerList)
+		{
+			if (player.PeerId == peerId) return player.Name;
+		}
+
+		return "not seated";
 	}
 }
