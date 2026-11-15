@@ -73,6 +73,7 @@ public partial class ServerLobby
 			or LobbyCommandKind.WithdrawHostHandover
 			or LobbyCommandKind.ConfirmHostHandover
 			or LobbyCommandKind.ReportHostHandoverReport
+			or LobbyCommandKind.ReportHostHandoverProgress
 			or LobbyCommandKind.ReportHandoverMeasurements
 			or LobbyCommandKind.ReportSeatStability
 			or LobbyCommandKind.AbortHostHandover;
@@ -122,6 +123,9 @@ public partial class ServerLobby
 				break;
 			case LobbyCommandKind.ReportHostHandoverReport:
 				AcceptRehearsalReport(peerId, command.Report);
+				break;
+			case LobbyCommandKind.ReportHostHandoverProgress:
+				AcceptRehearsalProgress(peerId, command.Report);
 				break;
 			case LobbyCommandKind.ReportHandoverMeasurements:
 				RecordMeasurements(sender, command.Measurements);
@@ -317,6 +321,26 @@ public partial class ServerLobby
 		NotifyHandoverParty(_adminPeerId, LobbyHandoverMessageKind.Evidence, _handoverReport, _handoverNotice);
 		NotifyHandoverParty(_handoverCandidatePeerId, LobbyHandoverMessageKind.Evidence, _handoverReport, _handoverNotice);
 		BroadcastState();
+	}
+
+	/// <summary>
+	///     Passes a candidate's measurements so far to the two parties, so both watch the rehearsal while it runs. Nothing
+	///     is judged from it and nothing in the lobby changes: a progress report is always stated as not measured, and it
+	///     never carries the credentials the decision would hand out.
+	/// </summary>
+	/// <param name="peerId">The seat that stated the measurements.</param>
+	/// <param name="report">What it has measured so far.</param>
+	private void AcceptRehearsalProgress(int peerId, in LobbyHandoverReport report)
+	{
+		if (_handoverStage != LobbyHandoverStage.Rehearsing || peerId != _handoverCandidatePeerId) return;
+
+		LobbyHandoverReport progress = report;
+		progress.Credentials = [];
+		progress.Verdict = (int)LobbyHandoverVerdict.NotMeasured;
+		progress.Failure = string.Empty;
+
+		NotifyHandoverParty(_adminPeerId, LobbyHandoverMessageKind.Evidence, progress, string.Empty);
+		NotifyHandoverParty(_handoverCandidatePeerId, LobbyHandoverMessageKind.Evidence, progress, string.Empty);
 	}
 
 	private string DescribeUnusableReport(in LobbyHandoverReport report)

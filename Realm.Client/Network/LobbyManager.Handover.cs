@@ -109,8 +109,6 @@ public partial class LobbyManager
 
 	private LobbyReachabilitySet? _handoverReachability;
 
-	private LobbyHandoverAdoption? _handoverAdoption;
-
 	private LobbyHandoverSeatCredential[] _handoverCredentials = [];
 
 	private string _joinedMapVersion = "1.0.0";
@@ -368,6 +366,17 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
+	///     One rehearsal's view of the lobby, taken before the measurement begins. The seats, the credentials and the lobby
+	///     a candidate would serve are stated once on the thread that owns them, so a lobby that changes while the
+	///     measurement runs cannot change the report underneath it.
+	/// </summary>
+	/// <param name="Players">The seats the rehearsal is measured against.</param>
+	/// <param name="LocalPeerId">This screen's seat, which is the candidate itself.</param>
+	/// <param name="Adoption">The lobby this screen would serve, or null when its seats could not be stated as one.</param>
+	/// <param name="Credentials">One credential per seated human player, minted for the seats that move.</param>
+	private readonly record struct HandoverRehearsalInputs(PlayerInfo[] Players, int LocalPeerId, LobbyHandoverAdoption? Adoption, LobbyHandoverSeatCredential[] Credentials);
+
+	/// <summary>
 	///     Begins the rehearsal this screen has to run because it is the candidate: its own authority is put up for the
 	///     lobby's seats before anything is given up, its endpoint is measured the way publishing requires, and every seated
 	///     player is probed. The report it produces is judged by the same rules the lobby judges it by.
@@ -375,6 +384,9 @@ public partial class LobbyManager
 	private void StartRehearsal()
 	{
 		if (_rehearsalWork != null) return;
+
+		PlayerInfo[] players = PlayerList.ToArray();
+		var inputs = new HandoverRehearsalInputs(players, LocalPeerId, BuildAdoption(players), _handoverCredentials);
 
 		// This screen's machine is measured by the matches it has hosted, so a machine that has never hosted one has no
 		// rating to state. Unknown is stated as unknown rather than as a good machine, and the lobby refuses on it.
@@ -384,7 +396,7 @@ public partial class LobbyManager
 
 		var work = new CancellationTokenSource();
 		_rehearsalWork = work;
-		_ = Task.Run(async () => await RehearseHandoverAsync(work.Token, ownStabilityRank).ConfigureAwait(false));
+		_ = Task.Run(async () => await RehearseHandoverAsync(work.Token, ownStabilityRank, inputs).ConfigureAwait(false));
 	}
 
 	private void CancelRehearsal(bool abandonAuthority)
@@ -396,7 +408,6 @@ public partial class LobbyManager
 		if (!abandonAuthority) return;
 
 		_handoverCredentials = [];
-		_handoverAdoption = null;
 		_handoverReachability = null;
 		_handoverRehearsalPort = 0;
 		_handoverRehearsalAdminToken = string.Empty;
@@ -410,12 +421,12 @@ public partial class LobbyManager
 
 	private bool _rehearsalAuthorityWasStarted;
 
-	private async Task RehearseHandoverAsync(CancellationToken token, int ownStabilityRank)
+	private async Task RehearseHandoverAsync(CancellationToken token, int ownStabilityRank, HandoverRehearsalInputs inputs)
 	{
 		LobbyHandoverReport report;
 		try
 		{
-			report = await MeasureRehearsalAsync(token, ownStabilityRank).ConfigureAwait(false);
+			report = await MeasureRehearsalAsync(token, ownStabilityRank, inputs).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException)
 		{
@@ -448,7 +459,7 @@ public partial class LobbyManager
 		}).CallDeferred();
 	}
 
-	private async Task<LobbyHandoverReport> MeasureRehearsalAsync(CancellationToken token, int ownStabilityRank)
+	private async Task<LobbyHandoverReport> MeasureRehearsalAsync(CancellationToken token, int ownStabilityRank, HandoverRehearsalInputs inputs)
 	{
 		var report = new LobbyHandoverReport
 		{
@@ -463,14 +474,13 @@ public partial class LobbyManager
 			return report;
 		}
 
-		LobbyHandoverAdoption? adoption = BuildAdoption(mapDirectory);
+		LobbyHandoverAdoption? adoption = inputs.Adoption;
 		if (adoption == null)
 		{
 			report.Failure = "the lobby's seats could not be stated as a lobby this screen can take over";
 			return report;
 		}
 
-		_handoverAdoption = adoption;
 		ClientServerSession? session = _lobbySession;
 		if (session == null)
 		{
@@ -516,7 +526,7 @@ public partial class LobbyManager
 			report.Failure = $"no registry node reached this machine's game port: {reachability.FirstFailure?.Detail ?? "it did not answer"}";
 			report.CandidateStabilityRank = ownStabilityRank;
 			report.CurrentHostStabilityRank = HostStabilityRanks.Rank(HostStability);
-			report.Seats = BuildSeatMetrics([]);
+			report.Seats = BuildSeatMetrics(inputs, []);
 			report.MapMatched = MapMatchesLobby();
 			return report;
 		}
@@ -529,9 +539,9 @@ public partial class LobbyManager
 		report.CandidateStabilityRank = ownStabilityRank;
 		report.CurrentHostStabilityRank = HostStabilityRanks.Rank(HostStability);
 
-		List<LobbyHandoverLinkSample> measured = await MeasureEverySeatAsync(token).ConfigureAwait(false);
-		report.Seats = BuildSeatMetrics(measured);
-		report.Credentials = _handoverCredentials;
+		List<LobbyHandoverLinkSample> measured = await MeasureEverySeatAsync(token, inputs, report).ConfigureAwait(false);
+		report.Seats = BuildSeatMetrics(inputs, measured);
+		report.Credentials = inputs.Credentials;
 		report.Verdict = (int)HostHandoverRules.Verdict(report);
 
 		if (string.IsNullOrEmpty(report.Failure) && report.Verdict != (int)LobbyHandoverVerdict.Passed) report.Failure = "the measured numbers did not pass the handover rules";
@@ -545,12 +555,12 @@ public partial class LobbyManager
 		return !string.IsNullOrEmpty(GameHost.ResolveMapDirectory(ActiveMapName ?? string.Empty, _joinedMapVersion));
 	}
 
-	private LobbyHandoverAdoption? BuildAdoption(string mapDirectory)
+	private LobbyHandoverAdoption? BuildAdoption(PlayerInfo[] players)
 	{
-		MintSeatCredentials();
+		MintSeatCredentials(players);
 
-		var seats = new List<LobbyHandoverAdoptedSeat>(PlayerList.Count);
-		foreach (PlayerInfo player in PlayerList)
+		var seats = new List<LobbyHandoverAdoptedSeat>(players.Length);
+		foreach (PlayerInfo player in players)
 		{
 			if (player.Slot <= 0) continue;
 			bool isComputer = player.IsComputer || player.PeerId < 0;
@@ -597,11 +607,11 @@ public partial class LobbyManager
 		return string.Empty;
 	}
 
-	private LobbyHandoverSeatCredential[] MintSeatCredentials()
+	private LobbyHandoverSeatCredential[] MintSeatCredentials(PlayerInfo[] players)
 	{
-		var credentials = new LobbyHandoverSeatCredential[PlayerList.Count];
+		var credentials = new LobbyHandoverSeatCredential[players.Length];
 		int count = 0;
-		foreach (PlayerInfo player in PlayerList)
+		foreach (PlayerInfo player in players)
 		{
 			if (player.IsComputer || player.PeerId <= 0 || player.Slot <= 0) continue;
 			credentials[count++] = new LobbyHandoverSeatCredential
@@ -624,9 +634,9 @@ public partial class LobbyManager
 		return slots;
 	}
 
-	private async Task<List<LobbyHandoverLinkSample>> MeasureEverySeatAsync(CancellationToken token)
+	private async Task<List<LobbyHandoverLinkSample>> MeasureEverySeatAsync(CancellationToken token, HandoverRehearsalInputs inputs, LobbyHandoverReport progress)
 	{
-		var samples = new List<LobbyHandoverLinkSample>(PlayerList.Count);
+		var samples = new List<LobbyHandoverLinkSample>(inputs.Players.Length);
 		LobbyHandoverProbeService? probe = _handoverProbe;
 		if (probe == null) return samples;
 
@@ -638,10 +648,14 @@ public partial class LobbyManager
 			await Task.Delay(200, token).ConfigureAwait(false);
 		}
 
-		foreach (PlayerInfo player in PlayerList.ToArray())
+		// Both parties are shown the rows they are waiting on before the first seat answers, so the rehearsal reads as work
+		// in progress rather than as a screen that has nothing to say until it is over.
+		SendRehearsalProgress(inputs, progress, samples);
+
+		foreach (PlayerInfo player in inputs.Players)
 		{
 			if (token.IsCancellationRequested) break;
-			if (player.IsComputer || player.PeerId <= 0 || player.PeerId == LocalPeerId) continue;
+			if (player.IsComputer || player.PeerId <= 0 || player.PeerId == inputs.LocalPeerId) continue;
 			// The lobby's relay runs inside the host's own authority, so the host seat is never reachable through it and is
 			// measured from the link the lobby already holds with it instead.
 			if (player.IsHost) continue;
@@ -649,9 +663,35 @@ public partial class LobbyManager
 
 			LobbyHandoverLinkSample sample = await probe.MeasureAsync(player.ProbeToken, player.Slot, TimeSpan.FromMilliseconds(RehearsalProbeMilliseconds)).ConfigureAwait(false);
 			samples.Add(sample);
+			if (!token.IsCancellationRequested) SendRehearsalProgress(inputs, progress, samples);
 		}
 
 		return samples;
+	}
+
+	/// <summary>
+	///     States what the rehearsal has measured so far to the two parties, so both watch the rows fill in while the test
+	///     runs instead of reading a finished report. A progress report decides nothing: it carries the rows only, never the
+	///     credentials the decision hands out, and its verdict is always <see cref="LobbyHandoverVerdict.NotMeasured" />.
+	/// </summary>
+	/// <param name="inputs">The rehearsal the rows belong to.</param>
+	/// <param name="progress">The report as it stands, whose endpoint and stability the rows are read beside.</param>
+	/// <param name="samples">What has been measured so far.</param>
+	private void SendRehearsalProgress(HandoverRehearsalInputs inputs, in LobbyHandoverReport progress, List<LobbyHandoverLinkSample> samples)
+	{
+		ClientServerSession? session = _lobbySession;
+		if (session == null) return;
+
+		LobbyHandoverReport stated = progress;
+		stated.Seats = BuildSeatMetrics(inputs, samples);
+		stated.Credentials = [];
+		stated.Verdict = (int)LobbyHandoverVerdict.NotMeasured;
+
+		session.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.ReportHostHandoverProgress,
+			Report = stated
+		});
 	}
 
 	/// <summary>
@@ -661,18 +701,18 @@ public partial class LobbyManager
 	/// </summary>
 	/// <param name="samples">What this screen's probes measured toward the seats that answer one.</param>
 	/// <returns>One row per seated human player, in slot order.</returns>
-	private LobbyHandoverSeatMetric[] BuildSeatMetrics(List<LobbyHandoverLinkSample> samples)
+	private LobbyHandoverSeatMetric[] BuildSeatMetrics(HandoverRehearsalInputs inputs, List<LobbyHandoverLinkSample> samples)
 	{
 		PlayerInfo? localSeat = null;
-		foreach (PlayerInfo player in PlayerList)
+		foreach (PlayerInfo player in inputs.Players)
 		{
-			if (player.PeerId != LocalPeerId) continue;
+			if (player.PeerId != inputs.LocalPeerId) continue;
 			localSeat = player;
 			break;
 		}
 
-		var metrics = new List<LobbyHandoverSeatMetric>(PlayerList.Count);
-		foreach (PlayerInfo player in PlayerList)
+		var metrics = new List<LobbyHandoverSeatMetric>(inputs.Players.Length);
+		foreach (PlayerInfo player in inputs.Players)
 		{
 			if (player.IsComputer || player.Slot <= 0) continue;
 			if (player.PeerId <= 0) continue;
@@ -706,7 +746,7 @@ public partial class LobbyManager
 				continue;
 			}
 
-			if (player.PeerId == LocalPeerId)
+			if (player.PeerId == inputs.LocalPeerId)
 			{
 				// The candidate would be the host, so its own link to itself is not a trip anybody pays for.
 				metric.CandidateMeasured = true;
@@ -749,7 +789,6 @@ public partial class LobbyManager
 		_nextAdviceRoundTicks = 0;
 		_nextProbeAttemptTicks = 0;
 		_handoverCredentials = [];
-		_handoverAdoption = null;
 		_handoverReachability = null;
 
 		_adviceWork?.Cancel();

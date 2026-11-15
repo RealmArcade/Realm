@@ -60,8 +60,10 @@ public partial class LobbyManager
 			case LobbyHandoverMessageKind.Evidence:
 				HandoverReport = message.Report;
 				HasHandoverReport = true;
+				// A report that decides nothing is the rehearsal stating what it has measured so far, which neither refuses
+				// the handover nor ends its status line: the seats watch the rows fill in until a verdict is stated.
 				if (!string.IsNullOrEmpty(message.Notice)) HandoverNoticeKey = message.Notice;
-				else if (message.Report.Verdict != (int)LobbyHandoverVerdict.Passed) HandoverNoticeKey = LobbyHandoverNotice.VerdictRefused;
+				else if (message.Report.Verdict != (int)LobbyHandoverVerdict.Passed && message.Report.Verdict != (int)LobbyHandoverVerdict.NotMeasured) HandoverNoticeKey = LobbyHandoverNotice.VerdictRefused;
 				GameLog.LogToConsole($"[LobbyManager] The handover rehearsal was judged {message.Report.Verdict}; host {message.Report.CurrentHostStabilityRank}, candidate {message.Report.CandidateStabilityRank}.");
 				HandoverStateChanged?.Invoke();
 				break;

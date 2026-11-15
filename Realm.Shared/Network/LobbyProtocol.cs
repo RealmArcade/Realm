@@ -86,6 +86,13 @@ public enum LobbyCommandKind : byte
 	/// <summary>States what a rehearsal measured, which is what the lobby judges the handover by.</summary>
 	ReportHostHandoverReport = 28,
 
+	/// <summary>
+	///     States what a rehearsal has measured so far, in <see cref="LobbyCommand.Report" />, so both parties watch the rows
+	///     fill in while the test runs. It decides nothing: it never carries a credential, and the lobby answers it by
+	///     forwarding the measurements rather than by judging anything.
+	/// </summary>
+	ReportHostHandoverProgress = 34,
+
 	/// <summary>States what one seat measured toward every other seat, which is the matrix a suggestion is read from.</summary>
 	ReportHandoverMeasurements = 29,
 
