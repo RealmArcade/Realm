@@ -409,17 +409,36 @@ public partial class LobbyManager
 		// because a static forward sets the external port itself.
 		string routerExternalAddress = upnpSuccess ? GameContext.Upnp.QueryExternalAddress() : string.Empty;
 		string measuredAddress = _hostPublicIp ?? string.Empty;
-		_hostPublicEndpointConfirmed = upnpSuccess
-			&& routerExternalAddress.Length > 0
-			&& string.Equals(routerExternalAddress, measuredAddress, StringComparison.Ordinal);
 
-		if (_hostPublicEndpointConfirmed)
+		if (!upnpSuccess)
+		{
+			_routerReachability = RouterReachability.NoRouterForward;
+		}
+		else if (routerExternalAddress.Length == 0)
+		{
+			_routerReachability = RouterReachability.RouterAddressUnreadable;
+		}
+		else if (string.Equals(routerExternalAddress, measuredAddress, StringComparison.Ordinal))
+		{
+			_routerReachability = RouterReachability.Confirmed;
+		}
+		else
+		{
+			_routerReachability = RouterReachability.BehindAnotherNetwork;
+		}
+
+		if (_routerReachability == RouterReachability.Confirmed)
 		{
 			_hostPublicPort = port;
+			return;
 		}
-		else if (upnpSuccess)
+
+		if (upnpSuccess)
 		{
-			GameLog.LogToConsole($"[LobbyManager] The router accepted a forward for UDP port {port} but gives its outside address as '{routerExternalAddress}' while this network measured '{measuredAddress}', so that forward does not make the measured address reachable and it is offered as a guess.");
+			string reason = _routerReachability == RouterReachability.RouterAddressUnreadable
+				? $"the router accepted a forward for UDP port {port} but stated no outside address of its own"
+				: $"the router accepted a forward for UDP port {port} but gives its outside address as '{routerExternalAddress}' while this network measured '{measuredAddress}'";
+			GameLog.LogToConsole($"[LobbyManager] {reason}; nothing outside was reached through that forward, so the measured address is offered as the guess it is.");
 		}
 
 		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;

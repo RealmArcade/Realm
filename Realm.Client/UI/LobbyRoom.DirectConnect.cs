@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using Realm.Client.Network;
 using Realm.Client.Services;
 using static Godot.Control;
 
@@ -33,6 +34,27 @@ public partial class LobbyRoom
 				11,
 				UIStyle.ColorGoldDull));
 			container.AddChild(CreateDirectConnectAddressRow($"{prefix}Public", publicAddress, width, addressFontSize));
+			container.AddChild(CreateDirectConnectNote(
+				$"{prefix}ForwardConfirmation_Label",
+				"Your router forwards UDP port {0} to this machine, so this address works without anything else changing.",
+				width,
+				11,
+				UIStyle.ColorGoldDull,
+				Lobby.BoundPort));
+			return;
+		}
+
+		// A forward that exists on a router which is itself behind another network is the one case where the sentence below
+		// would send the host to the wrong router: the port is already open here and still nothing outside can reach it.
+		if (Lobby.RouterReachability == RouterReachability.BehindAnotherNetwork)
+		{
+			container.AddChild(CreateDirectConnectNote(
+				$"{prefix}BehindNetworkHint_Label",
+				"Your router already forwards UDP port {0}, but the network players outside can see is the one in front of it, so that forward does not reach them. Make the forward on that network instead, or have your friends join through a virtual LAN such as Tailscale.",
+				width,
+				11,
+				UIStyle.ColorGoldDull,
+				Lobby.BoundPort));
 			return;
 		}
 

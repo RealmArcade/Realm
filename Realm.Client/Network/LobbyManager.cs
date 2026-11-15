@@ -222,11 +222,18 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// <summary>
 	///     The address this lobby was confirmed to be reachable at from outside this network, or nothing while nothing
 	///     confirmed it. What confirms it is something outside acting on it: a registry node reached the game port through it,
-	///     or the router accepted a mapping for the port. A public address this machine merely measured for itself is a guess,
-	///     because a router reports the same mapping whether or not its outside face forwards anything, and it is offered
-	///     separately as <see cref="MeasuredPublicConnectAddress" /> so a host can read it without being told that it works.
+	///     or this network's router accepted a forward and serves the same address the measurement saw. A public address this
+	///     machine merely measured for itself is a guess, because a router reports the same mapping whether or not its outside
+	///     face forwards anything, and it is offered separately as <see cref="MeasuredPublicConnectAddress" /> so a host can
+	///     read it without being told that it works.
 	/// </summary>
-	public string? PublicConnectAddress => _hostPublicEndpointConfirmed ? MeasuredPublicConnectAddress : null;
+	public string? PublicConnectAddress => RouterReachability == RouterReachability.Confirmed ? MeasuredPublicConnectAddress : null;
+
+	/// <summary>
+	///     Why the address outside this network is, or is not, offered to the players this lobby is shared with. The lobby room
+	///     tells its host, so a failed check names the thing to change rather than only the address to read.
+	/// </summary>
+	public RouterReachability RouterReachability => _routerReachability;
 
 	/// <summary>
 	///     The address this machine measured for its own lobby with a STUN query, or nothing while the measurement failed or
@@ -394,7 +401,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private CancellationTokenSource? _wsCts;
 	private string? _hostPublicIp;
 	private int _hostPublicPort;
-	private bool _hostPublicEndpointConfirmed;
+	private RouterReachability _routerReachability = RouterReachability.NoRouterForward;
 	public string PublicIP => _hostPublicIp ?? "127.0.0.1";
 	public int PublicPort => _hostPublicPort > 0 ? _hostPublicPort : BoundPort;
 	private string? _hostToken;
@@ -586,4 +593,27 @@ public partial class LobbyManager : BaseMapTransferNode
 		}).CallDeferred();
 	}
 
+}
+
+/// <summary>
+///     Why the address players outside this network would join at is, or is not, offered to them. Each state names a thing
+///     the host can do something about, rather than the check that produced it, because this is what the lobby room tells
+///     the host when an address it expected is not there to send.
+/// </summary>
+public enum RouterReachability
+{
+	/// <summary>No forward exists on this network's router, so nothing outside has reached the port and the port is what is missing.</summary>
+	NoRouterForward,
+
+	/// <summary>A forward exists, but the router stated no outside address of its own, so nothing showed that the port is reachable from outside.</summary>
+	RouterAddressUnreadable,
+
+	/// <summary>
+	///     A forward exists, but the router's own outside address is not the one this network measured, so another network
+	///     sits in front of it and that forward reaches nobody outside. Opening the port on this router cannot help.
+	/// </summary>
+	BehindAnotherNetwork,
+
+	/// <summary>A forward serves the address this network measured, which is the address players outside join at.</summary>
+	Confirmed
 }

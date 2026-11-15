@@ -318,7 +318,7 @@ public partial class LobbyManager
 
 			_hostPublicIp = reachability.PublicIp;
 			_hostPublicPort = reachability.PublicPort;
-			_hostPublicEndpointConfirmed = true;
+			_routerReachability = RouterReachability.Confirmed;
 
 			ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
 

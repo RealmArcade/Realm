@@ -66,7 +66,7 @@ public partial class LobbyManager
 	{
 		_hostPublicIp = null;
 		_hostPublicPort = 0;
-		_hostPublicEndpointConfirmed = false;
+		_routerReachability = RouterReachability.NoRouterForward;
 
 		try
 		{

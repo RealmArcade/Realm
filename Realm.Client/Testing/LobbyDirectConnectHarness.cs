@@ -358,6 +358,19 @@ public partial class LobbyDirectConnectHarness : Node
 			}
 
 			if (!publicShown) return (24, $"the invite dialog does not show the measured public address '{publicAddress}'");
+			if (overlay.FindChild("InviteLanForwardConfirmation_Label", true, false) == null)
+			{
+				return (24, "the invite dialog offers an address outside players join at without saying the router forwards it");
+			}
+		}
+		else if (lobby.RouterReachability == RouterReachability.BehindAnotherNetwork)
+		{
+			// The port is already open here, so the dialog must not tell the host to open it again on this router: that is the
+			// one sentence the double-NAT case sends them to the wrong machine with.
+			if (overlay.FindChild("InviteLanBehindNetworkHint_Label", true, false) == null)
+			{
+				return (24, "the invite dialog does not say that the network players outside can see is the one in front of this router");
+			}
 		}
 		else if (overlay.FindChild("InviteLanNoForwardHint_Label", true, false) == null)
 		{
