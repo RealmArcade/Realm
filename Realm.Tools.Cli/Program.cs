@@ -5,27 +5,32 @@ namespace Realm.Tools.Cli;
 
 public static class Program
 {
-	private static readonly Type[] VerbOptions =
+	private static readonly (Type OptionsType, Func<object, int> Execute)[] Verbs =
 	{
-		typeof(MeshConvertOptions),
-		typeof(MeshRenderOptions),
-		typeof(ImageSheetOptions),
-		typeof(RmeshExtractSourceImageOptions),
-		typeof(TextureConvertOptions),
-		typeof(AudioConvertOptions),
-		typeof(FbxToRanimOptions),
-		typeof(RanimRenderOptions),
-		typeof(MetadataOptions),
-		typeof(Blake3Options),
-		typeof(MeshPlayerColorCliOptions),
-		typeof(RigHumanoidOptions),
-		typeof(KeygenOptions),
-		typeof(GenerateManifestSchemaOptions),
-		typeof(GenerateMetadataSchemaOptions),
-		typeof(GenerateTerrainSchemaOptions),
-		typeof(GenerateSchemasOptions),
-		typeof(VerifySchemasOptions)
+		(typeof(MeshConvertOptions), options => MeshConvertCommands.Execute((MeshConvertOptions)options)),
+		(typeof(MeshRenderOptions), options => MeshRenderCommand.Execute((MeshRenderOptions)options)),
+		(typeof(ImageSheetOptions), options => ImageSheetCommand.Execute((ImageSheetOptions)options)),
+		(typeof(RmeshExtractSourceImageOptions), options => RmeshExtractSourceImageCommand.Execute((RmeshExtractSourceImageOptions)options)),
+		(typeof(TextureConvertOptions), options => TextureConvertCommand.Execute((TextureConvertOptions)options)),
+		(typeof(AudioConvertOptions), options => AudioConvertCommand.Execute((AudioConvertOptions)options)),
+		(typeof(FbxToRanimOptions), options => RanimCommands.ExecuteFromFbx((FbxToRanimOptions)options)),
+		(typeof(RanimRenderOptions), options => RanimCommands.ExecuteRender((RanimRenderOptions)options)),
+		(typeof(MetadataOptions), options => MetadataCommands.Execute((MetadataOptions)options)),
+		(typeof(Blake3Options), options => Blake3Command.Execute((Blake3Options)options)),
+		(typeof(MeshPlayerColorCliOptions), options => MeshPlayerColorCommand.Execute((MeshPlayerColorCliOptions)options)),
+		(typeof(RigHumanoidOptions), options => RigCommand.Execute((RigHumanoidOptions)options)),
+		(typeof(KeygenOptions), options => KeygenCommand.Execute((KeygenOptions)options)),
+		(typeof(GenerateManifestSchemaOptions), options => SchemaCommands.ExecuteManifest((GenerateManifestSchemaOptions)options)),
+		(typeof(GenerateMetadataSchemaOptions), options => SchemaCommands.ExecuteMetadata((GenerateMetadataSchemaOptions)options)),
+		(typeof(GenerateTerrainSchemaOptions), options => SchemaCommands.ExecuteTerrain((GenerateTerrainSchemaOptions)options)),
+		(typeof(GenerateSchemasOptions), options => SchemaCommands.ExecuteAll((GenerateSchemasOptions)options)),
+		(typeof(VerifySchemasOptions), options => SchemaCommands.ExecuteVerify((VerifySchemasOptions)options))
 	};
+
+	private static readonly Type[] VerbOptionTypes = Verbs.Select(verb => verb.OptionsType).ToArray();
+
+	private static readonly Dictionary<Type, Func<object, int>> VerbExecutionByOptionsType =
+		Verbs.ToDictionary(verb => verb.OptionsType, verb => verb.Execute);
 
 	public static int Main(string[] args)
 	{
@@ -43,9 +48,9 @@ public static class Program
 		}
 
 		string[] originalArgs = unhandledArgs.ToArray();
-		string[] sanitizedArgs = CommandLineArgsHelper.SanitizeArgs(originalArgs, VerbOptions);
+		string[] sanitizedArgs = CommandLineArgsHelper.SanitizeArgs(originalArgs, VerbOptionTypes);
 
-		return Parser.Default.ParseArguments(sanitizedArgs, VerbOptions)
+		return Parser.Default.ParseArguments(sanitizedArgs, VerbOptionTypes)
 			.WithParsed(options => CommandLineArgsHelper.ApplyBooleanOverrides(options, originalArgs))
 			.MapResult(
 				Dispatch,
@@ -54,28 +59,13 @@ public static class Program
 
 	private static int Dispatch(object options)
 	{
-		return options switch
+		if (VerbExecutionByOptionsType.TryGetValue(options.GetType(), out var execute))
 		{
-			MeshConvertOptions value => MeshConvertCommands.Execute(value),
-			MeshRenderOptions value => MeshRenderCommand.Execute(value),
-			ImageSheetOptions value => ImageSheetCommand.Execute(value),
-			RmeshExtractSourceImageOptions value => RmeshExtractSourceImageCommand.Execute(value),
-			TextureConvertOptions value => TextureConvertCommand.Execute(value),
-			AudioConvertOptions value => AudioConvertCommand.Execute(value),
-			FbxToRanimOptions value => RanimCommands.ExecuteFromFbx(value),
-			RanimRenderOptions value => RanimCommands.ExecuteRender(value),
-			MetadataOptions value => MetadataCommands.Execute(value),
-			Blake3Options value => Blake3Command.Execute(value),
-			MeshPlayerColorCliOptions value => MeshPlayerColorCommand.Execute(value),
-			RigHumanoidOptions value => RigCommand.Execute(value),
-			KeygenOptions value => KeygenCommand.Execute(value),
-			GenerateManifestSchemaOptions value => SchemaCommands.ExecuteManifest(value),
-			GenerateMetadataSchemaOptions value => SchemaCommands.ExecuteMetadata(value),
-			GenerateTerrainSchemaOptions value => SchemaCommands.ExecuteTerrain(value),
-			GenerateSchemasOptions value => SchemaCommands.ExecuteAll(value),
-			VerifySchemasOptions value => SchemaCommands.ExecuteVerify(value),
-			_ => 1
-		};
+			return execute(options);
+		}
+
+		Console.Error.WriteLine($"Error: no handler is registered for the '{options.GetType().Name}' verb.");
+		return 1;
 	}
 
 }
