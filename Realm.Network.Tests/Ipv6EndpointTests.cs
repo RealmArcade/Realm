@@ -330,6 +330,76 @@ public class Ipv6EndpointTests
 	}
 
 	[Test]
+	public void AnOlderNodeAnswerIsTheSingleEndpointItStates()
+	{
+		LobbyJoinAnswer? answer = LobbyJoinAnswers.TryParse("{\"hostIP\":\"203.0.113.9\",\"hostPort\":8999,\"localIP\":\"192.168.0.240\"}");
+
+		Assert.That(answer, Is.Not.Null, "a node from before endpoint lists is not an unreadable answer");
+		Assert.That(answer!.Value.Endpoints, Is.Empty);
+
+		IReadOnlyList<LobbyEndpointInfo> endpoints = answer.Value.EndpointsOrStatedAddress();
+		Assert.That(endpoints.Count, Is.EqualTo(1));
+		Assert.That(endpoints[0].FamilyValue, Is.EqualTo(LobbyAddressFamily.IPv4), "the two fields an older node states have always been the IPv4 endpoint");
+		Assert.That(endpoints[0].Describe(), Is.EqualTo("203.0.113.9:8999"));
+		Assert.That(answer.Value.LocalAddress, Is.EqualTo("192.168.0.240"));
+	}
+
+	[Test]
+	public void AV6OnlyJoinAnswerStatesTheEndpointAndItsFamily()
+	{
+		LobbyJoinAnswer? answer = LobbyJoinAnswers.TryParse(
+			"{\"HostIP\":\"2001:db8::1\",\"HostPort\":8999,\"LocalIP\":null,\"Endpoints\":[{\"Address\":\"2001:db8::1\",\"Port\":8999,\"Family\":\"ipv6\",\"Verified\":true,\"ObservedAddress\":\"2001:db8::1\",\"ObservedPort\":8999}]}");
+
+		Assert.That(answer, Is.Not.Null);
+		IReadOnlyList<LobbyEndpointInfo> endpoints = answer!.Value.EndpointsOrStatedAddress();
+		Assert.That(endpoints.Count, Is.EqualTo(1), "the list is read instead of being rebuilt from the older fields");
+		Assert.That(endpoints[0].FamilyValue, Is.EqualTo(LobbyAddressFamily.IPv6));
+		Assert.That(endpoints[0].Describe(), Is.EqualTo("[2001:db8::1]:8999"));
+
+		LobbyEndpointChoice choice = LobbyEndpointSelection.Choose(endpoints, hasIpv4: true, hasIpv6: false);
+		Assert.That(choice.Failure, Is.EqualTo(LobbyEndpointSelectionFailure.AddressFamilyMismatch), "a screen without IPv6 has nowhere to dial in that answer");
+	}
+
+	[Test]
+	public void ADualStackJoinAnswerKeepsBothEndpointsInTheFamilyEachBelongsTo()
+	{
+		LobbyJoinAnswer? answer = LobbyJoinAnswers.TryParse(
+			"{\"hostIP\":\"203.0.113.9\",\"hostPort\":8999,\"endpoints\":[" +
+			"{\"address\":\"2001:db8::1\",\"port\":8999,\"family\":\"ipv6\",\"verified\":true}," +
+			"{\"address\":\"203.0.113.9\",\"port\":8999,\"family\":\"ipv4\",\"verified\":true}]}");
+
+		Assert.That(answer, Is.Not.Null);
+		IReadOnlyList<LobbyEndpointInfo> endpoints = answer!.Value.EndpointsOrStatedAddress();
+		Assert.That(endpoints.Count, Is.EqualTo(2));
+		Assert.That(endpoints[0].FamilyValue, Is.EqualTo(LobbyAddressFamily.IPv6));
+		Assert.That(endpoints[1].FamilyValue, Is.EqualTo(LobbyAddressFamily.IPv4));
+
+		Assert.That(LobbyEndpointSelection.Choose(endpoints, hasIpv4: true, hasIpv6: true).Family, Is.EqualTo(LobbyAddressFamily.IPv6), "a dual-stack screen prefers the IPv6 endpoint");
+		Assert.That(LobbyEndpointSelection.Choose(endpoints, hasIpv4: true, hasIpv6: false).Family, Is.EqualTo(LobbyAddressFamily.IPv4), "an IPv4-only screen still has an endpoint to dial");
+	}
+
+	[Test]
+	public void AJoinAnswerThatSaysNothingUsableIsUnreadable()
+	{
+		Assert.That(LobbyJoinAnswers.TryParse(string.Empty), Is.Null);
+		Assert.That(LobbyJoinAnswers.TryParse("not json"), Is.Null);
+		Assert.That(LobbyJoinAnswers.TryParse("{\"status\":\"ok\"}"), Is.Null, "an answer that names no address is not an address");
+		Assert.That(LobbyJoinAnswers.TryParse("[1,2,3]"), Is.Null);
+
+		LobbyJoinAnswer? filtered = LobbyJoinAnswers.TryParse(
+			"{\"hostIP\":\"\",\"hostPort\":0,\"endpoints\":[{\"address\":\"\",\"port\":0,\"family\":\"ipv4\",\"verified\":true}]}");
+		Assert.That(filtered, Is.Null, "an endpoint with no address is not something to dial");
+	}
+
+	[Test]
+	public void TheGamePortAnswersItsOwnLoopbackQuestion()
+	{
+		using var port = new FakeGamePort(FakeGamePort.Behaviour.AnswerEverything);
+		Assert.That(LobbyPortCheck.AnswersAsync(IPAddress.Loopback, port.Port, 3000).GetAwaiter().GetResult(), Is.True, "the check has to be able to say yes");
+		Assert.That(LobbyPortCheck.AnswersAsync(IPAddress.Loopback, FreePort.Udp(), 300).GetAwaiter().GetResult(), Is.False, "and to say no when nothing is listening");
+	}
+
+	[Test]
 	public async Task ANodeStatesTheFamiliesItCanCheck()
 	{
 		using var probes = new UdpReachabilityProbeService(FreePort.Udp());

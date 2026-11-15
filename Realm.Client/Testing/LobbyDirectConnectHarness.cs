@@ -51,6 +51,7 @@ public partial class LobbyDirectConnectHarness : Node
 				"listedguest" => await RunListedGuestAsync(),
 				"v6guest" => await RunIpv6GuestAsync(),
 				"ipv6" => await RunIpv6DriverAsync(),
+				"oldnode" => await RunOldNodeDriverAsync(),
 				_ => await RunGuestAsync()
 			};
 		}
@@ -120,10 +121,13 @@ public partial class LobbyDirectConnectHarness : Node
 				case "--seat-count":
 					_seatGuests = int.Parse(value, CultureInfo.InvariantCulture);
 					break;
+				case "--old-registry-dll":
+					_oldRegistryAssembly = value;
+					break;
 			}
 		}
 
-		if (_role is "host" or "roomcheck" or "driver" && string.IsNullOrEmpty(_mapFolder)) throw new InvalidOperationException("--map is required to host.");
+		if (_role is "host" or "roomcheck" or "driver" or "oldnode" && string.IsNullOrEmpty(_mapFolder)) throw new InvalidOperationException("--map is required to host.");
 	}
 
 	private async Task<(int ExitCode, string Outcome)> RunHostAsync()

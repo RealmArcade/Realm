@@ -157,6 +157,8 @@ public partial class LobbyDirectConnectHarness
 				notes.Add($"the registry node published an IPv6-only lobby as {lobbyId}");
 				await CheckListedFamiliesAsync(registryUrl, lobbyId, notes, failures);
 				await CheckBothFamiliesAreVerifiedAsync(registryUrl, hostPort, notes, failures);
+				await CheckAFilteredIpv6EndpointIsDroppedAsync(registryUrl, hostPort, notes, failures);
+				await CheckAJoinWithoutAHostChannelIsRefusedWithAReasonAsync(registryUrl, lobbyId, hostPort, notes, failures);
 
 				// The lobby's own host signalling channel is what a join answer is relayed through when the host is not on
 				// the registry node's own network. This rig publishes the lobby without a host screen of its own, so it
@@ -165,6 +167,7 @@ public partial class LobbyDirectConnectHarness
 				Task hostSignallingLoop = HoldHostSignallingAsync(hostSignalling, registryUrl, lobbyId);
 				await Task.Delay(250);
 
+				await CheckAnOlderClientIsAnsweredAsync(registryUrl, lobbyId, hostPort, notes, failures);
 				await RunListedGuestChildAsync(projectDirectory, outputDirectory, lobbyId, registryUrl, "mismatch", notes, failures);
 
 				hostSignalling.Abort();
@@ -468,6 +471,179 @@ public partial class LobbyDirectConnectHarness
 		}
 
 		failures.Add($"the lobby {lobbyId} is missing from the listing");
+	}
+
+	/// <summary>
+	///     Publishes a lobby whose IPv4 endpoint answered and whose IPv6 endpoint never did, which is what a v6-capable
+	///     machine behind a carrier or firewall that filters incoming IPv6 looks like from outside. The lobby has to be
+	///     published over the family that answered and must not name the one that did not: a listed address nobody can reach
+	///     is worse than no address at all, and a filtered endpoint is not a reason to refuse the lobby.
+	/// </summary>
+	/// <param name="registryUrl">The rig's registry node.</param>
+	/// <param name="hostPort">The game port.</param>
+	/// <param name="notes">The lines to report.</param>
+	/// <param name="failures">The lines that failed.</param>
+	private static async Task CheckAFilteredIpv6EndpointIsDroppedAsync(string registryUrl, int hostPort, List<string> notes, List<string> failures)
+	{
+		string? ipv4ProbeId = await MeasureEndpointAsync(registryUrl, "127.0.0.1", hostPort);
+		if (ipv4ProbeId == null)
+		{
+			failures.Add("the registry node never reached the game port over IPv4, so a filtered IPv6 endpoint could not be tested");
+			return;
+		}
+
+		// A check the node starts and never hears back from: 2001:db8::/32 is documentation space, so nothing is at that
+		// address and the answer cannot arrive. The registration is made while the check is still open, which is the state a
+		// filtered endpoint is in when the host registers the endpoints it measured.
+		string? unreachableIpv6ProbeId = await BeginUnansweredCheckAsync(registryUrl, "2001:db8::d1:1", hostPort);
+		if (unreachableIpv6ProbeId == null)
+		{
+			failures.Add("the registry node refused to start a check of an unreachable IPv6 endpoint");
+			return;
+		}
+
+		var request = new RigRegisterRequest(
+			"IPv6 Rig Filtered Map",
+			hostPort,
+			"Open",
+			"127.0.0.1",
+			string.Empty,
+			4,
+			1,
+			20,
+			RealmVersion.GameBinaryVersion,
+			"127.0.0.1",
+			"1.0.0",
+			new List<RigEndpoint>
+			{
+				new("2001:db8::d1:1", hostPort, LobbyAddresses.FamilyName(LobbyAddressFamily.IPv6), unreachableIpv6ProbeId),
+				new("127.0.0.1", hostPort, LobbyAddresses.FamilyName(LobbyAddressFamily.IPv4), ipv4ProbeId)
+			},
+			ipv4ProbeId);
+
+		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+		HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{registryUrl}/lobbies/register", request);
+		if (!response.IsSuccessStatusCode)
+		{
+			failures.Add($"a lobby with one reachable endpoint was refused with {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+			return;
+		}
+
+		using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+		string lobbyId = document.RootElement.GetProperty("lobbyId").GetString() ?? string.Empty;
+
+		string listing = await httpClient.GetStringAsync($"{registryUrl}/lobbies");
+		using JsonDocument listingDocument = JsonDocument.Parse(listing);
+		foreach (JsonElement lobby in listingDocument.RootElement.EnumerateArray())
+		{
+			if (lobby.GetProperty("lobbyId").GetString() != lobbyId) continue;
+
+			var families = new List<string>();
+			foreach (JsonElement endpoint in lobby.GetProperty("endpoints").EnumerateArray())
+			{
+				if (!endpoint.GetProperty("verified").GetBoolean()) failures.Add("a filtered endpoint was listed anyway");
+				families.Add(endpoint.GetProperty("family").GetString() ?? string.Empty);
+			}
+
+			if (families.Count != 1 || families[0] != LobbyAddresses.FamilyName(LobbyAddressFamily.IPv4))
+			{
+				failures.Add($"a lobby whose IPv6 endpoint never answered states {string.Join(" + ", families)} instead of IPv4 only");
+				return;
+			}
+
+			notes.Add("a lobby whose IPv6 endpoint never answered is published over IPv4 alone, with no IPv6 endpoint listed");
+			return;
+		}
+
+		failures.Add($"the lobby {lobbyId} is missing from the listing");
+	}
+
+	/// <summary>
+	///     Asks to join a lobby whose host has no signalling channel open, which is the answer a registry node gives when the
+	///     lobby's host screen has gone. The screen that receives it has to be able to read why, because a refusal with no
+	///     reason is what leaves a player looking at a timeout that described nothing.
+	/// </summary>
+	/// <param name="registryUrl">The rig's registry node.</param>
+	/// <param name="lobbyId">The lobby being joined.</param>
+	/// <param name="hostPort">The port the lobby listens on.</param>
+	/// <param name="notes">The lines to report.</param>
+	/// <param name="failures">The lines that failed.</param>
+	private static async Task CheckAJoinWithoutAHostChannelIsRefusedWithAReasonAsync(string registryUrl, string lobbyId, int hostPort, List<string> notes, List<string> failures)
+	{
+		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+		var request = new { LobbyId = lobbyId, ClientPublicIP = "127.0.0.1", ClientPublicPort = hostPort, ClientEndpointFamilies = new[] { "ipv4" } };
+		HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{registryUrl}/lobbies/join", request);
+		string body = await response.Content.ReadAsStringAsync();
+
+		if (response.IsSuccessStatusCode)
+		{
+			failures.Add("a join to a lobby whose host channel is closed was answered as if it could be dialled");
+			return;
+		}
+
+		if (!body.Contains("message", StringComparison.OrdinalIgnoreCase))
+		{
+			failures.Add($"a refused join states no reason a screen could show: {(int)response.StatusCode} {body}");
+			return;
+		}
+
+		notes.Add($"a join to a lobby whose host channel is closed is refused with a readable reason: {body.Trim()}");
+	}
+
+	/// <summary>
+	///     Reads the answer a screen that predates endpoint lists receives when it asks to join, by asking the same way it
+	///     asks: no families stated, no endpoint list expected.
+	/// </summary>
+	/// <param name="registryUrl">The rig's registry node.</param>
+	/// <param name="lobbyId">The IPv6-only lobby.</param>
+	/// <param name="hostPort">The port the lobby listens on.</param>
+	/// <param name="notes">The lines to report.</param>
+	/// <param name="failures">The lines that failed.</param>
+	private static async Task CheckAnOlderClientIsAnsweredAsync(string registryUrl, string lobbyId, int hostPort, List<string> notes, List<string> failures)
+	{
+		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+		var oldStyleRequest = new { LobbyId = lobbyId, ClientPublicIP = "127.0.0.1", ClientPublicPort = hostPort };
+		HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{registryUrl}/lobbies/join", oldStyleRequest);
+		string body = await response.Content.ReadAsStringAsync();
+
+		if (!response.IsSuccessStatusCode)
+		{
+			failures.Add($"a screen that states no address family is refused rather than answered: {(int)response.StatusCode} {body}");
+			return;
+		}
+
+		LobbyJoinAnswer? answer = LobbyJoinAnswers.TryParse(body);
+		if (answer == null)
+		{
+			failures.Add($"a screen that states no address family is answered with something unreadable: {body}");
+			return;
+		}
+
+		IReadOnlyList<LobbyEndpointInfo> endpoints = answer.Value.EndpointsOrStatedAddress();
+		if (endpoints.Count == 0) failures.Add("a join answer states no endpoint at all");
+		else if (endpoints[0].FamilyValue != LobbyAddressFamily.IPv6) failures.Add($"a lobby published over IPv6 is answered to an older screen with a {endpoints[0].FamilyValue} endpoint");
+
+		if (failures.Count == 0) notes.Add("a screen that states no address family is answered with the lobby's IPv6 endpoint instead of a refusal");
+	}
+
+	/// <summary>
+	///     Starts a check of an endpoint and reads its ticket without waiting for an answer, which is the state a check of a
+	///     filtered endpoint is in.
+	/// </summary>
+	/// <param name="registryUrl">The rig's registry node.</param>
+	/// <param name="advertisedIp">The address nothing answers at.</param>
+	/// <param name="port">The port the check asks at.</param>
+	/// <returns>The probe id, or nothing when the node refused to start the check.</returns>
+	private static async Task<string?> BeginUnansweredCheckAsync(string registryUrl, string advertisedIp, int port)
+	{
+		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+		var begin = new { AdvertisedIp = advertisedIp, AdvertisedPort = port, WindowMilliseconds = 3000 };
+		HttpResponseMessage started = await httpClient.PostAsJsonAsync($"{registryUrl}{ReachabilityRoutes.Begin}", begin);
+		if (!started.IsSuccessStatusCode) return null;
+
+		using JsonDocument document = JsonDocument.Parse(await started.Content.ReadAsStringAsync());
+		string probeId = document.RootElement.GetProperty("probeId").GetString() ?? string.Empty;
+		return probeId.Length > 0 ? probeId : null;
 	}
 
 	/// <summary>

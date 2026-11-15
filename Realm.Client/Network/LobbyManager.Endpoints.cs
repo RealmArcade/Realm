@@ -175,7 +175,9 @@ public partial class LobbyManager
 			// and the log beneath it name the node's limit rather than this machine's network.
 			uncheckedFamilies.Add(familyName);
 			registrations.Add(new LobbyEndpointRegistration(advertisedAddress, lobbyPort, familyName, string.Empty));
-			GameLog.LogToConsole($"[Reachability] {registryUrl} cannot check a {familyName} endpoint, so this lobby's {familyName} address was not measured by it.");
+			GameLog.LogError(family == LobbyAddressFamily.IPv6
+				? $"[Reachability] {registryUrl} cannot check an ipv6 endpoint, so this lobby cannot be listed over IPv6. A node checks a family it holds a probe socket in, and states its own address in that family with ReachabilityProbePublicIpV6 (or an AAAA record) so a host knows where to reach it."
+				: $"[Reachability] {registryUrl} cannot check an ipv4 endpoint, so this lobby could not be published at all.");
 			return;
 		}
 

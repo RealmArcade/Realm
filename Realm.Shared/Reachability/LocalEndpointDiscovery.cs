@@ -13,7 +13,12 @@ namespace Realm.Shared.Reachability;
 /// <param name="Address">The address this machine holds.</param>
 /// <param name="Family">The family of the address.</param>
 /// <param name="Scope">How far the address reaches.</param>
-public readonly record struct LobbyEndpointCandidate(IPAddress Address, LobbyAddressFamily Family, LobbyAddressScope Scope)
+/// <param name="IsTemporary">
+///     Whether this address is one the operating system rotates, which is the privacy address an IPv6 network hands out
+///     beside the stable one. It is still a working address while it lives, so it is offered; it is offered last, because a
+///     lobby that states an address which expires stops being joinable at that address.
+/// </param>
+public readonly record struct LobbyEndpointCandidate(IPAddress Address, LobbyAddressFamily Family, LobbyAddressScope Scope, bool IsTemporary = false)
 {
 	/// <summary>Whether reaching this endpoint needs the host's router to map a port.</summary>
 	public bool NeedsRouterMapping => LobbyAddresses.NeedsRouterMapping(Family);
@@ -122,15 +127,37 @@ public static class LocalEndpointDiscovery
 			{
 				// An address written as IPv6 but holding an IPv4 one is offered as the IPv4 address it is, because that is the
 				// family it is dialled in and the only one a check can reach it from.
-				IPAddress? address = LobbyAddresses.Normalize(unicast[unicastIndex].Address);
+				UnicastIPAddressInformation unicastAddress = unicast[unicastIndex];
+				IPAddress? address = LobbyAddresses.Normalize(unicastAddress.Address);
 				if (address == null || !LobbyAddresses.IsAdvertisable(address)) continue;
 
-				candidates.Add(new LobbyEndpointCandidate(address, LobbyAddresses.FamilyOf(address), LobbyAddresses.ScopeOf(address)));
+				candidates.Add(new LobbyEndpointCandidate(address, LobbyAddresses.FamilyOf(address), LobbyAddresses.ScopeOf(address), IsTemporary(unicastAddress)));
 			}
 		}
 
 		candidates.Sort(CompareCandidates);
 		return candidates;
+	}
+
+	/// <summary>
+	///     Whether an address is one the operating system rotates. IPv6 privacy addresses are formed from a
+	///     router-advertised prefix and a random interface identifier, and they are replaced on a timer, so a lobby that
+	///     stated one stops being joinable at the address its players were given when it is retired.
+	/// </summary>
+	/// <param name="address">The address as the interface reported it.</param>
+	/// <returns>Whether the address is a temporary one.</returns>
+	private static bool IsTemporary(UnicastIPAddressInformation address)
+	{
+		try
+		{
+			return address.PrefixOrigin == PrefixOrigin.RouterAdvertisement && address.SuffixOrigin == SuffixOrigin.Random;
+		}
+		catch (Exception exception) when (exception is PlatformNotSupportedException or NotImplementedException)
+		{
+			// An operating system that cannot say treats every address as stable, which is what this build did before it
+			// could ask: the ordering falls back to the policy above rather than failing to offer anything.
+			return false;
+		}
 	}
 
 	/// <summary>
@@ -142,6 +169,7 @@ public static class LocalEndpointDiscovery
 		int leftRank = Rank(left);
 		int rightRank = Rank(right);
 		if (leftRank != rightRank) return leftRank.CompareTo(rightRank);
+		if (left.IsTemporary != right.IsTemporary) return left.IsTemporary ? 1 : -1;
 
 		return string.CompareOrdinal(left.Address.ToString(), right.Address.ToString());
 	}

@@ -47,6 +47,17 @@ public partial class LobbyManager
 			if (response == null || !response.IsSuccessStatusCode)
 			{
 				var errorText = response != null ? await response.Content.ReadAsStringAsync() : "All registry nodes offline";
+
+				// The node's refusal is the only thing that knows why a join was turned away - a lobby whose host channel is
+				// gone, a lobby that closed while it was being pressed, a lobby this screen shares no address family with -
+				// and a screen that drops it can only offer the player a sentence about a timeout. It is stated as it arrived.
+				string refusal = DescribeJoinRefusal(errorText);
+				if (refusal.Length > 0)
+				{
+					LastHostError = refusal;
+					LobbyJoinError = refusal;
+				}
+
 				GameLog.LogError($"[LobbyManager] Failed to join lobby: {errorText}");
 				ConnectionFailed?.Invoke("Failed to coordinate join.");
 				return false;
@@ -108,6 +119,44 @@ public partial class LobbyManager
 		PlayerList.Clear();
 	}
 
+	/// <summary>
+	///     Reads the reason a join request was refused. A registry node answers with a JSON body that carries a message,
+	///     sometimes a code and sometimes both; anything else is stated as it arrived, because a refusal a player cannot read
+	///     is no better than no refusal at all.
+	/// </summary>
+	/// <param name="body">The body the node answered with.</param>
+	/// <returns>The sentence to show, or empty when the body states nothing.</returns>
+	private static string DescribeJoinRefusal(string body)
+	{
+		string trimmed = (body ?? string.Empty).Trim();
+		if (trimmed.Length == 0) return string.Empty;
+
+		if (trimmed.StartsWith('{'))
+		{
+			try
+			{
+				using var document = JsonDocument.Parse(trimmed);
+				JsonElement root = document.RootElement;
+				foreach (string propertyName in new[] { "message", "Message", "error", "Error", "detail", "Detail" })
+				{
+					if (root.TryGetProperty(propertyName, out JsonElement value) && value.ValueKind == JsonValueKind.String)
+					{
+						string message = (value.GetString() ?? string.Empty).Trim();
+						if (message.Length > 0) return message;
+					}
+				}
+
+				return string.Empty;
+			}
+			catch (JsonException)
+			{
+				return trimmed;
+			}
+		}
+
+		return trimmed.Length <= 240 ? trimmed : trimmed[..240];
+	}
+
 	private async Task<bool> EstablishLobbyConnectionAsync(string connectIp, int connectPort, bool needsHolePunch)
 	{
 		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
@@ -140,6 +189,13 @@ public partial class LobbyManager
 		}
 
 		_isConnectedToHost = true;
+
+		// The family a lobby was reached over is stated once it answered, which is the line that says a dual-stack path
+		// worked without a packet capture. An IPv4 join says nothing here, because it never had to.
+		if (JoinedLobbyFamily != LobbyAddressFamily.IPv4)
+		{
+			GameLog.LogToConsole($"[LobbyManager] Joined {LobbyAddresses.Describe(connectIp, connectPort)} over {LobbyAddresses.FamilyName(JoinedLobbyFamily)} with this lobby's network address needing no router forward and no hole punch.");
+		}
 
 		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
 		if (admissionFailure != null)

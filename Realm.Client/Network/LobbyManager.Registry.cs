@@ -74,21 +74,16 @@ public partial class LobbyManager
 	/// <returns>The endpoint to dial, or why there is none.</returns>
 	private async Task<HostConnection> ResolveHostConnectionAsync(HttpResponseMessage response, string clientPublicIp, bool hasIpv6)
 	{
-		var respText = await response.Content.ReadAsStringAsync();
-		using var doc = JsonDocument.Parse(respText);
-
-		JsonElement root = doc.RootElement;
-		string hostIp = root.TryGetProperty("hostIP", out JsonElement hostIpProperty) ? hostIpProperty.GetString() ?? string.Empty : string.Empty;
-		int hostPort = root.TryGetProperty("hostPort", out JsonElement hostPortProperty) && hostPortProperty.ValueKind == JsonValueKind.Number ? hostPortProperty.GetInt32() : 0;
-		string? localIp = root.TryGetProperty("localIP", out JsonElement localIpProperty) ? localIpProperty.GetString() : null;
-
-		List<LobbyEndpointInfo> endpoints = ReadOfferedEndpoints(root);
-		if (endpoints.Count == 0 && hostIp.Length > 0 && hostPort > 0)
+		string respText = await response.Content.ReadAsStringAsync();
+		LobbyJoinAnswer? answer = LobbyJoinAnswers.TryParse(respText);
+		if (answer == null)
 		{
-			// A registry node from before endpoints could be listed states exactly one, and it is the one to dial. The absence
-			// of a list is a node that only ever measured IPv4, which is what this states.
-			endpoints.Add(new LobbyEndpointInfo(hostIp, hostPort, LobbyAddresses.FamilyName(LobbyAddresses.FamilyOf(hostIp)), true, hostIp, hostPort));
+			return new HostConnection(string.Empty, 0, LobbyAddressFamily.Unknown, false, "The lobby server answered something this game could not read, so the lobby's address is unknown.");
 		}
+
+		string hostIp = answer.Value.HostAddress;
+		string? localIp = answer.Value.LocalAddress;
+		IReadOnlyList<LobbyEndpointInfo> endpoints = answer.Value.EndpointsOrStatedAddress();
 
 		LobbyEndpointChoice choice = LobbyEndpointSelection.Choose(endpoints, hasIpv4: true, hasIpv6);
 		if (!choice.Chosen || choice.Endpoint == null)
@@ -116,30 +111,6 @@ public partial class LobbyManager
 
 		bool needsPunch = LobbyAddresses.NeedsHolePunch(choice.Family) && !IsDialledDirectly(connectIp);
 		return new HostConnection(connectIp, connectPort, choice.Family, needsPunch, string.Empty);
-	}
-
-	/// <summary>Reads the endpoint list a join or listing answer carries.</summary>
-	/// <param name="root">The answer's root element.</param>
-	/// <returns>The endpoints, or an empty list when the answer states none.</returns>
-	private static List<LobbyEndpointInfo> ReadOfferedEndpoints(JsonElement root)
-	{
-		var endpoints = new List<LobbyEndpointInfo>(2);
-		foreach (string propertyName in new[] { "endpoints", "Endpoints" })
-		{
-			if (!root.TryGetProperty(propertyName, out JsonElement list) || list.ValueKind != JsonValueKind.Array) continue;
-
-			List<LobbyEndpointInfo>? parsed = JsonSerializer.Deserialize<List<LobbyEndpointInfo>>(list.GetRawText(), Options);
-			if (parsed == null) return endpoints;
-
-			for (int index = 0; index < parsed.Count; index++)
-			{
-				if (parsed[index] != null) endpoints.Add(parsed[index]);
-			}
-
-			return endpoints;
-		}
-
-		return endpoints;
 	}
 
 	public void UnregisterActiveLobbyFromRegistry()
