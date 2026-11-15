@@ -42,6 +42,19 @@ public sealed record RegistryCapabilities(int ProtocolVersion, IReadOnlyList<str
 	/// </summary>
 	public bool AllowsLocalCallers { get; init; }
 
+	/// <summary>
+	///     Whether this node relays a joining player's endpoint to the lobby's host, which is what lets a lobby behind a
+	///     router that refuses unsolicited traffic be joined at all. A node that states no capabilities is read as not
+	///     stating this either, and a client that needs it has to say so rather than wait out a timeout.
+	/// </summary>
+	public bool RelaysJoinPunch { get; init; }
+
+	/// <summary>
+	///     The reachability classes this node states about a lobby. A node from before the classes existed states an empty
+	///     list, which is how a client tells "this lobby is unclassified" from "this node cannot classify".
+	/// </summary>
+	public IReadOnlyList<string> ReachabilityClasses { get; init; } = Array.Empty<string>();
+
 	/// <summary>The version of the protocol this build speaks.</summary>
 	public const int EndpointListProtocolVersion = 2;
 
@@ -101,6 +114,9 @@ public static class ReachabilityClasses
 
 	/// <summary>Nothing reached the game port, so whether a player could join is unknown.</summary>
 	public const string Unverified = "Unverified";
+
+	/// <summary>Every class this build states, which is what a node lists in its capabilities.</summary>
+	public static readonly IReadOnlyList<string> All = new[] { Open, PunchOnly, Unverified };
 
 	/// <summary>Whether a lobby of this class may be published: everything but <see cref="Unverified" /> is listed.</summary>
 	/// <param name="reachabilityClass">The class a check measured.</param>

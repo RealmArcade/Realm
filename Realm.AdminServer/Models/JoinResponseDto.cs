@@ -1,4 +1,4 @@
-﻿using Realm.Shared.Reachability;
+using Realm.Shared.Reachability;
 
 namespace Realm.AdminServer.Models;
 
@@ -10,5 +10,6 @@ public record JoinResponseDto(
 	int? PunchPort = null,
 	string? PunchToken = null,
 	string? ReachabilityClass = null,
-	IReadOnlyList<LobbyEndpointInfo>? Endpoints = null
+	IReadOnlyList<LobbyEndpointInfo>? Endpoints = null,
+	RegistryCapabilities? Capabilities = null
 );

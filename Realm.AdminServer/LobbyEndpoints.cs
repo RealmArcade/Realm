@@ -561,7 +561,11 @@ public static class LobbyEndpoints
 		// all: there is no router in front of it and nothing to open.
 		LobbyEndpointChoice choice = LobbyEndpointSelection.Choose(lobby.Endpoints, hasIpv4: true, hasIpv6: ClientCanUseIpv6(req));
 		bool punchNeeded = choice.Chosen ? choice.NeedsHolePunch : LobbyAddresses.NeedsHolePunch(LobbyAddresses.FamilyOf(lobby.HostIP));
-		var response = new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token, lobby.ReachabilityClass, lobby.Endpoints);
+		// The answer states what this node can do, so a client that needs something this node does not have names it instead of
+		// waiting out a timeout for an answer it will never get.
+		bool allowsLocalCallers = context.RequestServices.GetRequiredService<IConfiguration>().GetValue("ReachabilityAllowLocalCaller", false);
+		RegistryCapabilities? capabilities = ReachabilityEndpointHandlers.Capabilities(reachabilityProbe, allowsLocalCallers).Body as RegistryCapabilities;
+		var response = new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token, lobby.ReachabilityClass, lobby.Endpoints, capabilities);
 
 		if (hostConnections.TryGetValue(req.LobbyId, out var hostSocket) && hostSocket.State == WebSocketState.Open)
 		{

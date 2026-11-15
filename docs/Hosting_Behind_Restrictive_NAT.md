@@ -13,6 +13,11 @@ which do not, and what to do about each.
    the browser lists the lobby at.
 2. **A lobby server can reach that port.** The host rehearses a join through the lobby server before the lobby is listed.
    The registry node sends to the port; if nothing comes back it sends nothing further and the lobby is not published.
+2b. **Windows lets that one program through, once.** The allowance Realm asks for is one inbound UDP rule, for the Realm
+   executable only — not for every program, and not for every port. A build that could not name its program used to add a
+   rule per port (`Realm RTS Lobby UDP <port>`); those are removed the next time you host, so a machine that hosted under
+   an older build ends up with exactly one rule. A rule you made yourself is never touched.
+
 3. **The address the lobby server measured is one a player elsewhere can use.** A lobby checked from inside its own
    network, or measured at a private or loopback address, proves nothing about a stranger and is not listed.
 

@@ -17,7 +17,10 @@ namespace Realm.Shared.Reachability;
 ///     stated none.
 /// </param>
 /// <param name="PunchToken">The check the report belongs to, or empty when the node stated none.</param>
-public readonly record struct LobbyJoinAnswer(string HostAddress, int HostPort, string? LocalAddress, IReadOnlyList<LobbyEndpointInfo> Endpoints, int PunchPort = 0, string PunchToken = "")
+/// <param name="Capabilities">
+///     What the node that answered can do, or nothing when it stated no capabilities, which is a node older than this build.
+/// </param>
+public readonly record struct LobbyJoinAnswer(string HostAddress, int HostPort, string? LocalAddress, IReadOnlyList<LobbyEndpointInfo> Endpoints, int PunchPort = 0, string PunchToken = "", RegistryCapabilities? Capabilities = null)
 {
 	/// <summary>
 	///     The endpoints to choose from, in the shape every caller wants them: the list the answer carried, or the single
@@ -74,8 +77,9 @@ public static class LobbyJoinAnswers
 			// it to dial a lobby nothing is in front of, which is why both members are optional.
 			int punchPort = ReadNumber(root, "punchPort", "PunchPort");
 			string punchToken = ReadString(root, "punchToken", "PunchToken");
+			RegistryCapabilities? capabilities = ReadCapabilities(root);
 
-			return new LobbyJoinAnswer(hostAddress, hostPort, localAddress, endpoints, punchPort, punchToken);
+			return new LobbyJoinAnswer(hostAddress, hostPort, localAddress, endpoints, punchPort, punchToken, capabilities);
 		}
 		catch (JsonException)
 		{
@@ -110,6 +114,31 @@ public static class LobbyJoinAnswers
 		}
 
 		return endpoints;
+	}
+
+	/// <summary>
+	///     Reads what the node that answered can do. A node older than the capabilities says nothing, and is read as stating
+	///     none rather than as stating everything.
+	/// </summary>
+	/// <param name="root">The answer's root object.</param>
+	/// <returns>The capabilities the node stated, or null when it stated none.</returns>
+	private static RegistryCapabilities? ReadCapabilities(JsonElement root)
+	{
+		foreach (string propertyName in new[] { "capabilities", "Capabilities" })
+		{
+			if (!root.TryGetProperty(propertyName, out JsonElement value) || value.ValueKind != JsonValueKind.Object) continue;
+
+			try
+			{
+				return JsonSerializer.Deserialize<RegistryCapabilities>(value.GetRawText(), ReadOptions);
+			}
+			catch (JsonException)
+			{
+				return null;
+			}
+		}
+
+		return null;
 	}
 
 	private static string ReadString(JsonElement root, params string[] propertyNames)

@@ -133,29 +133,6 @@ public partial class LobbyManager
 	/// </summary>
 	/// <param name="address">The address a lobby is going to be dialled at.</param>
 	/// <returns>Whether no punch is needed.</returns>
-	private static bool IsDialledDirectly(string address) => IsPrivateIp(address) || !LobbyAddresses.NeedsHolePunch(LobbyAddresses.FamilyOf(address));
-
-	private static bool IsPrivateIp(string ip)
-	{
-		if (ip == "127.0.0.1") return true;
-		if (ip == "localhost") return true;
-		if (!IPAddress.TryParse(ip, out var address)) return false;
-
-		byte[] bytes = address.GetAddressBytes();
-		if (bytes.Length != 4) return false;
-
-		if (bytes[0] == 10) return true;
-		if (bytes[0] == 192 && bytes[1] == 168) return true;
-		if (bytes[0] == 172 && IsInRange(bytes[1], 16, 31)) return true;
-		if (bytes[0] == 100 && IsInRange(bytes[1], 64, 127)) return true;
-		if (bytes[0] == 26) return true;
-
-		return false;
-	}
-
-	private static bool IsInRange(byte value, byte min, byte max)
-	{
-		return value >= min && value <= max;
-	}
+	private static bool IsDialledDirectly(string address) => !ReachabilityAddresses.IsPubliclyRoutable(address) || !LobbyAddresses.NeedsHolePunch(LobbyAddresses.FamilyOf(address));
 
 }

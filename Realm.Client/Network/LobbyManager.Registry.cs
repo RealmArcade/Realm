@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -110,6 +110,21 @@ public partial class LobbyManager
 		{
 			GameLog.LogToConsole($"[LobbyManager] The host offers {localIp}:{connectPort} on a network this machine is attached to, so the join goes there first and falls back to {connectIp}:{connectPort}.");
 			return (new LobbyJoinTarget(localIp, connectPort, true, punch, connectIp, connectPort), string.Empty);
+		}
+
+		// A lobby behind a router is admitted only when the node relays this screen's endpoint to the host, and a node older
+		// than the relay says nothing at all about itself. Both are decided here, before an attempt is spent on them: the
+		// alternative is a join that reports a host which never answered, when the host was never going to be told.
+		LobbyJoinBlock block = LobbyJoinPreconditions.DescribeBlock(joinAnswer, LobbyAddresses.NeedsHolePunch(choice.Family));
+		if (block != LobbyJoinBlock.None)
+		{
+			string stated = LobbyJoinPreconditions.Describe(joinAnswer.Capabilities);
+			return (default, block switch
+			{
+				LobbyJoinBlock.NodeDoesNotRelayPunches => string.Format(Tr("This lobby server does not relay this screen to the lobby's host, which a lobby behind a router needs. It states: {0}."), stated),
+				LobbyJoinBlock.NodeStatedNoCapabilities => Tr("This lobby server is older than the join relay this lobby needs, and states nothing about what it can do."),
+				_ => string.Format(Tr("This lobby server relays joins but named no check to report this screen against. It states: {0}."), stated)
+			});
 		}
 
 		// Stated only for an IPv6 connection, which is the one path that is new: an IPv4 join logs exactly what it always has.

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
@@ -63,6 +64,17 @@ public class WindowsFirewallService : IWindowsFirewallCommandRunner
 
 		string show = await RunAsync("netsh", WindowsFirewallRules.BuildShowCommand(port, AuthorityExecutablePath), ReadCommandTimeoutMilliseconds, cancellationToken).ConfigureAwait(false);
 		return WindowsFirewallRules.ParseShowOutput(show);
+	}
+
+	/// <summary>
+	///     Names every allowance this build has made on this machine, so a per-port rule from a build that could not name its
+	///     program can be removed rather than left beside the one rule this build keeps.
+	/// </summary>
+	public async Task<IReadOnlyList<string>> ReadRuleNamesAsync(CancellationToken cancellationToken = default)
+	{
+		string query = WindowsFirewallRules.BuildPowerShellListCommand();
+		string output = await RunAsync("powershell", $"-NoProfile -NonInteractive -Command \"{query}\"", ReadCommandTimeoutMilliseconds, cancellationToken).ConfigureAwait(false);
+		return WindowsFirewallRules.ParseRuleNames(output);
 	}
 
 	/// <summary>

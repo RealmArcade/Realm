@@ -27,7 +27,12 @@ public static class ReachabilityEndpointHandlers
 		IReadOnlyList<LobbyAddressFamily> available = probe.AvailableFamilies;
 		for (int index = 0; index < available.Count; index++) families.Add(LobbyAddresses.FamilyName(available[index]));
 
-		return new ReachabilityEndpointReply(200, new RegistryCapabilities(RegistryCapabilities.EndpointListProtocolVersion, families) { AllowsLocalCallers = allowsLocalCallers });
+		return new ReachabilityEndpointReply(200, new RegistryCapabilities(RegistryCapabilities.EndpointListProtocolVersion, families)
+		{
+			AllowsLocalCallers = allowsLocalCallers,
+			RelaysJoinPunch = true,
+			ReachabilityClasses = ReachabilityClasses.All
+		});
 	}
 
 	/// <summary>

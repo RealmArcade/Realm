@@ -201,7 +201,7 @@ public partial class LobbyManager
 		string directLobbyId = $"direct-{Guid.NewGuid():N}";
 		InitializeClientState(directLobbyId);
 		_connectedHostIp = targetIp;
-		bool joined = await EstablishLobbyConnectionAsync(new LobbyJoinTarget(targetIp, targetPort, IsPrivateIp(targetIp), default));
+		bool joined = await EstablishLobbyConnectionAsync(new LobbyJoinTarget(targetIp, targetPort, !ReachabilityAddresses.IsPubliclyRoutable(targetIp), default));
 
 		// Only an address that seated this player is worth going back to: a typo, or a lobby that never answered, is not
 		// somewhere to send them a second time.
