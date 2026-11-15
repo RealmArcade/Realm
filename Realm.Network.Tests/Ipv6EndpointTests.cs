@@ -196,6 +196,10 @@ public class Ipv6EndpointTests
 		Assert.That(LobbyAddresses.IsAdvertisable(IPAddress.Parse("127.0.0.1")), Is.False);
 		Assert.That(LobbyAddresses.IsAdvertisable(IPAddress.Parse("169.254.4.5")), Is.False);
 		Assert.That(LobbyAddresses.IsAdvertisable(IPAddress.Parse("192.168.1.42")), Is.True);
+		Assert.That(LobbyAddresses.IsAdvertisable(IPAddress.Parse("::ffff:192.168.1.42")), Is.True, "an IPv4 address carried in an IPv6 envelope is still an address a player can be given");
+		Assert.That(LobbyAddresses.FamilyOf(IPAddress.Parse("::ffff:192.168.1.42")), Is.EqualTo(LobbyAddressFamily.IPv4), "a mapped address is dialled over IPv4, so it is an IPv4 endpoint and needs the IPv4 mapping and punch");
+		Assert.That(LobbyAddresses.FamilyOf(IPAddress.Parse("::ffff:203.0.113.9")), Is.EqualTo(LobbyAddressFamily.IPv4), "a mapped public address is a public IPv4 endpoint, not a global IPv6 one");
+		Assert.That(LobbyAddresses.ScopeOf(IPAddress.Parse("::ffff:203.0.113.9")), Is.EqualTo(LobbyAddressScope.Global));
 	}
 
 	[Test]

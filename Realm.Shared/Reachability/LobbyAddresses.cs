@@ -47,12 +47,26 @@ public static class LobbyAddresses
 	/// <summary>The family an address belongs to.</summary>
 	/// <param name="address">The address to read, or nothing.</param>
 	/// <returns>The family, or <see cref="LobbyAddressFamily.Unknown" /> when the address is nothing.</returns>
-	public static LobbyAddressFamily FamilyOf(IPAddress? address) => address?.AddressFamily switch
+	public static LobbyAddressFamily FamilyOf(IPAddress? address) => Normalize(address)?.AddressFamily switch
 	{
 		AddressFamily.InterNetwork => LobbyAddressFamily.IPv4,
 		AddressFamily.InterNetworkV6 => LobbyAddressFamily.IPv6,
 		_ => LobbyAddressFamily.Unknown
 	};
+
+	/// <summary>
+	///     Reads an IPv4 address that was written as an IPv6 one. An address in `::ffff:0:0/96` is an IPv4 address carried in
+	///     an IPv6 envelope: it is dialled over IPv4, it needs IPv4's router mapping, and a probe socket that speaks only
+	///     IPv6 cannot send to it at all. Reporting it as IPv6 would offer other players an endpoint no check can reach.
+	/// </summary>
+	/// <param name="address">The address to read.</param>
+	/// <returns>The address as the family it actually reaches in, or nothing when there is none.</returns>
+	public static IPAddress? Normalize(IPAddress? address)
+	{
+		if (address == null) return null;
+		if (address.AddressFamily != AddressFamily.InterNetworkV6) return address;
+		return address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
+	}
 
 	/// <summary>The family a written address belongs to, without keeping the address.</summary>
 	/// <param name="address">The address to read.</param>
@@ -122,6 +136,7 @@ public static class LobbyAddresses
 	/// <returns>The scope of the address.</returns>
 	public static LobbyAddressScope ScopeOf(IPAddress? address)
 	{
+		address = Normalize(address);
 		if (address == null) return LobbyAddressScope.Loopback;
 		if (IPAddress.IsLoopback(address)) return LobbyAddressScope.Loopback;
 
@@ -154,6 +169,7 @@ public static class LobbyAddresses
 	/// <returns>Whether the address may be offered to another player.</returns>
 	public static bool IsAdvertisable(IPAddress? address)
 	{
+		address = Normalize(address);
 		if (address == null) return false;
 		if (address.AddressFamily is not (AddressFamily.InterNetwork or AddressFamily.InterNetworkV6)) return false;
 		if (IPAddress.IsLoopback(address)) return false;

@@ -38,6 +38,9 @@ public partial class LobbyDirectConnectHarness
 	/// <summary>The outcome the browser-path guest has to show: a family name, or "mismatch".</summary>
 	private string _expectedFamily = string.Empty;
 
+	/// <summary>How many guests the host role waits to seat, which is two in the run that joins from both families at once.</summary>
+	private int _seatGuests = 1;
+
 	/// <summary>
 	///     Holds nothing but endpoints, so a rig that publishes a lobby of its own states them the way a host does.
 	/// </summary>
@@ -177,12 +180,64 @@ public partial class LobbyDirectConnectHarness
 		if (hostExit != 0) failures.Add($"the IPv6 host did not seat its guests (exit {hostExit}: {hostOutcome})");
 		else notes.Add(hostOutcome);
 
+		await RunBothFamiliesAtOnceAsync(projectDirectory, outputDirectory, notes, failures);
 		await RunListedIpv4RigAsync(projectDirectory, outputDirectory, registryUrl, notes, failures);
 
 		var report = new StringBuilder();
 		for (int index = 0; index < notes.Count; index++) report.AppendLine($"PASS {notes[index]}");
 		for (int index = 0; index < failures.Count; index++) report.AppendLine($"FAIL {failures[index]}");
 		return failures.Count > 0 ? (1, report.ToString().TrimEnd()) : (0, report.ToString().TrimEnd());
+	}
+
+	/// <summary>
+	///     Seats one player over IPv4 and another over IPv6 in the same lobby at the same time, which is the whole point of a
+	///     dual-stack host: the players a lobby can reach are the union of both families, not one family at a time.
+	/// </summary>
+	/// <param name="projectDirectory">The client project the screens are started from.</param>
+	/// <param name="outputDirectory">Where this run writes the files it passes between screens.</param>
+	/// <param name="notes">The lines to report.</param>
+	/// <param name="failures">The lines that failed.</param>
+	private async Task RunBothFamiliesAtOnceAsync(string projectDirectory, string outputDirectory, List<string> notes, List<string> failures)
+	{
+		string inviteFile = Path.Combine(outputDirectory, "dual-host.invite");
+		string hostDone = Path.Combine(outputDirectory, "dual-host.done");
+		string ipv4GuestDone = Path.Combine(outputDirectory, "dual-guest-v4.done");
+		string ipv6GuestDone = Path.Combine(outputDirectory, "dual-guest-v6.done");
+
+		Process host = StartChild(projectDirectory, ["--role=host", "--mode=direct", "--dead-registry=1", $"--map={_mapFolder}", $"--invite-file={inviteFile}", $"--done-file={hostDone}", "--seat-count=2", "--wait-seconds=120"], "0");
+
+		if (!await WaitForFileAsync(inviteFile, 240))
+		{
+			await WaitForExitAsync(host, 5);
+			StopProcess(host);
+			failures.Add($"the dual-stack host never opened a lobby (exit {ReadDoneFile(hostDone).ExitCode}: {ReadDoneFile(hostDone).Outcome})");
+			return;
+		}
+
+		// Both guests are started before either is waited for, so the two connections are open in the same lobby at once.
+		Process ipv4Guest = StartChild(projectDirectory, ["--role=guest", "--host=127.0.0.1", $"--invite-file={inviteFile}", $"--done-file={ipv4GuestDone}", "--wait-seconds=40"], "0");
+		Process ipv6Guest = StartChild(projectDirectory, ["--role=guest", "--host=::1", $"--invite-file={inviteFile}", $"--done-file={ipv6GuestDone}", "--wait-seconds=40"], "0");
+
+		await WaitForExitAsync(ipv4Guest, 120);
+		await WaitForExitAsync(ipv6Guest, 120);
+		StopProcess(ipv4Guest);
+		StopProcess(ipv6Guest);
+
+		(int ipv4Exit, string ipv4Outcome) = ReadDoneFile(ipv4GuestDone);
+		(int ipv6Exit, string ipv6Outcome) = ReadDoneFile(ipv6GuestDone);
+		if (ipv4Exit != 0) failures.Add($"the IPv4 guest could not join a dual-stack lobby (exit {ipv4Exit}: {ipv4Outcome})");
+		if (ipv6Exit != 0) failures.Add($"the IPv6 guest could not join a dual-stack lobby (exit {ipv6Exit}: {ipv6Outcome})");
+
+		await WaitForExitAsync(host, 120);
+		StopProcess(host);
+		(int hostExit, string hostOutcome) = ReadDoneFile(hostDone);
+		if (hostExit != 0)
+		{
+			failures.Add($"a lobby did not hold both families at once (exit {hostExit}: {hostOutcome})");
+			return;
+		}
+
+		notes.Add($"one lobby held an IPv4 player and an IPv6 player at the same time ({hostOutcome})");
 	}
 
 	/// <summary>

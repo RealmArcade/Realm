@@ -117,6 +117,9 @@ public partial class LobbyDirectConnectHarness : Node
 				case "--expect":
 					_expectedFamily = value;
 					break;
+				case "--seat-count":
+					_seatGuests = int.Parse(value, CultureInfo.InvariantCulture);
+					break;
 			}
 		}
 
@@ -144,8 +147,10 @@ public partial class LobbyDirectConnectHarness : Node
 		if (_lobbyFile.Length > 0) File.WriteAllText(_lobbyFile, lobby.ActiveLobbyId ?? string.Empty);
 		GameLog.LogToConsole($"[DIRECT_HARNESS] mode={_hostMode} direct={lobby.IsDirectLobby} address={lobby.DirectConnectAddress} public={lobby.PublicConnectAddress ?? "none"}; waiting for a direct guest.");
 
-		bool seated = await WaitUntilAsync(() => lobby.PlayerList.Exists(player => !player.IsHost && !player.IsComputer), _waitSeconds);
-		if (!seated) return (3, $"no guest arrived on port {_port} within {_waitSeconds} s; seats {lobby.PlayerList.Count}");
+		// A dual-stack host is meant to seat a player from each family at the same time, which is a different claim from
+		// seating one player twice in two runs, so the number of guests to wait for is stated by the run that starts them.
+		bool seated = await WaitUntilAsync(() => lobby.PlayerList.FindAll(player => !player.IsHost && !player.IsComputer).Count >= _seatGuests, _waitSeconds);
+		if (!seated) return (3, $"only {lobby.PlayerList.Count} seat(s) filled on port {_port} within {_waitSeconds} s, and {_seatGuests} guest(s) were expected");
 
 		return (0, $"the lobby on port {_port} seated {lobby.PlayerList.Count} player(s)");
 	}

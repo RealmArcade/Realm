@@ -120,8 +120,10 @@ public static class LocalEndpointDiscovery
 
 			for (int unicastIndex = 0; unicastIndex < unicast.Count; unicastIndex++)
 			{
-				IPAddress address = unicast[unicastIndex].Address;
-				if (!LobbyAddresses.IsAdvertisable(address)) continue;
+				// An address written as IPv6 but holding an IPv4 one is offered as the IPv4 address it is, because that is the
+				// family it is dialled in and the only one a check can reach it from.
+				IPAddress? address = LobbyAddresses.Normalize(unicast[unicastIndex].Address);
+				if (address == null || !LobbyAddresses.IsAdvertisable(address)) continue;
 
 				candidates.Add(new LobbyEndpointCandidate(address, LobbyAddresses.FamilyOf(address), LobbyAddresses.ScopeOf(address)));
 			}
