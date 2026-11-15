@@ -146,6 +146,7 @@
   "The rules this map plays with, which other maps do not have.": "此地图使用的规则，其他地图没有。",
   "This lobby is not listed anywhere. Send one of these addresses to the players you want to play with.": "此大厅未在任何地方列出。把这些地址之一发送给你想一起玩的玩家。",
   "This lobby is not listed anywhere. This is the address it is played at, and you can pass it on to another player.": "此大厅未在任何地方列出。这就是它的游玩地址，你可以把它转给其他玩家。",
+  "This machine could not measure its own address outside your network, so nothing confirmed a route in to UDP port {0}. If your friends cannot join at the address above, forward that port on the router that faces the internet, or have them join through a virtual LAN such as Tailscale.": "这台电脑无法测量它在你的网络之外的自身地址，因此没有任何东西确认通往 UDP 端口 {0} 的入站路径。如果你的好友无法通过上面的地址加入，请在面向互联网的路由器上转发该端口，或让他们通过 Tailscale 等虚拟局域网加入。",
   "With UDP port {0} forwarded on your router, players outside your network use this address instead:": "在路由器上转发 UDP 端口 {0} 后，你网络外的玩家将改用此地址：",
   "You can also host the same lobby directly, without the lobby server: choose HOST DIRECT INSTEAD and send the address the lobby room shows to the players you want to play with.": "你也可以直接创建同一个大厅，无需大厅服务器：选择改为创建直接大厅，并把大厅显示的地址发送给你想一起玩的玩家。",
   "Your router already forwards UDP port {0}, but the network players outside can see is the one in front of it, so that forward does not reach them. Make the forward on that network instead, or have your friends join through a virtual LAN such as Tailscale.": "你的路由器已转发 UDP 端口 {0}，但玩家在网络外看到的是它前面的那层网络，因此该转发无法到达他们。请在那层网络上做端口转发，或让好友通过 Tailscale 等虚拟局域网加入。",

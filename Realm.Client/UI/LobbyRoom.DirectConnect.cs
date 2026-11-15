@@ -58,9 +58,13 @@ public partial class LobbyRoom
 			return;
 		}
 
+		// A measurement that never arrived is not a second network in front of the router, and telling the host to look for a
+		// forward somewhere else would be a search for a machine that may not exist. It is stated as the missing half it is.
 		container.AddChild(CreateDirectConnectNote(
 			$"{prefix}NoForwardHint_Label",
-			"Nothing outside your network has reached UDP port {0}, so the address above only works on your own network. Forward that port on your router, or have your friends join through a virtual LAN such as Tailscale, to play with them anywhere.",
+			Lobby.RouterReachability == RouterReachability.PublicAddressUnmeasured
+				? "This machine could not measure its own address outside your network, so nothing confirmed a route in to UDP port {0}. If your friends cannot join at the address above, forward that port on the router that faces the internet, or have them join through a virtual LAN such as Tailscale."
+				: "Nothing outside your network has reached UDP port {0}, so the address above only works on your own network. Forward that port on your router, or have your friends join through a virtual LAN such as Tailscale, to play with them anywhere.",
 			width,
 			11,
 			UIStyle.ColorGoldDull,

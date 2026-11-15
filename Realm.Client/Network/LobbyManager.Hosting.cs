@@ -379,6 +379,10 @@ public partial class LobbyManager
 		{
 			GameLog.LogToConsole($"[LobbyManager] Nothing confirmed this lobby is reachable from outside; {measuredAddress} is the address its router maps the port to, which works once UDP port {prepared.Port} is forwarded.");
 		}
+		else if (RouterReachability == RouterReachability.PublicAddressUnmeasured)
+		{
+			GameLog.LogToConsole($"[LobbyManager] This network measured no outside address of its own, so nothing confirmed this lobby is reachable from outside; the router's forward for UDP port {prepared.Port} is untested.");
+		}
 
 		PlayerListUpdated?.Invoke();
 		return true;
@@ -410,6 +414,16 @@ public partial class LobbyManager
 		string routerExternalAddress = upnpSuccess ? GameContext.Upnp.QueryExternalAddress() : string.Empty;
 		string measuredAddress = _hostPublicIp ?? string.Empty;
 
+		// Recorded before the confirmed case below returns, because a lobby that was warned about on an earlier attempt has
+		// nothing else to clear the warning with: a later attempt that does secure a forward would otherwise leave the
+		// lobby room saying the router is doing nothing beside the sentence confirming that it is.
+		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
+		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
+		if (IsRestrictedHost)
+		{
+			GameLog.LogToConsole($"[LobbyManager] Warning: UPnP port mapping not available on {LocalNatType} NAT. External players may require Direct Connect.");
+		}
+
 		if (!upnpSuccess)
 		{
 			_routerReachability = RouterReachability.NoRouterForward;
@@ -417,6 +431,13 @@ public partial class LobbyManager
 		else if (routerExternalAddress.Length == 0)
 		{
 			_routerReachability = RouterReachability.RouterAddressUnreadable;
+		}
+		else if (measuredAddress.Length == 0)
+		{
+			// The measurement is the only thing that says which network this machine sits behind, so without one there are
+			// not two addresses to compare and the router cannot be called a second network: it may well be the only one,
+			// and sending the host to look for a forward somewhere else would be a search for a machine that is not there.
+			_routerReachability = RouterReachability.PublicAddressUnmeasured;
 		}
 		else if (string.Equals(routerExternalAddress, measuredAddress, StringComparison.Ordinal))
 		{
@@ -435,17 +456,15 @@ public partial class LobbyManager
 
 		if (upnpSuccess)
 		{
-			string reason = _routerReachability == RouterReachability.RouterAddressUnreadable
-				? $"the router accepted a forward for UDP port {port} but stated no outside address of its own"
-				: $"the router accepted a forward for UDP port {port} but gives its outside address as '{routerExternalAddress}' while this network measured '{measuredAddress}'";
+			string reason = _routerReachability switch
+			{
+				RouterReachability.RouterAddressUnreadable =>
+					$"the router accepted a forward for UDP port {port} but stated no outside address of its own",
+				RouterReachability.PublicAddressUnmeasured =>
+					$"the router accepted a forward for UDP port {port} and gives its outside address as '{routerExternalAddress}', but this network measured no outside address of its own to compare it with",
+				_ => $"the router accepted a forward for UDP port {port} but gives its outside address as '{routerExternalAddress}' while this network measured '{measuredAddress}'"
+			};
 			GameLog.LogToConsole($"[LobbyManager] {reason}; nothing outside was reached through that forward, so the measured address is offered as the guess it is.");
-		}
-
-		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
-		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
-		if (IsRestrictedHost)
-		{
-			GameLog.LogToConsole($"[LobbyManager] Warning: UPnP port mapping not available on {LocalNatType} NAT. External players may require Direct Connect.");
 		}
 	}
 

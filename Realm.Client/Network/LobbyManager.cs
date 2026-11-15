@@ -609,6 +609,13 @@ public enum RouterReachability
 	RouterAddressUnreadable,
 
 	/// <summary>
+	///     A forward exists and the router stated an outside address, but this machine measured no outside address of its
+	///     own, so there is nothing to compare the router's with. It is not a second network in front of the router as far as
+	///     anything here can tell: the missing half is the measurement, not a forward.
+	/// </summary>
+	PublicAddressUnmeasured,
+
+	/// <summary>
 	///     A forward exists, but the router's own outside address is not the one this network measured, so another network
 	///     sits in front of it and that forward reaches nobody outside. Opening the port on this router cannot help.
 	/// </summary>
