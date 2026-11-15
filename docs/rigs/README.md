@@ -56,4 +56,30 @@ dotnet build Realm.ListenServerHost/Realm.ListenServerHost.csproj -c Release
 It prints `REALM_RESIDENT_AUTHORITY_READY` and then waits for a control command on stdin, exactly as it does on Windows.
 The registry is a plain ASP.NET application and publishes for `linux-x64` without changes.
 
-A lobby still needs a map folder with a compiled script, because the authority refuses to start a match without one.
+A lobby still needs a map folder with a compiled script, because the authority refuses to start a match without one. Compiling one on Linux needs two things beyond the SDK:
+
+```bash
+dotnet workload install wasi-experimental
+export WASI_SDK_PATH=/opt/realm-rig/wasi-sdk-25.0-x86_64-linux   # share/wasi-sysroot must exist
+dotnet publish MapTemplate/MapScript.csproj -c Release -o /opt/realm-rig/mapbuild
+cp /opt/realm-rig/mapbuild/MapScript.wasm <map folder>/bin/script/
+```
+
+Then hand the authority a lobby over its control channel, from inside its namespace:
+
+```bash
+printf 'REALM_CONTROL {"requestId":1,"kind":"StartMatch","mapFolderPath":"/opt/realm-rig/map","port":8999,"seed":1234,"token":"rigtoken","lobby":true,"maxPlayers":8,"mapName":"MapTemplate"}\n'
+```
+
+## Measured on this checkout
+
+- The Linux build of the authority answers a controller, loads the map from the Linux-built `MapScript.wasm`, and opens
+  a lobby on port 8999. (It reported 24 open slots for a control command that asked for 8, which is worth a look on its
+  own: the lobby's own slot count comes from the map, and whether `maxPlayers` is supposed to cap it is not stated.)
+- A joiner inside the host's own namespace reaches it: `answer answered 9 ms (peer 0 accepted the attempt after 1 tries)`.
+- A joiner inside the player's namespace, which is behind its own NAT, gets `answer silent` with no path open toward the
+  host — which is the failure the whole ticket is about, reproduced on one machine in about six seconds.
+
+What is still missing for a complete lobby join in the rig: a host *client* to take the admin seat and publish the
+lobby. The registry's punch is triggered by that client's lobby commands, so the rig cannot yet exercise the
+punch-and-admit path end to end — only the transport answer, the NAT gating and the authority's own behaviour.
