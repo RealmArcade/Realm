@@ -482,11 +482,38 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
+	///     The transfer this screen has already asked its registry node to complete. The permission can arrive before the
+	///     screen has connected to the authority it is taking over, and the move asks again once it has, so the two asks are
+	///     put one after the other instead of racing to state the same transfer twice.
+	/// </summary>
+	private Task _ownershipCompletion = Task.CompletedTask;
+
+	/// <summary>
+	///     States the lobby's ownership transfer, after any transfer this screen is already stating. Completing a transfer
+	///     twice is not a second transfer, and a node refusing the second one must never be read as the lobby having stayed
+	///     with its old host.
+	/// </summary>
+	/// <returns>A task that completes once this screen's transfer has been stated.</returns>
+	private Task CompleteHandoverOwnershipAsync()
+	{
+		Task previous = _ownershipCompletion;
+		Task next = CompleteHandoverOwnershipAfterAsync(previous);
+		_ownershipCompletion = next;
+		return next;
+	}
+
+	private async Task CompleteHandoverOwnershipAfterAsync(Task previous)
+	{
+		await previous.ConfigureAwait(false);
+		await StateHandoverOwnershipTransferAsync().ConfigureAwait(false);
+	}
+
+	/// <summary>
 	///     Completes the lobby's ownership transfer with the permission its previous host obtained. The seats are already
 	///     inside this screen's authority by then; what moves here is the listing, the browser entry and the right to speak
 	///     for the lobby, which the epoch moves forward and the old host loses in the same step.
 	/// </summary>
-	private async Task CompleteHandoverOwnershipAsync()
+	private async Task StateHandoverOwnershipTransferAsync()
 	{
 		if (string.IsNullOrEmpty(_handoverGrantToken) || string.IsNullOrEmpty(_movedSourceLobbyId)) return;
 		if (_ownershipEpoch > _handoverGrantEpoch) return;
@@ -521,6 +548,14 @@ public partial class LobbyManager
 			if (!response.IsSuccessStatusCode)
 			{
 				string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+				if (HandoverAlreadyMoved(body, out int movedEpoch))
+				{
+					// The node holds an ownership this transfer already moved to, which is this handover having been stated
+					// rather than a refusal: the lobby is this screen's under the epoch the node reports.
+					AdoptMovedOwnership(movedEpoch);
+					return;
+				}
+
 				GameLog.LogError($"[LobbyManager] The registry node refused to complete the lobby's handover: {response.StatusCode} {body}");
 				NoteHandoverOwnershipFailure("the registry node refused the lobby's ownership transfer");
 				return;
@@ -545,6 +580,50 @@ public partial class LobbyManager
 			GameLog.LogError($"[LobbyManager] The lobby's handover could not be completed: {exception.Message}");
 			NoteHandoverOwnershipFailure("the lobby's ownership transfer could not be stated");
 		}
+	}
+
+	/// <summary>
+	///     Reads a refusal as the transfer having already moved, which is what a node states when the same handover is
+	///     completed twice: its answer carries the ownership the lobby holds, and an epoch ahead of the one this screen was
+	///     permitted under can only be the move it asked for.
+	/// </summary>
+	/// <param name="responseBody">The body the node answered with.</param>
+	/// <param name="ownershipEpoch">The ownership the node reported.</param>
+	/// <returns>Whether the refusal is this handover already having completed.</returns>
+	private bool HandoverAlreadyMoved(string responseBody, out int ownershipEpoch)
+	{
+		ownershipEpoch = 0;
+		if (string.IsNullOrWhiteSpace(responseBody)) return false;
+
+		try
+		{
+			using var document = JsonDocument.Parse(responseBody);
+			if (!document.RootElement.TryGetProperty("ownershipEpoch", out JsonElement epoch)) return false;
+			ownershipEpoch = epoch.GetInt32();
+		}
+		catch (JsonException)
+		{
+			return false;
+		}
+
+		return ownershipEpoch > _handoverGrantEpoch;
+	}
+
+	/// <summary>
+	///     Takes the ownership a node reports this screen already holds, so a move whose completion was stated twice is
+	///     finished rather than rolled back for the second answer.
+	/// </summary>
+	/// <param name="ownershipEpoch">The ownership the node reported.</param>
+	private void AdoptMovedOwnership(int ownershipEpoch)
+	{
+		_ownershipEpoch = Math.Max(_ownershipEpoch, ownershipEpoch);
+		_handoverGrantToken = string.Empty;
+		GameLog.LogToConsole($"[LobbyManager] The lobby's ownership is this screen's as epoch {_ownershipEpoch}.");
+
+		if (string.IsNullOrEmpty(ActiveLobbyId)) return;
+
+		StartHostWebSocketSignaling(ActiveLobbyId);
+		StartHeartbeatLoop(ActiveLobbyId);
 	}
 
 	private void NoteHandoverOwnershipFailure(string reason)
