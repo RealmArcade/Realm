@@ -48,30 +48,34 @@ public partial class LobbyManager
 {
 	private const int CapabilitiesTimeoutMilliseconds = 8000;
 
+	/// <summary>The endpoints this lobby is offered at, best family first, and whether each can be checked by the node.</summary>
+	private LobbyEndpointOffer[] _offeredEndpoints = Array.Empty<LobbyEndpointOffer>();
+
 	/// <summary>The IPv6 endpoint this lobby offers, or nothing when this machine holds no address another player can use.</summary>
-	private LobbyEndpointCandidate? _offeredIpv6Endpoint;
+	private LobbyEndpointOffer? _offeredIpv6Endpoint => FirstOffer(LobbyAddressFamily.IPv6);
 
 	/// <summary>Whether this machine holds an IPv4 address, which is what makes a router mapping worth asking for.</summary>
-	private bool _offersIpv4;
+	private bool _offersIpv4 => FirstOffer(LobbyAddressFamily.IPv4) != null;
+
+	private LobbyEndpointOffer? FirstOffer(LobbyAddressFamily family)
+	{
+		for (int index = 0; index < _offeredEndpoints.Length; index++)
+		{
+			if (_offeredEndpoints[index].Family == family) return _offeredEndpoints[index];
+		}
+
+		return null;
+	}
 
 	/// <summary>
 	///     Reads the addresses this machine holds and decides what the lobby can be offered over. It runs once per attempt
 	///     to publish, rather than being remembered, because a player can enable or lose an interface between attempts and
 	///     a lobby published at an address that has since gone is worse than one that was never listed.
 	/// </summary>
-	private void DiscoverOfferedEndpoints()
-	{
-		List<LobbyEndpointCandidate> candidates = LocalEndpointDiscovery.Discover();
-		_offersIpv4 = false;
-		_offeredIpv6Endpoint = null;
-
-		for (int index = 0; index < candidates.Count; index++)
-		{
-			LobbyEndpointCandidate candidate = candidates[index];
-			if (candidate.Family == LobbyAddressFamily.IPv4) _offersIpv4 = true;
-			if (candidate.Family == LobbyAddressFamily.IPv6 && _offeredIpv6Endpoint == null) _offeredIpv6Endpoint = candidate;
-		}
-	}
+	/// <param name="port">The port the lobby listens on.</param>
+	/// <param name="capabilities">What the registry node can check, or nothing before it has been asked.</param>
+	private void DiscoverOfferedEndpoints(int port, RegistryCapabilities? capabilities = null) =>
+		_offeredEndpoints = LobbyEndpointPlan.Build(LocalEndpointDiscovery.Discover(), port, capabilities);
 
 	/// <summary>
 	///     Asks the registry node what it can check. A node that does not answer speaks the single-endpoint protocol this
@@ -137,6 +141,7 @@ public partial class LobbyManager
 			await MeasureOfferedEndpointAsync(registryUrl, ipv6.Address.ToString(), lobbyPort, LobbyAddressFamily.IPv6, capabilities, registrations, verified, uncheckedFamilies, cancellationToken).ConfigureAwait(false);
 			firstFailure ??= _lastMeasuredFailure;
 		}
+
 
 		return new LobbyReachabilitySet(registrations, verified, uncheckedFamilies, firstFailure);
 	}

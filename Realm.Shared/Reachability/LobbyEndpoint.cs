@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 
 namespace Realm.Shared.Reachability;
 
@@ -128,5 +129,82 @@ public static class LobbyEndpointSelection
 		if (offered.Count == 0) return new LobbyEndpointChoice(LobbyEndpointSelectionFailure.NoEndpointOffered, null, offered);
 
 		return new LobbyEndpointChoice(LobbyEndpointSelectionFailure.AddressFamilyMismatch, null, offered);
+	}
+}
+
+/// <summary>
+///     One endpoint a host will offer other players: an address it holds, the port the lobby listens on, and whether the
+///     registry node about to publish the lobby can check that kind of endpoint at all.
+/// </summary>
+/// <param name="Address">The address this machine holds.</param>
+/// <param name="Port">The port the lobby listens on.</param>
+/// <param name="Family">The family of the address.</param>
+/// <param name="Scope">How far the address reaches.</param>
+/// <param name="CanBeChecked">Whether the registry node has a probe socket in this family.</param>
+public readonly record struct LobbyEndpointOffer(IPAddress Address, int Port, LobbyAddressFamily Family, LobbyAddressScope Scope, bool CanBeChecked)
+{
+	/// <summary>Whether reaching this endpoint needs the host's router to map a port.</summary>
+	public bool NeedsRouterMapping => LobbyAddresses.NeedsRouterMapping(Family);
+
+	/// <summary>Writes this endpoint in the form a player types it into the direct connect field.</summary>
+	/// <returns>The address and port, with an IPv6 address bracketed.</returns>
+	public string Describe() => LobbyAddresses.Describe(Address, Port);
+}
+
+/// <summary>
+///     Decides which of the addresses a machine holds are offered to other players, one per family. Keeping this apart
+///     from the screen that publishes them is what makes the policy readable on its own: a machine that holds nothing but
+///     IPv6 offers nothing but IPv6, and nothing about that lobby then needs a router, a mapping or a punch.
+/// </summary>
+public static class LobbyEndpointPlan
+{
+	/// <summary>
+	///     Builds the endpoints a lobby is offered at, best first.
+	/// </summary>
+	/// <param name="candidates">The addresses this machine holds, as discovery ordered them.</param>
+	/// <param name="port">The port the lobby listens on.</param>
+	/// <param name="capabilities">What the registry node can check, or nothing while that is not yet known.</param>
+	/// <returns>One offer per family this machine can be reached in, best family first.</returns>
+	public static LobbyEndpointOffer[] Build(IReadOnlyList<LobbyEndpointCandidate>? candidates, int port, RegistryCapabilities? capabilities)
+	{
+		var offers = new List<LobbyEndpointOffer>(2);
+		bool offeredIpv6 = false;
+		bool offeredIpv4 = false;
+
+		for (int index = 0; candidates != null && index < candidates.Count; index++)
+		{
+			LobbyEndpointCandidate candidate = candidates[index];
+			bool canBeChecked = capabilities == null || capabilities.CanCheck(candidate.Family);
+
+			if (candidate.Family == LobbyAddressFamily.IPv6)
+			{
+				if (offeredIpv6) continue;
+				offeredIpv6 = true;
+				offers.Insert(0, new LobbyEndpointOffer(candidate.Address, port, candidate.Family, candidate.Scope, canBeChecked));
+				continue;
+			}
+
+			if (candidate.Family != LobbyAddressFamily.IPv4 || offeredIpv4) continue;
+			offeredIpv4 = true;
+			offers.Add(new LobbyEndpointOffer(candidate.Address, port, candidate.Family, candidate.Scope, canBeChecked));
+		}
+
+		return offers.ToArray();
+	}
+
+	/// <summary>
+	///     Whether publishing these endpoints needs the host's router to map a port, which is what decides whether STUN and
+	///     UPnP are asked anything at all.
+	/// </summary>
+	/// <param name="offers">The endpoints the lobby is offered at.</param>
+	/// <returns>Whether a router mapping is needed.</returns>
+	public static bool NeedsRouterMapping(IReadOnlyList<LobbyEndpointOffer>? offers)
+	{
+		for (int index = 0; offers != null && index < offers.Count; index++)
+		{
+			if (offers[index].NeedsRouterMapping) return true;
+		}
+
+		return false;
 	}
 }

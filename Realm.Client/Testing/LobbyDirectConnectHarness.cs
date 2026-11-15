@@ -48,6 +48,9 @@ public partial class LobbyDirectConnectHarness : Node
 				"createcheck" => await RunCreateScreenCheckAsync(),
 				"roomcheck" => await RunLobbyRoomCheckAsync(),
 				"connectcheck" => await RunDirectConnectDialogCheckAsync(),
+				"listedguest" => await RunListedGuestAsync(),
+				"v6guest" => await RunIpv6GuestAsync(),
+				"ipv6" => await RunIpv6DriverAsync(),
 				_ => await RunGuestAsync()
 			};
 		}
@@ -101,6 +104,12 @@ public partial class LobbyDirectConnectHarness : Node
 					break;
 				case "--dead-registry":
 					_deadRegistry = value == "1";
+					break;
+				case "--registry":
+					_liveRegistryUrl = value;
+					break;
+				case "--lobby-id":
+					_joinedLobbyId = value;
 					break;
 			}
 		}

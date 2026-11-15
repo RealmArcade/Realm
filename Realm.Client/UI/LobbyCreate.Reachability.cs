@@ -130,7 +130,7 @@ public partial class LobbyCreate
 	private List<string> DescribeReachabilityHelp(HostReachabilityResult failure)
 	{
 		int port = LobbyForHelp()?.LobbyPort ?? 0;
-		string directConnectEndpoint = $"{LobbyManager.GetLocalIPAddress()}:{(port > 0 ? port : 8999)}";
+		string directConnectEndpoint = LobbyAddresses.Describe(LobbyManager.GetLocalIPAddress(), port > 0 ? port : 8999);
 
 		if (failure.Failure is HostReachabilityFailure.LoopbackUnanswered or HostReachabilityFailure.LoopbackNotOnLocalAddress)
 		{
@@ -153,6 +153,19 @@ public partial class LobbyCreate
 			};
 		}
 
+		// The lobby server measured nothing wrong with this machine: it has no socket in the address family this lobby is
+		// offered in. Opening a port cannot fix that, and saying so keeps a host from chasing a router that is not involved.
+		if (failure.Failure is HostReachabilityFailure.ProbeFamilyUnavailable)
+		{
+			return new List<string>
+			{
+				Tr("The lobby server cannot check the kind of address this lobby is offered at, so the lobby was not published there."),
+				Tr("This is the lobby server's limit rather than a problem on this computer, and opening a port on your router will not change it."),
+				Tr("Try again in a moment so another lobby server is used, or host the same lobby directly and send the address the lobby room shows to the players who should join."),
+				string.Format(Tr("Players on your own network can still join you with Direct Connect at {0}."), directConnectEndpoint)
+			};
+		}
+
 		string firewallParagraph = LobbyForHelp()?.LastFirewallGrant.Grant == WindowsFirewallGrant.Declined
 			? Tr("You dismissed the Windows firewall prompt, so the port is still closed. Host again and approve it, or allow Realm through Windows Defender Firewall in Windows Security.")
 			: string.Format(Tr("WINDOWS FIREWALL: allow Realm to receive incoming UDP connections on port {0}. The game asks Windows for this each time you host, so approve the prompt if it appears. If you dismissed it before, hosting asks again."), port);
@@ -163,9 +176,12 @@ public partial class LobbyCreate
 			firewallParagraph,
 			string.Format(Tr("ROUTER: forward UDP port {0} to this computer, or switch on UPnP in the router's settings."), port),
 			Tr("You only need one of these. Opening the port on this computer is often enough, because the lobby server helps other players punch through the router when they join."),
+			LobbyManager.LocalIpv6Available
+				? Tr("This computer also holds a global IPv6 address, which the lobby server checks as a second, separate route into this lobby. A network that filters incoming IPv6 connections blocks that route too, and only the network's owner can change it.")
+				: string.Empty,
 			string.Format(Tr("DIRECT CONNECT: players on your own network can join with Direct Connect at {0}, even when no port is open."), directConnectEndpoint),
 			Tr("If neither your firewall nor your router can be changed, join another player's lobby instead. Hosting only works when other players can reach you.")
-		};
+		}.FindAll(paragraph => paragraph.Length > 0);
 	}
 
 	private static LobbyManager? LobbyForHelp() => GameContext.Lobby;

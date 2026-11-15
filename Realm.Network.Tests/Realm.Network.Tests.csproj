@@ -19,5 +19,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Realm.Shared\Realm.Shared.csproj" />
+    <ProjectReference Include="..\Realm.AdminServer\Realm.AdminServer.csproj" />
   </ItemGroup>
 </Project>

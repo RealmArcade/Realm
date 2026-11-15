@@ -108,18 +108,14 @@ public class HostReachabilityVerifier
 		if (ticket == null) return HostReachabilityResult.Refused(HostReachabilityFailure.RegistryUnreachable, $"the registry node '{registryBaseUrl}' did not start a reachability check");
 
 		string probeAddress = await ResolveProbeAddressAsync(registryBaseUrl, ticket, advertisedFamily, cancellationToken).ConfigureAwait(false);
-		if (string.IsNullOrEmpty(probeAddress))
-		{
-			return HostReachabilityResult.Refused(HostReachabilityFailure.ProbeSocketUnknown, $"the registry node '{registryBaseUrl}' did not state an address its {LobbyAddresses.FamilyName(advertisedFamily)} checks come from");
-		}
 
 		// A probe in one family can never measure an endpoint in another: a datagram does not cross families, and the
 		// answer it produced would describe a socket none of this lobby's players can reach.
-		if (advertisedFamily != LobbyAddressFamily.Unknown && LobbyAddresses.FamilyOf(probeAddress) != advertisedFamily)
+		if (probeAddress.Length == 0 || (advertisedFamily != LobbyAddressFamily.Unknown && LobbyAddresses.FamilyOf(probeAddress) != advertisedFamily))
 		{
 			return HostReachabilityResult.Refused(
 				HostReachabilityFailure.ProbeFamilyUnavailable,
-				$"the registry node '{registryBaseUrl}' checks lobbies from {probeAddress}, which is not the family {advertisedIp} is reached over");
+				$"the registry node '{registryBaseUrl}' checks lobbies from an address that is not the family {advertisedIp} is reached over");
 		}
 
 		_log($"rehearsing a join to {LobbyAddresses.Describe(advertisedIp, advertisedPort)} through the registry node's probe socket {LobbyAddresses.Describe(probeAddress, ticket.ProbePort)}");

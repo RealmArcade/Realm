@@ -401,7 +401,7 @@ public partial class LobbyManager
 		// rather than a decision to host unreachable lobbies.
 		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(port);
 
-		DiscoverOfferedEndpoints();
+		DiscoverOfferedEndpoints(port);
 
 		// A lobby offered over IPv6 alone is a lobby with nothing for a router to do: the address it is reached at is the
 		// one this machine holds, so there is no translation to map and no public endpoint to measure. The router half is
@@ -415,7 +415,7 @@ public partial class LobbyManager
 
 			if (_offeredIpv6Endpoint is { } onlyEndpoint)
 			{
-				GameLog.LogToConsole($"[LobbyManager] This machine holds no IPv4 address other than loopback, so the lobby is offered over IPv6 only at {LobbyAddresses.Describe(onlyEndpoint.Address, port)}; that address needs no router mapping.");
+				GameLog.LogToConsole($"[LobbyManager] This machine holds no IPv4 address other than loopback, so the lobby is offered over IPv6 only at {onlyEndpoint.Describe()}; that address needs no router mapping.");
 			}
 
 			return;
