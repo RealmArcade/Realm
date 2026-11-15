@@ -228,3 +228,20 @@ so there is no drift to fix. What remains open is the punch itself: the guest kn
 publishes and the host's router still answers nothing, so the datagram the host is supposed to send toward the joiner -
 the one that would open its router for that joiner's address and port - is either never sent or sent to an endpoint the
 joiner's own mapping does not match.
+
+## The punch works; admission does not (yet)
+
+With `JoinerPunchRelay` keeping a ticket alive instead of consuming it on the first report, one rig run showed the
+whole reachability path working through two routers with no forwarded port:
+
+```
+relay: 2 reports relayed (was 1)
+host:  2 punches at the joiner (was 1)
+host:  peer 1656090650 connected (was no peer at all)
+guest: exit 6 - "The lobby's authority did not answer in time."
+```
+
+So publish, register, discover, report, punch and connect are all proven. What is left is not the network: the joiner's
+transport is accepted and the lobby still never seats or describes it before the attempt's budget runs out. Look at
+admission - the lobby accepting the peer's identity and sending its state back - and at whether a cold lobby's first
+admission is slower than one attempt's budget.
