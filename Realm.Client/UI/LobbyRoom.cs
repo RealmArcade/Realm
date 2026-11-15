@@ -397,7 +397,10 @@ public partial class LobbyRoom : Control
 		if (offersIpv4 || offersIpv6) return (offersIpv4, offersIpv6);
 		if (!Lobby.IsHost) return (Lobby.JoinedLobbyFamily != LobbyAddressFamily.IPv6, Lobby.JoinedLobbyFamily == LobbyAddressFamily.IPv6);
 
-		return (LocalEndpointDiscovery.HasIpv4(), LocalEndpointDiscovery.BestIPv6Address() != null);
+		// Read once: two readings of the machine's addresses can disagree when an interface changes between them, and a hint
+		// that states a family the row beneath it does not offer is worse than the sentence it was meant to explain.
+		List<LobbyEndpointCandidate> held = LocalEndpointDiscovery.Discover();
+		return (held.Exists(candidate => candidate.Family == LobbyAddressFamily.IPv4), held.Exists(candidate => candidate.Family == LobbyAddressFamily.IPv6));
 	}
 
 	private void ApplyInviteVisibility()

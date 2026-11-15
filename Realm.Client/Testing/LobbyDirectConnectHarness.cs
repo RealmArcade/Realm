@@ -429,11 +429,13 @@ public partial class LobbyDirectConnectHarness : Node
 		{
 			DirectConnectHistory.Remember("192.168.1.42", 8999);
 			DirectConnectHistory.Remember("38.148.48.39", 9001);
+			DirectConnectHistory.Remember("2001:db8::1", 8999);
 			DirectConnectHistory.Remember("192.168.1.42", 8999);
 
 			List<DirectConnectHistoryEntry> remembered = DirectConnectHistory.LoadRecent();
-			if (remembered.Count != 2) return (40, $"joining two addresses left {remembered.Count} recent address(es) instead of 2");
+			if (remembered.Count != 3) return (40, $"joining three addresses left {remembered.Count} recent address(es) instead of 3");
 			if (remembered[0].Address != "192.168.1.42:8999") return (40, $"the address joined last is not first: '{remembered[0].Address}'");
+			if (remembered[1].Address != "[2001:db8::1]:8999") return (40, $"an IPv6 address is remembered as '{remembered[1].Address}' instead of the form a host sends");
 
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 			var browser = GD.Load<PackedScene>("res://UI/LobbyBrowser.tscn").Instantiate();
@@ -461,14 +463,23 @@ public partial class LobbyDirectConnectHarness : Node
 			if (addressInput == null) return (41, "the direct connect dialog draws no address field");
 			if (addressInput.Text != "192.168.1.42:8999") return (42, $"the address field opens at '{addressInput.Text}' instead of the address joined last");
 
-			Button? olderAddress = FindNode<Button>(overlay, "RecentAddress1_Button");
+			Button? olderAddress = FindNode<Button>(overlay, "RecentAddress2_Button");
 			if (olderAddress == null) return (43, "the dialog lists only one recent address");
 			olderAddress.EmitSignal(BaseButton.SignalName.Pressed);
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 			if (addressInput.Text != "38.148.48.39:9001") return (44, $"choosing an older address filled '{addressInput.Text}' instead of it");
 
+			// The form an IPv6 address is stated in has to survive the whole round trip: joined, written to the history this
+			// screen keeps, and put back into the field a player presses Connect in.
+			Button? ipv6Address = FindNode<Button>(overlay, "RecentAddress1_Button");
+			if (ipv6Address == null) return (46, "the dialog lists no address for a lobby joined over IPv6");
+			if (ipv6Address.Text != "[2001:db8::1]:8999") return (46, $"the IPv6 address is offered as '{ipv6Address.Text}'");
+			ipv6Address.EmitSignal(BaseButton.SignalName.Pressed);
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			if (addressInput.Text != "[2001:db8::1]:8999") return (46, $"choosing an IPv6 address filled '{addressInput.Text}' instead of it");
+
 			browser.QueueFree();
-			return (0, "the direct connect dialog opens at 192.168.1.42:8999 and offers 38.148.48.39:9001 again");
+			return (0, "the direct connect dialog opens at 192.168.1.42:8999, offers 38.148.48.39:9001 again, and fills '[2001:db8::1]:8999' from a lobby joined over IPv6");
 		}
 		finally
 		{

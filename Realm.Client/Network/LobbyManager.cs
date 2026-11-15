@@ -232,8 +232,8 @@ public partial class LobbyManager : BaseMapTransferNode
 	{
 		get
 		{
-			if (LocalEndpointDiscovery.Best(LobbyAddressFamily.IPv6) is not { } best) return null;
-			return LobbyAddresses.Describe(best.Address.ToString(), LobbyPort > 0 ? LobbyPort : ENetPort);
+			IPAddress? best = LocalEndpointDiscovery.BestIPv6Address();
+			return best == null ? null : LobbyAddresses.Describe(best.ToString(), LobbyPort > 0 ? LobbyPort : ENetPort);
 		}
 	}
 
