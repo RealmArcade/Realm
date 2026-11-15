@@ -120,16 +120,28 @@ machine without IPv6 reads the same log it read before this existed.
 
 ## 6. Verification
 
-`Realm.Network.Tests` holds the contract tests the ticket asked for, plus the ones added after the first pass,
-and the rest of the suite is unchanged: **52/52 pass**. `Realm.Ecs.Tests` 14/14, `Realm.Simulation.Tests` 5/5,
+After this branch was merged onto the measured-reachability work, `Realm.Network.Tests` holds the contract
+tests of both: **88/88 pass**. `Realm.Ecs.Tests` 14/14, `Realm.Simulation.Tests` 5/5,
 `Realm.Distribution.Tests` 17/18 and `Realm.Client.Tests` 10/11, with one failure in each that fails
-identically on the commit before this work (`ContentAddressableStorage` merge, and `Gatherer`/`RepairTask`
-classified twice). `dotnet build Realm.slnx` is clean.
+identically at `d81f5cc` (`ContentAddressableStorage` merge, and `Gatherer`/`RepairTask` classified twice).
+`dotnet build Realm.slnx` is clean.
+
+Two rules from the other branch decide what the merged code publishes, and the rig is how they were kept
+honest rather than how they were assumed:
+
+- a lobby is listed at the port its transport holds, not at the external port a check saw answers come from;
+- a router that gives every destination its own outside port is refused, because a punch can only open the
+  way for the destination it was aimed at.
+That second rule makes a lobby published through a node on the same machine impossible to justify, so a
+development node states `ReachabilityAllowLocalCaller` (reported in its capabilities) and a host publishing
+through a node built before that statement existed states the equivalent thing itself with
+`--allow-local-registry=1`. Both are off by default and neither reaches a player.
 
 ### The IPv6 rig — `Realm.Client/Testing/LobbyDirectConnectHarness`, role `ipv6`
 
 Starts a real registry node on `http://[::1]:<port>` with both probe sockets, and reports 19 checks. Three
-consecutive full runs, all 19 green:
+consecutive full runs on the branch that introduced it, and 19/19 again after the merge, and once more after
+the development-node statement above:
 
 1. the node answers over IPv6 and states it can check both families;
 2. the host's authority holds the game port in **both** families;
