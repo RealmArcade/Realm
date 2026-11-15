@@ -11,6 +11,7 @@ using Realm.Shared;
 using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Simulation;
 
 namespace Realm.Client.Services;
@@ -679,8 +680,21 @@ public class ClientServerSession : IDisposable
 		}
 
 		_channel.TryConnect(_address, _port, _joinedLocalPort, IsDebugSession, out _);
+		PunchJoinedLobbyFromGamePort();
 		_longSilenceAllowed = false;
 		return true;
+	}
+
+	/// <summary>
+	///     Reopens this side of the route to the lobby from the socket a reconnection just created. A reconnection is a new
+	///     socket, and this screen punches the lobby's game port itself for the same reason the first join does: a router that
+	///     drops unsolicited traffic holds the lobby's answers until this screen has sent from the port its socket took.
+	/// </summary>
+	private void PunchJoinedLobbyFromGamePort()
+	{
+		if (_local || !_joined) return;
+
+		_channel.SendToAddress(_address, _port, ReachabilityPunch.Datagram);
 	}
 
 	public string DescribeStop()

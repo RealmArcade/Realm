@@ -247,7 +247,7 @@ public partial class LobbyManager
 			LocalizationManager.GetCurrentLanguageCode());
 
 		ReportHostLobbyStage(HostLobbyStage.LoadingMap);
-		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start, ENetPort);
+		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start);
 		LastAuthorityLogPath = lobbyStarted.LogPath;
 		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
 		if (!lobbyStarted.Started)

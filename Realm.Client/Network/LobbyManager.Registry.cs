@@ -32,13 +32,22 @@ using HttpClient = System.Net.Http.HttpClient;
 namespace Realm.Client.Network;
 public partial class LobbyManager
 {
-	private async Task<HttpResponseMessage?> SendJoinRequestAsync(string lobbyId, string clientPublicIp, int clientPublicPort)
+	/// <summary>
+	///     Asks a registry node where a lobby is and states the address this screen joins from. The port this screen's own ENet
+	///     socket will hold is not offered, because the socket is created when the join connects and the system chooses its
+	///     port then: the joining screen punches the lobby's game port itself, which opens this side of the route exactly as a
+	///     punch sent by the lobby would.
+	/// </summary>
+	/// <param name="lobbyId">The lobby being joined.</param>
+	/// <param name="clientPublicIp">The address this network is reached at from outside, as this screen measured it.</param>
+	/// <returns>The registry node's answer, or null when no node answered.</returns>
+	private async Task<HttpResponseMessage?> SendJoinRequestAsync(string lobbyId, string clientPublicIp)
 	{
 		var joinPayload = new
 		{
 			LobbyId = lobbyId,
 			ClientPublicIP = clientPublicIp,
-			ClientPublicPort = clientPublicPort
+			ClientPublicPort = 0
 		};
 
 		GameLog.LogToConsole($"[LobbyManager] Joining Lobby {lobbyId} via registry server...");
@@ -80,9 +89,10 @@ public partial class LobbyManager
 		int connectPort = hostPort;
 		if (!string.IsNullOrEmpty(localIp) && hostIp == clientPublicIp)
 		{
-			GameLog.LogToConsole($"[LobbyManager] Host is on the same LAN (Public IP: {hostIp}). Connecting to local IP: {localIp}:{ENetPort}");
+			int localPort = doc.RootElement.GetProperty("localPort").GetInt32();
+			GameLog.LogToConsole($"[LobbyManager] Host is on the same LAN (Public IP: {hostIp}). Connecting to local IP: {localIp}:{localPort}");
 			connectIp = localIp;
-			connectPort = ENetPort;
+			connectPort = localPort;
 		}
 
 		return (connectIp, connectPort);
@@ -339,6 +349,7 @@ public partial class LobbyManager
 					HostPingBaseline = hostPingBaseline,
 					GameVersion = RealmVersion.GameBinaryVersion,
 					LocalIP = GetLocalIPAddress(),
+					LocalPort = lobbyPort,
 					MapVersion = mapInfo.Version,
 					Signature = mapInfo.Signature,
 					PublicKey = mapInfo.PublicKey,

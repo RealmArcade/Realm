@@ -16,5 +16,6 @@ public record RegisterRequest(
 	string? PublicKey = null,
 	string? MapHash = null,
 	long? MapSizeBytes = null,
-	string? ReachabilityProbeId = null
+	string? ReachabilityProbeId = null,
+	int? LocalPort = null
 );

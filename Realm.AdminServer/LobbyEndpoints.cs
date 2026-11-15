@@ -205,6 +205,7 @@ public static class LobbyEndpoints
 			HostToken = hostToken,
 			HostPingBaseline = req.HostPingBaseline,
 			LocalIP = req.LocalIP,
+			LocalPort = req.LocalPort,
 			MapSizeBytes = req.MapSizeBytes ?? 0,
 			IsGreenlit = isGreenlit,
 			MapCreator = mapCreator
@@ -395,7 +396,7 @@ public static class LobbyEndpoints
 
 			Console.WriteLine($"[Registry] Relayed punch request to host {lobby.LobbyId} for client {clientIp}:{req.ClientPublicPort}");
 
-			return Results.Ok(new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP));
+			return Results.Ok(new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort));
 		}
 		else
 		{

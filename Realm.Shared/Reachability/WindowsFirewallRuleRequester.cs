@@ -86,7 +86,7 @@ public class WindowsFirewallRuleRequester
 
 		if (state != WindowsFirewallRuleState.Absent)
 		{
-			await _runner.RunElevatedAsync(WindowsFirewallRules.BuildDeleteCommand(port), cancellationToken).ConfigureAwait(false);
+			await _runner.RunElevatedAsync(WindowsFirewallRules.BuildDeleteCommand(port, _runner.AuthorityExecutablePath), cancellationToken).ConfigureAwait(false);
 		}
 
 		string addArguments = WindowsFirewallRules.BuildAddCommand(port, _runner.AuthorityExecutablePath);

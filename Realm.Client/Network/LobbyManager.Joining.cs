@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
@@ -37,11 +38,10 @@ public partial class LobbyManager
 		await EnsureNatTypeMeasuredAsync();
 
 		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
-		int clientPublicPort = _hostPublicPort > 0 ? _hostPublicPort : ENetPort;
 
 		try
 		{
-			var response = await SendJoinRequestAsync(lobbyId, clientPublicIp, clientPublicPort);
+			var response = await SendJoinRequestAsync(lobbyId, clientPublicIp);
 			if (response == null || !response.IsSuccessStatusCode)
 			{
 				var errorText = response != null ? await response.Content.ReadAsStringAsync() : "All registry nodes offline";
@@ -88,6 +88,14 @@ public partial class LobbyManager
 		PlayerList.Clear();
 	}
 
+	private const int JoinAttemptCount = 3;
+
+	private const int JoinAttemptTimeoutMilliseconds = 3500;
+
+	private const int JoinRetryDelayMilliseconds = 300;
+
+	private bool _establishingLobbyConnection;
+
 	private async Task<bool> EstablishLobbyConnectionAsync(string connectIp, int connectPort, bool isLocalConnection)
 	{
 		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
@@ -98,52 +106,105 @@ public partial class LobbyManager
 			return false;
 		}
 
-		if (!isLocalConnection)
-		{
-			await UdpHolePuncher.PunchHoleAsync(connectIp, connectPort, ENetPort);
-			await Task.Delay(50);
-		}
-
 		GameContext.ServerSession?.Dispose();
 		GameContext.DetachServerSession();
 
-		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
-		AttachLobbySession(session);
+		string? failure = null;
+		bool rejected = false;
 
-		if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), isLocalConnection ? 0 : ENetPort, out string failure))
+		_establishingLobbyConnection = true;
+		try
 		{
-			LastHostError = failure;
-			GameLog.LogError($"[LobbyManager] {failure}");
-			Disconnect();
-			ConnectionFailed?.Invoke(failure);
-			return false;
+			for (int attempt = 0; attempt < JoinAttemptCount && !rejected; attempt++)
+			{
+				if (attempt > 0)
+				{
+					await Task.Delay(JoinRetryDelayMilliseconds);
+					GameLog.LogToConsole($"[LobbyManager] Joining {connectIp}:{connectPort} again after '{failure}' (attempt {attempt + 1} of {JoinAttemptCount}).");
+				}
+
+				var session = new ClientServerSession(channel);
+				session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
+				AttachLobbySession(session);
+
+				if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), 0, out string joinFailure))
+				{
+					failure = joinFailure;
+					DropLobbySession(session);
+					continue;
+				}
+
+				_isConnectedToHost = true;
+
+				if (!isLocalConnection) PunchFromGamePort(channel, connectIp, connectPort);
+
+				var admission = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromMilliseconds(JoinAttemptTimeoutMilliseconds));
+				if (admission.Failure == null)
+				{
+					IsHost = session.IsAdmin;
+					return true;
+				}
+
+				failure = admission.Failure;
+				rejected = admission.Answered;
+				DropLobbySession(session);
+			}
+		}
+		finally
+		{
+			_establishingLobbyConnection = false;
 		}
 
-		_isConnectedToHost = true;
+		LobbyJoinError = string.Equals(failure, LobbyLimits.KickedRejection, StringComparison.Ordinal)
+			? "You were removed from this lobby."
+			: failure;
+		LastHostError = failure;
+		GameLog.LogError($"[LobbyManager] {failure}");
+		Disconnect();
+		ConnectionFailed?.Invoke("Direct connection handshake failed.");
+		return false;
+	}
 
-		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
-		if (admissionFailure != null)
-		{
-			LobbyJoinError = string.Equals(admissionFailure, LobbyLimits.KickedRejection, StringComparison.Ordinal)
-				? "You were removed from this lobby."
-				: admissionFailure;
-			GameLog.LogError($"[LobbyManager] {admissionFailure}");
-			Disconnect();
-			ConnectionFailed?.Invoke("Direct connection handshake failed.");
-			return false;
-		}
+	private void DropLobbySession(ClientServerSession session)
+	{
+		DetachLobbySession(session);
+		session.Dispose();
+		if (ReferenceEquals(_lobbySession, session)) _lobbySession = null;
+	}
 
-		IsHost = session.IsAdmin;
-		return true;
+	private static void PunchFromGamePort(ClientNetworkChannel channel, string address, int port)
+	{
+		if (channel.SendToAddress(address, port, ReachabilityPunch.Datagram)) return;
+
+		GameLog.LogError($"[LobbyManager] The punch to {address}:{port} could not be sent from the game port, so the host's router may not let its answer in.");
 	}
 
 	private async Task<string?> WaitForLobbyAdmissionAsync(ClientServerSession session)
 	{
+		var (failure, _) = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromSeconds(15));
+		return failure;
+	}
+
+	/// <summary>
+	///     Waits for the authority to admit this screen. The second member separates a lobby that refused this join from one
+	///     that never heard it: only the second is worth asking again, because a refusal is a decision the authority already
+	///     made and a retry would put the same question to it.
+	/// </summary>
+	/// <param name="session">The session waiting for its answer.</param>
+	/// <param name="budget">How long the authority has to answer before this attempt is given up.</param>
+	/// <returns>Why the join failed or null when the authority admitted it, and whether a hello arrived at all.</returns>
+	private async Task<(string? Failure, bool Answered)> WaitForLobbyAdmissionAsync(ClientServerSession session, TimeSpan budget)
+	{
 		var decided = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_admissionTcs = decided;
+		bool helloAnswered = false;
 
-		void OnHello(ServerHello hello) => decided.TrySetResult(hello.Accepted ? null : hello.Rejection);
+		void OnHello(ServerHello hello)
+		{
+			helloAnswered = true;
+			decided.TrySetResult(hello.Accepted ? null : hello.Rejection);
+		}
+
 		void OnLost(string reason) => decided.TrySetResult(reason);
 
 		session.HelloAnswered += OnHello;
@@ -151,8 +212,9 @@ public partial class LobbyManager
 
 		try
 		{
-			var completed = await Task.WhenAny(decided.Task, Task.Delay(TimeSpan.FromSeconds(15)));
-			return completed == decided.Task ? decided.Task.Result : "The lobby's authority did not answer in time.";
+			var completed = await Task.WhenAny(decided.Task, Task.Delay(budget));
+			string? failure = completed == decided.Task ? decided.Task.Result : "The lobby's authority did not answer in time.";
+			return (failure, helloAnswered);
 		}
 		finally
 		{
@@ -541,6 +603,7 @@ public partial class LobbyManager
 	private void OnLobbyAuthorityLost(string reason)
 	{
 		if (_matchStarted) return;
+		if (_establishingLobbyConnection) return;
 
 		// A kicked connection drops before its reason has been read, and the reconnect that follows is refused by
 		// name. That refusal is the kick arriving late rather than a lobby that failed.

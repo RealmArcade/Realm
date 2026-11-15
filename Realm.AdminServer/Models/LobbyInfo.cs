@@ -21,6 +21,7 @@ public class LobbyInfo
 	public string? HostToken { get; set; }
 	public int HostPingBaseline { get; set; }
 	public string? LocalIP { get; set; }
+	public int? LocalPort { get; set; }
 	public long MapSizeBytes { get; set; }
 	public bool IsGameInProgress { get; set; }
 }
