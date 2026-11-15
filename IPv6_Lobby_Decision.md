@@ -91,13 +91,19 @@ Controls plane (`Realm.Shared/Reachability`):
   writes. Link-local, multicast, unspecified and `169.254/0` are never advertisable.
 - `LobbyEndpoint`, `LobbyEndpointOffer`, `LobbyEndpointPlan` — the endpoint list, and the offer policy
   (one endpoint per family, global IPv6 first, no router mapping when there is no IPv4 endpoint at all).
-- `LocalEndpointDiscovery` — global IPv6, then local IPv4, then public IPv4, then ULA; link-local never.
+- `LocalEndpointDiscovery` — global IPv6, then local IPv4, then public IPv4, then ULA; link-local never, and a
+  temporary (privacy) address last of all, because one that expires takes the lobby's address with it.
 - `LobbyEndpointSelection` — the one rule both the joiner and the registry node run.
 - `UdpReachabilityProbeService` — one socket per family, a probe only ever leaves from the socket of the
   family the endpoint lives in, and `ENetConnectProbe`'s wire format is unchanged because it was always
   plain bytes.
 - `HostReachabilityVerifier` — resolves its own probe address in the family it is probing and reports
   `ProbeFamilyUnavailable` when the node cannot answer in that family at all.
+- `LobbyPortCheck` — asks a game port whether anything answers in a family, using the opening packet a
+  registry node's check sends, so a host can ask its own loopback over IPv6 and find out that its transport
+  still holds that family.
+- `LobbyJoinAnswers` — reads a join answer (the endpoint list, an older node's single address, or something
+  unreadable) in one place, because that shape is a promise to every lobby server in the field.
 
 Registry node (`Realm.AdminServer`): the capabilities route; a register request that carries a list;
 per-family verification with the verified result stored per endpoint; `MapToIPv4()` removed from the
@@ -105,7 +111,8 @@ request source so a v6 request is not mangled; listing and join responses that c
 relayed only when the chosen endpoint is one that needs one; `GeoIpService` treating `::1` as loopback;
 `ReachabilityProbePublicIpV6` in configuration.
 
-Client: discovery, publication, measurement and selection as above; an IPv6-only host skips STUN, UPnP
+Client: discovery, publication, measurement and selection as above; a join the server refused states the
+server's own reason; an IPv6-only host skips STUN, UPnP
 and port mapping entirely and is never told its router failed at something nothing asked it to do; the
 browser and the lobby room state which families are offered; direct connect accepts, remembers and
 redisplays `[addr]:port`; and every IPv4-only log line and sentence is unchanged, byte for byte, so a
@@ -113,23 +120,64 @@ machine without IPv6 reads the same log it read before this existed.
 
 ## 6. Verification
 
-`Realm.Network.Tests` gained the contract tests the ticket asked for (18 of them) and the existing suite
-is unchanged: 46/46 pass. `Realm.Ecs.Tests`, `Realm.Simulation.Tests` and `Realm.Distribution.Tests` pass
-except one `ContentAddressableStorage` merge test that fails identically with these changes stashed.
+`Realm.Network.Tests` holds the contract tests the ticket asked for, plus the ones added after the first pass,
+and the rest of the suite is unchanged: **51/51 pass**. `Realm.Ecs.Tests` 14/14, `Realm.Simulation.Tests` 5/5,
+and `Realm.Distribution.Tests` 17/18 with the one `ContentAddressableStorage` merge failure that fails
+identically with these changes stashed. `dotnet build Realm.slnx` is clean.
 
-The rig the ticket asked for on real sockets is `Realm.Client/Testing/LobbyDirectConnectHarness` (roles
-`ipv6`, `listedguest`, `v6guest`). It starts a real registry node on `http://[::1]:<port>` with both probe
-sockets and checks, end to end:
+### The IPv6 rig — `Realm.Client/Testing/LobbyDirectConnectHarness`, role `ipv6`
+
+Starts a real registry node on `http://[::1]:<port>` with both probe sockets, and reports 19 checks. Three
+consecutive full runs, all 19 green:
 
 1. the node answers over IPv6 and states it can check both families;
-2. the authority's game port is bound in both families;
-3. the node reached that port **over IPv6** from its own IPv6 socket;
-4. an IPv6-only lobby publishes and lists with one verified IPv6 endpoint and no IPv4 one;
-5. a screen with no shared family is refused in ~100–200 ms naming IPv6, not after the retry budget;
-6. a joiner connects over IPv6 by address, is seated, and the address is remembered as `[::1]:8999`;
-7. a real host publishes a listed lobby through the node over the endpoint list and a real joiner joins
-   it over IPv4, which is the check that the endpoint list did not change the IPv4 path.
+2. the host's authority holds the game port in **both** families;
+3. the host's own production port check (`LobbyPortCheck`) answers over IPv4 **and** IPv6 against the real
+   ENet server, which is the check a host runs before it offers an IPv6 address;
+4. the node reached that port **over IPv6** from its own IPv6 socket;
+5. an IPv6-only lobby publishes and lists with one verified IPv6 endpoint and no IPv4 one;
+6. the same port published at both addresses lists **both** verified endpoints;
+7. a lobby whose IPv6 endpoint never answered is published over **IPv4 alone**, with no IPv6 endpoint listed
+   — a filtered IPv6 host is not silently listed over the family that does not work;
+8. a lobby registered **without** an endpoint list (what an older screen sends) is stored as the single
+   shared-IPv4 endpoint those screens have always stated;
+9. a join to a lobby whose host channel is closed is refused with a reason a screen can show;
+10. a join request that states **no** address family is answered with the lobby's IPv6 endpoint, not a refusal;
+11. a screen sharing no family is refused in ~110 ms naming IPv6, not after the retry budget;
+12. a joiner connects over IPv6 by address, is seated, and the address is remembered as `[::1]:8999`;
+13. one lobby holds an IPv4 player and an IPv6 player **at the same time** (3 seats);
+14. a real host publishes a listed lobby through the node over the endpoint list and a real joiner joins it
+    over IPv4.
 
-The two-machine manual pass the ticket lists still has to happen on real networks (dual-stack LAN,
-dual-stack across networks, v6-only host with IPv4 disabled, and the two mismatch directions); loopback
-can prove the code paths but not a carrier's filtering.
+### The old-node rig — role `oldnode`
+
+Builds a registry node from `10d18a7a` (the commit before this work, so a node that has never heard of
+endpoint lists) and drives it: the capabilities route is absent (404), this build publishes a lobby through it,
+the node lists that lobby with no endpoint list and answers a join with the single address it always stated,
+and a real screen joins through it. That is the "operator runs an older node" cell of the deployment matrix,
+proven rather than reasoned about.
+
+### The IPv4 regression rig — role `driver`
+
+A machine with no IPv6 runs the pre-existing scenarios: a listed lobby refused when the registry is
+unreachable, a direct join, the create screen, the lobby room and invite, and the direct-connect dialog
+(which now also proves `[2001:db8::1]:8999` survives being remembered and redisplayed).
+
+The same role run against a **client built from `10d18a7a`** produces the same lobby log: the distinct
+`[LobbyManager]`/`[Reachability]`/`[STUN]`/`[UPnP]`/`[Firewall]` lines, with numbers normalised, are identical
+between the two builds (12 distinct lines). That is the "byte-for-byte unchanged on a machine with no IPv6"
+acceptance criterion, measured instead of asserted.
+
+### What still needs two machines
+
+Loopback can prove every code path but not a carrier's behaviour, and this machine has no global IPv6
+address (only `fe80::` and `::1`), so these remain:
+
+1. a **v6-only Windows host** (IPv4 disabled on the adapter): STUN and UPnP are never called, the room shows
+   the IPv6 note instead of a router sentence, and the lobby publishes and is joined. The logic is
+   unit-tested (`LobbyEndpointPlan.NeedsRouterMapping`) and the rendering is not.
+2. **dual-stack across networks** and **dual-stack on one LAN**: that the IPv6 route is taken and needs no
+   punch, read from the join line.
+3. **A host on a filtered IPv6 network**: the rig proves the node drops a filtered endpoint, but only a real
+   filtered adapter exercises the host's own refusal sentence.
+4. A long-lived lobby against a **temporary-address rotation** (days, not minutes).

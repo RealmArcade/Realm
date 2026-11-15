@@ -62,7 +62,7 @@ public partial class LobbyDirectConnectHarness
 		string GameVersion,
 		string LocalIP,
 		string MapVersion,
-		IReadOnlyList<RigEndpoint> Endpoints,
+		IReadOnlyList<RigEndpoint>? Endpoints,
 		string ReachabilityProbeId);
 
 	/// <summary>
@@ -138,6 +138,18 @@ public partial class LobbyDirectConnectHarness
 		int hostPort = int.Parse(File.ReadAllText(inviteFile).Trim(), CultureInfo.InvariantCulture);
 		notes.Add($"the host listens on UDP port {hostPort}, which its authority bound in both families");
 
+		// The check a host runs on itself to find out whether its own transport answers in IPv6, against the real authority
+		// rather than a fake port: this is the code path a machine with a global IPv6 address runs when it opens a lobby.
+		if (await LobbyPortCheck.AnswersAsync(IPAddress.Loopback, hostPort, 4000)) notes.Add("the host's own port check answers over IPv4, as the check every host runs expects");
+		else failures.Add("the host's own port check found nothing listening over IPv4, so the self-check a hosting machine runs would report a working transport as broken");
+
+		if (!Socket.OSSupportsIPv6)
+		{
+			notes.Add("this machine has no IPv6 stack, so the self-check's IPv6 half was not asked");
+		}
+		else if (await LobbyPortCheck.AnswersAsync(IPAddress.IPv6Loopback, hostPort, 4000)) notes.Add("the host's own port check answers over IPv6, which is what a host states before offering an IPv6 address");
+		else failures.Add("the host's own port check found nothing listening over IPv6, so a host offering an IPv6 address would be told its transport lost that family");
+
 		string? probeId = await MeasureEndpointAsync(registryUrl, "::1", hostPort);
 		if (probeId == null)
 		{
@@ -158,6 +170,7 @@ public partial class LobbyDirectConnectHarness
 				await CheckListedFamiliesAsync(registryUrl, lobbyId, notes, failures);
 				await CheckBothFamiliesAreVerifiedAsync(registryUrl, hostPort, notes, failures);
 				await CheckAFilteredIpv6EndpointIsDroppedAsync(registryUrl, hostPort, notes, failures);
+				await CheckAnOlderClientCanPublishAsync(registryUrl, hostPort, notes, failures);
 				await CheckAJoinWithoutAHostChannelIsRefusedWithAReasonAsync(registryUrl, lobbyId, hostPort, notes, failures);
 
 				// The lobby's own host signalling channel is what a join answer is relayed through when the host is not on
@@ -556,6 +569,76 @@ public partial class LobbyDirectConnectHarness
 		}
 
 		failures.Add($"the lobby {lobbyId} is missing from the listing");
+	}
+
+	/// <summary>
+	///     Publishes a lobby the way a screen that predates endpoint lists does: one address, one check, and no list. The node
+	///     has to accept it and store it as the lobby this game has always listed, because an operator's node is updated
+	///     before every player's copy of the game is.
+	/// </summary>
+	/// <param name="registryUrl">The rig's registry node.</param>
+	/// <param name="hostPort">The game port.</param>
+	/// <param name="notes">The lines to report.</param>
+	/// <param name="failures">The lines that failed.</param>
+	private static async Task CheckAnOlderClientCanPublishAsync(string registryUrl, int hostPort, List<string> notes, List<string> failures)
+	{
+		string? probeId = await MeasureEndpointAsync(registryUrl, "127.0.0.1", hostPort);
+		if (probeId == null)
+		{
+			failures.Add("the registry node never reached the game port over IPv4, so a lobby published by an older screen could not be tested");
+			return;
+		}
+
+		var request = new RigRegisterRequest(
+			"IPv6 Rig Old Client Map",
+			hostPort,
+			"Open",
+			"127.0.0.1",
+			string.Empty,
+			4,
+			1,
+			20,
+			RealmVersion.GameBinaryVersion,
+			"127.0.0.1",
+			"1.0.0",
+			null,
+			probeId);
+
+		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+		HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{registryUrl}/lobbies/register", request);
+		if (!response.IsSuccessStatusCode)
+		{
+			failures.Add($"a lobby registered without an endpoint list was refused with {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+			return;
+		}
+
+		using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+		string lobbyId = document.RootElement.GetProperty("lobbyId").GetString() ?? string.Empty;
+
+		string listing = await httpClient.GetStringAsync($"{registryUrl}/lobbies");
+		using JsonDocument listingDocument = JsonDocument.Parse(listing);
+		foreach (JsonElement lobby in listingDocument.RootElement.EnumerateArray())
+		{
+			if (lobby.GetProperty("lobbyId").GetString() != lobbyId) continue;
+
+			var families = new List<string>();
+			foreach (JsonElement endpoint in lobby.GetProperty("endpoints").EnumerateArray())
+			{
+				if (!endpoint.GetProperty("verified").GetBoolean()) failures.Add("a lobby published without an endpoint list carries an endpoint the node never reached");
+				families.Add(endpoint.GetProperty("family").GetString() ?? string.Empty);
+			}
+
+			if (families.Count != 1 || families[0] != LobbyAddresses.FamilyName(LobbyAddressFamily.IPv4))
+			{
+				failures.Add($"a lobby published by an older screen states {string.Join(" + ", families)} instead of the IPv4 endpoint that screen measured");
+				return;
+			}
+
+			notes.Add("a lobby published without an endpoint list is stored as the single shared-IPv4 endpoint older screens have always stated");
+			return;
+		}
+
+		failures.Add($"the lobby {lobbyId} published without an endpoint list is missing from the listing");
 	}
 
 	/// <summary>
