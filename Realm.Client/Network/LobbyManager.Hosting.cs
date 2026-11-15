@@ -247,7 +247,16 @@ public partial class LobbyManager
 			LocalizationManager.GetCurrentLanguageCode());
 
 		ReportHostLobbyStage(HostLobbyStage.LoadingMap);
-		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start);
+
+		// The port is asked for by name first, because a lobby on a port that never changes is the only kind a player can
+		// forward once and be reachable at forever. The system's choice is the fallback for the case that makes a fixed
+		// port impossible - another instance already holding it - and it is taken only after the named port was refused.
+		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start, DefaultGamePort);
+		if (!lobbyStarted.Started)
+		{
+			GameLog.LogToConsole($"[LobbyManager] UDP port {DefaultGamePort} could not be taken for this lobby ({lobbyStarted.Failure}), so the socket takes the port the system chooses.");
+			lobbyStarted = await session.TryStartLobbyAsync(start);
+		}
 		LastAuthorityLogPath = lobbyStarted.LogPath;
 		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
 		if (!lobbyStarted.Started)
