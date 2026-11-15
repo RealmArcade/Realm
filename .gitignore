@@ -40,3 +40,7 @@ Realm.MapEditorExtension/dist/
 godot_test_output.txt
 # The Linux launcher tools/rig/realm-rig.sh wrapper installs beside the authority project.
 Realm.ListenServerHost/Realm.ListenServerHost
+# Fetched by scripts/fetch-ml-model.ps1 and shipped by the build that needs it.
+Realm.Client/Assets/MLModels/toxic-xlm-roberta/*.onnx
+# MSBuild binary logs written by /bl.
+*.binlog
