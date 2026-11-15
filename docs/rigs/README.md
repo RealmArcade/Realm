@@ -71,6 +71,13 @@ Then hand the authority a lobby over its control channel, from inside its namesp
 printf 'REALM_CONTROL {"requestId":1,"kind":"StartMatch","mapFolderPath":"/opt/realm-rig/map","port":8999,"seed":1234,"token":"rigtoken","lobby":true,"maxPlayers":8,"mapName":"MapTemplate"}\n'
 ```
 
+A router can be given a forwarded port, which is the case a player who has done the work expects:
+
+```bash
+ip netns exec realm-host-router iptables -t nat -A PREROUTING -p udp --dport 8999 -j DNAT --to-destination 10.10.0.2:8999
+ip netns exec realm-host-router iptables -I FORWARD 1 -i wan-host -o lan-host -p udp --dport 8999 -j ACCEPT
+```
+
 ## Measured on this checkout
 
 - The Linux build of the authority answers a controller, loads the map from the Linux-built `MapScript.wasm`, and opens
@@ -79,6 +86,12 @@ printf 'REALM_CONTROL {"requestId":1,"kind":"StartMatch","mapFolderPath":"/opt/r
 - A joiner inside the host's own namespace reaches it: `answer answered 9 ms (peer 0 accepted the attempt after 1 tries)`.
 - A joiner inside the player's namespace, which is behind its own NAT, gets `answer silent` with no path open toward the
   host — which is the failure the whole ticket is about, reproduced on one machine in about six seconds.
+- The same joiner, against the same lobby, answers in **8 ms** once the host's router forwards the port. So the silence
+  above is the host's router refusing unsolicited traffic, and not the rig failing to carry packets.
+
+That last distinction cost a rig fix: the internet namespace routes between the two routers' segments, and without
+`ip_forward` there every "blocked by NAT" result would have been "blocked by the rig" — a test that reports the right
+symptom for the wrong reason is worse than no test, because it makes a fix look justified.
 
 What is still missing for a complete lobby join in the rig: a host *client* to take the admin seat and publish the
 lobby. The registry's punch is triggered by that client's lobby commands, so the rig cannot yet exercise the

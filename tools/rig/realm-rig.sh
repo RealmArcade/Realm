@@ -86,6 +86,10 @@ up() {
 
 	ip -n "$PUBLIC_NS" link set lo up
 
+	# The internet namespace routes between the two routers' segments, so without this the two machines cannot reach each
+	# other at all and every "blocked by NAT" result would really be "blocked by this namespace".
+	ip netns exec "$PUBLIC_NS" sysctl -qw net.ipv4.ip_forward=1
+
 	# The registry's namespace is the internet: both routers are directly attached to it, which is what lets the
 	# reachability check see a host arrive from a globally scoped address.
 	link_pair "$PUBLIC_NS" pub-host "$HOST_WAN_PUBLIC" "$HOST_ROUTER_NS" wan-host "$HOST_ROUTER" 30
