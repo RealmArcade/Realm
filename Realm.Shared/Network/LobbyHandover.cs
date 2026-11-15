@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using MemoryPack;
 
@@ -267,6 +267,16 @@ public partial struct LobbyHandoverMessage
 
 	/// <summary>The diagnostic sentence a rollback or a refusal states, empty when there is nothing to say.</summary>
 	public string Notice;
+
+	/// <summary>
+	///     The permission the lobby's registry node granted its handover, for
+	///     <see cref="LobbyHandoverMessageKind.Ownership" />. It is the only thing that can complete the transfer, and it is
+	///     stated to the candidate alone.
+	/// </summary>
+	public string HandoverToken;
+
+	/// <summary>The ownership the handover was permitted under, for <see cref="LobbyHandoverMessageKind.Ownership" />.</summary>
+	public int SourceEpoch;
 }
 
 /// <summary>Which private handover message a seat is being sent.</summary>
@@ -282,7 +292,13 @@ public enum LobbyHandoverMessageKind : byte
 	Commit = 3,
 
 	/// <summary>The handover ended, and the seats that moved or were about to move belong to the old host again.</summary>
-	RolledBack = 4
+	RolledBack = 4,
+
+	/// <summary>
+	///     The registry node permitted the lobby's handover, so the candidate may complete the ownership transfer. It is
+	///     stated to the candidate alone and carries nothing the rest of the lobby reads.
+	/// </summary>
+	Ownership = 5
 }
 
 /// <summary>The machine stability ratings the lobby already publishes, as the rank a handover compares.</summary>

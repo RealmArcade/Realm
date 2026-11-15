@@ -52,7 +52,7 @@ public partial class LobbyManager
 	public string HandoverNoticeKey { get; private set; } = string.Empty;
 
 	/// <summary>The sentence a player reads about the lobby's handover, in the language the screen is running in.</summary>
-	public string HandoverNoticeText => string.IsNullOrEmpty(HandoverNoticeKey) ? string.Empty : LocalizationManager.TranslateKey(HandoverNoticeKey);
+	public string HandoverNoticeText => HandoverNoticeTexts.Translate(HandoverNoticeKey);
 
 	/// <summary>How long the stage the lobby is in has left before it ends on its own.</summary>
 	public int HandoverSecondsRemaining { get; private set; }

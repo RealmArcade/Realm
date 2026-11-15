@@ -42,6 +42,15 @@ public partial class ServerLobby
 	private const double HandoverMeasurementWindowSeconds = 20.0;
 
 	/// <summary>
+	///     Whether the seats have been told where their lobby is moving to. The seats are told once the host that is leaving
+	///     has permitted the transfer, so the screen taking the lobby over completes the registry's ownership before any
+	///     other seat starts moving.
+	/// </summary>
+	private bool _handoverCommitsSent;
+
+	private const double HandoverOwnershipPatienceSeconds = 5.0;
+
+	/// <summary>
 	///     The port of this lobby's handover probe relay, so every seated screen can register with it and measure a path to
 	///     another seat. Zero when the authority could not open one, which is what stops a lobby from rehearsing at all.
 	/// </summary>
@@ -348,26 +357,87 @@ public partial class ServerLobby
 		_handoverStage = LobbyHandoverStage.Committing;
 		_handoverStageRemainingSeconds = HostHandoverRules.SettleSeconds;
 		_handoverNotice = LobbyHandoverNotice.Confirmed;
-		_log.Write($"the handover of this lobby to peer {_handoverCandidatePeerId} is committed; every seat is being told where to go");
+		_handoverCommitsSent = false;
+		_log.Write($"the handover of this lobby to peer {_handoverCandidatePeerId} is committed; the host is being asked to permit the transfer");
+
+		// The host that is leaving speaks to its registry node first, so the screen taking the lobby over holds the
+		// permission before any other seat starts moving. Once that permission is stated, every seat is told where to go.
+		NotifyHandoverParty(_adminPeerId, LobbyHandoverMessageKind.Commit, default, string.Empty, DescribeCommitFor(_adminPeerId));
+
+		AddSystemChat($"Host handover to {HandoverCandidateName()} is committed. Reconnecting every seat to the new host.");
+		BroadcastState();
+	}
+
+	private LobbyHandoverMessage DescribeCommitFor(int peerId)
+	{
+		LobbySeat seat = default;
+		if (_slotByPeer.TryGetValue(peerId, out int slot)) _seats.TryGetValue(slot, out seat);
+
+		return new LobbyHandoverMessage
+		{
+			Kind = LobbyHandoverMessageKind.Commit,
+			OfferRevision = _handoverOfferRevision,
+			Address = _handoverReport.CandidateEndpointAddress,
+			Port = _handoverReport.CandidateEndpointPort,
+			SessionToken = CredentialForSlot(seat.Slot),
+			LobbyId = ActiveLobbyIdOrEmpty()
+		};
+	}
+
+	/// <summary>
+	///     Tells every connected seat where its lobby moved to and which credential it is admitted by. It is sent once, as
+	///     soon as the leaving host has permitted the transfer, or after a short patience when it never states one, because
+	///     a lobby that stalled on a registry node would be a lobby nobody could get out of.
+	/// </summary>
+	private void SendHandoverCommitsToSeats()
+	{
+		if (_handoverCommitsSent) return;
+		_handoverCommitsSent = true;
 
 		foreach (LobbySeat seat in _seats.Values)
 		{
 			if (seat.IsComputer || seat.IsDisconnected) continue;
+			if (seat.PeerId <= 0) continue;
 
-			string credential = CredentialForSlot(seat.Slot);
-			NotifyHandoverParty(seat.PeerId, LobbyHandoverMessageKind.Commit, default, string.Empty, new LobbyHandoverMessage
-			{
-				Kind = LobbyHandoverMessageKind.Commit,
-				OfferRevision = _handoverOfferRevision,
-				Address = _handoverReport.CandidateEndpointAddress,
-				Port = _handoverReport.CandidateEndpointPort,
-				SessionToken = credential,
-				LobbyId = ActiveLobbyIdOrEmpty()
-			});
+			NotifyHandoverParty(seat.PeerId, LobbyHandoverMessageKind.Commit, default, string.Empty, DescribeCommitFor(seat.PeerId));
+		}
+	}
+
+	/// <summary>
+	///     Passes the permission the lobby's host obtained from its registry node to the screen taking the lobby over, which
+	///     is the only screen that can complete the ownership transfer with it. A statement that arrives outside a committed
+	///     handover is ignored rather than kept for later.
+	/// </summary>
+	/// <param name="stated">The epoch and token the host stated, as "<c>epoch|token</c>".</param>
+	private void ForwardHandoverOwnership(string stated)
+	{
+		if (_handoverStage != LobbyHandoverStage.Committing) return;
+		if (string.IsNullOrWhiteSpace(stated)) return;
+
+		int separator = stated.IndexOf('|');
+		if (separator <= 0) return;
+		if (!int.TryParse(stated.AsSpan(0, separator), out int epoch)) return;
+
+		string token = LobbyLimits.Sanitize(stated[(separator + 1)..], 128);
+		if (token.Length == 0)
+		{
+			// The host stated that its lobby has no listing to move, so there is no permission to pass on and nothing more
+			// to wait for. The seats are told where they are going.
+			SendHandoverCommitsToSeats();
+			return;
 		}
 
-		AddSystemChat($"Host handover to {HandoverCandidateName()} is committed. Reconnecting every seat to the new host.");
-		BroadcastState();
+		_log.Write($"the lobby's host permitted the handover under epoch {epoch}; the permission is being passed to the candidate");
+		NotifyHandoverParty(_handoverCandidatePeerId, LobbyHandoverMessageKind.Ownership, default, string.Empty, new LobbyHandoverMessage
+		{
+			Kind = LobbyHandoverMessageKind.Ownership,
+			OfferRevision = _handoverOfferRevision,
+			HandoverToken = token,
+			SourceEpoch = epoch,
+			LobbyId = ActiveLobbyIdOrEmpty()
+		});
+
+		SendHandoverCommitsToSeats();
 	}
 
 	private string HandoverCandidateName()
@@ -433,6 +503,7 @@ public partial class ServerLobby
 		_handoverCandidateConfirmed = false;
 		_handoverReport = default;
 		_handoverNotice = notice;
+		_handoverCommitsSent = false;
 
 		if (notifySeats)
 		{
@@ -474,6 +545,18 @@ public partial class ServerLobby
 		if (_handoverStage == LobbyHandoverStage.None) return;
 
 		_handoverStageRemainingSeconds -= elapsed;
+
+		if (_handoverStage == LobbyHandoverStage.Committing && !_handoverCommitsSent)
+		{
+			// The host was given a few seconds to permit the transfer before the seats were told to go. A permission that
+			// never arrives must not hold the seats in a lobby that has committed.
+			if (_handoverStageRemainingSeconds > HostHandoverRules.SettleSeconds - HandoverOwnershipPatienceSeconds) return;
+
+			_log.Write("the lobby's host stated no permission for its handover, so the seats are being told to move without one");
+			SendHandoverCommitsToSeats();
+			return;
+		}
+
 		if (_handoverStageRemainingSeconds > 0) return;
 
 		switch (_handoverStage)

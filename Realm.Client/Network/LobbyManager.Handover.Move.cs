@@ -29,6 +29,27 @@ public partial class LobbyManager
 
 	private bool _movingToNewHost;
 
+	/// <summary>The permission the lobby's registry node granted its handover, or empty while none was granted.</summary>
+	private string _handoverGrantToken = string.Empty;
+
+	/// <summary>The ownership the handover was permitted under, which the transfer is completed with.</summary>
+	private int _handoverGrantEpoch;
+
+	/// <summary>The lobby this screen is taking over, kept from the commit so the transfer can be completed later.</summary>
+	private string _movedSourceLobbyId = string.Empty;
+
+	/// <summary>
+	///     Whether the lobby was listed and therefore has an ownership transfer to complete. A direct or unlisted lobby has
+	///     none: its seats are told where to go over the channel they already trust.
+	/// </summary>
+	private bool _movedLobbyNeedsOwnershipTransfer;
+
+	/// <summary>
+	///     Whether the registry node refused the lobby's ownership transfer. A move whose listing did not move is undone,
+	///     because a lobby the browser points at a host that just gave it up is worse than one that never moved.
+	/// </summary>
+	private bool _handoverOwnershipFailed;
+
 	private void OnLobbyHandoverMessage(LobbyHandoverMessage message)
 	{
 		switch (message.Kind)
@@ -56,6 +77,14 @@ public partial class LobbyManager
 				_ = Task.Run(async () => await MoveToHandoverAuthorityAsync(message).ConfigureAwait(false));
 				break;
 
+			case LobbyHandoverMessageKind.Ownership:
+				if (!IsHandoverCandidate) return;
+
+				_handoverGrantToken = message.HandoverToken ?? string.Empty;
+				_handoverGrantEpoch = message.SourceEpoch;
+				_ = Task.Run(async () => await CompleteHandoverOwnershipAsync().ConfigureAwait(false));
+				break;
+
 			case LobbyHandoverMessageKind.RolledBack:
 				HandleHandoverRolledBack(message.Notice);
 				break;
@@ -72,7 +101,7 @@ public partial class LobbyManager
 		HandoverReport = default;
 		HasHandoverReport = false;
 		HandoverNoticeKey = string.IsNullOrEmpty(notice) ? LobbyHandoverNotice.RolledBack : notice;
-		NotifyHostLine(LocalizationManager.TranslateKey(HandoverNoticeKey));
+		NotifyHostLine(HandoverNoticeTexts.Translate(HandoverNoticeKey));
 		HandoverStateChanged?.Invoke();
 	}
 
@@ -99,12 +128,23 @@ public partial class LobbyManager
 			string previousHostAddress = _connectedHostIp ?? "127.0.0.1";
 			int previousHostPort = _lobbySession?.Port ?? ENetPort;
 			string previousAdminToken = _lobbySession?.AdminToken ?? string.Empty;
+			string previousHostToken = _hostToken ?? string.Empty;
+			int previousOwnershipEpoch = _ownershipEpoch;
 			string lobbyId = string.IsNullOrEmpty(message.LobbyId) ? ActiveLobbyId ?? string.Empty : message.LobbyId;
 
 			_handoverExpectedHumanSeats = PlayerList.Count(player => !player.IsComputer && player.PeerId > 0 && !player.IsDisconnected);
 			_movedSeatToken = message.SessionToken;
+			_movedSourceLobbyId = lobbyId;
+			_movedLobbyNeedsOwnershipTransfer = !string.IsNullOrEmpty(lobbyId) && !string.IsNullOrEmpty(previousHostToken);
+			_handoverOwnershipFailed = false;
+
+			// The lobby's listing belongs to the screen that takes it over from here, so nothing this screen does while it
+			// moves may close or unregister the lobby the others are still being sent to.
+			IsHost = false;
 
 			GameLog.LogToConsole($"[LobbyManager] The lobby moved: this screen is connecting to {message.Address}:{message.Port} as the seat it already holds.");
+
+			if (wasHost) BeginHandoverOwnershipTransfer(previousHostToken, previousOwnershipEpoch);
 
 			bool moved = isCandidate
 				? await MoveToOwnAuthorityAsync(lobbyId)
@@ -118,7 +158,7 @@ public partial class LobbyManager
 				_movingToNewHost = false;
 				if (!returned)
 				{
-					LobbyJoinError = LocalizationManager.TranslateKey(LobbyHandoverNotice.RolledBack);
+					LobbyJoinError = HandoverNoticeTexts.Translate(LobbyHandoverNotice.RolledBack);
 					LastHostError = LobbyJoinError;
 					GameLog.LogError("[LobbyManager] The lobby could not be reached at either host; this screen is no longer in it.");
 					Disconnect();
@@ -137,9 +177,9 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
-	///     Connects this screen to the authority it started for the lobby it is taking over, after telling the registry node
-	///     that the lobby's ownership moved. The registry transfer is the one commit point: after it, only this screen may
-	///     publish, admit or speak for the lobby.
+	///     Connects this screen to the authority it started for the lobby it is taking over. The registry's ownership of
+	///     the lobby is completed with the permission the leaving host obtains, so this screen serves the seats first and the
+	///     listing follows in the same step the host that left loses it.
 	/// </summary>
 	/// <param name="lobbyId">The lobby being handed over.</param>
 	/// <returns>Whether this screen is the lobby's host on its own authority.</returns>
@@ -150,9 +190,6 @@ public partial class LobbyManager
 			GameLog.LogError("[LobbyManager] This screen was told to take the lobby over but holds no authority for it.");
 			return false;
 		}
-
-		bool transferred = await TransferLobbyOwnershipToThisScreenAsync(lobbyId);
-		if (!transferred) return false;
 
 		ClientServerSession? previous = _lobbySession;
 		_lobbySession = null;
@@ -176,13 +213,10 @@ public partial class LobbyManager
 		HostedMapDisplayName = ActiveMapName;
 
 		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.ReportLobbyId, Text = ActiveLobbyId ?? string.Empty });
-		if (!string.IsNullOrEmpty(ActiveLobbyId))
-		{
-			StartHostWebSocketSignaling(ActiveLobbyId);
-			StartHeartbeatLoop(ActiveLobbyId);
-		}
 
-		NotifyHostLine(LocalizationManager.TranslateKey(LobbyHandoverNotice.Confirmed));
+		await CompleteHandoverOwnershipAsync().ConfigureAwait(false);
+
+		NotifyHostLine(HandoverNoticeTexts.Translate(LobbyHandoverNotice.Confirmed));
 		PlayerListUpdated?.Invoke();
 		return true;
 	}
@@ -279,14 +313,22 @@ public partial class LobbyManager
 		}
 
 		if (string.IsNullOrEmpty(address) || port <= 0) return false;
-		return await JoinAuthorityDirectlyAsync(address, port, seatToken, string.Empty, string.Empty);
+
+		bool returned = await JoinAuthorityDirectlyAsync(address, port, seatToken, string.Empty, string.Empty);
+		if (returned)
+		{
+			await Task.Delay(400).ConfigureAwait(false);
+			_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.AbortHostHandover, Text = "this seat returned to the host it had" });
+		}
+
+		return returned;
 	}
 
 	/// <summary>
-	///     Waits for the seats to appear on the lobby's new authority. Every seat has to arrive inside the transfer window;
-	///     a seat that does not is a lobby half the group was dropped from, which is rolled back instead. The screen that was
-	///     the host gives its own authority up only once every seat is there, because a seat that is still moving may have
-	///     to come back to it.
+	///     Waits for the seats to appear on the lobby's new authority and for the lobby's listing to have moved with them.
+	///     Every seat has to arrive inside the transfer window; a seat that does not, or a listing that never moved, is a
+	///     lobby the group has been split from, which is rolled back instead. The screen that was the host gives its own
+	///     authority up only once the transfer is whole, because a seat still moving may have to come back to it.
 	/// </summary>
 	private void StartHandoverSettleWatch(bool wasHost, bool isCandidate, string previousToken, string previousAddress, int previousPort, string previousAdminToken, string lobbyId)
 	{
@@ -308,10 +350,16 @@ public partial class LobbyManager
 
 	private async Task<bool> WaitForHandoverSettlementAsync(int expectedSeats, CancellationToken token)
 	{
-		long deadline = System.Environment.TickCount64 + HostHandoverRules.SettleSeconds * 1000L;
+		long started = System.Environment.TickCount64;
+		long deadline = started + HostHandoverRules.SettleSeconds * 1000L;
 		while (!token.IsCancellationRequested && System.Environment.TickCount64 < deadline)
 		{
 			await Task.Delay(400, token).ConfigureAwait(false);
+			if (_handoverOwnershipFailed) return false;
+
+			// A listed lobby whose ownership never moved would leave the browser pointing at the host that gave it up, so
+			// the move is only whole when the listing moved with the seats.
+			if (_movedLobbyNeedsOwnershipTransfer && _ownershipEpoch <= _handoverGrantEpoch && System.Environment.TickCount64 - started > 6000) return false;
 
 			PlayerInfo[] snapshot = PlayerList.ToArray();
 			int connected = snapshot.Count(player => !player.IsComputer && player.PeerId > 0 && !player.IsDisconnected);
@@ -332,7 +380,6 @@ public partial class LobbyManager
 			{
 				// The lobby belongs to the new host now, so the authority this screen was holding has nothing left to serve.
 				GameContext.LocalAuthority.Pause();
-				NotifyHostLine(LocalizationManager.TranslateKey(LobbyHandoverNotice.Confirmed));
 			}
 
 			_handoverRehearsalPort = 0;
@@ -350,60 +397,104 @@ public partial class LobbyManager
 			return;
 		}
 
-		GameLog.LogError($"[LobbyManager] Not every seat arrived at the lobby's new host within {HostHandoverRules.SettleSeconds} s, so the handover is rolled back.");
+		GameLog.LogError($"[LobbyManager] The lobby's handover did not complete within {HostHandoverRules.SettleSeconds} s, so it is rolled back.");
 		if (isCandidate) GameContext.LocalAuthority.Pause();
 		CancelRehearsal(abandonAuthority: isCandidate);
 		_movedSeatToken = previousToken;
-
-		_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.AbortHostHandover, Text = "not every seat arrived at the new host" });
 
 		_ = Task.Run(async () =>
 		{
 			bool returned = await ReturnToPreviousHostAsync(wasHost, previousToken, previousAddress, previousPort, previousAdminToken, lobbyId).ConfigureAwait(false);
 			Callable.From(() =>
 			{
-				LobbyJoinError = returned ? LocalizationManager.TranslateKey(LobbyHandoverNotice.RolledBack) : LastHostError;
-				NotifyHostLine(LocalizationManager.TranslateKey(LobbyHandoverNotice.RolledBack));
 				HandoverNoticeKey = LobbyHandoverNotice.RolledBack;
+				if (!returned) LobbyJoinError = HandoverNoticeTexts.Translate(LobbyHandoverNotice.RolledBack);
+				NotifyHostLine(HandoverNoticeTexts.Translate(LobbyHandoverNotice.RolledBack));
 				HandoverStateChanged?.Invoke();
 			}).CallDeferred();
 		});
 	}
 
 	/// <summary>
-	///     Moves the lobby's ownership on the registry node that lists it. The epoch this screen states is the one the lobby
-	///     is on, and the epoch it is answered with is the one this screen publishes and admits under from then on.
+	///     Asks the lobby's registry node to permit the handover, which is the host that is leaving saying it agrees. The
+	///     permission is then passed to the candidate over the lobby's own channel, so the screen taking the lobby over never
+	///     holds the leaving host's token.
 	/// </summary>
-	/// <param name="lobbyId">The lobby being handed over.</param>
-	/// <returns>Whether the lobby now belongs to this screen on the registry node.</returns>
-	private async Task<bool> TransferLobbyOwnershipToThisScreenAsync(string lobbyId)
+	/// <param name="hostToken">The token this screen published the lobby with.</param>
+	/// <param name="ownershipEpoch">The ownership the lobby is listed under.</param>
+	private void BeginHandoverOwnershipTransfer(string hostToken, int ownershipEpoch)
 	{
-		if (string.IsNullOrEmpty(lobbyId) || string.IsNullOrEmpty(_hostToken))
+		string lobbyId = _movedSourceLobbyId;
+		if (string.IsNullOrEmpty(lobbyId) || string.IsNullOrEmpty(hostToken))
 		{
-			// An unlisted or direct lobby has no ownership to move. The seats are told where to go over the channel they
-			// already trust, which is the whole of what such a lobby needs.
+			// An unlisted or direct lobby has no listing to move. The seats were told where to go over the channel they
+			// already trust, which is the whole of what such a lobby needs - and the authority is told that no permission is
+			// coming so the seats do not wait for one.
 			GameLog.LogToConsole("[LobbyManager] This lobby is not listed, so its ownership moves only to the seats it holds.");
-			return true;
+			_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.ReportHandoverOwnership, Text = $"{-ownershipEpoch}|" });
+			return;
 		}
+
+		_ = Task.Run(async () =>
+		{
+			try
+			{
+				var payload = new { LobbyId = lobbyId, HostToken = hostToken, OwnershipEpoch = ownershipEpoch };
+				using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+				using HttpResponseMessage response = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/handover/begin", content).ConfigureAwait(false);
+				if (!response.IsSuccessStatusCode)
+				{
+					GameLog.LogError($"[LobbyManager] The registry node refused to permit the lobby's handover: {response.StatusCode}");
+					return;
+				}
+
+				string answer = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+				using var document = JsonDocument.Parse(answer);
+				JsonElement root = document.RootElement;
+				if (!root.TryGetProperty("handoverToken", out JsonElement token)) return;
+				int epoch = root.TryGetProperty("ownershipEpoch", out JsonElement epochElement) ? epochElement.GetInt32() : ownershipEpoch;
+
+				_lobbySession?.SendLobbyCommand(new LobbyCommand
+				{
+					Kind = LobbyCommandKind.ReportHandoverOwnership,
+					Text = $"{epoch}|{token.GetString()}"
+				});
+			}
+			catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
+			{
+				GameLog.LogError($"[LobbyManager] The lobby's handover could not be permitted by the registry node: {exception.Message}");
+			}
+		});
+	}
+
+	/// <summary>
+	///     Completes the lobby's ownership transfer with the permission its previous host obtained. The seats are already
+	///     inside this screen's authority by then; what moves here is the listing, the browser entry and the right to speak
+	///     for the lobby, which the epoch moves forward and the old host loses in the same step.
+	/// </summary>
+	private async Task CompleteHandoverOwnershipAsync()
+	{
+		if (string.IsNullOrEmpty(_handoverGrantToken) || string.IsNullOrEmpty(_movedSourceLobbyId)) return;
+		if (_ownershipEpoch > _handoverGrantEpoch) return;
 
 		LobbyReachabilitySet? reachability = _handoverReachability;
 		if (reachability == null || reachability.Value.Verified.Count == 0)
 		{
-			GameLog.LogError("[LobbyManager] The lobby's new endpoint was never measured, so its ownership cannot be moved.");
-			return false;
+			NoteHandoverOwnershipFailure("the lobby's new endpoint was never measured");
+			return;
 		}
 
 		try
 		{
 			var payload = new
 			{
-				LobbyId = lobbyId,
-				HostToken = _hostToken,
-				OwnershipEpoch = _ownershipEpoch,
+				LobbyId = _movedSourceLobbyId,
+				HandoverToken = _handoverGrantToken,
+				OwnershipEpoch = _handoverGrantEpoch,
 				Endpoints = reachability.Value.EndpointRegistrations,
 				MappingBehaviour = _publishedReachability?.MappingBehaviour ?? MappingBehaviours.Unknown,
 				NatType = LocalNatType.ToString(),
-				HostPingBaseline = await MeasurePingToRegistryAsync(),
+				HostPingBaseline = await MeasurePingToRegistryAsync().ConfigureAwait(false),
 				SlotsUsed = PlayerList.Count(player => player.Slot > 0),
 				MaxPlayers = OpenSlotCount,
 				LocalIP = GetLocalIPAddress(),
@@ -412,26 +503,40 @@ public partial class LobbyManager
 			};
 
 			using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-			using HttpResponseMessage response = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/handover", content);
+			using HttpResponseMessage response = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/handover/complete", content).ConfigureAwait(false);
 			if (!response.IsSuccessStatusCode)
 			{
-				string body = await response.Content.ReadAsStringAsync();
-				GameLog.LogError($"[LobbyManager] The registry node refused the lobby's handover: {response.StatusCode} {body}");
-				return false;
+				string body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+				GameLog.LogError($"[LobbyManager] The registry node refused to complete the lobby's handover: {response.StatusCode} {body}");
+				NoteHandoverOwnershipFailure("the registry node refused the lobby's ownership transfer");
+				return;
 			}
 
-			string answer = await response.Content.ReadAsStringAsync();
+			string answer = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 			using var document = JsonDocument.Parse(answer);
 			JsonElement root = document.RootElement;
 			if (root.TryGetProperty("ownershipEpoch", out JsonElement epoch)) _ownershipEpoch = epoch.GetInt32();
 			if (root.TryGetProperty("hostToken", out JsonElement token)) _hostToken = token.GetString();
+			_handoverGrantToken = string.Empty;
+
 			GameLog.LogToConsole($"[LobbyManager] The lobby's ownership moved to this screen as epoch {_ownershipEpoch}.");
-			return true;
+			if (!string.IsNullOrEmpty(ActiveLobbyId))
+			{
+				StartHostWebSocketSignaling(ActiveLobbyId);
+				StartHeartbeatLoop(ActiveLobbyId);
+			}
 		}
 		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
 		{
-			GameLog.LogError($"[LobbyManager] The lobby's handover could not be stated to the registry node: {exception.Message}");
-			return false;
+			GameLog.LogError($"[LobbyManager] The lobby's handover could not be completed: {exception.Message}");
+			NoteHandoverOwnershipFailure("the lobby's ownership transfer could not be stated");
 		}
+	}
+
+	private void NoteHandoverOwnershipFailure(string reason)
+	{
+		GameLog.LogError($"[LobbyManager] {reason}; the lobby stays with the host that still holds it.");
+		_handoverOwnershipFailed = true;
+		NotifyHostLine(HandoverNoticeTexts.Translate(LobbyHandoverNotice.RolledBack));
 	}
 }

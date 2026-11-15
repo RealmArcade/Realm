@@ -102,7 +102,14 @@ public enum LobbyCommandKind : byte
 	///     administrator once the lobby is published, so a handover can prove to every seat that the authority it moves to
 	///     serves the same lobby it left.
 	/// </summary>
-	ReportLobbyId = 32
+	ReportLobbyId = 32,
+
+	/// <summary>
+	///     States, in <see cref="LobbyCommand.Text" /> as an epoch and a token, that the registry node permitted this lobby's
+	///     handover and which screen may complete it. Sent by the lobby's administrator only, and forwarded to the candidate,
+	///     so the screen taking the lobby over completes the ownership transfer without ever holding the leaving host's token.
+	/// </summary>
+	ReportHandoverOwnership = 33
 }
 
 /// <summary>

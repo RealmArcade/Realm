@@ -285,6 +285,7 @@ public partial class LobbyRoom : Control
 
 		SetupAttributionButton();
 		CreateMatchSettingsUI();
+		SetupHandoverUi();
 
 		UpdateSelectedMapUI();
 	}
@@ -462,6 +463,7 @@ public partial class LobbyRoom : Control
 
 		if (GameContext.Lobby != null)
 		{
+			TeardownHandoverUi();
 			Lobby.PlayerListUpdated -= PopulatePlayersList;
 			Lobby.ChatReceived -= OnLobbyChatReceived;
 			Lobby.ConnectionFailed -= OnLobbyConnectionFailed;

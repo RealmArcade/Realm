@@ -122,6 +122,15 @@ public partial class ServerLobby
 				if (!isAdmin) return;
 				LobbyId = command.Text;
 				break;
+			case LobbyCommandKind.ReportHandoverOwnership:
+				if (!isAdmin)
+				{
+					_log.Write($"peer {peerId} stated a handover ownership without administering this lobby, so nothing was forwarded");
+					return;
+				}
+
+				ForwardHandoverOwnership(command.Text);
+				break;
 			case LobbyCommandKind.ReportReachability:
 				if (!isAdmin)
 				{

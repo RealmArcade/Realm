@@ -1,17 +1,70 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Realm.AdminServer.Models;
 
 namespace Realm.AdminServer.Services;
 
 public class LobbyRegistry
 {
+	/// <summary>
+	///     One handover a lobby's current host has permitted, named by a token only that handover is completed with. It
+	///     outlives the check that granted it for a short window, so a handover whose screens are slow still completes and a
+	///     handover nobody completed grants nothing.
+	/// </summary>
+	private sealed record HandoverGrant(string Token, int FromEpoch, DateTime ExpiresAtUtc);
+
 	private readonly ConcurrentDictionary<string, LobbyInfo> _lobbies = new();
+
+	private readonly ConcurrentDictionary<string, HandoverGrant> _handoverGrants = new(StringComparer.Ordinal);
+
+	private static readonly TimeSpan HandoverGrantLifetime = TimeSpan.FromSeconds(90);
+
+	/// <summary>
+	///     Records that a lobby's current host permitted it to be handed on, and answers the token the screen taking it
+	///     over completes it with. A grant a previous attempt left behind is replaced, because only the host the lobby
+	///     currently has may permit one.
+	/// </summary>
+	/// <param name="lobbyId">The lobby being handed over.</param>
+	/// <param name="fromEpoch">The ownership the grant is made under.</param>
+	/// <returns>The token and the ownership the handover is completed under, or null when the lobby is not listed.</returns>
+	public (string Token, int OwnershipEpoch, int ExpiresInSeconds)? BeginHandover(string lobbyId, int fromEpoch)
+	{
+		if (!_lobbies.ContainsKey(lobbyId)) return null;
+
+		string token = Guid.NewGuid().ToString();
+		_handoverGrants[lobbyId] = new HandoverGrant(token, fromEpoch, DateTime.UtcNow + HandoverGrantLifetime);
+		return (token, fromEpoch, (int)HandoverGrantLifetime.TotalSeconds);
+	}
+
+	/// <summary>
+	///     Reads a handover grant and forgets it, which is what makes a completion single-use: a token cannot move a lobby
+	///     twice, and one an abandoned handover left behind expires on its own.
+	/// </summary>
+	/// <param name="lobbyId">The lobby being handed over.</param>
+	/// <param name="token">The token the completing screen stated.</param>
+	/// <param name="fromEpoch">The ownership the grant was made under.</param>
+	/// <returns>Whether the grant is this lobby's, unexpired, and made under that ownership.</returns>
+	public bool TryTakeHandoverGrant(string lobbyId, string token, int fromEpoch)
+	{
+		if (!_handoverGrants.TryGetValue(lobbyId, out HandoverGrant? grant) || grant == null) return false;
+		if (!string.Equals(grant.Token, token, StringComparison.Ordinal)) return false;
+		if (grant.FromEpoch != fromEpoch) return false;
+		if (grant.ExpiresAtUtc < DateTime.UtcNow)
+		{
+			_handoverGrants.TryRemove(lobbyId, out _);
+			return false;
+		}
+
+		return _handoverGrants.TryRemove(lobbyId, out _);
+	}
+
+	/// <summary>Forgets a lobby's handover grant, which is what closing or losing the lobby does.</summary>
+	/// <param name="lobbyId">The lobby that is gone.</param>
+	public void ForgetHandoverGrant(string lobbyId) => _handoverGrants.TryRemove(lobbyId, out _);
 
 	public bool TryRemove(string lobbyId, out LobbyInfo? info)
 	{
-		bool result = _lobbies.TryRemove(lobbyId, out var tmp);
-		info = tmp;
-		return result;
+		_handoverGrants.TryRemove(lobbyId, out _);
+		return _lobbies.TryRemove(lobbyId, out info);
 	}
 
 	public void AddOrUpdate(LobbyInfo info)

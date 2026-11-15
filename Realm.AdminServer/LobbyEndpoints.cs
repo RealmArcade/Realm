@@ -415,16 +415,36 @@ public static class LobbyEndpoints
 		return Results.Ok(new { Status = "Propagated" });
 	});
 
-	// A lobby that two of its players handed to a new host moves its ownership here, in one step: the id, the seats and
-	// the listing survive, the endpoints become the new host's, and the epoch moves forward so the host it left can no
-	// longer publish, admit a player or close a lobby somebody else now owns.
-	app.MapPost("/lobbies/handover", async (LobbyHandoverRequest req, LobbyRegistry registry, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory, HttpContext context) =>
+	// A lobby's host permits the lobby to be handed on. The node answers a token that only this handover accepts, so the
+	// screen taking the lobby over never has to be told the leaving host's own token and a stranger can neither start nor
+	// complete somebody else's handover.
+	app.MapPost("/lobbies/handover/begin", (LobbyHandoverBeginRequest req, LobbyRegistry registry) =>
 	{
 		if (!registry.TryGet(req.LobbyId, out LobbyInfo? lobby) || lobby == null) return Results.NotFound(new { Message = "Lobby not found" });
 
 		if (!string.Equals(lobby.HostToken, req.HostToken, StringComparison.Ordinal) || lobby.OwnershipEpoch != req.OwnershipEpoch)
 		{
-			Console.WriteLine($"[Registry] Refused a handover of lobby {req.LobbyId}: the request names epoch {req.OwnershipEpoch}, and this node holds epoch {lobby.OwnershipEpoch}");
+			Console.WriteLine($"[Registry] Refused to permit a handover of lobby {req.LobbyId}: the request names epoch {req.OwnershipEpoch}, and this node holds epoch {lobby.OwnershipEpoch}");
+			return Results.Json(new LobbyOwnershipSuperseded(lobby.OwnershipEpoch, LobbyOwnershipSuperseded.SupersededCode), statusCode: StatusCodes.Status409Conflict);
+		}
+
+		(string Token, int OwnershipEpoch, int ExpiresInSeconds)? grant = registry.BeginHandover(req.LobbyId, req.OwnershipEpoch);
+		if (grant == null) return Results.NotFound(new { Message = "Lobby not found" });
+
+		Console.WriteLine($"[Registry] Permitted a handover of lobby {req.LobbyId} under epoch {grant.Value.OwnershipEpoch}, for {grant.Value.ExpiresInSeconds} s");
+		return Results.Ok(new LobbyHandoverBeginResponse(req.LobbyId, grant.Value.Token, grant.Value.OwnershipEpoch, grant.Value.ExpiresInSeconds));
+	});
+
+	// The screen the lobby was handed to completes it here, in one step: the id, the seats and the listing survive, the
+	// endpoints become the new host's, and the epoch moves forward so the host it left can no longer publish, admit a
+	// player or close a lobby somebody else now owns.
+	app.MapPost("/lobbies/handover/complete", async (LobbyHandoverRequest req, LobbyRegistry registry, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
+	{
+		if (!registry.TryGet(req.LobbyId, out LobbyInfo? lobby) || lobby == null) return Results.NotFound(new { Message = "Lobby not found" });
+
+		if (lobby.OwnershipEpoch != req.OwnershipEpoch || !registry.TryTakeHandoverGrant(req.LobbyId, req.HandoverToken, req.OwnershipEpoch))
+		{
+			Console.WriteLine($"[Registry] Refused to complete a handover of lobby {req.LobbyId}: the request names epoch {req.OwnershipEpoch}, and this node holds epoch {lobby.OwnershipEpoch}");
 			return Results.Json(new LobbyOwnershipSuperseded(lobby.OwnershipEpoch, LobbyOwnershipSuperseded.SupersededCode), statusCode: StatusCodes.Status409Conflict);
 		}
 

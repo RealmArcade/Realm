@@ -1,4 +1,4 @@
-using Realm.Shared.Reachability;
+﻿using Realm.Shared.Reachability;
 
 namespace Realm.AdminServer.Models;
 
@@ -9,7 +9,7 @@ namespace Realm.AdminServer.Models;
 /// </summary>
 public record LobbyHandoverRequest(
 	string LobbyId,
-	string HostToken,
+	string HandoverToken,
 	int OwnershipEpoch,
 	IReadOnlyList<LobbyEndpointRegistration>? Endpoints,
 	string? MappingBehaviour = null,
@@ -21,6 +21,18 @@ public record LobbyHandoverRequest(
 	int? LocalPort = null,
 	int ObservedPort = 0
 );
+
+/// <summary>
+///     What the host a lobby is leaving asks its registry node for: permission to hand the ownership on. The node answers
+///     with a token only that handover accepts, so the screen that takes the lobby over can complete it without ever being
+///     told the leaving host's own token.
+/// </summary>
+public record LobbyHandoverBeginRequest(string LobbyId, string HostToken, int OwnershipEpoch);
+
+/// <summary>
+///     The permission a registry node grants a lobby's handover, and which screen may complete it.
+/// </summary>
+public record LobbyHandoverBeginResponse(string LobbyId, string HandoverToken, int OwnershipEpoch, int ExpiresInSeconds);
 
 /// <summary>
 ///     The ownership a registry node moved a lobby to, which the new host proves itself with from then on.
