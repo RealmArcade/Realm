@@ -144,6 +144,12 @@ public partial class ServerLobby
 		BroadcastState();
 	}
 
+	/// <summary>
+	///     One tick's copy of the seats, so the seats a measurement changes can be written back while the lobby's own table
+	///     is not being enumerated. It is reused rather than allocated per tick.
+	/// </summary>
+	private readonly List<LobbySeat> _linkStatisticsSeats = new();
+
 	private bool ApplyLinkStatistics()
 	{
 		bool changed = false;
@@ -152,9 +158,11 @@ public partial class ServerLobby
 		long totalJitter = 0;
 		double totalLoss = 0.0;
 
-		foreach (var pair in _seats)
+		_linkStatisticsSeats.Clear();
+		_linkStatisticsSeats.AddRange(_seats.Values);
+
+		foreach (LobbySeat seat in _linkStatisticsSeats)
 		{
-			LobbySeat seat = pair.Value;
 			if (seat.IsComputer || seat.IsDisconnected) continue;
 			if (seat.PeerId <= 0 || seat.PeerId == _adminPeerId) continue;
 
@@ -171,9 +179,8 @@ public partial class ServerLobby
 
 		// The administrator runs its own authority, so no transit belongs to its own row: it states the average of the links
 		// it serves, and nothing at all while it serves nobody.
-		foreach (var pair in _seats)
+		foreach (LobbySeat seat in _linkStatisticsSeats)
 		{
-			LobbySeat seat = pair.Value;
 			if (seat.PeerId != _adminPeerId) continue;
 
 			if (measuredPeers == 0)
