@@ -177,3 +177,11 @@ next, in this order:
    to write; if it is not, the client's reader never received it across a pipe that Godot opened.
 2. Whether the process the client spawns is the process that answers. The launcher runs one Godot binary, but the mono
    build may hand off to another process, and a client waiting on the first one's stdout waits on a pipe nobody writes.
+
+Checked on this checkout: the console capture beside the authority log
+(`local_authority.listen_server.<pid>.log.console`) **does** contain
+`REALM_RESIDENT_AUTHORITY_READY`, so the client received readiness and the reader half of the pipe works. In the same
+run the authority's own log still holds only `resident authority up` and `watching the screen…`, which means the command
+the client meant to send after readiness never reached it. The remaining question is therefore narrow: whether
+`ResidentAuthority` enqueues the command and its writer thread never writes, or writes into a pipe whose other end is a
+different process than the one answering.
