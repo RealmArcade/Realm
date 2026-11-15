@@ -38,3 +38,5 @@ Realm.AdminServer/appsettings.json
 Realm.MapEditorExtension/dist/
 *.jit.elf
 godot_test_output.txt
+# The Linux launcher tools/rig/realm-rig.sh wrapper installs beside the authority project.
+Realm.ListenServerHost/Realm.ListenServerHost

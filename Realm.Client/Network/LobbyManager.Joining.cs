@@ -131,6 +131,18 @@ public partial class LobbyManager
 		string? failure = null;
 		bool rejected = false;
 
+		// The report of this screen's endpoint leaves from the port the join will connect from, so that the endpoint the
+		// host punches and the endpoint that connects are the same one. The connection is made at once rather than after
+		// the punch: this side's mapping for the lobby has to exist before the host's punch arrives, because a router that
+		// keeps no mapping of its own for an unanswered packet would take this side's mapping away from it.
+		int joinLocalPort = 0;
+		bool punchCoordinated = false;
+		if (!isLocalConnection && target.Punch.IsUsable)
+		{
+			joinLocalPort = await ReportJoinerEndpointFromJoinPortAsync(target.Punch);
+			punchCoordinated = joinLocalPort > 0;
+		}
+
 		_establishingLobbyConnection = true;
 		try
 		{
@@ -146,7 +158,7 @@ public partial class LobbyManager
 				session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
 				AttachLobbySession(session);
 
-				if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), 0, out string joinFailure))
+				if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), joinLocalPort, out string joinFailure))
 				{
 					failure = joinFailure;
 					DropLobbySession(session);
@@ -155,11 +167,9 @@ public partial class LobbyManager
 
 				_isConnectedToHost = true;
 
-				if (!isLocalConnection)
-				{
-					PunchFromGamePort(channel, connectIp, connectPort);
-					ReportJoinerEndpoint(channel, target.Punch, connectPort);
-				}
+				// A lobby that punched this screen back does not need the punch that opens this side of the route, and sending
+				// it would take the external port the host's punch is using for this screen.
+				if (!isLocalConnection && !punchCoordinated) PunchFromGamePort(channel, connectIp, connectPort);
 
 				var admission = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromMilliseconds(JoinAttemptTimeoutMilliseconds));
 				if (admission.Failure == null)
@@ -177,6 +187,8 @@ public partial class LobbyManager
 		{
 			_establishingLobbyConnection = false;
 		}
+
+		if (!string.IsNullOrEmpty(failure) && !rejected && punchCoordinated) failure = $"{failure} {await DescribePunchStateAsync(target.Punch)}";
 
 		LobbyJoinError = string.Equals(failure, LobbyLimits.KickedRejection, StringComparison.Ordinal)
 			? "You were removed from this lobby."
@@ -203,31 +215,139 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
-	///     Reports this screen's own endpoint to the registry node, from the socket its connection attempt holds. The report is
-	///     what tells the lobby's host where to send: the host cannot read an address from the attempt itself, because a
-	///     router that drops unsolicited traffic drops exactly that, and this screen cannot measure the external port its own
-	///     router hands out.
+	///     Reports this screen's own endpoint to the registry node from a socket bound to a port the join then connects from,
+	///     and hands that port back. The report is what tells the lobby's host where to send: the host cannot read an address
+	///     from the connection attempt itself, because a router that drops unsolicited traffic drops exactly that, and this
+	///     screen cannot measure the external port its own router hands out. The socket is bound and closed here so the join's
+	///     own socket can hold the same port, which is the only way the endpoint that was reported and the endpoint that
+	///     connects are the same one.
 	/// </summary>
-	/// <param name="channel">The channel whose socket the report must leave from.</param>
-	/// <param name="ticket">The ticket the registry node stated, or a default one when it stated none.</param>
-	/// <param name="lobbyPort">The lobby's port, for the log line.</param>
-	private static void ReportJoinerEndpoint(ClientNetworkChannel channel, JoinerPunchTicket ticket, int lobbyPort)
+	/// <param name="ticket">The ticket the registry node stated for this join.</param>
+	/// <returns>The local port the join must connect from, or zero when no report could be sent.</returns>
+	private async Task<int> ReportJoinerEndpointFromJoinPortAsync(JoinerPunchTicket ticket)
 	{
-		if (!ticket.IsUsable)
-		{
-			GameLog.LogToConsole($"[LobbyManager] The registry node stated no report endpoint for this join, so the host at port {lobbyPort} was not told where this screen is. A host behind a router that drops unsolicited traffic may not admit this join.");
-			return;
-		}
-
 		var datagram = new byte[JoinerPunch.MaximumDatagramBytes];
 		int written = JoinerPunch.TryWrite(datagram, ticket.Token);
-		if (written == 0 || !channel.SendToAddress(ticket.Address, ticket.Port, datagram.AsSpan(0, written)))
+		if (written == 0)
 		{
-			GameLog.LogError($"[LobbyManager] This screen could not report its endpoint to {ticket.Address}:{ticket.Port}, so the host may never be told where to send.");
-			return;
+			GameLog.LogError("[LobbyManager] The join's report ticket could not be written, so the host may never be told where to send.");
+			return 0;
 		}
 
-		GameLog.LogToConsole($"[LobbyManager] Reported this screen's endpoint to {ticket.Address}:{ticket.Port} from the socket joining the lobby on port {lobbyPort}.");
+		IPAddress? registryAddress = await ResolveRegistryAddressAsync(ticket.Address);
+		if (registryAddress == null)
+		{
+			GameLog.LogError($"[LobbyManager] The registry node '{ticket.Address}' has no address this screen could report itself to, so the host may never be told where to send.");
+			return 0;
+		}
+
+		try
+		{
+			using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+			socket.Bind(new IPEndPoint(IPAddress.Any, 0));
+			socket.SendTo(datagram.AsSpan(0, written), new IPEndPoint(registryAddress, ticket.Port));
+
+			int localPort = ((IPEndPoint)socket.LocalEndPoint!).Port;
+			GameLog.LogToConsole($"[LobbyManager] Reported this screen's endpoint to {ticket.Address}:{ticket.Port} from local port {localPort}, which this join then connects from.");
+			return localPort;
+		}
+		catch (Exception exception) when (exception is SocketException or ArgumentException)
+		{
+			GameLog.LogError($"[LobbyManager] This screen could not report its endpoint to {ticket.Address}:{ticket.Port} ({exception.Message}), so the host may never be told where to send.");
+			return 0;
+		}
+	}
+
+	/// <summary>
+	///     Resolves the registry node's address from the host name the join answer stated, so the report leaves from one
+	///     address the node can read the source endpoint of.
+	/// </summary>
+	/// <param name="host">The host name or address text the ticket states.</param>
+	/// <returns>The address to send the report to, or null when nothing could be resolved.</returns>
+	private static async Task<IPAddress?> ResolveRegistryAddressAsync(string host)
+	{
+		if (IPAddress.TryParse(host, out IPAddress? parsed)) return parsed;
+
+		try
+		{
+			IPAddress[] addresses = await Dns.GetHostAddressesAsync(host);
+			foreach (IPAddress address in addresses)
+			{
+				if (address.AddressFamily == AddressFamily.InterNetwork) return address;
+			}
+
+			return addresses.Length > 0 ? addresses[0] : null;
+		}
+		catch (Exception exception) when (exception is SocketException or ArgumentException)
+		{
+			return null;
+		}
+	}
+
+	/// <summary>
+	///     States what became of the punch this join asked for, which is the one half of a failed join this screen cannot see
+	///     for itself: the host either never stated that it sent anything toward this screen, or it did and nothing came back.
+	///     The two need different answers from the player, so the sentence a failure ends with says which one happened.
+	/// </summary>
+	/// <param name="ticket">The ticket the registry node stated for this join.</param>
+	/// <returns>One sentence about the punch, to append to the reason the join failed.</returns>
+	private async Task<string> DescribePunchStateAsync(JoinerPunchTicket ticket)
+	{
+		JoinPunchOutcome outcome = await ReadPunchStateAsync(ticket.Token);
+		return outcome switch
+		{
+			JoinPunchOutcome.Punched => "The lobby's host sent toward this screen, so the reply was lost on the way back; the host may need to forward its game port.",
+			JoinPunchOutcome.Reported => "The lobby's host was told where this screen is but never stated that it sent toward it, so nothing opened the way back.",
+			_ => "The lobby's host was never told where this screen is, so it could not send toward it."
+		};
+	}
+
+	/// <summary>What the registry node saw of one join's report and punch.</summary>
+	private enum JoinPunchOutcome
+	{
+		/// <summary>The report never arrived, so the host was never told where to send.</summary>
+		Unreported,
+
+		/// <summary>The report arrived and the host was told, but the host never stated that it punched.</summary>
+		Reported,
+
+		/// <summary>The host stated that it punched this screen's endpoint.</summary>
+		Punched
+	}
+
+	/// <summary>Reads what the registry node saw of a join's report and punch.</summary>
+	/// <param name="token">The join the report was sent for.</param>
+	/// <returns>The furthest step the registry node saw.</returns>
+	private async Task<JoinPunchOutcome> ReadPunchStateAsync(string token)
+	{
+		try
+		{
+			using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(1500));
+			using HttpResponseMessage response = await _httpClient.GetAsync($"{RegistryServerUrl}{JoinerPunchRoutes.State}/{token}", timeout.Token);
+			if (!response.IsSuccessStatusCode) return JoinPunchOutcome.Unreported;
+
+			using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token));
+			if (ReadBoolean(document.RootElement, "Punched")) return JoinPunchOutcome.Punched;
+			return ReadBoolean(document.RootElement, "Reported") ? JoinPunchOutcome.Reported : JoinPunchOutcome.Unreported;
+		}
+		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
+		{
+			return JoinPunchOutcome.Unreported;
+		}
+	}
+
+	/// <summary>Reads one boolean a registry node stated, accepting the casing the node writes.</summary>
+	/// <param name="root">The answer the node stated.</param>
+	/// <param name="name">The field to read.</param>
+	/// <returns>Whether the field is true.</returns>
+	private static bool ReadBoolean(JsonElement root, string name)
+	{
+		foreach (string candidate in new[] { name, $"{char.ToLowerInvariant(name[0])}{name[1..]}" })
+		{
+			if (root.TryGetProperty(candidate, out JsonElement value) && value.ValueKind == JsonValueKind.True) return true;
+		}
+
+		return false;
 	}
 
 	private async Task<string?> WaitForLobbyAdmissionAsync(ClientServerSession session)

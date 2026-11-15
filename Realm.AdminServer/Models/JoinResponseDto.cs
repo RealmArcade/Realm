@@ -6,5 +6,6 @@ public record JoinResponseDto(
 	string? LocalIP = null,
 	int? LocalPort = null,
 	int? PunchPort = null,
-	string? PunchToken = null
+	string? PunchToken = null,
+	string? ReachabilityClass = null
 );

@@ -19,5 +19,6 @@ public record LobbyResponseDto(
 	string? MapVersion = null,
 	long MapSizeBytes = 0,
 	bool IsGreenlit = false,
-	string? MapCreator = null
+	string? MapCreator = null,
+	string? ReachabilityClass = null
 );

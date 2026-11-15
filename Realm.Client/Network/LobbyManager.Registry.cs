@@ -273,7 +273,8 @@ public partial class LobbyManager
 			{
 				string clientIp = root.GetProperty("ClientIP").GetString() ?? "";
 				int clientPort = root.GetProperty("ClientPort").GetInt32();
-				Callable.From(() => SendPunchRequest(clientIp, clientPort)).CallDeferred();
+				string token = root.TryGetProperty("Token", out JsonElement tokenElement) ? tokenElement.GetString() ?? string.Empty : string.Empty;
+				Callable.From(() => SendPunchRequest(clientIp, clientPort, token)).CallDeferred();
 			}
 		}
 		catch (Exception ex)
@@ -282,16 +283,49 @@ public partial class LobbyManager
 		}
 	}
 
-	private void SendPunchRequest(string clientIp, int clientPort)
+	/// <summary>
+	///     Asks the lobby's authority to send from the game port to a joining player, and states back to the registry node that
+	///     it did. The joining screen waits for that statement before its socket sends anything toward this lobby, because a
+	///     player's packet that arrives before the punch takes the port the punch would have used and leaves the punch
+	///     translated to a port no player knows.
+	/// </summary>
+	/// <param name="clientIp">The address the joining player was seen at.</param>
+	/// <param name="clientPort">The port the joining player was seen at.</param>
+	/// <param name="token">The join the punch was asked for, or empty for a request that names none.</param>
+	private void SendPunchRequest(string clientIp, int clientPort, string token)
 	{
 		if (string.IsNullOrEmpty(clientIp) || clientPort <= 0) return;
 
-		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		bool sent = _lobbySession?.SendLobbyCommand(new LobbyCommand
 		{
 			Kind = LobbyCommandKind.PunchAddress,
 			Address = clientIp,
 			Port = clientPort
-		});
+		}) ?? false;
+
+		if (!sent || token.Length == 0) return;
+		_ = SendHostSignalingAsync(new { Action = "Punched", Token = token });
+	}
+
+	/// <summary>
+	///     Sends one message to the registry node holding this lobby, from the signalling channel the punch requests arrive on.
+	///     It is fired and forgotten because a punch that has been asked for must not be delayed by the report of itself.
+	/// </summary>
+	/// <param name="message">The message to state.</param>
+	private async Task SendHostSignalingAsync(object message)
+	{
+		ClientWebSocket? socket = _hostWebSocket;
+		if (socket == null || socket.State != WebSocketState.Open) return;
+
+		try
+		{
+			byte[] bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
+			await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+		}
+		catch (Exception exception) when (exception is WebSocketException or ObjectDisposedException or InvalidOperationException)
+		{
+			GameLog.LogToConsole($"[LobbyManager] A message to the lobby's registry node could not be sent: {exception.Message}");
+		}
 	}
 
 	private void StartHeartbeatLoop(string lobbyId)
@@ -350,7 +384,10 @@ public partial class LobbyManager
 				var registerPayload = new
 				{
 					Map = mapDisplayName,
-					HostPort = reachability.PublicPort,
+					// The port a joining player must use is the one this lobby's transport holds: an external port a check
+					// observed belongs to one router mapping for one destination, and a player sent to it would be sent to a
+					// port the host's router has no mapping for.
+					HostPort = lobbyPort,
 					NatType = LocalNatType.ToString(),
 					ReportedHostIP = reachability.PublicIp,
 					PasswordHash = "",
@@ -365,7 +402,9 @@ public partial class LobbyManager
 					PublicKey = mapInfo.PublicKey,
 					MapHash = mapInfo.MapHash,
 					MapSizeBytes = mapInfo.SizeBytes,
-					ReachabilityProbeId = reachability.ProbeId
+					ReachabilityProbeId = reachability.ProbeId,
+					MappingBehaviour = reachability.MappingBehaviour,
+					ObservedPort = reachability.ObservedPort
 				};
 
 				var jsonContent = new StringContent(JsonSerializer.Serialize(registerPayload), Encoding.UTF8, "application/json");

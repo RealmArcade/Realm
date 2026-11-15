@@ -200,7 +200,7 @@ public partial class LobbyManager
 		HostReachabilityResult result = await verifier.VerifyAsync(registryUrl, _hostPublicIp ?? string.Empty, lobbyPort, PunchProbeEndpointAsync);
 		if (result.Verified)
 		{
-			GameLog.LogToConsole($"[Reachability] The registry reached this lobby's game port and measured {result.PublicIp}:{result.PublicPort} ({LocalNatType} NAT).");
+			GameLog.LogToConsole($"[Reachability] The registry reached this lobby's game port. Players join at {result.PublicIp}:{result.PublicPort} ({result.ReachabilityClass}, {LocalNatType} NAT, mapping {result.MappingBehaviour}).");
 		}
 		else
 		{

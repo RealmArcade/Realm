@@ -38,6 +38,28 @@ public static class LobbyEndpoints
 		Console.WriteLine($"[Registry] Relayed punch request to host {lobbyId} for client {clientIp}:{clientPort}");
 	}
 
+	/// <summary>
+	///     Reads what a lobby's host states back over its own signalling channel. The only thing a host says here is that it
+	///     sent the punch a joining screen asked for, which the screen waits on before it sends anything toward the lobby.
+	/// </summary>
+	/// <param name="json">The message the host sent.</param>
+	/// <param name="joinerRelay">The relay holding the joins that are waiting.</param>
+	private static void ReadHostMessage(string json, JoinerPunchRelay joinerRelay)
+	{
+		try
+		{
+			using var document = JsonDocument.Parse(json);
+			JsonElement root = document.RootElement;
+			if (!root.TryGetProperty("Action", out JsonElement action) || action.GetString() != "Punched") return;
+			if (!root.TryGetProperty("Token", out JsonElement token)) return;
+
+			joinerRelay.AcknowledgePunch(token.GetString() ?? string.Empty);
+		}
+		catch (JsonException)
+		{
+		}
+	}
+
 	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections, UdpReachabilityProbeService reachabilityProbe, JoinerPunchRelay joinerRelay)
 	{
 	app.MapPost(ReachabilityRoutes.Begin, (ReachabilityBeginRequest req, HttpContext context) =>
@@ -97,7 +119,8 @@ public static class LobbyEndpoints
 				lobby.MapVersion,
 				lobby.MapSizeBytes,
 				lobby.IsGreenlit,
-				lobby.MapCreator
+				lobby.MapCreator,
+				lobby.ReachabilityClass
 			);
 		});
 
@@ -126,12 +149,27 @@ public static class LobbyEndpoints
 			hostIp = req.ReportedHostIP;
 		}
 
+		// The port a lobby is listed at is the port its game transport holds, not the port the check saw answers come
+		// from. An external port a router hands out belongs to one destination, so a player sent to it is sent to a port
+		// the host's router has no mapping for; the port the transport holds is the one a joining player punches, and the
+		// punch is what makes the router deliver its packets.
 		int hostPort = req.HostPort;
-		if (!string.IsNullOrEmpty(probeReport.ObservedIp) && probeReport.ObservedPort > 0)
+		if (hostPort <= 0 || hostPort > 65535)
 		{
-			hostIp = probeReport.ObservedIp;
-			hostPort = probeReport.ObservedPort;
+			return Results.Json(new
+			{
+				Code = ReachabilityErrorCodes.PortNotStated,
+				Message = "This node cannot list a lobby that does not state the UDP port its game transport holds."
+			}, statusCode: StatusCodes.Status400BadRequest);
 		}
+
+		string reachabilityClass = ReachabilityClasses.FromReport(probeReport);
+		if (!ReachabilityClasses.IsPublishable(reachabilityClass))
+		{
+			return Results.Json(ReachabilityEndpointHandlers.NotVerifiedRefusal(), statusCode: StatusCodes.Status400BadRequest);
+		}
+
+		if (!string.IsNullOrEmpty(probeReport.ObservedIp)) hostIp = probeReport.ObservedIp;
 
 		// The endpoint this node measured is the one every player is sent to, so it has to be one a player elsewhere can
 		// use at all. A check that answered at a loopback or private address passed for a reason that says nothing about
@@ -237,6 +275,9 @@ public static class LobbyEndpoints
 			HostPingBaseline = req.HostPingBaseline,
 			LocalIP = req.LocalIP,
 			LocalPort = req.LocalPort,
+			ReachabilityClass = reachabilityClass,
+			MappingBehaviour = req.MappingBehaviour,
+			ObservedPort = probeReport.ObservedPort,
 			MapSizeBytes = req.MapSizeBytes ?? 0,
 			IsGreenlit = isGreenlit,
 			MapCreator = mapCreator
@@ -270,7 +311,7 @@ public static class LobbyEndpoints
 		});
 
 		string reportedNatType = string.IsNullOrEmpty(req.NatType) ? "unclassified" : req.NatType;
-		Console.WriteLine($"[Registry] Registered lobby {lobbyId} for map {req.Map} {mapVersion} at {hostIp}:{hostPort} behind {reportedNatType} NAT");
+		Console.WriteLine($"[Registry] Registered lobby {lobbyId} for map {req.Map} {mapVersion} at {hostIp}:{hostPort} behind {reportedNatType} NAT, {reachabilityClass} (measured port {probeReport.ObservedPort}, mapping {req.MappingBehaviour ?? "unknown"})");
 
 		return Results.Ok(new { LobbyId = lobbyId, Latitude = hostCoords.lat, Longitude = hostCoords.lon, HostToken = hostToken });
 	});
@@ -421,7 +462,7 @@ public static class LobbyEndpoints
 			// connection attempt holds instead, because only this node can see the endpoint that attempt arrives from.
 			if (req.ClientPublicPort > 0) await RelayPunchAsync(hostSocket, lobby.LobbyId, clientIp, req.ClientPublicPort);
 
-			return Results.Ok(new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token));
+			return Results.Ok(new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token, lobby.ReachabilityClass));
 		}
 		else
 		{
@@ -461,6 +502,12 @@ public static class LobbyEndpoints
 	});
 
 
+	app.MapGet($"{JoinerPunchRoutes.State}/{{token}}", (string token) =>
+	{
+		JoinerPunchRelay.JoinPunchState state = joinerRelay.ReadState(token);
+		return Results.Ok(new { Reported = state.Reported, Punched = state.Punched });
+	});
+
 	app.MapPost("/lobbies/punch", async (PunchRequest req, LobbyRegistry registry, HttpContext context) =>
 	{
 		if (!registry.TryGet(req.LobbyId, out var lobby) || lobby == null) return Results.NotFound(new { Message = "Lobby not found" });
@@ -495,6 +542,10 @@ public static class LobbyEndpoints
 				if (result.MessageType == WebSocketMessageType.Close)
 				{
 					await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+				}
+				else if (result.MessageType == WebSocketMessageType.Text)
+				{
+					ReadHostMessage(Encoding.UTF8.GetString(buffer, 0, result.Count), joinerRelay);
 				}
 			}
 

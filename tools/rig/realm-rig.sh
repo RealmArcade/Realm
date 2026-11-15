@@ -10,9 +10,10 @@
 #   realm-rig.sh up             build the namespaces and their NATs
 #   realm-rig.sh down           remove them
 #   realm-rig.sh status         print each namespace's addresses and NAT mode
-#   realm-rig.sh mapping reuse|random
-#                               choose whether a router keeps one external port per destination (reuse, the cone case)
-#                               or makes a new one per destination (random, the carrier-grade and VPN case)
+#   realm-rig.sh mapping reuse|per-destination
+#                               choose whether a router gives the game port one stable external port for every destination
+#                               (reuse, which is what a home router does) or makes a new one per destination
+#                               (per-destination, which is the carrier-grade and VPN case no punch can rescue)
 #   realm-rig.sh host <cmd...>  run a command inside the host's namespace
 #   realm-rig.sh player <cmd...>    run a command inside the player's namespace
 #   realm-rig.sh public <cmd...>    run a command inside the registry namespace
@@ -34,6 +35,7 @@ PLAYER_ROUTER_NS=realm-player-router
 HOST_NS=realm-host
 PLAYER_NS=realm-player
 MODE_FILE=/tmp/realm-rig-mapping
+GAME_PORT=${REALM_RIG_GAME_PORT:-8999}
 
 require_root() {
 	if [[ $(id -u) -ne 0 ]]; then
@@ -65,13 +67,39 @@ link_pair() {
 }
 
 configure_router() {
-	local ns=$1 wan=$2 lan=$3
+	local ns=$1 wan=$2 lan=$3 nat_argument=$4
 
 	ip -n "$ns" link set lo up
 	ip netns exec "$ns" sysctl -qw net.ipv4.ip_forward=1
-	ip netns exec "$ns" iptables -t nat -A POSTROUTING -o "$wan" -j MASQUERADE $4
+	ip netns exec "$ns" iptables -t nat -A POSTROUTING -o "$wan" -j MASQUERADE $nat_argument
+
+	# The policy is DROP rather than the chain's default ACCEPT, because a forwarded packet that no rule names is exactly
+	# the unsolicited traffic a router drops: without this every inbound packet the mapping translated would be delivered
+	# and the rig would report an open game port on a router that never opened one.
+	ip netns exec "$ns" iptables -P FORWARD DROP
 	ip netns exec "$ns" iptables -A FORWARD -i "$lan" -o "$wan" -j ACCEPT
 	ip netns exec "$ns" iptables -A FORWARD -i "$wan" -o "$lan" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+}
+
+# A real home router keeps one mapping per internal port, so the game port answers from the same external port whatever it
+# is talking to, and it drops unsolicited traffic until the machine behind it has sent toward the sender. Linux netfilter
+# does neither by itself: an unsolicited inbound packet creates connection state that then takes the external port the
+# machine's own next flow would have been given, and its mapping is per destination. A static mapping for the game port,
+# with the forward that only lets related traffic through, is the same arrangement a router with a port-preserving mapping
+# and a filtered outside face presents to the internet, which is the case a punch exists for. Without this the rig is
+# harsher than any router a player owns: two ends behind it disagree about the port on every join, and the punch is blamed
+# for the simulator's own bookkeeping.
+configure_stable_mapping() {
+	local ns=$1 wan=$2 lan_ip=$3 wan_ip=$4 port=$5
+
+	ip netns exec "$ns" iptables -t nat -I POSTROUTING 1 -o "$wan" -p udp -s "$lan_ip" --sport "$port" -j SNAT --to-source "${wan_ip}:${port}"
+	ip netns exec "$ns" iptables -t nat -A PREROUTING -i "$wan" -p udp -d "$wan_ip" --dport "$port" -j DNAT --to-destination "${lan_ip}:${port}"
+}
+
+forward_game_port() {
+	local ns=$1 wan=$2 lan=$3 port=$4
+
+	ip netns exec "$ns" iptables -I FORWARD 1 -i "$wan" -o "$lan" -p udp --dport "$port" -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT
 }
 
 up() {
@@ -98,11 +126,22 @@ up() {
 	link_pair "$HOST_ROUTER_NS" lan-host "${HOST_LAN}.1" "$HOST_NS" eth0 "${HOST_LAN}.2" 24
 	link_pair "$PLAYER_ROUTER_NS" lan-player "${PLAYER_LAN}.1" "$PLAYER_NS" eth0 "${PLAYER_LAN}.2" 24
 
+	local mapping_mode=reuse
+	if [[ -f $MODE_FILE ]]; then mapping_mode=$(cat "$MODE_FILE"); fi
+	if [[ $mapping_mode != reuse && $mapping_mode != per-destination ]]; then mapping_mode=reuse; fi
+
 	local nat_argument=""
-	if [[ -f $MODE_FILE && $(cat "$MODE_FILE") == random ]]; then nat_argument="--random"; fi
+	if [[ $mapping_mode == per-destination ]]; then nat_argument="--random"; fi
 
 	configure_router "$HOST_ROUTER_NS" wan-host lan-host "$nat_argument"
 	configure_router "$PLAYER_ROUTER_NS" wan-player lan-player "$nat_argument"
+
+	if [[ $mapping_mode == reuse ]]; then
+		configure_stable_mapping "$HOST_ROUTER_NS" wan-host "${HOST_LAN}.2" "$HOST_ROUTER" "$GAME_PORT"
+	fi
+	if [[ ${REALM_RIG_FORWARD_GAME_PORT:-0} == 1 ]]; then
+		forward_game_port "$HOST_ROUTER_NS" wan-host lan-host "$GAME_PORT"
+	fi
 
 	for ns in "$HOST_NS" "$PLAYER_NS"; do
 		ip -n "$ns" link set lo up
@@ -136,8 +175,9 @@ status() {
 mapping() {
 	require_root
 	local mode=${1:-reuse}
-	if [[ $mode != reuse && $mode != random ]]; then
-		echo "mapping takes 'reuse' or 'random'" >&2
+	if [[ $mode == random ]]; then mode=per-destination; fi
+	if [[ $mode != reuse && $mode != per-destination ]]; then
+		echo "mapping takes 'reuse' or 'per-destination'" >&2
 		exit 1
 	fi
 
@@ -191,7 +231,7 @@ case "${1:-}" in
 	player) shift; run_in "$PLAYER_NS" "$@" ;;
 	public) shift; run_in "$PUBLIC_NS" "$@" ;;
 	*)
-		echo "usage: $0 up|down|status|wrapper on|off|mapping reuse|random|host <cmd>|player <cmd>|public <cmd>" >&2
+		echo "usage: $0 up|down|status|wrapper on|off|mapping reuse|per-destination|host <cmd>|player <cmd>|public <cmd>" >&2
 		exit 1
 		;;
 esac

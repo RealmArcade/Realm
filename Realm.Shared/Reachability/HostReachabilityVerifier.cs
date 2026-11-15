@@ -34,12 +34,28 @@ public enum HostReachabilityFailure
 }
 
 /// <summary>
-///     The outcome of rehearsing a join against a registry node. A verified lobby states the endpoint the registry measured,
-///     which is the address a peer on the public internet must use; a refused one states what could not be shown.
+///     The outcome of rehearsing a join against a registry node. A verified lobby states the endpoint a peer on the public
+///     internet must use, which is this machine's public address with the port the lobby's transport holds: the external
+///     port a check observed belongs to one router mapping for one destination and is not the port a joining player should
+///     be sent to. The class and the mapping behaviour are what the check measured, and they are what the advice to the host
+///     follows from.
 /// </summary>
 public record HostReachabilityResult(HostReachabilityFailure Failure, string ProbeId, string PublicIp, int PublicPort, string Detail)
 {
 	public bool Verified => Failure == HostReachabilityFailure.None;
+
+	/// <summary>
+	///     The port the check observed the game port answering from. It equals <see cref="PublicPort" /> when the router reuses
+	///     one external port for every destination, and differs when it makes one per destination, which is what
+	///     <see cref="MappingBehaviour" /> states.
+	/// </summary>
+	public int ObservedPort { get; init; }
+
+	/// <summary>How reachable the game port was shown to be: open, punch-only, or unverified.</summary>
+	public string ReachabilityClass { get; init; } = ReachabilityClasses.Unverified;
+
+	/// <summary>Whether the router reused one external port for the destinations that were measured, or made one per destination.</summary>
+	public string MappingBehaviour { get; init; } = MappingBehaviours.Unknown;
 
 	/// <summary>
 	///     The endpoint the rehearsal punched, which is the endpoint the host's router made a mapping toward. A router keeps
@@ -130,8 +146,13 @@ public class HostReachabilityVerifier
 	{
 		string observedIp = string.IsNullOrEmpty(report.ObservedIp) ? advertisedIp : report.ObservedIp;
 		int observedPort = report.ObservedPort > 0 ? report.ObservedPort : advertisedPort;
-		return new HostReachabilityResult(HostReachabilityFailure.None, probeId, observedIp, observedPort, $"the registry node reached the game port and measured the public endpoint {observedIp}:{observedPort}")
+		string reachabilityClass = ReachabilityClasses.FromReport(report);
+		string mappingBehaviour = MappingBehaviours.FromMeasurement(observedPort, advertisedPort);
+		return new HostReachabilityResult(HostReachabilityFailure.None, probeId, observedIp, advertisedPort, $"the registry node reached the game port and measured the public endpoint {observedIp}:{observedPort} ({reachabilityClass}, mapping {mappingBehaviour})")
 		{
+			ObservedPort = observedPort,
+			ReachabilityClass = reachabilityClass,
+			MappingBehaviour = mappingBehaviour,
 			ProbeIp = probeAddress,
 			ProbePort = probePort
 		};

@@ -24,4 +24,13 @@ public class LobbyInfo
 	public int? LocalPort { get; set; }
 	public long MapSizeBytes { get; set; }
 	public bool IsGameInProgress { get; set; }
+
+	/// <summary>How reachable the lobby's game port was shown to be by the node that measured it: open, punch-only or unverified.</summary>
+	public string? ReachabilityClass { get; set; }
+
+	/// <summary>Whether the host's router reused one external port for every destination or made one per destination.</summary>
+	public string? MappingBehaviour { get; set; }
+
+	/// <summary>The external port the measuring node saw the game port answer from, which is not the port a player is sent to.</summary>
+	public int ObservedPort { get; set; }
 }

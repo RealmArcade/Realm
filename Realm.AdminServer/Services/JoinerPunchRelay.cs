@@ -109,6 +109,23 @@ public class JoinerPunchRelay : IDisposable
 		return new JoinerPunchTicket(string.Empty, Port, token);
 	}
 
+	/// <summary>
+	///     Records that the lobby's host has sent the punch a join's report asked for. A joining screen waits for this before
+	///     its socket sends anything toward the lobby, because the punch has to reach the host's router first: a player's
+	///     packet that arrives before it takes the port the punch would have used, and the punch is then translated to a port
+	///     no player knows.
+	/// </summary>
+	/// <param name="token">The join the punch was for.</param>
+	/// <returns>Whether a join of that name was waiting for a punch.</returns>
+	public bool AcknowledgePunch(string token)
+	{
+		if (string.IsNullOrEmpty(token) || !_pending.TryGetValue(token, out PendingJoin? join)) return false;
+
+		join.PunchAcknowledged = true;
+		_log($"join {token} of lobby {join.LobbyId} was punched by its host");
+		return true;
+	}
+
 	/// <summary>Forgets a join's token once its lobby is closed, so a token cannot outlive the join it belongs to.</summary>
 	/// <param name="lobbyId">The lobby that is no longer open.</param>
 	public void Forget(string lobbyId)
@@ -175,7 +192,9 @@ public class JoinerPunchRelay : IDisposable
 			string address = observed.Address.IsIPv4MappedToIPv6 ? observed.Address.MapToIPv4().ToString() : observed.Address.ToString();
 			_log($"join {token} of lobby {join.LobbyId} reported itself from {address}:{observed.Port}");
 
-			await DeliverPunchAsync(join.LobbyId, address, observed.Port).ConfigureAwait(false);
+			join.Reported = true;
+
+			await DeliverPunchAsync(join.LobbyId, token, address, observed.Port).ConfigureAwait(false);
 		}
 	}
 
@@ -183,13 +202,13 @@ public class JoinerPunchRelay : IDisposable
 	///     Tells the lobby's host where the joining player is. The host is reached over its own signalling channel when this
 	///     node holds it, and through the node that does when this node is only relaying the join for another one.
 	/// </summary>
-	private async Task DeliverPunchAsync(string lobbyId, string address, int port)
+	private async Task DeliverPunchAsync(string lobbyId, string token, string address, int port)
 	{
 		if (_hostConnections.TryGetValue(lobbyId, out WebSocket? hostSocket) && hostSocket.State == WebSocketState.Open)
 		{
 			try
 			{
-				var message = JsonSerializer.Serialize(new { Action = "Punch", ClientIP = address, ClientPort = port });
+				var message = JsonSerializer.Serialize(new { Action = "Punch", Token = token, ClientIP = address, ClientPort = port });
 				byte[] bytes = Encoding.UTF8.GetBytes(message);
 				await hostSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
 				return;
@@ -209,7 +228,7 @@ public class JoinerPunchRelay : IDisposable
 
 		try
 		{
-			var content = new StringContent(JsonSerializer.Serialize(new { LobbyId = lobbyId, ClientIP = address, ClientPort = port }), Encoding.UTF8, "application/json");
+			var content = new StringContent(JsonSerializer.Serialize(new { LobbyId = lobbyId, Token = token, ClientIP = address, ClientPort = port }), Encoding.UTF8, "application/json");
 			using HttpResponseMessage response = await OriginClient.PostAsync($"{originUri.TrimEnd('/')}/lobbies/punch", content).ConfigureAwait(false);
 			if (!response.IsSuccessStatusCode) _log($"the punch for lobby {lobbyId} was refused by {originUri}: {response.StatusCode}");
 		}
@@ -219,5 +238,34 @@ public class JoinerPunchRelay : IDisposable
 		}
 	}
 
-	private readonly record struct PendingJoin(string LobbyId, long ExpiresAtMilliseconds);
+	private class PendingJoin
+	{
+		public PendingJoin(string lobbyId, long expiresAtMilliseconds)
+		{
+			LobbyId = lobbyId;
+			ExpiresAtMilliseconds = expiresAtMilliseconds;
+		}
+
+		public string LobbyId { get; }
+
+		public long ExpiresAtMilliseconds { get; }
+
+		public volatile bool Reported;
+
+		public volatile bool PunchAcknowledged;
+	}
+
+	/// <summary>What a joining screen is told about the report it sent: whether it arrived, and whether the host has punched it.</summary>
+	/// <param name="Reported">Whether this node saw the screen's report arrive.</param>
+	/// <param name="Punched">Whether the lobby's host has stated that it sent the punch the report asked for.</param>
+	public readonly record struct JoinPunchState(bool Reported, bool Punched);
+
+	/// <summary>Reads a join's punch state, which is what a joining screen waits on before it sends anything toward the lobby.</summary>
+	/// <param name="token">The join the screen reported itself for.</param>
+	/// <returns>The state of the report and of the punch, or an unknown join's empty state.</returns>
+	public JoinPunchState ReadState(string token)
+	{
+		if (string.IsNullOrEmpty(token) || !_pending.TryGetValue(token, out PendingJoin? join)) return default;
+		return new JoinPunchState(join.Reported, join.PunchAcknowledged);
+	}
 }
