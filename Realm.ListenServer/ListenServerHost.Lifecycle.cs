@@ -166,6 +166,7 @@ public partial class ListenServerHost
 	{
 		if (string.IsNullOrEmpty(probeId))
 		{
+			_log.Write($"sending a punch from the game port to {address}:{port}");
 			_transport.SendToAddress(address, port, ReachabilityPunch.Datagram);
 			return;
 		}
