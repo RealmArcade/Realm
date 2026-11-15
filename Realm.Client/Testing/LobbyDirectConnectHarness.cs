@@ -125,6 +125,9 @@ public partial class LobbyDirectConnectHarness : Node
 				case "--lobby-file":
 					_lobbyFile = value;
 					break;
+				case "--allow-local-registry":
+					_allowLocalRegistry = value == "1";
+					break;
 				case "--expect":
 					_expectedFamily = value;
 					break;
@@ -147,6 +150,8 @@ public partial class LobbyDirectConnectHarness : Node
 
 		if (_deadRegistry) PointTheRegistryAtAnUnreachableServer(lobby);
 		else if (_liveRegistryUrl.Length > 0) PointTheRegistryAt(lobby, _liveRegistryUrl);
+
+		lobby.AllowNonPublicEndpointForDevelopment = _allowLocalRegistry;
 
 		bool opened = _hostMode switch
 		{

@@ -284,6 +284,16 @@ public partial class LobbyManager : BaseMapTransferNode
 	public LobbyAddressFamily JoinedLobbyFamily { get; private set; } = LobbyAddressFamily.Unknown;
 
 	/// <summary>
+	///     Whether this screen accepts an endpoint inside its own network as publishable, which is set only by a development
+	///     harness that puts the lobby server on the machine it is hosting from. A node that serves players states the same
+	///     thing about itself in its capabilities (<see cref="Realm.Shared.Reachability.RegistryCapabilities.AllowsLocalCallers" />),
+	///     which is the path a real host takes; this one exists because a node built before that statement existed cannot
+	///     make it, and the old-node rig has to publish through exactly such a node.
+	/// </summary>
+	/// </summary>
+	public bool AllowNonPublicEndpointForDevelopment { get; set; }
+
+	/// <summary>
 	///     Whether this machine holds a global IPv6 address, which is the only thing that lets it reach a lobby published
 	///     over IPv6. It is read when a lobby is joined and never on a match tick.
 	/// </summary>

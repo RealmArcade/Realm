@@ -439,7 +439,7 @@ public partial class LobbyManager
 				publicLobby: true,
 				LoopbackJoinOutcome.Answered,
 				reachability.Verified.Count > 0 ? HostReachabilityFailure.None : DescribeReachabilityRefusal(RegistryServerUrl, reachability).Failure,
-				reachability.AllowsLocalCallers || reachability.Verified.Exists(endpoint => ReachabilityAddresses.IsPubliclyRoutable(endpoint.DialAddress)),
+				reachability.AllowsLocalCallers || AllowNonPublicEndpointForDevelopment || reachability.Verified.Exists(endpoint => ReachabilityAddresses.IsPubliclyRoutable(endpoint.DialAddress)),
 				MappingBehaviour);
 			if (decision != HostReachabilityFailure.None)
 			{

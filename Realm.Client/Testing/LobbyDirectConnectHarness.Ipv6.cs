@@ -35,6 +35,9 @@ public partial class LobbyDirectConnectHarness
 
 	private string _lobbyFile = string.Empty;
 
+	/// <summary>Whether the registry this run publishes through is a development node on this machine, which cannot be public.</summary>
+	private bool _allowLocalRegistry;
+
 	/// <summary>The outcome the browser-path guest has to show: a family name, or "mismatch".</summary>
 	private string _expectedFamily = string.Empty;
 

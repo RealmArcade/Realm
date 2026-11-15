@@ -87,7 +87,7 @@ public partial class LobbyDirectConnectHarness
 		string lobbyFile = Path.Combine(outputDirectory, "old-host.lobby");
 		string hostDone = Path.Combine(outputDirectory, "old-host.done");
 
-		Process host = StartChild(projectDirectory, ["--role=host", "--mode=listed", $"--registry={registryUrl}", $"--map={_mapFolder}", $"--invite-file={inviteFile}", $"--lobby-file={lobbyFile}", $"--done-file={hostDone}", "--wait-seconds=120"], "0");
+		Process host = StartChild(projectDirectory, ["--role=host", "--mode=listed", "--allow-local-registry=1", $"--registry={registryUrl}", $"--map={_mapFolder}", $"--invite-file={inviteFile}", $"--lobby-file={lobbyFile}", $"--done-file={hostDone}", "--wait-seconds=120"], "0");
 		try
 		{
 			if (!await WaitForFileAsync(lobbyFile, 240))
