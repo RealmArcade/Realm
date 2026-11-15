@@ -88,8 +88,10 @@ public partial class ConnectivityHelpDialog : Control
 	public override void _ExitTree()
 	{
 		_closed = true;
+
+		// The source is cancelled rather than disposed: a reading that is still in flight builds a token linked to this one,
+		// and a source disposed under it turns an ordinary cancellation into an exception nobody asked for.
 		_cancellation.Cancel();
-		_cancellation.Dispose();
 		base._ExitTree();
 	}
 
@@ -601,6 +603,10 @@ public partial class ConnectivityHelpDialog : Control
 		catch (OperationCanceledException)
 		{
 		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[ConnectivityHelp] The full connectivity check could not run: {exception.GetType().Name}: {exception.Message}");
+		}
 		finally
 		{
 			_running = false;
@@ -625,6 +631,10 @@ public partial class ConnectivityHelpDialog : Control
 		}
 		catch (OperationCanceledException)
 		{
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[ConnectivityHelp] The check for '{issue}' could not run: {exception.GetType().Name}: {exception.Message}");
 		}
 		finally
 		{

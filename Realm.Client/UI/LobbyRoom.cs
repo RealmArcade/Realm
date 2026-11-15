@@ -134,7 +134,14 @@ public partial class LobbyRoom : Control
 		_lobbyFamiliesHint = GetNode<Label>("LobbyFamiliesHint");
 		UpdateLobbyFamiliesHint();
 		ApplyInviteVisibility();
-		if (Lobby.IsHost) CreateHostNetworkButtons();
+		if (Lobby.IsHost)
+		{
+			CreateHostNetworkButtons();
+
+			// A lobby that could not be shown reachable stays open to the players it is given the address to, so the host is
+			// told what to change at the moment the listing was refused rather than after somebody has failed to get in.
+			Lobby.LobbyPublicationRefused += ShowConnectivityHelp;
+		}
 
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");
@@ -481,6 +488,7 @@ public partial class LobbyRoom : Control
 			Lobby.CountdownCancelled -= OnCountdownCancelled;
 			Lobby.CountdownFinished -= OnCountdownFinished;
 			Lobby.HostStabilityUpdated -= UpdateHostStabilityLabel;
+			Lobby.LobbyPublicationRefused -= ShowConnectivityHelp;
 			Lobby.ActiveMapChanged -= OnActiveMapChanged;
 			Lobby.StartWarningReceived -= OnStartWarningReceived;
 		}

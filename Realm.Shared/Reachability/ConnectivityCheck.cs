@@ -134,6 +134,8 @@ public static class ConnectivityCheck
 		if (facts.Audience == ConnectivityAudience.Hosting)
 		{
 			int port = facts.ListedPort > 0 ? facts.ListedPort : facts.PreferredPort;
+			if (facts.HostFailure == HostReachabilityFailure.None) return new ConnectivityLikelyCause(ConnectivitySentences.LikelyHostNothingFailed, null);
+
 			return facts.HostFailure switch
 			{
 				HostReachabilityFailure.ProbeUnanswered => new ConnectivityLikelyCause(ConnectivitySentences.LikelyHostProbeUnanswered, port),
@@ -145,6 +147,14 @@ public static class ConnectivityCheck
 				HostReachabilityFailure.RegistryUnreachable or HostReachabilityFailure.ProbeSocketUnknown => new ConnectivityLikelyCause(ConnectivitySentences.LikelyHostRegistry, null),
 				_ => new ConnectivityLikelyCause(ConnectivitySentences.LikelyHostProbeUnanswered, port)
 			};
+		}
+
+		// A join that failed at a step the network is not part of - a lobby that refused this seat, an authority that
+		// admitted this screen and said nothing more - is not a network failure, and a screen that never recorded a step at
+		// all has nothing measured to name. Both say so instead of naming a cause nobody observed.
+		if (!JoinPhases.IsKnown(facts.JoinPhase) || facts.JoinPhase is JoinPhases.Admission or JoinPhases.Session)
+		{
+			return new ConnectivityLikelyCause(ConnectivitySentences.LikelyJoinNothingMeasured, null);
 		}
 
 		return facts.JoinPhase switch

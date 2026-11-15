@@ -118,6 +118,12 @@ public static class ConnectivitySentences
 	/// <summary>The report a host reads when the lobby server reached it from inside its own network.</summary>
 	public const string LikelyHostOwnNetwork = "The lobby server reached this computer from inside its own network, which proves nothing about players anywhere else.";
 
+	/// <summary>The report a host reads when nothing has failed, which is the case when the help is opened from a working lobby.</summary>
+	public const string LikelyHostNothingFailed = "The lobby server measured this lobby as reachable and nothing has failed since, so a player who cannot get in is more likely blocked by their own network.";
+
+	/// <summary>The report a joining screen reads when no join has failed yet on this screen.</summary>
+	public const string LikelyJoinNothingMeasured = "This screen has not recorded which step of a join failed, so read the causes below and check the ones that match what you see.";
+
 	/// <summary>The report a joining screen reads when the lobby server could not be resolved through.</summary>
 	public const string LikelyJoinRegistry = "The lobby server could not be reached, so this lobby could not be found or reached at all.";
 

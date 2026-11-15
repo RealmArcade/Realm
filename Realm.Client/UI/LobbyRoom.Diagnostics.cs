@@ -25,6 +25,7 @@ public partial class LobbyRoom
 	private Button? _diagnosticsButton;
 	private Label? _diagnosticsFeedback;
 	private Button? _helpPlayersJoinButton;
+	private ConnectivityHelpDialog? _connectivityHelpDialog;
 
 	/// <summary>
 	///     Puts the two buttons a host needs beside the invite button the lobby already offers, so the host of a listed lobby
@@ -67,11 +68,19 @@ public partial class LobbyRoom
 	private void OpenConnectivityHelp()
 	{
 		GameContext.UserInterface?.PlayClickSound();
+		ShowConnectivityHelp();
+	}
+
+	private void ShowConnectivityHelp()
+	{
+		CloseConnectivityHelp();
 
 		bool localSeatFailure = Lobby.LastHostFailure is { Failure: HostReachabilityFailure.LoopbackUnanswered or HostReachabilityFailure.LoopbackNotOnLocalAddress };
 
 		var dialog = new ConnectivityHelpDialog { Name = "LobbyRoomConnectivityHelpDialog" };
 		AddChild(dialog);
+		_connectivityHelpDialog = dialog;
+		dialog.Closed += CloseConnectivityHelp;
 		dialog.Open(new ConnectivityHelpRequest
 		{
 			Audience = ConnectivityAudience.Hosting,
@@ -82,6 +91,18 @@ public partial class LobbyRoom
 			DiagnosticsBlock = Lobby.DescribeNetworkDiagnostics,
 			PlayerJoinFailure = () => Lobby.LastPlayerJoinFailure
 		});
+	}
+
+	/// <summary>
+	///     Frees the help dialog this room opened, whether the host closed it or a new measurement replaced it. A dialog left
+	///     detached would hold the references its labels were registered with and keep redrawing text nobody can see.
+	/// </summary>
+	private void CloseConnectivityHelp()
+	{
+		if (_connectivityHelpDialog == null) return;
+
+		if (IsInstanceValid(_connectivityHelpDialog)) _connectivityHelpDialog.QueueFree();
+		_connectivityHelpDialog = null;
 	}
 
 	/// <summary>

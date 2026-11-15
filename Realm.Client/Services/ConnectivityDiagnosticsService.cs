@@ -30,6 +30,12 @@ public class ConnectivityDiagnosticsService
 	/// <summary>How long one reading is reused, which is long enough for a reader to work through the list.</summary>
 	private const int ReadingLifetimeMilliseconds = 20_000;
 
+	/// <summary>
+	///     One client for every probe, so a dialog opened and reopened does not leak a connection pool per press. The timeout
+	///     is per question rather than on the client, because one question is all a probe ever asks.
+	/// </summary>
+	private static readonly HttpClient LobbyServerProbeClient = new() { Timeout = Timeout.InfiniteTimeSpan };
+
 	private ConnectivityFacts _reading;
 
 	private ConnectivityAudience _readingAudience;
@@ -170,8 +176,7 @@ public class ConnectivityDiagnosticsService
 		{
 			using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 			timeout.CancelAfter(LobbyServerProbeTimeoutMilliseconds);
-			using var client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-			using HttpResponseMessage response = await client.GetAsync($"{registryServerUrl.TrimEnd('/')}/lobbies", timeout.Token).ConfigureAwait(false);
+			using HttpResponseMessage response = await LobbyServerProbeClient.GetAsync($"{registryServerUrl.TrimEnd('/')}/lobbies", timeout.Token).ConfigureAwait(false);
 			return response.IsSuccessStatusCode || (int)response.StatusCode < 500;
 		}
 		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or OperationCanceledException or NotSupportedException or UriFormatException)
@@ -182,9 +187,10 @@ public class ConnectivityDiagnosticsService
 	}
 
 	/// <summary>
-	///     Whether something other than this game holds the port a lobby is normally listed at. A lobby that had to take the
-	///     port the system chose is a lobby nobody told where to connect, so the answer is worth reading before any router is
-	///     looked at. The game's own socket is not counted against itself.
+	///     Whether something other than this game holds the port a lobby is normally listed at. Two things say so, and the
+	///     first is the stronger: a lobby that is listening on any other port already states that the named port was refused,
+	///     and a machine that is not hosting at all is asked by trying to hold the port itself. The game's own socket is never
+	///     counted against it.
 	/// </summary>
 	/// <param name="lobby">The lobby this screen holds, when it holds one.</param>
 	/// <param name="preferredPort">The port a lobby is normally listed at.</param>
@@ -192,6 +198,10 @@ public class ConnectivityDiagnosticsService
 	private static bool IsPreferredPortHeldByAnotherProgram(LobbyManager? lobby, int preferredPort)
 	{
 		if (preferredPort <= 0) return false;
+
+		// The lobby states this itself: it asks for the named port first and takes the system's choice only after that was
+		// refused, so a lobby on any other port is a lobby whose port another program was holding at the time.
+		if (lobby is { LobbyPort: > 0 } && lobby.LobbyPort != preferredPort) return true;
 		if (lobby != null && lobby.BoundPort == preferredPort) return false;
 
 		try
