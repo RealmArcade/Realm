@@ -191,8 +191,9 @@ public partial class LobbyManager
 		_isConnectedToHost = true;
 
 		// The family a lobby was reached over is stated once it answered, which is the line that says a dual-stack path
-		// worked without a packet capture. An IPv4 join says nothing here, because it never had to.
-		if (JoinedLobbyFamily != LobbyAddressFamily.IPv4)
+		// worked without a packet capture. Only IPv6 says anything: an IPv4 join, and a host name this machine resolved
+		// itself, read exactly the log they always have.
+		if (JoinedLobbyFamily == LobbyAddressFamily.IPv6)
 		{
 			GameLog.LogToConsole($"[LobbyManager] Joined {LobbyAddresses.Describe(connectIp, connectPort)} over {LobbyAddresses.FamilyName(JoinedLobbyFamily)} with this lobby's network address needing no router forward and no hole punch.");
 		}
