@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Services;
@@ -7,13 +7,28 @@ namespace Realm.Client.Network;
 
 public class UpnpService
 {
+	private static readonly TimeSpan GatewayDiscoveryBudget = TimeSpan.FromSeconds(5);
+
 	private Upnp? _upnp;
 	public bool IsPortMapped { get; private set; }
 
 	public async Task<bool> OpenPortAsync(int port)
 	{
-		return await Task.Run(() =>
+		Task<bool> mapping = Task.Run(() => MapPortOrReport(port));
+
+		try
 		{
+			return await mapping.WaitAsync(GatewayDiscoveryBudget);
+		}
+		catch (TimeoutException)
+		{
+			GameLog.LogToConsole($"[UpnpService] No router answered a gateway search within {GatewayDiscoveryBudget.TotalSeconds:0} s, so UDP port {port} is opened without a mapping.");
+			return false;
+		}
+	}
+
+	private bool MapPortOrReport(int port)
+	{
 			try
 			{
 				_upnp = new Upnp();
@@ -47,7 +62,6 @@ public class UpnpService
 				GameLog.LogError($"[UpnpService] Error mapping port: {ex.Message}");
 				return false;
 			}
-		});
 	}
 
 	/// <summary>
