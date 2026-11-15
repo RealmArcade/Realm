@@ -31,6 +31,9 @@ public static class ConnectivitySentences
 	/// <summary>The line shown while one cause is being checked.</summary>
 	public const string CheckingOneCause = "Checking this one cause ...";
 
+	/// <summary>The report a host reads when Windows holds no allowance for the program at all.</summary>
+	public const string HostFirewallRuleAbsent = "Windows holds no allowance for this program, so nothing there is letting the game's port in.";
+
 	/// <summary>The caption above the one line that names what the game measured.</summary>
 	public const string LikelyCauseCaption = "LIKELY CAUSE";
 
@@ -238,11 +241,12 @@ public static class ConnectivitySentences
 
 	// Diagnosis: what one issue's check found, per issue and verdict.
 	public const string HostRouterConfirmed = "The last attempt measured this: the lobby server sent toward the game port from outside and nothing answered.";
-	public const string HostRouterInconclusive = "The game cannot test your router without hosting a lobby, and the last attempt did not measure the game port at all.";
+	public const string HostRouterInconclusive = "Nothing in the last attempt reached the game port from outside, so the game cannot say whether a path in exists.";
 	public const string HostRouterRuledOut = "The lobby server reached UDP port {0} from outside, so a path in exists.";
 
 	public const string HostPerDestinationConfirmed = "The lobby server saw the game port from two different outside ports, so the router gives every player a port of their own.";
 	public const string HostPerDestinationInconclusive = "The lobby server reached the game port but its second check never arrived, so whether every player is given the same outside port was not measured.";
+	public const string HostPerDestinationUnmeasured = "The last attempt did not measure an outside port for this lobby, so whether your router keeps one for every player is unknown.";
 	public const string HostPerDestinationRuledOut = "The lobby server measured one outside port for every player it checked.";
 
 	public const string HostFirewallDeclined = "You dismissed the Windows prompt, so the port stayed closed for the last attempt.";
@@ -277,12 +281,15 @@ public static class ConnectivitySentences
 	public const string LobbyServerRegistryConfirmed = "The lobby server could not be reached from this computer.";
 	public const string LobbyServerOwnNetworkConfirmed = "The lobby server reached this computer from inside its own network, so its answer describes that network and no other.";
 	public const string LobbyServerFamilyConfirmed = "The lobby server has no socket in the address family this lobby is offered at, so it could not check the port at all.";
-	public const string LobbyServerRuledOut = "The lobby server answered and measured this lobby from outside this network.";
+	public const string LobbyServerRuledOut = "The lobby server answered this computer, so it is not what stopped the lobby from being listed.";
+	public const string JoinLobbyServerRuledOut = "The lobby server answered this computer, so it is not what stopped the join.";
 	public const string LobbyServerUnprobed = "The game could not ask the lobby server, so nothing can be said about it.";
 
 	public const string JoinRestrictiveConfirmed = "The lobby server could not be reached from this network.";
 	public const string JoinRestrictiveHostSide = "The lobby server answered this network, so this join failed after it, which points at the host's side.";
-	public const string JoinRestrictiveUnprobed = "The game could not ask the lobby server, so nothing can be said about this network.";
+	public const string JoinRestrictiveOwnSide = "The lobby server answered this computer, but the join failed while reporting where this screen is, which is this network's doing.";
+	public const string JoinRestrictiveReached = "The lobby answered this screen, so this network is not what stopped the join.";
+	public const string JoinRestrictiveUnprobed = "The game did not measure this network, so nothing can be said about whether it is blocking the join.";
 
 	public const string JoinFirewallInconclusive = "The game has no test for security software on a joining screen, so this has to be checked by hand.";
 

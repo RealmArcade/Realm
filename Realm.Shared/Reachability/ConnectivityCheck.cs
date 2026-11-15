@@ -152,10 +152,8 @@ public static class ConnectivityCheck
 		// A join that failed at a step the network is not part of - a lobby that refused this seat, an authority that
 		// admitted this screen and said nothing more - is not a network failure, and a screen that never recorded a step at
 		// all has nothing measured to name. Both say so instead of naming a cause nobody observed.
-		if (!JoinPhases.IsKnown(facts.JoinPhase) || facts.JoinPhase is JoinPhases.Admission or JoinPhases.Session)
-		{
-			return new ConnectivityLikelyCause(ConnectivitySentences.LikelyJoinNothingMeasured, null);
-		}
+		if (!JoinPhases.IsKnown(facts.JoinPhase)) return new ConnectivityLikelyCause(ConnectivitySentences.LikelyJoinNothingMeasured, null);
+		if (facts.JoinPhase is JoinPhases.Admission or JoinPhases.Session) return new ConnectivityLikelyCause(ConnectivitySentences.LikelyJoinRefused, null);
 
 		return facts.JoinPhase switch
 		{
@@ -230,6 +228,9 @@ public static class ConnectivityCheck
 		// A lobby is only measured once it exists: a failure of None with no lobby behind it is a screen that never hosted
 		// anything, and calling that a measured success would be the same guess in the other direction.
 		bool portWasMeasured = facts.ListedPort > 0 && facts.HostFailure is HostReachabilityFailure.None or HostReachabilityFailure.ProbeUnanswered or HostReachabilityFailure.MappingPerDestination or HostReachabilityFailure.MappingUnmeasured;
+		// A mapping is only measured by an attempt that reached the port from outside at least once: a probe nothing answered
+		// saw no outside port, and calling that a router that keeps one mapping would be the guess this dialog exists to stop.
+		bool outsidePortWasMeasured = facts.ListedPort > 0 && facts.HostFailure is HostReachabilityFailure.None or HostReachabilityFailure.MappingPerDestination;
 		OutsideAddressKind outsideAddress = OutsideAddresses.Classify(facts.MeasuredOutsideAddress);
 		int port = facts.ListedPort > 0 ? facts.ListedPort : facts.PreferredPort;
 		string outsideText = string.IsNullOrWhiteSpace(facts.MeasuredOutsideAddress) ? string.Empty : facts.MeasuredOutsideAddress.Trim();
@@ -240,8 +241,8 @@ public static class ConnectivityCheck
 				return facts.HostFailure switch
 				{
 					HostReachabilityFailure.ProbeUnanswered => Confirmed(issue, ConnectivitySentences.HostRouterConfirmed),
-					HostReachabilityFailure.MappingPerDestination => Confirmed(issue, ConnectivitySentences.HostPerDestinationConfirmed),
-					HostReachabilityFailure.MappingUnmeasured => Inconclusive(issue, ConnectivitySentences.HostRouterInconclusive),
+					// Both mapping failures were measured through a port that answered from outside, which is a path in.
+					HostReachabilityFailure.MappingPerDestination or HostReachabilityFailure.MappingUnmeasured => RuledOut(issue, ConnectivitySentences.HostRouterRuledOut, port),
 					HostReachabilityFailure.None => portWasMeasured ? RuledOut(issue, ConnectivitySentences.HostRouterRuledOut, port) : Inconclusive(issue, ConnectivitySentences.HostRouterInconclusive),
 					_ => Inconclusive(issue, ConnectivitySentences.HostRouterInconclusive)
 				};
@@ -249,15 +250,23 @@ public static class ConnectivityCheck
 			case ConnectivityIssue.OutsidePortChangesPerPlayer:
 				if (facts.HostFailure == HostReachabilityFailure.MappingPerDestination) return Confirmed(issue, ConnectivitySentences.HostPerDestinationConfirmed);
 				if (facts.HostFailure == HostReachabilityFailure.MappingUnmeasured) return Inconclusive(issue, ConnectivitySentences.HostPerDestinationInconclusive);
-				if (portWasMeasured) return RuledOut(issue, ConnectivitySentences.HostPerDestinationRuledOut);
-				return Inconclusive(issue, ConnectivitySentences.HostPerDestinationInconclusive);
+				if (outsidePortWasMeasured) return RuledOut(issue, ConnectivitySentences.HostPerDestinationRuledOut);
+				return Inconclusive(issue, ConnectivitySentences.HostPerDestinationUnmeasured);
 
 			case ConnectivityIssue.FirewallOrSecuritySoftware:
 				if (facts.FirewallGrant == WindowsFirewallGrant.Declined) return Confirmed(issue, ConnectivitySentences.HostFirewallDeclined);
-				if (facts.FirewallGrant == WindowsFirewallGrant.NotApplicable) return RuledOut(issue, ConnectivitySentences.HostFirewallNoWindows);
+				if (facts.FirewallGrant == WindowsFirewallGrant.NotApplicable) return Inconclusive(issue, ConnectivitySentences.HostFirewallNoWindows);
 				if (facts.FirewallRule == WindowsFirewallRuleState.Blocked) return Confirmed(issue, ConnectivitySentences.HostFirewallRuleBlocks);
 				if (facts.FirewallRule == WindowsFirewallRuleState.Disabled) return Confirmed(issue, ConnectivitySentences.HostFirewallRuleDisabled);
-				if (facts.FirewallRule == WindowsFirewallRuleState.Allowed) return RuledOut(issue, ConnectivitySentences.HostFirewallSecuritySoftwareUnknown);
+				if (facts.FirewallRule == WindowsFirewallRuleState.Absent) return Inconclusive(issue, ConnectivitySentences.HostFirewallRuleAbsent);
+				if (facts.FirewallRule == WindowsFirewallRuleState.Allowed)
+				{
+					// Windows holding an allowance says nothing about another security program, so it only rules the issue out when
+					// the port itself was reached from outside and an allow rule is what was found.
+					if (portWasMeasured && facts.HostFailure != HostReachabilityFailure.ProbeUnanswered) return RuledOut(issue, ConnectivitySentences.HostFirewallRuledOut);
+					return Inconclusive(issue, ConnectivitySentences.HostFirewallSecuritySoftwareUnknown);
+				}
+
 				return Inconclusive(issue, ConnectivitySentences.HostFirewallUnreadable);
 
 			case ConnectivityIssue.DoubleNat:
@@ -318,7 +327,12 @@ public static class ConnectivityCheck
 		{
 			case ConnectivityIssue.RestrictiveNetwork:
 				if (facts.LobbyServerProbed && !facts.LobbyServerAnswered) return Confirmed(issue, ConnectivitySentences.JoinRestrictiveConfirmed);
-				if (facts.LobbyServerProbed) return Inconclusive(issue, ConnectivitySentences.JoinRestrictiveHostSide);
+				// The join's own step says which side the silence belongs to: a lobby that answered and then refused this screen
+				// reached it, a screen that could not report where it is failed on its own network, and a punch or an answer that
+				// never arrived is the host's side of the connection.
+				if (facts.JoinPhase is JoinPhases.Admission or JoinPhases.Session) return RuledOut(issue, ConnectivitySentences.JoinRestrictiveReached);
+				if (facts.JoinPhase == JoinPhases.Report) return Likely(issue, ConnectivitySentences.JoinRestrictiveOwnSide);
+				if (facts.JoinPhase is JoinPhases.Punch or JoinPhases.Answer) return Inconclusive(issue, ConnectivitySentences.JoinRestrictiveHostSide);
 				return Inconclusive(issue, ConnectivitySentences.JoinRestrictiveUnprobed);
 
 			case ConnectivityIssue.VpnOrVirtualAdapter:
@@ -355,7 +369,7 @@ public static class ConnectivityCheck
 
 			case ConnectivityIssue.LobbyServerUnreachable:
 				if (facts.LobbyServerProbed && !facts.LobbyServerAnswered) return Confirmed(issue, ConnectivitySentences.JoinRestrictiveConfirmed);
-				if (facts.LobbyServerProbed) return RuledOut(issue, ConnectivitySentences.LobbyServerRuledOut);
+				if (facts.LobbyServerProbed) return RuledOut(issue, ConnectivitySentences.JoinLobbyServerRuledOut);
 				return Inconclusive(issue, ConnectivitySentences.LobbyServerUnprobed);
 
 			default:

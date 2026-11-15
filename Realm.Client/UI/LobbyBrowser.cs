@@ -837,7 +837,7 @@ public partial class LobbyBrowser : Control
 
 		if (!networkFailure)
 		{
-			GameContext.UserInterface?.ShowPopupMessage("CONNECTION ERROR", message);
+			GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("CONNECTION FAILED"), message);
 			return;
 		}
 
