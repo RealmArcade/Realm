@@ -394,6 +394,10 @@ public partial class ServerLobby
 		if (_handoverCommitsSent) return;
 		_handoverCommitsSent = true;
 
+		// Every seat is about to be told where it is going, so the sentence the lobby states says exactly that rather than
+		// leaving the confirmation standing after the seats have moved.
+		_handoverNotice = LobbyHandoverNotice.Settling;
+
 		foreach (LobbySeat seat in _seats.Values)
 		{
 			if (seat.IsComputer || seat.IsDisconnected) continue;
@@ -401,6 +405,8 @@ public partial class ServerLobby
 
 			NotifyHandoverParty(seat.PeerId, LobbyHandoverMessageKind.Commit, default, string.Empty, DescribeCommitFor(seat.PeerId));
 		}
+
+		BroadcastState();
 	}
 
 	/// <summary>
@@ -523,8 +529,17 @@ public partial class ServerLobby
 	/// <param name="notice">The sentence the lobby states about why the handover ended.</param>
 	public void CancelHandoverForLobbyChange(string notice)
 	{
-		if (_handoverStage == LobbyHandoverStage.None) return;
-		if (_handoverStage == LobbyHandoverStage.Committing) return;
+		// Advice names a seat as it stood when the lobby was measured. A seat leaving, the countdown starting or the map
+		// being replaced takes the numbers it was based on with it, so the advice goes with them rather than naming a
+		// player the lobby no longer holds.
+		bool adviceCleared = _suggestedCandidatePeerId != 0;
+		if (adviceCleared) _suggestedCandidatePeerId = 0;
+
+		if (_handoverStage is LobbyHandoverStage.None or LobbyHandoverStage.Committing)
+		{
+			if (adviceCleared) BroadcastState();
+			return;
+		}
 
 		CloseHandover(notice, notifySeats: true);
 	}
@@ -896,9 +911,15 @@ public partial class ServerLobby
 		for (int index = _adoptionPendingSettings.Count - 1; index >= 0; index--)
 		{
 			LobbyHandoverAdoptedSetting setting = _adoptionPendingSettings[index];
-			if (!_matchSettings.ContainsKey(setting.SettingId)) continue;
 
-			if (TrySetLobbySetting(setting.SettingId, setting.Value)) _adoptionPendingSettings.RemoveAt(index);
+			// A map declares its settings while its lobby script runs, which may be after the lobby was taken over, so a
+			// setting nobody has declared yet waits for its map rather than being applied to nothing.
+			if (!_matchSettings.TryGetValue(setting.SettingId, out _)) continue;
+
+			// The setting belongs to the map that declares it now, so its range is the one this lobby holds. A value that
+			// map does not allow cannot be waited out, and retrying it every tick would only repeat the same refusal.
+			_adoptionPendingSettings.RemoveAt(index);
+			TrySetLobbySetting(setting.SettingId, setting.Value);
 		}
 	}
 

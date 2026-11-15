@@ -279,7 +279,9 @@ public partial class LobbyRoom
 		bool party = Lobby.IsHandoverParty;
 
 		_handoverOfferButton.Visible = !Lobby.IsGameStarted;
-		_handoverOfferButton.Disabled = stage != LobbyHandoverStage.None || Lobby.IsCountdownActive;
+		// A lobby whose authority could not open its probe relay cannot measure a rehearsal at all, so the offer is not
+		// offered and the status line says why instead of promising a handover that could never pass.
+		_handoverOfferButton.Disabled = Lobby.ProbeRelayPort <= 0 || stage != LobbyHandoverStage.None || Lobby.IsCountdownActive;
 		RefreshHandoverOfferButton();
 
 		string status = DescribeHandoverStatus(stage, party);
@@ -304,6 +306,7 @@ public partial class LobbyRoom
 		if (stage == LobbyHandoverStage.None)
 		{
 			if (Lobby.IsSuggestedHostCandidate) return TranslationServer.Translate("A handover would improve this lobby for everybody; the numbers are in the advice this screen was sent.");
+			if (Lobby.ProbeRelayPort <= 0 && !Lobby.IsGameStarted) return HandoverNoticeTexts.Translate(LobbyHandoverNotice.NoProbeRelay);
 			return string.Empty;
 		}
 
