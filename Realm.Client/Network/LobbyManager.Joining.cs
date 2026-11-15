@@ -50,9 +50,9 @@ public partial class LobbyManager
 				return false;
 			}
 
-			var (connectIp, connectPort) = await ResolveHostConnectionInfoAsync(response, clientPublicIp);
-			_connectedHostIp = connectIp;
-			return await EstablishLobbyConnectionAsync(connectIp, connectPort, IsPrivateIp(connectIp));
+			LobbyJoinTarget target = await ResolveHostConnectionInfoAsync(response);
+			_connectedHostIp = target.Ip;
+			return await EstablishLobbyConnectionAsync(target);
 		}
 		catch (Exception ex)
 		{
@@ -67,7 +67,7 @@ public partial class LobbyManager
 		string directLobbyId = $"direct-{Guid.NewGuid():N}";
 		InitializeClientState(directLobbyId);
 		_connectedHostIp = targetIp;
-		bool joined = await EstablishLobbyConnectionAsync(targetIp, targetPort, IsPrivateIp(targetIp));
+		bool joined = await EstablishLobbyConnectionAsync(new LobbyJoinTarget(targetIp, targetPort, IsPrivateIp(targetIp), default));
 
 		// Only an address that seated this player is worth going back to: a typo, or a lobby that never answered, is not
 		// somewhere to send them a second time.
@@ -88,16 +88,35 @@ public partial class LobbyManager
 		PlayerList.Clear();
 	}
 
-	private const int JoinAttemptCount = 3;
-
-	private const int JoinAttemptTimeoutMilliseconds = 3500;
+	/// <summary>
+	///     How long one join attempt waits for the lobby's authority to admit this screen. Hole punching on a slow link
+	///     legitimately takes seconds, so the budget is spent on one attempt instead of being divided between several: a
+	///     retry is for silence, and a refusal is an answer that a second attempt would only repeat.
+	/// </summary>
+	private const int JoinAttemptTimeoutMilliseconds = 15000;
 
 	private const int JoinRetryDelayMilliseconds = 300;
 
+	/// <summary>
+	///     How many times a join that produced no answer at all is tried before the screen gives up. A lobby that answered is
+	///     never asked again, because its answer is already a decision.
+	/// </summary>
+	private const int JoinAttemptCount = 2;
+
 	private bool _establishingLobbyConnection;
 
-	private async Task<bool> EstablishLobbyConnectionAsync(string connectIp, int connectPort, bool isLocalConnection)
+	/// <summary>Where a join is aimed, and the ticket this screen reports itself with so the host can reach it.</summary>
+	/// <param name="Ip">The address to connect to.</param>
+	/// <param name="Port">The port to connect to.</param>
+	/// <param name="IsLocalConnection">Whether the address is on a network this machine is directly attached to.</param>
+	/// <param name="Punch">The ticket the registry node stated for this join, or a default one when it stated none.</param>
+	private readonly record struct LobbyJoinTarget(string Ip, int Port, bool IsLocalConnection, JoinerPunchTicket Punch);
+
+	private async Task<bool> EstablishLobbyConnectionAsync(LobbyJoinTarget target)
 	{
+		string connectIp = target.Ip;
+		int connectPort = target.Port;
+		bool isLocalConnection = target.IsLocalConnection;
 		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
 		if (channel == null)
 		{
@@ -136,7 +155,11 @@ public partial class LobbyManager
 
 				_isConnectedToHost = true;
 
-				if (!isLocalConnection) PunchFromGamePort(channel, connectIp, connectPort);
+				if (!isLocalConnection)
+				{
+					PunchFromGamePort(channel, connectIp, connectPort);
+					ReportJoinerEndpoint(channel, target.Punch, connectPort);
+				}
 
 				var admission = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromMilliseconds(JoinAttemptTimeoutMilliseconds));
 				if (admission.Failure == null)
@@ -177,6 +200,34 @@ public partial class LobbyManager
 		if (channel.SendToAddress(address, port, ReachabilityPunch.Datagram)) return;
 
 		GameLog.LogError($"[LobbyManager] The punch to {address}:{port} could not be sent from the game port, so the host's router may not let its answer in.");
+	}
+
+	/// <summary>
+	///     Reports this screen's own endpoint to the registry node, from the socket its connection attempt holds. The report is
+	///     what tells the lobby's host where to send: the host cannot read an address from the attempt itself, because a
+	///     router that drops unsolicited traffic drops exactly that, and this screen cannot measure the external port its own
+	///     router hands out.
+	/// </summary>
+	/// <param name="channel">The channel whose socket the report must leave from.</param>
+	/// <param name="ticket">The ticket the registry node stated, or a default one when it stated none.</param>
+	/// <param name="lobbyPort">The lobby's port, for the log line.</param>
+	private static void ReportJoinerEndpoint(ClientNetworkChannel channel, JoinerPunchTicket ticket, int lobbyPort)
+	{
+		if (!ticket.IsUsable)
+		{
+			GameLog.LogToConsole($"[LobbyManager] The registry node stated no report endpoint for this join, so the host at port {lobbyPort} was not told where this screen is. A host behind a router that drops unsolicited traffic may not admit this join.");
+			return;
+		}
+
+		var datagram = new byte[JoinerPunch.MaximumDatagramBytes];
+		int written = JoinerPunch.TryWrite(datagram, ticket.Token);
+		if (written == 0 || !channel.SendToAddress(ticket.Address, ticket.Port, datagram.AsSpan(0, written)))
+		{
+			GameLog.LogError($"[LobbyManager] This screen could not report its endpoint to {ticket.Address}:{ticket.Port}, so the host may never be told where to send.");
+			return;
+		}
+
+		GameLog.LogToConsole($"[LobbyManager] Reported this screen's endpoint to {ticket.Address}:{ticket.Port} from the socket joining the lobby on port {lobbyPort}.");
 	}
 
 	private async Task<string?> WaitForLobbyAdmissionAsync(ClientServerSession session)

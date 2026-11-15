@@ -1,6 +1,7 @@
 using System;
 using Godot;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 
 namespace Realm.Client.Network;
 
@@ -79,9 +80,6 @@ public partial class ClientNetworkChannel : Node
 		FrameArrived?.Invoke((NetworkFrameKind)kind, frame);
 	}
 
-	private const int ClientBindAttempts = 6;
-	private const int ClientBindRetryMilliseconds = 50;
-
 	public bool TryConnect(string address, int port, out string failure) => TryConnect(address, port, 0, false, out failure);
 
 	public bool TryConnect(string address, int port, bool allowLongSilence, out string failure) => TryConnect(address, port, 0, allowLongSilence, out failure);
@@ -93,13 +91,11 @@ public partial class ClientNetworkChannel : Node
 		failure = string.Empty;
 
 		Error error = CreateClientPeer(address, port, localPort, out ENetMultiplayerPeer? peer);
-		for (int attempt = 0; error != Error.Ok && localPort > 0 && attempt < ClientBindAttempts; attempt++)
+		if (error != Error.Ok && localPort > 0)
 		{
-			OS.DelayMsec(ClientBindRetryMilliseconds);
-			error = CreateClientPeer(address, port, localPort, out peer);
+			GD.Print($"[RealmNetwork] Local port {localPort} could not be held for this join ({error}), so the socket takes the port the system chooses.");
+			error = CreateClientPeer(address, port, 0, out peer);
 		}
-
-		if (error != Error.Ok && localPort > 0) error = CreateClientPeer(address, port, 0, out peer);
 
 		if (error != Error.Ok || peer == null)
 		{
@@ -127,8 +123,6 @@ public partial class ClientNetworkChannel : Node
 		return true;
 	}
 
-	private const int PunchBurstCount = 5;
-
 	/// <summary>
 	///     Sends one datagram from the socket this client's ENet peer already holds, which is the port a host's answer has to
 	///     arrive at. A punch sent from anywhere else opens the router on the wrong port: the host's reply is then delivered
@@ -147,7 +141,7 @@ public partial class ClientNetworkChannel : Node
 		if (host == null) return false;
 
 		byte[] datagram = payload.ToArray();
-		for (int attempt = 0; attempt < PunchBurstCount; attempt++) host.SocketSend(address, port, datagram);
+		for (int attempt = 0; attempt < ReachabilityPunch.DatagramSendCount; attempt++) host.SocketSend(address, port, datagram);
 		return true;
 	}
 

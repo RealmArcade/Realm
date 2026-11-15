@@ -142,6 +142,17 @@ public partial class LobbyCreate
 			};
 		}
 
+		if (failure.Failure is HostReachabilityFailure.ProbeFromOwnNetwork)
+		{
+			return new List<string>
+			{
+				Tr("The lobby server reached this computer from inside its own network, so the check only proved that players on this network can see the lobby. The lobby was not published."),
+				Tr("This happens when the game is pointed at a lobby server running on this computer or on another machine in the same house or office: every route such a server takes stays inside that network."),
+				Tr("Point the game at a lobby server on the internet and host again, or host the same lobby directly and share the address the lobby room shows."),
+				string.Format(Tr("Players on your own network can still join you with Direct Connect at {0}."), directConnectEndpoint)
+			};
+		}
+
 		if (failure.Failure is HostReachabilityFailure.RegistryUnreachable or HostReachabilityFailure.ProbeSocketUnknown)
 		{
 			return new List<string>

@@ -64,6 +64,11 @@ public partial class LobbyManager
 	/// <param name="localPort">The local port the lobby listens on.</param>
 	private async Task ResolvePublicEndpointAsync(int localPort)
 	{
+		// The external port a router hands out belongs to one local port. Measuring again for a different port must not
+		// leave the last answer behind: a failed measurement would otherwise advertise the previous port for a lobby that
+		// is listening somewhere else.
+		if (_hostPublicPortMeasuredForLocalPort != localPort) _hostPublicPort = 0;
+
 		_routerReachability = RouterReachability.NoRouterForward;
 		try
 		{
@@ -111,10 +116,12 @@ public partial class LobbyManager
 				if (mappedFromBoundPort)
 				{
 					_hostPublicPort = mappedEndPoint.Port;
+					_hostPublicPortMeasuredForLocalPort = localPort;
 				}
 				else if (_hostPublicPort <= 0)
 				{
 					_hostPublicPort = localPort;
+					_hostPublicPortMeasuredForLocalPort = localPort;
 				}
 				GameLog.LogToConsole($"[STUN] Local {localPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
 			}

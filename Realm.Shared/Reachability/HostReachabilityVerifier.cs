@@ -23,7 +23,14 @@ public enum HostReachabilityFailure
 	ProbeSocketUnknown,
 
 	/// <summary>The registry node's probes never reached the game port.</summary>
-	ProbeUnanswered
+	ProbeUnanswered,
+
+	/// <summary>
+	///     The registry node judged the lobby from inside the lobby's own network, so its answer says nothing about players
+	///     elsewhere. A node on the same machine or network cannot rehearse a public join, because every route it takes is
+	///     one that never leaves that network.
+	/// </summary>
+	ProbeFromOwnNetwork
 }
 
 /// <summary>
@@ -85,8 +92,13 @@ public class HostReachabilityVerifier
 	/// </summary>
 	public async Task<HostReachabilityResult> VerifyAsync(string registryBaseUrl, string advertisedIp, int advertisedPort, Func<string, int, string, bool> punch, CancellationToken cancellationToken = default)
 	{
-		ReachabilityTicket? ticket = await BeginAsync(registryBaseUrl, advertisedIp, advertisedPort, cancellationToken).ConfigureAwait(false);
-		if (ticket == null) return HostReachabilityResult.Refused(HostReachabilityFailure.RegistryUnreachable, $"the registry node '{registryBaseUrl}' did not start a reachability check");
+		(ReachabilityTicket? ticket, HostReachabilityFailure beginFailure) = await BeginAsync(registryBaseUrl, advertisedIp, advertisedPort, cancellationToken).ConfigureAwait(false);
+		if (ticket == null)
+		{
+			return beginFailure == HostReachabilityFailure.ProbeFromOwnNetwork
+				? HostReachabilityResult.Refused(beginFailure, $"the registry node '{registryBaseUrl}' reaches this computer from inside its own network, so a check from it could only ever describe that network")
+				: HostReachabilityResult.Refused(HostReachabilityFailure.RegistryUnreachable, $"the registry node '{registryBaseUrl}' did not start a reachability check");
+		}
 
 		string probeAddress = await ResolveProbeAddressAsync(registryBaseUrl, ticket, cancellationToken).ConfigureAwait(false);
 		if (string.IsNullOrEmpty(probeAddress))
@@ -132,7 +144,7 @@ public class HostReachabilityVerifier
 		return $"none of {attempts} probes from {probeAddress}:{ticket.ProbePort} to {advertisedIp}:{advertisedPort} came back (state '{state}', punch accepted: {punchAccepted})";
 	}
 
-	private async Task<ReachabilityTicket?> BeginAsync(string registryBaseUrl, string advertisedIp, int advertisedPort, CancellationToken cancellationToken)
+	private async Task<(ReachabilityTicket? Ticket, HostReachabilityFailure Failure)> BeginAsync(string registryBaseUrl, string advertisedIp, int advertisedPort, CancellationToken cancellationToken)
 	{
 		try
 		{
@@ -141,18 +153,24 @@ public class HostReachabilityVerifier
 
 			var request = new ReachabilityBeginRequest(advertisedIp ?? string.Empty, advertisedPort, RequestedWindowMilliseconds);
 			using HttpResponseMessage response = await _httpClient.PostAsJsonAsync(Combine(registryBaseUrl, ReachabilityRoutes.Begin), request, JsonOptions, timeout.Token).ConfigureAwait(false);
+			if ((int)response.StatusCode == ReachabilityStatusCodes.CallerOnOwnNetwork)
+			{
+				_log($"the registry node '{registryBaseUrl}' refused to check this lobby because it reaches this computer from inside its own network");
+				return (null, HostReachabilityFailure.ProbeFromOwnNetwork);
+			}
+
 			if (!response.IsSuccessStatusCode)
 			{
 				_log($"the registry node refused to start a reachability check: {(int)response.StatusCode} {response.ReasonPhrase}");
-				return null;
+				return (null, HostReachabilityFailure.None);
 			}
 
-			return await response.Content.ReadFromJsonAsync<ReachabilityTicket>(JsonOptions, timeout.Token).ConfigureAwait(false);
+			return (await response.Content.ReadFromJsonAsync<ReachabilityTicket>(JsonOptions, timeout.Token).ConfigureAwait(false), HostReachabilityFailure.None);
 		}
 		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or NotSupportedException)
 		{
 			_log($"the registry node could not be asked to check this lobby's endpoint: {exception.GetType().Name}: {exception.Message}");
-			return null;
+			return (null, HostReachabilityFailure.None);
 		}
 	}
 

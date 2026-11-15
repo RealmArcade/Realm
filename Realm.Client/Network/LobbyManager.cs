@@ -401,6 +401,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private CancellationTokenSource? _wsCts;
 	private string? _hostPublicIp;
 	private int _hostPublicPort;
+	private int _hostPublicPortMeasuredForLocalPort;
 	private RouterReachability _routerReachability = RouterReachability.NoRouterForward;
 	public string PublicIP => _hostPublicIp ?? "127.0.0.1";
 	public int PublicPort => _hostPublicPort > 0 ? _hostPublicPort : BoundPort;

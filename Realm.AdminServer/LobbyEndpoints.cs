@@ -21,7 +21,24 @@ namespace Realm.AdminServer;
 /// <summary>Lobby registration, heartbeats, join and the host websocket.</summary>
 public static class LobbyEndpoints
 {
-	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections, UdpReachabilityProbeService reachabilityProbe)
+	/// <summary>
+	///     Asks a lobby's host to send from its game port to one joining player. The player's own connection attempt cannot
+	///     make a router that drops unsolicited traffic deliver it, so the host has to speak first and needs only the endpoint
+	///     this node saw the player arrive from.
+	/// </summary>
+	/// <param name="hostSocket">The lobby host's signalling channel.</param>
+	/// <param name="lobbyId">The lobby being joined, for the log line.</param>
+	/// <param name="clientIp">The address the joining player was seen at.</param>
+	/// <param name="clientPort">The port the joining player was seen at.</param>
+	private static async Task RelayPunchAsync(WebSocket hostSocket, string lobbyId, string clientIp, int clientPort)
+	{
+		var message = JsonSerializer.Serialize(new { Action = "Punch", ClientIP = clientIp, ClientPort = clientPort });
+		byte[] bytes = Encoding.UTF8.GetBytes(message);
+		await hostSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+		Console.WriteLine($"[Registry] Relayed punch request to host {lobbyId} for client {clientIp}:{clientPort}");
+	}
+
+	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections, UdpReachabilityProbeService reachabilityProbe, JoinerPunchRelay joinerRelay)
 	{
 	app.MapPost(ReachabilityRoutes.Begin, (ReachabilityBeginRequest req, HttpContext context) =>
 	{
@@ -29,6 +46,7 @@ public static class LobbyEndpoints
 		ReachabilityEndpointReply reply = ReachabilityEndpointHandlers.Begin(reachabilityProbe, req, sourceAddress, context.Connection.RemotePort);
 
 		if (reply.StatusCode == 200) Console.WriteLine($"[Reachability] Checking {req.AdvertisedIp}:{req.AdvertisedPort} for a lobby from {sourceAddress}.");
+		else if (reply.StatusCode == ReachabilityStatusCodes.CallerOnOwnNetwork) Console.WriteLine($"[Reachability] Refused to check {req.AdvertisedIp}:{req.AdvertisedPort}: {sourceAddress} is inside this node's own network, so the check would only describe that network.");
 		else Console.WriteLine($"[Reachability] A lobby check could not start: {sourceAddress}");
 
 		return Results.Json(reply.Body, statusCode: reply.StatusCode);
@@ -113,6 +131,19 @@ public static class LobbyEndpoints
 		{
 			hostIp = probeReport.ObservedIp;
 			hostPort = probeReport.ObservedPort;
+		}
+
+		// The endpoint this node measured is the one every player is sent to, so it has to be one a player elsewhere can
+		// use at all. A check that answered at a loopback or private address passed for a reason that says nothing about
+		// the internet, and listing the lobby there would publish an address no stranger can reach.
+		if (!ReachabilityAddresses.IsPubliclyRoutable(hostIp))
+		{
+			Console.WriteLine($"[Registry] Refused to register a lobby at '{hostIp}:{hostPort}': that endpoint is inside a network no other player can be sent to.");
+			return Results.Json(new
+			{
+				Code = ReachabilityErrorCodes.EndpointNotPublic,
+				Message = $"This node measured the lobby at '{hostIp}', which is not an address a player elsewhere can reach. A lobby is listed only at a public endpoint."
+			}, statusCode: StatusCodes.Status400BadRequest);
 		}
 
 		var hostCoords = geoIp.GetCoordinates(hostIp);
@@ -381,22 +412,16 @@ public static class LobbyEndpoints
 		}
 
 		var effectiveReq = req with { ClientPublicIP = clientIp };
+		JoinerPunchTicket ticket = joinerRelay.Register(lobby.LobbyId);
 
 		if (hostConnections.TryGetValue(req.LobbyId, out var hostSocket) && hostSocket.State == WebSocketState.Open)
 		{
-			var msg = JsonSerializer.Serialize(new
-			{
-				Action = "Punch",
-				ClientIP = clientIp,
-				ClientPort = req.ClientPublicPort
-			});
+			// A player that states the endpoint its socket holds is punched without waiting for its report, which is what
+			// a screen built before reporting existed does. A screen that states none reports itself from the socket its
+			// connection attempt holds instead, because only this node can see the endpoint that attempt arrives from.
+			if (req.ClientPublicPort > 0) await RelayPunchAsync(hostSocket, lobby.LobbyId, clientIp, req.ClientPublicPort);
 
-			var bytes = Encoding.UTF8.GetBytes(msg);
-			await hostSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
-
-			Console.WriteLine($"[Registry] Relayed punch request to host {lobby.LobbyId} for client {clientIp}:{req.ClientPublicPort}");
-
-			return Results.Ok(new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort));
+			return Results.Ok(new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token));
 		}
 		else
 		{
@@ -411,11 +436,13 @@ public static class LobbyEndpoints
 					if (response.IsSuccessStatusCode)
 					{
 						var respText = await response.Content.ReadAsStringAsync();
-						var joinResp = JsonSerializer.Deserialize<JoinResponseDto>(respText, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-						if (joinResp != null)
-						{
-							return Results.Ok(joinResp);
-						}
+					var joinResp = JsonSerializer.Deserialize<JoinResponseDto>(respText, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+					if (joinResp != null)
+					{
+						// The reporting socket belongs to the node the player reached, not to the node that holds the lobby's
+						// signalling channel, so the ticket this node states is the one the player has to report itself with.
+						return Results.Ok(joinResp with { PunchPort = ticket.Port, PunchToken = ticket.Token });
+					}
 					}
 					else
 					{
@@ -433,6 +460,18 @@ public static class LobbyEndpoints
 		return Results.BadRequest(new { Message = "Host signaling channel is disconnected" });
 	});
 
+
+	app.MapPost("/lobbies/punch", async (PunchRequest req, LobbyRegistry registry, HttpContext context) =>
+	{
+		if (!registry.TryGet(req.LobbyId, out var lobby) || lobby == null) return Results.NotFound(new { Message = "Lobby not found" });
+		if (string.IsNullOrWhiteSpace(req.ClientIP) || req.ClientPort <= 0 || req.ClientPort > 65535) return Results.BadRequest(new { Message = "A punch needs the endpoint the joining player was seen at." });
+
+		if (!hostConnections.TryGetValue(req.LobbyId, out var hostSocket) || hostSocket.State != WebSocketState.Open)
+		{
+			return Results.BadRequest(new { Message = "Host signaling channel is disconnected" });
+		}			await RelayPunchAsync(hostSocket, req.LobbyId, req.ClientIP, req.ClientPort);
+			return Results.Ok(new { Punched = true });
+	});
 
 	app.Map("/lobbies/ws", async (HttpContext context, LobbyRegistry registry) =>
 	{

@@ -34,9 +34,9 @@ public partial class LobbyManager
 {
 	/// <summary>
 	///     Asks a registry node where a lobby is and states the address this screen joins from. The port this screen's own ENet
-	///     socket will hold is not offered, because the socket is created when the join connects and the system chooses its
-	///     port then: the joining screen punches the lobby's game port itself, which opens this side of the route exactly as a
-	///     punch sent by the lobby would.
+	///     socket will hold is not stated, because the socket is created when the join connects: the screen reports itself from
+	///     that socket once it exists, and the registry node reads the endpoint the report arrived from and hands it to the
+	///     host, which is the only way a host behind a filtering router can be told where to send.
 	/// </summary>
 	/// <param name="lobbyId">The lobby being joined.</param>
 	/// <param name="clientPublicIp">The address this network is reached at from outside, as this screen measured it.</param>
@@ -71,32 +71,42 @@ public partial class LobbyManager
 		return response;
 	}
 
-	private async Task<(string Ip, int Port)> ResolveHostConnectionInfoAsync(HttpResponseMessage response, string clientPublicIp)
+	/// <summary>
+	///     Reads where to connect and how to report this screen to the registry's host relay. Every field is read without
+	///     assuming it is present: a lobby registered by an older node answers with fewer of them, and a missing field has to
+	///     produce a stated reason rather than an exception message.
+	/// </summary>
+	/// <param name="response">The registry node's answer.</param>
+	/// <returns>The endpoint to connect to and the ticket this screen reports itself with.</returns>
+	private async Task<LobbyJoinTarget> ResolveHostConnectionInfoAsync(HttpResponseMessage response)
 	{
-		var respText = await response.Content.ReadAsStringAsync();
+		string respText = await response.Content.ReadAsStringAsync();
 		using var doc = JsonDocument.Parse(respText);
+		JsonElement root = doc.RootElement;
 
-		string hostIp = doc.RootElement.GetProperty("hostIP").GetString() ?? "";
-		int hostPort = doc.RootElement.GetProperty("hostPort").GetInt32();
+		string hostIp = root.TryGetProperty("hostIP", out JsonElement hostIpElement) ? hostIpElement.GetString() ?? string.Empty : string.Empty;
+		int hostPort = root.TryGetProperty("hostPort", out JsonElement hostPortElement) ? hostPortElement.GetInt32() : 0;
 
-		string? localIp = null;
-		if (doc.RootElement.TryGetProperty("localIP", out var localIpProp))
+		string localIp = root.TryGetProperty("localIP", out JsonElement localIpElement) ? localIpElement.GetString() ?? string.Empty : string.Empty;
+		int localPort = root.TryGetProperty("localPort", out JsonElement localPortElement) && localPortElement.ValueKind == JsonValueKind.Number ? localPortElement.GetInt32() : hostPort;
+
+		int punchPort = root.TryGetProperty("punchPort", out JsonElement punchPortElement) && punchPortElement.ValueKind == JsonValueKind.Number ? punchPortElement.GetInt32() : 0;
+		string punchToken = root.TryGetProperty("punchToken", out JsonElement punchTokenElement) ? punchTokenElement.GetString() ?? string.Empty : string.Empty;
+
+		var punch = new JoinerPunchTicket(RegistryServerHost, punchPort, punchToken);
+
+		bool localAddressKnown = !string.IsNullOrEmpty(localIp) && LocalNetwork.Contains(localIp);
+		if (localAddressKnown)
 		{
-			localIp = localIpProp.GetString();
+			GameLog.LogToConsole($"[LobbyManager] The host offers {localIp}:{localPort} on a network this machine is attached to, so the join goes there first.");
+			return new LobbyJoinTarget(localIp, localPort, true, punch);
 		}
 
-		string connectIp = hostIp;
-		int connectPort = hostPort;
-		if (!string.IsNullOrEmpty(localIp) && hostIp == clientPublicIp)
-		{
-			int localPort = doc.RootElement.GetProperty("localPort").GetInt32();
-			GameLog.LogToConsole($"[LobbyManager] Host is on the same LAN (Public IP: {hostIp}). Connecting to local IP: {localIp}:{localPort}");
-			connectIp = localIp;
-			connectPort = localPort;
-		}
-
-		return (connectIp, connectPort);
+		return new LobbyJoinTarget(hostIp, hostPort, false, punch);
 	}
+
+	/// <summary>The host name of the registry node this screen is talking to, which is where a join report is sent.</summary>
+	private string RegistryServerHost => Uri.TryCreate(RegistryServerUrl, UriKind.Absolute, out Uri? uri) ? uri.Host : string.Empty;
 
 	public void UnregisterActiveLobbyFromRegistry()
 	{
@@ -317,7 +327,7 @@ public partial class LobbyManager
 			// only what it checked itself, so the rehearsal is run against the node that will accept the lobby.
 			ReportHostLobbyStage(HostLobbyStage.VerifyingNetwork);
 			HostReachabilityResult reachability = await VerifyLobbyReachabilityAsync(RegistryServerUrl, lobbyPort);
-			HostReachabilityFailure decision = LobbyJoinability.Decide(publicLobby: true, LoopbackJoinOutcome.Answered, reachability.Failure);
+			HostReachabilityFailure decision = LobbyJoinability.Decide(publicLobby: true, LoopbackJoinOutcome.Answered, reachability.Failure, ReachabilityAddresses.IsPubliclyRoutable(reachability.PublicIp));
 			if (decision != HostReachabilityFailure.None)
 			{
 				LastHostFailure = reachability;
@@ -395,6 +405,7 @@ public partial class LobbyManager
 		{
 			HostReachabilityFailure.RegistryUnreachable => "The lobby server could not be reached, so whether other players can reach this machine was never checked.",
 			HostReachabilityFailure.ProbeSocketUnknown => "The lobby server could not say where its reachability check comes from, so this lobby was not published.",
+			HostReachabilityFailure.ProbeFromOwnNetwork => "The lobby server reached this machine from inside its own network, so the check only proved that players sharing that network can see the lobby. Point the game at a lobby server on the internet and host again.",
 			_ => $"Other players could not reach this machine on UDP port {lobbyPort}, so this lobby was not published ({reachability.Detail})."
 		};
 	}

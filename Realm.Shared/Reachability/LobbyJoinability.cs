@@ -33,13 +33,22 @@ public static class LobbyJoinability
 
 	/// <summary>
 	///     Whether the lobby may be published. <paramref name="externalFailure" /> is what the registry node's measurement
-	///     reported, and is not consulted for a lobby only this machine plays.
+	///     reported, and is not consulted for a lobby only this machine plays. <paramref name="externalEndpointIsPublic" />
+	///     is whether the endpoint that measurement named is one a player outside this network could be sent to: a check that
+	///     answered from inside this network, or from outside it but at an address inside it, proves nothing about players
+	///     elsewhere and does not publish the lobby.
 	/// </summary>
-	public static HostReachabilityFailure Decide(bool publicLobby, LoopbackJoinOutcome loopback, HostReachabilityFailure externalFailure)
+	/// <param name="publicLobby">Whether other players will be able to see and join the lobby.</param>
+	/// <param name="loopback">What this screen's own seat looked like.</param>
+	/// <param name="externalFailure">What the registry node's measurement reported, or <see cref="HostReachabilityFailure.None" />.</param>
+	/// <param name="externalEndpointIsPublic">Whether the measured endpoint is publicly routable.</param>
+	/// <returns>Why the lobby may not be published, or <see cref="HostReachabilityFailure.None" /> when it may.</returns>
+	public static HostReachabilityFailure Decide(bool publicLobby, LoopbackJoinOutcome loopback, HostReachabilityFailure externalFailure, bool externalEndpointIsPublic = true)
 	{
 		if (loopback == LoopbackJoinOutcome.SessionNotOnLoopback) return HostReachabilityFailure.LoopbackNotOnLocalAddress;
 		if (loopback != LoopbackJoinOutcome.Answered) return HostReachabilityFailure.LoopbackUnanswered;
 		if (!RequiresExternalCheck(publicLobby)) return HostReachabilityFailure.None;
-		return externalFailure;
+		if (externalFailure != HostReachabilityFailure.None) return externalFailure;
+		return externalEndpointIsPublic ? HostReachabilityFailure.None : HostReachabilityFailure.ProbeFromOwnNetwork;
 	}
 }

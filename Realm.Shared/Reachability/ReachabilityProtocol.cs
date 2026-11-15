@@ -49,4 +49,21 @@ public record ReachabilityReport(
 public static class ReachabilityErrorCodes
 {
 	public const string NotVerified = "lobby_reachability_not_verified";
+
+	/// <summary>
+	///     The endpoint a check measured is not one a player elsewhere can be sent to, so the lobby would be listed at an
+	///     address only its own network can use. It is refused even when the check itself answered.
+	/// </summary>
+	public const string EndpointNotPublic = "lobby_endpoint_not_public";
+}
+
+/// <summary>
+///     The answers a registry node gives to a request that is well formed but cannot be acted on. A check asked for by a
+///     caller on the node's own network is refused rather than run, because the result of it would only ever describe that
+///     network.
+/// </summary>
+public static class ReachabilityStatusCodes
+{
+	/// <summary>The caller reaches this node from inside its own network, so nothing this node measures about it is evidence.</summary>
+	public const int CallerOnOwnNetwork = 409;
 }

@@ -30,7 +30,8 @@ public record ServerSetup(
 	ConcurrentDictionary<string, WebSocket> HostConnections,
 	string SeederId,
 	int CapacityPercent,
-	UdpReachabilityProbeService ReachabilityProbe);
+	UdpReachabilityProbeService ReachabilityProbe,
+	JoinerPunchRelay JoinerRelay);
 
 public static class ServerHost
 {
@@ -171,8 +172,11 @@ public static class ServerHost
 
 
 	var hostConnections = new ConcurrentDictionary<string, WebSocket>();
+	var lobbyRegistry = app.Services.GetRequiredService<LobbyRegistry>();
+	var joinerRelay = new JoinerPunchRelay(hostConnections, lobbyRegistry, message => Console.WriteLine($"[JoinerRelay] {message}"));
 
 	app.Lifetime.ApplicationStopping.Register(reachabilityProbe.Dispose);
+	app.Lifetime.ApplicationStopping.Register(joinerRelay.Dispose);
 	Console.WriteLine($"[Reachability] Lobbies are registered only after this node reaches their game port from UDP port {reachabilityProbePort}; that port must be reachable over UDP at this node's public address, and ReachabilityProbePublicIp names that address when it differs from the HTTP host name.");
 
 
@@ -207,7 +211,7 @@ public static class ServerHost
 		}
 	});
 
-		return new ServerSetup(app, cas, adminPublicKeys, servesClientDownloads, hostConnections, seederId, capacityPercent, reachabilityProbe);
+		return new ServerSetup(app, cas, adminPublicKeys, servesClientDownloads, hostConnections, seederId, capacityPercent, reachabilityProbe, joinerRelay);
 	}
 
 	/// <summary>Every 63 seconds, pull cluster state from the peers and drop events older than a day.</summary>

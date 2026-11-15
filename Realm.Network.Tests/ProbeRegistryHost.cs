@@ -35,7 +35,7 @@ public class ProbeRegistryHost : IDisposable
 		_app.MapPost(ReachabilityRoutes.Begin, (ReachabilityBeginRequest request, HttpContext context) =>
 		{
 			string sourceAddress = (context.Connection.RemoteIpAddress?.MapToIPv4() ?? IPAddress.Loopback).ToString();
-			ReachabilityEndpointReply reply = ReachabilityEndpointHandlers.Begin(probe, request, sourceAddress, context.Connection.RemotePort);
+			ReachabilityEndpointReply reply = ReachabilityEndpointHandlers.Begin(probe, request, sourceAddress, context.Connection.RemotePort, allowSameNetworkCaller: true);
 			return Results.Json(reply.Body, statusCode: reply.StatusCode);
 		});
 

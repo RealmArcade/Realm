@@ -1,6 +1,7 @@
 using System;
 using Godot;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 
 namespace Realm.ListenServerHost.Network;
 
@@ -126,10 +127,11 @@ public class EnetServerTransport : IServerTransport
 		if (host == null) return false;
 
 		byte[] packet = payload.ToArray();
-		for (int i = 0; i < 5; i++)
+		for (int attempt = 0; attempt < ReachabilityPunch.DatagramSendCount; attempt++)
 		{
 			host.SocketSend(address, port, packet);
 		}
+
 		return true;
 	}
 
