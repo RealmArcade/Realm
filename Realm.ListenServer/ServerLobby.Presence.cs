@@ -17,10 +17,9 @@ public partial class ServerLobby
 		if (_matchStarted) return;
 		if (!TryGetSeat(peerId, out LobbySeat seat)) return;
 
-		if (_handoverStage != LobbyHandoverStage.None && (peerId == _handoverCandidatePeerId || peerId == _handoverAwaitingPeerId || peerId == _handoverOffererPeerId))
-		{
-			CloseHandover(LobbyHandoverNotice.LobbyChanged, notifySeats: true);
-		}
+		// An offer or a rehearsal describes the lobby as it was, and a seat that is no longer sitting in it makes that
+		// description wrong: a rehearsal measured against every seated player cannot answer for a player who left.
+		CancelHandoverForLobbyChange(LobbyHandoverNotice.LobbyChanged);
 
 		if (peerId == _adminPeerId)
 		{

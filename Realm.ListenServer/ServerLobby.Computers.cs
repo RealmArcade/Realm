@@ -108,6 +108,10 @@ public partial class ServerLobby
 		_slotByPeer.Remove(peerId);
 		_log.Write($"lobby seat {seat.Slot} ('{seat.Name}') is gone");
 
+		// An offer or a rehearsal is about the seats the lobby had, so a seat that left cancels it before the lobby is
+		// described again. A committed handover keeps every seat exactly where it was and is not cancelled here.
+		CancelHandoverForLobbyChange(LobbyHandoverNotice.LobbyChanged);
+
 		if (peerId == _adminPeerId)
 		{
 			AddSystemChat(message);

@@ -27,6 +27,9 @@ public partial class LobbyManager
 	/// <summary>The ownership this screen's lobby is listed under, which is what a host message is proved with.</summary>
 	private int _ownershipEpoch = 1;
 
+	/// <summary>How long the leaving host waits for its registry node to permit the transfer before it moves anyway.</summary>
+	private const int OwnershipPermissionPatienceMilliseconds = 4000;
+
 	private bool _movingToNewHost;
 
 	/// <summary>The permission the lobby's registry node granted its handover, or empty while none was granted.</summary>
@@ -144,7 +147,13 @@ public partial class LobbyManager
 
 			GameLog.LogToConsole($"[LobbyManager] The lobby moved: this screen is connecting to {message.Address}:{message.Port} as the seat it already holds.");
 
-			if (wasHost) BeginHandoverOwnershipTransfer(previousHostToken, previousOwnershipEpoch);
+			if (wasHost)
+			{
+				// The permission is asked for and stated before this screen gives up the lobby it hosted: the channel the
+				// authority reads it on is the one the move is about to close.
+				Task permission = BeginHandoverOwnershipTransferAsync(previousHostToken, previousOwnershipEpoch);
+				await Task.WhenAny(permission, Task.Delay(OwnershipPermissionPatienceMilliseconds)).ConfigureAwait(false);
+			}
 
 			bool moved = isCandidate
 				? await MoveToOwnAuthorityAsync(lobbyId)
@@ -244,11 +253,15 @@ public partial class LobbyManager
 		_hostWebSocket = null;
 		_hostToken = null;
 
+		// The authority taking the lobby over is already listening at the endpoint the handover measured, and the credential
+		// this seat was given is what it is admitted by. Going there first is what keeps a seat from asking the registry a
+		// moment before the ownership moved and being answered with the host it is leaving, which now refuses it.
+		if (await JoinAuthorityDirectlyAsync(message.Address, message.Port, _movedSeatToken, string.Empty, string.Empty)) return true;
+
 		if (!string.IsNullOrEmpty(lobbyId))
 		{
-			// The registry node is told the ownership moved by the screen that took it, and that statement is made as the
-			// seats are told to go. A seat that asks a moment too early is answered with the host it left, so the question is
-			// put again rather than taken as the answer.
+			// A host whose endpoint only answers a path opened through the lobby server needs the registry's help to arrive,
+			// and asks it rather than taking a refusal for an answer.
 			for (int attempt = 0; attempt < 4; attempt++)
 			{
 				if (await JoinLobbyAsync(lobbyId)) return true;
@@ -256,7 +269,7 @@ public partial class LobbyManager
 			}
 		}
 
-		return await JoinAuthorityDirectlyAsync(message.Address, message.Port, _movedSeatToken, string.Empty, string.Empty);
+		return false;
 	}
 
 	private async Task<bool> JoinAuthorityDirectlyAsync(string address, int port, string seatToken, string adminToken, string mapHash)
@@ -422,8 +435,12 @@ public partial class LobbyManager
 	/// </summary>
 	/// <param name="hostToken">The token this screen published the lobby with.</param>
 	/// <param name="ownershipEpoch">The ownership the lobby is listed under.</param>
-	private void BeginHandoverOwnershipTransfer(string hostToken, int ownershipEpoch)
+	/// <returns>A task that completes once the permission, or the statement that there is none, reached the authority.</returns>
+	private async Task BeginHandoverOwnershipTransferAsync(string hostToken, int ownershipEpoch)
 	{
+		ClientServerSession? session = _lobbySession;
+		if (session == null) return;
+
 		string lobbyId = _movedSourceLobbyId;
 		if (string.IsNullOrEmpty(lobbyId) || string.IsNullOrEmpty(hostToken))
 		{
@@ -431,40 +448,37 @@ public partial class LobbyManager
 			// already trust, which is the whole of what such a lobby needs - and the authority is told that no permission is
 			// coming so the seats do not wait for one.
 			GameLog.LogToConsole("[LobbyManager] This lobby is not listed, so its ownership moves only to the seats it holds.");
-			_lobbySession?.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.ReportHandoverOwnership, Text = $"{-ownershipEpoch}|" });
+			session.SendLobbyCommand(new LobbyCommand { Kind = LobbyCommandKind.ReportHandoverOwnership, Text = $"{-ownershipEpoch}|" });
 			return;
 		}
 
-		_ = Task.Run(async () =>
+		try
 		{
-			try
+			var payload = new { LobbyId = lobbyId, HostToken = hostToken, OwnershipEpoch = ownershipEpoch };
+			using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+			using HttpResponseMessage response = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/handover/begin", content).ConfigureAwait(false);
+			if (!response.IsSuccessStatusCode)
 			{
-				var payload = new { LobbyId = lobbyId, HostToken = hostToken, OwnershipEpoch = ownershipEpoch };
-				using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-				using HttpResponseMessage response = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/handover/begin", content).ConfigureAwait(false);
-				if (!response.IsSuccessStatusCode)
-				{
-					GameLog.LogError($"[LobbyManager] The registry node refused to permit the lobby's handover: {response.StatusCode}");
-					return;
-				}
-
-				string answer = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-				using var document = JsonDocument.Parse(answer);
-				JsonElement root = document.RootElement;
-				if (!root.TryGetProperty("handoverToken", out JsonElement token)) return;
-				int epoch = root.TryGetProperty("ownershipEpoch", out JsonElement epochElement) ? epochElement.GetInt32() : ownershipEpoch;
-
-				_lobbySession?.SendLobbyCommand(new LobbyCommand
-				{
-					Kind = LobbyCommandKind.ReportHandoverOwnership,
-					Text = $"{epoch}|{token.GetString()}"
-				});
+				GameLog.LogError($"[LobbyManager] The registry node refused to permit the lobby's handover: {response.StatusCode}");
+				return;
 			}
-			catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
+
+			string answer = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+			using var document = JsonDocument.Parse(answer);
+			JsonElement root = document.RootElement;
+			if (!root.TryGetProperty("handoverToken", out JsonElement token)) return;
+			int epoch = root.TryGetProperty("ownershipEpoch", out JsonElement epochElement) ? epochElement.GetInt32() : ownershipEpoch;
+
+			session.SendLobbyCommand(new LobbyCommand
 			{
-				GameLog.LogError($"[LobbyManager] The lobby's handover could not be permitted by the registry node: {exception.Message}");
-			}
-		});
+				Kind = LobbyCommandKind.ReportHandoverOwnership,
+				Text = $"{epoch}|{token.GetString()}"
+			});
+		}
+		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
+		{
+			GameLog.LogError($"[LobbyManager] The lobby's handover could not be permitted by the registry node: {exception.Message}");
+		}
 	}
 
 	/// <summary>
