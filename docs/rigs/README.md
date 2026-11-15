@@ -96,3 +96,19 @@ symptom for the wrong reason is worse than no test, because it makes a fix look 
 What is still missing for a complete lobby join in the rig: a host *client* to take the admin seat and publish the
 lobby. The registry's punch is triggered by that client's lobby commands, so the rig cannot yet exercise the
 punch-and-admit path end to end — only the transport answer, the NAT gating and the authority's own behaviour.
+
+### What the host client needs
+
+The client already carries the harness for this (`Testing/LobbyDirectConnectHarness.tscn`), with `--role=host`,
+`--mode=listed`, `--dead-registry` and a done-file, and its listed mode calls the real `HostLobbyAsync`. Two gaps stand
+between that and a rig run:
+
+1. **A way to point it at the rig's registry.** The harness can only make the registry unreachable
+   (`--dead-registry`); a `--registry=<url>` argument setting the lobby's server list is a small harness change.
+2. **The authority the client spawns.** `ListenServerTarget` already appends no extension off Windows, so a file named
+   `Realm.ListenServerHost` beside the authority project satisfies it — a one-line wrapper that execs the Linux Godot
+   build with `--headless --path` is enough, and needs no export template.
+
+Beneath both sits the cost of running the game client itself: it is a Godot project with full assets, so its first
+headless launch on this checkout has to import them. That is minutes of one-off work on `/mnt/d`, and it is why this is
+the next step rather than part of the runs recorded above.
