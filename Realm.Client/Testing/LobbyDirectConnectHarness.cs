@@ -111,6 +111,12 @@ public partial class LobbyDirectConnectHarness : Node
 				case "--lobby-id":
 					_joinedLobbyId = value;
 					break;
+				case "--lobby-file":
+					_lobbyFile = value;
+					break;
+				case "--expect":
+					_expectedFamily = value;
+					break;
 			}
 		}
 
@@ -123,6 +129,7 @@ public partial class LobbyDirectConnectHarness : Node
 		string mapName = Path.GetFileName(Path.TrimEndingDirectorySeparator(_mapFolder));
 
 		if (_deadRegistry) PointTheRegistryAtAnUnreachableServer(lobby);
+		if (_liveRegistryUrl.Length > 0) PointTheRegistryAt(lobby, _liveRegistryUrl);
 
 		bool opened = _hostMode switch
 		{
@@ -134,6 +141,7 @@ public partial class LobbyDirectConnectHarness : Node
 
 		_port = lobby.LobbyPort;
 		if (_inviteFile.Length > 0) File.WriteAllText(_inviteFile, _port.ToString(CultureInfo.InvariantCulture));
+		if (_lobbyFile.Length > 0) File.WriteAllText(_lobbyFile, lobby.ActiveLobbyId ?? string.Empty);
 		GameLog.LogToConsole($"[DIRECT_HARNESS] mode={_hostMode} direct={lobby.IsDirectLobby} address={lobby.DirectConnectAddress} public={lobby.PublicConnectAddress ?? "none"}; waiting for a direct guest.");
 
 		bool seated = await WaitUntilAsync(() => lobby.PlayerList.Exists(player => !player.IsHost && !player.IsComputer), _waitSeconds);

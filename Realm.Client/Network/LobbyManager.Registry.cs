@@ -103,13 +103,18 @@ public partial class LobbyManager
 		// address and the private one is the shorter path. An IPv6 endpoint is already the host's own address.
 		if (choice.Family == LobbyAddressFamily.IPv4 && !string.IsNullOrEmpty(localIp) && hostIp == clientPublicIp && !string.Equals(localIp, connectIp, StringComparison.Ordinal))
 		{
-			GameLog.LogToConsole($"[LobbyManager] The host is on this network (public address {hostIp}). Connecting to {LobbyAddresses.Describe(localIp, ENetPort)}.");
+			GameLog.LogToConsole($"[LobbyManager] Host is on the same LAN (Public IP: {hostIp}). Connecting to local IP: {localIp}:{ENetPort}");
 			connectIp = localIp;
 			connectPort = ENetPort;
 		}
 
+		// Stated only for an IPv6 connection, which is the one path that is new: an IPv4 join logs exactly what it always has.
+		if (choice.Family == LobbyAddressFamily.IPv6)
+		{
+			GameLog.LogToConsole($"[LobbyManager] Joining {LobbyAddresses.Describe(connectIp, connectPort)} over IPv6, which needs no router forward and no hole punch.");
+		}
+
 		bool needsPunch = LobbyAddresses.NeedsHolePunch(choice.Family) && !IsDialledDirectly(connectIp);
-		GameLog.LogToConsole($"[LobbyManager] Joining {LobbyAddresses.Describe(connectIp, connectPort)} over {LobbyAddresses.FamilyName(choice.Family)}{(needsPunch ? " after punching the host's router" : " directly")}.");
 		return new HostConnection(connectIp, connectPort, choice.Family, needsPunch, string.Empty);
 	}
 

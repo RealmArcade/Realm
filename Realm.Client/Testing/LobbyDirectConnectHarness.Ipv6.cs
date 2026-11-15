@@ -33,6 +33,11 @@ public partial class LobbyDirectConnectHarness
 
 	private string _joinedLobbyId = string.Empty;
 
+	private string _lobbyFile = string.Empty;
+
+	/// <summary>The outcome the browser-path guest has to show: a family name, or "mismatch".</summary>
+	private string _expectedFamily = string.Empty;
+
 	/// <summary>
 	///     Holds nothing but endpoints, so a rig that publishes a lobby of its own states them the way a host does.
 	/// </summary>
@@ -156,7 +161,7 @@ public partial class LobbyDirectConnectHarness
 				Task hostSignallingLoop = HoldHostSignallingAsync(hostSignalling, registryUrl, lobbyId);
 				await Task.Delay(250);
 
-				await RunListedGuestChildAsync(projectDirectory, outputDirectory, lobbyId, registryUrl, notes, failures);
+				await RunListedGuestChildAsync(projectDirectory, outputDirectory, lobbyId, registryUrl, "mismatch", notes, failures);
 
 				hostSignalling.Abort();
 				await Task.WhenAny(hostSignallingLoop, Task.Delay(1000));
@@ -171,10 +176,52 @@ public partial class LobbyDirectConnectHarness
 		if (hostExit != 0) failures.Add($"the IPv6 host did not seat its guests (exit {hostExit}: {hostOutcome})");
 		else notes.Add(hostOutcome);
 
+		await RunListedIpv4RigAsync(projectDirectory, outputDirectory, registryUrl, notes, failures);
+
 		var report = new StringBuilder();
 		for (int index = 0; index < notes.Count; index++) report.AppendLine($"PASS {notes[index]}");
 		for (int index = 0; index < failures.Count; index++) report.AppendLine($"FAIL {failures[index]}");
 		return failures.Count > 0 ? (1, report.ToString().TrimEnd()) : (0, report.ToString().TrimEnd());
+	}
+
+	/// <summary>
+	///     Publishes a lobby the way the game itself does, through the rig's registry node, and joins it through the browser
+	///     path. On this machine that lobby is offered over IPv4 alone, which is what makes this the check that the endpoint
+	///     list did not change how an IPv4 lobby is hosted and joined.
+	/// </summary>
+	private async Task RunListedIpv4RigAsync(string projectDirectory, string outputDirectory, string registryUrl, List<string> notes, List<string> failures)
+	{
+		string inviteFile = Path.Combine(outputDirectory, "listed-host.invite");
+		string lobbyFile = Path.Combine(outputDirectory, "listed-host.lobby");
+		string hostDone = Path.Combine(outputDirectory, "listed-host.done");
+
+		Process host = StartChild(projectDirectory, ["--role=host", "--mode=listed", $"--registry={registryUrl}", $"--map={_mapFolder}", $"--invite-file={inviteFile}", $"--lobby-file={lobbyFile}", $"--done-file={hostDone}", "--wait-seconds=90"], "0");
+
+		if (!await WaitForFileAsync(lobbyFile, 240))
+		{
+			await WaitForExitAsync(host, 5);
+			StopProcess(host);
+			failures.Add($"a lobby published through the registry node over the endpoint list never named itself (exit {ReadDoneFile(hostDone).ExitCode}: {ReadDoneFile(hostDone).Outcome})");
+			return;
+		}
+
+		string lobbyId = File.ReadAllText(lobbyFile).Trim();
+		if (lobbyId.Length == 0)
+		{
+			StopProcess(host);
+			failures.Add("a lobby published through the registry node was registered without an identifier");
+			return;
+		}
+
+		notes.Add($"the screen published a lobby through the registry node as {lobbyId}");
+
+		await RunListedGuestChildAsync(projectDirectory, outputDirectory, lobbyId, registryUrl, LocalEndpointDiscovery.HasGlobalIpv6() ? "ipv6" : "ipv4", notes, failures);
+
+		await WaitForExitAsync(host, 120);
+		StopProcess(host);
+		(int hostExit, string hostOutcome) = ReadDoneFile(hostDone);
+		if (hostExit != 0) failures.Add($"the published lobby did not seat its guest (exit {hostExit}: {hostOutcome})");
+		else notes.Add(hostOutcome);
 	}
 
 	/// <summary>
@@ -191,27 +238,32 @@ public partial class LobbyDirectConnectHarness
 		if (!PointTheRegistryAt(lobby, _liveRegistryUrl)) return (72, "the registry list could not be pointed at the rig");
 
 		bool hasIpv6 = LocalEndpointDiscovery.HasGlobalIpv6();
+		string expected = _expectedFamily.Length > 0 ? _expectedFamily : hasIpv6 ? "ipv6" : "mismatch";
+
 		long started = Environment.TickCount64;
 		bool joined = await lobby.JoinLobbyAsync(_joinedLobbyId);
 		long elapsed = Environment.TickCount64 - started;
 
-		if (!joined)
+		if (expected == "mismatch")
 		{
+			if (joined) return (73, $"the lobby was joined over {lobby.JoinedLobbyFamily} instead of being refused");
+
 			string reason = lobby.LobbyJoinError ?? lobby.LastHostError ?? "no reason was recorded";
-			if (hasIpv6) return (73, $"this machine holds a global IPv6 address but could not join the IPv6 lobby: {reason}");
 			if (!reason.Contains("IPv6", StringComparison.Ordinal)) return (74, $"the refusal does not name the address family that is missing: {reason}");
 			if (elapsed > 8000) return (75, $"the family mismatch took {elapsed} ms to state, which is a timeout wearing a sentence: {reason}");
 
-			return (0, $"a machine without a global IPv6 address is refused in {elapsed} ms with '{reason}'");
+			return (0, $"a screen sharing no family with the lobby is refused in {elapsed} ms with '{reason}'");
 		}
 
-		if (!hasIpv6) return (76, "a machine with no global IPv6 address claims to have joined an IPv6-only lobby");
-		if (lobby.JoinedLobbyFamily != LobbyAddressFamily.IPv6) return (77, $"the join connected over {lobby.JoinedLobbyFamily} instead of IPv6");
+		if (!joined) return (76, $"joining the listed lobby failed: {lobby.LastHostError ?? lobby.LobbyJoinError ?? "no reason was recorded"}");
+
+		LobbyAddressFamily wanted = LobbyAddresses.ParseFamilyName(expected);
+		if (lobby.JoinedLobbyFamily != wanted) return (77, $"the join connected over {lobby.JoinedLobbyFamily} instead of {expected}");
 
 		bool described = await WaitUntilAsync(() => lobby.HasLobbyState && lobby.LocalPeerId > 0, 20f);
-		if (!described) return (78, "the lobby accepted the connection over IPv6 but never described a seat");
+		if (!described) return (78, $"the lobby accepted the connection over {expected} but never described a seat");
 
-		return (0, $"joined the listed laptop over IPv6 as peer {lobby.LocalPeerId} with {lobby.PlayerList.Count} seat(s)");
+		return (0, $"joined the listed lobby over {expected} as peer {lobby.LocalPeerId} with {lobby.PlayerList.Count} seat(s)");
 	}
 
 	/// <summary>
@@ -240,12 +292,12 @@ public partial class LobbyDirectConnectHarness
 		return (0, $"joined {remembered} as peer {lobby.LocalPeerId} over IPv6 with {lobby.PlayerList.Count} seat(s), and it is remembered as '{remembered}'");
 	}
 
-	private async Task RunListedGuestChildAsync(string projectDirectory, string outputDirectory, string lobbyId, string registryUrl, List<string> notes, List<string> failures)
+	private async Task RunListedGuestChildAsync(string projectDirectory, string outputDirectory, string lobbyId, string registryUrl, string expectedFamily, List<string> notes, List<string> failures)
 	{
 		string doneFile = Path.Combine(outputDirectory, "listed-guest.done");
-		await RunChildToCompletionAsync(projectDirectory, ["--role=listedguest", $"--lobby-id={lobbyId}", $"--registry={registryUrl}", $"--done-file={doneFile}", "--wait-seconds=30"], "0", 300);
+		await RunChildToCompletionAsync(projectDirectory, ["--role=listedguest", $"--lobby-id={lobbyId}", $"--registry={registryUrl}", $"--expect={expectedFamily}", $"--done-file={doneFile}", "--wait-seconds=30"], "0", 300);
 		(int exitCode, string outcome) = ReadDoneFile(doneFile);
-		if (exitCode != 0) failures.Add($"the browser path could not join the IPv6 lobby (exit {exitCode}: {outcome})");
+		if (exitCode != 0) failures.Add($"the browser path did not behave as expected for this lobby (exit {exitCode}: {outcome})");
 		else notes.Add(outcome);
 	}
 

@@ -55,7 +55,14 @@ public partial class LobbyManager
 	private LobbyEndpointOffer? _offeredIpv6Endpoint => FirstOffer(LobbyAddressFamily.IPv6);
 
 	/// <summary>Whether this machine holds an IPv4 address, which is what makes a router mapping worth asking for.</summary>
-	private bool _offersIpv4 => FirstOffer(LobbyAddressFamily.IPv4) != null;
+	/// <summary>
+	///     Whether this lobby is offered at an address a player on an IPv4-only network could reach. A lobby that is not
+	///     offered over IPv4 is reached at this machine's own IPv6 address, which needs nothing of a router, and the lobby
+	///     room says so instead of asking its host to open a port that would change nothing.
+	/// </summary>
+	public bool OffersIpv4 => FirstOffer(LobbyAddressFamily.IPv4) != null;
+
+	private bool _offersIpv4 => OffersIpv4;
 
 	private LobbyEndpointOffer? FirstOffer(LobbyAddressFamily family)
 	{
@@ -176,10 +183,14 @@ public partial class LobbyManager
 
 		var verifier = new HostReachabilityVerifier(_httpClient, message => GameLog.LogToConsole($"[Reachability] {message}"));
 		HostReachabilityResult result = await verifier.VerifyAsync(registryUrl, advertisedAddress, lobbyPort, PunchProbeEndpointAsync, cancellationToken).ConfigureAwait(false);
+		// The family is named only for an endpoint that is not the one this game has always published, so a machine with no
+		// IPv6 reads exactly the log it read before IPv6 existed.
+		string familyLabel = family == LobbyAddressFamily.IPv4 ? string.Empty : $" {familyName}";
+
 		if (!result.Verified)
 		{
 			_lastMeasuredFailure = result;
-			GameLog.LogError($"[Reachability] {familyName}: {result.Failure}: {result.Detail}");
+			GameLog.LogError($"[Reachability]{familyLabel} {result.Failure}: {result.Detail}");
 			return;
 		}
 
@@ -187,7 +198,9 @@ public partial class LobbyManager
 		registrations.Add(new LobbyEndpointRegistration(result.PublicIp, result.PublicPort, observedFamily, result.ProbeId));
 		verified.Add(new LobbyEndpointInfo(result.PublicIp, result.PublicPort, observedFamily, true, result.PublicIp, result.PublicPort));
 
-		GameLog.LogToConsole($"[Reachability] The registry reached this lobby's game port over {familyName} and measured {LobbyAddresses.Describe(result.PublicIp, result.PublicPort)} ({LocalNatType} NAT).");
+		GameLog.LogToConsole(familyLabel.Length == 0
+			? $"[Reachability] The registry reached this lobby's game port and measured {result.PublicIp}:{result.PublicPort} ({LocalNatType} NAT)."
+			: $"[Reachability] The registry reached this lobby's game port over {familyName} and measured {LobbyAddresses.Describe(result.PublicIp, result.PublicPort)} ({LocalNatType} NAT).");
 
 		if (family != LobbyAddressFamily.IPv4) return;
 

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 using Realm.Client.Network;
 using Realm.Client.Services;
@@ -130,7 +130,7 @@ public partial class LobbyCreate
 	private List<string> DescribeReachabilityHelp(HostReachabilityResult failure)
 	{
 		int port = LobbyForHelp()?.LobbyPort ?? 0;
-		string directConnectEndpoint = LobbyAddresses.Describe(LobbyManager.GetLocalIPAddress(), port > 0 ? port : 8999);
+		string directConnectEndpoint = LobbyForHelp()?.DirectConnectAddress ?? LobbyAddresses.Describe(LobbyManager.GetLocalIPAddress(), port > 0 ? port : 8999);
 
 		if (failure.Failure is HostReachabilityFailure.LoopbackUnanswered or HostReachabilityFailure.LoopbackNotOnLocalAddress)
 		{
@@ -163,6 +163,19 @@ public partial class LobbyCreate
 				Tr("This is the lobby server's limit rather than a problem on this computer, and opening a port on your router will not change it."),
 				Tr("Try again in a moment so another lobby server is used, or host the same lobby directly and send the address the lobby room shows to the players who should join."),
 				string.Format(Tr("Players on your own network can still join you with Direct Connect at {0}."), directConnectEndpoint)
+			};
+		}
+
+		// An IPv6-only lobby has no translation to map and nothing to forward, so the paragraphs that ask for a port are
+		// replaced by the one thing that can actually block it: a network filtering incoming IPv6 connections.
+		if (LobbyForHelp() is { OffersIpv4: false })
+		{
+			return new List<string>
+			{
+				Tr("The lobby server could not reach this lobby over IPv6, so the lobby was not published."),
+				Tr("IPv6 needs no port forward and no UPnP mapping, so there is nothing to change on your router. A network that filters incoming IPv6 connections blocks this, and that is a setting on the network rather than on this computer."),
+				string.Format(Tr("Players on your own network can still join you with Direct Connect at {0}."), directConnectEndpoint),
+				Tr("You can also host the same lobby directly, without the lobby server: choose HOST DIRECT INSTEAD and send the address the lobby room shows to the players you want to play with.")
 			};
 		}
 

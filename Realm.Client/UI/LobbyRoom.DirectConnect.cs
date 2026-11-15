@@ -25,6 +25,20 @@ public partial class LobbyRoom
 	{
 		container.AddChild(CreateDirectConnectAddressRow(prefix, Lobby.DirectConnectAddress, width, addressFontSize));
 
+		// A lobby offered over IPv6 alone is reached at this machine's own address: no router stands between the players,
+		// so nothing is forwarded, punched or mapped, and the sentences below - all of which are about a router - would
+		// send the host looking for a machine that has nothing to do with it.
+		if (!Lobby.OffersIpv4)
+		{
+			container.AddChild(CreateDirectConnectNote(
+				$"{prefix}Ipv6OnlyHint_Label",
+				"Send this address to the players you want to play with. It is this machine's own IPv6 address, so it needs no port forward, no hole punch and nothing from your router - and only players whose network gives them an IPv6 address can use it.",
+				width,
+				11,
+				UIStyle.ColorGoldDull));
+			return;
+		}
+
 		if (Lobby.PublicConnectAddress is { Length: > 0 } publicAddress)
 		{
 			container.AddChild(CreateDirectConnectNote(

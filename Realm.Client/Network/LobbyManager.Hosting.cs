@@ -24,7 +24,6 @@ using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
 using Realm.Shared.Reachability;
-using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
