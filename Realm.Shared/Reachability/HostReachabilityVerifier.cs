@@ -30,7 +30,14 @@ public enum HostReachabilityFailure
 	///     elsewhere. A node on the same machine or network cannot rehearse a public join, because every route it takes is
 	///     one that never leaves that network.
 	/// </summary>
-	ProbeFromOwnNetwork
+	ProbeFromOwnNetwork,
+
+	/// <summary>
+	///     The router gave the game port a different outside port for every destination, so the port the lobby is reached at
+	///     is not one a joining player can be told. A punch can only open a way for the endpoint it was aimed at, which makes
+	///     a lobby of this shape unjoinable until the port is forwarded or the players share an overlay network.
+	/// </summary>
+	MappingPerDestination
 }
 
 /// <summary>
@@ -146,9 +153,13 @@ public class HostReachabilityVerifier
 	{
 		string observedIp = string.IsNullOrEmpty(report.ObservedIp) ? advertisedIp : report.ObservedIp;
 		int observedPort = report.ObservedPort > 0 ? report.ObservedPort : advertisedPort;
-		string reachabilityClass = ReachabilityClasses.FromReport(report);
 		string mappingBehaviour = MappingBehaviours.FromMeasurement(observedPort, advertisedPort);
-		return new HostReachabilityResult(HostReachabilityFailure.None, probeId, observedIp, advertisedPort, $"the registry node reached the game port and measured the public endpoint {observedIp}:{observedPort} ({reachabilityClass}, mapping {mappingBehaviour})")
+		string reachabilityClass = ReachabilityClasses.FromReport(report, mappingBehaviour);
+		HostReachabilityFailure failure = reachabilityClass == ReachabilityClasses.Unverified ? HostReachabilityFailure.MappingPerDestination : HostReachabilityFailure.None;
+		string detail = failure == HostReachabilityFailure.None
+			? $"the registry node reached the game port and measured the public endpoint {observedIp}:{observedPort} ({reachabilityClass}, mapping {mappingBehaviour})"
+			: $"the registry node reached the game port, but the router gave it the outside port {observedPort} for that destination while the lobby listens on {advertisedPort}, so a punch opens a way for one endpoint and not for the players who would join";
+		return new HostReachabilityResult(failure, probeId, observedIp, advertisedPort, detail)
 		{
 			ObservedPort = observedPort,
 			ReachabilityClass = reachabilityClass,

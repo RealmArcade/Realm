@@ -36,19 +36,24 @@ public static class LobbyJoinability
 	///     reported, and is not consulted for a lobby only this machine plays. <paramref name="externalEndpointIsPublic" />
 	///     is whether the endpoint that measurement named is one a player outside this network could be sent to: a check that
 	///     answered from inside this network, or from outside it but at an address inside it, proves nothing about players
-	///     elsewhere and does not publish the lobby.
+	///     elsewhere and does not publish the lobby. <paramref name="mappingBehaviour" /> is whether the router gave the game
+	///     port one outside port for every destination or one per destination: a router that makes one per destination hands
+	///     the port a different outside port for every peer, so a punch can open the way for the endpoint it was aimed at and
+	///     for no other, which is a lobby no player could join by punching.
 	/// </summary>
 	/// <param name="publicLobby">Whether other players will be able to see and join the lobby.</param>
 	/// <param name="loopback">What this screen's own seat looked like.</param>
 	/// <param name="externalFailure">What the registry node's measurement reported, or <see cref="HostReachabilityFailure.None" />.</param>
 	/// <param name="externalEndpointIsPublic">Whether the measured endpoint is publicly routable.</param>
+	/// <param name="mappingBehaviour">The mapping behaviour the measurement showed, or <see cref="MappingBehaviours.Unknown" />.</param>
 	/// <returns>Why the lobby may not be published, or <see cref="HostReachabilityFailure.None" /> when it may.</returns>
-	public static HostReachabilityFailure Decide(bool publicLobby, LoopbackJoinOutcome loopback, HostReachabilityFailure externalFailure, bool externalEndpointIsPublic = true)
+	public static HostReachabilityFailure Decide(bool publicLobby, LoopbackJoinOutcome loopback, HostReachabilityFailure externalFailure, bool externalEndpointIsPublic = true, string? mappingBehaviour = MappingBehaviours.Unknown)
 	{
 		if (loopback == LoopbackJoinOutcome.SessionNotOnLoopback) return HostReachabilityFailure.LoopbackNotOnLocalAddress;
 		if (loopback != LoopbackJoinOutcome.Answered) return HostReachabilityFailure.LoopbackUnanswered;
 		if (!RequiresExternalCheck(publicLobby)) return HostReachabilityFailure.None;
 		if (externalFailure != HostReachabilityFailure.None) return externalFailure;
-		return externalEndpointIsPublic ? HostReachabilityFailure.None : HostReachabilityFailure.ProbeFromOwnNetwork;
+		if (!externalEndpointIsPublic) return HostReachabilityFailure.ProbeFromOwnNetwork;
+		return mappingBehaviour == MappingBehaviours.PerDestination ? HostReachabilityFailure.MappingPerDestination : HostReachabilityFailure.None;
 	}
 }

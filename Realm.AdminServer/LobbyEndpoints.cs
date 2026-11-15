@@ -163,7 +163,7 @@ public static class LobbyEndpoints
 			}, statusCode: StatusCodes.Status400BadRequest);
 		}
 
-		string reachabilityClass = ReachabilityClasses.FromReport(probeReport);
+		string reachabilityClass = ReachabilityClasses.FromReport(probeReport, req.MappingBehaviour);
 		if (!ReachabilityClasses.IsPublishable(reachabilityClass))
 		{
 			return Results.Json(ReachabilityEndpointHandlers.NotVerifiedRefusal(), statusCode: StatusCodes.Status400BadRequest);

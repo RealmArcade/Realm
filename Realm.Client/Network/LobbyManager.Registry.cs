@@ -99,10 +99,10 @@ public partial class LobbyManager
 		if (localAddressKnown)
 		{
 			GameLog.LogToConsole($"[LobbyManager] The host offers {localIp}:{localPort} on a network this machine is attached to, so the join goes there first.");
-			return new LobbyJoinTarget(localIp, localPort, true, punch);
+			return new LobbyJoinTarget(localIp, localPort, true, punch, hostIp, hostPort);
 		}
 
-		return new LobbyJoinTarget(hostIp, hostPort, false, punch);
+		return new LobbyJoinTarget(hostIp, hostPort, false, punch, hostIp, hostPort);
 	}
 
 	/// <summary>The host name of the registry node this screen is talking to, which is where a join report is sent.</summary>
@@ -409,7 +409,9 @@ public partial class LobbyManager
 			// only what it checked itself, so the rehearsal is run against the node that will accept the lobby.
 			ReportHostLobbyStage(HostLobbyStage.VerifyingNetwork);
 			HostReachabilityResult reachability = await VerifyLobbyReachabilityAsync(RegistryServerUrl, lobbyPort);
-			HostReachabilityFailure decision = LobbyJoinability.Decide(publicLobby: true, LoopbackJoinOutcome.Answered, reachability.Failure, ReachabilityAddresses.IsPubliclyRoutable(reachability.PublicIp));
+			ReachabilityClass = reachability.ReachabilityClass;
+			MappingBehaviour = reachability.MappingBehaviour;
+			HostReachabilityFailure decision = LobbyJoinability.Decide(publicLobby: true, LoopbackJoinOutcome.Answered, reachability.Failure, ReachabilityAddresses.IsPubliclyRoutable(reachability.PublicIp), reachability.MappingBehaviour);
 			if (decision != HostReachabilityFailure.None)
 			{
 				LastHostFailure = reachability;
@@ -420,8 +422,6 @@ public partial class LobbyManager
 
 			_hostPublicIp = reachability.PublicIp;
 			_hostPublicPort = reachability.PublicPort;
-			ReachabilityClass = reachability.ReachabilityClass;
-			MappingBehaviour = reachability.MappingBehaviour;
 			_routerReachability = RouterReachability.Confirmed;
 
 			ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
@@ -495,6 +495,7 @@ public partial class LobbyManager
 			HostReachabilityFailure.RegistryUnreachable => "The lobby server could not be reached, so whether other players can reach this machine was never checked.",
 			HostReachabilityFailure.ProbeSocketUnknown => "The lobby server could not say where its reachability check comes from, so this lobby was not published.",
 			HostReachabilityFailure.ProbeFromOwnNetwork => "The lobby server reached this machine from inside its own network, so the check only proved that players sharing that network can see the lobby. Point the game at a lobby server on the internet and host again.",
+			HostReachabilityFailure.MappingPerDestination => $"This router gives every destination a different outside port, so the port other players would punch is a different one for each of them and none of them can be told where to connect. Forward UDP port {lobbyPort} to this machine, or play over a VPN or an overlay network such as Tailscale; the lobby was not published.",
 			_ => $"Other players could not reach this machine on UDP port {lobbyPort}, so this lobby was not published ({reachability.Detail})."
 		};
 	}

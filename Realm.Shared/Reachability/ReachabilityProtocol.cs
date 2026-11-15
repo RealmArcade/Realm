@@ -65,12 +65,19 @@ public static class ReachabilityClasses
 		return Unverified;
 	}
 
-	/// <summary>The class a report states, which is the honest reading of what the check actually saw.</summary>
+	/// <summary>
+	///     The class a report states, which is the honest reading of what the check actually saw. A router that gives every
+	///     destination its own outside port hands the game port a different external port for every peer, so a punch can
+	///     open a way for the one endpoint it was sent to and for nobody else: the check answered, and its answer is not
+	///     evidence that a player could join, which is what an unverified lobby states.
+	/// </summary>
 	/// <param name="report">The report a registry node published.</param>
+	/// <param name="mappingBehaviour">The mapping behaviour a check measured, or <see cref="MappingBehaviours.Unknown" />.</param>
 	/// <returns>One of the three class constants.</returns>
-	public static string FromReport(ReachabilityReport? report)
+	public static string FromReport(ReachabilityReport? report, string? mappingBehaviour = MappingBehaviours.Unknown)
 	{
 		if (report == null || !report.Answered) return Unverified;
+		if (mappingBehaviour == MappingBehaviours.PerDestination) return Unverified;
 		return report.ColdAnswered ? Open : PunchOnly;
 	}
 }

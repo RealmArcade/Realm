@@ -13,6 +13,9 @@
 #                           listed lobby is published and nobody can get in
 #   --fail-storm N          after the guest gives up, post N join-failure reports from the player's network at N distinct
 #                           endpoints, which is how the lobby's line limit and its downgrade are measured
+#   --lookalike-lan         put the player's machine on an address inside the host's own subnet numbers, which is the
+#                           office NAT, hotel NAT or VPN exit where two separate networks both call themselves 10.10.0.0/24
+#                           and the host's private address is one the player can see but cannot reach
 set -u
 export PATH=${PATH}:/usr/local/dotnet:/opt/dotnet
 
@@ -29,6 +32,7 @@ FORWARD=0
 REGISTRY_ONLY=0
 BLOCK_PUNCH=0
 FAIL_STORM=0
+LOOKALIKE_LAN=0
 
 while [[ $# -gt 0 ]]; do
 	case $1 in
@@ -36,6 +40,7 @@ while [[ $# -gt 0 ]]; do
 		--forward) FORWARD=1; shift ;;
 		--block-punch) BLOCK_PUNCH=1; shift ;;
 		--fail-storm) FAIL_STORM=$2; shift 2 ;;
+		--lookalike-lan) LOOKALIKE_LAN=1; shift ;;
 		--registry-only) REGISTRY_ONLY=1; shift ;;
 		*) echo "unknown argument: $1" >&2; exit 1 ;;
 	esac
@@ -55,6 +60,12 @@ fi
 if [[ $BLOCK_PUNCH -eq 1 ]]; then
 	ip netns exec realm-host-router iptables -I FORWARD 1 -i lan-host -o wan-host -p udp -s 10.10.0.2 --sport 8999 -d 198.51.100.0/24 -j DROP
 	echo "the host's router now drops every punch its game port sends toward the player's network"
+fi
+
+if [[ $LOOKALIKE_LAN -eq 1 ]]; then
+	ip netns exec realm-player ip addr add 10.10.0.99/24 dev eth0
+	ip netns exec realm-player ip route add blackhole 10.10.0.2/32
+	echo "the player's machine now also carries 10.10.0.99/24, so the host's 10.10.0.2 looks like a neighbour it cannot reach"
 fi
 
 cp "$REGISTRY_DIR/appsettings.template.json" "$REGISTRY_DIR/appsettings.json"

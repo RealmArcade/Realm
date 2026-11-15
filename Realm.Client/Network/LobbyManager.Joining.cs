@@ -176,20 +176,31 @@ public partial class LobbyManager
 	/// </summary>
 	private const int JoinAttemptCount = 2;
 
+	/// <summary>
+	///     How long a join to an address on this machine's own network is given before the join falls back to the lobby's
+	///     outside address. Two networks that both number themselves 192.168.1.0/24 look like one network from inside, and
+	///     nothing a screen can measure for itself tells them apart, so the address is tried and disproved rather than
+	///     trusted: a neighbouring host answers in milliseconds, and one that is not a neighbour spends only this long.
+	/// </summary>
+	private const int LocalJoinAttemptTimeoutMilliseconds = 2500;
+
 	private bool _establishingLobbyConnection;
 
-	/// <summary>Where a join is aimed, and the ticket this screen reports itself with so the host can reach it.</summary>
+	/// <summary>
+	///     Where a join is aimed, and the ticket this screen reports itself with so the host can reach it. A host that
+	///     advertised an address on a network this machine is attached to offers two ways in, and the join tries the near
+	///     one first and falls back to the far one: an address that merely looks local is not a promise that it is.
+	/// </summary>
 	/// <param name="Ip">The address to connect to.</param>
 	/// <param name="Port">The port to connect to.</param>
 	/// <param name="IsLocalConnection">Whether the address is on a network this machine is directly attached to.</param>
 	/// <param name="Punch">The ticket the registry node stated for this join, or a default one when it stated none.</param>
-	private readonly record struct LobbyJoinTarget(string Ip, int Port, bool IsLocalConnection, JoinerPunchTicket Punch);
+	/// <param name="PublicIp">The address the lobby is reachable at from outside, or empty when there is no other way in.</param>
+	/// <param name="PublicPort">The port the lobby is reachable at from outside, or zero when there is no other way in.</param>
+	private readonly record struct LobbyJoinTarget(string Ip, int Port, bool IsLocalConnection, JoinerPunchTicket Punch, string PublicIp = "", int PublicPort = 0);
 
 	private async Task<bool> EstablishLobbyConnectionAsync(LobbyJoinTarget target)
 	{
-		string connectIp = target.Ip;
-		int connectPort = target.Port;
-		bool isLocalConnection = target.IsLocalConnection;
 		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
 		if (channel == null)
 		{
@@ -203,67 +214,89 @@ public partial class LobbyManager
 
 		string? failure = null;
 		bool rejected = false;
-
-		// The report of this screen's endpoint leaves from the port the join will connect from, so that the endpoint the
-		// host punches and the endpoint that connects are the same one. The connection is made at once rather than after
-		// the punch: this side's mapping for the lobby has to exist before the host's punch arrives, because a router that
-		// keeps no mapping of its own for an unanswered packet would take this side's mapping away from it.
-		int joinLocalPort = 0;
 		bool punchCoordinated = false;
-		if (!isLocalConnection && target.Punch.IsUsable)
-		{
-			long reportStarted = Environment.TickCount64;
-			_joinPhase = JoinPhases.Report;
-			joinLocalPort = await ReportJoinerEndpointFromJoinPortAsync(target.Punch);
-			punchCoordinated = joinLocalPort > 0;
-			MarkJoinPhase(JoinPhases.Report, punchCoordinated ? "sent" : "refused", reportStarted);
-		}
+
+		// A host that named an address on a network this machine is attached to is tried there first, because a join that
+		// stays inside one network is the fastest and the only one that needs no punching. The address is only tried, not
+		// trusted: two networks that number themselves the same look like one from inside, so an address that does not
+		// answer in the time a neighbour needs is given up and the lobby's outside address is joined instead.
+		bool nearAddressOffered = target.IsLocalConnection && !string.IsNullOrEmpty(target.PublicIp) && target.PublicPort > 0 && (target.PublicIp != target.Ip || target.PublicPort != target.Port);
 
 		_establishingLobbyConnection = true;
 		try
 		{
-			for (int attempt = 0; attempt < JoinAttemptCount && !rejected; attempt++)
+			for (int route = 0; route < (nearAddressOffered ? 2 : 1) && !rejected; route++)
 			{
-				if (attempt > 0)
+				bool nearRoute = route == 0 && nearAddressOffered;
+				string connectIp = nearRoute ? target.Ip : target.PublicIp.Length > 0 ? target.PublicIp : target.Ip;
+				int connectPort = nearRoute ? target.Port : target.PublicPort > 0 ? target.PublicPort : target.Port;
+				int attemptTimeoutMilliseconds = nearRoute ? LocalJoinAttemptTimeoutMilliseconds : JoinAttemptTimeoutMilliseconds;
+
+				// The report of this screen's endpoint leaves from the port the join will connect from, so that the endpoint
+				// the host punches and the endpoint that connects are the same one. The connection is made at once rather
+				// than after the punch: this side's mapping for the lobby has to exist before the host's punch arrives,
+				// because a router that keeps no mapping of its own for an unanswered packet would take this side's mapping
+				// away from it.
+				int joinLocalPort = 0;
+				punchCoordinated = false;
+				if (!nearRoute && target.Punch.IsUsable)
 				{
-					await Task.Delay(JoinRetryDelayMilliseconds);
-					GameLog.LogToConsole($"[LobbyManager] Joining {connectIp}:{connectPort} again after '{failure}' (attempt {attempt + 1} of {JoinAttemptCount}).");
+					long reportStarted = Environment.TickCount64;
+					_joinPhase = JoinPhases.Report;
+					joinLocalPort = await ReportJoinerEndpointFromJoinPortAsync(target.Punch);
+					punchCoordinated = joinLocalPort > 0;
+					MarkJoinPhase(JoinPhases.Report, punchCoordinated ? "sent" : "refused", reportStarted);
 				}
 
-				var session = new ClientServerSession(channel);
-				session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
-				AttachLobbySession(session);
-
-				_joinAttempts++;
-				long answerStarted = Environment.TickCount64;
-				_joinPhase = JoinPhases.Answer;
-				if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), joinLocalPort, out string joinFailure))
+				for (int attempt = 0; attempt < JoinAttemptCount && !rejected; attempt++)
 				{
-					failure = joinFailure;
-					MarkJoinPhase(JoinPhases.Answer, "unusable", answerStarted);
+					if (attempt > 0)
+					{
+						await Task.Delay(JoinRetryDelayMilliseconds);
+						GameLog.LogToConsole($"[LobbyManager] Joining {connectIp}:{connectPort} again after '{failure}' (attempt {attempt + 1} of {JoinAttemptCount}).");
+					}
+
+					var session = new ClientServerSession(channel);
+					session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
+					AttachLobbySession(session);
+
+					_joinAttempts++;
+					long answerStarted = Environment.TickCount64;
+					_joinPhase = JoinPhases.Answer;
+					if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), joinLocalPort, out string joinFailure))
+					{
+						failure = joinFailure;
+						MarkJoinPhase(JoinPhases.Answer, "unusable", answerStarted);
+						DropLobbySession(session);
+						continue;
+					}
+
+					_isConnectedToHost = true;
+
+					// A lobby that punched this screen back does not need the punch that opens this side of the route, and
+					// sending it would take the external port the host's punch is using for this screen.
+					if (!nearRoute && !punchCoordinated) PunchFromGamePort(channel, connectIp, connectPort);
+
+					var admission = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromMilliseconds(attemptTimeoutMilliseconds));
+					if (admission.Failure == null)
+					{
+						IsHost = session.IsAdmin;
+						MarkJoinPhase(JoinPhases.Admission, "admitted", answerStarted);
+						return true;
+					}
+
+					failure = admission.Failure;
+					rejected = admission.Answered;
+					_joinPhase = rejected ? JoinPhases.Admission : JoinPhases.Answer;
+					MarkJoinPhase(_joinPhase, rejected ? "refused" : "silent", answerStarted);
 					DropLobbySession(session);
-					continue;
 				}
 
-				_isConnectedToHost = true;
-
-				// A lobby that punched this screen back does not need the punch that opens this side of the route, and sending
-				// it would take the external port the host's punch is using for this screen.
-				if (!isLocalConnection && !punchCoordinated) PunchFromGamePort(channel, connectIp, connectPort);
-
-				var admission = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromMilliseconds(JoinAttemptTimeoutMilliseconds));
-				if (admission.Failure == null)
+				if (nearRoute && !rejected)
 				{
-					IsHost = session.IsAdmin;
-					MarkJoinPhase(JoinPhases.Admission, "admitted", answerStarted);
-					return true;
+					GameLog.LogToConsole($"[LobbyManager] The host's own-network address {target.Ip}:{target.Port} did not answer in {LocalJoinAttemptTimeoutMilliseconds} ms, so this screen is not on that network after all; joining at {target.PublicIp}:{target.PublicPort} instead.");
+					_joinEndpoint = $"{target.PublicIp}:{target.PublicPort}";
 				}
-
-				failure = admission.Failure;
-				rejected = admission.Answered;
-				_joinPhase = rejected ? JoinPhases.Admission : JoinPhases.Answer;
-				MarkJoinPhase(_joinPhase, rejected ? "refused" : "silent", answerStarted);
-				DropLobbySession(session);
 			}
 		}
 		finally
