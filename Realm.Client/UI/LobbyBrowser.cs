@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
+using Realm.Shared.Reachability;
 using HttpClient = System.Net.Http.HttpClient;
 using Timer = Godot.Timer;
 using static Godot.Control;
@@ -554,6 +555,25 @@ public partial class LobbyBrowser : Control
 			overlay.QueueFree();
 		};
 		hbox.AddChild(cancelBtn);
+
+		// A player who cannot get in reads the same connectivity help a host does, on their own side of the connection: the
+		// address is worth checking before any of it, so the dialog is offered beside the attempt rather than instead of it.
+		var troubleshootBtn = UIStyle.CreateActionButton("ConnectTroubleshoot_Button", Tr("TROUBLESHOOT"), 14);
+		troubleshootBtn.CustomMinimumSize = new Vector2(170, 38);
+		LocalizedText.SetTooltip(troubleshootBtn, "Read what the game measured about this failure, what usually stops a player getting in, and what to change before trying again.");
+		troubleshootBtn.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			var help = new ConnectivityHelpDialog { Name = "DirectConnectHelpDialog" };
+			AddChild(help);
+			help.Open(new ConnectivityHelpRequest
+			{
+				Audience = ConnectivityAudience.Joining,
+				TitleKey = ConnectivitySentences.JoiningTitle,
+				DiagnosticsBlock = GameContext.Lobby == null ? null : GameContext.Lobby.DescribeNetworkDiagnostics
+			});
+		};
+		hbox.AddChild(troubleshootBtn);
 
 		var connectBtn = UIStyle.CreateActionButton("ConnectBtn_Button", Tr("CONNECT"), 14);
 		connectBtn.CustomMinimumSize = new Vector2(140, 38);
