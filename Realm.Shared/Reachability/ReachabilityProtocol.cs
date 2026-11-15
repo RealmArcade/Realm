@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace Realm.Shared.Reachability;
 
 /// <summary>
@@ -212,7 +215,15 @@ public static class MappingBehaviours
 ///     address asks the node to use the address the host's request arrived from, so a host that cannot measure its own
 ///     public address is still checked against the one the network shows.
 /// </summary>
-public record ReachabilityBeginRequest(string AdvertisedIp, int AdvertisedPort, int WindowMilliseconds);
+public record ReachabilityBeginRequest(string AdvertisedIp, int AdvertisedPort, int WindowMilliseconds)
+{
+	/// <summary>
+	///     Whether the node asked should also ask the other nodes in its deployment. A host asks, because a lobby judged on
+	///     one vantage point is a lobby judged on one network; a node asking its peers says no, or every node would ask every
+	///     other node about the same lobby for ever.
+	/// </summary>
+	public bool AskPeers { get; init; } = true;
+}
 
 /// <summary>
 ///     The identity of a running check and the endpoint the host must punch so that a game port behind a router that
@@ -228,6 +239,12 @@ public record ReachabilityTicket(string ProbeId, string ProbeIp, int ProbePort, 
 	///     port that destination is reached at, and a router that keeps one mapping shows the same port to both.
 	/// </summary>
 	public int MappingProbePort { get; init; }
+
+	/// <summary>
+	///     The other registry nodes checking this same game port, which the host punches for the same reason it punches this
+	///     node: their probes are unsolicited traffic too. Empty when this deployment has one node.
+	/// </summary>
+	public IReadOnlyList<ReachabilityPeerProbe> PeerProbes { get; init; } = Array.Empty<ReachabilityPeerProbe>();
 }
 
 /// <summary>
@@ -250,7 +267,17 @@ public record ReachabilityReport(
 	bool ColdAnswered = false,
 	int ColdAttempts = 0,
 	string SecondObservedIp = "",
-	int SecondObservedPort = 0);
+	int SecondObservedPort = 0)
+{
+	/// <summary>
+	///     How many registry nodes were asked about this lobby, including the one answering. One means the lobby was judged
+	///     on a single vantage point, which is all a single-node deployment can offer.
+	/// </summary>
+	public int SourcesChecked { get; init; } = 1;
+
+	/// <summary>How many of the nodes that were asked reached the game port. Zero means none of them did.</summary>
+	public int SourcesAnswered { get; init; }
+}
 
 /// <summary>Marks the refusal a registry node states when it cannot check endpoints in the family a lobby offers.</summary>
 public static class ReachabilityRefusalCodes

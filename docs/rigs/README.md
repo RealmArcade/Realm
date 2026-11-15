@@ -44,6 +44,14 @@ within the wait, 5 if the lobby still claims `Open`, and 4 if the host never pub
 `Open` to `PunchOnly` 40 seconds after the forward was withdrawn, the lobby room was told, and a stranger's first
 datagram no longer reached the game port while the player who had already punched kept playing.
 
+`tools/rig/second-vantage.sh [--mapping reuse|translating] [--peers 0|1]` runs two registry nodes on the internet
+namespace, with the host's router carrying the punch a host must send and losing its second one. With `--peers 0` the
+lobby is refused (`MappingUnmeasured`: the outside port was measured at one destination only); with `--peers 1` the
+second node is the second destination, the host punches its probe socket too, and the lobby is published with
+`sources 2 of 2` and `mapping Reused`. Measured on `--mapping translating`: refused with one node (host exit 2), published
+at the translated outside port with two, and **the guest did not join it** (exit 6) — that shape is listed as `PunchOnly`
+while a punch does not admit a player, and it is recorded as an open defect rather than accepted.
+
 What it cannot show: a real ISP's carrier-grade NAT, a real router's firmware, a real VPN exit.
 
 ## 3. Two machines

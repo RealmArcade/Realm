@@ -36,6 +36,8 @@ HOST_NS=realm-host
 PLAYER_NS=realm-player
 MODE_FILE=/tmp/realm-rig-mapping
 GAME_PORT=${REALM_RIG_GAME_PORT:-8999}
+PROBE_PORT=${REALM_RIG_PROBE_PORT:-8998}
+SECOND_PROBE_PORT=${REALM_RIG_SECOND_PROBE_PORT:-8997}
 TRANSLATED_GAME_PORT=${REALM_RIG_TRANSLATED_GAME_PORT:-10000}
 
 require_root() {
@@ -101,6 +103,15 @@ configure_stable_mapping() {
 	ip netns exec "$ns" iptables -t nat -A PREROUTING -i "$wan" -p udp -d "$wan_ip" --dport "$outside_port" -j DNAT --to-destination "${lan_ip}:${port}"
 }
 
+# Drops everything the host's game port sends toward the registry except the punches aimed at a node's probe socket. This is
+# a router that carries the punch a host has to send and loses the second one, which is a measurement a single node cannot
+# complete without saying so: the outside port it saw belongs to one destination until another destination has agreed with it.
+block_punches_except_probe_ports() {
+	local ns=$1 wan=$2 lan_ip=$3 port=$4
+
+	ip netns exec "$ns" iptables -I FORWARD 1 -i lan-host -o "$wan" -p udp -s "$lan_ip" --sport "$port" -d "$REGISTRY_IP" -m multiport ! --dports "$PROBE_PORT,$SECOND_PROBE_PORT" -j DROP
+}
+
 forward_game_port() {
 	local ns=$1 wan=$2 lan=$3 port=$4
 
@@ -149,6 +160,9 @@ up() {
 	fi
 	if [[ ${REALM_RIG_FORWARD_GAME_PORT:-0} == 1 ]]; then
 		forward_game_port "$HOST_ROUTER_NS" wan-host lan-host "$GAME_PORT"
+	fi
+	if [[ ${REALM_RIG_BLOCK_SECOND_PUNCH:-0} == 1 ]]; then
+		block_punches_except_probe_ports "$HOST_ROUTER_NS" wan-host "${HOST_LAN}.2" "$GAME_PORT"
 	fi
 
 	for ns in "$HOST_NS" "$PLAYER_NS"; do
