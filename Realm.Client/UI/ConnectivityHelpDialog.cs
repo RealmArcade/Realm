@@ -162,6 +162,12 @@ public partial class ConnectivityHelpDialog : Control
 		_likelyCauseLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		_body.AddChild(_likelyCauseLabel);
 
+		var causesCaption = new Label { Name = "CausesCaption_Label" };
+		causesCaption.Text = ConnectivityHelpText.Text(ConnectivitySentences.CausesCaption);
+		causesCaption.AddThemeFontSizeOverride("font_size", 11);
+		causesCaption.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_body.AddChild(causesCaption);
+
 		var columns = new HBoxContainer { Name = "ConnectivityHelpColumns_HBoxContainer" };
 		columns.AddThemeConstantOverride("separation", 16);
 		columns.CustomMinimumSize = new Vector2(CardWidth - 60, ColumnsHeight);

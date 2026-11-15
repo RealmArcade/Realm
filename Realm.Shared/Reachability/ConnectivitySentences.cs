@@ -37,8 +37,6 @@ public static class ConnectivitySentences
 	/// <summary>The label of the button that runs every check and ranks what it finds.</summary>
 	public const string RunAllButton = "RUN FULL DIAGNOSTICS";
 
-	/// <summary>The label of the button that opens the system browser at one page.</summary>
-	public const string OpenLinkButton = "OPEN";
 
 	/// <summary>The label of the button that searches the web for the phrase beside it.</summary>
 	public const string SearchButton = "SEARCH";
@@ -94,8 +92,6 @@ public static class ConnectivitySentences
 	/// <summary>The label of the button that opens the same lobby without listing it.</summary>
 	public const string HostDirectButton = "HOST DIRECT INSTEAD";
 
-	/// <summary>The line the join-failure dialog offers when the join is worth one more attempt.</summary>
-	public const string RetryJoinButton = "TRY THE SAME ADDRESS AGAIN";
 
 	/// <summary>The report a host reads when the lobby server answered and the game port never did.</summary>
 	public const string LikelyHostProbeUnanswered = "The lobby server reached for UDP port {0} and nothing answered, so your lobby was not listed.";

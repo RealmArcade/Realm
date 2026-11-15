@@ -80,20 +80,4 @@ public static class ConnectivityDiagnosisRanking
 
 		return ordered;
 	}
-
-	/// <summary>The answers that found their issue present, most likely first.</summary>
-	/// <param name="diagnoses">The answers of one run.</param>
-	/// <param name="audience">The list whose order breaks the ties.</param>
-	/// <returns>The confirmed answers, in show order, empty when nothing was found.</returns>
-	public static IReadOnlyList<ConnectivityDiagnosis> Likely(IReadOnlyList<ConnectivityDiagnosis> diagnoses, ConnectivityAudience audience)
-	{
-		IReadOnlyList<ConnectivityDiagnosis> ordered = Order(diagnoses, audience);
-		var likely = new List<ConnectivityDiagnosis>(ordered.Count);
-		for (int index = 0; index < ordered.Count; index++)
-		{
-			if (ordered[index].IsLikely) likely.Add(ordered[index]);
-		}
-
-		return likely;
-	}
 }
