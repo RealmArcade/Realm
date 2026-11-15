@@ -17,10 +17,11 @@ namespace Realm.Shared.Reachability;
 ///     stated none.
 /// </param>
 /// <param name="PunchToken">The check the report belongs to, or empty when the node stated none.</param>
+/// <param name="ReachabilityClass">The class the node states for this lobby, or empty when it stated none.</param>
 /// <param name="Capabilities">
 ///     What the node that answered can do, or nothing when it stated no capabilities, which is a node older than this build.
 /// </param>
-public readonly record struct LobbyJoinAnswer(string HostAddress, int HostPort, string? LocalAddress, IReadOnlyList<LobbyEndpointInfo> Endpoints, int PunchPort = 0, string PunchToken = "", RegistryCapabilities? Capabilities = null)
+public readonly record struct LobbyJoinAnswer(string HostAddress, int HostPort, string? LocalAddress, IReadOnlyList<LobbyEndpointInfo> Endpoints, int PunchPort = 0, string PunchToken = "", RegistryCapabilities? Capabilities = null, string ReachabilityClass = "")
 {
 	/// <summary>
 	///     The endpoints to choose from, in the shape every caller wants them: the list the answer carried, or the single
@@ -78,8 +79,9 @@ public static class LobbyJoinAnswers
 			int punchPort = ReadNumber(root, "punchPort", "PunchPort");
 			string punchToken = ReadString(root, "punchToken", "PunchToken");
 			RegistryCapabilities? capabilities = ReadCapabilities(root);
+			string reachabilityClass = ReadString(root, "reachabilityClass", "ReachabilityClass");
 
-			return new LobbyJoinAnswer(hostAddress, hostPort, localAddress, endpoints, punchPort, punchToken, capabilities);
+			return new LobbyJoinAnswer(hostAddress, hostPort, localAddress, endpoints, punchPort, punchToken, capabilities, reachabilityClass);
 		}
 		catch (JsonException)
 		{

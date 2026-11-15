@@ -36,6 +36,15 @@ public class JoinCapabilityTests
 	}
 
 	[Test]
+	public void ALobbyTheNodeMeasuredAsOpenNeedsNoRelay()
+	{
+		LobbyJoinAnswer open = Answer(Capabilities(false)) with { ReachabilityClass = ReachabilityClasses.Open };
+
+		Assert.That(LobbyJoinPreconditions.DescribeBlock(open, needsPunch: false), Is.EqualTo(LobbyJoinBlock.None));
+		Assert.That(LobbyJoinAnswers.TryParse("{\"hostIP\":\"203.0.113.2\",\"hostPort\":8999,\"reachabilityClass\":\"Open\"}")!.Value.ReachabilityClass, Is.EqualTo(ReachabilityClasses.Open));
+	}
+
+	[Test]
 	public void ANodeThatSaysItDoesNotRelayPunchesIsNamedRatherThanWaitedOut()
 	{
 		Assert.That(LobbyJoinPreconditions.DescribeBlock(Answer(Capabilities(false)), needsPunch: true), Is.EqualTo(LobbyJoinBlock.NodeDoesNotRelayPunches));

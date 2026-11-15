@@ -115,7 +115,10 @@ public partial class LobbyManager
 		// A lobby behind a router is admitted only when the node relays this screen's endpoint to the host, and a node older
 		// than the relay says nothing at all about itself. Both are decided here, before an attempt is spent on them: the
 		// alternative is a join that reports a host which never answered, when the host was never going to be told.
-		LobbyJoinBlock block = LobbyJoinPreconditions.DescribeBlock(joinAnswer, LobbyAddresses.NeedsHolePunch(choice.Family));
+		// A lobby the node measured as Open answers unsolicited traffic and needs nothing relayed, whatever the family says:
+		// only a lobby that needs a punch, or one the node never classified, depends on the relay being there.
+		bool lobbyNeedsPunch = LobbyAddresses.NeedsHolePunch(choice.Family) && !string.Equals(joinAnswer.ReachabilityClass, ReachabilityClasses.Open, StringComparison.OrdinalIgnoreCase);
+		LobbyJoinBlock block = LobbyJoinPreconditions.DescribeBlock(joinAnswer, lobbyNeedsPunch);
 		if (block != LobbyJoinBlock.None)
 		{
 			string stated = LobbyJoinPreconditions.Describe(joinAnswer.Capabilities);
