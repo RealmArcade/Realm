@@ -25,6 +25,20 @@ public partial class LobbyRoom
 	{
 		container.AddChild(CreateDirectConnectAddressRow(prefix, Lobby.DirectConnectAddress, width, addressFontSize));
 
+		// A dual-stack host has two audiences: the players in the same room, who dial this network's IPv4 address, and the
+		// players anywhere whose network gives them IPv6, who dial this machine's own IPv6 address and need nothing of a
+		// router to reach it. Both are stated, because the one the room leads with works for only one of them.
+		if (Lobby.IsHost && Lobby.Ipv6ConnectAddress is { Length: > 0 } ipv6Address && Lobby.OffersIpv4)
+		{
+			container.AddChild(CreateDirectConnectNote(
+				$"{prefix}Ipv6Hint_Label",
+				"Players whose network gives them IPv6 reach this lobby at this address, which needs no port forward and no hole punch:",
+				width,
+				11,
+				UIStyle.ColorGoldDull));
+			container.AddChild(CreateDirectConnectAddressRow($"{prefix}Ipv6", ipv6Address, width, addressFontSize));
+		}
+
 		// A lobby offered over IPv6 alone is reached at this machine's own address: no router stands between the players,
 		// so nothing is forwarded, punched or mapped, and the sentences below - all of which are about a router - would
 		// send the host looking for a machine that has nothing to do with it.

@@ -84,8 +84,9 @@ public partial class LobbyManager
 		JoinedLobbyFamily = LobbyAddresses.FamilyOf(targetIp);
 
 		// An address a player typed is dialled the same way a listed endpoint is: an IPv6 address is direct, and an IPv4
-		// address on this network is direct, while an IPv4 address somewhere else needs the router punched first.
-		bool needsPunch = LobbyAddresses.NeedsHolePunch(JoinedLobbyFamily) && !IsDialledDirectly(targetIp);
+		// address on this network is direct, while an IPv4 address somewhere else needs the router punched first. Anything
+		// that is neither - a host name, which the transport resolves itself - keeps the punch it has always been given.
+		bool needsPunch = JoinedLobbyFamily != LobbyAddressFamily.IPv6 && !IsPrivateIp(targetIp);
 		bool joined = await EstablishLobbyConnectionAsync(targetIp, targetPort, needsPunch);
 
 		// Only an address that seated this player is worth going back to: a typo, or a lobby that never answered, is not

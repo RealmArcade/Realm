@@ -216,10 +216,26 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// <summary>
 	///     The address a player on this network joins this screen's lobby with, in the `address:port` form every player
 	///     pastes into the direct connect dialog. It is the address a host sends to the people they want to play with, and
-	///     it is the best one this machine holds: a global IPv6 address when it has one, because that address works from
-	///     anywhere without a router mapping, and this network's IPv4 address otherwise.
+	///     it is this network's IPv4 address whenever this machine has one, because that is the address the players in the
+	///     same room as the host dial; a machine that holds only IPv6 states its IPv6 address, which is the only one it has.
 	/// </summary>
 	public string DirectConnectAddress => LobbyAddresses.Describe(BestLocalConnectHost(), LobbyPort > 0 ? LobbyPort : ENetPort);
+
+	/// <summary>
+	///     The address players whose network gives them IPv6 reach this lobby at, or nothing when this machine holds no
+	///     advertisable IPv6 address. It is offered beside the address above rather than instead of it: a dual-stack host
+	///     has one player to invite on their own network and another anywhere on IPv6, and handing either of them the other
+	///     player's address is how an invite stops working. It needs no router forward, which is why it is worth showing
+	///     even when the IPv4 route needs one that a host cannot make.
+	/// </summary>
+	public string? Ipv6ConnectAddress
+	{
+		get
+		{
+			if (LocalEndpointDiscovery.Best(LobbyAddressFamily.IPv6) is not { } best) return null;
+			return LobbyAddresses.Describe(best.Address.ToString(), LobbyPort > 0 ? LobbyPort : ENetPort);
+		}
+	}
 
 	/// <summary>
 	///     The best address this machine holds for another player to join this lobby at, or the IPv4 address this machine
@@ -228,7 +244,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// <returns>The address to state, without a port.</returns>
 	private static string BestLocalConnectHost()
 	{
-		LobbyEndpointCandidate? best = LocalEndpointDiscovery.Best(LobbyAddressFamily.IPv6) ?? LocalEndpointDiscovery.Best(LobbyAddressFamily.IPv4);
+		LobbyEndpointCandidate? best = LocalEndpointDiscovery.Best(LobbyAddressFamily.IPv4) ?? LocalEndpointDiscovery.Best(LobbyAddressFamily.IPv6);
 		return best?.Address.ToString() ?? GetLocalIPAddress();
 	}
 
