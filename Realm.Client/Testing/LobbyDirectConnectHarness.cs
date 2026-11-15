@@ -30,6 +30,8 @@ public partial class LobbyDirectConnectHarness : Node
 
 	private string _registry = string.Empty;
 
+	private string _lobbyId = string.Empty;
+
 	public override void _Ready()
 	{
 		_ = RunAsync();
@@ -107,6 +109,9 @@ public partial class LobbyDirectConnectHarness : Node
 				case "--registry":
 					_registry = value;
 					break;
+				case "--lobby":
+					_lobbyId = value;
+					break;
 			}
 		}
 
@@ -130,7 +135,13 @@ public partial class LobbyDirectConnectHarness : Node
 		if (!opened) return (2, $"hosting failed: {lobby.LastHostError ?? "no reason was recorded"}");
 
 		_port = lobby.LobbyPort;
-		if (_inviteFile.Length > 0) File.WriteAllText(_inviteFile, _port.ToString(CultureInfo.InvariantCulture));
+
+		// The lobby's own identifier goes beside its port, because a listed join is the only kind that asks the registry
+		// where the lobby is and the only kind whose punch a host has to be told about.
+		if (_inviteFile.Length > 0)
+		{
+			File.WriteAllText(_inviteFile, $"{_port.ToString(CultureInfo.InvariantCulture)}\n{lobby.ActiveLobbyId ?? string.Empty}\n");
+		}
 		GameLog.LogToConsole($"[DIRECT_HARNESS] mode={_hostMode} direct={lobby.IsDirectLobby} address={lobby.DirectConnectAddress} public={lobby.PublicConnectAddress ?? "none"}; waiting for a direct guest.");
 
 		bool seated = await WaitUntilAsync(() => lobby.PlayerList.Exists(player => !player.IsHost && !player.IsComputer), _waitSeconds);
@@ -480,7 +491,17 @@ public partial class LobbyDirectConnectHarness : Node
 	private async Task<(int ExitCode, string Outcome)> RunGuestAsync()
 	{
 		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("The LobbyManager autoload is unavailable.");
-		if (!await WaitForInviteFileAsync()) return (4, $"the host never wrote its port to '{_inviteFile}'");
+		if (_lobbyId.Length == 0 && !await WaitForInviteFileAsync()) return (4, $"the host never wrote its port to '{_inviteFile}'");
+
+		if (_registry.Length > 0) PointTheRegistryAt(lobby, _registry);
+
+		if (_lobbyId.Length > 0)
+		{
+			bool joinedByListing = await lobby.JoinLobbyAsync(_lobbyId);
+			return joinedByListing
+				? (0, $"joined lobby {_lobbyId} through the registry, {lobby.PlayerList.Count} seat(s) after admission")
+				: (6, $"the listed join of lobby {_lobbyId} failed: {lobby.LastHostError ?? lobby.LobbyJoinError ?? "no reason was recorded"}");
+		}
 
 		if (_port <= 0) return (5, "the host never named the port it listens on");
 
