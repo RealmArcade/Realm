@@ -140,7 +140,7 @@ through a node built before that statement existed states the equivalent thing i
 ### The IPv6 rig — `Realm.Client/Testing/LobbyDirectConnectHarness`, role `ipv6`
 
 Starts a real registry node on `http://[::1]:<port>` with both probe sockets, and reports 19 checks. Three
-consecutive full runs on the branch that introduced it, and 19/19 again after the merge, and once more after
+consecutive full runs on the branch that introduced it, and 19/19 again after the merge (20/20 with the port-changing-router check), and once more after
 the development-node statement above:
 
 1. the node answers over IPv6 and states it can check both families;
@@ -189,7 +189,27 @@ The same role run against a **client built from `10d18a7a`** produces the same l
 between the two builds (12 distinct lines). That is the "byte-for-byte unchanged on a machine with no IPv6"
 acceptance criterion, measured instead of asserted.
 
-### What still needs two machines
+### What the harness covers and what it cannot
+
+The IPv6 rig runs on the same machine as everything else, so it proves code paths and socket behaviour
+rather than a carrier's network. Split by what a run can honestly claim:
+
+| Question | Answerable in the rig | Where |
+| --- | --- | --- |
+| Does the node check, list and relay both families? | yes | role `ipv6`, checks 1-8 |
+| Does a lobby reachable over one family list only that family? | yes (both directions) | `ipv6` checks 5 and 7 |
+| Does one lobby hold an IPv4 and an IPv6 player at once? | yes, real screens | `ipv6` check 13 |
+| Does a join state the family it used and need no punch over IPv6? | yes | `ipv6` checks 12-14 |
+| Is a per-destination IPv4 router survivable over IPv6 alone? | yes, against a real node | `ipv6` check 20 |
+| Is an older registry node still served? | yes, node built at `10d18a7a` | role `oldnode` |
+| Does a machine with no IPv6 read the log it always did? | yes, compared with a build of `10d18a7a` | role `driver` |
+| Does a carrier filter IPv6 traffic? | no: a filtered endpoint is simulated, a filtered adapter is not | manual |
+| Is a real Windows host with IPv4 disabled published and joined? | no: this machine holds no global IPv6 address | manual |
+| Do two real networks reach each other over IPv6? | no: both screens share one kernel | manual |
+| Does a rotating temporary address break a lobby that lived for days? | no: needs days | manual |
+
+The four rows the rig cannot answer are the same four the ticket listed as manual-only. They are steps to
+follow rather than code paths to write, so nothing in this branch waits on them:
 
 Loopback can prove every code path but not a carrier's behaviour, and this machine has no global IPv6
 address (only `fe80::` and `::1`), so these remain:
