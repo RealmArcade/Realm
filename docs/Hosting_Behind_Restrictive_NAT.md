@@ -106,11 +106,10 @@ the lobby server measured, with nothing installed.
 
 ### Which of the two is needed once a relay exists
 
-The relay workstream (F in `docs/network_host_resilience_task.md`) is not implemented in this branch, so both tiers above
-are what exists today. When a relay lands, a host with no inbound path will be joinable with nothing installed, and the
-forwarded VPN tier becomes unnecessary — its whole purpose is to give the host an inbound path, which is what a relay
-provides. The overlay tier stays useful for the case a relay cannot serve: a match where no reachable relay node exists,
-or a group that would rather not send its match through anybody's node at all.
+Realm has no relay, so both tiers above are what exists today. A relay would make a host with no inbound path joinable
+with nothing installed, and the forwarded VPN tier would become unnecessary — its whole purpose is to give the host an
+inbound path, which is what a relay provides. The overlay tier would stay useful for the case a relay cannot serve: a
+match where no reachable relay node exists, or a group that would rather not send its match through anybody's node at all.
 
 ## Troubleshooting: symptom, phase, what to try
 

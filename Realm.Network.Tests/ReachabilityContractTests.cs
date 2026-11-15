@@ -44,11 +44,7 @@ public class ColdProbeClassificationTests
 	[Test]
 	public void ATranslatedOutsidePortThatWasMeasuredStableIsPunchOnlyWhichIsTheShapeTheRigFoundIsNotJoinable()
 	{
-		// The class this states is what the check measured: one mapping for every destination, answered after a punch.
-		// The one-machine rig found that a lobby listed this way did not admit a guest (its game port never answered the
-		// punch), so this pins the classification and NOT the promise: the open defect is recorded in
-		// docs/network_host_resilience_task.md under C3, and the fix belongs to the join path or to the listing, not here.
-		Assert.That(ReachabilityClasses.FromReport(Report(observedPort: 10000, advertisedPort: 8999), MappingBehaviours.Reused), Is.EqualTo(ReachabilityClasses.PunchOnly));
+		Assert.That(ReachabilityClasses.FromReport(Report(observedPort: 10000, advertisedPort: 8999), MappingBehaviours.Reused), Is.EqualTo(ReachabilityClasses.PunchOnly), "the class is what the check measured - one mapping for every destination, answered after a punch - and not a promise: the rig found a lobby listed this way did not admit a guest, which is an open defect of the join path or the listing rather than of the classification");
 	}
 
 	[Test]
