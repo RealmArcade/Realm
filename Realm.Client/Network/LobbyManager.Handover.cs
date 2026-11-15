@@ -429,7 +429,7 @@ public partial class LobbyManager
 		Callable.From(() =>
 		{
 			if (token.IsCancellationRequested) return;
-			if (ReferenceEquals(_rehearsalWork?.Token, token)) _rehearsalWork = null;
+			if (_rehearsalWork != null && _rehearsalWork.Token.Equals(token)) _rehearsalWork = null;
 
 			HandoverReport = report;
 			HasHandoverReport = true;
@@ -528,7 +528,7 @@ public partial class LobbyManager
 		report.Credentials = _handoverCredentials;
 		report.Verdict = (int)HostHandoverRules.Verdict(report);
 
-		if (report.Failure.Length == 0 && report.Verdict != (int)LobbyHandoverVerdict.Passed) report.Failure = "the measured numbers did not pass the handover rules";
+		if (string.IsNullOrEmpty(report.Failure) && report.Verdict != (int)LobbyHandoverVerdict.Passed) report.Failure = "the measured numbers did not pass the handover rules";
 		return report;
 	}
 
@@ -536,7 +536,7 @@ public partial class LobbyManager
 	{
 		// The folder was resolved for the version this lobby is playing, so holding it is what the authority requires: the
 		// new host runs the artifact in that folder and nothing recompiles it for the match.
-		return !string.IsNullOrEmpty(GameHost.ResolveMapDirectory(ActiveMapName, _joinedMapVersion));
+		return !string.IsNullOrEmpty(GameHost.ResolveMapDirectory(ActiveMapName ?? string.Empty, _joinedMapVersion));
 	}
 
 	private LobbyHandoverAdoption? BuildAdoption(string mapDirectory)

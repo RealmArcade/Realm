@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -273,7 +273,7 @@ public sealed class LobbyHandoverProbeService : IDisposable
 
 		if (!await WaitForRegistrationAsync(budget).ConfigureAwait(false)) return sample;
 
-		IPEndPoint peerEndpoint = await AskForPeerEndpointAsync(targetToken, budget).ConfigureAwait(false);
+		IPEndPoint? peerEndpoint = await AskForPeerEndpointAsync(targetToken, budget).ConfigureAwait(false);
 		if (peerEndpoint == null) return sample;
 
 		byte[] datagram = new byte[LobbyHandoverProbeWire.DatagramBytes];

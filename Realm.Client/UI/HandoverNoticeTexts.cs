@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using Realm.Shared.Network;
 
 namespace Realm.Client.UI;
@@ -42,7 +42,7 @@ public static class HandoverNoticeTexts
 			LobbyHandoverNotice.RehearsalIncomplete => TranslationServer.Translate(LobbyHandoverNotice.RehearsalIncomplete),
 			LobbyHandoverNotice.Settling => TranslationServer.Translate(LobbyHandoverNotice.Settling),
 			LobbyHandoverNotice.NoProbeRelay => TranslationServer.Translate(LobbyHandoverNotice.NoProbeRelay),
-			_ => LocalizationManager.TranslateKey(noticeKey)
+			_ => noticeKey
 		};
 	}
 }

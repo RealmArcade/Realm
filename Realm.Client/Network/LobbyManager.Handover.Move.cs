@@ -207,7 +207,7 @@ public partial class LobbyManager
 		if (!joined) return false;
 
 		IsHost = true;
-		IsDirectLobby = false;
+		IsDirectLobby = string.IsNullOrEmpty(lobbyId);
 		ActiveLobbyId = string.IsNullOrEmpty(lobbyId) ? ActiveLobbyId : lobbyId;
 		LobbyPort = _handoverRehearsalPort;
 		HostedMapDisplayName = ActiveMapName;

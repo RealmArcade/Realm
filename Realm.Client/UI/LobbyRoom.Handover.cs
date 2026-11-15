@@ -93,6 +93,7 @@ public partial class LobbyRoom
 		_handoverOfferButton.AddThemeConstantOverride("icon_max_width", 0);
 		_handoverOfferButton.TooltipText = TranslationServer.Translate("Offer a host handover. The lobby moves only after a measured rehearsal and both players confirming it.");
 		_handoverOfferButton.Pressed += OnHandoverOfferPressed;
+
 		inviteRow.AddChild(_handoverOfferButton);
 		inviteRow.MoveChild(_handoverOfferButton, _shareAddressButton.GetIndex() + 1);
 	}
@@ -161,6 +162,7 @@ public partial class LobbyRoom
 		_handoverSummaryLabel.CustomMinimumSize = new Vector2(760, 0);
 		_handoverSummaryLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		column.AddChild(_handoverSummaryLabel);
+		LocalizedText.Bind(_handoverSummaryLabel, BuildHandoverSummaryText);
 
 		_handoverVerdictLabel = new Label();
 		_handoverVerdictLabel.Name = "HandoverVerdict_Label";
@@ -169,6 +171,7 @@ public partial class LobbyRoom
 		_handoverVerdictLabel.CustomMinimumSize = new Vector2(760, 0);
 		_handoverVerdictLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		column.AddChild(_handoverVerdictLabel);
+		LocalizedText.Bind(_handoverVerdictLabel, BuildHandoverVerdictText);
 
 		var buttons = new HBoxContainer();
 		buttons.Name = "HandoverButtons_HBoxContainer";
@@ -176,16 +179,21 @@ public partial class LobbyRoom
 		buttons.Alignment = BoxContainer.AlignmentMode.Center;
 		column.AddChild(buttons);
 
-		_handoverAcceptButton = AddHandoverButton(buttons, "HandoverAccept_Button", "ACCEPT", OnHandoverAcceptPressed);
-		_handoverRefuseButton = AddHandoverButton(buttons, "HandoverRefuse_Button", "REFUSE", OnHandoverRefusePressed);
-		_handoverConfirmButton = AddHandoverButton(buttons, "HandoverConfirm_Button", "CONFIRM HANDOVER", OnHandoverConfirmPressed);
-		_handoverCancelButton = AddHandoverButton(buttons, "HandoverCancel_Button", "CANCEL", OnHandoverCancelPressed);
-		_handoverCloseButton = AddHandoverButton(buttons, "HandoverClose_Button", "CLOSE", OnHandoverClosePressed);
+		_handoverAcceptButton = AddHandoverButton(buttons, "HandoverAccept_Button", OnHandoverAcceptPressed);
+		LocalizedText.Set(_handoverAcceptButton, "ACCEPT");
+		_handoverRefuseButton = AddHandoverButton(buttons, "HandoverRefuse_Button", OnHandoverRefusePressed);
+		LocalizedText.Set(_handoverRefuseButton, "REFUSE");
+		_handoverConfirmButton = AddHandoverButton(buttons, "HandoverConfirm_Button", OnHandoverConfirmPressed);
+		LocalizedText.Set(_handoverConfirmButton, "CONFIRM HANDOVER");
+		_handoverCancelButton = AddHandoverButton(buttons, "HandoverCancel_Button", OnHandoverCancelPressed);
+		LocalizedText.Set(_handoverCancelButton, "CANCEL");
+		_handoverCloseButton = AddHandoverButton(buttons, "HandoverClose_Button", OnHandoverClosePressed);
+		LocalizedText.Set(_handoverCloseButton, "CLOSE");
 	}
 
-	private static Button AddHandoverButton(Container row, string nodeName, string label, Action onPressed)
+	private static Button AddHandoverButton(Container row, string nodeName, Action onPressed)
 	{
-		Button button = UIStyle.CreateActionButton(nodeName, TranslationServer.Translate(label), 14);
+		Button button = UIStyle.CreateActionButton(nodeName, string.Empty, 14);
 		button.CustomMinimumSize = new Vector2(170, 42);
 		button.AddThemeConstantOverride("icon_max_width", 0);
 		button.Pressed += onPressed;
@@ -272,7 +280,7 @@ public partial class LobbyRoom
 
 		_handoverOfferButton.Visible = !Lobby.IsGameStarted;
 		_handoverOfferButton.Disabled = stage != LobbyHandoverStage.None || Lobby.IsCountdownActive;
-		UIStyle.ApplyButtonText(_handoverOfferButton, TranslationServer.Translate(Lobby.IsHost ? "HAND OVER HOST" : "OFFER TO HOST"), 13);
+		RefreshHandoverOfferButton();
 
 		string status = DescribeHandoverStatus(stage, party);
 		_handoverStatusLabel.Visible = status.Length > 0;
@@ -304,6 +312,18 @@ public partial class LobbyRoom
 		return party && Lobby.HandoverSecondsRemaining > 0 ? $"{sentence} ({Lobby.HandoverSecondsRemaining}s)" : sentence;
 	}
 
+	/// <summary>
+	///     Names the offer button for what this screen can do with it, which is offering itself when it is not the host and
+	///     offering the role to somebody else when it is.
+	/// </summary>
+	private void RefreshHandoverOfferButton()
+	{
+		if (_handoverOfferButton == null) return;
+
+		if (Lobby.IsHost) LocalizedText.Set(_handoverOfferButton, "HAND OVER HOST");
+		else LocalizedText.Set(_handoverOfferButton, "OFFER TO HOST");
+	}
+
 	private void PopulateHandoverRows(LobbyHandoverStage stage)
 	{
 		if (_handoverRowsContainer == null || _handoverSummaryLabel == null || _handoverVerdictLabel == null) return;
@@ -313,37 +333,56 @@ public partial class LobbyRoom
 		if (stage == LobbyHandoverStage.None && _handoverCandidatePickerOpen)
 		{
 			PopulateHandoverCandidatePicker();
-			_handoverSummaryLabel.Text = string.Empty;
-			_handoverVerdictLabel.Text = string.Empty;
+			LocalizedText.RefreshAll();
 			return;
 		}
 
 		if (!Lobby.HasHandoverReport)
 		{
-			AddHandoverLine(string.Format(TranslationServer.Translate("Waiting for the rehearsal's measurements of every seated player against {0}."), HandoverCandidateName()));
-			_handoverSummaryLabel.Text = string.Empty;
-			_handoverVerdictLabel.Text = string.Empty;
+			AddHandoverLine("Waiting for the rehearsal's measurements of every seated player against {0}.", HandoverCandidateName());
+			LocalizedText.RefreshAll();
 			return;
 		}
 
 		LobbyHandoverReport report = Lobby.HandoverReport;
 		LobbyHandoverSeatMetric[] seats = report.Seats ?? [];
 
-		AddHandoverLine(string.Format(TranslationServer.Translate("Player — now (to this host) — proposed (to {0})"), HandoverCandidateName()));
+		AddHandoverLine("Player — now (to this host) — proposed (to {0})", HandoverCandidateName());
 		for (int index = 0; index < seats.Length; index++)
 		{
 			LobbyHandoverSeatMetric seat = seats[index];
-			string now = seat.CurrentHostMeasured
-				? string.Format(TranslationServer.Translate("{0} ms, {1} ms jitter, {2}% loss"), seat.CurrentHostRoundTripMilliseconds, seat.CurrentHostJitterMilliseconds, Math.Round(seat.CurrentHostPacketLossPercent))
-				: TranslationServer.Translate("not measured");
-			string proposed = seat.CandidateMeasured
-				? string.Format(TranslationServer.Translate("{0} ms, {1} ms jitter, {2}% loss"), seat.CandidateRoundTripMilliseconds, seat.CandidateJitterMilliseconds, Math.Round(seat.CandidatePacketLossPercent))
-				: TranslationServer.Translate("not measured");
-
-			AddHandoverLine(string.Format(TranslationServer.Translate("{0}: {1} → {2}"), seat.Name, now, proposed));
+			string now = DescribeSeatLink(seat.Name, seat.CurrentHostMeasured, seat.CurrentHostRoundTripMilliseconds, seat.CurrentHostJitterMilliseconds, seat.CurrentHostPacketLossPercent);
+			string proposed = DescribeSeatLink(seat.Name, seat.CandidateMeasured, seat.CandidateRoundTripMilliseconds, seat.CandidateJitterMilliseconds, seat.CandidatePacketLossPercent);
+			AddHandoverLine("{0}: {1} → {2}", seat.Name, now, proposed);
 		}
 
+		LocalizedText.RefreshAll();
+
+		LobbyHandoverVerdict verdict = (LobbyHandoverVerdict)report.Verdict;
+		_handoverVerdictLabel.AddThemeColorOverride("font_color", verdict == LobbyHandoverVerdict.Passed ? UIStyle.ColorGold : new Color(0.9f, 0.35f, 0.3f));
+	}
+
+	/// <summary>
+	///     Renders one seat's measured link, stating a measurement that was not taken as such rather than as a good number.
+	/// </summary>
+	private static string DescribeSeatLink(string name, bool measured, int roundTripMilliseconds, int jitterMilliseconds, float packetLossPercent)
+	{
+		if (!measured) return TranslationServer.Translate("not measured");
+
+		return string.Format(TranslationServer.Translate("{0} ms, {1} ms jitter, {2}% loss"), roundTripMilliseconds, jitterMilliseconds, Math.Round(packetLossPercent));
+	}
+
+	/// <summary>
+	///     Builds the rehearsal's summary where it is drawn, so a language change redraws it in the new language instead of
+	///     leaving the sentence the screen happened to build once.
+	/// </summary>
+	private string BuildHandoverSummaryText()
+	{
+		if (!Lobby.HasHandoverReport) return string.Empty;
+
+		LobbyHandoverReport report = Lobby.HandoverReport;
 		LobbyReportSummary summary = LobbyReportSummary.Read(report);
+
 		var summaryText = new StringBuilder();
 		summaryText.AppendLine(string.Format(TranslationServer.Translate("Round trip now: best {0} ms, worst {1} ms, mean {2} ms."), summary.CurrentBest, summary.CurrentWorst, summary.CurrentMean));
 		summaryText.AppendLine(string.Format(TranslationServer.Translate("Round trip proposed: best {0} ms, worst {1} ms, mean {2} ms."), summary.CandidateBest, summary.CandidateWorst, summary.CandidateMean));
@@ -351,16 +390,18 @@ public partial class LobbyRoom
 		summaryText.AppendLine(string.Format(TranslationServer.Translate("The new host can be reached from outside: {0}; it holds this lobby's map at its version: {1}."),
 			report.CandidateEndpointVerified ? TranslationServer.Translate("measured") : TranslationServer.Translate("not measured"),
 			report.MapMatched ? TranslationServer.Translate("yes") : TranslationServer.Translate("no")));
-		_handoverSummaryLabel.Text = summaryText.ToString().TrimEnd();
+		return summaryText.ToString().TrimEnd();
+	}
 
-		LobbyHandoverVerdict verdict = (LobbyHandoverVerdict)report.Verdict;
-		_handoverVerdictLabel.Text = DescribeVerdict(verdict);
-		_handoverVerdictLabel.AddThemeColorOverride("font_color", verdict == LobbyHandoverVerdict.Passed ? UIStyle.ColorGold : new Color(0.9f, 0.35f, 0.3f));
+	/// <summary>Builds the rehearsal's verdict where it is drawn, for the same reason the summary is.</summary>
+	private string BuildHandoverVerdictText()
+	{
+		return Lobby.HasHandoverReport ? DescribeVerdict((LobbyHandoverVerdict)Lobby.HandoverReport.Verdict) : string.Empty;
 	}
 
 	private void PopulateHandoverCandidatePicker()
 	{
-		AddHandoverLine(TranslationServer.Translate("Choose the player to offer the host role to. They answer it, and nothing changes until a rehearsal passes and both of you confirm it."));
+		AddHandoverLine("Choose the player to offer the host role to. They answer it, and nothing changes until a rehearsal passes and both of you confirm it.");
 
 		foreach (PlayerInfo player in Lobby.PlayerList)
 		{
@@ -370,7 +411,7 @@ public partial class LobbyRoom
 			Button offer = UIStyle.CreateActionButton($"HandoverOfferTo_{player.Slot}_Button", player.Name, 14);
 			offer.CustomMinimumSize = new Vector2(720, 34);
 			offer.AddThemeConstantOverride("icon_max_width", 0);
-			offer.TooltipText = TranslationServer.Translate("Offer this player the lobby's host role.");
+			LocalizedText.SetTooltip(offer, "Offer this player the lobby's host role.");
 			offer.Pressed += () =>
 			{
 				Lobby.OfferHandoverTo(peerId);
@@ -381,11 +422,11 @@ public partial class LobbyRoom
 		}
 	}
 
-	private void AddHandoverLine(string text)
+	private void AddHandoverLine(string key, params object?[] arguments)
 	{
 		var label = new Label();
 		label.Name = "HandoverLine_Label";
-		label.Text = text;
+		LocalizedText.Set(label, key, arguments);
 		label.AddThemeFontSizeOverride("font_size", 13);
 		label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		label.CustomMinimumSize = new Vector2(740, 0);
