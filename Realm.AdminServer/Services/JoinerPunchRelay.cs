@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
@@ -169,7 +169,7 @@ public class JoinerPunchRelay : IDisposable
 
 			if (received.Buffer.Length > ReceivedDatagramBytes) continue;
 			if (!JoinerPunch.TryReadToken(received.Buffer, out string token)) continue;
-			if (!_pending.TryRemove(token, out PendingJoin join)) continue;
+			if (!_pending.TryGetValue(token, out PendingJoin join)) continue;
 
 			IPEndPoint observed = received.RemoteEndPoint;
 			string address = observed.Address.IsIPv4MappedToIPv6 ? observed.Address.MapToIPv4().ToString() : observed.Address.ToString();
