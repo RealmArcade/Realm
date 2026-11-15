@@ -440,7 +440,10 @@ public partial class LobbyManager
 				LoopbackJoinOutcome.Answered,
 				reachability.Verified.Count > 0 ? HostReachabilityFailure.None : DescribeReachabilityRefusal(RegistryServerUrl, reachability).Failure,
 				reachability.AllowsLocalCallers || AllowNonPublicEndpointForDevelopment || reachability.Verified.Exists(endpoint => ReachabilityAddresses.IsPubliclyRoutable(endpoint.DialAddress)),
-				MappingBehaviour);
+				MappingBehaviour,
+				// A router that maps a port per destination stands in front of the IPv4 endpoints only. A lobby that also
+				// offers a family no router translates keeps that family, and the registration drops the rest.
+				reachability.Verified.Exists(endpoint => !LobbyAddresses.NeedsHolePunch(endpoint.FamilyValue)));
 			if (decision != HostReachabilityFailure.None)
 			{
 				// A refusal that is about the endpoint rather than about a check that never answered is described from the

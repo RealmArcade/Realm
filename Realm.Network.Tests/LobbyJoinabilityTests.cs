@@ -42,6 +42,20 @@ public class LobbyJoinabilityTests
 	}
 
 	[Test]
+	public void ARouterThatChangesThePortPerDestinationCostsALobbyOnlyTheEndpointsItTranslates()
+	{
+		Assert.That(
+			LobbyJoinability.Decide(publicLobby: true, LoopbackJoinOutcome.Answered, HostReachabilityFailure.None, mappingBehaviour: MappingBehaviours.PerDestination),
+			Is.EqualTo(HostReachabilityFailure.MappingPerDestination),
+			"a lobby reached only through a router that cannot be punched through is not published");
+
+		Assert.That(
+			LobbyJoinability.Decide(publicLobby: true, LoopbackJoinOutcome.Answered, HostReachabilityFailure.None, mappingBehaviour: MappingBehaviours.PerDestination, hasEndpointNeedingNoRouter: true),
+			Is.EqualTo(HostReachabilityFailure.None),
+			"a lobby that also offers an endpoint no router translates is reachable, so it is published over that one");
+	}
+
+	[Test]
 	public void OnlyAPublicLobbyIsCheckedFromOutside()
 	{
 		Assert.That(LobbyJoinability.RequiresExternalCheck(publicLobby: true), Is.True);

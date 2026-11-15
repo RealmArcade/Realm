@@ -66,7 +66,9 @@ public partial class LobbyDirectConnectHarness
 		string LocalIP,
 		string MapVersion,
 		IReadOnlyList<RigEndpoint>? Endpoints,
-		string ReachabilityProbeId);
+		string ReachabilityProbeId,
+		string MappingBehaviour = MappingBehaviours.Unknown,
+		int? ObservedPort = null);
 
 	/// <summary>
 	///     Runs the whole IPv6 rig: a registry node on the loopback IPv6 address, a host whose lobby is reachable only over
@@ -172,6 +174,7 @@ public partial class LobbyDirectConnectHarness
 				notes.Add($"the registry node published an IPv6-only lobby as {lobbyId}");
 				await CheckListedFamiliesAsync(registryUrl, lobbyId, notes, failures);
 				await CheckBothFamiliesAreVerifiedAsync(registryUrl, hostPort, notes, failures);
+				await CheckARouterThatChangesThePortKeepsOnlyTheFamilyItCannotBreakAsync(registryUrl, hostPort, notes, failures);
 				await CheckAFilteredIpv6EndpointIsDroppedAsync(registryUrl, hostPort, notes, failures);
 				await CheckAnOlderClientCanPublishAsync(registryUrl, hostPort, notes, failures);
 				await CheckAJoinWithoutAHostChannelIsRefusedWithAReasonAsync(registryUrl, lobbyId, hostPort, notes, failures);
@@ -815,6 +818,86 @@ public partial class LobbyDirectConnectHarness
 		}
 
 		failures.Add($"the dual-stack lobby {lobbyId} is missing from the listing");
+	}
+
+	/// <summary>
+	///     Publishes a dual-stack lobby from a host whose router gives every destination its own outside port, and reads back
+	///     what the node kept. Such a router hands an IPv4 endpoint a different outside port for every peer, so a punch can
+	///     open a way for the one destination it was aimed at and for nobody else: the IPv4 endpoints are dropped, and the
+	///     IPv6 endpoint is untouched because no router stands in front of it. Keeping both would list a lobby at an address
+	///     no player could join, and dropping both would refuse a lobby that is reachable over IPv6.
+	/// </summary>
+	/// <param name="registryUrl">The rig's registry node.</param>
+	/// <param name="hostPort">The game port the authority listens on in both families.</param>
+	/// <param name="notes">The lines to report.</param>
+	/// <param name="failures">The lines that failed.</param>
+	private static async Task CheckARouterThatChangesThePortKeepsOnlyTheFamilyItCannotBreakAsync(string registryUrl, int hostPort, List<string> notes, List<string> failures)
+	{
+		string? ipv6ProbeId = await MeasureEndpointAsync(registryUrl, "::1", hostPort);
+		string? ipv4ProbeId = await MeasureEndpointAsync(registryUrl, "127.0.0.1", hostPort);
+		if (ipv6ProbeId == null || ipv4ProbeId == null)
+		{
+			failures.Add("the registry node could not measure both endpoints of the lobby a port-changing router is published from");
+			return;
+		}
+
+		var request = new RigRegisterRequest(
+			"IPv6 Rig Port Changing Router Map",
+			hostPort,
+			"Open",
+			"127.0.0.1",
+			string.Empty,
+			4,
+			1,
+			20,
+			RealmVersion.GameBinaryVersion,
+			"127.0.0.1",
+			"1.0.0",
+			new List<RigEndpoint>
+			{
+				new("::1", hostPort, LobbyAddresses.FamilyName(LobbyAddressFamily.IPv6), ipv6ProbeId),
+				new("127.0.0.1", hostPort, LobbyAddresses.FamilyName(LobbyAddressFamily.IPv4), ipv4ProbeId)
+			},
+			ipv6ProbeId,
+			MappingBehaviours.PerDestination,
+			hostPort + 7);
+
+		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+		HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{registryUrl}/lobbies/register", request);
+		if (!response.IsSuccessStatusCode)
+		{
+			failures.Add($"a dual-stack lobby behind a port-changing router was refused with {(int)response.StatusCode} instead of being published over the family that router cannot break: {await response.Content.ReadAsStringAsync()}");
+			return;
+		}
+
+		using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+		string lobbyId = document.RootElement.GetProperty("lobbyId").GetString() ?? string.Empty;
+
+		string listing = await httpClient.GetStringAsync($"{registryUrl}/lobbies");
+		using JsonDocument listingDocument = JsonDocument.Parse(listing);
+		foreach (JsonElement lobby in listingDocument.RootElement.EnumerateArray())
+		{
+			if (lobby.GetProperty("lobbyId").GetString() != lobbyId) continue;
+
+			var families = new List<string>();
+			foreach (JsonElement endpoint in lobby.GetProperty("endpoints").EnumerateArray())
+			{
+				families.Add(endpoint.GetProperty("family").GetString() ?? string.Empty);
+				int port = endpoint.GetProperty("port").GetInt32();
+				if (port != hostPort) failures.Add($"the lobby a port-changing router published states port {port} instead of the port its transport holds ({hostPort})");
+			}
+
+			if (families.Count != 1 || families[0] != LobbyAddresses.FamilyName(LobbyAddressFamily.IPv6))
+			{
+				failures.Add($"a lobby behind a router that gives every destination its own outside port states {string.Join(" + ", families)} instead of the ipv6 endpoint alone");
+				return;
+			}
+
+			notes.Add("a router that gives every destination its own outside port cost a dual-stack lobby its ipv4 endpoint and nothing else");
+			return;
+		}
+
+		failures.Add($"the lobby a port-changing router published ({lobbyId}) is missing from the listing");
 	}
 
 	/// <summary>

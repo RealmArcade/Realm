@@ -46,14 +46,19 @@ public static class LobbyJoinability
 	/// <param name="externalFailure">What the registry node's measurement reported, or <see cref="HostReachabilityFailure.None" />.</param>
 	/// <param name="externalEndpointIsPublic">Whether the measured endpoint is publicly routable.</param>
 	/// <param name="mappingBehaviour">The mapping behaviour the measurement showed, or <see cref="MappingBehaviours.Unknown" />.</param>
+	/// <param name="hasEndpointNeedingNoRouter">
+	///     Whether the lobby is reached at an endpoint no router stands in front of, which is what an IPv6 endpoint is. A
+	///     router that maps a port per destination then costs the lobby the endpoints it translates and not the lobby itself.
+	/// </param>
 	/// <returns>Why the lobby may not be published, or <see cref="HostReachabilityFailure.None" /> when it may.</returns>
-	public static HostReachabilityFailure Decide(bool publicLobby, LoopbackJoinOutcome loopback, HostReachabilityFailure externalFailure, bool externalEndpointIsPublic = true, string? mappingBehaviour = MappingBehaviours.Unknown)
+	public static HostReachabilityFailure Decide(bool publicLobby, LoopbackJoinOutcome loopback, HostReachabilityFailure externalFailure, bool externalEndpointIsPublic = true, string? mappingBehaviour = MappingBehaviours.Unknown, bool hasEndpointNeedingNoRouter = false)
 	{
 		if (loopback == LoopbackJoinOutcome.SessionNotOnLoopback) return HostReachabilityFailure.LoopbackNotOnLocalAddress;
 		if (loopback != LoopbackJoinOutcome.Answered) return HostReachabilityFailure.LoopbackUnanswered;
 		if (!RequiresExternalCheck(publicLobby)) return HostReachabilityFailure.None;
 		if (externalFailure != HostReachabilityFailure.None) return externalFailure;
 		if (!externalEndpointIsPublic) return HostReachabilityFailure.ProbeFromOwnNetwork;
-		return mappingBehaviour == MappingBehaviours.PerDestination ? HostReachabilityFailure.MappingPerDestination : HostReachabilityFailure.None;
+		if (mappingBehaviour != MappingBehaviours.PerDestination) return HostReachabilityFailure.None;
+		return hasEndpointNeedingNoRouter ? HostReachabilityFailure.None : HostReachabilityFailure.MappingPerDestination;
 	}
 }
