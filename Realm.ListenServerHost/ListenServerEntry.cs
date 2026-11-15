@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO;
@@ -179,6 +179,20 @@ public partial class ListenServerEntry : Node
 			case ServerControlKind.StartMatch:
 				StartMatch(command);
 				break;
+
+			case ServerControlKind.Punch:
+			{
+				MatchHost? host = _match;
+				if (host == null || string.IsNullOrWhiteSpace(command.PunchAddress) || command.PunchPort <= 0 || command.PunchPort > 65535)
+				{
+					Reply(command, accepted: false, "this authority holds no match to punch from");
+					break;
+				}
+
+				host.PunchFromGamePort(command.PunchAddress, command.PunchPort, command.PunchProbeId);
+				Reply(command, accepted: true, string.Empty);
+				break;
+			}
 
 			case ServerControlKind.Pause:
 				EndMatch("the screen that owns it paused this authority");

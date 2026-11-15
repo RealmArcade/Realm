@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Net.WebSockets;
@@ -368,6 +368,7 @@ public static class LobbyEndpoints
 			ReachabilityClass = reachabilityClass,
 			MappingBehaviour = req.MappingBehaviour,
 			ObservedPort = req.ObservedPort ?? 0,
+			OwnershipEpoch = 1,
 			MapSizeBytes = req.MapSizeBytes ?? 0,
 			IsGreenlit = isGreenlit,
 			MapCreator = mapCreator,
@@ -414,59 +415,157 @@ public static class LobbyEndpoints
 		return Results.Ok(new { Status = "Propagated" });
 	});
 
+	// A lobby that two of its players handed to a new host moves its ownership here, in one step: the id, the seats and
+	// the listing survive, the endpoints become the new host's, and the epoch moves forward so the host it left can no
+	// longer publish, admit a player or close a lobby somebody else now owns.
+	app.MapPost("/lobbies/handover", async (LobbyHandoverRequest req, LobbyRegistry registry, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory, HttpContext context) =>
+	{
+		if (!registry.TryGet(req.LobbyId, out LobbyInfo? lobby) || lobby == null) return Results.NotFound(new { Message = "Lobby not found" });
+
+		if (!string.Equals(lobby.HostToken, req.HostToken, StringComparison.Ordinal) || lobby.OwnershipEpoch != req.OwnershipEpoch)
+		{
+			Console.WriteLine($"[Registry] Refused a handover of lobby {req.LobbyId}: the request names epoch {req.OwnershipEpoch}, and this node holds epoch {lobby.OwnershipEpoch}");
+			return Results.Json(new LobbyOwnershipSuperseded(lobby.OwnershipEpoch, LobbyOwnershipSuperseded.SupersededCode), statusCode: StatusCodes.Status409Conflict);
+		}
+
+		if (req.Endpoints is not { Count: > 0 }) return Results.Json(ReachabilityEndpointHandlers.NotVerifiedRefusal(), statusCode: StatusCodes.Status400BadRequest);
+
+		List<LobbyEndpointInfo> endpoints = VerifyPublishedEndpoints(reachabilityProbe, req.Endpoints, out List<string> uncheckedFamilies);
+		if (endpoints.Count == 0)
+		{
+			return Results.Json(
+				uncheckedFamilies.Count > 0 ? ReachabilityEndpointHandlers.FamilyNotCheckedRefusal(string.Join(" and ", uncheckedFamilies)) : ReachabilityEndpointHandlers.NotVerifiedRefusal(),
+				statusCode: StatusCodes.Status400BadRequest);
+		}
+
+		if (req.MappingBehaviour == MappingBehaviours.PerDestination) endpoints.RemoveAll(endpoint => endpoint.FamilyValue == LobbyAddressFamily.IPv4);
+		if (endpoints.Count == 0) return Results.Json(ReachabilityEndpointHandlers.MappingPerDestinationRefusal(), statusCode: StatusCodes.Status400BadRequest);
+
+		LobbyEndpointInfo primary = PrimaryEndpoint(endpoints);
+		string reachabilityClass = endpoints.Exists(endpoint => endpoint.AnsweredCold) ? ReachabilityClasses.Open : ReachabilityClasses.PunchOnly;
+		string newHostToken = Guid.NewGuid().ToString();
+		int newEpoch = lobby.OwnershipEpoch + 1;
+
+		LobbyInfo transfer = lobby.Clone();
+		transfer.HostIP = primary.DialAddress;
+		transfer.HostPort = primary.Port;
+		transfer.Endpoints = endpoints;
+		transfer.HostToken = newHostToken;
+		transfer.OwnershipEpoch = newEpoch;
+		transfer.MappingBehaviour = req.MappingBehaviour ?? MappingBehaviours.Unknown;
+		transfer.ObservedPort = req.ObservedPort;
+		transfer.ReachabilityClass = reachabilityClass;
+		transfer.NatType = string.IsNullOrEmpty(req.NatType) ? transfer.NatType : req.NatType;
+		transfer.HostPingBaseline = req.HostPingBaseline;
+		transfer.SlotsUsed = req.SlotsUsed;
+		transfer.MaxPlayers = req.MaxPlayers > 0 ? req.MaxPlayers : transfer.MaxPlayers;
+		transfer.LocalIP = req.LocalIP;
+		transfer.LocalPort = req.LocalPort;
+		transfer.OriginServerUri = registeredPeers.SelfUrl;
+		transfer.LastHeartbeat = DateTime.UtcNow;
+
+		if (!registry.TryReplace(lobby, transfer))
+		{
+			// Somebody registered or closed this lobby between the check above and here, so this handover is answered with the
+			// state the node holds rather than overwriting a lobby it no longer recognised.
+			registry.TryGet(req.LobbyId, out LobbyInfo? now);
+			return Results.Json(new LobbyOwnershipSuperseded(now?.OwnershipEpoch ?? 0, LobbyOwnershipSuperseded.SupersededCode), statusCode: StatusCodes.Status409Conflict);
+		}
+
+		// The host the lobby left keeps nothing that could publish for it or admit a player to it.
+		if (hostConnections.TryRemove(req.LobbyId, out WebSocket? previousSocket))
+		{
+			try
+			{
+				await previousSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Lobby handed to a new host", CancellationToken.None);
+			}
+			catch
+			{
+			}
+		}
+
+		_ = Task.Run(async () =>
+		{
+			using var httpClient = httpClientFactory.CreateClient();
+			foreach (string peerUrl in registeredPeers.PeerUrls)
+			{
+				try
+				{
+					var content = new StringContent(JsonSerializer.Serialize(transfer), Encoding.UTF8, "application/json");
+					HttpResponseMessage response = await httpClient.PostAsync($"{peerUrl.TrimEnd('/')}/lobbies/propagate", content);
+					if (!response.IsSuccessStatusCode) Console.WriteLine($"[Registry] Failed to propagate handover of {transfer.LobbyId} to peer {peerUrl}: {response.StatusCode}");
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"[Registry] Error propagating handover of {transfer.LobbyId} to peer {peerUrl}: {ex.Message}");
+				}
+			}
+		});
+
+		Console.WriteLine($"[Registry] Lobby {transfer.LobbyId} handed to a new host at {primary.DialAddress}:{primary.Port} as epoch {newEpoch} ({reachabilityClass}, mapping {transfer.MappingBehaviour})");
+		return Results.Ok(new LobbyHandoverResponse(transfer.LobbyId, newEpoch, newHostToken));
+	});
+
 
 	app.MapPost("/lobbies/heartbeat", async (HeartbeatRequest req, LobbyRegistry registry, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 	{
-		if (registry.TryGet(req.LobbyId, out var lobby) && lobby != null)
+		if (!registry.TryGet(req.LobbyId, out LobbyInfo? current) || current == null) return Results.NotFound(new { Message = "Lobby not found" });
+
+		// A host states the ownership it is heart-beating under. A host the lobby has already left is told so instead of
+		// being allowed to keep a lobby another screen now owns alive, which is the one way a stale authority could speak
+		// for a lobby after a handover.
+		if (HostMessageIsSuperseded(current, req.HostToken, req.OwnershipEpoch, out LobbyOwnershipSuperseded? superseded)) return Results.Json(superseded, statusCode: StatusCodes.Status409Conflict);
+
+		LobbyInfo? lobby = registry.Update(req.LobbyId, listed =>
 		{
-			lobby.LastHeartbeat = DateTime.UtcNow;
-			lobby.SlotsUsed = req.SlotsUsed;
-			if (req.IsGameInProgress.HasValue)
-			{
-				lobby.IsGameInProgress = req.IsGameInProgress.Value;
-			}
+			listed.LastHeartbeat = DateTime.UtcNow;
+			listed.SlotsUsed = req.SlotsUsed;
+			if (req.IsGameInProgress.HasValue) listed.IsGameInProgress = req.IsGameInProgress.Value;
 
 			// A host that measured its own lobby again may only withdraw the class this node measured. Accepting a better
 			// class from the host would let a screen promote a lobby the node already disproved, and accepting an unknown
 			// class would let it write anything into a field the browser sorts and filters on.
-			if (ReachabilityClasses.IsWeaker(req.ReachabilityClass, lobby.ReachabilityClass))
+			if (ReachabilityClasses.IsWeaker(req.ReachabilityClass, listed.ReachabilityClass))
 			{
-				Console.WriteLine($"[Registry] Lobby {lobby.LobbyId} withdrew its reachability class from '{lobby.ReachabilityClass}' to '{req.ReachabilityClass}' on its own measurement");
-				lobby.ReachabilityClass = req.ReachabilityClass;
+				Console.WriteLine($"[Registry] Lobby {listed.LobbyId} withdrew its reachability class from '{listed.ReachabilityClass}' to '{req.ReachabilityClass}' on its own measurement");
+				listed.ReachabilityClass = req.ReachabilityClass;
 			}
 
+			return true;
+		});
 
-			_ = Task.Run(async () =>
+		if (lobby == null) return Results.NotFound(new { Message = "Lobby not found" });
+
+		_ = Task.Run(async () =>
+		{
+			using var httpClient = httpClientFactory.CreateClient();
+			foreach (var peerUrl in registeredPeers.PeerUrls)
 			{
-				using var httpClient = httpClientFactory.CreateClient();
-				foreach (var peerUrl in registeredPeers.PeerUrls)
+				try
 				{
-					try
+					var content = new StringContent(JsonSerializer.Serialize(lobby), Encoding.UTF8, "application/json");
+					var response = await httpClient.PostAsync($"{peerUrl.TrimEnd('/')}/lobbies/propagate", content);
+					if (!response.IsSuccessStatusCode)
 					{
-						var content = new StringContent(JsonSerializer.Serialize(lobby), Encoding.UTF8, "application/json");
-						var response = await httpClient.PostAsync($"{peerUrl.TrimEnd('/')}/lobbies/propagate", content);
-						if (!response.IsSuccessStatusCode)
-						{
-							Console.WriteLine($"[Registry] Failed to propagate heartbeat for {lobby.LobbyId} to peer {peerUrl}: {response.StatusCode}");
-						}
-					}
-					catch (Exception ex)
-					{
-						Console.WriteLine($"[Registry] Error propagating heartbeat for {lobby.LobbyId} to peer {peerUrl}: {ex.Message}");
+						Console.WriteLine($"[Registry] Failed to propagate heartbeat for {lobby.LobbyId} to peer {peerUrl}: {response.StatusCode}");
 					}
 				}
-			});
+				catch (Exception ex)
+				{
+					Console.WriteLine($"[Registry] Error propagating heartbeat for {lobby.LobbyId} to peer {peerUrl}: {ex.Message}");
+				}
+			}
+		});
 
-			return Results.Ok(new { Status = "Ok" });
-		}
-
-		return Results.NotFound(new { Message = "Lobby not found" });
+		return Results.Ok(new { Status = "Ok" });
 	});
 
 	app.MapPost("/lobbies/close", async (CloseLobbyRequest req, LobbyRegistry registry, PeerRegistry registeredPeers, IHttpClientFactory httpClientFactory) =>
 	{
 		if (registry.TryGet(req.LobbyId, out var lobby) && lobby != null)
 		{
+			if (HostMessageIsSuperseded(lobby, req.HostToken, req.OwnershipEpoch, out LobbyOwnershipSuperseded? superseded)) return Results.Json(superseded, statusCode: StatusCodes.Status409Conflict);
+
 			if (lobby.HostToken == req.HostToken)
 			{
 				registry.TryRemove(req.LobbyId, out _);
@@ -514,6 +613,8 @@ public static class LobbyEndpoints
 	{
 		if (registry.TryGet(req.LobbyId, out var lobby) && lobby != null)
 		{
+			if (HostMessageIsSuperseded(lobby, req.HostToken, req.OwnershipEpoch, out LobbyOwnershipSuperseded? superseded)) return Results.Json(superseded, statusCode: StatusCodes.Status409Conflict);
+
 			if (lobby.HostToken == req.HostToken)
 			{
 				registry.TryRemove(req.LobbyId, out _);
@@ -682,6 +783,29 @@ public static class LobbyEndpoints
 			context.Response.StatusCode = StatusCodes.Status400BadRequest;
 		}
 	});
+	}
+
+	/// <summary>
+	///     Whether a message from a host was written by an ownership the lobby has already left. A message that states
+	///     neither a token nor an epoch is one a pre-handover screen sends, and is answered as it always was.
+	/// </summary>
+	/// <param name="lobby">The lobby as this node holds it.</param>
+	/// <param name="hostToken">The token the message stated.</param>
+	/// <param name="ownershipEpoch">The epoch the message stated, or null for one that states none.</param>
+	/// <param name="superseded">The refusal to state when the message is from a host the lobby left.</param>
+	/// <returns>Whether the host that wrote the message no longer owns the lobby.</returns>
+	private static bool HostMessageIsSuperseded(LobbyInfo lobby, string? hostToken, int? ownershipEpoch, out LobbyOwnershipSuperseded? superseded)
+	{
+		superseded = null;
+		bool tokenStated = !string.IsNullOrEmpty(hostToken);
+		bool epochStated = ownershipEpoch.HasValue;
+		if (!tokenStated && !epochStated) return false;
+
+		if (!tokenStated || !epochStated) return false;
+		if (string.Equals(lobby.HostToken, hostToken, StringComparison.Ordinal) && lobby.OwnershipEpoch == ownershipEpoch!.Value) return false;
+
+		superseded = new LobbyOwnershipSuperseded(lobby.OwnershipEpoch, LobbyOwnershipSuperseded.SupersededCode);
+		return true;
 	}
 
 	/// <summary>

@@ -162,6 +162,8 @@ public partial class ListenServerHost
 	/// <param name="address">The address to send from the game port to.</param>
 	/// <param name="port">The port to send to.</param>
 	/// <param name="probeId">The reachability check the punch is for, or empty for a punch that only opens a path.</param>
+	public void PunchFromGamePort(string address, int port, string probeId) => PunchAddress(address, port, probeId);
+
 	private void PunchAddress(string address, int port, string probeId)
 	{
 		if (string.IsNullOrEmpty(probeId))
@@ -197,6 +199,27 @@ public partial class ListenServerHost
 
 		var roster = new ServerLobbyRoster(_lobby, _log);
 		_lobby.Roster = roster;
+
+		if (!string.IsNullOrWhiteSpace(_arguments.AdoptionJson))
+		{
+			try
+			{
+				LobbyHandoverAdoption? adoption = System.Text.Json.JsonSerializer.Deserialize<LobbyHandoverAdoption>(_arguments.AdoptionJson, ServerControlProtocol.Format);
+				if (adoption != null && _lobby.Adopt(adoption)) _log.Write($"this authority took over the lobby '{adoption.LobbyId}' with {adoption.Seats.Length} seat(s) held for their credentials");
+				else _log.Write("the lobby this authority was asked to take over stated no usable seats, so it starts empty");
+			}
+			catch (System.Text.Json.JsonException exception)
+			{
+				_log.Write($"the lobby this authority was asked to take over could not be read: {exception.Message}");
+			}
+		}
+
+		// The relay is told which tokens belong to this lobby's seats and nothing else, so the only endpoints it ever hands
+		// out are the endpoints of screens that are already in this lobby.
+		ServerLobby lobbyForProbe = _lobby;
+		_handoverProbeRelay = LobbyHandoverProbeRelay.TryStart(token => lobbyForProbe.HoldsSessionToken(token), _log.Write);
+		_lobby.ProbeRelayPort = _handoverProbeRelay?.Port ?? 0;
+		if (_handoverProbeRelay == null) _log.Write("this lobby cannot rehearse a host handover: its probe relay did not open");
 
 		IsRunning = true;
 		_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);

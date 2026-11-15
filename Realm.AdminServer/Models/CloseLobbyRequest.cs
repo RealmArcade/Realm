@@ -1,6 +1,7 @@
-namespace Realm.AdminServer.Models;
+﻿namespace Realm.AdminServer.Models;
 
 public record CloseLobbyRequest(
 	string LobbyId,
-	string HostToken
+	string HostToken,
+	int? OwnershipEpoch = null
 );

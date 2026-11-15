@@ -42,4 +42,44 @@ public class LobbyInfo
 	///     endpoint this node measured in its place, so a listing always has the same shape.
 	/// </summary>
 	public List<LobbyEndpointInfo> Endpoints { get; set; } = new();
+
+	/// <summary>
+	///     How many times this lobby has been handed to a new host, starting at one for the screen that registered it. Every
+	///     host message states the epoch it was written under, so a host the lobby has already left cannot publish, admit a
+	///     player or close a lobby somebody else now owns.
+	/// </summary>
+	public int OwnershipEpoch { get; set; } = 1;
+
+	/// <summary>Copies this lobby so one field can be replaced atomically, without a reader seeing half a handover.</summary>
+	/// <returns>A copy that shares nothing mutable with this lobby.</returns>
+	public LobbyInfo Clone() => new()
+	{
+		LobbyId = LobbyId,
+		Map = Map,
+		HostIP = HostIP,
+		HostPort = HostPort,
+		NatType = NatType,
+		PasswordHash = PasswordHash,
+		MaxPlayers = MaxPlayers,
+		SlotsUsed = SlotsUsed,
+		GameVersion = GameVersion,
+		MapVersion = MapVersion,
+		IsGreenlit = IsGreenlit,
+		MapCreator = MapCreator,
+		Latitude = Latitude,
+		Longitude = Longitude,
+		LastHeartbeat = LastHeartbeat,
+		OriginServerUri = OriginServerUri,
+		HostToken = HostToken,
+		HostPingBaseline = HostPingBaseline,
+		LocalIP = LocalIP,
+		LocalPort = LocalPort,
+		MapSizeBytes = MapSizeBytes,
+		IsGameInProgress = IsGameInProgress,
+		ReachabilityClass = ReachabilityClass,
+		MappingBehaviour = MappingBehaviour,
+		ObservedPort = ObservedPort,
+		Endpoints = new List<LobbyEndpointInfo>(Endpoints),
+		OwnershipEpoch = OwnershipEpoch
+	};
 }

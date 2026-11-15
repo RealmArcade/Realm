@@ -17,6 +17,11 @@ public partial class ServerLobby
 		if (_matchStarted) return;
 		if (!TryGetSeat(peerId, out LobbySeat seat)) return;
 
+		if (_handoverStage != LobbyHandoverStage.None && (peerId == _handoverCandidatePeerId || peerId == _handoverAwaitingPeerId || peerId == _handoverOffererPeerId))
+		{
+			CloseHandover(LobbyHandoverNotice.LobbyChanged, notifySeats: true);
+		}
+
 		if (peerId == _adminPeerId)
 		{
 			_log.Write("the peer administering the lobby is gone; the lobby is being destroyed");
@@ -48,6 +53,7 @@ public partial class ServerLobby
 	public void Tick(double deltaSeconds)
 	{
 		if (!_matchStarted) RefreshLinkStatistics(deltaSeconds);
+		if (!_matchStarted) TickHandover(deltaSeconds);
 
 		if (_matchStarted || !_countdownActive) return;
 

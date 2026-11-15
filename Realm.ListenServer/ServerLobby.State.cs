@@ -81,6 +81,8 @@ public partial class ServerLobby
 			MinimapPlayerColors = minimapPlayerColors,
 			MinimapTeamColors = minimapTeamColors,
 			ProxyOwners = CopyProxyOwners(),
+			Handover = DescribeHandoverState(),
+			ProbeRelayPort = ProbeRelayPort,
 			Revision = ++_revision
 		};
 	}

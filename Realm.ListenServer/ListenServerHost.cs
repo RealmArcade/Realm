@@ -28,6 +28,12 @@ public partial class ListenServerHost : IServerTransportSink
 
 	private ServerLobby? _lobby;
 
+	/// <summary>
+	///     The socket this lobby's seats use to prove and measure a path to each other, opened with the lobby and given up
+	///     with it. A lobby that could not open one cannot rehearse a handover, and publishes no relay port.
+	/// </summary>
+	private LobbyHandoverProbeRelay? _handoverProbeRelay;
+
 	private ServerMapShares? _mapShares;
 
 	private LoadedMap? _preparedLobbyWorld;

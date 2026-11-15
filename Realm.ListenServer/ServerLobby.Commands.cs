@@ -22,6 +22,12 @@ public partial class ServerLobby
 
 		bool isAdmin = peerId == _adminPeerId;
 
+		if (IsHandoverCommand(command.Kind))
+		{
+			HandleHandoverCommand(peerId, isAdmin, sender, command);
+			return;
+		}
+
 		switch (command.Kind)
 		{
 			case LobbyCommandKind.SetReady:
@@ -46,6 +52,7 @@ public partial class ServerLobby
 					return;
 				}
 
+				CancelHandoverForLobbyChange(LobbyHandoverNotice.LobbyChanged);
 				StartCountdown(starterSlot, command.Flag);
 				break;
 			case LobbyCommandKind.CancelCountdown:
@@ -110,6 +117,10 @@ public partial class ServerLobby
 					return;
 				}
 				AddSystemChat(command.Text ?? string.Empty);
+				break;
+			case LobbyCommandKind.ReportLobbyId:
+				if (!isAdmin) return;
+				LobbyId = command.Text;
 				break;
 			case LobbyCommandKind.ReportReachability:
 				if (!isAdmin)

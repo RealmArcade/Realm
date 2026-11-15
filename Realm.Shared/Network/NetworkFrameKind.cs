@@ -1,4 +1,4 @@
-namespace Realm.Shared.Network;
+﻿namespace Realm.Shared.Network;
 
 public enum NetworkFrameKind : byte
 {
@@ -63,5 +63,11 @@ public enum NetworkFrameKind : byte
 	///     <see cref="PresentationKind.SteamCloudFilesRequested" />. The seat is the one the connection was seated in, so the
 	///     frame states no player of its own.
 	/// </summary>
-	SteamCloudUpload = 30
+	SteamCloudUpload = 30,
+
+	/// <summary>
+	///     One private message of a lobby's host handover: the measurements its two parties read, the advice a better-placed
+	///     host raises, or the instruction that tells a seat where its lobby's authority moved to.
+	/// </summary>
+	LobbyHandover = 31
 }

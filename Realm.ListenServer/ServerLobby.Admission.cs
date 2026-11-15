@@ -17,6 +17,13 @@ public partial class ServerLobby
 		isAdmin = false;
 		if (_matchStarted) return "server_rejected_lobby_is_closed";
 
+		// A lobby whose seats are already moving to a new authority admits nobody new: the seat list that authority was
+		// created with is the list this lobby had, and a seat added here would simply disappear.
+		if (_handoverStage == LobbyHandoverStage.Committing && !TryFindSeatBySessionToken(LobbyLimits.Sanitize(sessionToken, MaximumSessionTokenLength), requireDisconnected: false, out _))
+		{
+			return "server_rejected_lobby_is_moving";
+		}
+
 		if (!proveAdmin && !string.IsNullOrEmpty(sessionToken) && _refusedSessionTokens.Contains(sessionToken))
 		{
 			_log.Write($"peer {peerId} asked to sit in a lobby that removed its session; the connection is refused");
@@ -52,6 +59,13 @@ public partial class ServerLobby
 				_slotByPeer.Remove(previousPeerId);
 				if (previousPeerStood && previousPeerId != peerId) _disconnect(previousPeerId);
 			}
+		}
+
+		if (!restored && IsAdopting)
+		{
+			// This authority is holding a lobby that moved to it, and the seats it holds are the seats it will serve. A player
+			// asking for a seat of its own is asking for one the lobby it took over never offered.
+			return "server_rejected_lobby_is_moving";
 		}
 
 		if (!restored)
@@ -93,11 +107,18 @@ public partial class ServerLobby
 		_seats[seat.Slot] = seat;
 		_slotByPeer[peerId] = seat.Slot;
 
+		if (restored && IsAdopting) NoteAdoptedSeatArrived(seat.Slot);
+
 		if (restored) _log.Write($"peer {peerId} took back lobby seat {seat.Slot} as '{seat.Name}'");
 		else _log.Write($"peer {peerId} admitted to the lobby as seat {seat.Slot} ('{seat.Name}'), {(seat.IsHost ? "administrator" : "member")}");
 
 		AddSystemChat($"{seat.Name} joined the lobby.");
 		BroadcastState();
+
+		// A seat that comes back while this lobby is handing itself over did not arrive at the name it was told to go to,
+		// which is the one outcome a committed handover may not have: the lobby stays with the host that still holds it.
+		if (restored && _handoverStage == LobbyHandoverStage.Committing) RollBackCommittedHandover($"{seat.Name} returned to this host instead of arriving at the new one");
+
 		return string.Empty;
 	}
 

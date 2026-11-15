@@ -185,6 +185,8 @@ public partial class ListenServerHost
 		_lobbySessionSlots.Clear();
 		_lobby = null;
 		_mapShares = null;
+		_handoverProbeRelay?.Dispose();
+		_handoverProbeRelay = null;
 
 		_lobbyScript?.Dispose();
 		_lobbyScript = null;

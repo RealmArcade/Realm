@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using MemoryPack;
 using Realm.Shared.Accounts;
@@ -95,7 +95,14 @@ public enum LobbyCommandKind : byte
 	/// <summary>
 	///     States that a handover the lobby committed did not complete, so every seat that moved returns to the host it had.
 	/// </summary>
-	AbortHostHandover = 31
+	AbortHostHandover = 31,
+
+	/// <summary>
+	///     States, in <see cref="LobbyCommand.Text" />, the id the registry lists this lobby under. Sent by the lobby's
+	///     administrator once the lobby is published, so a handover can prove to every seat that the authority it moves to
+	///     serves the same lobby it left.
+	/// </summary>
+	ReportLobbyId = 32
 }
 
 /// <summary>

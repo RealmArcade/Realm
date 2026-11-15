@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -48,7 +48,14 @@ public enum ServerControlKind
 	Pause,
 
 	/// <summary>Answers with the state the authority is in, and the port of the match it holds when there is one.</summary>
-	Report
+	Report,
+
+	/// <summary>
+	///     Sends one datagram from the port the authority holds to an address. It is how a screen opens its own router for a
+	///     registry node that is measuring a lobby it has not published yet, when the authority is not joined by any client
+	///     that could ask for the punch on its behalf.
+	/// </summary>
+	Punch
 }
 
 public enum ServerAuthorityState
@@ -96,6 +103,21 @@ public record ServerControlCommand
 	public string MapName { get; init; } = string.Empty;
 
 	public int MaxPlayers { get; init; }
+
+	/// <summary>The address a punch is sent to, for <see cref="ServerControlKind.Punch" />.</summary>
+	public string PunchAddress { get; init; } = string.Empty;
+
+	/// <summary>The port a punch is sent to, for <see cref="ServerControlKind.Punch" />.</summary>
+	public int PunchPort { get; init; }
+
+	/// <summary>The reachability check a punch is for, or empty for one that only opens a path.</summary>
+	public string PunchProbeId { get; init; } = string.Empty;
+
+	/// <summary>
+	///     The seats and settings an authority taking a lobby over is created with, written as
+	///     <see cref="LobbyHandoverAdoption" />. Empty for a lobby that is starting rather than moving.
+	/// </summary>
+	public string AdoptionJson { get; init; } = string.Empty;
 
 	public string ToLine() => ServerControlProtocol.CommandLinePrefix + JsonSerializer.Serialize(this, ServerControlProtocol.Format);
 

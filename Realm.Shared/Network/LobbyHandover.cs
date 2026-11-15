@@ -121,6 +121,10 @@ public static class LobbyHandoverNotice
 	public const string ComputerCannotHost = "A computer player cannot host a lobby.";
 	public const string NotTheCandidate = "Only the two parties of a host handover can answer it.";
 	public const string RolledBack = "The handover did not complete, so this lobby stays with its host.";
+	public const string AlreadyHost = "That player already hosts this lobby.";
+	public const string RehearsalIncomplete = "The rehearsal did not measure every seat, so it cannot pass.";
+	public const string Settling = "Every seat was told where to go; the lobby is moving to its new host.";
+	public const string NoProbeRelay = "This lobby cannot measure a handover, so it cannot hand its host over.";
 }
 
 /// <summary>
@@ -610,3 +614,41 @@ public partial struct LobbyHandoverLinkSample
 	/// <summary>How many answers the probe collected.</summary>
 	public int Samples;
 }
+
+/// <summary>
+///     The seat a new authority is created with when a lobby moves to it: the slot, the account and the credential the
+///     screen sitting in that slot is admitted by. The seat is held for that credential from the moment the authority
+///     starts, so a handover that never completes loses nothing but the seats' readiness.
+/// </summary>
+public record LobbyHandoverAdoptedSeat(
+	int Slot,
+	long AccountId,
+	string Name,
+	string Faction,
+	string TeamName,
+	int Team,
+	uint ColorRgba,
+	int Difficulty,
+	string SessionToken
+);
+
+/// <summary>One match setting a lobby had chosen, carried to the authority taking the lobby over.</summary>
+public record LobbyHandoverAdoptedSetting(int SettingId, int Value);
+
+/// <summary>
+///     Everything a lobby's new authority is created with so the lobby it serves is the lobby the seats left: the same id,
+///     the same seats, the same open slots, the same settings and the same board.
+/// </summary>
+public record LobbyHandoverAdoption(
+	string LobbyId,
+	string MapName,
+	string MapVersion,
+	bool[] OpenSlots,
+	LobbyHandoverAdoptedSeat[] Seats,
+	LobbyHandoverAdoptedSetting[] Settings,
+	bool TeamsTogether,
+	int ShroudMode,
+	bool SpectatorDelay,
+	int TeamCount,
+	string[] Factions
+);
