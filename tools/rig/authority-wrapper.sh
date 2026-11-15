@@ -16,7 +16,7 @@ PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 user_args=()
 for argument in "$@"; do
 	case "$argument" in
-		--headless) continue ;;
+		--headless | --) continue ;;
 	esac
 	user_args+=("$argument")
 done
