@@ -202,6 +202,7 @@ public partial class ListenServerHost
 		_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 		MarkStartStage("lobby listening");
 		_log.Write($"lobby opened for map '{_lobby.MapName}' version {_lobby.MapVersion} with {_lobby.OpenSlotCount} open player slot(s)");
+		if (_transport.IsListeningOnAnotherPort) _log.Write($"port {_transport.RequestedPort} was already held on this machine, so the lobby listens on port {_transport.Port} instead; every address this lobby publishes states that port");
 		if (_arguments.LoopbackOnly) _log.Write("this lobby listens on the loopback address only: nothing outside this screen can reach it");
 		AnnounceReady();
 	}

@@ -130,7 +130,7 @@ public partial class LobbyCreate
 	private List<string> DescribeReachabilityHelp(HostReachabilityResult failure)
 	{
 		int port = LobbyForHelp()?.LobbyPort ?? 0;
-		string directConnectEndpoint = $"{LobbyManager.GetLocalIPAddress()}:{(port > 0 ? port : 8999)}";
+		string directConnectEndpoint = $"{LobbyManager.GetLocalIPAddress()}:{(port > 0 ? port : LobbyManager.DefaultGamePort)}";
 
 		if (failure.Failure is HostReachabilityFailure.LoopbackUnanswered or HostReachabilityFailure.LoopbackNotOnLocalAddress)
 		{

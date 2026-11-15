@@ -20,7 +20,19 @@ public readonly record struct PeerLinkStatistics(int RoundTripMilliseconds, int 
 
 public interface IServerTransport : IDisposable
 {
+	/// <summary>
+	///     The port this transport is actually listening on, which is the port every address the lobby publishes states.
+	/// </summary>
 	int Port { get; }
+
+	/// <summary>
+	///     The port this transport was asked to listen on, which differs from <see cref="Port" /> when something else on this
+	///     machine already held it.
+	/// </summary>
+	int RequestedPort { get; }
+
+	/// <summary>Whether this transport is listening somewhere other than the port it was asked for.</summary>
+	bool IsListeningOnAnotherPort { get; }
 
 	bool TryStart(int maximumPeers, bool loopbackOnly, IServerTransportSink sink, out string failure);
 

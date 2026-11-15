@@ -676,7 +676,8 @@ public partial class LobbyRoom : Control
 		string displayReason = reason;
 		if (reason == "Direct connection handshake failed.")
 		{
-			displayReason = $"{Tr("Direct connection handshake failed.")}\n\n{Tr("The host's router may be blocking incoming UDP traffic on port 8999. Ensure UPnP is enabled on the host's router, configure UDP port 8999 forwarding, or connect via a Virtual LAN (Tailscale / Radmin).")}";
+			int hostPort = Lobby.LobbyPort > 0 ? Lobby.LobbyPort : LobbyManager.DefaultGamePort;
+			displayReason = $"{Tr("Direct connection handshake failed.")}\n\n{string.Format(Tr("The host's router may be blocking incoming UDP traffic on port {0}. Ensure UPnP is enabled on the host's router, configure UDP port {0} forwarding, or connect via a Virtual LAN (Tailscale / Radmin)."), hostPort)}";
 		}
 
 		GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), displayReason)}", () =>

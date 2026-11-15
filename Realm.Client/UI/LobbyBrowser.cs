@@ -471,7 +471,7 @@ public partial class LobbyBrowser : Control
 		hintLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		hintLabel.CustomMinimumSize = new Vector2(500, 0);
 		hintLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		hintLabel.Text = Tr("The port is 8999 when the address does not name one.");
+		hintLabel.Text = string.Format(Tr("The port is {0} when the address does not name one."), LobbyManager.DefaultGamePort);
 		hintLabel.AddThemeFontSizeOverride("font_size", 11);
 		hintLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.72f, 0.78f));
 		vbox.AddChild(hintLabel);
