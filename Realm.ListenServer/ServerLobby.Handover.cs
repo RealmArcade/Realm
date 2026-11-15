@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+﻿using System;
 using MemoryPack;
 using Realm.Ecs;
 using Realm.Shared.Network;
@@ -7,7 +7,7 @@ namespace Realm.ListenServer;
 
 /// <summary>the host handover a lobby offers, rehearses and hands itself over by.</summary>
 public partial class ServerLobby
-	{
+{
 	private LobbyHandoverStage _handoverStage;
 
 	private long _handoverOfferRevision;
@@ -583,17 +583,99 @@ public partial class ServerLobby
 
 		LobbyHandoverLinkRow stored = row;
 		stored.ObserverSlot = sender.Slot;
+		stored.Samples = SealRowAgainstCurrentHost(row.Samples, sender.Slot);
 		_handoverMeasurements[sender.Slot] = stored;
 
 		if (_handoverMeasurementsRemainingSeconds <= 0) _handoverMeasurementsRemainingSeconds = HandoverMeasurementWindowSeconds;
 
-		int humanSeatCount = 0;
+		int measuringSeatCount = 0;
 		foreach (LobbySeat seat in _seats.Values)
 		{
-			if (!seat.IsComputer && !seat.IsDisconnected) humanSeatCount++;
+			if (seat.IsComputer || seat.IsDisconnected) continue;
+			if (seat.PeerId == _adminPeerId) continue;
+			measuringSeatCount++;
 		}
 
-		if (_handoverMeasurements.Count >= humanSeatCount) EvaluateSuggestion(completedEarly: true);
+		if (_handoverMeasurements.Count >= measuringSeatCount) EvaluateSuggestion(completedEarly: true);
+	}
+
+	/// <summary>
+	///     States one seat's row with its entry toward the lobby's current host taken from the link this authority already
+	///     measures with that seat. The relay a seat probes through runs inside the host's own authority, so no screen can
+	///     probe the host, and a row that left that entry unmeasured would describe a lobby nobody hosts.
+	/// </summary>
+	/// <param name="samples">What the seat reported measuring toward the other seats.</param>
+	/// <param name="observerSlot">The slot of the seat that reported the row.</param>
+	/// <returns>The row as the advice reads it.</returns>
+	private LobbyHandoverLinkSample[] SealRowAgainstCurrentHost(LobbyHandoverLinkSample[] samples, int observerSlot)
+	{
+		if (!_slotByPeer.TryGetValue(_adminPeerId, out int hostSlot)) return samples;
+		if (observerSlot == hostSlot) return samples;
+
+		if (samples == null || samples.Length == 0) samples = [];
+
+		for (int index = 0; index < samples.Length; index++)
+		{
+			if (samples[index].TargetSlot != hostSlot) continue;
+			samples[index] = LinkAsTheAuthorityMeasuredIt(hostSlot, observerSlot);
+			return samples;
+		}
+
+		int appended = samples.Length;
+		Array.Resize(ref samples, appended + 1);
+		samples[appended] = LinkAsTheAuthorityMeasuredIt(hostSlot, observerSlot);
+		return samples;
+	}
+
+	/// <summary>
+	///     States the link a seat has with another seat as this authority's own statistics measured it. The host's own row is
+	///     the zero trip it pays to itself, and a seat whose link was never measured stays stated as not measured.
+	/// </summary>
+	/// <param name="targetSlot">The slot the statement is about.</param>
+	/// <param name="seatSlot">The slot whose link was measured.</param>
+	/// <returns>The measurement, stated as measured or not measured.</returns>
+	private LobbyHandoverLinkSample LinkAsTheAuthorityMeasuredIt(int targetSlot, int seatSlot)
+	{
+		if (!_seats.TryGetValue(seatSlot, out LobbySeat seat)) return new LobbyHandoverLinkSample { TargetSlot = targetSlot };
+
+		bool isHost = seat.PeerId == _adminPeerId;
+		bool measured = isHost || seat.LatencyMilliseconds >= 0;
+		return new LobbyHandoverLinkSample
+		{
+			TargetSlot = targetSlot,
+			Measured = measured,
+			RoundTripMilliseconds = measured && !isHost ? Math.Max(0, seat.LatencyMilliseconds) : 0,
+			JitterMilliseconds = measured && !isHost ? Math.Max(0, seat.JitterMilliseconds) : 0,
+			PacketLossPercent = measured && !isHost ? Math.Max(0f, seat.PacketLossPercent) : 0f,
+			Samples = measured ? HostHandoverRules.MinimumSuggestedSamplesPerSeat : 0
+		};
+	}
+
+	/// <summary>
+	///     States the row of the seat that hosts the lobby: what its own authority measured toward every other seat. The host
+	///     contributes no probe, because the relay every other seat probes through is its own, and the numbers it does hold
+	///     are the ones its lobby already publishes for each seat.
+	/// </summary>
+	/// <param name="hostSlot">The slot of the seat hosting the lobby.</param>
+	/// <param name="humanSlots">Every slot a human player holds.</param>
+	/// <returns>The row the advice reads for the host.</returns>
+	private LobbyHandoverLinkRow DescribeHostMeasurementRow(int hostSlot, List<int> humanSlots)
+	{
+		var samples = new LobbyHandoverLinkSample[humanSlots.Count];
+		int count = 0;
+		for (int index = 0; index < humanSlots.Count; index++)
+		{
+			int slot = humanSlots[index];
+			if (slot == hostSlot) continue;
+			samples[count++] = LinkAsTheAuthorityMeasuredIt(slot, slot);
+		}
+
+		Array.Resize(ref samples, count);
+		return new LobbyHandoverLinkRow
+		{
+			ObserverSlot = hostSlot,
+			Samples = samples
+		};
 	}
 
 	/// <summary>
@@ -604,7 +686,7 @@ public partial class ServerLobby
 	/// <param name="completedEarly">Whether every seated player has reported, rather than the window running out.</param>
 	private void EvaluateSuggestion(bool completedEarly)
 	{
-		var rows = new List<LobbyHandoverLinkRow>(_handoverMeasurements.Count);
+		var rows = new List<LobbyHandoverLinkRow>(_handoverMeasurements.Count + 1);
 		var slots = new List<int>(_handoverMeasurements.Count + 1);
 		foreach (KeyValuePair<int, LobbyHandoverLinkRow> pair in _handoverMeasurements) rows.Add(pair.Value);
 
@@ -621,6 +703,8 @@ public partial class ServerLobby
 
 		if (!completedEarly || hostSlot == 0) return;
 		if (_handoverStage != LobbyHandoverStage.None) return;
+
+		rows.Add(DescribeHostMeasurementRow(hostSlot, slots));
 
 		if (!HostHandoverSuggestion.TryAdvise(rows, slots, hostSlot, HostHandoverRules.MinimumSuggestedSamplesPerSeat, out HostHandoverSuggestion suggestion)) return;
 		if (!TryGetSeatBySlot(suggestion.CandidateSlot, out LobbySeat candidate)) return;

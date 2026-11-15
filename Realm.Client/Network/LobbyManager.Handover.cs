@@ -338,6 +338,7 @@ public partial class LobbyManager
 				if (token.IsCancellationRequested) return;
 				if (player.IsComputer || player.PeerId <= 0) continue;
 				if (player.PeerId == LocalPeerId) continue;
+				if (player.IsHost) continue;
 				if (string.IsNullOrEmpty(player.ProbeToken)) continue;
 
 				LobbyHandoverLinkSample sample = await probe.MeasureAsync(player.ProbeToken, player.Slot, TimeSpan.FromMilliseconds(AdviceProbeMilliseconds)).ConfigureAwait(false);
@@ -375,9 +376,15 @@ public partial class LobbyManager
 	{
 		if (_rehearsalWork != null) return;
 
+		// This screen's machine is measured by the matches it has hosted, so a machine that has never hosted one has no
+		// rating to state. Unknown is stated as unknown rather than as a good machine, and the lobby refuses on it.
+		int ownStabilityRank = HostStabilityTracker.LoadHistory().Count == 0
+			? HostStabilityRanks.Unknown
+			: HostStabilityRanks.Rank(HostStabilityTracker.GetOverallStability());
+
 		var work = new CancellationTokenSource();
 		_rehearsalWork = work;
-		_ = Task.Run(async () => await RehearseHandoverAsync(work.Token).ConfigureAwait(false));
+		_ = Task.Run(async () => await RehearseHandoverAsync(work.Token, ownStabilityRank).ConfigureAwait(false));
 	}
 
 	private void CancelRehearsal(bool abandonAuthority)
@@ -395,21 +402,20 @@ public partial class LobbyManager
 		_handoverRehearsalAdminToken = string.Empty;
 		_handoverRehearsalMapHash = string.Empty;
 
-		if (_handoverRehearsalPort > 0 || _rehearsalAuthorityWasStarted)
-		{
-			GameContext.LocalAuthority.Pause();
-			_rehearsalAuthorityWasStarted = false;
-		}
+		if (!_rehearsalAuthorityWasStarted) return;
+
+		GameContext.LocalAuthority.Pause();
+		_rehearsalAuthorityWasStarted = false;
 	}
 
 	private bool _rehearsalAuthorityWasStarted;
 
-	private async Task RehearseHandoverAsync(CancellationToken token)
+	private async Task RehearseHandoverAsync(CancellationToken token, int ownStabilityRank)
 	{
 		LobbyHandoverReport report;
 		try
 		{
-			report = await MeasureRehearsalAsync(token).ConfigureAwait(false);
+			report = await MeasureRehearsalAsync(token, ownStabilityRank).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException)
 		{
@@ -442,7 +448,7 @@ public partial class LobbyManager
 		}).CallDeferred();
 	}
 
-	private async Task<LobbyHandoverReport> MeasureRehearsalAsync(CancellationToken token)
+	private async Task<LobbyHandoverReport> MeasureRehearsalAsync(CancellationToken token, int ownStabilityRank)
 	{
 		var report = new LobbyHandoverReport
 		{
@@ -508,9 +514,9 @@ public partial class LobbyManager
 		if (!report.CandidateEndpointVerified)
 		{
 			report.Failure = $"no registry node reached this machine's game port: {reachability.FirstFailure?.Detail ?? "it did not answer"}";
-			report.CandidateStabilityRank = HostStabilityRanks.Rank(HostStability);
+			report.CandidateStabilityRank = ownStabilityRank;
 			report.CurrentHostStabilityRank = HostStabilityRanks.Rank(HostStability);
-			report.Seats = BuildSeatMetrics([], token);
+			report.Seats = BuildSeatMetrics([]);
 			report.MapMatched = MapMatchesLobby();
 			return report;
 		}
@@ -520,11 +526,11 @@ public partial class LobbyManager
 		report.CandidateEndpointPort = primary.Port;
 
 		report.MapMatched = MapMatchesLobby();
-		report.CandidateStabilityRank = HostStabilityRanks.Rank(HostStability);
+		report.CandidateStabilityRank = ownStabilityRank;
 		report.CurrentHostStabilityRank = HostStabilityRanks.Rank(HostStability);
 
 		List<LobbyHandoverLinkSample> measured = await MeasureEverySeatAsync(token).ConfigureAwait(false);
-		report.Seats = BuildSeatMetrics(measured, token);
+		report.Seats = BuildSeatMetrics(measured);
 		report.Credentials = _handoverCredentials;
 		report.Verdict = (int)HostHandoverRules.Verdict(report);
 
@@ -636,6 +642,9 @@ public partial class LobbyManager
 		{
 			if (token.IsCancellationRequested) break;
 			if (player.IsComputer || player.PeerId <= 0 || player.PeerId == LocalPeerId) continue;
+			// The lobby's relay runs inside the host's own authority, so the host seat is never reachable through it and is
+			// measured from the link the lobby already holds with it instead.
+			if (player.IsHost) continue;
 			if (string.IsNullOrEmpty(player.ProbeToken)) continue;
 
 			LobbyHandoverLinkSample sample = await probe.MeasureAsync(player.ProbeToken, player.Slot, TimeSpan.FromMilliseconds(RehearsalProbeMilliseconds)).ConfigureAwait(false);
@@ -645,8 +654,23 @@ public partial class LobbyManager
 		return samples;
 	}
 
-	private LobbyHandoverSeatMetric[] BuildSeatMetrics(List<LobbyHandoverLinkSample> samples, CancellationToken token)
+	/// <summary>
+	///     States one row per seated player: how that player reaches the host the lobby has, and how it would reach this
+	///     screen as the host instead. The row of the host the lobby has is stated from the link the lobby itself measures
+	///     with it, because the lobby's probe relay runs inside that host's own authority and no screen can probe it.
+	/// </summary>
+	/// <param name="samples">What this screen's probes measured toward the seats that answer one.</param>
+	/// <returns>One row per seated human player, in slot order.</returns>
+	private LobbyHandoverSeatMetric[] BuildSeatMetrics(List<LobbyHandoverLinkSample> samples)
 	{
+		PlayerInfo? localSeat = null;
+		foreach (PlayerInfo player in PlayerList)
+		{
+			if (player.PeerId != LocalPeerId) continue;
+			localSeat = player;
+			break;
+		}
+
 		var metrics = new List<LobbyHandoverSeatMetric>(PlayerList.Count);
 		foreach (PlayerInfo player in PlayerList)
 		{
@@ -663,6 +687,24 @@ public partial class LobbyManager
 				CurrentHostJitterMilliseconds = Math.Max(0, player.JitterMilliseconds),
 				CurrentHostPacketLossPercent = Math.Max(0f, player.PacketLossPercent)
 			};
+
+			if (player.IsHost)
+			{
+				// The host reaches itself in no time at all, and the trip the host seat would have to this screen as the host
+				// is the link the lobby already carries between the two of them, which is what this screen's own published row
+				// states. A probe cannot state it: the relay it would ask is inside the host's own authority.
+				metric.CurrentHostMeasured = true;
+				metric.CurrentHostRoundTripMilliseconds = 0;
+				metric.CurrentHostJitterMilliseconds = 0;
+				metric.CurrentHostPacketLossPercent = 0f;
+				metric.CandidateMeasured = localSeat != null && localSeat.LatencyMilliseconds >= 0;
+				metric.CandidateRoundTripMilliseconds = metric.CandidateMeasured ? Math.Max(0, localSeat!.LatencyMilliseconds) : 0;
+				metric.CandidateJitterMilliseconds = metric.CandidateMeasured ? Math.Max(0, localSeat!.JitterMilliseconds) : 0;
+				metric.CandidatePacketLossPercent = metric.CandidateMeasured ? Math.Max(0f, localSeat!.PacketLossPercent) : 0f;
+				metric.CandidateSamples = metric.CandidateMeasured ? HostHandoverRules.MinimumSamplesPerSeat : 0;
+				metrics.Add(metric);
+				continue;
+			}
 
 			if (player.PeerId == LocalPeerId)
 			{
@@ -688,7 +730,6 @@ public partial class LobbyManager
 			metrics.Add(metric);
 		}
 
-		_ = token;
 		return metrics.ToArray();
 	}
 

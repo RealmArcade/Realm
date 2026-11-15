@@ -10,7 +10,7 @@ namespace Realm.ListenServer;
 ///     each seat's probe socket was seen and introduces two seats to each other's endpoints, which is all a handover
 ///     rehearsal needs; it measures nothing itself, so a path is only ever described by the two screens that use it.
 /// </summary>
-public sealed class LobbyHandoverProbeRelay : IDisposable
+public class LobbyHandoverProbeRelay : IDisposable
 {
 	private readonly record struct ProbeRegistration(IPEndPoint Endpoint, long RegisteredTicks, long LastPunchTicks);
 

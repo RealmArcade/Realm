@@ -172,7 +172,7 @@ public static class LobbyHandoverProbeWire
 ///     named seat, and times a bounded exchange with it. Nothing here reserves a seat, joins a lobby or changes a lobby's
 ///     state, so a probe that fails costs the lobby nothing.
 /// </summary>
-public sealed class LobbyHandoverProbeService : IDisposable
+public class LobbyHandoverProbeService : IDisposable
 {
 	private const int PingIntervalMilliseconds = 20;
 	private const int RegistrationRetryMilliseconds = 400;
