@@ -585,6 +585,31 @@ theme_override_constants/h_separation = 8
 tooltip_text = "Accept being carried through another player's connection when this lobby cannot be reached directly. Turning this off publishes the same lobby this game published before relays existed."
 text = "Accept relayed connections"
 
+[node name="RelayDuplicationChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_constants/h_separation = 8
+tooltip_text = "Sends each update over a second path only while the path carrying this connection is measurably lossy or slow, so a lost datagram does not have to be repaired. Turning this off costs no bandwidth and waits for the repair instead."
+text = "Send updates over two paths"
+
+[node name="RelayDuplicationBudgetRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/RelayDuplicationBudgetRow"]
+layout_mode = 2
+text = "Bandwidth for the second copy (KB/s)"
+
+[node name="RelayDuplicationBudgetSpin" type="SpinBox" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/RelayDuplicationBudgetRow"]
+custom_minimum_size = Vector2(110, 0)
+custom_minimumSize = Vector2(110, 0)
+layout_mode = 2
+min_value = 64.0
+max_value = 8192.0
+step = 32.0
+value = 128.0
+
 [node name="VolunteerRelayChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
 layout_mode = 2
 size_flags_horizontal = 3

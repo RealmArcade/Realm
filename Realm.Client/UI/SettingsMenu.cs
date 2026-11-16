@@ -61,6 +61,8 @@ public partial class SettingsMenu : Control
 	private double _relayStatusRefreshSeconds;
 
 	private CheckBox _acceptRelayedChk = null!;
+	private CheckBox _relayDuplicationChk = null!;
+	private SpinBox _relayDuplicationBudgetSpin = null!;
 	private CheckBox _volunteerRelayChk = null!;
 	private SpinBox _volunteerRelayBudgetSpin = null!;
 	private SpinBox _volunteerRelayPeersSpin = null!;
@@ -159,6 +161,8 @@ public partial class SettingsMenu : Control
 		_recordReplaysChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/RecordReplaysChk");
 		_seedMapFilesChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/SeedMapFilesChk");
 		_acceptRelayedChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/AcceptRelayedChk");
+		_relayDuplicationChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/RelayDuplicationChk");
+		_relayDuplicationBudgetSpin = GetNode<SpinBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/RelayDuplicationBudgetRow/RelayDuplicationBudgetSpin");
 		_volunteerRelayChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/VolunteerRelayChk");
 		_volunteerRelayBudgetSpin = GetNode<SpinBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/VolunteerRelayBudgetRow/VolunteerRelayBudgetSpin");
 		_volunteerRelayPeersSpin = GetNode<SpinBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/VolunteerRelayPeersRow/VolunteerRelayPeersSpin");
@@ -320,6 +324,8 @@ public partial class SettingsMenu : Control
 		_seedMapFilesChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_acceptRelayedChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
 		_acceptRelayedChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_relayDuplicationChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_relayDuplicationChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_volunteerRelayChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
 		_volunteerRelayChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_stopVolunteeringButton.Pressed += OnStopVolunteeringPressed;
@@ -596,6 +602,8 @@ public partial class SettingsMenu : Control
 		}
 
 		_acceptRelayedChk.ButtonPressed = GameSettings.AcceptRelayedConnections;
+		_relayDuplicationChk.ButtonPressed = GameSettings.RelayDuplication;
+		_relayDuplicationBudgetSpin.Value = Math.Clamp(GameSettings.RelayDuplicationBudgetBytesPerSecond / 1024, 64, 8192);
 		_volunteerRelayChk.ButtonPressed = GameSettings.VolunteerRelay;
 		_volunteerRelayBudgetSpin.Value = Math.Clamp(GameSettings.VolunteerRelayBudgetBytesPerSecond / 1024, 32, 8192);
 		_volunteerRelayPeersSpin.Value = Math.Clamp(GameSettings.VolunteerRelayMaximumConnections, 1, 32);
@@ -771,6 +779,8 @@ public partial class SettingsMenu : Control
 		GameSettings.RecordReplays = _recordReplaysChk.ButtonPressed;
 		GameSettings.SeedMapFiles = _seedMapFilesChk.ButtonPressed;
 		GameSettings.AcceptRelayedConnections = _acceptRelayedChk.ButtonPressed;
+		GameSettings.RelayDuplication = _relayDuplicationChk.ButtonPressed;
+		GameSettings.RelayDuplicationBudgetBytesPerSecond = (int)_relayDuplicationBudgetSpin.Value * 1024;
 		GameSettings.VolunteerRelay = _volunteerRelayChk.ButtonPressed;
 		GameSettings.VolunteerRelayBudgetBytesPerSecond = (int)_volunteerRelayBudgetSpin.Value * 1024;
 		GameSettings.VolunteerRelayMaximumConnections = (int)_volunteerRelayPeersSpin.Value;
