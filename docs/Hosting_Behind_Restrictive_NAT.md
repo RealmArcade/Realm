@@ -64,7 +64,7 @@ refuses or has no UPnP still works through punching (`PunchOnly`), which is what
 If you want the lobby to read `Open` and to work even for a player whose own router is the awkward one, forward the UDP
 port by hand:
 
-1. Host a lobby once and read the port from the diagnostics block (**COPY NETWORK DIAGNOSTICS** in the lobby room).
+1. Host a lobby once and read the port from the lobby room's chat line, which names the address players are given.
 2. On the router, forward that UDP port to this computer's address on your network. Forward UDP, not TCP.
 3. Host again. The lobby should now read `Open` in the browser row.
 
@@ -126,7 +126,7 @@ A failed join is reported at the step that broke, and the host is told that step
 
 ## Reading a host's report
 
-The lobby room's **COPY NETWORK DIAGNOSTICS** button copies one block: the port the lobby is listed at, the port its
+`LobbyManager.DescribeNetworkDiagnostics` composes one block, which the lobby log and a support report carry: the port the lobby is listed at, the port its
 transport holds, the address this machine measured, the address something outside confirmed, the reachability class, the
 router's mapping behaviour, the NAT and firewall state, the lobby server, and the last failure either side saw. The two
 ports differing is normal — it means the router translated the port and the lobby is listed at the outside port players

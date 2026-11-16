@@ -190,7 +190,6 @@ public partial class LobbyManager
 		ClientServerSession? session = _lobbySession;
 		int hostedPort = session?.Port ?? ENetPort;
 		bool hostedHere = IsHost;
-		GameContext.Connectivity.RememberEvidence();
 		_lobbySession = null;
 
 		UnregisterActiveLobbyFromRegistry();

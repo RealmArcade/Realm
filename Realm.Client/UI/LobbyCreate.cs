@@ -372,7 +372,7 @@ public partial class LobbyCreate : Control
 
 			if (lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None })
 			{
-				ShowReachabilityHelpModal();
+				ShowHostErrorModal(RestrictiveNetworkNotice.Text());
 				return;
 			}
 
@@ -410,7 +410,7 @@ public partial class LobbyCreate : Control
 
 		if (lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None })
 		{
-			ShowReachabilityHelpModal();
+			ShowHostErrorModal(RestrictiveNetworkNotice.Text());
 			return;
 		}
 

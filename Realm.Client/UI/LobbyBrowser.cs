@@ -119,15 +119,6 @@ public partial class LobbyBrowser : Control
 			ShowLobbyJoinErrorPopup(lobby.LobbyJoinError);
 			lobby.LobbyJoinError = null;
 		}
-
-		// A host who gave a lobby up to read about it is being sent here, and the card opens over this screen because the room
-		// that asked for it is being freed on the way.
-		if (GameContext.Connectivity.TakeHostTroubleshootingRequest())
-		{
-			var help = new ConnectivityTroubleshootingDialog { Name = "HostTroubleshootingHelpDialog" };
-			AddChild(help);
-			help.Open(ConnectivityAudience.Hosting);
-		}
 	}
 
 	private void ApplyStyles()
@@ -565,22 +556,6 @@ public partial class LobbyBrowser : Control
 		};
 		hbox.AddChild(cancelBtn);
 
-		// A player who cannot get in reads the same connectivity help a host does, on their own side of the connection: the
-		// address is worth checking before any of it, so the dialog is offered beside the attempt rather than instead of it.
-		var troubleshootBtn = UIStyle.CreateActionButton("ConnectTroubleshoot_Button", Tr("TROUBLESHOOT"), 14);
-		troubleshootBtn.CustomMinimumSize = new Vector2(170, 38);
-		LocalizedText.SetTooltip(troubleshootBtn, "Read what the game measured about this failure, what usually stops a player getting in, and what to change before trying again.");
-		troubleshootBtn.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			if (GameContext.Lobby == null) return;
-
-			var help = new ConnectivityTroubleshootingDialog { Name = "DirectConnectHelpDialog" };
-			AddChild(help);
-			help.Open(ConnectivityAudience.Joining);
-		};
-		hbox.AddChild(troubleshootBtn);
-
 		var connectBtn = UIStyle.CreateActionButton("ConnectBtn_Button", Tr("CONNECT"), 14);
 		connectBtn.CustomMinimumSize = new Vector2(140, 38);
 		connectBtn.Pressed += connectButtonPressed;
@@ -655,7 +630,7 @@ public partial class LobbyBrowser : Control
 		{
 			if (refusedEndpoint == null) return null;
 
-			return $"{string.Format(Tr("Could not reach {0}."), refusedEndpoint)}\n{refusalReason}\n\n{Tr("The host must keep the lobby open and allow UDP traffic on that port. Players outside their network also need the host's router to forward the port.")}";
+			return $"{string.Format(Tr("Could not reach {0}."), refusedEndpoint)}\n{refusalReason}\n\n{RestrictiveNetworkNotice.Text()}";
 		}
 	}
 
@@ -832,26 +807,24 @@ public partial class LobbyBrowser : Control
 	}
 
 	/// <summary>
-	///     Explains a join that failed from the lobby list. A failure at a network step opens the joining player's own dialog,
-	///     because a player whose join was never answered has the same things to check as one who failed from inside a lobby; a
-	///     lobby that refused the seat is stated as it arrived rather than sent to read about routers.
+	///     States a join that failed from the lobby list. A failure at a network step is answered with the one connectivity
+	///     notice; a lobby that refused the seat is stated as it arrived, because it describes a problem the player does not
+	///     have.
 	/// </summary>
-	/// <param name="message">What the lobby said went wrong, kept for the popup that is used when the network is not the cause.</param>
+	/// <param name="message">What the lobby said went wrong.</param>
 	private void ShowLobbyJoinErrorPopup(string message)
 	{
 		LobbyManager? lobby = GameContext.Lobby;
 		string phase = lobby?.LastJoinPhase ?? string.Empty;
 		bool networkFailure = lobby != null && JoinPhases.IsKnown(phase) && phase != JoinPhases.Admission && phase != JoinPhases.Session;
 
-		if (!networkFailure)
+		if (networkFailure)
 		{
-			GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("CONNECTION FAILED"), message);
+			GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("CONNECTION FAILED"), RestrictiveNetworkNotice.Text());
 			return;
 		}
 
-		var help = new ConnectivityTroubleshootingDialog { Name = "LobbyJoinFailureHelpDialog" };
-		AddChild(help);
-		help.Open(ConnectivityAudience.Joining);
+		GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("CONNECTION FAILED"), message);
 	}
 
 	protected override void Dispose(bool disposing)

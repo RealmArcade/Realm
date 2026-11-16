@@ -87,13 +87,6 @@ namespace Realm.Client.Services
 		public static UpnpService Upnp { get; } = new();
 		public static WindowsFirewallService WindowsFirewall { get; } = new();
 
-		/// <summary>
-		///     What the connectivity help asks this machine when somebody cannot get into a lobby. It owns nothing of its own:
-		///     it reads the lobby's measurements, asks the lobby server and the firewall one question each, and hands the answers
-		///     to the shared check.
-		/// </summary>
-		public static ConnectivityDiagnosticsService Connectivity { get; } = new();
-
 		[SupportedOSPlatform("windows")]
 		public static VSCodeManager VSCode => _vscode ??= new VSCodeManager();
 
