@@ -218,7 +218,7 @@ public partial class LobbyManager
 		_loadReadyReported = false;
 		_matchPresentationOpen = false;
 		_isConnectedToHost = false;
-		IsDirectLobby = false;
+		IsUnlisted = false;
 		IsHost = false;
 		IsGameStarted = false;
 		_countdownActive = false;
@@ -421,23 +421,28 @@ public partial class LobbyManager
 		{
 			while (!token.IsCancellationRequested)
 			{
-				try
-				{
-					// The class travels with the heartbeat so a lobby that withdraws its own claim stops being listed as
-					// reachable without waiting for a player to fail: the node only ever takes this downward, so a screen
-					// cannot promote its own lobby back by stating a better class.
-					var heartbeat = new { LobbyId = lobbyId, SlotsUsed = PlayerList.Count, IsGameInProgress = IsGameStarted, ReachabilityClass = ReachabilityClass };
-					var jsonContent = new StringContent(JsonSerializer.Serialize(heartbeat), Encoding.UTF8, "application/json");
-					await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/heartbeat", jsonContent, token);
-				}
-				catch (Exception ex)
-				{
-					GameLog.LogError($"the lobby heartbeat to {RegistryServerUrl} failed, so the registry may drop this lobby: {ex.GetType().Name}: {ex.Message}");
-				}
-
+				await SendHeartbeatAsync(lobbyId, token);
 				await Task.Delay(1000, token);
 			}
 		}, token);
+	}
+
+	private async Task SendHeartbeatAsync(string lobbyId, CancellationToken token)
+	{
+		try
+		{
+			// The class travels with the heartbeat so a lobby that withdraws its own claim stops being listed as
+			// reachable without waiting for a player to fail: the node only ever takes this downward, so a screen
+			// cannot promote its own lobby back by stating a better class. The unlisted statement travels the same way,
+			// so a host that makes its lobby private or offers it in the browser again does not wait for the next beat.
+			var heartbeat = new { LobbyId = lobbyId, SlotsUsed = PlayerList.Count, IsGameInProgress = IsGameStarted, ReachabilityClass = ReachabilityClass, Listed = !IsUnlisted };
+			var jsonContent = new StringContent(JsonSerializer.Serialize(heartbeat), Encoding.UTF8, "application/json");
+			using HttpResponseMessage response = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/heartbeat", jsonContent, token);
+		}
+		catch (Exception ex)
+		{
+			GameLog.LogError($"the lobby heartbeat to {RegistryServerUrl} failed, so the registry may drop this lobby: {ex.GetType().Name}: {ex.Message}");
+		}
 	}
 
 	private async Task<bool> RegisterLobbyWithRegistryAsync(string mapPathName, string mapDisplayName, string? explicitVersion, int lobbyPort)
@@ -497,7 +502,7 @@ public partial class LobbyManager
 					HostPort = primary.Port,
 					NatType = LocalNatType.ToString(),
 					ReportedHostIP = primary.DialAddress,
-					PasswordHash = "",
+					Listed = !IsUnlisted,
 					MaxPlayers = OpenSlotCount,
 					SlotsUsed = PlayerList.Count,
 					HostPingBaseline = hostPingBaseline,

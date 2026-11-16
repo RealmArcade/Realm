@@ -332,7 +332,7 @@ public partial class LobbyManager
 
 		string mapDisplayName = string.IsNullOrEmpty(HostedMapDisplayName) ? ActiveMapName : HostedMapDisplayName;
 
-		IsDirectLobby = false;
+		IsUnlisted = false;
 		if (keepLobbyOnFailure) NotifyHostLine(TranslationServer.Translate("Checking whether players elsewhere can reach this lobby. You can set up the match while this runs."));
 		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
 		await OpenLobbyEndpointAsync(prepared.Port);
@@ -352,7 +352,7 @@ public partial class LobbyManager
 
 			// The port is already open and the router's forward, if any, is already held, so the lobby is still joinable by
 			// anybody who is given its address. Losing the listing is not a reason to close it under the host's feet.
-			IsDirectLobby = true;
+			IsUnlisted = true;
 			ActiveLobbyId = null;
 			NotifyHostLine($"{TranslationServer.Translate("This lobby could not be listed, so only players you send the address to can join it.")} {LastHostError}");
 			GameLog.LogError($"[LobbyManager] The lobby is not listed; players who are given {DirectConnectAddress} can still join it.");
@@ -403,7 +403,7 @@ public partial class LobbyManager
 		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
 		await OpenLobbyEndpointAsync(prepared.Port);
 
-		IsDirectLobby = true;
+		IsUnlisted = true;
 		ActiveLobbyId = null;
 		GameLog.LogToConsole($"[LobbyManager] This lobby is not listed anywhere; share {DirectConnectAddress} with the players who should join.");
 		if (PublicConnectAddress is { Length: > 0 } publicAddress)
@@ -421,6 +421,40 @@ public partial class LobbyManager
 
 		PlayerListUpdated?.Invoke();
 		return true;
+	}
+
+	/// <summary>
+	///     Keeps this lobby out of the lobby browser, or offers it there again. The lobby itself does not change: the same
+	///     seat, the same host channel and the same invited players stay, and only what a browsing player is shown changes.
+	///     Offering it again runs the measurement publishing it runs, because a lobby is listed only where a registry node
+	///     reached its game port.
+	/// </summary>
+	/// <param name="unlisted">Whether this lobby should stop being offered in the browser.</param>
+	/// <returns>Whether the lobby is now in the state that was asked for.</returns>
+	public async Task<bool> SetLobbyUnlistedAsync(bool unlisted)
+	{
+		if (!IsHost || IsSinglePlayer) return false;
+
+		if (unlisted)
+		{
+			IsUnlisted = true;
+			NotifyHostLine(TranslationServer.Translate("This lobby is private now, so it is not offered in the lobby browser. Players you invite, or who have its address, can still join."));
+		}
+		else if (string.IsNullOrEmpty(ActiveLobbyId))
+		{
+			bool listed = await PublishPreparedLobbyDirectlyOnFailureAsync();
+			PlayerListUpdated?.Invoke();
+			return listed;
+		}
+		else
+		{
+			IsUnlisted = false;
+			NotifyHostLine(TranslationServer.Translate("This lobby is offered in the lobby browser again."));
+		}
+
+		if (!string.IsNullOrEmpty(ActiveLobbyId)) await SendHeartbeatAsync(ActiveLobbyId, _wsCts?.Token ?? CancellationToken.None);
+		PlayerListUpdated?.Invoke();
+		return IsUnlisted == unlisted;
 	}
 
 	/// <summary>
@@ -668,7 +702,7 @@ public partial class LobbyManager
 	{
 		ReleaseSeedingSlot();
 
-		IsDirectLobby = false;
+		IsUnlisted = false;
 		IsHost = true;
 		MaxPlayers = ResolvePlayablePlayerSlots(mapPathName, explicitVersion);
 		LastLobbyWarning = null;

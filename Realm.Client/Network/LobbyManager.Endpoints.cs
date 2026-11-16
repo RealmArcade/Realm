@@ -271,7 +271,7 @@ public partial class LobbyManager
 		return choice.Failure switch
 		{
 			LobbyEndpointSelectionFailure.AddressFamilyMismatch => string.Format(
-				TranslationServer.Translate("This lobby is reachable over {0} only, and this computer has no address in that family. Mixing IPv4 and IPv6 players in one lobby is not supported yet."),
+				TranslationServer.Translate("This lobby is reachable over {0} only, and this computer has no address in that family. Players who have that kind of address can still join it."),
 				offered),
 			_ => string.Format(TranslationServer.Translate("The lobby server did not state an address this lobby can be reached at ({0})."), offered)
 		};

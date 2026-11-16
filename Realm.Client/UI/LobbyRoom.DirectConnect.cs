@@ -238,8 +238,8 @@ public partial class LobbyRoom
 		vbox.AddChild(CreateDirectConnectNoteFromText(
 			"DirectConnectInviteDescription_Label",
 			Lobby.IsHost
-				? TranslationServer.Translate("This lobby is not listed anywhere. Send one of these addresses to the players you want to play with.")
-				: TranslationServer.Translate("This lobby is not listed anywhere. This is the address it is played at, and you can pass it on to another player."),
+				? TranslationServer.Translate("Send one of these addresses to the players you want to play with. A player who has it can join this lobby whether or not it is listed.")
+				: TranslationServer.Translate("This is the address this lobby is played at, and you can pass it on to another player."),
 			600,
 			13,
 			new Color(0.85f, 0.87f, 0.92f)));

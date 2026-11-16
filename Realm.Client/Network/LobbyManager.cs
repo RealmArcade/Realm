@@ -227,11 +227,11 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool IsHost { get; set; }
 
 	/// <summary>
-	///     Whether this screen's lobby is reachable only by the players it gives its address to, rather than being listed on
-	///     a registry. A direct lobby is opened and administered exactly as a listed one is; the difference is that no lobby
-	///     server knows it exists.
+	///     Whether this screen's lobby is kept out of the lobby browser, either because its host asked for that or because no
+	///     registry could be made to list it. An unlisted lobby is opened and administered exactly as a listed one is: it
+	///     keeps its seat, its host channel and the players it invites, and only stops being offered to players browsing.
 	/// </summary>
-	public bool IsDirectLobby { get; private set; }
+	public bool IsUnlisted { get; private set; }
 
 	/// <summary>
 	///     The address a player on this network joins this screen's lobby with, in the `address:port` form every player

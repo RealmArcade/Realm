@@ -58,9 +58,7 @@ public partial class ConnectivityHostDialog : Control
 	/// </summary>
 	/// <param name="offersRetry">Whether hosting the lobby again is offered, which is the only test this game has.</param>
 	/// <param name="onRetry">What hosting the lobby again does.</param>
-	/// <param name="offersDirectHosting">Whether opening the same lobby without listing it is offered.</param>
-	/// <param name="onHostDirect">What opening the same lobby without listing it does.</param>
-	public void Open(bool offersRetry, Action? onRetry, bool offersDirectHosting, Action? onHostDirect)
+	public void Open(bool offersRetry, Action? onRetry)
 	{
 		ConnectivityEvidence evidence = GameContext.Connectivity.CurrentEvidence;
 		_titleKey = evidence.LocalSeatFailed ? ConnectivitySentences.HostingTitleLocalSeat : ConnectivitySentences.HostingTitle;
@@ -68,7 +66,7 @@ public partial class ConnectivityHostDialog : Control
 		LocalizedText.Bind(_titleLabel, () => ConnectivityHelpText.Text(_titleKey));
 
 		BuildDirectConnectSection(evidence);
-		BuildActions(evidence, offersRetry, onRetry, offersDirectHosting, onHostDirect);
+		BuildActions(evidence, offersRetry, onRetry);
 
 		_panel.Open(ConnectivityAudience.Hosting);
 	}
@@ -181,7 +179,7 @@ public partial class ConnectivityHostDialog : Control
 		_directSection.AddChild(note);
 	}
 
-	private void BuildActions(ConnectivityEvidence evidence, bool offersRetry, Action? onRetry, bool offersDirectHosting, Action? onHostDirect)
+	private void BuildActions(ConnectivityEvidence evidence, bool offersRetry, Action? onRetry)
 	{
 		// A wrapping row rather than a plain one: which actions are offered depends on the failure, and a row that cannot wrap
 		// would push the whole card wider than the window on the failures that offer the most of them.
@@ -191,15 +189,6 @@ public partial class ConnectivityHostDialog : Control
 			retry.CustomMinimumSize = new Vector2(190, 40);
 			retry.Pressed += () => InvokeAndClose(onRetry);
 			_actions.AddChild(retry);
-		}
-
-		if (offersDirectHosting && onHostDirect != null)
-		{
-			Button direct = UIStyle.CreateActionButton("ConnectivityHostDirect_Button", TranslationServer.Translate(ConnectivitySentences.HostDirectButton), 14);
-			direct.CustomMinimumSize = new Vector2(230, 40);
-			LocalizedText.SetTooltip(direct, "Open the same lobby without listing it anywhere. You then send its address to the players you want to join.");
-			direct.Pressed += () => InvokeAndClose(onHostDirect);
-			_actions.AddChild(direct);
 		}
 
 		if (!string.IsNullOrEmpty(evidence.DiagnosticsBlock))

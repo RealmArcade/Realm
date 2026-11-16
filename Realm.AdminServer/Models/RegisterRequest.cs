@@ -7,7 +7,6 @@ public record RegisterRequest(
 	int HostPort,
 	string NatType,
 	string? ReportedHostIP,
-	string? PasswordHash,
 	int MaxPlayers,
 	int SlotsUsed,
 	int HostPingBaseline,
@@ -21,5 +20,6 @@ public record RegisterRequest(
 	string? ReachabilityProbeId = null,
 	int? LocalPort = null,
 	int? ObservedPort = null,
-	IReadOnlyList<LobbyEndpointRegistration>? Endpoints = null
+	IReadOnlyList<LobbyEndpointRegistration>? Endpoints = null,
+	bool? Listed = null
 );

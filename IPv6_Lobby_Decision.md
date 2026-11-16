@@ -77,11 +77,14 @@ A lobby is published with the endpoints that verified, and nothing else. An IPv6
 publishes an IPv6-only lobby, which the listing states per endpoint. A joiner that shares no family with a
 listed lobby is refused on the first attempt — measured at 109–190 ms in the rig, against a retry budget
 measured in seconds — with `This lobby is reachable over IPv6 only, and this computer has no address in
-that family. Mixing IPv4 and IPv6 players in one lobby is not supported yet.` The lobby browser shades the
+that family. Players who have that kind of address can still join it.` The lobby browser shades the
 family a row offers, so a v6-only lobby is legible before it is pressed.
 
-Mixed-family play remains a non-goal and the message says so, rather than failing silently or leaving the
-player to infer it from a timeout.
+One lobby serving both families is not a non-goal: §1 measured one server holding `0.0.0.0` and `[::]` at
+once, check 13 below seats an IPv4 player and an IPv6 player in the same lobby, and the joiner picks the
+endpoint its own family can use. What is not possible is a joiner reaching a lobby over a family the lobby
+was not offered in, which is a fact about that pair of ends rather than about the lobby — the message says
+so instead of failing silently or leaving the player to infer it from a timeout.
 
 ## 5. What shipped
 

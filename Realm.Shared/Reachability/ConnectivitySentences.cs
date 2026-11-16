@@ -124,10 +124,6 @@ public static class ConnectivitySentences
 	/// <summary>The label of the button that hosts the lobby again, which is the only test this game has.</summary>
 	public const string TryAgainButton = "TRY AGAIN";
 
-	/// <summary>The label of the button that opens the same lobby without listing it.</summary>
-	public const string HostDirectButton = "HOST DIRECT INSTEAD";
-
-
 	/// <summary>The report a host reads when the lobby server answered and the game port never did.</summary>
 	public const string LikelyHostProbeUnanswered = "The lobby server reached for UDP port {0} and nothing answered, so your lobby was not listed.";
 
@@ -254,9 +250,9 @@ public static class ConnectivitySentences
 	public const string JoinFirewallNextStep = "Allow Realm through the security software, then join the same address again.";
 
 	public const string JoinHostRouterTitle = "The host's network does not let players in";
-	public const string JoinHostRouterSummary = "The lobby's port never answered, which is usually the host's network rather than yours. The host's router has to let one incoming connection through, or the host has to open the lobby as a direct one and send its address.";
+	public const string JoinHostRouterSummary = "The lobby's port never answered, which is usually the host's network rather than yours. The host's router has to let one incoming connection through, or the host can mark the lobby private and send you its address.";
 	public const string JoinHostRouterSearch = "why can't my friends join my game";
-	public const string JoinHostRouterNextStep = "Send this to the host: the lobby's UDP port needs a forward on their router, or the lobby should be opened with HOST DIRECT INSTEAD.";
+	public const string JoinHostRouterNextStep = "Send this to the host: the lobby's UDP port needs a forward on their router, or the host can mark the lobby private and share its address with the players they want to join.";
 
 	public const string JoinLobbyServerTitle = "The lobby server could not be reached";
 	public const string JoinLobbyServerSummary = "The lobby server that keeps the list of lobbies could not be reached, so this lobby could not be found. Check your internet connection and try again, or ask the host for an address to connect to directly.";

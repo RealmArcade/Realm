@@ -49,7 +49,8 @@ public partial class LobbyRoom : Control
 	private Button _backButton = null!;
 	private Button _steamInviteButton = null!;
 	private Button _shareAddressButton = null!;
-	private Label _privateLobbyHint = null!;
+	private Label _unlistedLobbyHint = null!;
+	private CheckBox _unlistedLobbyCheck = null!;
 
 	private Label _lobbyFamiliesHint = null!;
 	private SteamFriendsDialog? _friendsDialog;
@@ -128,10 +129,15 @@ public partial class LobbyRoom : Control
 		_backButton = GetNode<Button>("BackButton");
 		_steamInviteButton = GetNode<Button>("SteamInviteButton");
 		_shareAddressButton = GetNode<Button>("ShareAddressButton");
-		_privateLobbyHint = GetNode<Label>("PrivateLobbyHint");
+		_unlistedLobbyHint = GetNode<Label>("UnlistedLobbyHint");
 		_startButton = GetNode<Button>("StartButton");
-		_privateLobbyHint.Text = TranslationServer.Translate("Private Lobby: Send your IP address to players so they can join.");
+		_unlistedLobbyHint.Text = TranslationServer.Translate("A private lobby is not offered in the lobby browser. Players you invite, or who have its address, can still join it.");
 		_lobbyFamiliesHint = GetNode<Label>("LobbyFamiliesHint");
+		_unlistedLobbyCheck = GetNode<CheckBox>("UnlistedLobbyCheck");
+		_unlistedLobbyCheck.Text = TranslationServer.Translate("Private");
+		_unlistedLobbyCheck.TooltipText = TranslationServer.Translate("A private lobby is not offered in the lobby browser. Players you invite, or who have its address, can still join it.");
+		_unlistedLobbyCheck.FocusMode = FocusModeEnum.None;
+		_unlistedLobbyCheck.Toggled += OnUnlistedLobbyToggled;
 		UpdateLobbyFamiliesHint();
 		ApplyInviteVisibility();
 		if (Lobby.IsHost)
@@ -141,7 +147,7 @@ public partial class LobbyRoom : Control
 			// A lobby that could not be shown reachable stays open to the players it is given the address to, so the room's
 			// summary says so at the moment the listing was refused rather than after somebody has failed to get in. The room
 			// reports and hands over; it does not put a troubleshooting card over a lobby its players are sitting in.
-			Lobby.LobbyPublicationRefused += RefreshConnectivitySummary;
+			Lobby.LobbyPublicationRefused += OnLobbyPublicationRefused;
 		}
 
 
@@ -344,21 +350,6 @@ public partial class LobbyRoom : Control
 
 
 	/// <summary>
-	///     Whether this lobby is played at an address its host sends around instead of being listed for the lobby browser
-	///     to find. The staging id the authority opens a direct lobby under states the same thing as the flag, and a screen
-	///     that joined by address reads it from there.
-	/// </summary>
-	private static bool IsDirectConnectLobby =>
-		Lobby.IsDirectLobby ||
-		(Lobby.ActiveLobbyId is { Length: > 0 } activeLobbyId && activeLobbyId.StartsWith("direct-", StringComparison.Ordinal));
-
-	/// <summary>
-	///     Shows the one invite button this lobby can use. A Steam invite needs a lobby the lobby browser lists, because that
-	///     list is what a friend's client finds and joins; a lobby that is not listed hands out the address its host reads
-	///     from the dialog instead. The note beside that button is the host's, since an address a joining player passes on is
-	///     the host's and not their own.
-	/// </summary>
-	/// <summary>
 	///     Says which address families this lobby can be joined over, which is the only way a host can tell that its lobby
 	///     is reachable over IPv6 and that the players it matters to can reach it. The sentence is drawn through a renderer
 	///     because it is built from live state, so a language change redraws it rather than leaving the language it was
@@ -419,15 +410,50 @@ public partial class LobbyRoom : Control
 	private void ApplyInviteVisibility()
 	{
 		bool invitesPlayers = !Lobby.IsSinglePlayer;
-		bool directLobby = IsDirectConnectLobby;
 
-		_steamInviteButton.Visible = invitesPlayers && !directLobby;
-		_shareAddressButton.Visible = invitesPlayers && directLobby;
-		_privateLobbyHint.Visible = invitesPlayers && directLobby && Lobby.IsHost;
+		// Both ways of inviting a player are offered at once: a friend on Steam and a player handed an address join the same
+		// lobby, and which of them a host has to hand is a fact about that player rather than about the lobby. A Steam invite
+		// needs the lobby server to know the lobby, because it carries the id a friend's client joins with, so a lobby no
+		// registry accepted offers its address alone.
+		_steamInviteButton.Visible = invitesPlayers && !string.IsNullOrEmpty(Lobby.ActiveLobbyId);
+		_shareAddressButton.Visible = invitesPlayers;
+		_unlistedLobbyHint.Visible = invitesPlayers && Lobby.IsHost && Lobby.IsUnlisted;
+		_unlistedLobbyCheck.Visible = invitesPlayers && Lobby.IsHost;
+		UpdateUnlistedLobbyCheck();
 
 		// A single-player lobby has no players to explain anything to, so the two host network buttons are not offered there.
 		if (_troubleshootingButton != null) _troubleshootingButton.Visible = invitesPlayers;
 		if (_diagnosticsButton != null) _diagnosticsButton.Visible = invitesPlayers;
+	}
+
+	private void UpdateUnlistedLobbyCheck()
+	{
+		if (!GodotObject.IsInstanceValid(_unlistedLobbyCheck)) return;
+
+		bool unlisted = Lobby.IsUnlisted;
+		if (_unlistedLobbyCheck.ButtonPressed == unlisted) return;
+		_unlistedLobbyCheck.SetPressedNoSignal(unlisted);
+	}
+
+	private async void OnUnlistedLobbyToggled(bool unlisted)
+	{
+		GameContext.UserInterface?.PlayClickSound();
+
+		bool applied = await Lobby.SetLobbyUnlistedAsync(unlisted);
+		UpdateUnlistedLobbyCheck();
+		ApplyInviteVisibility();
+
+		if (!applied)
+		{
+			GameContext.UserInterface?.PlayWarningSound();
+			UpdateUnlistedLobbyCheck();
+		}
+	}
+
+	private void OnLobbyPublicationRefused()
+	{
+		RefreshConnectivitySummary();
+		ApplyInviteVisibility();
 	}
 
 	private void OpenInviteFriendsDialog()
@@ -436,7 +462,7 @@ public partial class LobbyRoom : Control
 		{
 			GameContext.UserInterface?.ShowPopupMessage(
 				Tr("LOBBY INVITES"),
-				Tr("Invites need a lobby the server lists. Share the lobby's direct connect address instead."));
+				Tr("Invites need a lobby the lobby server knows about. Share the lobby's address instead."));
 			return;
 		}
 

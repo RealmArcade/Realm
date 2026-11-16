@@ -56,7 +56,6 @@ public static class ConnectivityHelpText
 		ConnectivitySentences.DirectConnectWithheldNote => TranslationServer.Translate(ConnectivitySentences.DirectConnectWithheldNote),
 		ConnectivitySentences.CopyDiagnosticsButton => TranslationServer.Translate(ConnectivitySentences.CopyDiagnosticsButton),
 		ConnectivitySentences.TryAgainButton => TranslationServer.Translate(ConnectivitySentences.TryAgainButton),
-		ConnectivitySentences.HostDirectButton => TranslationServer.Translate(ConnectivitySentences.HostDirectButton),
 		ConnectivitySentences.LikelyHostNothingFailed => TranslationServer.Translate(ConnectivitySentences.LikelyHostNothingFailed),
 		ConnectivitySentences.LikelyJoinNothingMeasured => TranslationServer.Translate(ConnectivitySentences.LikelyJoinNothingMeasured),
 		ConnectivitySentences.LikelyHostProbeUnanswered => TranslationServer.Translate(ConnectivitySentences.LikelyHostProbeUnanswered),

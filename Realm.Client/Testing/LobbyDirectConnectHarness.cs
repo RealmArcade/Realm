@@ -171,7 +171,7 @@ public partial class LobbyDirectConnectHarness : Node
 		}
 
 		if (_lobbyFile.Length > 0) File.WriteAllText(_lobbyFile, lobby.ActiveLobbyId ?? string.Empty);
-		GameLog.LogToConsole($"[DIRECT_HARNESS] mode={_hostMode} direct={lobby.IsDirectLobby} address={lobby.DirectConnectAddress} public={lobby.PublicConnectAddress ?? "none"}; waiting for a direct guest.");
+		GameLog.LogToConsole($"[DIRECT_HARNESS] mode={_hostMode} unlisted={lobby.IsUnlisted} address={lobby.DirectConnectAddress} public={lobby.PublicConnectAddress ?? "none"}; waiting for a direct guest.");
 
 		// The page a host copies for a report is written out here, line by line, because it is the one artifact a support
 		// request cannot be answered without and the one nobody can reproduce after the lobby is closed.
@@ -334,21 +334,13 @@ public partial class LobbyDirectConnectHarness : Node
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
+		// The create screen no longer asks whether a lobby should be listed: every lobby is opened the same way, and the
+		// choice moved into the lobby room, where the host can change it after the lobby already exists.
 		Control? visibility = screen.GetNodeOrNull<Control>("CentralPanel/ContentContainer/VisibilityContainer");
-		OptionButton? selector = visibility?.GetNodeOrNull<OptionButton>("VisibilitySelectButton");
-		if (visibility == null || selector == null) return (10, "the create screen draws no lobby type selector");
-		if (!visibility.Visible) return (11, "the lobby type selector is hidden on the create screen");
-		if (selector.ItemCount != 2) return (12, $"the lobby type selector offers {selector.ItemCount} choice(s)");
-
-		string listed = selector.GetItemText(0);
-		string direct = selector.GetItemText(1);
-		if (!listed.Contains("PUBLIC", StringComparison.Ordinal) || !direct.Contains("DIRECT", StringComparison.Ordinal))
-		{
-			return (13, $"the lobby type choices do not name both kinds: '{listed}' / '{direct}'");
-		}
+		if (visibility != null) return (10, "the create screen still draws a lobby type selector");
 
 		screen.QueueFree();
-		return (0, $"the create screen offers '{listed}' and '{direct}'");
+		return (0, "the create screen asks for no lobby type, so every lobby is opened the same way");
 	}
 
 	private async Task<(int ExitCode, string Outcome)> RunLobbyRoomCheckAsync()
@@ -364,8 +356,8 @@ public partial class LobbyDirectConnectHarness : Node
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-		// A lobby that is not listed can only be shared as an address, and a Steam invite cannot reach it at all, so the
-		// screen offers the one button that works rather than using a single button for both kinds of lobby.
+		// A lobby no registry accepted is still opened, and it is still shared by address: the address button is offered and
+		// the Steam invite is not, because a Steam invite carries the id only a registered lobby has.
 		Button? shareAddress = room.GetNodeOrNull<Button>("ShareAddressButton");
 		if (shareAddress == null) return (21, "the lobby room draws no button that shares a private lobby's address");
 		if (!shareAddress.Visible) return (21, "the button that shares the address is hidden in a private lobby");
@@ -376,12 +368,12 @@ public partial class LobbyDirectConnectHarness : Node
 
 		Button? steamInvite = room.GetNodeOrNull<Button>("SteamInviteButton");
 		if (steamInvite == null) return (26, "the lobby room draws no Steam invite button");
-		if (steamInvite.Visible) return (26, "a private lobby shows the Steam invite button, which cannot reach it");
+		if (steamInvite.Visible) return (26, "a lobby no registry accepted shows the Steam invite button, which needs the id a registry gives it");
 
-		Label? hint = room.GetNodeOrNull<Label>("PrivateLobbyHint");
+		Label? hint = room.GetNodeOrNull<Label>("UnlistedLobbyHint");
 		if (hint == null) return (27, "the lobby room draws no note saying what a private lobby's address is for");
 		if (!hint.Visible) return (27, "the private lobby note is hidden in a private lobby");
-		if (!hint.Text.Contains("Send your IP address", StringComparison.Ordinal))
+		if (!hint.Text.Contains("A private lobby is not offered", StringComparison.Ordinal))
 		{
 			return (27, $"the private lobby note reads '{hint.Text}'");
 		}

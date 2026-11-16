@@ -107,7 +107,7 @@ public static class LobbyEndpoints
 		string clientIpStr = (context.Connection.RemoteIpAddress ?? IPAddress.Loopback).ToString();
 		var clientCoords = geoIp.GetCoordinates(clientIpStr);
 
-		var list = registry.GetAllLobbies().Where(lobby => !lobby.IsGameInProgress).Select(lobby =>
+		var list = registry.GetAllLobbies().Where(lobby => lobby.Listed && !lobby.IsGameInProgress).Select(lobby =>
 		{
 			var distance = GeoIpService.CalculateDistance(
 				clientCoords.lat, clientCoords.lon,
@@ -337,7 +337,7 @@ public static class LobbyEndpoints
 			HostIP = hostIp,
 			HostPort = hostPort,
 			NatType = req.NatType,
-			PasswordHash = req.PasswordHash ?? "",
+			Listed = req.Listed ?? true,
 			MaxPlayers = req.MaxPlayers,
 			SlotsUsed = req.SlotsUsed,
 			GameVersion = req.GameVersion,
@@ -405,6 +405,12 @@ public static class LobbyEndpoints
 		{
 			lobby.LastHeartbeat = DateTime.UtcNow;
 			lobby.SlotsUsed = req.SlotsUsed;
+			if (req.Listed.HasValue && lobby.Listed != req.Listed.Value)
+			{
+				lobby.Listed = req.Listed.Value;
+				Console.WriteLine($"[Registry] Lobby {lobby.LobbyId} is {(lobby.Listed ? "listed in the lobby browser" : "private, so it is not listed")}");
+			}
+
 			if (req.IsGameInProgress.HasValue)
 			{
 				lobby.IsGameInProgress = req.IsGameInProgress.Value;

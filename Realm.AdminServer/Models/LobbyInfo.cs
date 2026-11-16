@@ -9,7 +9,6 @@ public class LobbyInfo
 	public required string HostIP { get; set; }
 	public required int HostPort { get; set; }
 	public required string NatType { get; set; }
-	public required string PasswordHash { get; set; }
 	public required int MaxPlayers { get; set; }
 	public required int SlotsUsed { get; set; }
 	public string? GameVersion { get; set; }
@@ -26,6 +25,9 @@ public class LobbyInfo
 	public int? LocalPort { get; set; }
 	public long MapSizeBytes { get; set; }
 	public bool IsGameInProgress { get; set; }
+
+	/// <summary>Whether this lobby is offered in the lobby browser. A lobby that is not listed stays registered, keeps its host channel and is joined by its residents and the players they invite; it is simply not offered to players browsing.</summary>
+	public bool Listed { get; set; } = true;
 
 	/// <summary>How reachable the lobby's game port was shown to be by the node that measured it: open, punch-only or unverified.</summary>
 	public string? ReachabilityClass { get; set; }

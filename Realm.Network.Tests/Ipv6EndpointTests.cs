@@ -97,7 +97,7 @@ public class Ipv6EndpointTests
 			new("2001:db8::1", 8999, "ipv6", "probe-ipv6")
 		};
 
-		var request = new RegisterRequest("Melee", 8999, "Open", "203.0.113.9", string.Empty, 8, 1, 20, Endpoints: dualStack);
+		var request = new RegisterRequest("Melee", 8999, "Open", "203.0.113.9", 8, 1, 20, Endpoints: dualStack);
 		string requestJson = JsonSerializer.Serialize(request, NodeOptions);
 		RegisterRequest? readBack = JsonSerializer.Deserialize<RegisterRequest>(requestJson, ClientOptions);
 
@@ -127,7 +127,7 @@ public class Ipv6EndpointTests
 	public void AV6OnlyLobbySurvivesRegistrationWithOneEndpoint()
 	{
 		var v6Only = new List<LobbyEndpointRegistration> { new("2001:db8::1", 8999, "ipv6", "probe-ipv6") };
-		var request = new RegisterRequest("Melee", 8999, "Open", "2001:db8::1", string.Empty, 8, 1, 20, Endpoints: v6Only);
+		var request = new RegisterRequest("Melee", 8999, "Open", "2001:db8::1", 8, 1, 20, Endpoints: v6Only);
 
 		string json = JsonSerializer.Serialize(request, NodeOptions);
 		RegisterRequest? readBack = JsonSerializer.Deserialize<RegisterRequest>(json, ClientOptions);
