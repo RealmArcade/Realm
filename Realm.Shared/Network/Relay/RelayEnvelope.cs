@@ -33,11 +33,14 @@ public static class RelayEnvelope
 	public const int HeaderBytes = TagOffset + RelayDatagramCipher.TagBytes;
 
 	/// <summary>
-	///     The widest inner datagram the path layer carries. It is wider than one datagram of the frame layer because the
-	///     transport on each side adds its own header to what the frame layer produced, and a datagram the path layer refused
-	///     for its size would be a datagram the match never gets back.
+	///     The widest inner datagram the path layer carries, which is the widest one the transport on either side can hand it.
+	///     ENet fragments what it is given down to its own datagram budget and never sends more than that in one datagram, so
+	///     this is that budget rather than a smaller number chosen for the frame layer: a datagram refused here is one the
+	///     transport above already believes it sent, and on its ordered reliable channel the datagram behind it waits for a
+	///     retransmission that would be refused for exactly the same reason. With the envelope in front of it, the datagram
+	///     still lands inside one IP datagram, which is what keeps relays from introducing fragmentation of their own.
 	/// </summary>
-	public const int MaximumInnerDatagramBytes = 1280;
+	public const int MaximumInnerDatagramBytes = 1400;
 
 	/// <summary>The widest relayed datagram the path layer produces, header, tag and inner datagram together.</summary>
 	public const int MaximumEncapsulatedDatagramBytes = HeaderBytes + MaximumInnerDatagramBytes;

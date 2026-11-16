@@ -16,6 +16,9 @@ public class RelayWireContractTests
 {
 	private const string Ticket = "relay-wire-contract-ticket-0001";
 
+	/// <summary>The widest datagram ENet's own host sends, which is the transport's own minimum transmission unit.</summary>
+	private const int EnetDatagramBudgetBytes = 1400;
+
 	[Test]
 	public void TheEnvelopeStatesWhatAVolunteerMayReadInAFixedLayout()
 	{
@@ -25,6 +28,8 @@ public class RelayWireContractTests
 		Assert.That(RelayEnvelope.TagOffset, Is.EqualTo(RelayEnvelope.PathSequenceOffset + 2));
 		Assert.That(RelayEnvelope.HeaderBytes, Is.EqualTo(RelayEnvelope.TagOffset + RelayDatagramCipher.TagBytes));
 		Assert.That(RelayEnvelope.MaximumInnerDatagramBytes, Is.GreaterThanOrEqualTo(SnapshotFragment.MaximumDatagramBytes));
+		Assert.That(RelayUdpShim.MaximumInnerDatagramBytes, Is.EqualTo(RelayEnvelope.MaximumInnerDatagramBytes), "the shim has to hold what the path layer carries, or a datagram the transport already sent is refused instead of delivered");
+		Assert.That(RelayEnvelope.MaximumInnerDatagramBytes, Is.GreaterThanOrEqualTo(EnetDatagramBudgetBytes), "ENet fragments to its own budget and never sends more, so a relayed connection must carry a whole ENet datagram or its ordered reliable channel stalls behind one it cannot");
 		Assert.That(RelayForwarder.MaximumDatagramBytes, Is.EqualTo(RelayEnvelope.MaximumEncapsulatedDatagramBytes));
 		Assert.That(RelayEnvelope.MaximumEncapsulatedDatagramBytes + 28, Is.LessThanOrEqualTo(1472), "one relayed datagram plus IP and UDP has to stay inside a 1500-byte path");
 	}

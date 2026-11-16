@@ -149,10 +149,16 @@ public partial class ServerLobby
 		long totalRoundTrip = 0;
 		long totalJitter = 0;
 		double totalLoss = 0.0;
+		int administratorSlot = -1;
 
+		// Reading a seat's measurement and publishing it are separated because publishing writes the seat back into the
+		// seat table, and a dictionary cannot be written while it is being enumerated. Each pass therefore states what it
+		// found first and touches the table only once the enumeration it read is finished.
+		_measuredLinkSeats.Clear();
 		foreach (var pair in _seats)
 		{
 			LobbySeat seat = pair.Value;
+			if (seat.PeerId == _adminPeerId) administratorSlot = seat.Slot;
 			if (seat.IsComputer || seat.IsDisconnected) continue;
 			if (seat.PeerId <= 0 || seat.PeerId == _adminPeerId) continue;
 
@@ -164,29 +170,30 @@ public partial class ServerLobby
 			totalJitter += statistics.Value.JitterMilliseconds;
 			totalLoss += statistics.Value.PacketLossPercent;
 
-			changed |= PublishSeatLink(seat, statistics.Value.RoundTripMilliseconds, statistics.Value.JitterMilliseconds, statistics.Value.PacketLossPercent);
+			_measuredLinkSeats.Add((seat.Slot, statistics.Value));
+		}
+
+		for (int index = 0; index < _measuredLinkSeats.Count; index++)
+		{
+			(int slot, PeerLinkStatistics statistics) = _measuredLinkSeats[index];
+			if (!_seats.TryGetValue(slot, out LobbySeat measuredSeat)) continue;
+
+			changed |= PublishSeatLink(measuredSeat, statistics.RoundTripMilliseconds, statistics.JitterMilliseconds, statistics.PacketLossPercent);
 		}
 
 		// The administrator runs its own authority, so no transit belongs to its own row: it states the average of the links
 		// it serves, and nothing at all while it serves nobody.
-		foreach (var pair in _seats)
+		if (administratorSlot >= 0 && _seats.TryGetValue(administratorSlot, out LobbySeat administratorSeat))
 		{
-			LobbySeat seat = pair.Value;
-			if (seat.PeerId != _adminPeerId) continue;
-
-			if (measuredPeers == 0)
-			{
-				changed |= PublishSeatLink(seat, 0, 0, 0f);
-				break;
-			}
-
-			changed |= PublishSeatLink(seat,
-				(int)Math.Round((double)totalRoundTrip / measuredPeers),
-				(int)Math.Round((double)totalJitter / measuredPeers),
-				(float)(totalLoss / measuredPeers));
-			break;
+			changed |= measuredPeers == 0
+				? PublishSeatLink(administratorSeat, 0, 0, 0f)
+				: PublishSeatLink(administratorSeat,
+					(int)Math.Round((double)totalRoundTrip / measuredPeers),
+					(int)Math.Round((double)totalJitter / measuredPeers),
+					(float)(totalLoss / measuredPeers));
 		}
 
+		_measuredLinkSeats.Clear();
 		return changed;
 	}
 

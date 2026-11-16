@@ -41,6 +41,15 @@ public sealed class RelayPathMux : IDisposable
 	/// <summary>How many probes a path must have sent before its silence is taken as evidence of anything.</summary>
 	public const int MinimumProbesBeforeSilenceCounts = 3;
 
+	/// <summary>
+	///     How long a path that has answered may go without answering again before this connection stops putting new datagrams
+	///     on it while another path is live. A volunteer that has gone stops moving datagrams at once, but nothing closes its
+	///     socket, so the only evidence is silence: a path that has missed more than one probe is no longer the path to choose,
+	///     even though it is not yet retired. It is shorter than the silence a path is retired on because choosing another
+	///     path costs nothing while waiting for the one that is gone costs every datagram that waited.
+	/// </summary>
+	public const int FastFailoverSilenceMilliseconds = 800;
+
 	private readonly RelayConnectionToken _token;
 	private readonly RelayDatagramCipher _cipher;
 	private readonly RelayDuplicateWindow _duplicates = new();
@@ -373,32 +382,56 @@ public sealed class RelayPathMux : IDisposable
 
 	private RelayPath? ChooseBestPath()
 	{
-		RelayPath? best = null;
+		long now = Now;
+		RelayPath? bestAnswered = null;
+		RelayPath? bestLive = null;
 		for (int index = 0; index < _pathCount; index++)
 		{
 			RelayPath path = _paths[index];
 			if (!path.IsLive) continue;
-			if (!RelayPathScoring.IsBetterThan(path.Statistics, best?.Statistics)) continue;
 
-			best = path;
+			if (RelayPathScoring.IsBetterThan(path.Statistics, bestLive?.Statistics)) bestLive = path;
+			if (!IsTrustedForSend(path, now)) continue;
+			if (!RelayPathScoring.IsBetterThan(path.Statistics, bestAnswered?.Statistics)) continue;
+
+			bestAnswered = path;
 		}
 
-		return best;
+		return bestAnswered ?? bestLive;
+	}
+
+	/// <summary>
+	///     Whether this connection should keep putting new datagrams on a path. A path that has never been answered is still
+	///     a path to try, because nothing has said it is gone; a path that has answered and then stopped is one this side has
+	///     evidence against, and another live path is preferred over it until it answers again.
+	/// </summary>
+	/// <param name="path">The path being considered.</param>
+	/// <param name="now">The clock the last answer is read against.</param>
+	/// <returns>Whether new datagrams may be put on this path while another path is live.</returns>
+	private static bool IsTrustedForSend(RelayPath path, long now)
+	{
+		if (path.Statistics.ProbesAnswered == 0) return true;
+		return now - path.LastProbeAnswerMilliseconds <= FastFailoverSilenceMilliseconds;
 	}
 
 	private RelayPath? ChooseSecondPath(RelayPath best)
 	{
-		RelayPath? second = null;
+		long now = Now;
+		RelayPath? secondAnswered = null;
+		RelayPath? secondLive = null;
 		for (int index = 0; index < _pathCount; index++)
 		{
 			RelayPath path = _paths[index];
 			if (ReferenceEquals(path, best) || !path.IsLive) continue;
-			if (!RelayPathScoring.IsBetterThan(path.Statistics, second?.Statistics)) continue;
 
-			second = path;
+			if (RelayPathScoring.IsBetterThan(path.Statistics, secondLive?.Statistics)) secondLive = path;
+			if (!IsTrustedForSend(path, now)) continue;
+			if (!RelayPathScoring.IsBetterThan(path.Statistics, secondAnswered?.Statistics)) continue;
+
+			secondAnswered = path;
 		}
 
-		return second;
+		return secondAnswered ?? secondLive;
 	}
 
 	private bool SendOnPath(RelayPath path, byte deliveryFlag, ReadOnlySpan<byte> inner)

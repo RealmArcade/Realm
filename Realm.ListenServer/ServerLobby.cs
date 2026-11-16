@@ -88,6 +88,9 @@ public partial class ServerLobby : ILobbySeatTable
 
 	private double _linkStatisticsTimer;
 
+	/// <summary>The seats the last measurement read, which are written back after the enumeration that read them.</summary>
+	private readonly List<(int Slot, PeerLinkStatistics Statistics)> _measuredLinkSeats = new();
+
 	private const int MaximumSessionTokenLength = 64;
 
 	private int _adminPeerId;

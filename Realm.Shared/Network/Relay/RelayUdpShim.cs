@@ -14,8 +14,8 @@ namespace Realm.Shared.Network.Relay;
 /// </summary>
 public sealed class RelayUdpShim : IRelayPathSink, IDisposable
 {
-	/// <summary>The widest datagram the transport on this side may hand the shim.</summary>
-	public const int MaximumInnerDatagramBytes = 1600;
+	/// <summary>The widest datagram the transport on this side may hand the shim, which is what the path layer carries.</summary>
+	public const int MaximumInnerDatagramBytes = RelayEnvelope.MaximumInnerDatagramBytes;
 
 	private const int LaneSleepMilliseconds = 1;
 
