@@ -200,7 +200,7 @@ public partial class ConnectivityHostDialog : Control
 			{
 				GameContext.UserInterface?.PlayClickSound();
 				DisplayServer.ClipboardSet(evidence.DiagnosticsBlock);
-				ShowCopyFeedback(TranslationServer.Translate("Network diagnostics copied."));
+				ShowCopyFeedback(TranslationServer.Translate("Network diagnostics copied to clipboard."));
 			};
 			_actions.AddChild(copyDiagnostics);
 		}

@@ -10,44 +10,49 @@ using Realm.Shared.Reachability;
 namespace Realm.Client.UI;
 
 /// <summary>
-///     The issue list every connectivity surface is built from: the sentence that names what the game measured, one row per
-///     cause this build can actually fail on, what one cause's check found, and the ranked answers of a full run. The host's
-///     dialog, the joining player's dialog and the host troubleshooting screen all draw this panel, because a cause is the
-///     same explanation whichever surface opened it; only the actions around it differ.
+///     The issue list every connectivity surface is built from: the sentence that names what the game measured, one entry per
+///     cause this build can actually fail on, what one cause's check found, and what to do about it. The host's dialog, the
+///     joining player's dialog and the host troubleshooting screen all draw this panel, because a cause is the same
+///     explanation whichever surface opened it; only the actions around it differ.
 /// </summary>
 /// <remarks>
-///     Nothing here picks a cause for the reader. The measured failure is stated above the list as a sentence, and every row
-///     is a question the reader chooses to ask: a measurement that names one cause is not the same thing as a check that
-///     ruled the others out, so the panel opens with nothing selected and says so. Each row can be checked on its own, and
-///     one button runs every check and ranks what this machine showed.
+///     Nothing here picks a cause for the reader. The measured failure is stated above the list as a sentence, the list is one
+///     dropdown ordered by how often each cause is the reason players cannot get in, and every entry can be checked on its own.
+///     A full run measures each cause and can then hide the ones this machine was shown not to have, which is a filter over the
+///     same list rather than a second, differently ordered list of the same causes.
 /// </remarks>
 [GlobalClass]
 public partial class ConnectivityIssuePanel : VBoxContainer
 {
-	/// <summary>The width a card carrying this panel is built at, which every column below is measured against.</summary>
+	/// <summary>The width a card carrying this panel is built at, which every control below is measured against.</summary>
 	public const int CardWidth = 980;
 
-	/// <summary>The width the issue list takes, leaving the rest of the card to the explanation beside it.</summary>
-	public const int ListWidth = 400;
+	/// <summary>The height the explanation is given before it scrolls, so the card is a stable size.</summary>
+	public const int DetailHeight = 340;
 
-	/// <summary>The height the list and the explanation are given before either scrolls, so the card is a stable size.</summary>
-	public const int ColumnsHeight = 340;
+	private const int ContentWidth = CardWidth - 60;
 
 	private const string SearchEnginePrefix = "https://duckduckgo.com/?q=";
 
-	private readonly Dictionary<ConnectivityIssue, Button> _issueRows = new();
+	private const int PlaceholderIndex = 0;
+
+	private const int PlaceholderOffset = 1;
 
 	private readonly Dictionary<ConnectivityIssue, ConnectivityDiagnosis> _diagnoses = new();
 
-	private readonly CancellationTokenSource _cancellation = new();
+	private readonly List<ConnectivityIssue> _listedIssues = new();
 
-	private VBoxContainer _issueRowsBox = null!;
+	private readonly CancellationTokenSource _cancellation = new();
 
 	private VBoxContainer _detailBox = null!;
 
 	private VBoxContainer _playerJoinFailureBox = null!;
 
 	private ScrollContainer _detailScroll = null!;
+
+	private OptionButton _issuePicker = null!;
+
+	private CheckBox _likelyFilter = null!;
 
 	private Label _likelyCauseLabel = null!;
 
@@ -59,7 +64,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 	private ConnectivityIssue? _selectedIssue;
 
-	private IReadOnlyList<ConnectivityDiagnosis>? _ranked;
+	private bool _fullRunCompleted;
 
 	private bool _running;
 
@@ -86,7 +91,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 	/// <summary>
 	///     Fills the panel for one side of a failed connection and starts the full run. Nothing is selected: the measured
-	///     failure is stated as a sentence, and the reader picks the cause they want explained or checks them all at once.
+	///     failure is stated as a sentence, and the reader picks the cause they want explained from the list.
 	/// </summary>
 	/// <param name="audience">Which side of the connection is being explained.</param>
 	public void Open(ConnectivityAudience audience)
@@ -98,10 +103,14 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		_likelyCause = ConnectivityCheck.DescribeLikelyCause(known);
 		LocalizedText.Bind(_likelyCauseLabel, RenderLikelyCause);
 
-		BuildPlayerJoinFailureLine();
-		BuildIssueRows();
-
+		_diagnoses.Clear();
 		_selectedIssue = null;
+		_fullRunCompleted = false;
+		_likelyFilter.Disabled = true;
+		_likelyFilter.SetPressedNoSignal(false);
+
+		BuildPlayerJoinFailureLine();
+		BuildIssuePicker();
 		RenderDetail();
 		_ = RunFullDiagnosticsAsync();
 	}
@@ -120,7 +129,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 		_likelyCauseLabel = new Label { Name = "LikelyCause_Label" };
 		_likelyCauseLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		_likelyCauseLabel.CustomMinimumSize = new Vector2(CardWidth - 60, 0);
+		_likelyCauseLabel.CustomMinimumSize = new Vector2(ContentWidth, 0);
 		_likelyCauseLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_likelyCauseLabel.AddThemeFontSizeOverride("font_size", 14);
 		_likelyCauseLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
@@ -142,10 +151,20 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		causesCaption.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		runRow.AddChild(causesCaption);
 
+		_likelyFilter = new CheckBox { Name = "FilterForLikely_CheckBox" };
+		_likelyFilter.Disabled = true;
+		_likelyFilter.FocusMode = FocusModeEnum.None;
+		_likelyFilter.VerticalIconAlignment = VerticalAlignment.Center;
+		_likelyFilter.AddThemeFontSizeOverride("font_size", 12);
+		_likelyFilter.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_likelyFilter.Toggled += OnLikelyFilterToggled;
+		LocalizedText.Set(_likelyFilter, "Filter for most likely issues");
+		runRow.AddChild(_likelyFilter);
+
 		Button runAll = UIStyle.CreateActionButton("ConnectivityRunAll_Button", TranslationServer.Translate(ConnectivitySentences.RunAllButton), 13);
 		runAll.CustomMinimumSize = new Vector2(250, 34);
 		runAll.SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
-		LocalizedText.SetTooltip(runAll, "Check every cause in the list against this machine and the lobby server, and rank what was found.");
+		LocalizedText.SetTooltip(runAll, "Check every cause in the list against this machine and the lobby server.");
 		runAll.Pressed += () =>
 		{
 			GameContext.UserInterface?.PlayClickSound();
@@ -154,28 +173,27 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		};
 		runRow.AddChild(runAll);
 
-		var columns = new HBoxContainer { Name = "ConnectivityHelpColumns_HBoxContainer" };
-		columns.AddThemeConstantOverride("separation", 16);
-		columns.CustomMinimumSize = new Vector2(CardWidth - 60, ColumnsHeight);
-		AddChild(columns);
-
-		var listScroll = new ScrollContainer { Name = "IssueListScroller" };
-		listScroll.CustomMinimumSize = new Vector2(ListWidth, ColumnsHeight);
-		listScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
-		listScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		columns.AddChild(listScroll);
-
-		_issueRowsBox = new VBoxContainer { Name = "IssueListVBox" };
-		_issueRowsBox.AddThemeConstantOverride("separation", 6);
-		_issueRowsBox.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		listScroll.AddChild(_issueRowsBox);
+		_issuePicker = new OptionButton { Name = "IssuePicker_OptionButton" };
+		_issuePicker.Set("icon_max_width", 0);
+		_issuePicker.CustomMinimumSize = new Vector2(ContentWidth, 40);
+		_issuePicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_issuePicker.FocusMode = FocusModeEnum.None;
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_issuePicker);
+		_issuePicker.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		_issuePicker.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		_issuePicker.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
+		_issuePicker.AddThemeColorOverride("font_focus_color", UIStyle.ColorCyanGlow);
+		_issuePicker.AddThemeFontSizeOverride("font_size", 14);
+		_issuePicker.ItemSelected += OnIssuePicked;
+		_issuePicker.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		AddChild(_issuePicker);
 
 		_detailScroll = new ScrollContainer { Name = "IssueDetailScroller" };
-		_detailScroll.CustomMinimumSize = new Vector2(CardWidth - ListWidth - 90, ColumnsHeight);
+		_detailScroll.CustomMinimumSize = new Vector2(ContentWidth, DetailHeight);
 		_detailScroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_detailScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_detailScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-		columns.AddChild(_detailScroll);
+		AddChild(_detailScroll);
 
 		_detailBox = new VBoxContainer { Name = "IssueDetailVBox" };
 		_detailBox.AddThemeConstantOverride("separation", 8);
@@ -184,7 +202,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 		_statusLabel = new Label { Name = "ConnectivityHelpStatus_Label" };
 		_statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		_statusLabel.CustomMinimumSize = new Vector2(CardWidth - 60, 0);
+		_statusLabel.CustomMinimumSize = new Vector2(ContentWidth, 0);
 		_statusLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_statusLabel.AddThemeFontSizeOverride("font_size", 11);
 		_statusLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
@@ -192,32 +210,64 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		AddChild(_statusLabel);
 	}
 
-	private void BuildIssueRows()
+	/// <summary>
+	///     Fills the dropdown from the catalog, in the order the catalog states - how often each cause is the reason anywhere
+	///     in the world, commonest first. A completed full run never reorders the list: it only lets the filter hide what this
+	///     machine was shown not to have, so two players comparing the same screen read the same list.
+	/// </summary>
+	private void BuildIssuePicker()
 	{
-		ForgetChildren(_issueRowsBox);
-		_issueRows.Clear();
-		_diagnoses.Clear();
-		_ranked = null;
+		_issuePicker.Clear();
+		_listedIssues.Clear();
+
+		_issuePicker.AddItem(ConnectivityHelpText.Text(ConnectivitySentences.CausesPlaceholder));
+		_issuePicker.SetItemDisabled(PlaceholderIndex, true);
 
 		IReadOnlyList<ConnectivityIssueContent> entries = ConnectivityIssueCatalog.For(_audience);
 		for (int index = 0; index < entries.Count; index++)
 		{
 			ConnectivityIssue issue = entries[index].Issue;
-			Button row = UIStyle.CreateActionButton($"Issue_{issue}_Button", string.Empty, 13);
-			row.Alignment = HorizontalAlignment.Left;
-			row.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-			row.CustomMinimumSize = new Vector2(ListWidth - 24, 0);
-			row.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			row.Pressed += () =>
-			{
-				GameContext.UserInterface?.PlayClickSound();
-				SelectIssue(issue);
-			};
-			row.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-			LocalizedText.Bind(row, () => RenderIssueRow(issue));
-			_issueRowsBox.AddChild(row);
-			_issueRows[issue] = row;
+			if (IsHiddenByFilter(issue)) continue;
+
+			int itemIndex = _listedIssues.Count;
+			_listedIssues.Add(issue);
+			_issuePicker.AddItem(RenderIssueRow(issue));
+			LocalizedText.BindOptionItem(_issuePicker, itemIndex + PlaceholderOffset, () => RenderIssueRow(_listedIssues[itemIndex]));
 		}
+
+		int listedIndex = _selectedIssue.HasValue ? _listedIssues.IndexOf(_selectedIssue.Value) : -1;
+		if (listedIndex >= 0)
+		{
+			_issuePicker.Selected = listedIndex + PlaceholderOffset;
+			return;
+		}
+
+		_selectedIssue = null;
+		_issuePicker.Selected = PlaceholderIndex;
+	}
+
+	private bool IsHiddenByFilter(ConnectivityIssue issue)
+	{
+		if (!_fullRunCompleted || !_likelyFilter.ButtonPressed) return false;
+
+		return _diagnoses.TryGetValue(issue, out ConnectivityDiagnosis diagnosis) && diagnosis.Status == ConnectivityDiagnosisStatus.RuledOut;
+	}
+
+	private void OnLikelyFilterToggled(bool pressed)
+	{
+		GameContext.UserInterface?.PlayClickSound();
+		BuildIssuePicker();
+		RenderDetail();
+	}
+
+	private void OnIssuePicked(long index)
+	{
+		int listedIndex = (int)index - PlaceholderOffset;
+		if (listedIndex < 0 || listedIndex >= _listedIssues.Count) return;
+
+		GameContext.UserInterface?.PlayClickSound();
+		_selectedIssue = _listedIssues[listedIndex];
+		RenderDetail();
 	}
 
 	/// <summary>
@@ -241,7 +291,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 		var reportedLabel = new Label { Name = "PlayerJoinFailure_Label" };
 		reportedLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		reportedLabel.CustomMinimumSize = new Vector2(CardWidth - 60, 0);
+		reportedLabel.CustomMinimumSize = new Vector2(ContentWidth, 0);
 		reportedLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		reportedLabel.AddThemeFontSizeOverride("font_size", 12);
 		reportedLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.55f, 0.35f));
@@ -249,23 +299,10 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		_playerJoinFailureBox.AddChild(reportedLabel);
 	}
 
-	private void SelectIssue(ConnectivityIssue issue)
-	{
-		_selectedIssue = issue;
-
-		foreach (KeyValuePair<ConnectivityIssue, Button> row in _issueRows)
-		{
-			if (row.Key == issue) row.Value.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-			else row.Value.RemoveThemeColorOverride("font_color");
-		}
-
-		RenderDetail();
-	}
-
 	/// <summary>
-	///     Draws the chosen cause, or the list of what the full run found while nothing is chosen: the ranked answers, that
-	///     issue's explanation, its pages, its search phrase, what this machine shows for it and what to do next. Everything
-	///     here is redrawn rather than patched, so a language change and a new verdict reach the same controls the same way.
+	///     Draws the chosen cause, or the prompt while nothing is chosen: that cause's explanation, its pages, its search
+	///     phrase, what this machine shows for it and what to do next. Everything here is redrawn rather than patched, so a
+	///     language change and a new verdict reach the same controls the same way.
 	/// </summary>
 	private void RenderDetail()
 	{
@@ -281,25 +318,21 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 	{
 		var prompt = new Label { Name = "CausesPrompt_Label" };
 		prompt.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		prompt.CustomMinimumSize = new Vector2(CardWidth - ListWidth - 120, 0);
+		prompt.CustomMinimumSize = new Vector2(ContentWidth - 20, 0);
 		prompt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		prompt.AddThemeFontSizeOverride("font_size", 13);
 		prompt.AddThemeColorOverride("font_color", new Color(0.9f, 0.91f, 0.95f));
 		LocalizedText.Bind(prompt, () => ConnectivityHelpText.Text(ConnectivitySentences.CausesPrompt));
 		_detailBox.AddChild(prompt);
-
-		if (_ranked != null) RenderRankedSection(_ranked);
 	}
 
 	private void RenderIssueDetail(ConnectivityIssue issue)
 	{
-		if (_ranked != null) RenderRankedSection(_ranked);
-
 		ConnectivityIssueContent content = ConnectivityIssueCatalog.Describe(issue, _audience);
 
 		var title = new Label { Name = "IssueTitle_Label" };
 		title.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		title.CustomMinimumSize = new Vector2(CardWidth - ListWidth - 120, 0);
+		title.CustomMinimumSize = new Vector2(ContentWidth - 20, 0);
 		title.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		title.AddThemeFontSizeOverride("font_size", 16);
 		title.AddThemeColorOverride("font_color", UIStyle.ColorGold);
@@ -308,7 +341,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 		var summary = new Label { Name = "IssueSummary_Label" };
 		summary.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		summary.CustomMinimumSize = new Vector2(CardWidth - ListWidth - 120, 0);
+		summary.CustomMinimumSize = new Vector2(ContentWidth - 20, 0);
 		summary.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		summary.AddThemeFontSizeOverride("font_size", 13);
 		summary.AddThemeColorOverride("font_color", new Color(0.9f, 0.91f, 0.95f));
@@ -325,7 +358,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 		var verdict = new Label { Name = "IssueVerdict_Label" };
 		verdict.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		verdict.CustomMinimumSize = new Vector2(CardWidth - ListWidth - 120, 0);
+		verdict.CustomMinimumSize = new Vector2(ContentWidth - 20, 0);
 		verdict.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		verdict.AddThemeFontSizeOverride("font_size", 12);
 		verdict.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
@@ -350,56 +383,12 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 		var nextStep = new Label { Name = "IssueNextStep_Label" };
 		nextStep.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		nextStep.CustomMinimumSize = new Vector2(CardWidth - ListWidth - 120, 0);
+		nextStep.CustomMinimumSize = new Vector2(ContentWidth - 20, 0);
 		nextStep.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		nextStep.AddThemeFontSizeOverride("font_size", 13);
 		nextStep.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		LocalizedText.Bind(nextStep, () => ConnectivityHelpText.NextStep(content, RenderNextStepValue()));
 		_detailBox.AddChild(nextStep);
-	}
-
-	private void RenderRankedSection(IReadOnlyList<ConnectivityDiagnosis> ranked)
-	{
-		IReadOnlyList<ConnectivityDiagnosis> ordered = ConnectivityDiagnosisRanking.Order(ranked, _audience);
-		int shown = 0;
-		for (int index = 0; index < ordered.Count; index++)
-		{
-			if (ordered[index].Status == ConnectivityDiagnosisStatus.RuledOut) break;
-			shown++;
-		}
-
-		var caption = new Label { Name = "RankedCaption_Label" };
-		caption.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		caption.CustomMinimumSize = new Vector2(CardWidth - ListWidth - 120, 0);
-		caption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		caption.AddThemeFontSizeOverride("font_size", 11);
-		caption.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		LocalizedText.Bind(caption, () => shown > 0
-			? ConnectivityHelpText.Text(ConnectivitySentences.RankedFoundCaption)
-			: ConnectivityHelpText.Text(ConnectivitySentences.RankedNothingFound));
-		_detailBox.AddChild(caption);
-
-		for (int index = 0; index < shown; index++)
-		{
-			ConnectivityIssue issue = ordered[index].Issue;
-			ConnectivityIssueContent content = ConnectivityIssueCatalog.Describe(issue, _audience);
-			Button entry = UIStyle.CreateActionButton($"Ranked_{issue}_Button", string.Empty, 13);
-			entry.Alignment = HorizontalAlignment.Left;
-			entry.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-			entry.CustomMinimumSize = new Vector2(CardWidth - ListWidth - 140, 0);
-			entry.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			entry.Pressed += () =>
-			{
-				GameContext.UserInterface?.PlayClickSound();
-				SelectIssue(issue);
-			};
-			ConnectivityDiagnosis diagnosis = ordered[index];
-			LocalizedText.Bind(entry, () => $"{ConnectivityHelpText.Title(content)}   ·   {RenderDiagnosisSentence(diagnosis)}");
-			_detailBox.AddChild(entry);
-		}
-
-		var spacer = new Control { Name = "RankedSpacer_Control", CustomMinimumSize = new Vector2(0, 6) };
-		_detailBox.AddChild(spacer);
 	}
 
 	private void AddLinkButton(Container parent, ConnectivityLink link, string nodeName)
@@ -434,7 +423,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 		var phrase = new Label { Name = "IssueSearchPhrase_Label" };
 		phrase.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		phrase.CustomMinimumSize = new Vector2(CardWidth - ListWidth - 260, 0);
+		phrase.CustomMinimumSize = new Vector2(ContentWidth - 260, 0);
 		phrase.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		phrase.AddThemeFontSizeOverride("font_size", 12);
 		phrase.AddThemeColorOverride("font_color", new Color(0.88f, 0.9f, 0.95f));
@@ -455,6 +444,11 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		row.AddChild(search);
 	}
 
+	/// <summary>
+	///     Runs every check, then lets the filter hide the causes this machine was shown not to have. The first completed run
+	///     turns the filter on by itself, because a reader who asked every question wants the answers they still have to act
+	///     on; a reader who turns it off keeps it off through the runs that follow.
+	/// </summary>
 	private async Task RunFullDiagnosticsAsync()
 	{
 		if (_running || _closed) return;
@@ -466,13 +460,18 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 			IReadOnlyList<ConnectivityDiagnosis> results = await GameContext.Connectivity.RunAllAsync(_audience, _cancellation.Token);
 			if (!CanDraw()) return;
 
-			_ranked = results;
+			_diagnoses.Clear();
 			for (int index = 0; index < results.Count; index++)
 			{
 				_diagnoses[results[index].Issue] = results[index];
 			}
 
-			RefreshIssueRows();
+			bool firstRun = !_fullRunCompleted;
+			_fullRunCompleted = true;
+			_likelyFilter.Disabled = false;
+			if (firstRun) _likelyFilter.SetPressedNoSignal(true);
+
+			BuildIssuePicker();
 			RenderDetail();
 		}
 		catch (OperationCanceledException)
@@ -489,6 +488,12 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		}
 	}
 
+	/// <summary>
+	///     Runs one cause's check. Its answer is stated in the explanation the reader is already reading and on its own entry,
+	///     and the list is not rebuilt: a cause that was just measured not to be the problem stays where the reader is looking
+	///     for it until the next full run reshapes the list.
+	/// </summary>
+	/// <param name="issue">The cause to check.</param>
 	private async Task RunSingleAsync(ConnectivityIssue issue)
 	{
 		if (_running || _closed) return;
@@ -505,7 +510,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 			if (!CanDraw()) return;
 
 			_diagnoses[issue] = diagnosis;
-			RefreshIssueRows();
+			RefreshIssuePickerText();
 			RenderDetail();
 		}
 		catch (OperationCanceledException)
@@ -522,12 +527,12 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		}
 	}
 
-	private void RefreshIssueRows()
+	private void RefreshIssuePickerText()
 	{
-		foreach (KeyValuePair<ConnectivityIssue, Button> row in _issueRows)
+		for (int index = 0; index < _listedIssues.Count; index++)
 		{
-			ConnectivityIssue issue = row.Key;
-			LocalizedText.Bind(row.Value, () => RenderIssueRow(issue));
+			ConnectivityIssue issue = _listedIssues[index];
+			LocalizedText.BindOptionItem(_issuePicker, index + PlaceholderOffset, () => RenderIssueRow(issue));
 		}
 	}
 

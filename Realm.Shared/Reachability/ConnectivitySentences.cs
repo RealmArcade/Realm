@@ -40,6 +40,9 @@ public static class ConnectivitySentences
 	/// <summary>The caption above the list of causes, which is what a reader picks from.</summary>
 	public const string CausesCaption = "WHAT IT USUALLY IS";
 
+	/// <summary>The line the list of causes carries while the reader has picked nothing.</summary>
+	public const string CausesPlaceholder = "Choose a cause";
+
 	/// <summary>
 	///     The line the detail pane carries while no cause is selected. It says that nothing was chosen for the reader,
 	///     because a cause picked by the game is a claim the game has not measured.
@@ -53,19 +56,16 @@ public static class ConnectivitySentences
 	public const string TroubleshootingTitle = "HOST TROUBLESHOOTING";
 
 	/// <summary>What the host troubleshooting screen explains before its list of causes.</summary>
-	public const string TroubleshootingIntro = "What this machine measured about the last lobby it hosted, and every cause that can stop players getting in. Check one cause, or run every check and read what it ranks.";
+	public const string TroubleshootingIntro = "What this machine measured about the last lobby it hosted, and every cause that can stop players getting in. Pick a cause from the list, or run every check to filter the list down to what this machine shows.";
 
 	/// <summary>What a host is told before the room's troubleshooting door gives the lobby up.</summary>
-	public const string TroubleshootingLeaveMessage = "Host troubleshooting closes this lobby: every player in it is disconnected, and its chat and settings are given up. Open it anyway?";
+	public const string TroubleshootingLeaveMessage = "Troubleshooting requires abandoning your hosted lobby. Continue?";
 
 	/// <summary>The label of the button that gives up the lobby and opens the host troubleshooting screen.</summary>
-	public const string TroubleshootingLeaveConfirm = "LEAVE AND OPEN";
+	public const string TroubleshootingLeaveConfirm = "Close Lobby";
 
 	/// <summary>The label of the button that keeps the lobby open instead.</summary>
-	public const string TroubleshootingStayCancel = "STAY";
-
-	/// <summary>The label of the button that returns to the host flow from the host troubleshooting screen.</summary>
-	public const string HostLobbyButton = "HOST A LOBBY";
+	public const string TroubleshootingStayCancel = "Stay in Lobby";
 
 	/// <summary>The label of the button that runs one issue's check.</summary>
 	public const string DiagnoseButton = "CHECK THIS ONE";
@@ -96,12 +96,6 @@ public static class ConnectivitySentences
 
 	/// <summary>The line that says a check cannot settle this issue on its own.</summary>
 	public const string VerdictNeedsResearch = "The game cannot settle this one by testing it, so read the sentences above and check it yourself if players still cannot get in.";
-
-	/// <summary>The line a ranked result list is opened with when something was found.</summary>
-	public const string RankedFoundCaption = "WHAT THIS MACHINE SHOWED, MOST LIKELY FIRST";
-
-	/// <summary>The line a ranked result list is opened with when nothing was found.</summary>
-	public const string RankedNothingFound = "No check on this machine found a likely cause. Read the list, and check the one that matches what you see.";
 
 	/// <summary>The line that names a host's own network address, which players on it join at.</summary>
 	public const string DirectConnectCaption = "DIRECT CONNECT ADDRESS";

@@ -82,16 +82,6 @@ public partial class HostTroubleshootingScreen : Control
 		actions.AddThemeConstantOverride("v_separation", 8);
 		body.AddChild(actions);
 
-		Button hostLobby = UIStyle.CreateActionButton("HostTroubleshootingHost_Button", TranslationServer.Translate(ConnectivitySentences.HostLobbyButton), 14);
-		hostLobby.CustomMinimumSize = new Vector2(220, 40);
-		LocalizedText.SetTooltip(hostLobby, "Go back to the host flow and open a lobby, which asks the lobby server to reach this machine again.");
-		hostLobby.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyCreate);
-		};
-		actions.AddChild(hostLobby);
-
 		Button copyDiagnostics = UIStyle.CreateActionButton("HostTroubleshootingCopy_Button", TranslationServer.Translate(ConnectivitySentences.CopyDiagnosticsButton), 14);
 		copyDiagnostics.CustomMinimumSize = new Vector2(230, 40);
 		LocalizedText.SetTooltip(copyDiagnostics, "Copy everything a report about this machine's network needs, so it can be pasted into a message.");
@@ -99,18 +89,9 @@ public partial class HostTroubleshootingScreen : Control
 		{
 			GameContext.UserInterface?.PlayClickSound();
 			DisplayServer.ClipboardSet(GameContext.Connectivity.CurrentEvidence.DiagnosticsBlock);
-			ShowCopyFeedback(TranslationServer.Translate("Network diagnostics copied."));
+			ShowCopyFeedback(TranslationServer.Translate("Network diagnostics copied to clipboard."));
 		};
 		actions.AddChild(copyDiagnostics);
-
-		Button back = UIStyle.CreateActionButton("HostTroubleshootingBack_Button", TranslationServer.Translate("BACK"), 14);
-		back.CustomMinimumSize = new Vector2(150, 40);
-		back.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyBrowser);
-		};
-		actions.AddChild(back);
 
 		_copyFeedbackLabel = new Label { Name = "HostTroubleshootingCopyFeedback_Label" };
 		_copyFeedbackLabel.Visible = false;
@@ -118,6 +99,10 @@ public partial class HostTroubleshootingScreen : Control
 		_copyFeedbackLabel.AddThemeFontSizeOverride("font_size", 11);
 		_copyFeedbackLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		body.AddChild(_copyFeedbackLabel);
+
+		// The card is added after the scene's own controls and spans the whole screen, so a back button left where the scene
+		// put it is underneath the card and never sees a click.
+		MoveChild(_backButton, GetChildCount() - 1);
 	}
 
 	private void ApplyStyles()

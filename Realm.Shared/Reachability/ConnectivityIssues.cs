@@ -93,9 +93,10 @@ public readonly record struct ConnectivityIssueContent(
 }
 
 /// <summary>
-///     The ordered issue lists for both audiences. The order is the one the reader should try things in: what the game
-///     measured first, then the shapes that are common, then the ones that are rare and hard to change. It is a list and not
-///     a decision tree - every entry is readable without tapping anything else.
+///     The ordered issue lists for both audiences. The order is how often each cause is the reason anyone in the world cannot
+///     get in: the shapes that are common first, then the ones that are rare and hard to change. It describes the game rather
+///     than the machine reading it, so every player sees the same list in the same order and only the filter changes it. It is
+///     a list and not a decision tree - every entry is readable without tapping anything else.
 /// </summary>
 public static class ConnectivityIssueCatalog
 {
@@ -271,20 +272,5 @@ public static class ConnectivityIssueCatalog
 		}
 
 		throw new System.ArgumentOutOfRangeException(nameof(issue), issue, "the issue is not listed for this audience");
-	}
-
-	/// <summary>Where an issue sits in its list, which is what breaks a tie between two issues a check ranked equally.</summary>
-	/// <param name="issue">The issue to place.</param>
-	/// <param name="audience">The side the list belongs to.</param>
-	/// <returns>The position, or the length of the list when the issue is not on it.</returns>
-	public static int IndexOf(ConnectivityIssue issue, ConnectivityAudience audience)
-	{
-		System.Collections.Generic.IReadOnlyList<ConnectivityIssueContent> entries = For(audience);
-		for (int index = 0; index < entries.Count; index++)
-		{
-			if (entries[index].Issue == issue) return index;
-		}
-
-		return entries.Count;
 	}
 }

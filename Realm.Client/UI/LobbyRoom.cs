@@ -131,11 +131,11 @@ public partial class LobbyRoom : Control
 		_shareAddressButton = GetNode<Button>("ShareAddressButton");
 		_unlistedLobbyHint = GetNode<Label>("UnlistedLobbyHint");
 		_startButton = GetNode<Button>("StartButton");
-		_unlistedLobbyHint.Text = TranslationServer.Translate("A private lobby is not offered in the lobby browser. Players you invite, or who have its address, can still join it.");
+		_unlistedLobbyHint.Text = TranslationServer.Translate("Your lobby is not advertised publicly but direct invites are still available.");
 		_lobbyFamiliesHint = GetNode<Label>("LobbyFamiliesHint");
 		_unlistedLobbyCheck = GetNode<CheckBox>("UnlistedLobbyCheck");
 		_unlistedLobbyCheck.Text = TranslationServer.Translate("Private");
-		_unlistedLobbyCheck.TooltipText = TranslationServer.Translate("A private lobby is not offered in the lobby browser. Players you invite, or who have its address, can still join it.");
+		_unlistedLobbyCheck.TooltipText = TranslationServer.Translate("Your lobby is not advertised publicly but direct invites are still available.");
 		_unlistedLobbyCheck.FocusMode = FocusModeEnum.None;
 		_unlistedLobbyCheck.Toggled += OnUnlistedLobbyToggled;
 		UpdateLobbyFamiliesHint();

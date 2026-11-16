@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Realm.Shared.Reachability;
 
 /// <summary>What one issue's check found on this machine.</summary>
@@ -39,45 +37,3 @@ public readonly record struct ConnectivityDiagnosis(
 	public bool IsLikely => Status == ConnectivityDiagnosisStatus.Confirmed;
 }
 
-/// <summary>
-///     Orders the answers of a full run so the reader meets the most likely cause first. Confirmed comes before
-///     inconclusive, inconclusive before ruled out, and issues the list already puts first win their ties, which is what
-///     makes the same run present the same order on every screen.
-/// </summary>
-public static class ConnectivityDiagnosisRanking
-{
-	/// <summary>Where a status sits in the ranked list, lowest first.</summary>
-	/// <param name="status">The status to rank.</param>
-	/// <returns>Zero for a confirmed issue, one for an inconclusive one, two for a ruled-out one.</returns>
-	public static int Rank(ConnectivityDiagnosisStatus status)
-	{
-		return status switch
-		{
-			ConnectivityDiagnosisStatus.Confirmed => 0,
-			ConnectivityDiagnosisStatus.Inconclusive => 1,
-			_ => 2
-		};
-	}
-
-	/// <summary>Orders one run's answers, most likely first, keeping the issue list's order between equals.</summary>
-	/// <param name="diagnoses">The answers to order.</param>
-	/// <param name="audience">The list whose order breaks the ties.</param>
-	/// <returns>The answers, in the order they are shown.</returns>
-	public static IReadOnlyList<ConnectivityDiagnosis> Order(IReadOnlyList<ConnectivityDiagnosis> diagnoses, ConnectivityAudience audience)
-	{
-		var ordered = new List<ConnectivityDiagnosis>(diagnoses.Count);
-		for (int index = 0; index < diagnoses.Count; index++)
-		{
-			ordered.Add(diagnoses[index]);
-		}
-
-		ordered.Sort((left, right) =>
-		{
-			int rankComparison = Rank(left.Status).CompareTo(Rank(right.Status));
-			if (rankComparison != 0) return rankComparison;
-			return ConnectivityIssueCatalog.IndexOf(left.Issue, audience).CompareTo(ConnectivityIssueCatalog.IndexOf(right.Issue, audience));
-		});
-
-		return ordered;
-	}
-}

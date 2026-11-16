@@ -369,7 +369,7 @@ public partial class UIManager : Control
 		ShowConfirmationDialog(message, onOkPressed, confirmText: TranslationServer.Translate("OK"), showCancel: false, titleOverride: title);
 	}
 
-	public void ShowConfirmationDialog(string message, Action? onConfirm, string confirmText = "YES", string cancelText = "NO", Action? onCancel = null, bool showCancel = true, string? titleOverride = null)
+	public void ShowConfirmationDialog(string message, Action? onConfirm, string confirmText = "YES", string cancelText = "NO", Action? onCancel = null, bool showCancel = true, string? titleOverride = null, bool destructiveConfirm = false)
 	{
 		var overlay = new ColorRect();
 		overlay.Name = "ConfirmationOverlay";
@@ -421,7 +421,7 @@ public partial class UIManager : Control
 		btnConfirm.Set("icon_max_width", 0);
 		UIStyle.ApplyButtonText(btnConfirm, TranslationServer.Translate(confirmText), 13);
 		UIStyle.ApplyButtonStyleBoxes(btnConfirm);
-		btnConfirm.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		btnConfirm.AddThemeColorOverride("font_color", destructiveConfirm ? new Color(0.9f, 0.3f, 0.3f) : UIStyle.ColorCyanGlow);
 		btnConfirm.Pressed += () =>
 		{
 			overlay.QueueFree();
@@ -434,7 +434,7 @@ public partial class UIManager : Control
 			var btnCancel = UIStyle.CreateBareButton("BtnCancel_Button");
 			UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate(cancelText), 13);
 			UIStyle.ApplyButtonStyleBoxes(btnCancel);
-			btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
+			btnCancel.AddThemeColorOverride("font_color", destructiveConfirm ? UIStyle.ColorCyanGlow : new Color(0.9f, 0.3f, 0.3f));
 			Action cancelAction = () =>
 			{
 				overlay.QueueFree();

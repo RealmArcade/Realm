@@ -122,7 +122,8 @@ public partial class LobbyRoom
 			LeaveForHostTroubleshooting,
 			confirmText: ConnectivityHelpText.Text(ConnectivitySentences.TroubleshootingLeaveConfirm),
 			cancelText: ConnectivityHelpText.Text(ConnectivitySentences.TroubleshootingStayCancel),
-			titleOverride: ConnectivityHelpText.Text(ConnectivitySentences.TroubleshootingTitle));
+			titleOverride: ConnectivityHelpText.Text(ConnectivitySentences.TroubleshootingTitle),
+			destructiveConfirm: true);
 	}
 
 	/// <summary>
@@ -146,7 +147,7 @@ public partial class LobbyRoom
 
 		if (_diagnosticsFeedback == null || !IsInstanceValid(_diagnosticsFeedback)) return;
 
-		_diagnosticsFeedback.Text = TranslationServer.Translate("Network diagnostics copied.");
+		_diagnosticsFeedback.Text = TranslationServer.Translate("Network diagnostics copied to clipboard.");
 		_diagnosticsFeedback.Visible = true;
 	}
 }

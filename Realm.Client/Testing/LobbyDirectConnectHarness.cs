@@ -373,7 +373,7 @@ public partial class LobbyDirectConnectHarness : Node
 		Label? hint = room.GetNodeOrNull<Label>("UnlistedLobbyHint");
 		if (hint == null) return (27, "the lobby room draws no note saying what a private lobby's address is for");
 		if (!hint.Visible) return (27, "the private lobby note is hidden in a private lobby");
-		if (!hint.Text.Contains("A private lobby is not offered", StringComparison.Ordinal))
+		if (!hint.Text.Contains("Your lobby is not advertised publicly", StringComparison.Ordinal))
 		{
 			return (27, $"the private lobby note reads '{hint.Text}'");
 		}

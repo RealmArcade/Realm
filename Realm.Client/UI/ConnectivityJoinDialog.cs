@@ -99,7 +99,7 @@ public partial class ConnectivityJoinDialog : Control
 		{
 			GameContext.UserInterface?.PlayClickSound();
 			DisplayServer.ClipboardSet(GameContext.Connectivity.CurrentEvidence.DiagnosticsBlock);
-			ShowCopyFeedback(TranslationServer.Translate("Network diagnostics copied."));
+			ShowCopyFeedback(TranslationServer.Translate("Network diagnostics copied to clipboard."));
 		};
 		actions.AddChild(copyDiagnostics);
 
