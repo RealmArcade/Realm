@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using Realm.Client.Network;
 using Realm.Client.Services;
+using Realm.Shared.Reachability;
 
 namespace Realm.Client.UI;
 
@@ -401,7 +402,7 @@ public partial class InvitePlayersDialog : Control
 
 		_addressDescription.Visible = true;
 		_addressDescription.Text = _isHost
-			? TranslationServer.Translate("Send one of these addresses to the players you want to play with. A player who has it can join this lobby whether or not it is listed.")
+			? TranslationServer.Translate(LobbyPublicationSentences.PublicLobbyNotCreated)
 			: TranslationServer.Translate("This is the address this lobby is played at, and you can pass it on to another player.");
 
 		if (_isHost)

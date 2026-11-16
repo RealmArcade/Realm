@@ -2092,7 +2092,6 @@
   "Selected model is not a compatible rigged mesh.": "Selected model is not a compatible rigged mesh.",
   "Send Alert Ping on Map [Alt+G]": "Send Alert Ping on Map [Alt+G]",
   "Send Steam Friend Request": "Send Steam Friend Request",
-  "Send one of these addresses to the players you want to play with. A player who has it can join this lobby whether or not it is listed.": "Send one of these addresses to the players you want to play with. A player who has it can join this lobby whether or not it is listed.",
   "Send this address to the players you want to play with. It is this machine's own IPv6 address, so it needs no port forward, no hole punch and nothing from your router - and only players whose network gives them an IPv6 address can use it.": "Send this address to the players you want to play with. It is this machine's own IPv6 address, so it needs no port forward, no hole punch and nothing from your router - and only players whose network gives them an IPv6 address can use it.",
   "SessionId": "SessionId",
   "Set terrain to exact height (3)": "Set terrain to exact height (3)",
