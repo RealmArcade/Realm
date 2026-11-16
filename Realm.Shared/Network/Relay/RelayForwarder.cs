@@ -40,8 +40,9 @@ public sealed class RelayForwarderStatistics
 /// <summary>
 ///     The forwarding half of a volunteer: one UDP socket that moves opaque datagrams between the two peers of a connection
 ///     and cannot do anything else with them. It pairs the peers from the traffic it observes, forwards each datagram to the
-///     other one, and enforces the volunteer's ceilings by dropping rather than queueing. It allocates nothing per packet and
-///     is owned by one lane, so nothing it does can extend the match the volunteer itself is playing.
+///     other one out of one reused buffer, and enforces the volunteer's ceilings by dropping rather than queueing: nothing
+///     it carries waits behind anything else. It is owned by one lane, and it stops when its player starts a match, so
+///     nothing it does can extend the match the volunteer itself is playing.
 /// </summary>
 public sealed class RelayForwarder : IDisposable
 {
