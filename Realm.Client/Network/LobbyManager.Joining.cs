@@ -280,11 +280,12 @@ public partial class LobbyManager
 			return false;
 		}
 
-		// A join the lobby server offered volunteers is carried through them, and the connection attempt is aimed at the
-		// loopback port the path layer holds instead of at the host. Nothing about the attempt below changes: no punch is
-		// needed, the fallback to the host's own address still exists, and a join that opens no volunteer takes the direct
-		// path with the code it always ran.
-		if (target.Relay is { IsUsable: true } relayPlan && TryStartRelayedConnection(relayPlan, out int relayLoopbackPort))
+		// A lobby the lobby server could not reach has no endpoint this screen may dial, so its join is aimed at the
+		// loopback port the path layer holds from the start. A lobby that does have an endpoint is dialled first and only
+		// reaches this branch on the retry below, because a volunteer spent on a join that answers as it always did is that
+		// volunteer's bandwidth and this player's latency given away for nothing.
+		bool hasDialableEndpoint = target.Port > 0 && (target.Ip.Length > 0 || target.PublicIp.Length > 0);
+		if ((!hasDialableEndpoint || _retryingThroughRelay) && target.Relay is { IsUsable: true } relayPlan && TryStartRelayedConnection(relayPlan, out int relayLoopbackPort))
 		{
 			target = new LobbyJoinTarget(LoopbackAddress, relayLoopbackPort, false, default, string.Empty, 0);
 		}

@@ -611,8 +611,6 @@ public static class LobbyEndpoints
 			}, statusCode: StatusCodes.Status400BadRequest);
 		}
 
-		var response = new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token, lobby.ReachabilityClass, relayedLobby ? [] : lobby.Endpoints, capabilities, relays);
-
 		if (hostConnections.TryGetValue(req.LobbyId, out var hostSocket) && hostSocket.State == WebSocketState.Open)
 		{
 			// A player that states the endpoint its socket holds is punched at once, without waiting for its report, which
@@ -621,15 +619,19 @@ public static class LobbyEndpoints
 			// Either way only an endpoint that needs a punch is punched: an IPv6 endpoint has no router in front of it.
 			if (punchNeeded && req.ClientPublicPort > 0) await RelayPunchAsync(hostSocket, lobby.LobbyId, clientIp, req.ClientPublicPort).ConfigureAwait(false);
 
+			// The volunteers are written to the host before the answer is built, because both peers have to open the same
+			// paths: an answer that named volunteers the host was never told about leaves the player dialling paths nobody
+			// answers, on a join that had a working endpoint of its own until this list was added to it.
 			if (relays.Count > 0)
 			{
 				bool told = await HostSignaling.SendAsync(hostSocket, HostSignaling.Encode(RelayEndpoints.HostMessage(ticket.Token, relays)));
 				Console.WriteLine(told
 					? $"[Relay] Offered {relays.Count} volunteer(s) to host {lobby.LobbyId} for the join named {ticket.Token[..Math.Min(8, ticket.Token.Length)]}."
-					: $"[Relay] The volunteers for host {lobby.LobbyId} could not be written to its signalling channel, so the join takes the direct path.");
+					: $"[Relay] The volunteers for host {lobby.LobbyId} could not be written to its signalling channel, so this join states none and keeps the path it has.");
+				if (!told) relays = [];
 			}
 
-			return Results.Ok(response);
+			return Results.Ok(new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token, lobby.ReachabilityClass, relayedLobby ? [] : lobby.Endpoints, capabilities, relays));
 		}
 		else
 		{
@@ -647,8 +649,13 @@ public static class LobbyEndpoints
 						var joinResp = JsonSerializer.Deserialize<JoinResponseDto>(respText, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 						if (joinResp != null)
 						{
-							// The reporting socket belongs to the node the player reached, not to the node that holds the
-							// lobby's signalling channel, so the ticket this node states is the one the player reports with.
+							// The ticket names the connection as well as the reporting socket, and the ticket the host was given is
+							// the origin's: replacing it for a join carried through volunteers would leave the two peers deriving
+							// different keys from the same connection, which every datagram either of them sealed would fail. A join
+							// that is not relayed keeps the local ticket, because its report is what punches this node's own socket
+							// and only this node knows that ticket.
+							if (joinResp.Relays is { Count: > 0 }) return Results.Ok(joinResp);
+
 							return Results.Ok(joinResp with { PunchPort = ticket.Port, PunchToken = ticket.Token });
 						}
 					}
