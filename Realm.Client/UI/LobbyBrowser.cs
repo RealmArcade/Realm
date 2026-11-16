@@ -624,13 +624,15 @@ public partial class LobbyBrowser : Control
 			refusalReason = lobby.LastHostError ?? lobby.LobbyJoinError ?? Tr("The host did not answer.");
 			LocalizedText.Bind(errorLabel, RenderRefusedConnect);
 			errorLabel.Visible = true;
+
+			if (IsNetworkJoinFailure(lobby)) RestrictiveNetworkDialog.Show(this);
 		}
 
 		string? RenderRefusedConnect()
 		{
 			if (refusedEndpoint == null) return null;
 
-			return $"{string.Format(Tr("Could not reach {0}."), refusedEndpoint)}\n{refusalReason}\n\n{RestrictiveNetworkNotice.Text()}";
+			return $"{string.Format(Tr("Could not reach {0}."), refusedEndpoint)}\n{refusalReason}";
 		}
 	}
 
@@ -814,17 +816,19 @@ public partial class LobbyBrowser : Control
 	/// <param name="message">What the lobby said went wrong.</param>
 	private void ShowLobbyJoinErrorPopup(string message)
 	{
-		LobbyManager? lobby = GameContext.Lobby;
-		string phase = lobby?.LastJoinPhase ?? string.Empty;
-		bool networkFailure = lobby != null && JoinPhases.IsKnown(phase) && phase != JoinPhases.Admission && phase != JoinPhases.Session;
-
-		if (networkFailure)
+		if (GameContext.Lobby is { } lobby && IsNetworkJoinFailure(lobby))
 		{
-			GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("CONNECTION FAILED"), RestrictiveNetworkNotice.Text());
+			RestrictiveNetworkDialog.Show(this);
 			return;
 		}
 
 		GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("CONNECTION FAILED"), message);
+	}
+
+	private static bool IsNetworkJoinFailure(LobbyManager lobby)
+	{
+		string phase = lobby.LastJoinPhase;
+		return JoinPhases.IsKnown(phase) && phase != JoinPhases.Admission && phase != JoinPhases.Session;
 	}
 
 	protected override void Dispose(bool disposing)

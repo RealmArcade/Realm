@@ -76,6 +76,8 @@
   "5: Glitch Pixelate": "5: グリッチピクセル化",
   "6: Alpha Fade & Fresnel": "6: アルファフェード＆フレネル",
   "8x": "8x",
+  "COPY NETWORK DIAGNOSTICS": "ネットワーク診断をコピー",
+  "Network diagnostics copied to clipboard": "ネットワーク診断をクリップボードにコピーしました",
   "Your lobby is not advertised publicly but direct invites are still available.": "ロビーは公開されませんが、直接の招待は引き続き利用できます。",
   "AI": "AI",
   "AI SETTINGS": "AI 設定",

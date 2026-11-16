@@ -126,7 +126,8 @@ A failed join is reported at the step that broke, and the host is told that step
 
 ## Reading a host's report
 
-`LobbyManager.DescribeNetworkDiagnostics` composes one block, which the lobby log and a support report carry: the port the lobby is listed at, the port its
+`LobbyManager.DescribeNetworkDiagnostics` composes one block, which the connection-failed dialog's **COPY NETWORK DIAGNOSTICS**
+button, the lobby log and a support report carry: the port the lobby is listed at, the port its
 transport holds, the address this machine measured, the address something outside confirmed, the reachability class, the
 router's mapping behaviour, the NAT and firewall state, the lobby server, and the last failure either side saw. The two
 ports differing is normal — it means the router translated the port and the lobby is listed at the outside port players

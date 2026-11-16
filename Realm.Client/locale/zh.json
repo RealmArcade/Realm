@@ -76,6 +76,8 @@
   "5: Glitch Pixelate": "5: 故障像素化",
   "6: Alpha Fade & Fresnel": "6: Alpha 淡入淡出与菲涅尔",
   "8x": "8x",
+  "COPY NETWORK DIAGNOSTICS": "复制网络诊断信息",
+  "Network diagnostics copied to clipboard": "网络诊断信息已复制到剪贴板",
   "Your lobby is not advertised publicly but direct invites are still available.": "你的大厅不会公开宣传，但仍可使用直接邀请。",
   "AI": "AI",
   "AI SETTINGS": "AI 设置",

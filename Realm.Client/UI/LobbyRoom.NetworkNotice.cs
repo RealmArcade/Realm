@@ -20,7 +20,7 @@ public partial class LobbyRoom
 		bool playerReported = !string.IsNullOrWhiteSpace(Lobby.LastPlayerJoinFailure);
 		if (!measuredFailure && !playerReported) return;
 
-		string line = RestrictiveNetworkNotice.Text();
+		string line = RestrictiveNetworkDialog.Text();
 		if (string.Equals(line, _postedNetworkNotice, StringComparison.Ordinal)) return;
 		_postedNetworkNotice = line;
 

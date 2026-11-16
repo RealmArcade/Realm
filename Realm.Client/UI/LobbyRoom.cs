@@ -800,7 +800,7 @@ public partial class LobbyRoom : Control
 			return;
 		}
 
-		GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), RestrictiveNetworkNotice.Text(), ReturnFromLobby);
+		RestrictiveNetworkDialog.Show(this, ReturnFromLobby);
 	}
 
 	private void OnLobbyKickReceived(string reason)
