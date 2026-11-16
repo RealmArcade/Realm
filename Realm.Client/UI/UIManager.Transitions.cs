@@ -82,6 +82,7 @@ public partial class UIManager
 		return screen == GameScreen.MainMenu ||
 		       screen == GameScreen.LobbyBrowser ||
 		       screen == GameScreen.LobbyRoom ||
+		       screen == GameScreen.HostTroubleshooting ||
 		       screen == GameScreen.Settings ||
 		       screen == GameScreen.MapDiscovery ||
 		       screen == GameScreen.CreatorDiscovery ||
@@ -310,6 +311,7 @@ public partial class UIManager
 			GameScreen.InGameHUD => GetSceneOrLoad(InGameHUDScene, "res://UI/InGameHUD.tscn"),
 			GameScreen.GameOver => GetSceneOrLoad(GameOverScene, "res://UI/GameOver.tscn"),
 			GameScreen.CreatorDiscovery => GetSceneOrLoad(null, "res://UI/CreatorDiscovery.tscn"),
+			GameScreen.HostTroubleshooting => GetSceneOrLoad(null, "res://UI/HostTroubleshooting.tscn"),
 			GameScreen.ReplayList => GetSceneOrLoad(ReplayListScene, "res://UI/ReplayListPanel.tscn"),
 			GameScreen.Storage => GetSceneOrLoad(StorageScene, "res://UI/StorageMenu.tscn"),
 			_ => null

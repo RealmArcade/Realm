@@ -50,6 +50,7 @@ public partial class LobbyManager
 	{
 		GameLog.LogToConsole("[LobbyManager] Starting STUN NAT Type Test...");
 		LocalNatType = await NatTypeTester.DetermineNatTypeAsync(0);
+		HasLocalNatType = true;
 		GameLog.LogToConsole($"[LobbyManager] NAT Type Classified: {LocalNatType}");
 
 		await ResolvePublicEndpointAsync(ENetPort);

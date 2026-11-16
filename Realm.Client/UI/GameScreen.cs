@@ -14,5 +14,6 @@ public enum GameScreen
 	MapEditorHUD,
 	ReplayList,
 	LobbyCreate,
+	HostTroubleshooting,
 	Storage
 }

@@ -18,7 +18,6 @@ using Timer = Godot.Timer;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
-using Realm.Shared.Reachability;
 using Realm.Client.Services;
 
 

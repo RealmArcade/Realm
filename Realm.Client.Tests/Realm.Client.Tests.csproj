@@ -27,6 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="ConnectivityHelpContractTests.cs" />
     <Compile Include="MapProjectFileNormalizerTests.cs" />
     <Compile Include="SnapshotReassemblerTests.cs" />
     <Compile Include="ReplicationContractTests.cs" />
