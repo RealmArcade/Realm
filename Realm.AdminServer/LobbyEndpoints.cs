@@ -13,6 +13,7 @@ using Realm.Shared;
 using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Metadata;
+using Realm.Shared.Network.Relay;
 using Realm.Shared.Reachability;
 using Realm.AdminServer.Helpers;
 
@@ -66,7 +67,7 @@ public static class LobbyEndpoints
 		}
 	}
 
-	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections, UdpReachabilityProbeService reachabilityProbe, JoinerPunchRelay joinerRelay, JoinFailureFeedback joinFailureFeedback)
+	public static void MapLobbyEndpoints(WebApplication app, ConcurrentDictionary<string, WebSocket> hostConnections, UdpReachabilityProbeService reachabilityProbe, JoinerPunchRelay joinerRelay, JoinFailureFeedback joinFailureFeedback, RelayPool relayPool)
 	{
 	app.MapPost(ReachabilityRoutes.Begin, async (ReachabilityBeginRequest req, HttpContext context) =>
 	{
@@ -355,7 +356,8 @@ public static class LobbyEndpoints
 			MapSizeBytes = req.MapSizeBytes ?? 0,
 			IsGreenlit = isGreenlit,
 			MapCreator = mapCreator,
-			Endpoints = endpoints
+			Endpoints = endpoints,
+			AcceptRelays = req.AcceptRelays
 		};
 
 		registry.AddOrUpdate(info);
@@ -549,7 +551,12 @@ public static class LobbyEndpoints
 		// waiting out a timeout for an answer it will never get.
 		bool allowsLocalCallers = context.RequestServices.GetRequiredService<IConfiguration>().GetValue("ReachabilityAllowLocalCaller", false);
 		RegistryCapabilities? capabilities = ReachabilityEndpointHandlers.Capabilities(reachabilityProbe, allowsLocalCallers).Body as RegistryCapabilities;
-		var response = new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token, lobby.ReachabilityClass, lobby.Endpoints, capabilities);
+
+		// A lobby whose host accepted relays is offered the volunteers this node pools, and the same ordered list is written
+		// to the host's signalling channel below. Neither peer chooses a volunteer: both open the paths the list names, so a
+		// list the host never received leaves the join on the direct path it has always taken.
+		IReadOnlyList<RelayCandidateMessage> relays = lobby.AcceptRelays ? RelayEndpoints.CandidatesForJoin(relayPool) : [];
+		var response = new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token, lobby.ReachabilityClass, lobby.Endpoints, capabilities, relays);
 
 		if (hostConnections.TryGetValue(req.LobbyId, out var hostSocket) && hostSocket.State == WebSocketState.Open)
 		{
@@ -558,6 +565,14 @@ public static class LobbyEndpoints
 			// its connection attempt holds instead, because only this node can see the endpoint that attempt arrives from.
 			// Either way only an endpoint that needs a punch is punched: an IPv6 endpoint has no router in front of it.
 			if (punchNeeded && req.ClientPublicPort > 0) await RelayPunchAsync(hostSocket, lobby.LobbyId, clientIp, req.ClientPublicPort).ConfigureAwait(false);
+
+			if (relays.Count > 0)
+			{
+				bool told = await HostSignaling.SendAsync(hostSocket, HostSignaling.Encode(RelayEndpoints.HostMessage(ticket.Token, relays)));
+				Console.WriteLine(told
+					? $"[Relay] Offered {relays.Count} volunteer(s) to host {lobby.LobbyId} for the join named {ticket.Token[..Math.Min(8, ticket.Token.Length)]}."
+					: $"[Relay] The volunteers for host {lobby.LobbyId} could not be written to its signalling channel, so the join takes the direct path.");
+			}
 
 			return Results.Ok(response);
 		}

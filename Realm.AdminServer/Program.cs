@@ -26,7 +26,9 @@ var hostConnections = setup.HostConnections;
 var seederId = setup.SeederId;
 var capacityPercent = setup.CapacityPercent;
 
-LobbyEndpoints.MapLobbyEndpoints(app, hostConnections, setup.ReachabilityProbe, setup.JoinerRelay, setup.JoinFailureFeedback);
+LobbyEndpoints.MapLobbyEndpoints(app, hostConnections, setup.ReachabilityProbe, setup.JoinerRelay, setup.JoinFailureFeedback, setup.RelayPool);
+
+RelayEndpoints.MapRelayEndpoints(app, setup.RelayPool);
 
 SeederEndpoints.MapSeederEndpoints(app, setup);
 

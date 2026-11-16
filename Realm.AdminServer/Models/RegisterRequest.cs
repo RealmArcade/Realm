@@ -21,5 +21,11 @@ public record RegisterRequest(
 	string? ReachabilityProbeId = null,
 	int? LocalPort = null,
 	int? ObservedPort = null,
-	IReadOnlyList<LobbyEndpointRegistration>? Endpoints = null
+	IReadOnlyList<LobbyEndpointRegistration>? Endpoints = null,
+
+	/// <summary>
+	///     Whether the lobby's host accepts carrying its connections through volunteers. A host that states nothing accepts
+	///     none, which is a lobby that behaves exactly as it did before relays existed.
+	/// </summary>
+	bool AcceptRelays = false
 );

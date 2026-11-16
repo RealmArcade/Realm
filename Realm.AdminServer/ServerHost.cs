@@ -33,7 +33,8 @@ public record ServerSetup(
 	int CapacityPercent,
 	UdpReachabilityProbeService ReachabilityProbe,
 	JoinerPunchRelay JoinerRelay,
-	JoinFailureFeedback JoinFailureFeedback);
+	JoinFailureFeedback JoinFailureFeedback,
+	RelayPool RelayPool);
 
 public static class ServerHost
 {
@@ -55,6 +56,7 @@ public static class ServerHost
 	builder.Services.AddSingleton<LobbyRegistry>();
 	builder.Services.AddSingleton<GeoIpService>();
 	builder.Services.AddSingleton<SeederRegistry>();
+	builder.Services.AddSingleton<RelayPool>();
 	builder.Services.AddSingleton(dataStore);
 	builder.Services.AddSingleton(cas);
 
@@ -220,7 +222,7 @@ public static class ServerHost
 		}
 	});
 
-		return new ServerSetup(app, cas, adminPublicKeys, servesClientDownloads, hostConnections, seederId, capacityPercent, reachabilityProbe, joinerRelay, joinFailureFeedback);
+		return new ServerSetup(app, cas, adminPublicKeys, servesClientDownloads, hostConnections, seederId, capacityPercent, reachabilityProbe, joinerRelay, joinFailureFeedback, app.Services.GetRequiredService<RelayPool>());
 	}
 
 	/// <summary>Every 63 seconds, pull cluster state from the peers and drop events older than a day.</summary>

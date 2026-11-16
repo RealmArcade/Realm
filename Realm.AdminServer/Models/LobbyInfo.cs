@@ -42,4 +42,10 @@ public class LobbyInfo
 	///     endpoint this node measured in its place, so a listing always has the same shape.
 	/// </summary>
 	public List<LobbyEndpointInfo> Endpoints { get; set; } = new();
+
+	/// <summary>
+	///     Whether the lobby's host accepts its connections being carried through volunteers. A lobby that never stated it
+	///     accepts none, and every join to it takes the direct path it always took.
+	/// </summary>
+	public bool AcceptRelays { get; set; }
 }
