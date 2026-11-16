@@ -30,7 +30,7 @@ public partial class ReplicationContractTests
 		"Velocity",
 		"LatestDescription", "RenderPosition", "TraversableTerrain",
 		"WaypointBuffer",
-		"Gatherer", "ResourceCost",
+		"ResourceCost",
 		"Food", "Gold",
 		"Stone", "Wood", "ArmorStat", "AttackDamage",
 		"AttackSpeedMultiplier",
@@ -44,7 +44,7 @@ public partial class ReplicationContractTests
 		"HealingTarget",
 		"ScanRadius", "AbilityTargetFilter", "CameraState", "BuildingSpawnOffset",
 		"SummonedUnit",
-		"Worker", "WorkerAssignment", "RepairTask", "PickupTask", "DropItemTask", "Harvestable", "PreviewMoveTo",
+		"Worker", "WorkerAssignment", "PickupTask", "DropItemTask", "Harvestable", "PreviewMoveTo",
 		"PlayerBuildingLimit", "PlayerDamageEffectiveness", "EffectivenessAgainstPlayers"
 	};
 
