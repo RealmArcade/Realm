@@ -2886,7 +2886,6 @@
   "This lobby could not be listed, so only players you send the address to can join it.": "تعذّر نشر هذه الغرفة، فلا يمكن الانضمام إلا لمن ترسل إليه العنوان.",
   "This lobby is listed now; players browsing the lobby list can join it at": "هذه الغرفة منشورة الآن؛ يمكن للاعبين الذين يتصفحون القائمة الانضمام عبر",
   "This lobby is no longer listed as reachable; enable UPnP on the router, forward this UDP port, or share the direct address meanwhile.": "لم تعد هذه الغرفة منشورة كقابلة للوصول؛ فعّل UPnP على الراوتر أو وجّه منفذ UDP هذا، أو شارك عنوان الاتصال المباشر مؤقتًا.",
-  "This lobby is no longer listed as {0} but as {1}: {2}. Host again after fixing it, or share the direct address in the lobby room.": "لم تعد هذه الغرفة منشورة كـ {0} بل كـ {1}: {2}. أنشئ اللعبة من جديد بعد الإصلاح، أو شارك عنوان الاتصال المباشر في الغرفة.",
   "This lobby is reachable over IPv6 and IPv4, so players on either can join it.": "هذه الغرفة قابلة للوصول عبر IPv6 وIPv4، فيمكن للاعبين من النوعين الانضمام.",
   "This lobby is reachable over IPv6 only. Players without a global IPv6 address cannot join it.": "هذه الغرفة قابلة للوصول عبر IPv6 فقط. لا يمكن للاعبين الذين ليس لديهم عنوان IPv6 عام الانضمام.",
   "This lobby is reachable over {0} only, and this computer has no address in that family. Players who have that kind of address can still join it.": "هذه الغرفة قابلة للوصول عبر {0} فقط، وليس لهذا الكمبيوتر عنوان من تلك العائلة. يمكن للاعبين الذين لديهم هذا النوع من العناوين الانضمام مع ذلك.",

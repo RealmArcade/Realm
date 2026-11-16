@@ -2886,7 +2886,6 @@
   "This lobby could not be listed, so only players you send the address to can join it.": "このロビーは公開できなかったため、あなたからアドレスを受け取ったプレイヤーだけが参加できます。",
   "This lobby is listed now; players browsing the lobby list can join it at": "このロビーは公開されました。一覧を見ているプレイヤーは次で参加できます",
   "This lobby is no longer listed as reachable; enable UPnP on the router, forward this UDP port, or share the direct address meanwhile.": "このロビーは到達可能としては公開されていません。ルーターで UPnP を有効にするか、この UDP ポートを転送するか、当面は直接接続アドレスを共有してください。",
-  "This lobby is no longer listed as {0} but as {1}: {2}. Host again after fixing it, or share the direct address in the lobby room.": "このロビーは {0} ではなく {1} として公開されています：{2}。修正してからもう一度ゲームを作成するか、ロビーで直接接続アドレスを共有してください。",
   "This lobby is reachable over IPv6 and IPv4, so players on either can join it.": "このロビーは IPv6 と IPv4 の両方で到達可能なので、どちらのプレイヤーも参加できます。",
   "This lobby is reachable over IPv6 only. Players without a global IPv6 address cannot join it.": "このロビーは IPv6 でのみ到達可能です。グローバル IPv6 アドレスを持たないプレイヤーは参加できません。",
   "This lobby is reachable over {0} only, and this computer has no address in that family. Players who have that kind of address can still join it.": "このロビーは {0} でのみ到達可能で、この PC にはその種別のアドレスがありません。その種別のアドレスを持つプレイヤーは参加できます。",

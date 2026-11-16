@@ -2886,7 +2886,6 @@
   "This lobby could not be listed, so only players you send the address to can join it.": "这个大厅没能发布，所以只有拿到你发的地址的玩家才能加入。",
   "This lobby is listed now; players browsing the lobby list can join it at": "这个大厅现在已发布；浏览列表的玩家可以通过这个地址加入",
   "This lobby is no longer listed as reachable; enable UPnP on the router, forward this UDP port, or share the direct address meanwhile.": "这个大厅已不再以可访问状态发布；请在路由器上启用 UPnP、转发这个 UDP 端口，或者暂时分享直连地址。",
-  "This lobby is no longer listed as {0} but as {1}: {2}. Host again after fixing it, or share the direct address in the lobby room.": "这个大厅现在发布的不是 {0} 而是 {1}：{2}。请修正后重新创建，或者在大厅里分享直连地址。",
   "This lobby is reachable over IPv6 and IPv4, so players on either can join it.": "这个大厅同时支持 IPv6 和 IPv4，两类玩家都能加入。",
   "This lobby is reachable over IPv6 only. Players without a global IPv6 address cannot join it.": "这个大厅只支持 IPv6。没有公网 IPv6 地址的玩家无法加入。",
   "This lobby is reachable over {0} only, and this computer has no address in that family. Players who have that kind of address can still join it.": "这个大厅只支持 {0}，而这台电脑没有该地址族的地址。拥有这类地址的玩家仍然可以加入。",

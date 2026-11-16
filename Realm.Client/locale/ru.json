@@ -2886,7 +2886,6 @@
   "This lobby could not be listed, so only players you send the address to can join it.": "Это лобби нельзя было опубликовать, поэтому войти смогут только те, кому вы отправите адрес.",
   "This lobby is listed now; players browsing the lobby list can join it at": "Это лобби теперь опубликовано; игроки, которые просматривают список, могут войти по",
   "This lobby is no longer listed as reachable; enable UPnP on the router, forward this UDP port, or share the direct address meanwhile.": "Это лобби больше не опубликовано как доступное; включите UPnP на роутере, пробросьте этот UDP-порт или пока делитесь прямым адресом.",
-  "This lobby is no longer listed as {0} but as {1}: {2}. Host again after fixing it, or share the direct address in the lobby room.": "Это лобби опубликовано уже не как {0}, а как {1}: {2}. Создайте игру заново после исправления либо поделитесь прямым адресом в лобби.",
   "This lobby is reachable over IPv6 and IPv4, so players on either can join it.": "Это лобби доступно и по IPv6, и по IPv4, поэтому войти могут игроки обоих видов.",
   "This lobby is reachable over IPv6 only. Players without a global IPv6 address cannot join it.": "Это лобби доступно только по IPv6. Игроки без глобального IPv6-адреса войти не смогут.",
   "This lobby is reachable over {0} only, and this computer has no address in that family. Players who have that kind of address can still join it.": "Это лобби доступно только по {0}, а у этого компьютера нет адреса того семейства. Игроки с таким адресом всё равно могут войти.",

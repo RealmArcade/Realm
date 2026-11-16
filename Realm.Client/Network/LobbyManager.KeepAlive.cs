@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Realm.Client.Services;
+using Realm.Client.UI;
 using Realm.Shared.Network;
 using Realm.Shared.Reachability;
 
@@ -196,12 +197,13 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
-	///     Withdraws the class a lobby is listed with, tells the lobby server so the listing stops claiming it, and tells the
-	///     host in the lobby's own chat where it can act on it. Only downward: the class never goes back up, because the
-	///     players who were told what to expect are not told again when a later check happens to answer.
+	///     Withdraws the class a lobby is listed with, tells the lobby server so the listing stops claiming it, and states the
+	///     restriction in the lobby's own chat with the sentence every other blocked connection states. Only downward: the
+	///     class never goes back up, because the players who were told what to expect are not told again when a later check
+	///     happens to answer.
 	/// </summary>
 	/// <param name="measured">The weaker class the fresh measurement produced.</param>
-	/// <param name="set">What the re-check produced, for the sentence and the log.</param>
+	/// <param name="set">What the re-check produced, for the log.</param>
 	/// <param name="reason">What happened, or empty to describe the measurement's own failure.</param>
 	private void WithdrawReachability(string measured, LobbyReachabilitySet set, string reason = "")
 	{
@@ -211,14 +213,12 @@ public partial class LobbyManager
 		ReachabilityClass = measured;
 		if (_publishedReachability != null) _publishedReachability = _publishedReachability with { ReachabilityClass = measured };
 
-		string sentence = string.Format(
-			Tr("This lobby is no longer listed as {0} but as {1}: {2}. Host again after fixing it, or share the direct address in the lobby room."),
-			previous,
-			measured,
-			reason);
+		// The class it dropped from and the reason stay in the log, which is the page a support report reads; the players in
+		// the lobby are told the one restriction sentence instead of a measurement none of them can act on.
+		string sentence = Tr(RestrictiveNetworkDialog.Message);
 
 		LastLobbyWarning = sentence;
-		GameLog.LogError($"[Reachability] {sentence}");
+		GameLog.LogError($"[Reachability] this lobby is no longer listed as {measured} (was {previous}): {reason}");
 
 		_lobbySession?.SendLobbyCommand(new LobbyCommand
 		{

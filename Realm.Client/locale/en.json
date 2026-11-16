@@ -2393,7 +2393,6 @@
   "This lobby could not be listed, so only players you send the address to can join it.": "This lobby could not be listed, so only players you send the address to can join it.",
   "This lobby is listed now; players browsing the lobby list can join it at": "This lobby is listed now; players browsing the lobby list can join it at",
   "This lobby is no longer listed as reachable; enable UPnP on the router, forward this UDP port, or share the direct address meanwhile.": "This lobby is no longer listed as reachable; enable UPnP on the router, forward this UDP port, or share the direct address meanwhile.",
-  "This lobby is no longer listed as {0} but as {1}: {2}. Host again after fixing it, or share the direct address in the lobby room.": "This lobby is no longer listed as {0} but as {1}: {2}. Host again after fixing it, or share the direct address in the lobby room.",
   "This lobby is offered in the lobby browser again.": "This lobby is offered in the lobby browser again.",
   "This lobby is private now, so it is not offered in the lobby browser. Players you invite, or who have its address, can still join.": "This lobby is private now, so it is not offered in the lobby browser. Players you invite, or who have its address, can still join.",
   "This lobby is reachable over IPv6 and IPv4, so players on either can join it.": "This lobby is reachable over IPv6 and IPv4, so players on either can join it.",
