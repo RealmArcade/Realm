@@ -81,8 +81,7 @@ public partial class LobbyRoom
 
 
 		SetupLobbyButton(_backButton, TranslationServer.Translate(" LEAVE LOBBY"), ReturnFromLobby);
-		SetupLobbyButton(_steamInviteButton, TranslationServer.Translate("INVITE FRIEND"), OpenInviteFriendsDialog);
-		SetupLobbyButton(_shareAddressButton, TranslationServer.Translate("INVITE PLAYERS"), ShowDirectConnectInviteDialog);
+		SetupLobbyButton(_invitePlayersButton, TranslationServer.Translate("INVITE PLAYERS"), OpenInvitePlayersDialog);
 		SetupStartButton();
 
 		_mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);

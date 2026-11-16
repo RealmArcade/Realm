@@ -47,13 +47,12 @@ public partial class LobbyRoom : Control
 	private PanelContainer _chatPanel = null!;
 
 	private Button _backButton = null!;
-	private Button _steamInviteButton = null!;
-	private Button _shareAddressButton = null!;
+	private Button _invitePlayersButton = null!;
 	private Label _unlistedLobbyHint = null!;
 	private CheckBox _unlistedLobbyCheck = null!;
 
 	private Label _lobbyFamiliesHint = null!;
-	private SteamFriendsDialog? _friendsDialog;
+	private InvitePlayersDialog? _invitePlayersDialog;
 	private Button _startButton = null!;
 	private Label _mapNameLabel = null!;
 	private LineEdit _chatInput = null!;
@@ -127,8 +126,7 @@ public partial class LobbyRoom : Control
 
 
 		_backButton = GetNode<Button>("BackButton");
-		_steamInviteButton = GetNode<Button>("SteamInviteButton");
-		_shareAddressButton = GetNode<Button>("ShareAddressButton");
+		_invitePlayersButton = GetNode<Button>("InvitePlayersButton");
 		_unlistedLobbyHint = GetNode<Label>("UnlistedLobbyHint");
 		_startButton = GetNode<Button>("StartButton");
 		_unlistedLobbyHint.Text = TranslationServer.Translate("Your lobby is not advertised publicly but direct invites are still available.");
@@ -408,13 +406,9 @@ public partial class LobbyRoom : Control
 	{
 		bool invitesPlayers = !Lobby.IsSinglePlayer;
 
-		// Both ways of inviting a player are offered at once: a friend on Steam and a player handed an address join the same
-		// lobby, and which of them a host has to hand is a fact about that player rather than about the lobby. The Steam half
-		// stays offered to a host whose lobby is not listed, because the window it opens is also where a host learns why no
-		// friends are shown - Steam may not be running, or the lobby server may not know the lobby - and a button that hides
-		// itself in exactly that state is the one case where the host is told nothing.
-		_steamInviteButton.Visible = invitesPlayers && (Lobby.IsHost || !string.IsNullOrEmpty(Lobby.ActiveLobbyId));
-		_shareAddressButton.Visible = invitesPlayers;
+		// One door for every way of inviting a player: the Steam friend list and the addresses this lobby is played at are
+		// two halves of the same window, so there is nothing about the lobby's listing that can hide one of them.
+		_invitePlayersButton.Visible = invitesPlayers;
 		_unlistedLobbyHint.Visible = invitesPlayers && Lobby.IsHost && Lobby.IsUnlisted;
 		_unlistedLobbyCheck.Visible = invitesPlayers && Lobby.IsHost;
 		UpdateUnlistedLobbyCheck();
@@ -451,27 +445,16 @@ public partial class LobbyRoom : Control
 		ApplyInviteVisibility();
 	}
 
-	private void OpenInviteFriendsDialog()
+	private void OpenInvitePlayersDialog()
 	{
-		if (_friendsDialog == null || !GodotObject.IsInstanceValid(_friendsDialog)) _friendsDialog = CreateFriendsDialog();
+		if (_invitePlayersDialog == null || !GodotObject.IsInstanceValid(_invitePlayersDialog)) _invitePlayersDialog = CreateInvitePlayersDialog();
 
-		// A screen without Steam is shown the window with the reason in it, rather than a sentence about the lobby: the
-		// friends the host is looking for cannot be listed whatever the lobby's listing says.
-		bool steamAvailable = GameContext.Steam.IsAvailable;
-		if (steamAvailable && Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId)
-		{
-			GameContext.UserInterface?.ShowPopupMessage(
-				Tr("LOBBY INVITES"),
-				Tr("Invites need a lobby the lobby server knows about. Share the lobby's address instead."));
-			return;
-		}
-
-		_friendsDialog!.ShowFor(Lobby.ActiveLobbyId ?? string.Empty, Lobby.MaxPlayers);
+		_invitePlayersDialog.ShowFor(Lobby.IsHost, Lobby.ActiveLobbyId ?? string.Empty, Lobby.MaxPlayers);
 	}
 
-	private SteamFriendsDialog CreateFriendsDialog()
+	private InvitePlayersDialog CreateInvitePlayersDialog()
 	{
-		SteamFriendsDialog dialog = new SteamFriendsDialog();
+		InvitePlayersDialog dialog = new InvitePlayersDialog();
 		AddChild(dialog);
 		dialog.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		dialog.InvitesSent += OnFriendInvitesSent;

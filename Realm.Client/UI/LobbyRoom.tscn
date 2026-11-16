@@ -65,21 +65,12 @@ offset_right = 250.0
 offset_bottom = 85.0
 focus_mode = 0
 
-[node name="SteamInviteButton" type="Button" parent="."]
+[node name="InvitePlayersButton" type="Button" parent="."]
 custom_minimumSize = Vector2(190, 45)
 layout_mode = 0
 offset_left = 280.0
 offset_top = 40.0
 offset_right = 470.0
-offset_bottom = 85.0
-focus_mode = 0
-
-[node name="ShareAddressButton" type="Button" parent="."]
-custom_minimumSize = Vector2(190, 45)
-layout_mode = 0
-offset_left = 490.0
-offset_top = 40.0
-offset_right = 680.0
 offset_bottom = 85.0
 focus_mode = 0
 
