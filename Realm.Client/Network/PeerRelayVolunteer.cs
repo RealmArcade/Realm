@@ -250,11 +250,10 @@ public class PeerRelayVolunteer
 		using HttpResponseMessage response = await httpClient.PostAsync($"{registryUrl.TrimEnd('/')}/relays/register", content, token).ConfigureAwait(false);
 		if (!response.IsSuccessStatusCode) return (false, $"The lobby server refused this machine's offer ({response.StatusCode}).");
 
-		using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token).ConfigureAwait(false));
-		JsonElement root = document.RootElement;
-		bool advertised = root.TryGetProperty("Advertised", out JsonElement advertisedElement) && advertisedElement.ValueKind == JsonValueKind.True;
-		string reason = root.TryGetProperty("Reason", out JsonElement reasonElement) ? reasonElement.GetString() ?? string.Empty : string.Empty;
-		return (advertised, reason);
+		string body = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
+		if (!RelayRegistrationAnswer.TryParse(body, out RelayRegistrationAnswer answer)) return (false, answer.Reason);
+
+		return (answer.Advertised, answer.Reason.Length > 0 ? answer.Reason : "The lobby server did not pool this machine, so it is carrying nothing.");
 	}
 
 	private async Task HeartbeatAsync(HttpClient httpClient, string registryUrl, RelayForwarder forwarder, CancellationToken token)
