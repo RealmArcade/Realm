@@ -507,7 +507,7 @@ public partial class LobbyManager
 
 			LobbyEndpointInfo primary = reachability.Verified.Find(endpoint => endpoint.FamilyValue == LobbyAddressFamily.IPv4) ?? reachability.Verified[0];
 			LobbyEndpointRegistration primaryRegistration = reachability.EndpointRegistrations.Find(registration => LobbyAddresses.ParseFamilyName(registration.Family) == primary.FamilyValue) ?? reachability.EndpointRegistrations[0];
-			_routerReachability = RouterReachability.Confirmed;
+			if (_routerReachability != RouterReachability.Confirmed) _routerReachability = RouterReachability.ConfirmedFromOutside;
 
 			ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
 

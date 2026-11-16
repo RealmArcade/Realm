@@ -232,7 +232,7 @@ public partial class LobbyManager
 		// are the ones this measurement produced, exactly as they were before a lobby could be offered over two families.
 		_hostPublicIp = result.PublicIp;
 		_hostPublicPort = result.PublicPort;
-		_routerReachability = RouterReachability.Confirmed;
+		if (_routerReachability != RouterReachability.Confirmed) _routerReachability = RouterReachability.ConfirmedFromOutside;
 		_publishedReachability = result;
 	}
 

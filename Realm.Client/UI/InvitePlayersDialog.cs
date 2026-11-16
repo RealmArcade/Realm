@@ -455,13 +455,18 @@ public partial class InvitePlayersDialog : Control
 				11,
 				UIStyle.ColorGoldDull));
 			container.AddChild(CreateAddressRow($"{prefix}Public", publicAddress, width, addressFontSize));
-			container.AddChild(CreateNote(
-				$"{prefix}ForwardConfirmation_Label",
-				"Your router forwards UDP port {0} to this machine, so this address works without anything else changing.",
-				width,
-				11,
-				UIStyle.ColorGoldDull,
-				lobby.BoundPort));
+
+			if (lobby.RouterReachability == RouterReachability.Confirmed)
+			{
+				container.AddChild(CreateNote(
+					$"{prefix}ForwardConfirmation_Label",
+					"Your router forwards UDP port {0} to this machine, so this address works without anything else changing.",
+					width,
+					11,
+					UIStyle.ColorGoldDull,
+					lobby.BoundPort));
+			}
+
 			return;
 		}
 

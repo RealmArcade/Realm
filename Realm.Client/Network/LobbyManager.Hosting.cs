@@ -408,7 +408,9 @@ public partial class LobbyManager
 		GameLog.LogToConsole($"[LobbyManager] This lobby is not listed anywhere; share {DirectConnectAddress} with the players who should join.");
 		if (PublicConnectAddress is { Length: > 0 } publicAddress)
 		{
-			GameLog.LogToConsole($"[LobbyManager] This lobby's router accepted a forward, so players outside this network join at {publicAddress}.");
+			GameLog.LogToConsole(RouterReachability == RouterReachability.Confirmed
+				? $"[LobbyManager] This lobby's router accepted a forward, so players outside this network join at {publicAddress}."
+				: $"[LobbyManager] A lobby server reached this lobby's game port from outside, so players outside this network join at {publicAddress}.");
 		}
 		else if (MeasuredPublicConnectAddress is { Length: > 0 } measuredAddress)
 		{

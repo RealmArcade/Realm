@@ -266,6 +266,7 @@ public partial class LobbyManager
 		string? failure = null;
 		bool rejected = false;
 		bool punchCoordinated = false;
+		bool punchConfirmed = false;
 
 		// A host that named an address on a network this machine is attached to is tried there first, because a join that
 		// stays inside one network is the fastest and the only one that needs no punching. The address is only tried, not
@@ -295,11 +296,13 @@ public partial class LobbyManager
 				// away from it.
 				int joinLocalPort = 0;
 				punchCoordinated = false;
+				punchConfirmed = false;
+				JoinPunchReport joinReport = default;
 				if (needsPunch && target.Punch.IsUsable)
 				{
 					long reportStarted = Environment.TickCount64;
 					_joinPhase = JoinPhases.Report;
-					joinLocalPort = await ReportJoinerEndpointFromJoinPortAsync(target.Punch, connectIp, connectPort);
+					(joinLocalPort, joinReport) = await ReportJoinerEndpointFromJoinPortAsync(target.Punch, connectIp, connectPort);
 					punchCoordinated = joinLocalPort > 0;
 					MarkJoinPhase(JoinPhases.Report, punchCoordinated ? "sent" : "refused", reportStarted);
 				}
@@ -330,8 +333,11 @@ public partial class LobbyManager
 					_isConnectedToHost = true;
 
 					// A lobby that punched this screen back does not need the punch that opens this side of the route, and
-					// sending it would take the external port the host's punch is using for this screen.
+					// sending it would take the external port the host's punch is using for this screen. A lobby whose punch has
+					// not been confirmed is told where this screen is once more, from the port this attempt now holds: the first
+					// report may have arrived before the host could act on it, and that report asked for nothing.
 					if (needsPunch && !punchCoordinated) PunchFromGamePort(channel, connectIp, connectPort);
+					else if (needsPunch && !punchConfirmed) RepeatJoinReportFromGamePort(channel, target.Punch, joinReport);
 
 					var admission = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromMilliseconds(attemptTimeoutMilliseconds));
 					if (admission.Failure == null)
@@ -352,6 +358,10 @@ public partial class LobbyManager
 					// A refusal is an answer: another attempt would be told the same thing again. Silence is the only outcome
 					// worth spending the rest of the budget on.
 					if (!JoinPhaseMachine.IsRetryable(JoinPhaseMachine.OutcomeOf(admission.Answered, rejected))) break;
+
+					// The attempt failed, so what the registry node saw of this join's punch is read again: a host that punched
+					// will not be asked twice, and one that was never asked is what the next attempt reports itself for.
+					if (needsPunch && punchCoordinated) punchConfirmed = await ReadPunchStateAsync(target.Punch.Token) == JoinPunchOutcome.Punched;
 				}
 
 				if (nearRoute && !rejected)
@@ -412,8 +422,34 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
+	///     States this screen's endpoint to the registry node again, from the socket the join is connecting from. It is sent
+	///     until the lobby's host confirms it punched, because a report that was dropped, or that arrived while the host was
+	///     not yet able to act on it, asked for nothing: repeating it from the same port is what makes the host send at the
+	///     address this join actually answers at. How often one join's punch is passed on is bounded by the node.
+	/// </summary>
+	/// <param name="channel">The channel holding the socket this join connects from.</param>
+	/// <param name="ticket">The ticket the report was written for.</param>
+	/// <param name="report">The report this join wrote about itself.</param>
+	private static void RepeatJoinReportFromGamePort(ClientNetworkChannel channel, JoinerPunchTicket ticket, JoinPunchReport report)
+	{
+		if (!report.IsUsable) return;
+		if (channel.SendToAddress(report.RegistryAddress.ToString(), ticket.Port, report.Datagram.AsSpan(0, report.Length))) return;
+
+		GameLog.LogToConsole($"[LobbyManager] This join's report could not be sent again to {ticket.Address}:{ticket.Port}, so the host will not be asked to punch this screen again.");
+	}
+
+	/// <summary>
+	///     The report a joining screen sends about itself, kept whole so a later attempt can state the same thing again from the
+	///     socket that attempt connects from.
+	/// </summary>
+	private readonly record struct JoinPunchReport(IPAddress RegistryAddress, byte[] Datagram, int Length)
+	{
+		public bool IsUsable => Length > 0;
+	}
+
+	/// <summary>
 	///     Reports this screen's own endpoint to the registry node from a socket bound to a port the join then connects from,
-	///     and hands that port back. The report is what tells the lobby's host where to send: the host cannot read an address
+	///     and hands that port and the report back. The report is what tells the lobby's host where to send: the host cannot read an address
 	///     from the connection attempt itself, because a router that drops unsolicited traffic drops exactly that, and this
 	///     screen cannot measure the external port its own router hands out. The socket is bound and closed here so the join's
 	///     own socket can hold the same port, which is the only way the endpoint that was reported and the endpoint that
@@ -425,22 +461,25 @@ public partial class LobbyManager
 	/// <param name="ticket">The ticket the registry node stated for this join.</param>
 	/// <param name="lobbyIp">The lobby's address, which the punch that opens this side of the route is aimed at.</param>
 	/// <param name="lobbyPort">The lobby's port, which that punch is aimed at.</param>
-	/// <returns>The local port the join must connect from, or zero when no report could be sent.</returns>
-	private async Task<int> ReportJoinerEndpointFromJoinPortAsync(JoinerPunchTicket ticket, string lobbyIp, int lobbyPort)
+	/// <returns>
+	///     The local port the join must connect from and the report it sent, so a later attempt can state it again from the
+	///     socket that attempt connects from, or a zero port when no report could be sent.
+	/// </returns>
+	private async Task<(int LocalPort, JoinPunchReport Report)> ReportJoinerEndpointFromJoinPortAsync(JoinerPunchTicket ticket, string lobbyIp, int lobbyPort)
 	{
 		var datagram = new byte[JoinerPunch.MaximumDatagramBytes];
 		int written = JoinerPunch.TryWrite(datagram, ticket.Token);
 		if (written == 0)
 		{
 			GameLog.LogError("[LobbyManager] The join's report ticket could not be written, so the host may never be told where to send.");
-			return 0;
+			return (0, default);
 		}
 
 		IPAddress? registryAddress = await ResolveRegistryAddressAsync(ticket.Address);
 		if (registryAddress == null)
 		{
 			GameLog.LogError($"[LobbyManager] The registry node '{ticket.Address}' has no address this screen could report itself to, so the host may never be told where to send.");
-			return 0;
+			return (0, default);
 		}
 
 		try
@@ -458,12 +497,12 @@ public partial class LobbyManager
 			socket.SendTo(datagram.AsSpan(0, written), new IPEndPoint(registryAddress, ticket.Port));
 
 			GameLog.LogToConsole($"[LobbyManager] Punched the lobby at {lobbyIp}:{lobbyPort} and reported this screen's endpoint to {ticket.Address}:{ticket.Port}, both from local port {localPort}, which this join then connects from.");
-			return localPort;
+			return (localPort, new JoinPunchReport(registryAddress, datagram, written));
 		}
 		catch (Exception exception) when (exception is SocketException or ArgumentException)
 		{
 			GameLog.LogError($"[LobbyManager] This screen could not report its endpoint to {ticket.Address}:{ticket.Port} ({exception.Message}), so the host may never be told where to send.");
-			return 0;
+			return (0, default);
 		}
 	}
 

@@ -308,7 +308,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	///     face forwards anything, and it is offered separately as <see cref="MeasuredPublicConnectAddress" /> so a host can
 	///     read it without being told that it works.
 	/// </summary>
-	public string? PublicConnectAddress => RouterReachability == RouterReachability.Confirmed ? MeasuredPublicConnectAddress : null;
+	public string? PublicConnectAddress => RouterReachability is RouterReachability.Confirmed or RouterReachability.ConfirmedFromOutside ? MeasuredPublicConnectAddress : null;
 
 	/// <summary>
 	///     Why the address outside this network is, or is not, offered to the players this lobby is shared with. The lobby room
@@ -740,5 +740,12 @@ public enum RouterReachability
 	BehindAnotherNetwork,
 
 	/// <summary>A forward serves the address this network measured, which is the address players outside join at.</summary>
-	Confirmed
+	Confirmed,
+
+	/// <summary>
+	///     A lobby server reached this game port from outside, which is what makes the lobby joinable. It is not a statement
+	///     about a forward: a lobby can be reached through a punch with no forward on this network's router at all, so it is
+	///     stated apart from <see cref="Confirmed" /> and a page read by a person never reports a forward nobody made.
+	/// </summary>
+	ConfirmedFromOutside
 }

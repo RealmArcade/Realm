@@ -32,6 +32,18 @@ public class JoinerPunchRelay : IDisposable
 	/// <summary>How many joins may be waiting for their report at once, so an unauthenticated route cannot grow unbounded.</summary>
 	private const int MaximumPendingJoins = 4096;
 
+	/// <summary>
+	///     How long this node waits between handing one join's punch to its host again, so a screen that keeps stating its
+	///     endpoint cannot turn one join into a stream of punches.
+	/// </summary>
+	private const int RedeliveryIntervalMilliseconds = 500;
+
+	/// <summary>
+	///     How many times one join's punch may be handed to its host. A joining screen keeps reporting itself until its host
+	///     states that it punched, and this is the bound that keeps that from being unbounded work for the host.
+	/// </summary>
+	private const int MaximumDeliveriesPerJoin = 8;
+
 	private const int ReceivedDatagramBytes = 1024;
 
 	/// <summary>
@@ -197,11 +209,16 @@ public class JoinerPunchRelay : IDisposable
 			IPEndPoint observed = received.RemoteEndPoint;
 			string address = observed.Address.IsIPv4MappedToIPv6 ? observed.Address.MapToIPv4().ToString() : observed.Address.ToString();
 
-			// One report asks for one punch. A datagram that arrives again is the same report arriving again, and telling the
-			// host to punch the same endpoint a second time would only repeat work it has already done.
-			if (!join.TryMarkReported()) continue;
+			bool firstReport = join.TryMarkReported();
 
-			_log($"join {token} of lobby {join.LobbyId} reported itself from {address}:{observed.Port}");
+			// A report that arrives again is the same screen stating the same thing again, which is worth acting on only while
+			// the host has not stated that it punched: a report that arrived before the host could act on it asked for
+			// nothing, and a lost punch is invisible from here.
+			if (!join.TryClaimDelivery(_clock.ElapsedMilliseconds)) continue;
+
+			_log(firstReport
+				? $"join {token} of lobby {join.LobbyId} reported itself from {address}:{observed.Port}"
+				: $"join {token} of lobby {join.LobbyId} reported itself again from {address}:{observed.Port}, and its punch has not been acknowledged, so the host is asked again");
 
 			// The punch is delivered off this loop. This socket is the only one every joining player reports to, so waiting
 			// here on another node's answer would hold up every join that arrived behind this one.
@@ -270,12 +287,36 @@ public class JoinerPunchRelay : IDisposable
 
 		private int _reported;
 
-		/// <summary>Whether this join's report has been read, which is what makes one report ask for one punch.</summary>
+		/// <summary>Whether this join's report has been read, which is what a joining screen is told about the report it sent.</summary>
 		public bool Reported => Volatile.Read(ref _reported) != 0;
 
-		/// <summary>Claims the one punch this join's report asks for.</summary>
-		/// <returns>Whether this arrival is the report that asks for it.</returns>
+		/// <summary>Note that this join's report has arrived.</summary>
+		/// <returns>Whether this arrival is the first one.</returns>
 		public bool TryMarkReported() => Interlocked.Exchange(ref _reported, 1) == 0;
+
+		/// <summary>
+		///     Claims the right to hand this join's punch to its host once more. A join whose punch has been acknowledged is
+		///     finished, because the work it asked for was done; one that has not is exactly the join a later report is worth
+		///     repeating the punch for.
+		/// </summary>
+		/// <param name="now">This node's clock.</param>
+		/// <returns>Whether this arrival is worth another punch.</returns>
+		public bool TryClaimDelivery(long now)
+		{
+			if (PunchAcknowledged) return false;
+			if (Volatile.Read(ref _deliveries) >= MaximumDeliveriesPerJoin) return false;
+
+			long lastDelivery = Interlocked.Read(ref _lastDeliveryMilliseconds);
+			if (lastDelivery != 0 && now - lastDelivery < RedeliveryIntervalMilliseconds) return false;
+
+			Interlocked.Exchange(ref _lastDeliveryMilliseconds, now);
+			Interlocked.Increment(ref _deliveries);
+			return true;
+		}
+
+		private long _lastDeliveryMilliseconds;
+
+		private int _deliveries;
 	}
 
 	/// <summary>What a joining screen is told about the report it sent: whether it arrived, and whether the host has punched it.</summary>
