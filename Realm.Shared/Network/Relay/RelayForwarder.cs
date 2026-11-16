@@ -197,7 +197,17 @@ public sealed class RelayForwarder : IDisposable
 	{
 		while (!token.IsCancellationRequested && !_disposed)
 		{
-			Poll(Environment.TickCount64);
+			try
+			{
+				Poll(Environment.TickCount64);
+			}
+			catch (ObjectDisposedException)
+			{
+				// The owner stopped volunteering between the check above and the socket this lane was about to read. That
+				// is this lane's whole job ending, not a failure to carry: an exception raised here would end the thread.
+				return;
+			}
+
 			token.WaitHandle.WaitOne(PollInterval);
 		}
 	}

@@ -160,10 +160,19 @@ public sealed class RelayUdpShim : IRelayPathSink, IDisposable
 	{
 		while (!token.IsCancellationRequested)
 		{
-			DrainTransport();
-			_mux.Poll(this);
-			PublishDescriptionIfDue();
-			if (_socket.Available == 0) Thread.Sleep(LaneSleepMilliseconds);
+			try
+			{
+				DrainTransport();
+				_mux.Poll(this);
+				PublishDescriptionIfDue();
+				if (_socket.Available == 0) Thread.Sleep(LaneSleepMilliseconds);
+			}
+			catch (ObjectDisposedException)
+			{
+				// The connection was given up between the check above and this lane's own socket, which is the ordinary end
+				// of a shim whose owner closed it. An exception escaping this thread would take the process with it.
+				return;
+			}
 		}
 	}
 

@@ -87,13 +87,22 @@ public class PeerRelayVolunteer
 			return;
 		}
 
+		var lifecycle = new CancellationTokenSource();
 		_forwarder = forwarder;
-		_lifecycle = new CancellationTokenSource();
+		_lifecycle = lifecycle;
 		_isVolunteering = true;
 
-		CancellationToken token = _lifecycle.Token;
-		Task.Run(() => forwarder!.Run(token), token);
-		Task.Run(() => MaintainRegistrationAsync(lobby, forwarder!, token), token);
+		CancellationToken token = lifecycle.Token;
+		Task forwarding = Task.Run(() => forwarder!.Run(token), token);
+		Task registration = Task.Run(() => MaintainRegistrationAsync(lobby, forwarder!, token), token);
+
+		// The source is given up only once both lanes have finished with it: disposing it while one of them is waiting on
+		// its own token is a race the stopping side would lose, and the lane it breaks is one nobody is watching.
+		_ = Task.WhenAll(forwarding, registration).ContinueWith(
+			_ => lifecycle.Dispose(),
+			CancellationToken.None,
+			TaskContinuationOptions.ExecuteSynchronously,
+			TaskScheduler.Default);
 
 		GameLog.LogToConsole($"[RelayVolunteer] Offering to carry other players' connections on UDP port {forwarder!.Port}, within {GameSettings.VolunteerRelayBudgetBytesPerSecond}B/s and {GameSettings.VolunteerRelayMaximumConnections} connection(s).");
 	}
@@ -110,7 +119,6 @@ public class PeerRelayVolunteer
 		_lifecycle?.Cancel();
 		_forwarder?.Dispose();
 		_forwarder = null;
-		_lifecycle?.Dispose();
 		_lifecycle = null;
 
 		SendUnregisterRequest();
@@ -160,8 +168,11 @@ public class PeerRelayVolunteer
 						GameLog.LogToConsole($"[RelayVolunteer] This machine is not offering bandwidth: {reason}");
 
 						// A machine the pool would not take is not one players are sent to, so the forwarding socket is given up
-						// rather than left open for traffic this node never handed out. The slow status loop tries again.
+						// rather than left open for traffic this node never handed out. The slow status loop tries again. The
+						// reason is stated after the stop, because stopping states its own and this is the sentence the player
+						// needs: without it the screen says only that nothing is being carried, never why.
 						Stop();
+						_lastStatement = reason;
 						return;
 					}
 				}
