@@ -62,7 +62,7 @@ public sealed class RelayPeerDemux : IDisposable
 			return false;
 		}
 
-		Maintain(Environment.TickCount64);
+		Maintain(Environment.TickCount64, null);
 
 		// One connection is seated once. A plan that arrives again names the same ticket and therefore the same token, and a
 		// second entry for it would forward the same datagrams to the game port from another loopback address, which ENet
@@ -109,26 +109,38 @@ public sealed class RelayPeerDemux : IDisposable
 	///     to be free rather than when the next join happens to ask.
 	/// </summary>
 	/// <param name="nowMilliseconds">The clock the entries' ages are read against.</param>
-	public void Maintain(long nowMilliseconds)
+	/// <param name="reportChange">
+	///     Where a connection's path change or its removal is stated, or null when nothing is listening. It is how a captured
+	///     authority log explains why a peer moved rather than only which path it ends up on, and it is called only when
+	///     something actually changed.
+	/// </param>
+	public void Maintain(long nowMilliseconds, Action<string>? reportChange)
 	{
 		if (_disposed) return;
 
 		for (int index = _entries.Count - 1; index >= 0; index--)
 		{
 			OpenEntry entry = _entries[index];
-			long age = nowMilliseconds - entry.OpenedAtMilliseconds;
 
+			RelayPathSummary stated = entry.Shim.Summary;
+			string change = RelayPathChanges.Describe(entry.LastSummary, stated);
+			entry.LastSummary = stated;
+			if (change.Length > 0) reportChange?.Invoke($"loopback port {entry.Shim.Port}: {change}");
+
+			long age = nowMilliseconds - entry.OpenedAtMilliseconds;
 			if (entry.Shim.DeliveredToTransport == 0)
 			{
 				if (age < WaitingEntryLifetimeMilliseconds) continue;
+				reportChange?.Invoke($"loopback port {entry.Shim.Port}: given up, no join arrived on it within {WaitingEntryLifetimeMilliseconds / 1000} s");
 			}
 			else
 			{
 				if (age < DeadEntryLifetimeMilliseconds) continue;
-				if (entry.Shim.Summary.Best != null) continue;
+				if (stated.Best != null) continue;
+				reportChange?.Invoke($"loopback port {entry.Shim.Port}: given up, nothing has answered on it for {DeadEntryLifetimeMilliseconds / 1000} s");
 			}
 
-			_entries[index].Shim.Dispose();
+			entry.Shim.Dispose();
 			_entries.RemoveAt(index);
 		}
 	}
@@ -162,8 +174,29 @@ public sealed class RelayPeerDemux : IDisposable
 	}
 
 	/// <summary>One seated connection: the entry standing in front of the game port, and the connection it carries.</summary>
-	/// <param name="Shim">The loopback entry ENet speaks to for this connection.</param>
-	/// <param name="Token">The connection the entry carries, which is what keeps one connection seated once.</param>
-	/// <param name="OpenedAtMilliseconds">When the entry was opened, which is what tells a young entry from a dead one.</param>
-	private readonly record struct OpenEntry(RelayUdpShim Shim, RelayConnectionToken Token, long OpenedAtMilliseconds);
+	private sealed class OpenEntry
+	{
+		/// <summary>Creates the record of one entry.</summary>
+		/// <param name="shim">The loopback entry ENet speaks to for this connection.</param>
+		/// <param name="token">The connection the entry carries, which is what keeps one connection seated once.</param>
+		/// <param name="openedAtMilliseconds">When the entry was opened, which is what tells a young entry from a dead one.</param>
+		public OpenEntry(RelayUdpShim shim, RelayConnectionToken token, long openedAtMilliseconds)
+		{
+			Shim = shim;
+			Token = token;
+			OpenedAtMilliseconds = openedAtMilliseconds;
+		}
+
+		/// <summary>The loopback entry ENet speaks to for this connection.</summary>
+		public RelayUdpShim Shim { get; }
+
+		/// <summary>The connection this entry carries, which is what keeps one connection seated once.</summary>
+		public RelayConnectionToken Token { get; }
+
+		/// <summary>When the entry was opened, which is what tells a young entry from a dead one.</summary>
+		public long OpenedAtMilliseconds { get; }
+
+		/// <summary>What this connection's paths last stated, which the next statement is compared against.</summary>
+		public RelayPathSummary LastSummary { get; set; } = RelayPathSummary.Empty;
+	}
 }

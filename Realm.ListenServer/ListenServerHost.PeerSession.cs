@@ -30,6 +30,16 @@ public partial class ListenServerHost
 		_transport.Send(peerId, NetworkFrameKind.HandshakeChallenge, MemoryPackSerializer.Serialize(new HandshakeChallenge { Nonce = challenge }));
 	}
 
+	/// <summary>
+	///     States a relayed connection's path change in the match log, in the same words the screen's own log uses, so a
+	///     capture from either side explains why a peer moved.
+	/// </summary>
+	/// <param name="statement">The change the path layer stated.</param>
+	public void OnRelayedPathStatement(string statement)
+	{
+		_log.Write($"relay: {statement}");
+	}
+
 	public void OnPeerDisconnected(int peerId, string reason)
 	{
 		_connectedPeers.Remove(peerId);

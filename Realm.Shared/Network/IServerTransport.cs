@@ -10,6 +10,14 @@ public interface IServerTransportSink
 	void OnFrameReceived(int peerId, NetworkFrameKind kind, ReadOnlySpan<byte> payload);
 
 	void OnPeerDisconnected(int peerId, string reason);
+
+	/// <summary>
+	///     States what one relayed connection's paths did: a path that stopped being answered, one that answered again, the
+	///     best path moving, or the entry being given up and why. It is what a captured authority log needs to explain a move
+	///     of the connection rather than only the path it ended up on, and it is called only when something changed.
+	/// </summary>
+	/// <param name="statement">The change, naming the loopback entry it happened on.</param>
+	void OnRelayedPathStatement(string statement);
 }
 
 /// <summary>
@@ -69,8 +77,9 @@ public interface IServerTransport : IDisposable
 
 	/// <summary>
 	///     Gives up the relayed entries that are carrying nothing, so a join that went direct, or one that never arrived,
-	///     stops costing a loopback socket, a lane and a volunteer a probe a second. It is called by the clock that runs the
-	///     match rather than by the next join, and a transport that carries no relayed connection answers it by doing nothing.
+	///     stops costing a loopback socket, a lane and a volunteer a probe a second, and states every path change to the sink
+	///     on the way. It is called by the clock that runs the match rather than by the next join, and a transport that
+	///     carries no relayed connection answers it by doing nothing.
 	/// </summary>
 	/// <param name="nowMilliseconds">The clock the entries' ages are read against.</param>
 	void MaintainRelayedEntries(long nowMilliseconds);

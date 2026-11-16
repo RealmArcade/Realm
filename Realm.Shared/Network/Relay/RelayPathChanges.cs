@@ -50,7 +50,7 @@ public static class RelayPathChanges
 			RelayPathSample after = current.Paths[index];
 			if (Has(previous.Paths, after.PathId)) continue;
 
-			clauses.Add($"path={after.PathId} was opened ({(after.Live ? Describe(after) : "not answered yet")})");
+			clauses.Add($"path={after.PathId} was opened ({(after.Answered ? Describe(after) : "not answered yet")})");
 		}
 
 		byte previousBest = previous.Best?.PathId ?? 0;

@@ -21,6 +21,12 @@ public class EnetServerTransport : IServerTransport
 
 	private ENetMultiplayerPeer? _peer;
 	private IServerTransportSink? _sink;
+
+	/// <summary>
+	///     Where a relayed path's change is stated. It is made once here rather than per call, because the clock that asks
+	///     for it runs while a match does and there is nothing in a second's maintenance worth allocating to.
+	/// </summary>
+	private Action<string>? _relayPathReport;
 	private RelayPeerDemux? _relayedPeers;
 	private bool _connected;
 	private bool _disposed;
@@ -62,6 +68,7 @@ public class EnetServerTransport : IServerTransport
 	{
 		failure = string.Empty;
 		_sink = sink;
+		_relayPathReport = ReportRelayedPathStatement;
 
 		var peer = new ENetMultiplayerPeer();
 		if (loopbackOnly) peer.SetBindIP(LoopbackAddress);
@@ -141,7 +148,7 @@ public class EnetServerTransport : IServerTransport
 	///     arrived, stops costing a socket, a lane and a volunteer a probe a second.
 	/// </summary>
 	/// <param name="nowMilliseconds">The clock the entries' ages are read against.</param>
-	public void MaintainRelayedEntries(long nowMilliseconds) => _relayedPeers?.Maintain(nowMilliseconds);
+	public void MaintainRelayedEntries(long nowMilliseconds) => _relayedPeers?.Maintain(nowMilliseconds, _relayPathReport);
 
 	private void Attach()
 	{
@@ -215,6 +222,8 @@ public class EnetServerTransport : IServerTransport
 	}
 
 	private void OnFrameArrived(int peerId, NetworkFrameKind kind, byte[] payload) => _sink?.OnFrameReceived(peerId, kind, payload);
+
+	private void ReportRelayedPathStatement(string statement) => _sink?.OnRelayedPathStatement(statement);
 
 	private void OnPeerConnected(long peerId)
 	{
