@@ -19,6 +19,12 @@ public partial class LobbyManager
 
 	private RelayConnectionPlan? _relayedConnectionPlan;
 
+	private RelayPathSummary _lastRelayedPathSummary = RelayPathSummary.Empty;
+
+	private long _relayedPathStatementMilliseconds;
+
+	private const int RelayedPathStatementIntervalMilliseconds = 1000;
+
 	/// <summary>
 	///     The volunteers one joining connection is carried through, as this screen opened them, or empty when the connection
 	///     takes the direct path. The list is what the connection status and the diagnostics page name, and it is always
@@ -126,6 +132,9 @@ public partial class LobbyManager
 		_relayedVolunteerIds.Clear();
 		for (int index = 0; index < plan.Offers.Count; index++) _relayedVolunteerIds.Add(plan.Offers[index].Candidate.RelayId);
 
+		_lastRelayedPathSummary = RelayPathSummary.Empty;
+		_relayedPathStatementMilliseconds = 0;
+
 		loopbackPort = shim.Port;
 		GameLog.LogToConsole($"[Relay] This connection is carried through {string.Join(", ", _relayedVolunteerIds)} on loopback port {loopbackPort}.");
 		return true;
@@ -137,12 +146,37 @@ public partial class LobbyManager
 	/// </summary>
 	private void StopRelayedConnection()
 	{
+		_lastRelayedPathSummary = RelayPathSummary.Empty;
 		_relayedConnectionPlan = null;
 		_relayedVolunteerIds.Clear();
 
 		RelayUdpShim? shim = _relayShim;
 		_relayShim = null;
 		shim?.Dispose();
+	}
+
+	/// <summary>
+	///     Reads the connection's paths once a second and writes every change to the log, so a capture says which path carried
+	///     the peer, what the path it left measured and whether a path was answered again. It runs while the connection exists
+	///     rather than while any screen is open, because the changes that matter happen during the match, and it runs on the
+	///     frame the rest of this screen runs on so the line it writes is never printed from a thread Godot does not own.
+	/// </summary>
+	private void TickRelayedPathStatements()
+	{
+		RelayUdpShim? shim = _relayShim;
+		if (shim == null) return;
+
+		long now = System.Environment.TickCount64;
+		if (now - _relayedPathStatementMilliseconds < RelayedPathStatementIntervalMilliseconds) return;
+
+		_relayedPathStatementMilliseconds = now;
+
+		RelayPathSummary current = shim.Summary;
+		string change = RelayPathChanges.Describe(_lastRelayedPathSummary, current);
+		_lastRelayedPathSummary = current;
+		if (change.Length == 0) return;
+
+		GameLog.LogToConsole($"[Relay] Path change on loopback port {shim.Port}: {change}.");
 	}
 
 	/// <summary>

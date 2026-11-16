@@ -33,6 +33,8 @@ public partial class LobbyManager
 {
 	public override void _Process(double delta)
 	{
+		TickRelayedPathStatements();
+
 		ClientServerSession? session = _lobbySession;
 		if (session == null) return;
 

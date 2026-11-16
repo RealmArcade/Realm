@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Realm.Shared.Network.Relay;
 
@@ -11,7 +12,9 @@ namespace Realm.Shared.Network.Relay;
 /// <param name="JitterMilliseconds">The jitter the path last measured.</param>
 /// <param name="LossPercent">The share of this path's probes that was never answered.</param>
 /// <param name="Answered">Whether a volunteer has ever answered on this path, which is what a measurement requires.</param>
-public readonly record struct RelayPathSample(byte PathId, int RoundTripMilliseconds, int JitterMilliseconds, float LossPercent, bool Answered);
+/// <param name="Live">Whether this path is still being answered now, which is the difference between a path that measured
+///     something once and one that can carry a datagram.</param>
+public readonly record struct RelayPathSample(byte PathId, int RoundTripMilliseconds, int JitterMilliseconds, float LossPercent, bool Answered, bool Live);
 
 /// <summary>
 ///     One statement of what a connection's paths are worth right now: how many it holds and what the best of them
@@ -20,10 +23,11 @@ public readonly record struct RelayPathSample(byte PathId, int RoundTripMillisec
 /// </summary>
 /// <param name="PathCount">How many paths the connection holds.</param>
 /// <param name="Best">What the path carrying the connection measured, or null when no path is answered.</param>
-public sealed record RelayPathSummary(int PathCount, RelayPathSample? Best)
+/// <param name="Paths">What every path the connection holds measured, which is what a change between two statements is read from.</param>
+public sealed record RelayPathSummary(int PathCount, RelayPathSample? Best, IReadOnlyList<RelayPathSample> Paths)
 {
 	/// <summary>The statement of a connection that holds no paths, which is what a direct connection reports.</summary>
-	public static RelayPathSummary Empty { get; } = new(0, null);
+	public static RelayPathSummary Empty { get; } = new(0, null, []);
 }
 
 /// <summary>
@@ -76,8 +80,9 @@ public sealed class RelayPathStatistics
 
 	/// <summary>States this path's measurements as a value, so a screen can describe it without holding the path layer.</summary>
 	/// <param name="pathId">The path the measurements belong to.</param>
+	/// <param name="live">Whether the path is still being answered, which the statistics alone cannot say.</param>
 	/// <returns>The path's measurements.</returns>
-	public RelayPathSample Sample(byte pathId) => new(pathId, RoundTripMilliseconds, JitterMilliseconds, LossPercent, ProbesAnswered > 0);
+	public RelayPathSample Sample(byte pathId, bool live) => new(pathId, RoundTripMilliseconds, JitterMilliseconds, LossPercent, ProbesAnswered > 0, live);
 
 	/// <summary>Forgets every measurement, which a path that moved to a new endpoint starts from.</summary>
 	public void Reset()

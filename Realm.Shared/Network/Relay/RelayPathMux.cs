@@ -326,8 +326,25 @@ public sealed class RelayPathMux : IDisposable
 		get
 		{
 			RelayPath? best = ChooseBestPath();
-			return best == null ? null : best.Statistics.Sample(best.Carrier.PathId);
+			return best == null ? null : best.Statistics.Sample(best.Carrier.PathId, best.IsLive);
 		}
+	}
+
+	/// <summary>
+	///     States what every path this connection holds measured, which is what a change between two statements is read from.
+	///     It is called once per statement rather than per datagram, so the array it returns is not on the match path.
+	/// </summary>
+	/// <returns>One sample per path, in the order the paths were added.</returns>
+	public RelayPathSample[] Samples()
+	{
+		var samples = new RelayPathSample[_pathCount];
+		for (int index = 0; index < _pathCount; index++)
+		{
+			RelayPath path = _paths[index];
+			samples[index] = path.Statistics.Sample(path.Carrier.PathId, path.IsLive);
+		}
+
+		return samples;
 	}
 
 	/// <summary>States the identifier of every path this connection holds, which is what the diagnostics page lists.</summary>

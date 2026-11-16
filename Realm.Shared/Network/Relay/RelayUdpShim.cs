@@ -119,14 +119,14 @@ public sealed class RelayUdpShim : IRelayPathSink, IDisposable
 
 	/// <summary>States which paths this connection has and what each of them measured, read from the lane's last snapshot.</summary>
 	/// <returns>One line per path and a line for the connection.</returns>
-	public string Describe() => _description;
+	public string Describe() => Volatile.Read(ref _description);
 
 	/// <summary>
 	///     The paths this connection held the last time its lane stated them, and what the best of them measured. The lane
 	///     publishes a new value once a second and nothing else writes it, so a screen reads one immutable statement rather
 	///     than fields another lane is measuring.
 	/// </summary>
-	public RelayPathSummary Summary => _summary;
+	public RelayPathSummary Summary => Volatile.Read(ref _summary);
 
 	/// <summary>Hands one inner datagram from the relayed path to the transport this shim speaks to.</summary>
 	/// <param name="inner">The datagram the peer sent.</param>
@@ -208,8 +208,8 @@ public sealed class RelayUdpShim : IRelayPathSink, IDisposable
 		if (now - _lastDescriptionMilliseconds < DescriptionIntervalMilliseconds) return;
 
 		_lastDescriptionMilliseconds = now;
-		_description = $"relay shim port={Port} delivered={_deliveredToTransport} dropped={_refusedBeforeTransportWasKnown}\n{_mux.Describe()}";
-		_summary = new RelayPathSummary(_mux.PathCount, _mux.BestPath);
+		Volatile.Write(ref _description, $"relay shim port={Port} delivered={_deliveredToTransport} dropped={_refusedBeforeTransportWasKnown}\n{_mux.Describe()}");
+		Volatile.Write(ref _summary, new RelayPathSummary(_mux.PathCount, _mux.BestPath, _mux.Samples()));
 	}
 
 	public void Dispose()
