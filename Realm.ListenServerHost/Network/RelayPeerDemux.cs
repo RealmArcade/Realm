@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using Realm.Shared.Network.Relay;
 
 namespace Realm.ListenServerHost.Network;
@@ -34,6 +35,7 @@ public sealed class RelayPeerDemux : IDisposable
 
 	private readonly List<OpenEntry> _entries = new();
 	private readonly int _gamePort;
+	private string _releaseFailure = string.Empty;
 	private bool _disposed;
 
 	/// <summary>Creates the demux in front of one game port.</summary>
@@ -128,7 +130,7 @@ public sealed class RelayPeerDemux : IDisposable
 			if (!entry.Shim.IsRunning)
 			{
 				reportChange?.Invoke($"loopback port {entry.Shim.Port}: given up, its lane stopped ({entry.Shim.LaneFailure})");
-				entry.Shim.Dispose();
+				Release(entry.Shim);
 				_entries.RemoveAt(index);
 				continue;
 			}
@@ -151,8 +153,37 @@ public sealed class RelayPeerDemux : IDisposable
 				reportChange?.Invoke($"loopback port {entry.Shim.Port}: given up, nothing has answered on it for {DeadEntryLifetimeMilliseconds / 1000} s");
 			}
 
-			entry.Shim.Dispose();
+			Release(entry.Shim);
 			_entries.RemoveAt(index);
+		}
+
+		// A shim is released on a lane of its own, so a failure there is stated here on the clock that called for it rather
+		// than from that lane, which keeps the log written from one thread.
+		string releaseFailure = Interlocked.Exchange(ref _releaseFailure, string.Empty);
+		if (releaseFailure.Length > 0) reportChange?.Invoke(releaseFailure);
+	}
+
+	/// <summary>
+	///     Gives up one entry's shim without making the caller wait for it. This runs on the clock that runs the match, and a
+	///     shim's own disposal waits for the lane that was moving its datagrams; a lane that is slow to notice would then hold
+	///     the simulation for as long as that wait is worth. The lane is told to stop here and is joined by a lane of its own,
+	///     so the entry is gone from this match the moment it is decided, and nothing on the match clock waits for a thread.
+	/// </summary>
+	/// <param name="shim">The entry's shim to give up.</param>
+	private void Release(RelayUdpShim shim) =>
+		ThreadPool.UnsafeQueueUserWorkItem(static releasing => releasing.Demux.ReleaseOnPoolLane(releasing.Shim), (Demux: this, Shim: shim), preferLocal: false);
+
+	/// <summary>Gives up a shim on a pool lane, recording a failure for the clock that asked for the release.</summary>
+	/// <param name="shim">The shim to dispose.</param>
+	private void ReleaseOnPoolLane(RelayUdpShim shim)
+	{
+		try
+		{
+			shim.Dispose();
+		}
+		catch (Exception exception)
+		{
+			Interlocked.Exchange(ref _releaseFailure, $"loopback port {shim.Port}: releasing it failed ({exception.GetType().Name}: {exception.Message})");
 		}
 	}
 
@@ -180,7 +211,7 @@ public sealed class RelayPeerDemux : IDisposable
 		if (_disposed) return;
 		_disposed = true;
 
-		for (int index = 0; index < _entries.Count; index++) _entries[index].Shim.Dispose();
+		for (int index = 0; index < _entries.Count; index++) Release(_entries[index].Shim);
 		_entries.Clear();
 	}
 
