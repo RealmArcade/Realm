@@ -135,7 +135,9 @@ public static class RelayPathScoring
 
 	/// <summary>
 	///     Whether one path is a better carrier than another. A path that has measured nothing is never preferred over one
-	///     that has, because an unmeasured path is a hope rather than an observation.
+	///     that has, in either direction, because an unmeasured path is a hope rather than an observation: it is chosen only
+	///     when nothing better has been measured, and it gives way as soon as something has. Both directions are stated
+	///     because a path that measured nothing scores zero and would otherwise beat every measured path forever.
 	/// </summary>
 	/// <param name="candidate">The path being considered.</param>
 	/// <param name="current">The best path so far, or null when none has been chosen.</param>
@@ -144,6 +146,7 @@ public static class RelayPathScoring
 	{
 		if (current == null) return true;
 		if (candidate.ProbesAnswered == 0) return current.ProbesAnswered == 0 && candidate.Score < current.Score;
+		if (current.ProbesAnswered == 0) return true;
 
 		return candidate.Score < current.Score;
 	}
