@@ -24,6 +24,9 @@ public sealed class RelayForwarderStatistics
 	/// <summary>The datagrams this volunteer refused because the connection they named is not one it carries.</summary>
 	public int RefusedUnknownConnection { get; set; }
 
+	/// <summary>The datagrams this volunteer dropped because the connection they name has only one peer so far.</summary>
+	public int DroppedUnpaired { get; set; }
+
 	/// <summary>The bytes this volunteer forwarded.</summary>
 	public long BytesForwarded { get; set; }
 
@@ -31,7 +34,7 @@ public sealed class RelayForwarderStatistics
 	public int Connections { get; set; }
 
 	/// <summary>How many datagrams this volunteer ended up not carrying, for every reason together.</summary>
-	public int Dropped => DroppedForBudget + DroppedInvalid + RefusedUnknownConnection;
+	public int Dropped => DroppedForBudget + DroppedInvalid + RefusedUnknownConnection + DroppedUnpaired;
 }
 
 /// <summary>
@@ -238,7 +241,8 @@ public sealed class RelayForwarder : IDisposable
 
 		if (!pair.TryDescribeRoute(sender, out EndPoint? destination))
 		{
-			Statistics.RefusedUnknownConnection++;
+			if (destination == null && pair.IsEither(sender)) Statistics.DroppedUnpaired++;
+			else Statistics.RefusedUnknownConnection++;
 			return;
 		}
 
@@ -361,6 +365,11 @@ public sealed class RelayForwarder : IDisposable
 		/// <param name="sender">The peer this datagram arrived from.</param>
 		/// <param name="destination">The other peer, or null when the sender is not one of the pair.</param>
 		/// <returns>Whether this sender is one of the pair the volunteer carries.</returns>
+		/// <summary>Whether this sender is one of the two peers this connection is carried between.</summary>
+		/// <param name="sender">The peer to place.</param>
+		/// <returns>Whether the peer is the first or the second of the pair.</returns>
+		public bool IsEither(EndPoint sender) => First.Equals(sender) || (Second != null && Second.Equals(sender));
+
 		public bool TryDescribeRoute(EndPoint sender, out EndPoint? destination)
 		{
 			destination = null;

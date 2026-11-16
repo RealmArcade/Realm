@@ -249,6 +249,9 @@ public partial class LobbyManager
 
 	private bool _establishingLobbyConnection;
 
+	/// <summary>Whether the join under way is the retry through volunteers, which is tried once and never again.</summary>
+	private bool _retryingThroughRelay;
+
 	/// <summary>
 	///     Where a join is aimed, and the ticket this screen reports itself with so the host can reach it. A host that
 	///     advertised an address on a network this machine is attached to offers two ways in, and the join tries the near
@@ -390,6 +393,23 @@ public partial class LobbyManager
 		finally
 		{
 			_establishingLobbyConnection = false;
+		}
+
+		// A join the lobby server offered volunteers is retried through them when the direct attempt did not answer. The
+		// direct path is always tried first and is never made slower by relays existing: a lobby that answers as it always
+		// did is joined exactly as it always was, and a volunteer is spent only on a join that would otherwise have failed.
+		if (!string.IsNullOrEmpty(failure) && !rejected && target.Relay is { IsUsable: true } && !_retryingThroughRelay)
+		{
+			_retryingThroughRelay = true;
+			GameLog.LogToConsole($"[Relay] {failure} The same join is retried through the {target.Relay.Offers.Count} volunteer(s) the lobby server offered.");
+			try
+			{
+				return await EstablishLobbyConnectionAsync(target);
+			}
+			finally
+			{
+				_retryingThroughRelay = false;
+			}
 		}
 
 		if (!string.IsNullOrEmpty(failure) && !rejected && punchCoordinated)
