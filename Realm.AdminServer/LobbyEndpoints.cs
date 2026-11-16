@@ -403,6 +403,14 @@ public static class LobbyEndpoints
 	{
 		if (registry.TryGet(req.LobbyId, out var lobby) && lobby != null)
 		{
+			// A beat is the one thing that states a lobby's listing and its reachability class, so it has to come from the
+			// screen that registered the lobby. A lobby id is public in the browser, and the class only ever moves down,
+			// so a beat accepted from anybody would let anybody who can read the list take a lobby off it for good.
+			if (!string.Equals(lobby.HostToken, req.HostToken, StringComparison.Ordinal))
+			{
+				return Results.Json(new { Message = "Unauthorized" }, statusCode: StatusCodes.Status401Unauthorized);
+			}
+
 			lobby.LastHeartbeat = DateTime.UtcNow;
 			lobby.SlotsUsed = req.SlotsUsed;
 			if (req.Listed.HasValue && lobby.Listed != req.Listed.Value)

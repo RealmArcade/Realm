@@ -429,15 +429,28 @@ public partial class LobbyManager
 
 	private async Task SendHeartbeatAsync(string lobbyId, CancellationToken token)
 	{
+		string? hostToken = _hostToken;
+
+		// A beat states the lobby's listing and its reachability class, so the node takes one only from the screen holding
+		// the token it issued for this lobby. Closing a lobby clears the token before the beat loop stops, and a beat that
+		// has no token is not worth sending.
+		if (string.IsNullOrEmpty(hostToken)) return;
+
 		try
 		{
 			// The class travels with the heartbeat so a lobby that withdraws its own claim stops being listed as
 			// reachable without waiting for a player to fail: the node only ever takes this downward, so a screen
 			// cannot promote its own lobby back by stating a better class. The unlisted statement travels the same way,
 			// so a host that makes its lobby private or offers it in the browser again does not wait for the next beat.
-			var heartbeat = new { LobbyId = lobbyId, SlotsUsed = PlayerList.Count, IsGameInProgress = IsGameStarted, ReachabilityClass = ReachabilityClass, Listed = !IsUnlisted };
+			// The token is what says this beat comes from the screen that registered the lobby: it carries the unlisted
+			// statement and the reachability class, and the node refuses a beat without it.
+			var heartbeat = new { LobbyId = lobbyId, HostToken = hostToken, SlotsUsed = PlayerList.Count, IsGameInProgress = IsGameStarted, ReachabilityClass = ReachabilityClass, Listed = !IsUnlisted };
 			var jsonContent = new StringContent(JsonSerializer.Serialize(heartbeat), Encoding.UTF8, "application/json");
 			using HttpResponseMessage response = await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/heartbeat", jsonContent, token);
+			if (response.StatusCode == HttpStatusCode.Unauthorized)
+			{
+				GameLog.LogError($"the lobby heartbeat to {RegistryServerUrl} was refused, so this screen is no longer the host of {lobbyId} there and the registry will drop it");
+			}
 		}
 		catch (Exception ex)
 		{

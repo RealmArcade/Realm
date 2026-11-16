@@ -645,6 +645,7 @@ public class UdpReachabilityProbeService : IDisposable
 	{
 		_pending.TryRemove(probe.ProbeId, out _);
 		_pendingByConnectId.TryRemove(probe.ConnectId, out _);
+		if (probe.ColdConnectId != 0) _pendingByColdConnectId.TryRemove(probe.ColdConnectId, out _);
 	}
 
 	public void Dispose()

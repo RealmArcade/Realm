@@ -38,6 +38,7 @@ public class JoinFailureFeedback
 
 	private readonly ConcurrentDictionary<string, LobbyFailures> _byLobby = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, SourceFailures> _bySource = new(StringComparer.Ordinal);
+	private long _lastSourceSweepMilliseconds = Environment.TickCount64;
 	private readonly ConcurrentDictionary<string, WebSocket> _hostConnections;
 	private readonly LobbyRegistry _lobbies;
 	private readonly Action<string> _log;
@@ -64,6 +65,7 @@ public class JoinFailureFeedback
 		if (!JoinPhases.IsKnown(report.Phase)) return Outcome.RateLimited;
 
 		long now = Environment.TickCount64;
+		SweepIdleSources(now);
 		string source = string.IsNullOrWhiteSpace(sourceAddress) ? "unknown" : sourceAddress;
 		if (!TakeSourceAllowance(source, now)) return Outcome.RateLimited;
 
@@ -178,6 +180,25 @@ public class JoinFailureFeedback
 		}
 	}
 
+	/// <summary>
+	///     Drops the allowance of every address that has not reported inside the minute it is counted against. An address is
+	///     held only so the allowance its reports are measured with can be counted, so once that minute is over nothing about
+	///     it is worth keeping: the route takes no credentials, and a caller rotating addresses would otherwise grow this
+	///     node's memory for as long as it runs.
+	/// </summary>
+	/// <param name="now">The node's clock.</param>
+	private void SweepIdleSources(long now)
+	{
+		if (now - Interlocked.Read(ref _lastSourceSweepMilliseconds) < WindowMilliseconds) return;
+		Interlocked.Exchange(ref _lastSourceSweepMilliseconds, now);
+
+		foreach (KeyValuePair<string, SourceFailures> entry in _bySource)
+		{
+			if (now - entry.Value.LastSeenMilliseconds < WindowMilliseconds) continue;
+			_bySource.TryRemove(entry);
+		}
+	}
+
 	private class LobbyFailures
 	{
 		private readonly Dictionary<string, long> _statedAtMilliseconds = new(StringComparer.Ordinal);
@@ -247,8 +268,12 @@ public class JoinFailureFeedback
 
 		public int Count { get; set; }
 
+		/// <summary>When this address last reported, which is how long the node keeps the allowance it counted for it.</summary>
+		public long LastSeenMilliseconds { get; private set; } = Environment.TickCount64;
+
 		public void Prune(long now)
 		{
+			LastSeenMilliseconds = now;
 			if (now - _windowStartedMilliseconds < WindowMilliseconds) return;
 
 			_windowStartedMilliseconds = now;
