@@ -16,6 +16,13 @@ public sealed class RelayPeerDemux : IDisposable
 	/// <summary>The most relayed connections one match keeps open at once.</summary>
 	public const int MaximumEntries = 64;
 
+	/// <summary>
+	///     How long an entry must have been open before its silence is taken as the end of its connection. A player who drops
+	///     and rejoins arrives with a new join and therefore a new entry, so an entry that has answered nothing for this long
+	///     is a thread, a socket and a probe loop the entry keeps for somebody who is no longer here.
+	/// </summary>
+	public const int DeadEntryLifetimeMilliseconds = 30_000;
+
 	private readonly List<OpenEntry> _entries = new();
 	private readonly int _gamePort;
 	private bool _disposed;
@@ -45,6 +52,8 @@ public sealed class RelayPeerDemux : IDisposable
 			failure = "the match is no longer carrying relayed connections";
 			return false;
 		}
+
+		PruneEntriesWithoutAPath();
 
 		// One connection is seated once. A plan that arrives again names the same ticket and therefore the same token, and a
 		// second entry for it would forward the same datagrams to the game port from another loopback address, which ENet
@@ -79,8 +88,27 @@ public sealed class RelayPeerDemux : IDisposable
 			return false;
 		}
 
-		_entries.Add(new OpenEntry(shim, token));
+		_entries.Add(new OpenEntry(shim, token, Environment.TickCount64));
 		return true;
+	}
+
+	/// <summary>
+	///     Gives up every entry whose connection has stopped being answered and cannot come back: its path layer reports no
+	///     live path, which is stated once a second by the lane that measures it. It is asked only when a join arrives, which
+	///     is the only moment a freed entry is worth anything, so nothing here runs on a clock.
+	/// </summary>
+	private void PruneEntriesWithoutAPath()
+	{
+		long now = Environment.TickCount64;
+		for (int index = _entries.Count - 1; index >= 0; index--)
+		{
+			OpenEntry entry = _entries[index];
+			if (now - entry.OpenedAtMilliseconds < DeadEntryLifetimeMilliseconds) continue;
+			if (entry.Shim.Summary.Best != null) continue;
+
+			_entries[index].Shim.Dispose();
+			_entries.RemoveAt(index);
+		}
 	}
 
 	/// <summary>
@@ -114,5 +142,6 @@ public sealed class RelayPeerDemux : IDisposable
 	/// <summary>One seated connection: the entry standing in front of the game port, and the connection it carries.</summary>
 	/// <param name="Shim">The loopback entry ENet speaks to for this connection.</param>
 	/// <param name="Token">The connection the entry carries, which is what keeps one connection seated once.</param>
-	private readonly record struct OpenEntry(RelayUdpShim Shim, RelayConnectionToken Token);
+	/// <param name="OpenedAtMilliseconds">When the entry was opened, which is what tells a young entry from a dead one.</param>
+	private readonly record struct OpenEntry(RelayUdpShim Shim, RelayConnectionToken Token, long OpenedAtMilliseconds);
 }
