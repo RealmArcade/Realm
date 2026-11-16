@@ -207,8 +207,8 @@ public partial class LobbyRoom : Control
 		_relayedConnectionLabel.GrowHorizontal = GrowDirection.Both;
 		_relayedConnectionLabel.OffsetLeft = -400;
 		_relayedConnectionLabel.OffsetRight = 400;
-		_relayedConnectionLabel.OffsetTop = 108;
-		_relayedConnectionLabel.OffsetBottom = 130;
+		_relayedConnectionLabel.OffsetTop = 118;
+		_relayedConnectionLabel.OffsetBottom = 140;
 		LocalizedText.Bind(_relayedConnectionLabel, RenderRelayedConnection);
 		LocalizedText.SetTooltip(_relayedConnectionLabel, "A volunteer forwards this connection and cannot read it. The latency shown includes the relay's measured cost.");
 
