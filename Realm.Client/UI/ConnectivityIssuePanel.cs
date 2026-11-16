@@ -10,16 +10,18 @@ using Realm.Shared.Reachability;
 namespace Realm.Client.UI;
 
 /// <summary>
-///     The issue list every connectivity surface is built from: the sentence that names what the game measured, one entry per
-///     cause this build can actually fail on, what one cause's check found, and what to do about it. The host's dialog, the
-///     joining player's dialog and the host troubleshooting screen all draw this panel, because a cause is the same
-///     explanation whichever surface opened it; only the actions around it differ.
+///     The issue list every connectivity surface is built from: which side of a connection is being explained, the sentence
+///     that names what the game measured, one entry per cause that side can actually fail on, what one cause's check found,
+///     and what to do about it. One dialog draws this panel for every failure - a lobby that would not publish, a join that
+///     did not get in, and a host asking about a lobby nothing has gone wrong with yet - so a cause is the same explanation
+///     whichever door opened it; only the actions around the list differ.
 /// </summary>
 /// <remarks>
 ///     Nothing here picks a cause for the reader. The measured failure is stated above the list as a sentence, the list is one
-///     dropdown ordered by how often each cause is the reason players cannot get in, and every entry can be checked on its own.
-///     A full run measures each cause and can then hide the ones this machine was shown not to have, which is a filter over the
-///     same list rather than a second, differently ordered list of the same causes.
+///     dropdown holding only the causes that side can fail on, in the order they are the reason players cannot get in
+///     anywhere in the world, and every entry can be checked on its own. A full run measures each cause and can then hide the
+///     ones this machine was shown not to have, which is a filter over the same list rather than a second, differently
+///     ordered list of the same causes.
 /// </remarks>
 [GlobalClass]
 public partial class ConnectivityIssuePanel : VBoxContainer
@@ -27,7 +29,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 	/// <summary>The width a card carrying this panel is built at, which every control below is measured against.</summary>
 	public const int CardWidth = 980;
 
-	/// <summary>The height the explanation is given before it scrolls, so the card is a stable size.</summary>
+	/// <summary>The height the explanation is given before it scrolls, so a card that is showing one does not resize.</summary>
 	public const int DetailHeight = 340;
 
 	private const int ContentWidth = CardWidth - 60;
@@ -37,6 +39,10 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 	private const int PlaceholderIndex = 0;
 
 	private const int PlaceholderOffset = 1;
+
+	private const int HostingScenarioIndex = 0;
+
+	private const int JoiningScenarioIndex = 1;
 
 	private readonly Dictionary<ConnectivityIssue, ConnectivityDiagnosis> _diagnoses = new();
 
@@ -49,6 +55,8 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 	private VBoxContainer _playerJoinFailureBox = null!;
 
 	private ScrollContainer _detailScroll = null!;
+
+	private OptionButton _scenarioPicker = null!;
 
 	private OptionButton _issuePicker = null!;
 
@@ -66,13 +74,19 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 	private bool _fullRunCompleted;
 
-	private bool _running;
-
 	private bool _closed;
 
 	private bool _built;
 
 	private string _statusKey = string.Empty;
+
+	private int _runVersion;
+
+	/// <summary>
+	///     Raised when the reader changes which side of a connection is being explained. A card that draws an action around the
+	///     list follows this, because what a host can do from here is not what a joining player can.
+	/// </summary>
+	public event Action<ConnectivityAudience>? ScenarioChanged;
 
 	public override void _Ready()
 	{
@@ -99,7 +113,22 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		_audience = audience;
 		if (!_built) BuildLayout();
 
-		ConnectivityFacts known = GameContext.Connectivity.DescribeKnownFacts(audience);
+		_scenarioPicker.Select(ScenarioIndexOf(audience));
+		Restart();
+	}
+
+	private static int ScenarioIndexOf(ConnectivityAudience audience) => audience == ConnectivityAudience.Joining ? JoiningScenarioIndex : HostingScenarioIndex;
+
+	private static ConnectivityAudience AudienceOf(int scenarioIndex) => scenarioIndex == JoiningScenarioIndex ? ConnectivityAudience.Joining : ConnectivityAudience.Hosting;
+
+	/// <summary>
+	///     Answers the same machine for the side of the connection the reader is on now: the measured line, the list that side
+	///     can fail on, and the checks behind both. Every reading kept for the other side is dropped, because a conclusion
+	///     about a host's router says nothing about a joining player's network.
+	/// </summary>
+	private void Restart()
+	{
+		ConnectivityFacts known = GameContext.Connectivity.DescribeKnownFacts(_audience);
 		_likelyCause = ConnectivityCheck.DescribeLikelyCause(known);
 		LocalizedText.Bind(_likelyCauseLabel, RenderLikelyCause);
 
@@ -120,6 +149,8 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		_built = true;
 		AddThemeConstantOverride("separation", 10);
 		SizeFlagsHorizontal = SizeFlags.ExpandFill;
+
+		BuildScenarioRow();
 
 		var causeCaption = new Label { Name = "LikelyCauseCaption_Label" };
 		causeCaption.Text = ConnectivityHelpText.Text(ConnectivitySentences.LikelyCauseCaption);
@@ -142,14 +173,6 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		var runRow = new HBoxContainer { Name = "CausesHeader_HBoxContainer" };
 		runRow.AddThemeConstantOverride("separation", 12);
 		AddChild(runRow);
-
-		var causesCaption = new Label { Name = "CausesCaption_Label" };
-		causesCaption.Text = ConnectivityHelpText.Text(ConnectivitySentences.CausesCaption);
-		causesCaption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		causesCaption.VerticalAlignment = VerticalAlignment.Center;
-		causesCaption.AddThemeFontSizeOverride("font_size", 11);
-		causesCaption.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		runRow.AddChild(causesCaption);
 
 		_likelyFilter = new CheckBox { Name = "FilterForLikely_CheckBox" };
 		_likelyFilter.Disabled = true;
@@ -193,6 +216,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		_detailScroll.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		_detailScroll.SizeFlagsVertical = SizeFlags.ExpandFill;
 		_detailScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+		_detailScroll.Visible = false;
 		AddChild(_detailScroll);
 
 		_detailBox = new VBoxContainer { Name = "IssueDetailVBox" };
@@ -211,9 +235,61 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 	}
 
 	/// <summary>
-	///     Fills the dropdown from the catalog, in the order the catalog states - how often each cause is the reason anywhere
-	///     in the world, commonest first. A completed full run never reorders the list: it only lets the filter hide what this
-	///     machine was shown not to have, so two players comparing the same screen read the same list.
+	///     The one control that changes what this panel is about. It sits above everything else because it decides the list
+	///     below it, and it exists so the same failure is never explained on the wrong side of the connection: a host reading a
+	///     joining player's copy would go looking for a VPN on a machine that has none.
+	/// </summary>
+	private void BuildScenarioRow()
+	{
+		var row = new HBoxContainer { Name = "ScenarioRow_HBoxContainer" };
+		row.AddThemeConstantOverride("separation", 12);
+		AddChild(row);
+
+		var caption = new Label { Name = "ScenarioCaption_Label" };
+		caption.VerticalAlignment = VerticalAlignment.Center;
+		caption.AddThemeFontSizeOverride("font_size", 11);
+		caption.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		LocalizedText.Set(caption, "Troubleshooting scenario:");
+		row.AddChild(caption);
+
+		_scenarioPicker = new OptionButton { Name = "TroubleshootingScenario_OptionButton" };
+		_scenarioPicker.Set("icon_max_width", 0);
+		_scenarioPicker.CustomMinimumSize = new Vector2(ContentWidth - 220, 36);
+		_scenarioPicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_scenarioPicker.FocusMode = FocusModeEnum.None;
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_scenarioPicker);
+		_scenarioPicker.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		_scenarioPicker.AddThemeColorOverride("font_hover_color", UIStyle.ColorCyanGlow);
+		_scenarioPicker.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
+		_scenarioPicker.AddThemeColorOverride("font_focus_color", UIStyle.ColorGold);
+		_scenarioPicker.AddThemeFontSizeOverride("font_size", 14);
+		_scenarioPicker.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+
+		_scenarioPicker.AddItem(string.Empty);
+		LocalizedText.BindOptionItem(_scenarioPicker, HostingScenarioIndex, () => ConnectivityHelpText.Text(ConnectivitySentences.ScenarioHosting));
+		_scenarioPicker.AddItem(string.Empty);
+		LocalizedText.BindOptionItem(_scenarioPicker, JoiningScenarioIndex, () => ConnectivityHelpText.Text(ConnectivitySentences.ScenarioJoining));
+		_scenarioPicker.ItemSelected += OnScenarioPicked;
+		row.AddChild(_scenarioPicker);
+	}
+
+	private void OnScenarioPicked(long index)
+	{
+		ConnectivityAudience audience = AudienceOf((int)index);
+		if (audience == _audience) return;
+
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.Connectivity.DiscardReading();
+		_audience = audience;
+		Restart();
+		ScenarioChanged?.Invoke(audience);
+	}
+
+	/// <summary>
+	///     Fills the dropdown from the catalog for the side of the connection being explained, in the order the catalog states
+	///     - how often each cause is the reason anywhere in the world, commonest first. A cause the other side cannot fail on is
+	///     not in the list at all. A completed full run never reorders it: it only lets the filter hide what this machine was
+	///     shown not to have, so two players comparing the same screen read the same list.
 	/// </summary>
 	private void BuildIssuePicker()
 	{
@@ -300,30 +376,19 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 	}
 
 	/// <summary>
-	///     Draws the chosen cause, or the prompt while nothing is chosen: that cause's explanation, its pages, its search
-	///     phrase, what this machine shows for it and what to do next. Everything here is redrawn rather than patched, so a
-	///     language change and a new verdict reach the same controls the same way.
+	///     Draws the chosen cause: that cause's explanation, its pages, its search phrase, what this machine shows for it and
+	///     what to do next. Everything here is redrawn rather than patched, so a language change and a new verdict reach the
+	///     same controls the same way. The pane is only on screen while a cause is chosen, so the card opens the height of the
+	///     list rather than leaving an empty pane under it.
 	/// </summary>
 	private void RenderDetail()
 	{
 		ForgetChildren(_detailBox);
+		_detailScroll.Visible = _selectedIssue != null;
 
-		if (_selectedIssue == null) RenderOpeningPane();
-		else RenderIssueDetail(_selectedIssue.Value);
+		if (_selectedIssue != null) RenderIssueDetail(_selectedIssue.Value);
 
 		_detailScroll.ScrollVertical = 0;
-	}
-
-	private void RenderOpeningPane()
-	{
-		var prompt = new Label { Name = "CausesPrompt_Label" };
-		prompt.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		prompt.CustomMinimumSize = new Vector2(ContentWidth - 20, 0);
-		prompt.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		prompt.AddThemeFontSizeOverride("font_size", 13);
-		prompt.AddThemeColorOverride("font_color", new Color(0.9f, 0.91f, 0.95f));
-		LocalizedText.Bind(prompt, () => ConnectivityHelpText.Text(ConnectivitySentences.CausesPrompt));
-		_detailBox.AddChild(prompt);
 	}
 
 	private void RenderIssueDetail(ConnectivityIssue issue)
@@ -447,18 +512,20 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 	/// <summary>
 	///     Runs every check, then lets the filter hide the causes this machine was shown not to have. The first completed run
 	///     turns the filter on by itself, because a reader who asked every question wants the answers they still have to act
-	///     on; a reader who turns it off keeps it off through the runs that follow.
+	///     on; a reader who turns it off keeps it off through the runs that follow. A run started before the reader switched
+	///     sides is discarded when it arrives, so the answers on screen always belong to the side being asked about.
 	/// </summary>
 	private async Task RunFullDiagnosticsAsync()
 	{
-		if (_running || _closed) return;
+		if (_closed) return;
 
-		_running = true;
+		int version = ++_runVersion;
+		ConnectivityAudience audience = _audience;
 		SetStatus(ConnectivitySentences.CheckingEveryCause);
 		try
 		{
-			IReadOnlyList<ConnectivityDiagnosis> results = await GameContext.Connectivity.RunAllAsync(_audience, _cancellation.Token);
-			if (!CanDraw()) return;
+			IReadOnlyList<ConnectivityDiagnosis> results = await GameContext.Connectivity.RunAllAsync(audience, _cancellation.Token);
+			if (!CanDraw() || version != _runVersion) return;
 
 			_diagnoses.Clear();
 			for (int index = 0; index < results.Count; index++)
@@ -483,8 +550,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		}
 		finally
 		{
-			_running = false;
-			SetStatus(string.Empty);
+			if (version == _runVersion) SetStatus(string.Empty);
 		}
 	}
 
@@ -496,18 +562,19 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 	/// <param name="issue">The cause to check.</param>
 	private async Task RunSingleAsync(ConnectivityIssue issue)
 	{
-		if (_running || _closed) return;
+		if (_closed) return;
 
 		// One cause is checked after the reader changed something, so the reading the full run kept is not what they are
 		// asking about: this machine is asked again.
 		GameContext.Connectivity.DiscardReading();
 
-		_running = true;
+		int version = ++_runVersion;
+		ConnectivityAudience audience = _audience;
 		SetStatus(ConnectivitySentences.CheckingOneCause);
 		try
 		{
-			ConnectivityDiagnosis diagnosis = await GameContext.Connectivity.RunAsync(_audience, issue, _cancellation.Token);
-			if (!CanDraw()) return;
+			ConnectivityDiagnosis diagnosis = await GameContext.Connectivity.RunAsync(audience, issue, _cancellation.Token);
+			if (!CanDraw() || version != _runVersion) return;
 
 			_diagnoses[issue] = diagnosis;
 			RefreshIssuePickerText();
@@ -522,8 +589,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		}
 		finally
 		{
-			_running = false;
-			SetStatus(string.Empty);
+			if (version == _runVersion) SetStatus(string.Empty);
 		}
 	}
 
@@ -538,13 +604,14 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 	private string RenderIssueRow(ConnectivityIssue issue)
 	{
-		ConnectivityIssueContent content = ConnectivityIssueCatalog.Describe(issue, _audience);
-		string title = ConnectivityHelpText.Title(content);
-		if (!_diagnoses.TryGetValue(issue, out ConnectivityDiagnosis diagnosis)) return title;
-
-		return $"{title}   ·   {RenderStatusText(diagnosis.Status)}";
+		return ConnectivityHelpText.Title(ConnectivityIssueCatalog.Describe(issue, _audience));
 	}
 
+	/// <summary>
+	///     What one check measured, in the sentence that states it. No verdict word is added: the sentence itself says whether
+	///     the lobby server reached this machine, and a word in front of it would have to be read as a rank the game never
+	///     measured.
+	/// </summary>
 	private string RenderSelectedVerdict(ConnectivityIssue issue)
 	{
 		if (!_diagnoses.TryGetValue(issue, out ConnectivityDiagnosis diagnosis))
@@ -552,17 +619,9 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 			return ConnectivityHelpText.Text(ConnectivitySentences.VerdictUnchecked);
 		}
 
-		string sentence = RenderDiagnosisSentence(diagnosis);
+		string sentence = ConnectivityHelpText.DiagnosisSentence(diagnosis);
 		return diagnosis.TestDecides ? sentence : $"{sentence}\n{TranslationServer.Translate(ConnectivitySentences.VerdictNeedsResearch)}";
 	}
-
-	private static string RenderDiagnosisSentence(ConnectivityDiagnosis diagnosis)
-	{
-		string status = RenderStatusText(diagnosis.Status);
-		return $"{status}: {ConnectivityHelpText.DiagnosisSentence(diagnosis)}";
-	}
-
-	private static string RenderStatusText(ConnectivityDiagnosisStatus status) => ConnectivityHelpText.Verdict(status);
 
 	private string RenderLikelyCause()
 	{

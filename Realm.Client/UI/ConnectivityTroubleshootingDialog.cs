@@ -1,26 +1,31 @@
 using System;
 using Godot;
 using Realm.Client.Services;
-using Realm.Client.Utils;
 using Realm.Shared.Reachability;
 
 namespace Realm.Client.UI;
 
 /// <summary>
-///     The host's troubleshooting dialog: what this machine measured about a lobby it could not publish, one row per cause a
-///     host can actually change, and the two actions that still work on this screen - host the lobby again, which re-runs the
-///     measurement, and open it unlisted and send its address. It is a dialog rather than a screen because the host flow that
-///     refused the lobby is still behind it, and a host who fixes the one thing named here should be one press from hosting.
+///     The one troubleshooting dialog: what the game measured about a connection that failed, which side of that connection is
+///     being explained, one row per cause that side can actually fail on, and what the reader can do from here. A lobby that
+///     would not publish, a join that never got in, a host asking about a lobby nothing has gone wrong with yet and a player
+///     typing an address they were given all open this same card, because the causes are the same questions and only the
+///     actions around them differ.
 /// </summary>
 /// <remarks>
-///     The list, the checks and every explanation come from <see cref="ConnectivityIssuePanel" />, which the joining dialog and
-///     the host troubleshooting screen draw too. What is stated here is only what a host can do, because a router that gives
-///     every player its own outside port is the host's rule to make and the joining player's nothing to do.
+///     The card states nothing about which failure sent the reader here. A heading naming the failure would go stale the moment
+///     the reader switched scenario or re-ran a check, and it would tell them what they already know from the screen that sent
+///     them; the measured line and the scenario they choose say everything the card has to say. The list, the scenario
+///     selector, the checks and every explanation come from <see cref="ConnectivityIssuePanel" />; what is stated here is the
+///     heading, the address this machine's own network joins at, and the actions a host has that a joining player does not -
+///     hosting the lobby again, and copying what a report needs.
 /// </remarks>
 [GlobalClass]
-public partial class ConnectivityHostDialog : Control
+public partial class ConnectivityTroubleshootingDialog : Control
 {
 	private const int CardWidth = ConnectivityIssuePanel.CardWidth;
+
+	private ConnectivityAudience _audience;
 
 	private ConnectivityIssuePanel _panel = null!;
 
@@ -32,7 +37,9 @@ public partial class ConnectivityHostDialog : Control
 
 	private HFlowContainer _actions = null!;
 
-	private string _titleKey = ConnectivitySentences.HostingTitle;
+	private bool _directBuilt;
+
+	private bool _actionsBuilt;
 
 	private bool _followUp;
 
@@ -45,7 +52,7 @@ public partial class ConnectivityHostDialog : Control
 
 	public override void _Ready()
 	{
-		Name = "ConnectivityHostDialog";
+		Name = "ConnectivityTroubleshootingDialog";
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		MouseFilter = MouseFilterEnum.Stop;
 
@@ -53,68 +60,104 @@ public partial class ConnectivityHostDialog : Control
 	}
 
 	/// <summary>
-	///     Fills the dialog for a lobby that could not be published and starts the full run. Nothing is selected: the measured
-	///     failure is stated above the list, and the reader chooses which cause to read or checks them all at once.
+	///     Fills the dialog for one side of a connection and starts the full run. The side is only the starting point: nothing on
+	///     the card states which failure opened it, so the reader can work through either side of a connection from here.
 	/// </summary>
-	/// <param name="offersRetry">Whether hosting the lobby again is offered, which is the only test this game has.</param>
-	/// <param name="onRetry">What hosting the lobby again does.</param>
-	public void Open(bool offersRetry, Action? onRetry)
+	/// <param name="audience">The side of the connection the card opens on, which the reader may then change.</param>
+	/// <param name="onRetry">
+	///     What hosting the lobby again does, or null when this card was opened where hosting is not what comes next. It is the
+	///     only test this game has for a lobby that would not publish, so a host who fixes the one thing named here is one
+	///     press from hosting.
+	/// </param>
+	public void Open(ConnectivityAudience audience, Action? onRetry = null)
 	{
-		ConnectivityEvidence evidence = GameContext.Connectivity.CurrentEvidence;
-		_titleKey = evidence.LocalSeatFailed ? ConnectivitySentences.HostingTitleLocalSeat : ConnectivitySentences.HostingTitle;
+		_audience = audience;
 
-		LocalizedText.Bind(_titleLabel, () => ConnectivityHelpText.Text(_titleKey));
+		LocalizedText.Set(_titleLabel, ConnectivitySentences.ConnectionTroubleshootingTitle);
+		if (!_directBuilt)
+		{
+			BuildDirectConnectSection();
+			_directBuilt = true;
+		}
 
-		BuildDirectConnectSection(evidence);
-		BuildActions(evidence, offersRetry, onRetry);
+		if (!_actionsBuilt)
+		{
+			BuildActions(onRetry);
+			_actionsBuilt = true;
+		}
 
-		_panel.Open(ConnectivityAudience.Hosting);
+		ApplyScenario();
+		_panel.Open(audience);
+	}
+
+	/// <summary>
+	///     Follows the reader's scenario choice. The address this machine's own network joins at belongs to a host's copy: a
+	///     joining player reads what to try instead of an address that describes somebody else's lobby.
+	/// </summary>
+	/// <param name="audience">The side of the connection now being explained.</param>
+	private void OnScenarioChanged(ConnectivityAudience audience)
+	{
+		_audience = audience;
+		ApplyScenario();
+	}
+
+	/// <summary>
+	///     Shows the hosting-only half of the card. The address is offered only while this screen still holds the lobby it
+	///     belongs to: a host who gave a lobby up has no lobby for anyone to join at it, so an address there would invite a
+	///     player into a room that no longer exists.
+	/// </summary>
+	private void ApplyScenario()
+	{
+		if (_directSection == null || !IsInstanceValid(_directSection)) return;
+
+		_directSection.Visible = _audience == ConnectivityAudience.Hosting && GameContext.Lobby != null;
 	}
 
 	private void BuildLayout()
 	{
-		var backdrop = new ColorRect { Name = "ConnectivityHostBackdrop" };
+		var backdrop = new ColorRect { Name = "ConnectivityTroubleshootingBackdrop" };
 		backdrop.Color = new Color(0, 0, 0, 0.62f);
 		backdrop.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		backdrop.MouseFilter = MouseFilterEnum.Stop;
 		AddChild(backdrop);
 
 		var center = UIStyle.CreateCenteredOverlay();
-		center.Name = "ConnectivityHostCenter";
+		center.Name = "ConnectivityTroubleshootingCenter";
 		AddChild(center);
 
-		var card = new PanelContainer { Name = "ConnectivityHostPanel" };
+		var card = new PanelContainer { Name = "ConnectivityTroubleshootingPanel" };
 		card.AddThemeStyleboxOverride("panel", UIStyle.CreateStonePanel(true));
 		card.CustomMinimumSize = new Vector2(CardWidth, 0);
 		card.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
 		card.SizeFlagsVertical = SizeFlags.ShrinkCenter;
 		center.AddChild(card);
 
-		var body = new VBoxContainer { Name = "ConnectivityHostBodyVBox" };
+		var body = new VBoxContainer { Name = "ConnectivityTroubleshootingBodyVBox" };
 		body.AddThemeConstantOverride("separation", 10);
 		card.AddChild(body);
 
-		_titleLabel = new Label { Name = "ConnectivityHostTitle_Label" };
+		_titleLabel = new Label { Name = "ConnectivityTroubleshootingTitle_Label" };
 		UIStyle.ApplyTitle(_titleLabel, string.Empty, 20);
 		_titleLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 		_titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		body.AddChild(_titleLabel);
 
-		_panel = new ConnectivityIssuePanel { Name = "HostConnectivityIssues_Panel" };
+		_panel = new ConnectivityIssuePanel { Name = "TroubleshootingIssues_Panel" };
 		_panel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_panel.ScenarioChanged += OnScenarioChanged;
 		body.AddChild(_panel);
 
 		_directSection = new VBoxContainer { Name = "DirectConnectSection_VBox" };
 		_directSection.AddThemeConstantOverride("separation", 4);
 		body.AddChild(_directSection);
 
-		_actions = new HFlowContainer { Name = "ConnectivityHostActions_HFlowContainer" };
+		_actions = new HFlowContainer { Name = "ConnectivityTroubleshootingActions_HFlowContainer" };
 		_actions.Alignment = FlowContainer.AlignmentMode.Center;
 		_actions.AddThemeConstantOverride("h_separation", 12);
 		_actions.AddThemeConstantOverride("v_separation", 8);
 		body.AddChild(_actions);
 
-		_copyFeedbackLabel = new Label { Name = "ConnectivityHostCopyFeedback_Label" };
+		_copyFeedbackLabel = new Label { Name = "ConnectivityTroubleshootingCopyFeedback_Label" };
 		_copyFeedbackLabel.Visible = false;
 		_copyFeedbackLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_copyFeedbackLabel.AddThemeFontSizeOverride("font_size", 11);
@@ -122,11 +165,14 @@ public partial class ConnectivityHostDialog : Control
 		body.AddChild(_copyFeedbackLabel);
 	}
 
-	private void BuildDirectConnectSection(ConnectivityEvidence evidence)
+	/// <summary>
+	///     States the address a host hands to the players on their own network, or the reason there is none to offer: a lobby
+	///     that could not hold this computer's own seat is not one an unlisted address fixes, so the address and the note that
+	///     explains its absence replace each other rather than being offered as a second way to fail.
+	/// </summary>
+	private void BuildDirectConnectSection()
 	{
-		// A lobby that could not hold this computer's own seat is not one an unlisted address fixes, so the address and the
-		// note that explains its absence replace each other rather than being offered as a second way to fail.
-		string? address = evidence.DirectConnectAddress;
+		string? address = GameContext.Connectivity.CurrentEvidence.DirectConnectAddress;
 		if (string.IsNullOrEmpty(address))
 		{
 			var withheld = new Label { Name = "DirectConnectWithheld_Label" };
@@ -179,33 +225,38 @@ public partial class ConnectivityHostDialog : Control
 		_directSection.AddChild(note);
 	}
 
-	private void BuildActions(ConnectivityEvidence evidence, bool offersRetry, Action? onRetry)
+	/// <summary>
+	///     The actions that still work from this card. They are built as one wrapping row rather than a plain one, because which
+	///     of them exist depends on the failure, and a row that cannot wrap would push the whole card wider than the window on
+	///     the failures that offer the most of them.
+	/// </summary>
+	/// <param name="onRetry">What hosting the lobby again does, or null when the card was opened where hosting is not next.</param>
+	private void BuildActions(Action? onRetry)
 	{
-		// A wrapping row rather than a plain one: which actions are offered depends on the failure, and a row that cannot wrap
-		// would push the whole card wider than the window on the failures that offer the most of them.
-		if (offersRetry && onRetry != null)
+		if (onRetry != null)
 		{
-			Button retry = UIStyle.CreateActionButton("ConnectivityHostRetry_Button", TranslationServer.Translate(ConnectivitySentences.TryAgainButton), 14);
+			Button retry = UIStyle.CreateActionButton("ConnectivityTroubleshootingRetry_Button", TranslationServer.Translate(ConnectivitySentences.TryAgainButton), 14);
 			retry.CustomMinimumSize = new Vector2(190, 40);
 			retry.Pressed += () => InvokeAndClose(onRetry);
 			_actions.AddChild(retry);
 		}
 
-		if (!string.IsNullOrEmpty(evidence.DiagnosticsBlock))
+		string diagnosticsBlock = GameContext.Connectivity.CurrentEvidence.DiagnosticsBlock;
+		if (!string.IsNullOrEmpty(diagnosticsBlock))
 		{
-			Button copyDiagnostics = UIStyle.CreateActionButton("ConnectivityHostCopyDiagnostics_Button", TranslationServer.Translate(ConnectivitySentences.CopyDiagnosticsButton), 14);
+			Button copyDiagnostics = UIStyle.CreateActionButton("ConnectivityTroubleshootingCopyDiagnostics_Button", TranslationServer.Translate(ConnectivitySentences.CopyDiagnosticsButton), 14);
 			copyDiagnostics.CustomMinimumSize = new Vector2(230, 40);
 			LocalizedText.SetTooltip(copyDiagnostics, "Copy everything a report about this machine's network needs, so it can be pasted into a message.");
 			copyDiagnostics.Pressed += () =>
 			{
 				GameContext.UserInterface?.PlayClickSound();
-				DisplayServer.ClipboardSet(evidence.DiagnosticsBlock);
+				DisplayServer.ClipboardSet(GameContext.Connectivity.CurrentEvidence.DiagnosticsBlock);
 				ShowCopyFeedback(TranslationServer.Translate("Network diagnostics copied to clipboard."));
 			};
 			_actions.AddChild(copyDiagnostics);
 		}
 
-		Button close = UIStyle.CreateActionButton("ConnectivityHostClose_Button", TranslationServer.Translate("CLOSE"), 14);
+		Button close = UIStyle.CreateActionButton("ConnectivityTroubleshootingClose_Button", TranslationServer.Translate("CLOSE"), 14);
 		close.CustomMinimumSize = new Vector2(150, 40);
 		close.Pressed += () =>
 		{

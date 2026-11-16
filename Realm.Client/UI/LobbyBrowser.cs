@@ -119,6 +119,15 @@ public partial class LobbyBrowser : Control
 			ShowLobbyJoinErrorPopup(lobby.LobbyJoinError);
 			lobby.LobbyJoinError = null;
 		}
+
+		// A host who gave a lobby up to read about it is being sent here, and the card opens over this screen because the room
+		// that asked for it is being freed on the way.
+		if (GameContext.Connectivity.TakeHostTroubleshootingRequest())
+		{
+			var help = new ConnectivityTroubleshootingDialog { Name = "HostTroubleshootingHelpDialog" };
+			AddChild(help);
+			help.Open(ConnectivityAudience.Hosting);
+		}
 	}
 
 	private void ApplyStyles()
@@ -566,9 +575,9 @@ public partial class LobbyBrowser : Control
 			GameContext.UserInterface?.PlayClickSound();
 			if (GameContext.Lobby == null) return;
 
-			var help = new ConnectivityJoinDialog { Name = "DirectConnectHelpDialog" };
+			var help = new ConnectivityTroubleshootingDialog { Name = "DirectConnectHelpDialog" };
 			AddChild(help);
-			help.Open();
+			help.Open(ConnectivityAudience.Joining);
 		};
 		hbox.AddChild(troubleshootBtn);
 
@@ -840,9 +849,9 @@ public partial class LobbyBrowser : Control
 			return;
 		}
 
-		var help = new ConnectivityJoinDialog { Name = "LobbyJoinFailureHelpDialog" };
+		var help = new ConnectivityTroubleshootingDialog { Name = "LobbyJoinFailureHelpDialog" };
 		AddChild(help);
-		help.Open();
+		help.Open(ConnectivityAudience.Joining);
 	}
 
 	protected override void Dispose(bool disposing)

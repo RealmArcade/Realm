@@ -4,11 +4,10 @@ using Realm.Shared.Reachability;
 namespace Realm.Client.Services;
 
 /// <summary>
-///     What one attempt to host a lobby measured about this machine and its network, kept after the lobby itself is gone.
-///     A host troubleshooting a lobby that would not publish has to give the lobby up to open the screen that explains it,
-///     and the failure, the port, the outside port, the mapping behaviour, the firewall's answer and the address measured
-///     outside the network all belong to the lobby that was given up; without a copy they would be forgotten at the moment
-///     the host needs them.
+///     What one attempt to host a lobby measured about this machine and its network: the failure, the port, the outside port,
+///     the mapping behaviour, the firewall's answer, the address measured outside the network and the step a join stopped at.
+///     A host who opens troubleshooting gives the lobby up to read about it, and everything here belongs to the lobby that was
+///     given up; without a copy it would be forgotten at the moment the host needs it.
 /// </summary>
 /// <remarks>
 ///     This is evidence rather than state: every member is something the game already measured or was told, and a member

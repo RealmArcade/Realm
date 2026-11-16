@@ -22,19 +22,16 @@ public static class ConnectivityHelpText
 	{
 		return sentenceKey switch
 		{
-		ConnectivitySentences.HostingTitle => TranslationServer.Translate(ConnectivitySentences.HostingTitle),
-		ConnectivitySentences.HostingTitleLocalSeat => TranslationServer.Translate(ConnectivitySentences.HostingTitleLocalSeat),
-		ConnectivitySentences.JoiningTitle => TranslationServer.Translate(ConnectivitySentences.JoiningTitle),
+		ConnectivitySentences.ConnectionTroubleshootingTitle => TranslationServer.Translate(ConnectivitySentences.ConnectionTroubleshootingTitle),
+		ConnectivitySentences.ScenarioHosting => TranslationServer.Translate(ConnectivitySentences.ScenarioHosting),
+		ConnectivitySentences.ScenarioJoining => TranslationServer.Translate(ConnectivitySentences.ScenarioJoining),
 		ConnectivitySentences.CheckingEveryCause => TranslationServer.Translate(ConnectivitySentences.CheckingEveryCause),
 		ConnectivitySentences.CheckingOneCause => TranslationServer.Translate(ConnectivitySentences.CheckingOneCause),
 		ConnectivitySentences.LikelyCauseCaption => TranslationServer.Translate(ConnectivitySentences.LikelyCauseCaption),
 		ConnectivitySentences.PlayerJoinFailureCaption => TranslationServer.Translate(ConnectivitySentences.PlayerJoinFailureCaption),
-		ConnectivitySentences.CausesCaption => TranslationServer.Translate(ConnectivitySentences.CausesCaption),
 		ConnectivitySentences.CausesPlaceholder => TranslationServer.Translate(ConnectivitySentences.CausesPlaceholder),
-		ConnectivitySentences.CausesPrompt => TranslationServer.Translate(ConnectivitySentences.CausesPrompt),
 		ConnectivitySentences.RoomSummaryRecommendation => TranslationServer.Translate(ConnectivitySentences.RoomSummaryRecommendation),
 		ConnectivitySentences.TroubleshootingTitle => TranslationServer.Translate(ConnectivitySentences.TroubleshootingTitle),
-		ConnectivitySentences.TroubleshootingIntro => TranslationServer.Translate(ConnectivitySentences.TroubleshootingIntro),
 		ConnectivitySentences.TroubleshootingLeaveMessage => TranslationServer.Translate(ConnectivitySentences.TroubleshootingLeaveMessage),
 		ConnectivitySentences.TroubleshootingLeaveConfirm => TranslationServer.Translate(ConnectivitySentences.TroubleshootingLeaveConfirm),
 		ConnectivitySentences.TroubleshootingStayCancel => TranslationServer.Translate(ConnectivitySentences.TroubleshootingStayCancel),
@@ -43,9 +40,6 @@ public static class ConnectivityHelpText
 		ConnectivitySentences.SearchButton => TranslationServer.Translate(ConnectivitySentences.SearchButton),
 		ConnectivitySentences.SearchCaption => TranslationServer.Translate(ConnectivitySentences.SearchCaption),
 		ConnectivitySentences.NextStepCaption => TranslationServer.Translate(ConnectivitySentences.NextStepCaption),
-		ConnectivitySentences.VerdictConfirmed => TranslationServer.Translate(ConnectivitySentences.VerdictConfirmed),
-		ConnectivitySentences.VerdictInconclusive => TranslationServer.Translate(ConnectivitySentences.VerdictInconclusive),
-		ConnectivitySentences.VerdictRuledOut => TranslationServer.Translate(ConnectivitySentences.VerdictRuledOut),
 		ConnectivitySentences.VerdictUnchecked => TranslationServer.Translate(ConnectivitySentences.VerdictUnchecked),
 		ConnectivitySentences.VerdictNeedsResearch => TranslationServer.Translate(ConnectivitySentences.VerdictNeedsResearch),
 		ConnectivitySentences.DirectConnectCaption => TranslationServer.Translate(ConnectivitySentences.DirectConnectCaption),
@@ -224,18 +218,5 @@ public static class ConnectivityHelpText
 	{
 		string sentence = Text(cause.Key);
 		return cause.Value == null ? sentence : string.Format(sentence, cause.Value);
-	}
-
-	/// <summary>The word one verdict is shown with.</summary>
-	/// <param name="status">What the check found.</param>
-	/// <returns>The translated word.</returns>
-	public static string Verdict(ConnectivityDiagnosisStatus status)
-	{
-		return status switch
-		{
-			ConnectivityDiagnosisStatus.Confirmed => Text(ConnectivitySentences.VerdictConfirmed),
-			ConnectivityDiagnosisStatus.Inconclusive => Text(ConnectivitySentences.VerdictInconclusive),
-			_ => Text(ConnectivitySentences.VerdictRuledOut)
-		};
 	}
 }

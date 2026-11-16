@@ -802,10 +802,10 @@ public partial class LobbyRoom : Control
 			return;
 		}
 
-		var dialog = new ConnectivityJoinDialog { Name = "JoinFailureHelpDialog" };
+		var dialog = new ConnectivityTroubleshootingDialog { Name = "JoinFailureHelpDialog" };
 		AddChild(dialog);
 		dialog.Closed += ReturnFromLobby;
-		dialog.Open();
+		dialog.Open(ConnectivityAudience.Joining);
 	}
 
 	private void OnLobbyKickReceived(string reason)

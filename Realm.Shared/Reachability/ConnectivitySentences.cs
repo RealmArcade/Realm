@@ -13,14 +13,14 @@ namespace Realm.Shared.Reachability;
 /// </remarks>
 public static class ConnectivitySentences
 {
-	/// <summary>The title a host's dialog carries when a lobby could not be published.</summary>
-	public const string HostingTitle = "COULD NOT PUBLISH THE LOBBY";
+	/// <summary>The title the troubleshooting dialog carries, whichever failure opened it.</summary>
+	public const string ConnectionTroubleshootingTitle = "CONNECTION TROUBLESHOOTING";
 
-	/// <summary>The title a host's dialog carries when the lobby could not even hold this computer's own seat.</summary>
-	public const string HostingTitleLocalSeat = "COULD NOT HOLD YOUR OWN SEAT";
+	/// <summary>The scenario the dialog opens on when a lobby could not be held or published.</summary>
+	public const string ScenarioHosting = "Hosting my own lobby";
 
-	/// <summary>The title a joining screen's dialog carries when a join failed.</summary>
-	public const string JoiningTitle = "COULD NOT JOIN THIS LOBBY";
+	/// <summary>The scenario the dialog opens on when a join did not get in.</summary>
+	public const string ScenarioJoining = "Joining an existing lobby";
 
 	/// <summary>The line shown while every cause is being checked.</summary>
 	public const string CheckingEveryCause = "Checking this machine and the lobby server ...";
@@ -37,31 +37,19 @@ public static class ConnectivitySentences
 	/// <summary>The caption above a joining player's own failure, which is the evidence no measurement of this machine can produce.</summary>
 	public const string PlayerJoinFailureCaption = "A PLAYER TRIED TO JOIN AND COULD NOT GET IN";
 
-	/// <summary>The caption above the list of causes, which is what a reader picks from.</summary>
-	public const string CausesCaption = "WHAT IT USUALLY IS";
-
 	/// <summary>The line the list of causes carries while the reader has picked nothing.</summary>
 	public const string CausesPlaceholder = "Choose a cause";
-
-	/// <summary>
-	///     The line the detail pane carries while no cause is selected. It says that nothing was chosen for the reader,
-	///     because a cause picked by the game is a claim the game has not measured.
-	/// </summary>
-	public const string CausesPrompt = "Pick the cause that matches what you see. Nothing is selected for you, and every cause can be checked on this machine.";
 
 	/// <summary>The line a lobby room shows under what was measured, recommending the screen where the causes are explained.</summary>
 	public const string RoomSummaryRecommendation = "Open host troubleshooting to check each cause and see what to change before hosting again.";
 
-	/// <summary>The title of the host troubleshooting screen, and of the button that opens it.</summary>
+	/// <summary>The title of the button in a lobby room that opens the troubleshooting dialog.</summary>
 	public const string TroubleshootingTitle = "HOST TROUBLESHOOTING";
-
-	/// <summary>What the host troubleshooting screen explains before its list of causes.</summary>
-	public const string TroubleshootingIntro = "What this machine measured about the last lobby it hosted, and every cause that can stop players getting in. Pick a cause from the list, or run every check to filter the list down to what this machine shows.";
 
 	/// <summary>What a host is told before the room's troubleshooting door gives the lobby up.</summary>
 	public const string TroubleshootingLeaveMessage = "Troubleshooting requires abandoning your hosted lobby. Continue?";
 
-	/// <summary>The label of the button that gives up the lobby and opens the host troubleshooting screen.</summary>
+	/// <summary>The label of the button that gives up the lobby and opens the troubleshooting dialog.</summary>
 	public const string TroubleshootingLeaveConfirm = "Close Lobby";
 
 	/// <summary>The label of the button that keeps the lobby open instead.</summary>
@@ -81,15 +69,6 @@ public static class ConnectivitySentences
 
 	/// <summary>The caption above what to do next in this game.</summary>
 	public const string NextStepCaption = "NEXT STEP";
-
-	/// <summary>The line that answers a check with a likely explanation.</summary>
-	public const string VerdictConfirmed = "Likely";
-
-	/// <summary>The line that answers a check with a shape that might be the cause.</summary>
-	public const string VerdictInconclusive = "Possible";
-
-	/// <summary>The line that answers a check with a shape that was measured not to be the cause.</summary>
-	public const string VerdictRuledOut = "Not this one";
 
 	/// <summary>The line shown while a check is running, and before any has.</summary>
 	public const string VerdictUnchecked = "Not checked yet";

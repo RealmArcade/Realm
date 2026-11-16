@@ -46,10 +46,12 @@ public class ConnectivityDiagnosticsService
 
 	private bool _hasRememberedEvidence;
 
+	private bool _hostTroubleshootingRequested;
+
 	/// <summary>
 	///     What the last hosted lobby measured, whether or not this screen still holds it. A live lobby is read as it is now;
-	///     once it has been given up, the copy kept when the host left it is read instead, so a host who closed a lobby to open
-	///     the troubleshooting screen still has the failure, the ports and the addresses that lobby was measured with.
+	///     once it has been given up, the copy kept when the host left it is read instead, so a host who closed a lobby to read
+	///     about it still has the failure, the ports and the addresses that lobby was measured with.
 	/// </summary>
 	public ConnectivityEvidence CurrentEvidence
 	{
@@ -62,8 +64,8 @@ public class ConnectivityDiagnosticsService
 	}
 
 	/// <summary>
-	///     Keeps what the lobby this screen holds has measured, so it survives the lobby being given up. A screen that opens
-	///     troubleshooting from inside a lobby calls this before it leaves, because leaving is what takes the evidence away.
+	///     Keeps what the lobby this screen holds has measured, so it survives the lobby being given up. A host who opens
+	///     troubleshooting from inside a room calls this before leaving, because leaving is what takes the evidence away.
 	/// </summary>
 	public void RememberEvidence()
 	{
@@ -73,6 +75,26 @@ public class ConnectivityDiagnosticsService
 		_rememberedEvidence = Capture(lobby);
 		_hasRememberedEvidence = true;
 		DiscardReading();
+	}
+
+	/// <summary>
+	///     States that a host gave a lobby up in order to read about it, so the screen they are being sent to opens the
+	///     troubleshooting dialog over itself. The room cannot open it: giving the lobby up replaces the room, and a card
+	///     attached to a room that is being freed goes with it.
+	/// </summary>
+	public void RequestHostTroubleshooting()
+	{
+		_hostTroubleshootingRequested = true;
+	}
+
+	/// <summary>Whether a host is waiting for the troubleshooting dialog, answering at most once.</summary>
+	/// <returns>Whether the request was made.</returns>
+	public bool TakeHostTroubleshootingRequest()
+	{
+		if (!_hostTroubleshootingRequested) return false;
+
+		_hostTroubleshootingRequested = false;
+		return true;
 	}
 
 	/// <summary>

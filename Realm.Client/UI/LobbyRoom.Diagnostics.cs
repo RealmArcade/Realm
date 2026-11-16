@@ -7,15 +7,14 @@ namespace Realm.Client.UI;
 
 /// <summary>
 ///     The room's whole connectivity surface: one short line saying what the game measured about this lobby, and two buttons -
-///     the page a host copies into a report, and the door to the screen that explains what to change. Troubleshooting is not
-///     carried out in the room: a host who is seating players and reading chat cannot read a 980-pixel card laid over it, and
-///     a failed join may be the joining player's network or something the host can do nothing about in the moment. The room
-///     therefore reports and hands over, and the screen that explains does so after the lobby is given up.
+///     the page a host copies into a report, and the door to the card that explains what to change. Troubleshooting is not
+///     carried out in the room: a host reading it while players sit waiting is being pulled two ways at once, so the room
+///     reports and hands over, and the host gives the lobby up to read.
 /// </summary>
 /// <remarks>
 ///     The summary is the room's own chat line rather than another label, because the room's layout is full at every seat
 ///     count and the chat is where every other network event already arrives. It says the measured state, or the report of a
-///     player who could not get in, and then names the screen that explains it.
+///     player who could not get in, and then names the card that explains it.
 /// </remarks>
 public partial class LobbyRoom
 {
@@ -111,8 +110,8 @@ public partial class LobbyRoom
 	}
 
 	/// <summary>
-	///     Asks before the room's troubleshooting door gives the lobby up, because opening the screen closes the lobby for every
-	///     player in it and a host may have pressed it to read rather than to leave.
+	///     Asks before the room's troubleshooting door gives the lobby up, because opening it closes the lobby for every player
+	///     in it and a host may have pressed it to read rather than to leave.
 	/// </summary>
 	private void OpenHostTroubleshooting()
 	{
@@ -127,14 +126,16 @@ public partial class LobbyRoom
 	}
 
 	/// <summary>
-	///     Gives the lobby up and opens the troubleshooting screen. The measurements the screen reads belong to the lobby being
-	///     given up, so they are kept before the lobby is closed rather than looked for afterwards.
+	///     Gives the lobby up and sends the host to the lobby list, which opens the troubleshooting dialog over itself when it
+	///     arrives. The measurements the dialog reads belong to the lobby being given up, so they are kept before the lobby is
+	///     closed rather than looked for afterwards.
 	/// </summary>
 	private void LeaveForHostTroubleshooting()
 	{
 		GameContext.Connectivity.RememberEvidence();
+		GameContext.Connectivity.RequestHostTroubleshooting();
 		Lobby.Disconnect();
-		GameContext.UserInterface?.TransitionTo(GameScreen.HostTroubleshooting);
+		GameContext.UserInterface?.TransitionTo(GameScreen.LobbyBrowser);
 	}
 
 	/// <summary>
