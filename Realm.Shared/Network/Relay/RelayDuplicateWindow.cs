@@ -9,10 +9,14 @@ namespace Realm.Shared.Network.Relay;
 /// </summary>
 public sealed class RelayDuplicateWindow
 {
-	/// <summary>The copies the window remembers behind the newest one it has seen.</summary>
-	public const int Capacity = 256;
-
 	private const int WordBits = 64;
+
+	/// <summary>
+	///     The copies the window remembers behind the newest one it has seen. It is one machine word, which is what the
+	///     window is: a distance wider than the word would be shifted past the bits that exist, so the stated capacity and the
+	///     implemented one are the same number rather than two numbers that only agree by accident.
+	/// </summary>
+	public const int Capacity = WordBits;
 
 	private ulong _heard = 1UL;
 	private int _newestSequence;
@@ -47,7 +51,7 @@ public sealed class RelayDuplicateWindow
 		int distance = SequenceDistance(messageSequence, _newestSequence);
 		if (distance > 0)
 		{
-			if (distance >= Capacity)
+			if (distance >= WordBits)
 			{
 				_heard = 1UL;
 			}
@@ -63,7 +67,7 @@ public sealed class RelayDuplicateWindow
 		}
 
 		int behind = -distance;
-		if (behind >= Capacity)
+		if (behind >= WordBits)
 		{
 			StaleCount++;
 			return false;

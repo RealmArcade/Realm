@@ -86,8 +86,9 @@ public sealed class RelayPathMux : IDisposable
 	public int DuplicateCount => _duplicates.DuplicateCount;
 
 	/// <summary>
-	///     The datagrams this connection could not move at all, because no path was left that a volunteer had answered on.
-	///     It is the one counter that distinguishes a relayed connection that is merely slow from one that is gone.
+	///     The datagrams this connection could not move onto any path: none was left that a volunteer had answered on, the
+	///     path it chose refused the datagram, or the datagram was wider than the layer carries. It is the one counter that
+	///     tells a relayed connection that is merely slow from one that is going nowhere.
 	/// </summary>
 	public int DroppedWithoutPath => _droppedWithoutPath;
 
@@ -172,7 +173,12 @@ public sealed class RelayPathMux : IDisposable
 	/// <returns>How many copies were sent, or zero when no path could take the datagram.</returns>
 	public int Send(ReadOnlySpan<byte> inner, FrameDelivery delivery)
 	{
-		if (_disposed || inner.Length > RelayEnvelope.MaximumInnerDatagramBytes) return 0;
+		if (_disposed) return 0;
+		if (inner.Length > RelayEnvelope.MaximumInnerDatagramBytes)
+		{
+			_droppedWithoutPath++;
+			return 0;
+		}
 
 		RelayPath? best = ChooseBestPath();
 		if (best == null)
@@ -266,7 +272,7 @@ public sealed class RelayPathMux : IDisposable
 		builder.Append("relay token=").Append(_token.ToHex())
 			.Append(" paths=").Append(_pathCount)
 			.Append(" duplicates=").Append(_duplicates.DuplicateCount)
-			.Append(" no-path-dropped=").Append(_droppedWithoutPath)
+			.Append(" unmoved=").Append(_droppedWithoutPath)
 			.Append(" best=");
 
 		RelayPath? best = ChooseBestPath();

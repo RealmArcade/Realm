@@ -47,6 +47,12 @@ public sealed class RelayDatagramCipher : IDisposable
 
 	private const int NonceBytes = 12;
 
+	private const byte InnerDatagramNonceKind = 0;
+
+	private const byte ProbeNonceKind = 1;
+
+	private const byte ProbeAnswerNonceKind = 2;
+
 	private readonly AesGcm _send;
 	private readonly AesGcm _receive;
 	private bool _disposed;
@@ -86,7 +92,7 @@ public sealed class RelayDatagramCipher : IDisposable
 		RelayEnvelope.WriteHeader(destination, token, pathId, deliveryFlag, messageSequence, pathSequence);
 
 		Span<byte> nonce = stackalloc byte[NonceBytes];
-		WriteNonce(nonce, pathId, messageSequence);
+		WriteNonce(nonce, pathId, deliveryFlag, messageSequence);
 
 		Span<byte> associatedData = stackalloc byte[15];
 		WriteAssociatedData(associatedData, token, pathId, deliveryFlag, messageSequence, pathSequence);
@@ -114,7 +120,7 @@ public sealed class RelayDatagramCipher : IDisposable
 		if (datagram.Length - RelayEnvelope.HeaderBytes > inner.Length) return false;
 
 		Span<byte> nonce = stackalloc byte[NonceBytes];
-		WriteNonce(nonce, header.PathId, header.MessageSequence);
+		WriteNonce(nonce, header.PathId, header.DeliveryFlag, header.MessageSequence);
 
 		Span<byte> associatedData = stackalloc byte[15];
 		WriteAssociatedData(associatedData, header.Token, header.PathId, header.DeliveryFlag, header.MessageSequence, header.PathSequence);
@@ -138,20 +144,24 @@ public sealed class RelayDatagramCipher : IDisposable
 	}
 
 	/// <summary>
-	///     Builds the nonce a datagram is sealed with. It is a function of the path and the message sequence, so it never
-	///     repeats under one direction's key: the same sequence travels on several paths, and each of those copies is sealed
-	///     under its own path's nonce.
+	///     Builds the nonce a datagram is sealed with. It is a function of the path, the kind of datagram and the sequence it
+	///     carries, so no two datagrams one side sends are ever sealed under the same nonce: the several copies of one
+	///     datagram are told apart by their path, and the three counters that produce sequences - this side's inner datagrams,
+	///     its probes and the answers it returns to the other side's probes - are told apart by the kind. Two of those
+	///     counters are ordered independently of each other, so a nonce that ignored the kind would repeat as soon as a probe
+	///     and a datagram reached the same number.
 	/// </summary>
 	/// <param name="nonce">The twelve bytes to write.</param>
 	/// <param name="pathId">The path the copy travels.</param>
-	/// <param name="messageSequence">The sequence the duplicate window reads.</param>
-	private static void WriteNonce(Span<byte> nonce, byte pathId, int messageSequence)
+	/// <param name="deliveryFlag">The delivery and probe bits of the datagram, which decide its kind.</param>
+	/// <param name="sequence">The sequence the datagram carries, which the duplicate window or the probe history reads.</param>
+	private static void WriteNonce(Span<byte> nonce, byte pathId, byte deliveryFlag, int sequence)
 	{
 		nonce[0] = pathId;
-		nonce[1] = (byte)messageSequence;
-		nonce[2] = (byte)(messageSequence >> 8);
-		nonce[3] = (byte)(messageSequence >> 16);
-		nonce[4] = 0;
+		nonce[1] = (byte)sequence;
+		nonce[2] = (byte)(sequence >> 8);
+		nonce[3] = (byte)(sequence >> 16);
+		nonce[4] = NonceKindOf(deliveryFlag);
 		nonce[5] = 0;
 		nonce[6] = 0;
 		nonce[7] = 0;
@@ -159,6 +169,18 @@ public sealed class RelayDatagramCipher : IDisposable
 		nonce[9] = 0;
 		nonce[10] = 0;
 		nonce[11] = 0;
+	}
+
+	/// <summary>
+	///     Which of the three sequence spaces a datagram's number belongs to, which is what the nonce states beside it.
+	/// </summary>
+	/// <param name="deliveryFlag">The delivery and probe bits of the datagram.</param>
+	/// <returns>Zero for an inner datagram, one for a probe, two for a probe answer.</returns>
+	private static byte NonceKindOf(byte deliveryFlag)
+	{
+		if (!RelayEnvelope.IsProbe(deliveryFlag)) return InnerDatagramNonceKind;
+
+		return RelayEnvelope.IsProbeResponse(deliveryFlag) ? ProbeAnswerNonceKind : ProbeNonceKind;
 	}
 
 	/// <summary>Builds the bytes the tag proves, which are the header fields a volunteer could otherwise rewrite.</summary>
