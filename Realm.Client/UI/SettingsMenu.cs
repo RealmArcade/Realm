@@ -56,6 +56,10 @@ public partial class SettingsMenu : Control
 	private CheckBox _unitOutlineChk = null!;
 	private CheckBox _recordReplaysChk = null!;
 	private CheckBox _seedMapFilesChk = null!;
+	private const double RelayStatusRefreshIntervalSeconds = 1.0;
+
+	private double _relayStatusRefreshSeconds;
+
 	private CheckBox _acceptRelayedChk = null!;
 	private CheckBox _volunteerRelayChk = null!;
 	private SpinBox _volunteerRelayBudgetSpin = null!;
@@ -610,6 +614,22 @@ public partial class SettingsMenu : Control
 	{
 		_stopVolunteeringButton.Disabled = !GameContext.PeerRelay.IsVolunteering;
 		LocalizedText.Bind(_relayStatusLabel, RenderRelayStatus);
+	}
+
+	/// <summary>
+	///     Keeps the volunteer's own usage in front of the player while the page is open. The counters are read from the
+	///     forwarding socket as they change, so a page that only drew them when it was opened would show a volunteer numbers
+	///     from the moment it arrived and then never move, which is the same as showing none.
+	/// </summary>
+	/// <param name="delta">The frame time the page has just spent on screen.</param>
+	public override void _Process(double delta)
+	{
+		_relayStatusRefreshSeconds += delta;
+		if (_relayStatusRefreshSeconds < RelayStatusRefreshIntervalSeconds) return;
+
+		_relayStatusRefreshSeconds = 0;
+		if (_relayStatusLabel == null || !IsInstanceValid(_relayStatusLabel)) return;
+		_relayStatusLabel.Text = RenderRelayStatus();
 	}
 
 	/// <summary>
