@@ -76,7 +76,6 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
-	/// <summary>
 	///     Reads where to connect and how to report this screen to the registry's host relay, from the endpoints the registry
 	///     node states for the lobby. Every field is read without assuming it is present: a lobby registered by an older node
 	///     answers with fewer of them, and a missing field has to produce a stated reason rather than an exception message. The
