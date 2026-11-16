@@ -1,30 +1,29 @@
-using System;
-using Godot;
 using Realm.Shared.Reachability;
 
 namespace Realm.Client.UI;
 
 public partial class LobbyRoom
 {
-	private string _postedNetworkNotice = string.Empty;
+	private bool _networkNoticeShown;
 
 	private bool _publicationRefused;
 
 	private void PostNetworkNotice()
 	{
 		if (!Lobby.IsHost || Lobby.IsSinglePlayer) return;
-		if (_chatLog == null || !IsInstanceValid(_chatLog)) return;
-		if (Lobby.ActiveLobbyId is { Length: > 0 } && !Lobby.IsUnlisted) return;
+		if (_networkNoticeShown) return;
 
-		bool measuredFailure = _publicationRefused || Lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None };
+		bool listed = Lobby.ActiveLobbyId is { Length: > 0 } && !Lobby.IsUnlisted;
 		bool playerReported = !string.IsNullOrWhiteSpace(Lobby.LastPlayerJoinFailure);
+		bool measuredFailure = _publicationRefused || Lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None };
+
+		// A listed lobby has nothing to report about its own network: something outside this machine already reached it.
+		// Only a player who failed to get in can still disprove that, and that report is worth opening the dialog for.
+		if (listed && !playerReported) return;
 		if (!measuredFailure && !playerReported) return;
 
-		string line = RestrictiveNetworkDialog.Text();
-		if (string.Equals(line, _postedNetworkNotice, StringComparison.Ordinal)) return;
-		_postedNetworkNotice = line;
-
-		_chatLog.Text += $"[color=#ffd700]{TranslationServer.Translate("System")}[/color]: {line}\n";
+		_networkNoticeShown = true;
+		RestrictiveNetworkDialog.Show(this);
 	}
 
 	private void RefreshNetworkNotice()

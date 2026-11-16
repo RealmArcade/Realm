@@ -257,8 +257,8 @@ public partial class LobbyRoom : Control
 		_chatLog.Text = $"[color=#ffd700]{Tr("System: Connected to Lobby.")}[/color]\n";
 		_chatInput.TextSubmitted += OnChatSubmitted;
 
-		// The room's notice about this lobby's network, stated where the host is already reading: the same chat the lobby
-		// reports every other network event in.
+		// A lobby whose network has already refused it opens the notice the moment its host arrives, so the restriction is
+		// explained before the host starts setting up a match players cannot reach.
 		if (Lobby.IsHost) PostNetworkNotice();
 
 

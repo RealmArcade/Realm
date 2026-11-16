@@ -63,6 +63,10 @@ public partial class RestrictiveNetworkDialog : Control
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		MouseFilter = MouseFilterEnum.Stop;
 
+		// The screens that open this one draw their own progress and address overlays above their contents, so the dialog
+		// states its own height rather than trusting the order it happened to be added in.
+		ZIndex = 2000;
+
 		BuildLayout();
 	}
 
