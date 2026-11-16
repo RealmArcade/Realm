@@ -166,14 +166,21 @@ public partial class ListenServerHost
 	{
 		if (string.IsNullOrEmpty(probeId))
 		{
-			_log.Write($"sending a punch from the game port to {address}:{port}");
-			_transport.SendToAddress(address, port, ReachabilityPunch.Datagram);
+			if (_transport.SendToAddress(address, port, ReachabilityPunch.Datagram)) _log.Write($"sent a punch from the game port to {address}:{port}");
+			else _log.Write($"a punch from the game port to {address}:{port} could not be sent: this lobby's transport holds no socket to send it from");
+
 			return;
 		}
 
 		Span<byte> datagram = stackalloc byte[ReachabilityPunch.MaximumDatagramBytes];
 		int written = ReachabilityPunch.TryWrite(datagram, probeId);
-		if (written > 0) _transport.SendToAddress(address, port, datagram[..written]);
+		if (written <= 0)
+		{
+			_log.Write($"the punch for check '{probeId}' toward {address}:{port} could not be written, so nothing was sent");
+			return;
+		}
+
+		if (!_transport.SendToAddress(address, port, datagram[..written])) _log.Write($"the punch for check '{probeId}' toward {address}:{port} could not be sent: this lobby's transport holds no socket to send it from");
 	}
 
 	private void StartLobby()

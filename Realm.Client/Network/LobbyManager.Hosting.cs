@@ -711,6 +711,7 @@ public partial class LobbyManager
 		SpectatorDelay = false;
 		TeamsTogether = false;
 		LastHostError = null;
+		LastPlayerJoinFailure = null;
 		_downloadingMapName = null;
 		PlayerList.Clear();
 		ActiveMapName = mapPathName;

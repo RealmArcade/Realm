@@ -220,7 +220,8 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// <summary>
 	///     The last thing a player was told when a join into this lobby failed, as the lobby's host was told it. It is kept
 	///     for the diagnostics a host copies: a failure that reached this host's chat is the one piece of evidence about the
-	///     lobby's network that its own measurements cannot produce.
+	///     lobby's network that its own measurements cannot produce. It describes the lobby this screen is hosting now, so it
+	///     is cleared when a lobby is prepared rather than carried into the next one.
 	/// </summary>
 	public string? LastPlayerJoinFailure { get; private set; }
 

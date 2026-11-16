@@ -330,8 +330,8 @@ public partial class LobbyManager
 	/// <summary>
 	///     Asks the lobby's authority to send from the game port to a joining player, and states back to the registry node that
 	///     it did. The player's join is already under way rather than waiting on this, because its own mapping has to exist
-	///     before the punch arrives; the statement is what a join that never answered is read against, so a screen that failed
-	///     is told whether the host was ever asked to send toward it.
+	///     before the punch arrives; the statement is what a join that never answered is read against, so it is only made by a
+	///     screen that is still administering a running lobby, and a screen that is not says in its log why none was sent.
 	/// </summary>
 	/// <param name="clientIp">The address the joining player was seen at.</param>
 	/// <param name="clientPort">The port the joining player was seen at.</param>
@@ -340,14 +340,25 @@ public partial class LobbyManager
 	{
 		if (string.IsNullOrEmpty(clientIp) || clientPort <= 0) return;
 
-		bool sent = _lobbySession?.SendLobbyCommand(new LobbyCommand
+		ClientServerSession? session = _lobbySession;
+		if (!IsHost || session == null || !session.IsRunning)
+		{
+			GameLog.LogToConsole($"[LobbyManager] A punch toward {clientIp}:{clientPort} was asked for, but this screen is not administering a running lobby, so none was sent.");
+			return;
+		}
+
+		if (!session.SendLobbyCommand(new LobbyCommand
 		{
 			Kind = LobbyCommandKind.PunchAddress,
 			Address = clientIp,
 			Port = clientPort
-		}) ?? false;
+		}))
+		{
+			GameLog.LogError($"[LobbyManager] The punch toward {clientIp}:{clientPort} could not be handed to the lobby's authority, so none was sent.");
+			return;
+		}
 
-		if (!sent || token.Length == 0) return;
+		if (token.Length == 0) return;
 		_ = SendHostSignalingAsync(new { Action = "Punched", Token = token });
 	}
 
