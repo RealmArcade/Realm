@@ -30,6 +30,7 @@ public sealed class RelayUdpShim : IRelayPathSink, IDisposable
 	private Thread? _lane;
 	private CancellationTokenSource? _cancellation;
 	private string _description = string.Empty;
+	private string _laneFailure = string.Empty;
 	private RelayPathSummary _summary = RelayPathSummary.Empty;
 	private long _lastDescriptionMilliseconds;
 	private int _deliveredToTransport;
@@ -59,6 +60,13 @@ public sealed class RelayUdpShim : IRelayPathSink, IDisposable
 
 	/// <summary>Whether the shim owns a lane and is moving datagrams.</summary>
 	public bool IsRunning => _lane is { IsAlive: true };
+
+	/// <summary>
+	///     Why this connection's lane stopped, or empty while it is running. A lane that died has to be stated rather than
+	///     left looking like a connection that is carrying: the path it stands for is not moving anything, and its owner
+	///     gives the connection up on this.
+	/// </summary>
+	public string LaneFailure => Volatile.Read(ref _laneFailure);
 
 	/// <summary>How many inner datagrams the shim has handed its own transport.</summary>
 	public int DeliveredToTransport => _deliveredToTransport;
@@ -171,6 +179,14 @@ public sealed class RelayUdpShim : IRelayPathSink, IDisposable
 			{
 				// The connection was given up between the check above and this lane's own socket, which is the ordinary end
 				// of a shim whose owner closed it. An exception escaping this thread would take the process with it.
+				return;
+			}
+			catch (Exception exception)
+			{
+				// An exception escaping this thread would take the process with it, and the connection this lane carries would
+				// be a path nothing is moving while every report said it was there. It is recorded instead, so the owner gives
+				// the connection up and the line it writes names the failure rather than only the silence.
+				Volatile.Write(ref _laneFailure, $"{exception.GetType().Name}: {exception.Message}");
 				return;
 			}
 		}

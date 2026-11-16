@@ -122,6 +122,17 @@ public sealed class RelayPeerDemux : IDisposable
 		{
 			OpenEntry entry = _entries[index];
 
+			// A connection whose lane stopped is not carrying anything, however healthy its last statement looked. The entry
+			// holds a socket, a thread and a probe loop for a path nothing moves, so it is given up and the failure it recorded
+			// is the reason the log states.
+			if (!entry.Shim.IsRunning)
+			{
+				reportChange?.Invoke($"loopback port {entry.Shim.Port}: given up, its lane stopped ({entry.Shim.LaneFailure})");
+				entry.Shim.Dispose();
+				_entries.RemoveAt(index);
+				continue;
+			}
+
 			RelayPathSummary stated = entry.Shim.Summary;
 			string change = RelayPathChanges.Describe(entry.LastSummary, stated);
 			entry.LastSummary = stated;
