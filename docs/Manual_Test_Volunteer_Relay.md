@@ -112,6 +112,14 @@ over is the loopback path both screens took.
    is intentional; what must not happen is a status line claiming connections are being carried.
 3. Hosting from that machine still lists `Relayed` only when some other volunteer is pooled.
 
+## What was already verified without two machines
+
+The authority's demux was driven end to end against a real volunteer in a throwaway harness: an entry opened for a
+join that named a volunteer, a datagram the guest sealed reached the game port through it, and a second entry that
+carried nothing was given up on the clock (`given up, no join arrived on it within 120 s`), reported, removed in about
+2 ms, and could be seated again, while the entry that had carried a datagram was kept. That says the give-up path does
+not wait for a shim's lane and does not disturb a connection that is working; it says nothing about two real networks.
+
 ## What to record for a bug report
 
 - Both screens' `COPY NETWORK DIAGNOSTICS` blocks, copied while the fault is visible.
