@@ -126,6 +126,34 @@ public sealed class RelayForwarder : IDisposable
 	}
 
 	/// <summary>
+	///     Sends one datagram from this volunteer's own forwarding socket to an address it was given. It exists for the one
+	///     thing that needs it: being measured. A node cannot reach a port nothing opens, so the volunteer knocks first from
+	///     the very socket it is offering, and the answer it gets is what its own reachability is measured at.
+	/// </summary>
+	/// <param name="address">The address to send to.</param>
+	/// <param name="port">The port to send to.</param>
+	/// <param name="datagram">The datagram to send.</param>
+	/// <returns>Whether the socket took it.</returns>
+	public bool TrySendFromOfferedPort(string address, int port, ReadOnlySpan<byte> datagram)
+	{
+		if (_disposed || string.IsNullOrWhiteSpace(address) || port <= 0) return false;
+
+		try
+		{
+			var destination = new IPEndPoint(IPAddress.Parse(address), port);
+			return _socket.SendTo(datagram, SocketFlags.None, destination) == datagram.Length;
+		}
+		catch (SocketException)
+		{
+			return false;
+		}
+		catch (FormatException)
+		{
+			return false;
+		}
+	}
+
+	/// <summary>
 	///     Forwards everything that has arrived since the last poll. Each datagram is moved as it is read or dropped, so there
 	///     is no queue to grow: a volunteer over its budget loses the datagram rather than delaying the one behind it.
 	/// </summary>

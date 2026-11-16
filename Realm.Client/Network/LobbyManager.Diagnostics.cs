@@ -57,7 +57,32 @@ public partial class LobbyManager
 			$"firewall: {firewall}",
 			$"last hosting failure: {LastHostError ?? "none"}",
 			$"last player join failure: {LastPlayerJoinFailure ?? "none"}",
-			$"last warning shown: {LastLobbyWarning ?? "none"}"
+			$"last warning shown: {LastLobbyWarning ?? "none"}",
+			DescribeRelayPath()
 		});
 	}
+
+	/// <summary>
+	///     States which path this connection is carried by and what that path measured. It names the volunteers and their
+	///     cost rather than reporting a relay as working: a connection that was offered volunteers and uses none of them says
+	///     it is direct, because that is what it is.
+	/// </summary>
+	/// <returns>The relay lines, or a line stating that the connection is direct.</returns>
+	private string DescribeRelayPath()
+	{
+		if (_relayShim == null)
+		{
+			return $"carried through: direct (volunteer pool {(RelayPoolOfferedCount > 0 ? "offered " + RelayPoolOfferedCount + " candidate(s)" : "not involved")})";
+		}
+
+		string volunteers = _relayedVolunteerIds.Count == 0 ? "none" : string.Join(", ", _relayedVolunteerIds);
+		return $"carried through: volunteers {volunteers}\n{_relayShim.Describe().TrimEnd()}";
+	}
+
+	/// <summary>How many volunteers this connection was offered, which is what says whether a direct path was a choice.</summary>
+	public int RelayPoolOfferedCount { get; private set; }
+
+	/// <summary>Records how many volunteers were offered to this connection, so the diagnostics page can say it.</summary>
+	/// <param name="count">The offers the lobby server stated.</param>
+	private void RememberRelayOffers(int count) => RelayPoolOfferedCount = System.Math.Max(0, count);
 }

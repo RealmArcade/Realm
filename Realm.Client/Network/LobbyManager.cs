@@ -700,6 +700,10 @@ public partial class LobbyManager : BaseMapTransferNode
 			if (GodotObject.IsInstanceValid(this) && !IsQueuedForDeletion() && GameContext.PeerSeeder != null)
 			{
 				GameContext.PeerSeeder.CheckIdleAndSeedStatus();
+
+				// A volunteer carries other players' connections between matches only. Its own match is the one thing its
+				// bandwidth must never be spent on, so the state is read here rather than inside the volunteer.
+				GameContext.PeerRelay.ApplyMatchState(IsGameStarted);
 			}
 		}).CallDeferred();
 	}

@@ -103,6 +103,14 @@ public partial class ServerLobby
 				if (string.IsNullOrWhiteSpace(command.Address) || command.Port <= 0 || command.Port > 65535) return;
 				_punchAddress(LobbyLimits.Sanitize(command.Address, 64), command.Port, LobbyLimits.Sanitize(command.Text, ReachabilityPunch.MaximumProbeIdBytes));
 				break;
+			case LobbyCommandKind.SetRelayedPeer:
+				if (!isAdmin)
+				{
+					_log.Write($"peer {peerId} named volunteers for a join without administering this lobby, so nothing was opened");
+					return;
+				}
+				_openRelayedPeer(command.Text ?? string.Empty);
+				break;
 			case LobbyCommandKind.ReportJoinFailure:
 				if (!isAdmin)
 				{

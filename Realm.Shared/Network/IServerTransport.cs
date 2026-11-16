@@ -1,4 +1,5 @@
 using System;
+using Realm.Shared.Network.Relay;
 
 namespace Realm.Shared.Network;
 
@@ -47,6 +48,24 @@ public interface IServerTransport : IDisposable
 	///     yet.
 	/// </summary>
 	bool TryReadPeerLink(int peerId, out PeerLinkStatistics statistics);
+
+	/// <summary>
+	///     Opens one relayed entry in front of this transport: a stable loopback address the relayed connection speaks to, so
+	///     the peer behind it is seated exactly like a direct one and keeps that peer identity when the volunteer carrying it
+	///     changes. It is a call the lobby makes for a join that named volunteers, and a lobby that never makes it behaves
+	///     exactly as it did before relays existed.
+	/// </summary>
+	/// <param name="plan">The volunteers both peers were offered and the ticket their keys come from.</param>
+	/// <param name="failure">Why no entry was opened.</param>
+	/// <returns>Whether the connection is being carried.</returns>
+	bool TryOpenRelayedEntry(RelayConnectionPlan plan, out string failure);
+
+	/// <summary>How many relayed connections this transport is carrying.</summary>
+	int RelayedEntryCount { get; }
+
+	/// <summary>States each relayed connection and the paths behind it, for the match log and the diagnostics report.</summary>
+	/// <returns>The relayed connections, or a line stating that the transport is direct only.</returns>
+	string DescribeRelayedEntries();
 
 	void Stop();
 }

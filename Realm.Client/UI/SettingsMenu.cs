@@ -7,6 +7,7 @@ using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.Services;
+using Realm.Shared.Network.Relay;
 
 namespace Realm.Client.UI;
 
@@ -55,6 +56,12 @@ public partial class SettingsMenu : Control
 	private CheckBox _unitOutlineChk = null!;
 	private CheckBox _recordReplaysChk = null!;
 	private CheckBox _seedMapFilesChk = null!;
+	private CheckBox _acceptRelayedChk = null!;
+	private CheckBox _volunteerRelayChk = null!;
+	private SpinBox _volunteerRelayBudgetSpin = null!;
+	private SpinBox _volunteerRelayPeersSpin = null!;
+	private Button _stopVolunteeringButton = null!;
+	private Label _relayStatusLabel = null!;
 
 	private HSlider _masterSlider = null!;
 	private HSlider _musicSlider = null!;
@@ -147,6 +154,12 @@ public partial class SettingsMenu : Control
 		_unitOutlineChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/UnitOutlineChk");
 		_recordReplaysChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/RecordReplaysChk");
 		_seedMapFilesChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/SeedMapFilesChk");
+		_acceptRelayedChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/AcceptRelayedChk");
+		_volunteerRelayChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/VolunteerRelayChk");
+		_volunteerRelayBudgetSpin = GetNode<SpinBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/VolunteerRelayBudgetRow/VolunteerRelayBudgetSpin");
+		_volunteerRelayPeersSpin = GetNode<SpinBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/VolunteerRelayPeersRow/VolunteerRelayPeersSpin");
+		_stopVolunteeringButton = GetNode<Button>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/StopVolunteeringButton");
+		_relayStatusLabel = GetNode<Label>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/RelayStatusLabel");
 
 		_scrollSpeedSlider = GetNode<HSlider>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/ScrollRow/ScrollSpeedSlider");
 		_mouseSensSlider = GetNode<HSlider>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/SensRow/MouseSensSlider");
@@ -301,6 +314,12 @@ public partial class SettingsMenu : Control
 		_recordReplaysChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_seedMapFilesChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
 		_seedMapFilesChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_acceptRelayedChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_acceptRelayedChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_volunteerRelayChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
+		_volunteerRelayChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		_stopVolunteeringButton.Pressed += OnStopVolunteeringPressed;
+		_stopVolunteeringButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		if (_dopplerChk != null)
 		{
@@ -572,8 +591,57 @@ public partial class SettingsMenu : Control
 			_seedMapFilesChk.ButtonPressed = GameSettings.SeedMapFiles;
 		}
 
+		_acceptRelayedChk.ButtonPressed = GameSettings.AcceptRelayedConnections;
+		_volunteerRelayChk.ButtonPressed = GameSettings.VolunteerRelay;
+		_volunteerRelayBudgetSpin.Value = Math.Clamp(GameSettings.VolunteerRelayBudgetBytesPerSecond / 1024, 32, 8192);
+		_volunteerRelayPeersSpin.Value = Math.Clamp(GameSettings.VolunteerRelayMaximumConnections, 1, 32);
+		RefreshRelayStatus();
+
 		_healthBarsOpt.Select((int)GameSettings.ShowHealthBars);
 		_languageOpt.Select((int)GameSettings.Language);
+	}
+
+	/// <summary>
+	///     States what this machine is carrying right now, which is the only place a volunteer sees its own usage. It is
+	///     filled from the volunteer's own counters and never from anything it was told: a connection nothing measured is
+	///     never shown as being carried.
+	/// </summary>
+	private void RefreshRelayStatus()
+	{
+		_stopVolunteeringButton.Disabled = !GameContext.PeerRelay.IsVolunteering;
+		LocalizedText.Bind(_relayStatusLabel, RenderRelayStatus);
+	}
+
+	/// <summary>
+	///     Composes what this volunteer is doing right now from its own counters, which is redrawn on every language change
+	///     rather than left in the language it was built in.
+	/// </summary>
+	/// <returns>The sentence the settings page shows.</returns>
+	private static string RenderRelayStatus()
+	{
+		PeerRelayVolunteer volunteer = GameContext.PeerRelay;
+		RelayForwarderStatistics? usage = volunteer.Usage;
+
+		string state = volunteer.Statement.Length > 0
+			? volunteer.Statement
+			: GameSettings.VolunteerRelay
+				? TranslationServer.Translate("Not carrying anything right now.")
+				: TranslationServer.Translate("This machine carries no other players' connections.");
+
+		if (usage == null) return state;
+
+		return state + string.Format(
+			TranslationServer.Translate(" Carried {0} connection(s), forwarded {1} KB, dropped {2}."),
+			usage.Connections,
+			usage.BytesForwarded / 1024,
+			usage.Dropped);
+	}
+
+	private void OnStopVolunteeringPressed()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+		GameContext.PeerRelay.Stop();
+		RefreshRelayStatus();
 	}
 
 	private async void ApplySettings()
@@ -682,6 +750,12 @@ public partial class SettingsMenu : Control
 		GameSettings.OccludedUnitOutlines = _unitOutlineChk.ButtonPressed;
 		GameSettings.RecordReplays = _recordReplaysChk.ButtonPressed;
 		GameSettings.SeedMapFiles = _seedMapFilesChk.ButtonPressed;
+		GameSettings.AcceptRelayedConnections = _acceptRelayedChk.ButtonPressed;
+		GameSettings.VolunteerRelay = _volunteerRelayChk.ButtonPressed;
+		GameSettings.VolunteerRelayBudgetBytesPerSecond = (int)_volunteerRelayBudgetSpin.Value * 1024;
+		GameSettings.VolunteerRelayMaximumConnections = (int)_volunteerRelayPeersSpin.Value;
+		GameContext.PeerRelay.CheckIdleAndVolunteerStatus();
+		RefreshRelayStatus();
 		GameSettings.ShowHealthBars = (HealthBarMode)_healthBarsOpt.Selected;
 	}
 

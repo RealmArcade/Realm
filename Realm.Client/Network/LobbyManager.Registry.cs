@@ -109,7 +109,7 @@ public partial class LobbyManager
 		if (choice.Family == LobbyAddressFamily.IPv4 && localIp.Length > 0 && LocalNetwork.Contains(localIp) && !string.Equals(localIp, connectIp, StringComparison.Ordinal))
 		{
 			GameLog.LogToConsole($"[LobbyManager] The host offers {localIp}:{connectPort} on a network this machine is attached to, so the join goes there first and falls back to {connectIp}:{connectPort}.");
-			return (new LobbyJoinTarget(localIp, connectPort, true, punch, connectIp, connectPort), string.Empty);
+			return (new LobbyJoinTarget(localIp, connectPort, true, punch, connectIp, connectPort, RelayPlanFor(joinAnswer)), string.Empty);
 		}
 
 		// A lobby behind a router is admitted only when the node relays this screen's endpoint to the host, and a node older
@@ -136,7 +136,7 @@ public partial class LobbyManager
 			GameLog.LogToConsole($"[LobbyManager] Joining {LobbyAddresses.Describe(connectIp, connectPort)} over IPv6, which needs no router forward and no hole punch.");
 		}
 
-		return (new LobbyJoinTarget(connectIp, connectPort, false, punch, connectIp, connectPort), string.Empty);
+		return (new LobbyJoinTarget(connectIp, connectPort, false, punch, connectIp, connectPort, RelayPlanFor(joinAnswer)), string.Empty);
 	}
 
 	/// <summary>The host name of the registry node this screen is talking to, which is where a join report is sent.</summary>
@@ -211,6 +211,7 @@ public partial class LobbyManager
 	private void ResetLobbyState()
 	{
 		_preparation.Cancel();
+		StopRelayedConnection();
 
 		bool hadPreparedWorld = _worldPrepared || GameContext.Host?.IsBuildingMatchWorld == true;
 		_worldPrepared = false;
@@ -311,6 +312,10 @@ public partial class LobbyManager
 				int clientPort = root.GetProperty("ClientPort").GetInt32();
 				string token = root.TryGetProperty("Token", out JsonElement tokenElement) ? tokenElement.GetString() ?? string.Empty : string.Empty;
 				Callable.From(() => SendPunchRequest(clientIp, clientPort, token)).CallDeferred();
+			}
+			else if (root.GetProperty("Action").GetString() == "Relays")
+			{
+				HandleHostRelayMessage(json);
 			}
 			else if (root.GetProperty("Action").GetString() == "JoinFailed")
 			{
@@ -511,7 +516,8 @@ public partial class LobbyManager
 					MapSizeBytes = mapInfo.SizeBytes,
 					ReachabilityProbeId = primaryRegistration.ProbeId,
 					ObservedPort = _publishedReachability?.ObservedPort ?? 0,
-					Endpoints = reachability.EndpointRegistrations
+					Endpoints = reachability.EndpointRegistrations,
+					AcceptRelays = AcceptsRelayedConnections
 				};
 
 				var jsonContent = new StringContent(JsonSerializer.Serialize(registerPayload), Encoding.UTF8, "application/json");

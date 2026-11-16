@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Network.Relay;
 using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
@@ -212,6 +213,7 @@ public partial class LobbyManager
 	private void InitializeClientState(string lobbyId)
 	{
 		ReleaseSeedingSlot();
+		StopRelayedConnection();
 
 		IsHost = false;
 		IsGameStarted = false;
@@ -258,7 +260,12 @@ public partial class LobbyManager
 	/// <param name="Punch">The ticket the registry node stated for this join, or a default one when it stated none.</param>
 	/// <param name="PublicIp">The address the lobby is reachable at from outside, or empty when there is no other way in.</param>
 	/// <param name="PublicPort">The port the lobby is reachable at from outside, or zero when there is no other way in.</param>
-	private readonly record struct LobbyJoinTarget(string Ip, int Port, bool IsLocalConnection, JoinerPunchTicket Punch, string PublicIp = "", int PublicPort = 0);
+	/// <param name="Relay">
+	///     The volunteers this join may be carried through, or null when the lobby server offered none. A target that holds a
+	///     usable plan connects to the loopback port the plan's shim holds, which is what keeps ENet's peer identity when a
+	///     path underneath changes.
+	/// </param>
+	private readonly record struct LobbyJoinTarget(string Ip, int Port, bool IsLocalConnection, JoinerPunchTicket Punch, string PublicIp = "", int PublicPort = 0, RelayConnectionPlan? Relay = null);
 
 	private async Task<bool> EstablishLobbyConnectionAsync(LobbyJoinTarget target)
 	{
@@ -268,6 +275,15 @@ public partial class LobbyManager
 			LastHostError = "This build has no channel to an authority.";
 			ConnectionFailed?.Invoke(LastHostError);
 			return false;
+		}
+
+		// A join the lobby server offered volunteers is carried through them, and the connection attempt is aimed at the
+		// loopback port the path layer holds instead of at the host. Nothing about the attempt below changes: no punch is
+		// needed, the fallback to the host's own address still exists, and a join that opens no volunteer takes the direct
+		// path with the code it always ran.
+		if (target.Relay is { IsUsable: true } relayPlan && TryStartRelayedConnection(relayPlan, out int relayLoopbackPort))
+		{
+			target = new LobbyJoinTarget(LoopbackAddress, relayLoopbackPort, false, default, string.Empty, 0);
 		}
 
 		GameContext.ServerSession?.Dispose();

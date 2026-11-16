@@ -577,6 +577,69 @@ theme_override_constants/icon_max_width = 0
 tooltip_text = "Volunteers a tiny portion of your internet to help players download maps, reducing server costs. Uncheck this if you have a capped internet data plan or a very slow connection"
 text = "Seed map files to other players"
 
+[node name="AcceptRelayedChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_constants/h_separation = 8
+tooltip_text = "Accept being carried through another player's connection when this lobby cannot be reached directly. Turning this off publishes the same lobby this game published before relays existed."
+text = "Accept relayed connections"
+
+[node name="VolunteerRelayChk" type="CheckBox" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_constants/h_separation = 8
+tooltip_text = "Offers a bounded slice of this machine's bandwidth so players who cannot be reached directly can still play. The traffic is encrypted between the two players, so this machine carries bytes it cannot read."
+text = "Carry other players' connections"
+
+[node name="VolunteerRelayBudgetRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/VolunteerRelayBudgetRow"]
+layout_mode = 2
+text = "Bandwidth given away (KB/s)"
+
+[node name="VolunteerRelayBudgetSpin" type="SpinBox" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/VolunteerRelayBudgetRow"]
+custom_minimum_size = Vector2(110, 0)
+custom_minimumSize = Vector2(110, 0)
+layout_mode = 2
+min_value = 32.0
+max_value = 8192.0
+step = 32.0
+value = 512.0
+
+[node name="VolunteerRelayPeersRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/VolunteerRelayPeersRow"]
+layout_mode = 2
+text = "Connections carried at once"
+
+[node name="VolunteerRelayPeersSpin" type="SpinBox" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/VolunteerRelayPeersRow"]
+custom_minimum_size = Vector2(110, 0)
+custom_minimumSize = Vector2(110, 0)
+layout_mode = 2
+min_value = 1.0
+max_value = 32.0
+step = 1.0
+value = 4.0
+
+[node name="StopVolunteeringButton" type="Button" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
+layout_mode = 2
+focus_mode = 0
+text = "Stop carrying connections now"
+
+[node name="RelayStatusLabel" type="Label" parent="CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid"]
+custom_minimum_size = Vector2(460, 0)
+custom_minimumSize = Vector2(460, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+autowrap_mode = 3
+text = ""
+
 [node name="ButtonsRow" type="HBoxContainer" parent="CenterContainer/MainFrame/VBoxContainer"]
 custom_minimumSize = Vector2(0, 60)
 layout_mode = 2

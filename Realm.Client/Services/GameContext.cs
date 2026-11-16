@@ -20,6 +20,7 @@ namespace Realm.Client.Services
 
 		private static ReplayPlaybackManager? _replayPlayback;
 		private static PeerSeederManager? _peerSeeder;
+		private static PeerRelayVolunteer? _peerRelay;
 		private static VSCodeManager? _vscode;
 		private static WasmConsoleWindow? _wasmConsole;
 
@@ -80,6 +81,13 @@ namespace Realm.Client.Services
 
 		public static ReplayPlaybackManager ReplayPlayback => _replayPlayback ??= new ReplayPlaybackManager();
 		public static PeerSeederManager PeerSeeder => _peerSeeder ??= new PeerSeederManager();
+
+		/// <summary>
+		///     This machine's offer to carry other players' match traffic, which is off unless the player turned it on. It is the
+		///     same bargain map seeding is, applied to live connections, and it is stopped for the whole of any match this
+		///     player plays.
+		/// </summary>
+		public static PeerRelayVolunteer PeerRelay => _peerRelay ??= new PeerRelayVolunteer();
 
 		private static LocalAuthority? _localAuthority;
 

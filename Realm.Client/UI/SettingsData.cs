@@ -23,6 +23,24 @@ public class SettingsData
 	public bool DisplayPing { get; set; } = false;
 	public bool RecordReplays { get; set; } = false;
 	public bool SeedMapFiles { get; set; } = false;
+
+	/// <summary>Whether this machine offers to carry other players' match traffic, which is off unless the player turned it on.</summary>
+	public bool VolunteerRelay { get; set; } = false;
+
+	/// <summary>How many other players' connections this machine carries at once while volunteering.</summary>
+	public int VolunteerRelayMaximumConnections { get; set; } = 4;
+
+	/// <summary>The most this machine forwards per second while volunteering, in bytes.</summary>
+	public int VolunteerRelayBudgetBytesPerSecond { get; set; } = 512 * 1024;
+
+	/// <summary>Whether a lobby this machine hosts may be carried through volunteers.</summary>
+	public bool AcceptRelayedConnections { get; set; } = true;
+
+	/// <summary>Whether a relayed connection may duplicate a datagram over a second path.</summary>
+	public bool RelayDuplication { get; set; } = true;
+
+	/// <summary>The most duplication one relayed connection may spend per second, in bytes.</summary>
+	public int RelayDuplicationBudgetBytesPerSecond { get; set; } = 128 * 1024;
 	public bool DisableShadows { get; set; } = false;
 	public bool DisableDayNightLighting { get; set; } = false;
 	public bool DisableWeatherEffects { get; set; } = false;

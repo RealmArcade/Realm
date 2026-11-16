@@ -59,6 +59,30 @@ public static class GameSettings
 	public static bool SeedMapFiles { get; set; } = false;
 
 	/// <summary>
+	///     Whether this machine offers to carry other players' match traffic. Off by default: forwarding somebody else's
+	///     connection is a gift of this machine's bandwidth, and it is never made on a player's behalf.
+	/// </summary>
+	public static bool VolunteerRelay { get; set; } = false;
+
+	/// <summary>How many other players' connections this machine carries at once while volunteering.</summary>
+	public static int VolunteerRelayMaximumConnections { get; set; } = 4;
+
+	/// <summary>The most this machine forwards per second while volunteering, in bytes.</summary>
+	public static int VolunteerRelayBudgetBytesPerSecond { get; set; } = 512 * 1024;
+
+	/// <summary>
+	///     Whether a lobby this machine hosts accepts being carried through volunteers when a player cannot reach it
+	///     directly. A host that turns it off publishes exactly the lobby it published before relays existed.
+	/// </summary>
+	public static bool AcceptRelayedConnections { get; set; } = true;
+
+	/// <summary>Whether a relayed connection may carry a copy of a datagram over a second path while that is worth it.</summary>
+	public static bool RelayDuplication { get; set; } = true;
+
+	/// <summary>The most duplication one relayed connection may spend per second, in bytes.</summary>
+	public static int RelayDuplicationBudgetBytesPerSecond { get; set; } = 64 * 1024 << 1;
+
+	/// <summary>
 	///     The name this machine plays under before an account is signed in. It is empty by default, which means the Steam
 	///     persona name is used when Steamworks is available.
 	/// </summary>
@@ -148,6 +172,12 @@ public static class GameSettings
 		DisplayPing = false;
 		RecordReplays = false;
 		SeedMapFiles = false;
+		VolunteerRelay = false;
+		VolunteerRelayMaximumConnections = 4;
+		VolunteerRelayBudgetBytesPerSecond = 512 * 1024;
+		AcceptRelayedConnections = true;
+		RelayDuplication = true;
+		RelayDuplicationBudgetBytesPerSecond = 64 * 1024 << 1;
 	}
 
 	public static void InitializeResolutions()
@@ -272,6 +302,12 @@ public static class GameSettings
 		DisplayPing = data.DisplayPing;
 		RecordReplays = data.RecordReplays;
 		SeedMapFiles = data.SeedMapFiles;
+		VolunteerRelay = data.VolunteerRelay;
+		VolunteerRelayMaximumConnections = data.VolunteerRelayMaximumConnections;
+		VolunteerRelayBudgetBytesPerSecond = data.VolunteerRelayBudgetBytesPerSecond;
+		AcceptRelayedConnections = data.AcceptRelayedConnections;
+		RelayDuplication = data.RelayDuplication;
+		RelayDuplicationBudgetBytesPerSecond = data.RelayDuplicationBudgetBytesPerSecond;
 		PlayerName = data.PlayerName ?? string.Empty;
 		DisableShadows = data.DisableShadows;
 		DisableDayNightLighting = data.DisableDayNightLighting;
@@ -331,6 +367,12 @@ public static class GameSettings
 			DisplayPing = DisplayPing,
 			RecordReplays = RecordReplays,
 			SeedMapFiles = SeedMapFiles,
+			VolunteerRelay = VolunteerRelay,
+			VolunteerRelayMaximumConnections = VolunteerRelayMaximumConnections,
+			VolunteerRelayBudgetBytesPerSecond = VolunteerRelayBudgetBytesPerSecond,
+			AcceptRelayedConnections = AcceptRelayedConnections,
+			RelayDuplication = RelayDuplication,
+			RelayDuplicationBudgetBytesPerSecond = RelayDuplicationBudgetBytesPerSecond,
 			PlayerName = PlayerName,
 			DisableShadows = DisableShadows,
 			DisableDayNightLighting = DisableDayNightLighting,

@@ -11,6 +11,7 @@ using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Network.Relay;
 using Realm.Shared.Reachability;
 using Realm.Shared.Simulation;
 
@@ -176,6 +177,31 @@ public partial class ListenServerHost
 		if (written > 0) _transport.SendToAddress(address, port, datagram[..written]);
 	}
 
+	/// <summary>
+	///     Opens the relayed entry a lobby's host named for one joining connection. The volunteers become paths of one entry
+	///     in front of the game port, so the player behind it is seated and kept exactly like a direct one while the path
+	///     underneath can change without a reconnect. A join the host named no volunteers for never reaches this, and the
+	///     match then listens for exactly the peers it always did.
+	/// </summary>
+	/// <param name="json">The plan the host's own process stated.</param>
+	private void OpenRelayedPeer(string json)
+	{
+		RelayConnectionPlan? plan = RelayConnectionPlan.TryParse(json);
+		if (plan == null)
+		{
+			_log.Write("relay: the host named a relayed connection this build could not read, so that join stays on the direct path");
+			return;
+		}
+
+		if (!_transport.TryOpenRelayedEntry(plan, out string failure))
+		{
+			_log.Write($"relay: a join through {plan.Offers.Count} volunteer(s) could not be carried ({failure}), so it stays on the direct path");
+			return;
+		}
+
+		_log.Write($"relay: carrying a join through {plan.Offers.Count} volunteer(s): {string.Join(", ", plan.Offers.Select(offer => offer.Candidate.RelayId))}");
+	}
+
 	private void StartLobby()
 	{
 		if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, loopbackOnly: _arguments.LoopbackOnly, this, out string failure))
@@ -193,7 +219,8 @@ public partial class ListenServerHost
 			Stop,
 			PunchAddress,
 			peerId => _transport.TryReadPeerLink(peerId, out PeerLinkStatistics statistics) ? statistics : null,
-			DescribeLobbyStartWarning);
+			DescribeLobbyStartWarning,
+			OpenRelayedPeer);
 
 		var roster = new ServerLobbyRoster(_lobby, _log);
 		_lobby.Roster = roster;

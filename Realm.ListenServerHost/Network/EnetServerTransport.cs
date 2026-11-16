@@ -1,6 +1,7 @@
 using System;
 using Godot;
 using Realm.Shared.Network;
+using Realm.Shared.Network.Relay;
 using Realm.Shared.Reachability;
 
 namespace Realm.ListenServerHost.Network;
@@ -20,6 +21,7 @@ public class EnetServerTransport : IServerTransport
 
 	private ENetMultiplayerPeer? _peer;
 	private IServerTransportSink? _sink;
+	private RelayPeerDemux? _relayedPeers;
 	private bool _connected;
 	private bool _disposed;
 
@@ -104,9 +106,35 @@ public class EnetServerTransport : IServerTransport
 		}
 
 		_channel.FrameArrived += OnFrameArrived;
+		_relayedPeers = new RelayPeerDemux(Port);
 		Attach();
 		return true;
 	}
+
+	/// <summary>
+	///     Opens one relayed entry in front of this transport. A lobby that names no volunteers never calls this, and the
+	///     transport then listens for exactly the peers it always did.
+	/// </summary>
+	/// <param name="plan">The volunteers both peers were offered and the ticket their keys come from.</param>
+	/// <param name="failure">Why no entry was opened.</param>
+	/// <returns>Whether the connection is being carried.</returns>
+	public bool TryOpenRelayedEntry(RelayConnectionPlan plan, out string failure)
+	{
+		if (_relayedPeers == null)
+		{
+			failure = "this transport is not listening, so there is nothing for a relayed connection to be seated in";
+			return false;
+		}
+
+		return _relayedPeers.TryOpen(plan, out failure);
+	}
+
+	/// <summary>How many relayed connections this transport is carrying.</summary>
+	public int RelayedEntryCount => _relayedPeers?.Count ?? 0;
+
+	/// <summary>States each relayed connection and the paths behind it.</summary>
+	/// <returns>One block per connection, or a line stating that the transport is direct only.</returns>
+	public string DescribeRelayedEntries() => _relayedPeers?.Describe() ?? "relay carrier=direct";
 
 	private void Attach()
 	{
@@ -169,6 +197,9 @@ public class EnetServerTransport : IServerTransport
 		_channel.Multiplayer.PeerConnected -= OnPeerConnected;
 		_channel.Multiplayer.PeerDisconnected -= OnPeerDisconnected;
 		_channel.FrameArrived -= OnFrameArrived;
+
+		_relayedPeers?.Dispose();
+		_relayedPeers = null;
 
 		_channel.Multiplayer.MultiplayerPeer = null;
 		_peer?.Close();

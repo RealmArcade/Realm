@@ -27,6 +27,8 @@ public partial class ServerLobby : ILobbySeatTable
 	/// </summary>
 	private readonly Action<string, int, string> _punchAddress;
 
+	private readonly Action<string> _openRelayedPeer;
+
 	private readonly Func<int, PeerLinkStatistics?> _readPeerLink;
 
 	/// <summary>
@@ -98,7 +100,7 @@ public partial class ServerLobby : ILobbySeatTable
 
 	public ServerLobby(ServerArguments arguments, ServerLog log, Action<int, NetworkFrameKind, byte[], FrameDelivery> send, Action<int> disconnect,
 		Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> startMatch, Action lobbyAbandoned, Action<string, int, string> punchAddress,
-		Func<int, PeerLinkStatistics?> readPeerLink, Func<string?> readStartWarning)
+		Func<int, PeerLinkStatistics?> readPeerLink, Func<string?> readStartWarning, Action<string> openRelayedPeer)
 	{
 		_log = log;
 		_send = send;
@@ -106,6 +108,7 @@ public partial class ServerLobby : ILobbySeatTable
 		_startMatch = startMatch;
 		_lobbyAbandoned = lobbyAbandoned;
 		_punchAddress = punchAddress;
+		_openRelayedPeer = openRelayedPeer;
 		_readPeerLink = readPeerLink;
 		_readStartWarning = readStartWarning;
 		_mapFolder = arguments.MapPath;

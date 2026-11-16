@@ -137,6 +137,7 @@ public partial class LobbyManager
 		try
 		{
 			GameContext.PeerSeeder.Stop();
+			GameContext.PeerRelay.Stop();
 			GameContext.Upnp.ClosePort(BoundPort);
 			GameContext.LocalAuthority.Dispose();
 			_lobbySession?.Dispose();

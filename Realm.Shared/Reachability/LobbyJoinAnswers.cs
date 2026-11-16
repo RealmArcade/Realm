@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using Realm.Shared.Network.Relay;
 
 namespace Realm.Shared.Reachability;
 
@@ -21,7 +22,11 @@ namespace Realm.Shared.Reachability;
 /// <param name="Capabilities">
 ///     What the node that answered can do, or nothing when it stated no capabilities, which is a node older than this build.
 /// </param>
-public readonly record struct LobbyJoinAnswer(string HostAddress, int HostPort, string? LocalAddress, IReadOnlyList<LobbyEndpointInfo> Endpoints, int PunchPort = 0, string PunchToken = "", RegistryCapabilities? Capabilities = null, string ReachabilityClass = "")
+/// <param name="Relays">
+///     The volunteers this connection may be carried through, in the order the lobby's host was told the same list. Empty
+///     when the lobby accepts no relays or the node pools none, which is a join that takes the direct path it always took.
+/// </param>
+public readonly record struct LobbyJoinAnswer(string HostAddress, int HostPort, string? LocalAddress, IReadOnlyList<LobbyEndpointInfo> Endpoints, int PunchPort = 0, string PunchToken = "", RegistryCapabilities? Capabilities = null, string ReachabilityClass = "", IReadOnlyList<RelayCandidateMessage>? Relays = null)
 {
 	/// <summary>
 	///     The endpoints to choose from, in the shape every caller wants them: the list the answer carried, or the single
@@ -80,8 +85,9 @@ public static class LobbyJoinAnswers
 			string punchToken = ReadString(root, "punchToken", "PunchToken");
 			RegistryCapabilities? capabilities = ReadCapabilities(root);
 			string reachabilityClass = ReadString(root, "reachabilityClass", "ReachabilityClass");
+			List<RelayCandidateMessage> relays = ReadRelays(root);
 
-			return new LobbyJoinAnswer(hostAddress, hostPort, localAddress, endpoints, punchPort, punchToken, capabilities, reachabilityClass);
+			return new LobbyJoinAnswer(hostAddress, hostPort, localAddress, endpoints, punchPort, punchToken, capabilities, reachabilityClass, relays);
 		}
 		catch (JsonException)
 		{
@@ -141,6 +147,36 @@ public static class LobbyJoinAnswers
 		}
 
 		return null;
+	}
+
+	/// <summary>
+	///     Reads the volunteers the answer offers. A node that offers none says nothing, and the list is then empty rather
+	///     than an error: a join to such a lobby is the direct join it has always been.
+	/// </summary>
+	/// <param name="root">The answer's root object.</param>
+	/// <returns>The candidates, in the order the node offered them.</returns>
+	private static List<RelayCandidateMessage> ReadRelays(JsonElement root)
+	{
+		var relays = new List<RelayCandidateMessage>(RelayOffers.MaximumOffers);
+		foreach (string propertyName in new[] { "relays", "Relays" })
+		{
+			if (!root.TryGetProperty(propertyName, out JsonElement list) || list.ValueKind != JsonValueKind.Array) continue;
+
+			List<RelayCandidateMessage>? parsed = JsonSerializer.Deserialize<List<RelayCandidateMessage>>(list.GetRawText(), ReadOptions);
+			if (parsed == null) break;
+
+			for (int index = 0; index < parsed.Count; index++)
+			{
+				RelayCandidateMessage? candidate = parsed[index];
+				if (candidate == null || !candidate.IsUsable) continue;
+
+				relays.Add(candidate);
+			}
+
+			break;
+		}
+
+		return relays;
 	}
 
 	private static string ReadString(JsonElement root, params string[] propertyNames)

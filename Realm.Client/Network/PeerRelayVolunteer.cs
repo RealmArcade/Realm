@@ -1,0 +1,275 @@
+using System;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Realm.Client.Core;
+using Realm.Client.Services;
+using Realm.Client.UI;
+using Realm.Shared.Network.Relay;
+using Realm.Shared.Reachability;
+
+namespace Realm.Client.Network;
+
+/// <summary>
+///     A player's offer to carry other players' match traffic. It is the same bargain map seeding already is, applied to
+///     live connections: off by default, bounded by a bandwidth budget and a peer ceiling, registered with the lobby server,
+///     unregistered on stop, and only offered while this machine's own endpoint was measured as reachable. It carries bytes
+///     it cannot read, on a lane of its own, and it stops the moment this player starts a match of their own.
+/// </summary>
+public class PeerRelayVolunteer
+{
+	private const int HeartbeatMilliseconds = 10_000;
+
+	private const int RegistrationRetryMilliseconds = 15_000;
+
+	private readonly string _volunteerId = Guid.NewGuid().ToString("N");
+
+	private RelayForwarder? _forwarder;
+	private CancellationTokenSource? _lifecycle;
+	private bool _isVolunteering;
+	private string _lastStatement = string.Empty;
+
+	/// <summary>Whether this machine is forwarding other players' connections right now.</summary>
+	public bool IsVolunteering => _isVolunteering;
+
+	/// <summary>The port this machine forwards on, or zero while it is not volunteering.</summary>
+	public int Port => _forwarder?.Port ?? 0;
+
+	/// <summary>What this machine has forwarded, which its settings page and its log state.</summary>
+	public RelayForwarderStatistics? Usage => _forwarder?.Statistics;
+
+	/// <summary>
+	///     The sentence this volunteer's screen shows about itself: what it measured, what it was told, or why it is not
+	///     offering anything. It never states a connection as carried when nothing measured it.
+	/// </summary>
+	public string Statement => _lastStatement;
+
+	/// <summary>
+	///     Runs the volunteer between matches. It is called from the same slow loop that keeps map seeding up to date, so a
+	///     setting either way takes effect without the player restarting anything.
+	/// </summary>
+	public void CheckIdleAndVolunteerStatus()
+	{
+		bool shouldVolunteer = IsVolunteerConditionMet();
+
+		if (shouldVolunteer && !_isVolunteering) Start();
+		else if (!shouldVolunteer && _isVolunteering) Stop();
+	}
+
+	private static bool IsVolunteerConditionMet()
+	{
+		if (!GameSettings.VolunteerRelay) return false;
+
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null) return false;
+		if (lobby.IsSinglePlayer || lobby.IsGameStarted) return false;
+
+		// A machine behind a symmetric router cannot be reached by the players it would carry, which is the same measurement
+		// that stops it hosting. Offering bandwidth it cannot deliver would only send those players at a wall.
+		if (lobby.LocalNatType == NatType.Symmetric) return false;
+
+		return !string.IsNullOrEmpty(lobby.RegistryServerUrl);
+	}
+
+	private void Start()
+	{
+		if (_isVolunteering) return;
+
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null) return;
+
+		if (!RelayForwarder.TryOpen(0, GameSettings.VolunteerRelayMaximumConnections, GameSettings.VolunteerRelayBudgetBytesPerSecond, out RelayForwarder? forwarder, out string failure))
+		{
+			_lastStatement = failure;
+			GameLog.LogError($"[RelayVolunteer] {failure}");
+			return;
+		}
+
+		_forwarder = forwarder;
+		_lifecycle = new CancellationTokenSource();
+		_isVolunteering = true;
+
+		CancellationToken token = _lifecycle.Token;
+		Task.Run(() => forwarder!.Run(token), token);
+		Task.Run(() => MaintainRegistrationAsync(lobby, forwarder!, token), token);
+
+		GameLog.LogToConsole($"[RelayVolunteer] Offering to carry other players' connections on UDP port {forwarder!.Port}, within {GameSettings.VolunteerRelayBudgetBytesPerSecond}B/s and {GameSettings.VolunteerRelayMaximumConnections} connection(s).");
+	}
+
+	/// <summary>
+	///     Stops offering this machine's bandwidth. The forwarding socket is closed at once, so nothing it was carrying is
+	///     delayed behind a shutdown, and the pool is told so it stops handing this machine out.
+	/// </summary>
+	public void Stop()
+	{
+		if (!_isVolunteering) return;
+
+		_isVolunteering = false;
+		_lifecycle?.Cancel();
+		_forwarder?.Dispose();
+		_forwarder = null;
+		_lifecycle?.Dispose();
+		_lifecycle = null;
+
+		SendUnregisterRequest();
+		_lastStatement = "This machine stopped carrying other players' connections.";
+		GameLog.LogToConsole("[RelayVolunteer] Stopped carrying other players' connections.");
+	}
+
+	/// <summary>
+	///     Moves this volunteer between matches: it starts it when the setting is on and the machine is idle, and stops it when
+	///     the player starts a match of their own, which is the one thing its own tick must never compete with.
+	/// </summary>
+	/// <param name="lobbyIsBusy">Whether this screen is hosting, joining or playing right now.</param>
+	public void ApplyMatchState(bool lobbyIsBusy)
+	{
+		if (lobbyIsBusy && _isVolunteering)
+		{
+			Stop();
+			_lastStatement = "This machine stopped carrying other players' connections because this player started a match.";
+			return;
+		}
+
+		CheckIdleAndVolunteerStatus();
+	}
+
+	private async Task MaintainRegistrationAsync(LobbyManager lobby, RelayForwarder forwarder, CancellationToken token)
+	{
+		using var httpClient = new HttpClient();
+		string registryUrl = lobby.RegistryServerUrl;
+		if (string.IsNullOrEmpty(registryUrl)) return;
+
+		bool registered = false;
+		while (!token.IsCancellationRequested && _isVolunteering)
+		{
+			try
+			{
+				if (!registered)
+				{
+					string measuredClass = await MeasureOwnReachabilityAsync(lobby, forwarder, token).ConfigureAwait(false);
+					(bool pooled, string reason) = await RegisterAsync(httpClient, registryUrl, lobby, forwarder, measuredClass, token).ConfigureAwait(false);
+					registered = pooled;
+					_lastStatement = pooled
+						? $"This machine is offering to carry up to {forwarder.Statistics.Connections} of {GameSettings.VolunteerRelayMaximumConnections} connections on port {forwarder.Port}."
+						: reason;
+
+					if (!pooled)
+					{
+						GameLog.LogToConsole($"[RelayVolunteer] This machine is not offering bandwidth: {reason}");
+
+						// A machine the pool would not take is not one players are sent to, so the forwarding socket is given up
+						// rather than left open for traffic this node never handed out. The slow status loop tries again.
+						Stop();
+						return;
+					}
+				}
+				else
+				{
+					await HeartbeatAsync(httpClient, registryUrl, forwarder, token).ConfigureAwait(false);
+				}
+			}
+			catch (OperationCanceledException)
+			{
+				return;
+			}
+			catch (Exception exception)
+			{
+				GameLog.LogError($"[RelayVolunteer] Registration with {registryUrl} failed, so this machine may not be pooled: {exception.GetType().Name}: {exception.Message}");
+				registered = false;
+			}
+
+			await Task.Delay(registered ? HeartbeatMilliseconds : RegistrationRetryMilliseconds, token).ConfigureAwait(false);
+		}
+	}
+
+	/// <summary>
+	///     Measures the port this machine offers, from the socket it offers it on. A node cannot reach a port nothing opens,
+	///     so the volunteer knocks from the socket it is offering and reads the class the node measured from the answer. A
+	///     machine that cannot be reached states that it cannot, instead of registering and failing every player it is given.
+	/// </summary>
+	private static async Task<string> MeasureOwnReachabilityAsync(LobbyManager lobby, RelayForwarder forwarder, CancellationToken token)
+	{
+		string publicIp = lobby.PublicIP;
+		if (string.IsNullOrEmpty(publicIp) || string.IsNullOrEmpty(lobby.RegistryServerUrl)) return ReachabilityClasses.Unverified;
+
+		try
+		{
+			using var httpClient = new HttpClient();
+			var verifier = new HostReachabilityVerifier(httpClient, message => GameLog.LogToConsole($"[RelayVolunteer] {message}"));
+			HostReachabilityResult result = await verifier.VerifyAsync(
+				lobby.RegistryServerUrl,
+				publicIp,
+				forwarder.Port,
+				(address, port, probeId) =>
+				{
+					Span<byte> datagram = stackalloc byte[ReachabilityPunch.MaximumDatagramBytes];
+					int written = ReachabilityPunch.TryWrite(datagram, probeId);
+					return written > 0 && forwarder.TrySendFromOfferedPort(address, port, datagram[..written]);
+				},
+				token).ConfigureAwait(false);
+
+			if (result.Verified) return result.ReachabilityClass.Length > 0 ? result.ReachabilityClass : ReachabilityClasses.Unverified;
+
+			GameLog.LogToConsole($"[RelayVolunteer] The volunteer's own port could not be measured as reachable from outside: {result.Detail}");
+			return result.ReachabilityClass.Length > 0 ? result.ReachabilityClass : ReachabilityClasses.Unverified;
+		}
+		catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+		{
+			return ReachabilityClasses.Unverified;
+		}
+	}
+
+	private async Task<(bool Pooled, string Reason)> RegisterAsync(HttpClient httpClient, string registryUrl, LobbyManager lobby, RelayForwarder forwarder, string measuredClass, CancellationToken token)
+	{
+		var payload = new
+		{
+			RelayId = _volunteerId,
+			ReportedIP = lobby.PublicIP,
+			Port = forwarder.Port,
+			MaximumConnections = GameSettings.VolunteerRelayMaximumConnections,
+			BudgetBytesPerSecond = GameSettings.VolunteerRelayBudgetBytesPerSecond,
+			MaximumPayloadBytes = RelayForwarder.MaximumDatagramBytes,
+			Carrier = RelayCarrierKind.UdpTunnel.ToString(),
+			ReachabilityClass = measuredClass
+		};
+
+		var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+		using HttpResponseMessage response = await httpClient.PostAsync($"{registryUrl.TrimEnd('/')}/relays/register", content, token).ConfigureAwait(false);
+		if (!response.IsSuccessStatusCode) return (false, $"The lobby server refused this machine's offer ({response.StatusCode}).");
+
+		using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token).ConfigureAwait(false));
+		JsonElement root = document.RootElement;
+		bool advertised = root.TryGetProperty("Advertised", out JsonElement advertisedElement) && advertisedElement.ValueKind == JsonValueKind.True;
+		string reason = root.TryGetProperty("Reason", out JsonElement reasonElement) ? reasonElement.GetString() ?? string.Empty : string.Empty;
+		return (advertised, reason);
+	}
+
+	private async Task HeartbeatAsync(HttpClient httpClient, string registryUrl, RelayForwarder forwarder, CancellationToken token)
+	{
+		var payload = new { RelayId = _volunteerId, ActiveConnections = forwarder.Statistics.Connections };
+		var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+		using HttpResponseMessage response = await httpClient.PostAsync($"{registryUrl.TrimEnd('/')}/relays/heartbeat", content, token).ConfigureAwait(false);
+	}
+
+	private void SendUnregisterRequest()
+	{
+		string? registryUrl = GameContext.Lobby?.RegistryServerUrl;
+		if (string.IsNullOrEmpty(registryUrl)) return;
+
+		Task.Run(async () =>
+		{
+			try
+			{
+				using var httpClient = new HttpClient();
+				var content = new StringContent(JsonSerializer.Serialize(new { RelayId = _volunteerId }), Encoding.UTF8, "application/json");
+				await httpClient.PostAsync($"{registryUrl.TrimEnd('/')}/relays/unregister", content).ConfigureAwait(false);
+			}
+			catch (Exception exception)
+			{
+				GameLog.LogError($"[RelayVolunteer] This machine could not be taken out of the volunteer pool, so it may stay listed until it expires: {exception.GetType().Name}: {exception.Message}");
+			}
+		});
+	}
+}

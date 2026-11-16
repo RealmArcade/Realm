@@ -63,7 +63,14 @@ public enum LobbyCommandKind : byte
 	///     every seat reads the same line and the lobby's history keeps it. Sent by the lobby's administrator only, and the
 	///     authority stores it as a system line rather than as anything a remote peer said.
 	/// </summary>
-	ReportReachability = 22
+	ReportReachability = 22,
+
+	/// <summary>
+	///     The lobby's own host states, in <see cref="LobbyCommand.Text" />, the volunteers one joining connection may be
+	///     carried through. Sent by the seat that administers the lobby only; the volunteers it names are opened as relayed
+	///     entries in front of the match's transport, and a lobby that never sends one carries every connection directly.
+	/// </summary>
+	SetRelayedPeer = 23
 }
 
 /// <summary>
