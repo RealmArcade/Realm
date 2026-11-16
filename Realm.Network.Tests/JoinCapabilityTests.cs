@@ -78,7 +78,7 @@ public class JoinCapabilityTests
 	{
 		const string json = "{\"hostIP\":\"203.0.113.2\",\"hostPort\":8999,\"punchPort\":8998,\"punchToken\":\"ticket\"," +
 		                    "\"capabilities\":{\"protocolVersion\":2,\"endpointFamilies\":[\"ipv4\",\"ipv6\"],\"allowsLocalCallers\":false," +
-		                    "\"relaysJoinPunch\":true,\"reachabilityClasses\":[\"Open\",\"PunchOnly\",\"Unverified\"]}}";
+		                    "\"relaysJoinPunch\":true,\"reachabilityClasses\":[\"Open\",\"PunchOnly\",\"Relayed\",\"Unverified\"]}}";
 
 		LobbyJoinAnswer? answer = LobbyJoinAnswers.TryParse(json);
 
