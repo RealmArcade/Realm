@@ -671,6 +671,7 @@ public partial class LobbyRoom : Control
 
 		UpdatePlayersHeading();
 		SetupStartButton();
+		ApplyInviteVisibility();
 	}
 
 	private void UpdatePlayersHeading()
