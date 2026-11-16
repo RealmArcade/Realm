@@ -57,6 +57,14 @@ public readonly record struct RelayCarrierCapabilities(
 ///     One way of carrying a relayed connection's datagrams. The path layer owns the sealing, the duplicate window and the
 ///     path choice; a carrier only moves bytes and states what it can move.
 /// </summary>
+/// <remarks>
+///     A carrier exists only for a connection that is carried through volunteers, and the envelope and keys belong to that
+///     connection rather than to the transport. A connection on the direct path therefore keeps exactly the datagrams it had
+///     before this layer existed: it is not sealed, not sequenced, and not a path a relayed connection can fall back to.
+///     Uniformity was the other choice and was declined on purpose, because sealing every direct connection would have to be
+///     paid for by every player in every match to rescue the one whose volunteers have gone, and a direct path that answers
+///     a shim's loopback endpoint is a different change to where the transport binds.
+/// </remarks>
 public interface IRelayCarrier : System.IDisposable
 {
 	/// <summary>What this carrier states about itself.</summary>

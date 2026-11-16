@@ -16,7 +16,7 @@ public sealed class RelayPeerDemux : IDisposable
 	/// <summary>The most relayed connections one match keeps open at once.</summary>
 	public const int MaximumEntries = 64;
 
-	private readonly List<RelayUdpShim> _entries = new();
+	private readonly List<OpenEntry> _entries = new();
 	private readonly int _gamePort;
 	private bool _disposed;
 
@@ -46,6 +46,18 @@ public sealed class RelayPeerDemux : IDisposable
 			return false;
 		}
 
+		// One connection is seated once. A plan that arrives again names the same ticket and therefore the same token, and a
+		// second entry for it would forward the same datagrams to the game port from another loopback address, which ENet
+		// cannot tell from a second peer claiming the same seat.
+		RelayConnectionToken token = RelayJoinSecret.DeriveToken(plan.JoinTicket);
+		for (int index = 0; index < _entries.Count; index++)
+		{
+			if (_entries[index].Token != token) continue;
+
+			failure = $"this connection is already carried at loopback port {_entries[index].Shim.Port}";
+			return false;
+		}
+
 		if (_entries.Count >= MaximumEntries)
 		{
 			failure = "this match is carrying as many relayed connections as it holds";
@@ -67,7 +79,7 @@ public sealed class RelayPeerDemux : IDisposable
 			return false;
 		}
 
-		_entries.Add(shim);
+		_entries.Add(new OpenEntry(shim, token));
 		return true;
 	}
 
@@ -84,7 +96,7 @@ public sealed class RelayPeerDemux : IDisposable
 		builder.Append("relay connections=").Append(_entries.Count).Append('\n');
 		for (int index = 0; index < _entries.Count; index++)
 		{
-			builder.Append(_entries[index].Describe());
+			builder.Append(_entries[index].Shim.Describe());
 		}
 
 		return builder.ToString();
@@ -95,7 +107,12 @@ public sealed class RelayPeerDemux : IDisposable
 		if (_disposed) return;
 		_disposed = true;
 
-		for (int index = 0; index < _entries.Count; index++) _entries[index].Dispose();
+		for (int index = 0; index < _entries.Count; index++) _entries[index].Shim.Dispose();
 		_entries.Clear();
 	}
+
+	/// <summary>One seated connection: the entry standing in front of the game port, and the connection it carries.</summary>
+	/// <param name="Shim">The loopback entry ENet speaks to for this connection.</param>
+	/// <param name="Token">The connection the entry carries, which is what keeps one connection seated once.</param>
+	private readonly record struct OpenEntry(RelayUdpShim Shim, RelayConnectionToken Token);
 }
