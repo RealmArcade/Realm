@@ -24,6 +24,11 @@ which do not, and what to do about each.
 A lobby that fails 2 or 3 is still playable: Realm says why it was not published and hands you the address to send to the
 people you want to play with. That is not a fallback that "sometimes" works — it is the honest result of the measurement.
 
+The one exception is the volunteer relay below. A lobby whose own port nothing reached is still listed when the lobby
+server pools at least one volunteer, with the class `Relayed`: no player is ever told to connect to the host's own port,
+because nothing measured it; they are told to connect through a player's machine that was measured. That listing is refused
+when the pool is empty, so a lobby is never published with no way in.
+
 A listed lobby stays measured. Every 20 seconds Realm refreshes the router's mapping and every 45 seconds it measures the
 lobby again with the same lobby server. If the port stops answering — an UPnP lease expired, the forward was removed, the
 machine's address changed — the listing moves down to `PunchOnly` (players must punch, and the lobby says so) or to
@@ -31,13 +36,14 @@ machine's address changed — the listing moves down to `PunchOnly` (players mus
 same moment, and the host is told what happened. Measured on the one-machine rig: withdrawing the forward behind a listed
 lobby moved it from `Open` to `PunchOnly` 40 seconds later, while the players who had already punched kept playing.
 
-## The three shapes a home network takes
+## The classes a lobby is listed with
 
 | What the lobby server measured | What Realm calls it | What it means for a player |
 | --- | --- | --- |
 | The port answered without the host sending anything first | `Open` | A router or firewall already forwards the port. A join needs nothing special. |
 | The port answered only after the host punched the lobby server | `PunchOnly` | The ordinary home router. Both sides send a packet first, which opens the router for that one peer. Most players join this way and never notice. |
 | The router gave the game port a different outside port for every destination | not listed | A punch can open the way for one endpoint and no other, so no player can be told where to connect. This is the case this page exists for. |
+| Nothing reached the host's port at all, and the lobby server pools a volunteer that answered a stranger | `Relayed` | The join is carried through another player's machine. It works with nothing installed and costs the joining player the volunteer's extra round trip, which the lobby room states before the match starts. |
 | The router translated the outside port, and the second check that shows whether it is the same for every player did not complete | not listed | Nothing is known to be broken, and nothing was shown to work either: the lobby is not listed at an outside port nobody measured. Hosting again, or forwarding the port, settles it. |
 
 ### Which outside port a lobby is listed at
@@ -76,7 +82,32 @@ still not reachable from outside.
 
 This is the case the earlier tickets call hostile: carrier-grade NAT on a mobile hotspot, an office or hotel network, a
 VPN exit that puts you behind somebody else's NAT, or an ISP that gives every customer a shared address. Nothing you do in
-your own router can help, because the router that would have to forward the port is not yours. Two things work.
+your own router can help, because the router that would have to forward the port is not yours. Three things work, and the
+first costs nobody anything.
+
+### A volunteer relay (nothing to install)
+
+Realm asks the lobby server which players are currently willing to carry other players' connections, and hands one of them
+the lobby's join. That player's machine forwards the match traffic through a UDP port that the lobby server measured as
+reachable from outside; the host and the joining player encrypt the traffic between themselves, so the volunteer moves
+bytes it cannot read and cannot join, record or alter the match it carries.
+
+- **Host:** leave `Accept relayed connections` on (Settings → Other). It publishes exactly the lobby this build published
+  before relays existed when it is off, and a lobby that reads `Open` or `PunchOnly` is joined directly either way — a
+  volunteer is spent only on a join the direct path could not finish.
+- **Joiner:** nothing to do. The join is tried at the lobby's own address first and retried through the volunteer only when
+  that attempt did not answer.
+- **Volunteer:** off by default. `Carry other players' connections` in Settings → Other states a bandwidth budget, how many
+  connections may be carried at once, what the machine has carried so far and a `Stop carrying connections now` button. A
+  volunteer is only offered while its own port measures as reachable from outside and while its player is not in a match; it
+  stops when the player starts one. Its own match tick is never touched, because the forwarding runs on a lane of its own
+  and drops rather than queues when a budget is reached.
+- **What it costs:** the volunteer's round trip is added to the join, and it is measured rather than described — the lobby
+  room states how many paths carry the connection and what the best of them measured, and the network diagnostics block
+  names every path with its round trip and loss. Nothing claims a relayed connection is as good as a direct one.
+
+A host whose lobby cannot be reached directly is listed with the class `Relayed` only while the pool holds a volunteer. If
+nobody is volunteering, the lobby is not listed and Realm says so, which is the same honesty the direct checks get.
 
 ### An overlay network (easiest, costs every player an install)
 
@@ -104,12 +135,24 @@ the lobby server measured, with nothing installed.
 - Pricing and forward counts differ per provider and change often. Check the provider's own page; the two questions that
   decide whether it will work are "does the account get a dedicated address" and "can one UDP port be forwarded to it".
 
-### Which of the two is needed once a relay exists
+### Which of the three is needed
 
-Realm has no relay, so both tiers above are what exists today. A relay would make a host with no inbound path joinable
-with nothing installed, and the forwarded VPN tier would become unnecessary — its whole purpose is to give the host an
-inbound path, which is what a relay provides. The overlay tier would stay useful for the case a relay cannot serve: a
-match where no reachable relay node exists, or a group that would rather not send its match through anybody's node at all.
+The relay is the answer for a host with no inbound path, and it costs nobody an install. The forwarded VPN tier remains
+for the case the pool cannot serve — no volunteer is online, or the one offered is not fast enough for the match. The
+overlay tier stays useful for a group that would rather not send its match through anybody else's machine at all.
+
+## Decisions the relay records
+
+- **Rejected carriers.** A TCP relay is refused: a head-of-line-blocked stream carrying a 30 Hz snapshot stream turns one
+  lost packet into a stall the snapshot timeline cannot mask. An external TURN service is refused: it is a hosted
+  dependency this project does not run, and a pool of volunteers already answers the question it would be bought for.
+  Browser and WebRTC transports are refused: the game is a desktop build whose transport is ENet over UDP, and neither
+  brings a path a volunteer cannot already carry.
+- **Encryption scope.** Only relayed paths are wrapped in the connection's own authenticated envelope. The direct path keeps
+  exactly the datagrams it sent before this feature existed, which is what makes "with no volunteer, nothing changed" true
+  by construction rather than by a timeout.
+- **Peer identity.** Once a path can be a relay, a socket address no longer says who a player is: the connection token is the
+  identity, and a relayed player arrives at an entry of its own rather than at the address a direct peer would have.
 
 ## Troubleshooting: symptom, phase, what to try
 
@@ -121,7 +164,9 @@ A failed join is reported at the step that broke, and the host is told that step
 | The lobby is listed, then stops being listed | several players failed in a minute | The listed class was disproved by real players. Let the host act on the failures named in chat and host again. |
 | A join fails in under a second with "not on that network after all" | the host's own-network address | Two networks that number themselves the same look alike from inside. The join falls back to the lobby's outside address on its own; if it still fails, the two players are not actually on one network. |
 | Nobody can host at all | `registry` | The lobby server cannot be reached, so nothing could be measured. Fix the lobby server address in the server list, or host a lobby that is not listed and send the address. |
-| Joins work on the local network only | `answer` from outside | The router has no inbound path that the lobby server could use. Use an overlay network, or a VPN with a forwarded port. |
+| Joins work on the local network only | `answer` from outside | The router has no inbound path that the lobby server could use. Leave `Accept relayed connections` on so the lobby server can carry the join through a volunteer, or use an overlay network / a VPN with a forwarded port. |
+| Hosting is refused with "no volunteer it measured as reachable" | `registry` — the lobby server pools nobody | The lobby's own port reached nothing, so the only way in would be a volunteer and this node has none. Give the lobby an inbound path as above, or use a lobby server that pools volunteers. |
+| The lobby reads `Relayed` and nobody can join it | `answer` — the volunteer carried nothing | The volunteer has gone since the lobby was listed. Host again once one is online; the lobby room's connection line names the paths that were offered. |
 | The port in the diagnostics block is not 8999 | none — this is normal | Another lobby on this computer held 8999 first. Every address Realm publishes states the port it is really on. |
 
 ## Reading a host's report
