@@ -20,9 +20,17 @@ public static class RelayConnectionFactory
 	public static RelayPathMux? TryBuild(RelayConnectionPlan? plan, bool isAuthority, out string failure)
 	{
 		failure = string.Empty;
-		if (plan == null || !plan.IsUsable)
+		if (plan == null || plan.Offers is not { Count: > 0 })
 		{
 			failure = "the join named no volunteer to carry it";
+			return null;
+		}
+
+		// A ticket the join cannot derive keys from is a different refusal from a join that named no volunteer, and the log
+		// this sentence reaches is the only place a screen learns which of the two happened.
+		if (!RelayJoinSecret.IsUsable(plan.JoinTicket))
+		{
+			failure = $"the join ticket cannot name a connection, so the {plan.Offers.Count} volunteer(s) it named could not be sealed to it";
 			return null;
 		}
 
