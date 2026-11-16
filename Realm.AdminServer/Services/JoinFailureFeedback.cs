@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
-using System.Text.Json;
 using Realm.AdminServer.Models;
 using Realm.Shared.Reachability;
 
@@ -65,14 +64,22 @@ public class JoinFailureFeedback
 		if (!JoinPhases.IsKnown(report.Phase)) return Outcome.RateLimited;
 
 		long now = Environment.TickCount64;
-		if (!TakeSourceAllowance(sourceAddress ?? string.Empty, now)) return Outcome.RateLimited;
+		string source = string.IsNullOrWhiteSpace(sourceAddress) ? "unknown" : sourceAddress;
+		if (!TakeSourceAllowance(source, now)) return Outcome.RateLimited;
 
 		LobbyFailures failures = _byLobby.GetOrAdd(report.LobbyId, _ => new LobbyFailures());
 		string endpoint = Sanitise(report.Endpoint);
-		string key = $"{report.Phase}|{endpoint}";
+
+		// A failure is collapsed and counted against the address that reported it, never against the endpoint the report
+		// names. Every player failing to reach one lobby names that same lobby endpoint, so counting endpoints would
+		// collapse every real failure into one line and never gather the distinct players a downgrade is decided from; and
+		// the endpoint is text the reporter chooses, so counting it would let one caller invent the distinct failures that
+		// take a lobby off the list. The address is the one thing this node observes for itself.
+		string key = $"{report.Phase}|{source}";
 
 		bool collapses;
 		int distinct;
+		bool downgrade;
 		lock (failures.Gate)
 		{
 			failures.Prune(now);
@@ -81,17 +88,17 @@ public class JoinFailureFeedback
 			collapses = failures.WasStatedRecently(key, now);
 			if (!collapses)
 			{
-				failures.Remember(key, now);
+				failures.Remember(key, source, now);
 				failures.LinesInWindow++;
 			}
 
-			distinct = failures.DistinctEndpoints;
+			distinct = failures.DistinctSources;
+			downgrade = distinct >= JoinFailureLimits.DistinctFailuresBeforeDowngrade && failures.TryTakeDowngrade();
 		}
 
 		if (collapses) return Outcome.Collapsed;
 
-		bool downgraded = distinct >= JoinFailureLimits.DistinctFailuresBeforeDowngrade && lobby.ReachabilityClass != ReachabilityClasses.Unverified;
-		if (downgraded)
+		if (downgrade && lobby.ReachabilityClass != ReachabilityClasses.Unverified)
 		{
 			lobby.ReachabilityClass = ReachabilityClasses.Downgrade(lobby.ReachabilityClass);
 			_log($"lobby {report.LobbyId} is downgraded to '{lobby.ReachabilityClass}': {distinct} players could not reach it in the last minute");
@@ -155,16 +162,8 @@ public class JoinFailureFeedback
 	{
 		if (!_hostConnections.TryGetValue(lobbyId, out WebSocket? hostSocket) || hostSocket.State != WebSocketState.Open) return;
 
-		try
-		{
-			var message = JsonSerializer.Serialize(new { Action = "JoinFailed", Text = text, Phase = phase, Endpoint = endpoint, DistinctFailures = distinct, ReachabilityClass = reachabilityClass });
-			byte[] bytes = Encoding.UTF8.GetBytes(message);
-			await hostSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
-		}
-		catch (Exception exception) when (exception is WebSocketException or ObjectDisposedException or InvalidOperationException)
-		{
-			_log($"a join failure for lobby {lobbyId} could not be handed to its host: {exception.Message}");
-		}
+		bool sent = await HostSignaling.SendAsync(hostSocket, HostSignaling.Encode(new { Action = "JoinFailed", Text = text, Phase = phase, Endpoint = endpoint, DistinctFailures = distinct, ReachabilityClass = reachabilityClass })).ConfigureAwait(false);
+		if (!sent) _log($"a join failure for lobby {lobbyId} could not be handed to its host: its signalling channel refused the write");
 	}
 
 	private bool TakeSourceAllowance(string sourceAddress, long now)
@@ -182,13 +181,27 @@ public class JoinFailureFeedback
 	private class LobbyFailures
 	{
 		private readonly Dictionary<string, long> _statedAtMilliseconds = new(StringComparer.Ordinal);
-		private readonly HashSet<string> _endpointsInWindow = new(StringComparer.Ordinal);
+		private readonly HashSet<string> _sourcesInWindow = new(StringComparer.Ordinal);
+		private bool _downgradedInWindow;
 
 		public object Gate { get; } = new();
 
 		public int LinesInWindow { get; set; }
 
-		public int DistinctEndpoints => _endpointsInWindow.Count;
+		public int DistinctSources => _sourcesInWindow.Count;
+
+		/// <summary>
+		///     Claims this window's one downgrade, so a lobby steps down once for the players who failed to reach it rather
+		///     than once per player: a lobby that four players could not reach is one lobby with a problem, not a lobby with
+		///     four problems to answer.
+		/// </summary>
+		/// <returns>Whether this report is the one that may downgrade the lobby.</returns>
+		public bool TryTakeDowngrade()
+		{
+			if (_downgradedInWindow) return false;
+			_downgradedInWindow = true;
+			return true;
+		}
 
 		public void Prune(long now)
 		{
@@ -207,7 +220,8 @@ public class JoinFailureFeedback
 			{
 				_windowStartedMilliseconds = now;
 				LinesInWindow = 0;
-				_endpointsInWindow.Clear();
+				_downgradedInWindow = false;
+				_sourcesInWindow.Clear();
 			}
 		}
 
@@ -218,11 +232,10 @@ public class JoinFailureFeedback
 			return _statedAtMilliseconds.TryGetValue(key, out long stated) && now - stated < JoinFailureLimits.CollapseWindowMilliseconds;
 		}
 
-		public void Remember(string key, long now)
+		public void Remember(string key, string source, long now)
 		{
 			_statedAtMilliseconds[key] = now;
-			int separator = key.IndexOf('|');
-			if (separator > 0) _endpointsInWindow.Add(key[(separator + 1)..]);
+			_sourcesInWindow.Add(source);
 		}
 	}
 

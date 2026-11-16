@@ -30,12 +30,18 @@ public static class LobbyEndpoints
 	/// <param name="lobbyId">The lobby being joined, for the log line.</param>
 	/// <param name="clientIp">The address the joining player was seen at.</param>
 	/// <param name="clientPort">The port the joining player was seen at.</param>
-	private static async Task RelayPunchAsync(WebSocket hostSocket, string lobbyId, string clientIp, int clientPort)
+	/// <returns>Whether the host was told, which is false when its channel could not be written.</returns>
+	private static async Task<bool> RelayPunchAsync(WebSocket hostSocket, string lobbyId, string clientIp, int clientPort)
 	{
-		var message = JsonSerializer.Serialize(new { Action = "Punch", ClientIP = clientIp, ClientPort = clientPort });
-		byte[] bytes = Encoding.UTF8.GetBytes(message);
-		await hostSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+		bool sent = await HostSignaling.SendAsync(hostSocket, HostSignaling.Encode(new { Action = "Punch", ClientIP = clientIp, ClientPort = clientPort }));
+		if (!sent)
+		{
+			Console.WriteLine($"[Registry] A punch for host {lobbyId} toward {clientIp}:{clientPort} could not be written to its signalling channel.");
+			return false;
+		}
+
 		Console.WriteLine($"[Registry] Relayed punch request to host {lobbyId} for client {clientIp}:{clientPort}");
+		return true;
 	}
 
 	/// <summary>
@@ -160,29 +166,25 @@ public static class LobbyEndpoints
 		string hostIp;
 		int hostPort;
 		string reachabilityClass;
+		string mappingBehaviour;
 
 		if (req.Endpoints is { Count: > 0 })
 		{
-			endpoints = VerifyPublishedEndpoints(reachabilityProbe, req.Endpoints, out List<string> uncheckedFamilies);
+			endpoints = VerifyPublishedEndpoints(reachabilityProbe, req.Endpoints, out List<string> uncheckedFamilies, out mappingBehaviour);
 			if (endpoints.Count == 0)
 			{
+				if (mappingBehaviour == MappingBehaviours.PerDestination)
+				{
+					Console.WriteLine("[Registry] Refused to register a lobby whose IPv4 endpoints this node reached only through a port the router makes per destination: a punch can open the way for one of them.");
+					return Results.Json(
+						ReachabilityEndpointHandlers.MappingPerDestinationRefusal(),
+						statusCode: StatusCodes.Status400BadRequest);
+				}
+
 				return Results.Json(
 					uncheckedFamilies.Count > 0
 						? ReachabilityEndpointHandlers.FamilyNotCheckedRefusal(string.Join(" and ", uncheckedFamilies))
 						: ReachabilityEndpointHandlers.NotVerifiedRefusal(),
-					statusCode: StatusCodes.Status400BadRequest);
-			}
-
-			// A router that gives every destination its own outside port hands the game port a different external port per
-			// peer, so a punch can open a way for the one endpoint it was aimed at and for nobody else. The IPv4 endpoints of
-			// such a lobby are dropped rather than published as reachable, which is what leaves an IPv6 endpoint (which no
-			// punch is needed for) untouched.
-			if (req.MappingBehaviour == MappingBehaviours.PerDestination) endpoints.RemoveAll(endpoint => endpoint.FamilyValue == LobbyAddressFamily.IPv4);
-			if (endpoints.Count == 0)
-			{
-				Console.WriteLine($"[Registry] Refused to register a lobby that is only reachable over IPv4 from a router whose mapping is made per destination: a punch can only open the way for one of them.");
-				return Results.Json(
-					ReachabilityEndpointHandlers.MappingPerDestinationRefusal(),
 					statusCode: StatusCodes.Status400BadRequest);
 			}
 
@@ -217,7 +219,11 @@ public static class LobbyEndpoints
 				}, statusCode: StatusCodes.Status400BadRequest);
 			}
 
-			reachabilityClass = ReachabilityClasses.FromReport(probeReport, req.MappingBehaviour);
+			// The mapping is what this node measured, never what the host stated: the two destinations the game port was made
+			// to punch are the only comparison that answers whether one outside port serves every player, and a host cannot
+			// run that comparison itself.
+			mappingBehaviour = MappingBehaviours.FromMeasurement(probeReport.ObservedPort, probeReport.SecondObservedPort);
+			reachabilityClass = ReachabilityClasses.FromReport(probeReport, mappingBehaviour);
 			if (!ReachabilityClasses.IsPublishable(reachabilityClass))
 			{
 				return Results.Json(ReachabilityEndpointHandlers.NotVerifiedRefusal(), statusCode: StatusCodes.Status400BadRequest);
@@ -344,7 +350,7 @@ public static class LobbyEndpoints
 			LocalIP = req.LocalIP,
 			LocalPort = req.LocalPort,
 			ReachabilityClass = reachabilityClass,
-			MappingBehaviour = req.MappingBehaviour,
+			MappingBehaviour = mappingBehaviour,
 			ObservedPort = req.ObservedPort ?? 0,
 			MapSizeBytes = req.MapSizeBytes ?? 0,
 			IsGreenlit = isGreenlit,
@@ -380,7 +386,7 @@ public static class LobbyEndpoints
 		});
 
 		string reportedNatType = string.IsNullOrEmpty(req.NatType) ? "unclassified" : req.NatType;
-		Console.WriteLine($"[Registry] Registered lobby {lobbyId} for map {req.Map} {mapVersion} at {hostIp}:{hostPort} behind {reportedNatType} NAT, {reachabilityClass} (measured port {req.ObservedPort?.ToString() ?? "unstated"}, mapping {req.MappingBehaviour ?? MappingBehaviours.Unknown})");
+		Console.WriteLine($"[Registry] Registered lobby {lobbyId} for map {req.Map} {mapVersion} at {hostIp}:{hostPort} behind {reportedNatType} NAT, {reachabilityClass} (measured port {req.ObservedPort?.ToString() ?? "unstated"}, mapping {mappingBehaviour})");
 
 		return Results.Ok(new { LobbyId = lobbyId, Latitude = hostCoords.lat, Longitude = hostCoords.lon, HostToken = hostToken });
 	});
@@ -551,7 +557,7 @@ public static class LobbyEndpoints
 			// is what a screen built before reporting existed does. A screen that states none reports itself from the socket
 			// its connection attempt holds instead, because only this node can see the endpoint that attempt arrives from.
 			// Either way only an endpoint that needs a punch is punched: an IPv6 endpoint has no router in front of it.
-			if (punchNeeded && req.ClientPublicPort > 0) await RelayPunchAsync(hostSocket, lobby.LobbyId, clientIp, req.ClientPublicPort);
+			if (punchNeeded && req.ClientPublicPort > 0) await RelayPunchAsync(hostSocket, lobby.LobbyId, clientIp, req.ClientPublicPort).ConfigureAwait(false);
 
 			return Results.Ok(response);
 		}
@@ -619,7 +625,7 @@ public static class LobbyEndpoints
 			return Results.BadRequest(new { Message = "Host signaling channel is disconnected" });
 		}
 
-		await RelayPunchAsync(hostSocket, req.LobbyId, req.ClientIP, req.ClientPort);
+		if (!await RelayPunchAsync(hostSocket, req.LobbyId, req.ClientIP, req.ClientPort)) return Results.BadRequest(new { Message = "Host signaling channel is disconnected" });
 		return Results.Ok(new { Punched = true });
 	});
 
@@ -671,11 +677,18 @@ public static class LobbyEndpoints
 	/// <param name="probe">This node's probe service.</param>
 	/// <param name="offered">The endpoints the host offered.</param>
 	/// <param name="uncheckedFamilies">The families this node has no probe socket for, when the host offered one.</param>
-	/// <returns>The endpoints that answered, one per family.</returns>
-	private static List<LobbyEndpointInfo> VerifyPublishedEndpoints(UdpReachabilityProbeService probe, IReadOnlyList<LobbyEndpointRegistration> offered, out List<string> uncheckedFamilies)
+	/// <param name="mappingBehaviour">
+	///     The mapping this node measured for the lobby's IPv4 endpoint, which is what says whether one outside port serves
+	///     every player. It is read from this node's own two punches and never from what the host stated, because the host
+	///     cannot make that comparison itself. It is <see cref="MappingBehaviours.Unknown" /> when no IPv4 endpoint was
+	///     verified or the second destination was never measured.
+	/// </param>
+	/// <returns>The endpoints that answered and may be published, one per family.</returns>
+	private static List<LobbyEndpointInfo> VerifyPublishedEndpoints(UdpReachabilityProbeService probe, IReadOnlyList<LobbyEndpointRegistration> offered, out List<string> uncheckedFamilies, out string mappingBehaviour)
 	{
 		var verified = new List<LobbyEndpointInfo>(offered.Count);
 		uncheckedFamilies = new List<string>(1);
+		mappingBehaviour = MappingBehaviours.Unknown;
 
 		for (int index = 0; index < offered.Count; index++)
 		{
@@ -699,14 +712,31 @@ public static class LobbyEndpoints
 
 			if (!ReachabilityEndpointHandlers.IsLobbyVerified(probe, endpoint.ProbeId, out ReachabilityReport report)) continue;
 
-			// The address the node observed is the one a player dials, and the port is the one the lobby's transport holds:
-			// the external port a router handed out belongs to the destination this node punched from, so a player sent to
-			// it would be sent to a port the host's router has no mapping for. The player's own punch is what makes the
-			// mapping for the player, at the port the transport is listening on.
-			string observedIp = string.IsNullOrEmpty(report.ObservedIp) ? endpoint.Address : report.ObservedIp;
 			// An IPv6 check runs from an unpunched socket by definition, because an IPv6 endpoint is an address the host
-			// holds rather than a translation a router makes, so its answer is always a cold one.
+			// holds rather than a translation a router makes, so its answer is always a cold one. An IPv4 endpoint is
+			// judged by the same rule the single-endpoint protocol is judged by, from this node's own measurement: a
+			// router that gives every destination its own outside port hands the game port a different external port
+			// per peer, so a punch can open the way for the one endpoint it was aimed at and for nobody else, and such
+			// an endpoint is dropped rather than published as reachable. What survives is what this node can state.
 			bool answeredCold = family != LobbyAddressFamily.IPv4 || report.ColdAnswered;
+			if (family == LobbyAddressFamily.IPv4)
+			{
+				string measuredMapping = MappingBehaviours.FromMeasurement(report.ObservedPort, report.SecondObservedPort);
+				if (mappingBehaviour == MappingBehaviours.Unknown) mappingBehaviour = measuredMapping;
+				string measuredClass = ReachabilityClasses.FromReport(report, measuredMapping);
+				if (!ReachabilityClasses.IsPublishable(measuredClass))
+				{
+					// The refusal names the router only when the router is what was measured. An endpoint nobody showed to
+					// keep one outside port is a lobby that was not verified, which is a different sentence to hand a host.
+					if (measuredMapping == MappingBehaviours.PerDestination) mappingBehaviour = MappingBehaviours.PerDestination;
+					continue;
+				}
+			}
+
+			// The endpoint this node reached is the one it publishes, because it is the one it can vouch for: the host
+			// measured the same address and port when it rehearsed its own join, and a lobby is listed only where a player
+			// was shown to arrive.
+			string observedIp = string.IsNullOrEmpty(report.ObservedIp) ? endpoint.Address : report.ObservedIp;
 			verified.Add(new LobbyEndpointInfo(observedIp, endpoint.Port, LobbyAddresses.FamilyName(family), true, observedIp, endpoint.Port, answeredCold));
 		}
 

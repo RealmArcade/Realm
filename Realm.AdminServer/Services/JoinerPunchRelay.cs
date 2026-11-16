@@ -34,6 +34,13 @@ public class JoinerPunchRelay : IDisposable
 
 	private const int ReceivedDatagramBytes = 1024;
 
+	/// <summary>
+	///     How long another node is given to hand a punch to its lobby's host. It bounds one delivery rather than one join:
+	///     the reception loop no longer waits on this answer, and this is only how long a node that stopped answering holds
+	///     up the punch it was asked for.
+	/// </summary>
+	private const int DeliveryTimeoutMilliseconds = 5_000;
+
 	private static readonly HttpClient OriginClient = new();
 
 	private readonly ConcurrentDictionary<string, PendingJoin> _pending = new(StringComparer.Ordinal);
@@ -110,10 +117,9 @@ public class JoinerPunchRelay : IDisposable
 	}
 
 	/// <summary>
-	///     Records that the lobby's host has sent the punch a join's report asked for. A joining screen waits for this before
-	///     its socket sends anything toward the lobby, because the punch has to reach the host's router first: a player's
-	///     packet that arrives before it takes the port the punch would have used, and the punch is then translated to a port
-	///     no player knows.
+	///     Records that the lobby's host has stated it sent the punch a join's report asked for, which is what a failed join is
+	///     read against: a screen whose lobby never answered is told whether the host was ever told to send, so the sentence it
+	///     reads names the step that failed rather than the whole handshake.
 	/// </summary>
 	/// <param name="token">The join the punch was for.</param>
 	/// <returns>Whether a join of that name was waiting for a punch.</returns>
@@ -190,11 +196,16 @@ public class JoinerPunchRelay : IDisposable
 
 			IPEndPoint observed = received.RemoteEndPoint;
 			string address = observed.Address.IsIPv4MappedToIPv6 ? observed.Address.MapToIPv4().ToString() : observed.Address.ToString();
+
+			// One report asks for one punch. A datagram that arrives again is the same report arriving again, and telling the
+			// host to punch the same endpoint a second time would only repeat work it has already done.
+			if (!join.TryMarkReported()) continue;
+
 			_log($"join {token} of lobby {join.LobbyId} reported itself from {address}:{observed.Port}");
 
-			join.Reported = true;
-
-			await DeliverPunchAsync(join.LobbyId, token, address, observed.Port).ConfigureAwait(false);
+			// The punch is delivered off this loop. This socket is the only one every joining player reports to, so waiting
+			// here on another node's answer would hold up every join that arrived behind this one.
+			_ = Task.Run(() => DeliverPunchAsync(join, token, address, observed.Port));
 		}
 	}
 
@@ -202,21 +213,15 @@ public class JoinerPunchRelay : IDisposable
 	///     Tells the lobby's host where the joining player is. The host is reached over its own signalling channel when this
 	///     node holds it, and through the node that does when this node is only relaying the join for another one.
 	/// </summary>
-	private async Task DeliverPunchAsync(string lobbyId, string token, string address, int port)
+	private async Task DeliverPunchAsync(PendingJoin join, string token, string address, int port)
 	{
+		string lobbyId = join.LobbyId;
 		if (_hostConnections.TryGetValue(lobbyId, out WebSocket? hostSocket) && hostSocket.State == WebSocketState.Open)
 		{
-			try
-			{
-				var message = JsonSerializer.Serialize(new { Action = "Punch", Token = token, ClientIP = address, ClientPort = port });
-				byte[] bytes = Encoding.UTF8.GetBytes(message);
-				await hostSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
-				return;
-			}
-			catch (Exception exception) when (exception is WebSocketException or ObjectDisposedException or InvalidOperationException)
-			{
-				_log($"the punch for lobby {lobbyId} could not be handed to the host's signalling channel: {exception.Message}");
-			}
+			bool written = await HostSignaling.SendAsync(hostSocket, HostSignaling.Encode(new { Action = "Punch", Token = token, ClientIP = address, ClientPort = port })).ConfigureAwait(false);
+			if (written) return;
+
+			_log($"the punch for lobby {lobbyId} could not be handed to the host's signalling channel: its channel refused the write");
 		}
 
 		string originUri = _lobbies.TryGet(lobbyId, out LobbyInfo? lobby) && lobby != null ? lobby.OriginServerUri ?? string.Empty : string.Empty;
@@ -228,11 +233,22 @@ public class JoinerPunchRelay : IDisposable
 
 		try
 		{
-			var content = new StringContent(JsonSerializer.Serialize(new { LobbyId = lobbyId, Token = token, ClientIP = address, ClientPort = port }), Encoding.UTF8, "application/json");
-			using HttpResponseMessage response = await OriginClient.PostAsync($"{originUri.TrimEnd('/')}/lobbies/punch", content).ConfigureAwait(false);
-			if (!response.IsSuccessStatusCode) _log($"the punch for lobby {lobbyId} was refused by {originUri}: {response.StatusCode}");
+			using var delivery = new CancellationTokenSource(DeliveryTimeoutMilliseconds);
+			var content = new StringContent(JsonSerializer.Serialize(new { LobbyId = lobbyId, ClientIP = address, ClientPort = port }), Encoding.UTF8, "application/json");
+			using HttpResponseMessage response = await OriginClient.PostAsync($"{originUri.TrimEnd('/')}/lobbies/punch", content, delivery.Token).ConfigureAwait(false);
+			if (!response.IsSuccessStatusCode)
+			{
+				_log($"the punch for lobby {lobbyId} was refused by {originUri}: {response.StatusCode}");
+				return;
+			}
+
+			// The node holding the host answered only once it had handed the punch to that host's signalling channel. The
+			// host's own statement travels back to the node it is connected to, not to this one, so this answer is what a
+			// join relayed through here has to go on: it is enough to tell a player whose join failed that the host was told
+			// where to send, rather than that it was never told at all.
+			join.PunchAcknowledged = true;
 		}
-		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or InvalidOperationException or ObjectDisposedException)
 		{
 			_log($"the punch for lobby {lobbyId} could not be delivered to {originUri}: {exception.Message}");
 		}
@@ -250,9 +266,16 @@ public class JoinerPunchRelay : IDisposable
 
 		public long ExpiresAtMilliseconds { get; }
 
-		public volatile bool Reported;
-
 		public volatile bool PunchAcknowledged;
+
+		private int _reported;
+
+		/// <summary>Whether this join's report has been read, which is what makes one report ask for one punch.</summary>
+		public bool Reported => Volatile.Read(ref _reported) != 0;
+
+		/// <summary>Claims the one punch this join's report asks for.</summary>
+		/// <returns>Whether this arrival is the report that asks for it.</returns>
+		public bool TryMarkReported() => Interlocked.Exchange(ref _reported, 1) == 0;
 	}
 
 	/// <summary>What a joining screen is told about the report it sent: whether it arrived, and whether the host has punched it.</summary>

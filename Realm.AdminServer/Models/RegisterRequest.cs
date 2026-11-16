@@ -20,7 +20,6 @@ public record RegisterRequest(
 	long? MapSizeBytes = null,
 	string? ReachabilityProbeId = null,
 	int? LocalPort = null,
-	string? MappingBehaviour = null,
 	int? ObservedPort = null,
 	IReadOnlyList<LobbyEndpointRegistration>? Endpoints = null
 );

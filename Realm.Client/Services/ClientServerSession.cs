@@ -89,12 +89,21 @@ public class ClientServerSession : IDisposable
 	private bool _connectedBefore;
 	private int _reconnectAttempts;
 	private long _lastReconnectAttemptMilliseconds;
+	private long _reconnectStartedMilliseconds;
 	private bool _disposed;
 
 	public string? TerminationReport { get; private set; }
 
 	private const int ReconnectIntervalMilliseconds = 1500;
 	private const int MaximumReconnectAttempts = 240;
+
+	/// <summary>
+	///     How long a connection that had worked is given to come back before the match is stated as lost. The authority
+	///     takes a returning peer back into the seat its session token names, so a link that drops and returns resumes the
+	///     match, and a screen whose connection never returns stops waiting inside a time a player will sit through. Either
+	///     this or the attempt count ends the reconnection, whichever is reached first.
+	/// </summary>
+	private const int ReconnectWindowMilliseconds = 15_000;
 
 	/// <summary>
 	///     How long a debug match may go without hearing from its authority before this screen treats the silence as a
@@ -217,9 +226,26 @@ public class ClientServerSession : IDisposable
 		_channel.ServerDisconnected += OnChannelServerDisconnected;
 	}
 
-	private void OnChannelConnectionFailed() => ReportLost("ENet connection failed: host unreachable or connection refused");
+	/// <summary>
+	///     A connect that never got anywhere ends the attempt, because there is nothing to get back to: a first connection
+	///     that failed has no peer, no seat and no world to resume. One that fails while this screen is putting a connection
+	///     that had worked back together is a different thing, and the reconnection the pump is already running decides that.
+	/// </summary>
+	private void OnChannelConnectionFailed()
+	{
+		if (!_connectedBefore) ReportLost("ENet connection failed: host unreachable or connection refused");
+	}
 
-	private void OnChannelServerDisconnected() => ReportLost("the server disconnected");
+	/// <summary>
+	///     A server disconnect is what the end of a match looks like and also what a lost link looks like, and the two are
+	///     told apart by whether the connection comes back. The pump is left to find out, and the window it runs for is what
+	///     reports a connection that never returns; ending the session here would end every match a brief outage touched.
+	/// </summary>
+	private void OnChannelServerDisconnected()
+	{
+		_helloSent = false;
+		_challenge = string.Empty;
+	}
 
 	private const int FailedLaunchDetailLineCount = 8;
 
@@ -587,6 +613,7 @@ public class ClientServerSession : IDisposable
 				_helloSent = true;
 				_connectedBefore = true;
 				_reconnectAttempts = 0;
+				_reconnectStartedMilliseconds = 0;
 			}
 		}
 		else if (!_helloSent && _connectedBefore && !_channel.IsConnecting && !TryReconnect())
@@ -673,7 +700,8 @@ public class ClientServerSession : IDisposable
 
 		_lastReconnectAttemptMilliseconds = now;
 		_reconnectAttempts++;
-		if (_reconnectAttempts > MaximumReconnectAttempts)
+		if (_reconnectAttempts == 1) _reconnectStartedMilliseconds = now;
+		if (_reconnectAttempts > MaximumReconnectAttempts || now - _reconnectStartedMilliseconds >= ReconnectWindowMilliseconds)
 		{
 			ReportLost("the connection to the match could not be re-established");
 			return false;

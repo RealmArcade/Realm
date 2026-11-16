@@ -79,9 +79,10 @@ public static class JoinFailureLimits
 	public const int CollapseWindowMilliseconds = 60_000;
 
 	/// <summary>
-	///     How many distinct failures inside one collapse window make the lobby's stated reachability a claim its own players
-	///     have disproved. Three strangers failing at three different addresses in a minute is a lobby that is not reachable,
-	///     however the one node that measured it answered.
+	///     How many distinct players failing inside one collapse window make the lobby's stated reachability a claim its own
+	///     players have disproved. Three strangers failing at three different addresses in a minute is a lobby that is not
+	///     reachable, however the one node that measured it answered. It is counted by the address each report arrived from,
+	///     which is the only part of a report the node observes rather than reads.
 	/// </summary>
 	public const int DistinctFailuresBeforeDowngrade = 3;
 }

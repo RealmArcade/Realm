@@ -329,9 +329,9 @@ public partial class LobbyManager
 
 	/// <summary>
 	///     Asks the lobby's authority to send from the game port to a joining player, and states back to the registry node that
-	///     it did. The joining screen waits for that statement before its socket sends anything toward this lobby, because a
-	///     player's packet that arrives before the punch takes the port the punch would have used and leaves the punch
-	///     translated to a port no player knows.
+	///     it did. The player's join is already under way rather than waiting on this, because its own mapping has to exist
+	///     before the punch arrives; the statement is what a join that never answered is read against, so a screen that failed
+	///     is told whether the host was ever asked to send toward it.
 	/// </summary>
 	/// <param name="clientIp">The address the joining player was seen at.</param>
 	/// <param name="clientPort">The port the joining player was seen at.</param>
@@ -510,7 +510,6 @@ public partial class LobbyManager
 					MapHash = mapInfo.MapHash,
 					MapSizeBytes = mapInfo.SizeBytes,
 					ReachabilityProbeId = primaryRegistration.ProbeId,
-					MappingBehaviour = MappingBehaviour,
 					ObservedPort = _publishedReachability?.ObservedPort ?? 0,
 					Endpoints = reachability.EndpointRegistrations
 				};
