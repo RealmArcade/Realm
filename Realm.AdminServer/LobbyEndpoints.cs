@@ -169,7 +169,44 @@ public static class LobbyEndpoints
 		string reachabilityClass;
 		string mappingBehaviour;
 
-		if (req.Endpoints is { Count: > 0 })
+		// A host that states no endpoint to check and asks to be carried through volunteers is publishing the one kind of
+		// lobby this feature exists for: its own port answered nothing, and what makes it joinable is the volunteers this node
+		// measured as open. The class states exactly that, and the address it states is where its host is rather than
+		// somewhere a player is sent - the join answer offers no endpoint at all for such a lobby.
+		bool statesSomethingToCheck = req.Endpoints is { Count: > 0 } || !string.IsNullOrWhiteSpace(req.ReachabilityProbeId);
+		if (req.AcceptRelays && !statesSomethingToCheck)
+		{
+			reachabilityClass = ReachabilityClasses.Relayed;
+			mappingBehaviour = MappingBehaviours.Unknown;
+			endpoints = new List<LobbyEndpointInfo>();
+			hostPort = req.HostPort;
+			if (hostPort <= 0 || hostPort > 65535)
+			{
+				return Results.Json(new
+				{
+					Code = ReachabilityErrorCodes.PortNotStated,
+					Message = "This node cannot list a lobby that does not state the UDP port its game transport holds."
+				}, statusCode: StatusCodes.Status400BadRequest);
+			}
+
+			hostIp = (context.Connection.RemoteIpAddress ?? IPAddress.Loopback).ToString();
+			if (!string.IsNullOrEmpty(req.ReportedHostIP) && req.ReportedHostIP != "0.0.0.0" && req.ReportedHostIP != "127.0.0.1") hostIp = req.ReportedHostIP;
+
+			RelayPool volunteerPool = context.RequestServices.GetRequiredService<RelayPool>();
+			int pooled = volunteerPool.AdvertisedCount();
+			if (pooled == 0)
+			{
+				Console.WriteLine($"[Registry] Refused to register lobby '{req.Map}' through volunteers: this node pools none it measured as open.");
+				return Results.Json(new
+				{
+					Code = ReachabilityErrorCodes.RelayUnavailable,
+					Message = "This lobby server has no volunteer it measured as reachable, so a lobby nothing can reach would be listed with no way in. Host directly or try another lobby server."
+				}, statusCode: StatusCodes.Status400BadRequest);
+			}
+
+			Console.WriteLine($"[Registry] Registered lobby '{req.Map}' through {pooled} volunteer(s) as {ReachabilityClasses.Relayed}: its own endpoints were not offered for a check and no player will be sent to them.");
+		}
+		else if (req.Endpoints is { Count: > 0 })
 		{
 			endpoints = VerifyPublishedEndpoints(reachabilityProbe, req.Endpoints, out List<string> uncheckedFamilies, out mappingBehaviour);
 			if (endpoints.Count == 0)
@@ -545,8 +582,12 @@ public static class LobbyEndpoints
 		// The endpoint this player will dial is chosen by the same rule the player's own screen uses, so the punch this
 		// node relays is made toward the endpoint the player actually connects to. An IPv6 endpoint needs no punch at
 		// all: there is no router in front of it and nothing to open.
+		bool relayedLobby = ReachabilityClasses.IsRelayed(lobby.ReachabilityClass);
 		LobbyEndpointChoice choice = LobbyEndpointSelection.Choose(lobby.Endpoints, hasIpv4: true, hasIpv6: ClientCanUseIpv6(req));
-		bool punchNeeded = choice.Chosen ? choice.NeedsHolePunch : LobbyAddresses.NeedsHolePunch(LobbyAddresses.FamilyOf(lobby.HostIP));
+
+		// A lobby carried through volunteers has no endpoint to punch toward and its host's own address was already
+		// measured unreachable, so nothing is punched at it.
+		bool punchNeeded = !relayedLobby && (choice.Chosen ? choice.NeedsHolePunch : LobbyAddresses.NeedsHolePunch(LobbyAddresses.FamilyOf(lobby.HostIP)));
 		// The answer states what this node can do, so a client that needs something this node does not have names it instead of
 		// waiting out a timeout for an answer it will never get.
 		bool allowsLocalCallers = context.RequestServices.GetRequiredService<IConfiguration>().GetValue("ReachabilityAllowLocalCaller", false);
@@ -556,7 +597,21 @@ public static class LobbyEndpoints
 		// to the host's signalling channel below. Neither peer chooses a volunteer: both open the paths the list names, so a
 		// list the host never received leaves the join on the direct path it has always taken.
 		IReadOnlyList<RelayCandidateMessage> relays = lobby.AcceptRelays ? RelayEndpoints.CandidatesForJoin(relayPool) : [];
-		var response = new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token, lobby.ReachabilityClass, lobby.Endpoints, capabilities, relays);
+
+		// A lobby listed as carried by volunteers with no volunteer left is a lobby with no way in, and listing it is the
+		// one thing this class exists to prevent. It is withdrawn here, at the moment a player would have been sent into it.
+		if (relayedLobby && relays.Count == 0)
+		{
+			lobby.ReachabilityClass = ReachabilityClasses.DowngradeWithoutCarrier(lobby.ReachabilityClass);
+			Console.WriteLine($"[Registry] Lobby {lobby.LobbyId} was listed through volunteers this node no longer pools, so it is withdrawn from the listing.");
+			return Results.Json(new
+			{
+				Code = ReachabilityErrorCodes.RelayUnavailable,
+				Message = "This lobby is carried through volunteers and none is available right now, so it was withdrawn from the listing. Try again shortly."
+			}, statusCode: StatusCodes.Status400BadRequest);
+		}
+
+		var response = new JoinResponseDto(lobby.HostIP, lobby.HostPort, lobby.LocalIP, lobby.LocalPort, ticket.Port, ticket.Token, lobby.ReachabilityClass, relayedLobby ? [] : lobby.Endpoints, capabilities, relays);
 
 		if (hostConnections.TryGetValue(req.LobbyId, out var hostSocket) && hostSocket.State == WebSocketState.Open)
 		{

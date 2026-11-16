@@ -50,12 +50,18 @@ public static class LobbyJoinability
 	///     Whether the lobby is reached at an endpoint no router stands in front of, which is what an IPv6 endpoint is. A
 	///     router that maps a port per destination then costs the lobby the endpoints it translates and not the lobby itself.
 	/// </param>
+	/// <param name="carriedThroughVolunteers">
+	///     Whether the lobby is carried through volunteers this node measured as open instead of at an endpoint of its own.
+	///     Such a lobby has no address of its own to judge: a player is never sent there, so what decides whether it may be
+	///     published is the carriers' measurement rather than the host's port.
+	/// </param>
 	/// <returns>Why the lobby may not be published, or <see cref="HostReachabilityFailure.None" /> when it may.</returns>
-	public static HostReachabilityFailure Decide(bool publicLobby, LoopbackJoinOutcome loopback, HostReachabilityFailure externalFailure, bool externalEndpointIsPublic = true, string? mappingBehaviour = MappingBehaviours.Unknown, bool hasEndpointNeedingNoRouter = false)
+	public static HostReachabilityFailure Decide(bool publicLobby, LoopbackJoinOutcome loopback, HostReachabilityFailure externalFailure, bool externalEndpointIsPublic = true, string? mappingBehaviour = MappingBehaviours.Unknown, bool hasEndpointNeedingNoRouter = false, bool carriedThroughVolunteers = false)
 	{
 		if (loopback == LoopbackJoinOutcome.SessionNotOnLoopback) return HostReachabilityFailure.LoopbackNotOnLocalAddress;
 		if (loopback != LoopbackJoinOutcome.Answered) return HostReachabilityFailure.LoopbackUnanswered;
 		if (!RequiresExternalCheck(publicLobby)) return HostReachabilityFailure.None;
+		if (carriedThroughVolunteers) return HostReachabilityFailure.None;
 		if (externalFailure != HostReachabilityFailure.None) return externalFailure;
 		if (!externalEndpointIsPublic) return HostReachabilityFailure.ProbeFromOwnNetwork;
 		if (mappingBehaviour != MappingBehaviours.PerDestination) return HostReachabilityFailure.None;

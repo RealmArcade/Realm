@@ -152,6 +152,25 @@ public partial class LobbyManager
 		string registryUrl = RegistryServerUrl;
 		if (string.IsNullOrEmpty(registryUrl)) return;
 
+		// A lobby carried through volunteers claims nothing about this machine's own port, so measuring that port again
+		// would withdraw a lobby that is working. What its listing rests on is the volunteers the server pools, and that is
+		// what is re-read here: when none is left, the lobby really has no way in and is withdrawn like any other.
+		if (ReachabilityClasses.IsRelayed(ReachabilityClass))
+		{
+			int pooled = await CountVolunteerCandidatesAsync(registryUrl).ConfigureAwait(false);
+			Interlocked.Increment(ref _reachabilityReverifyCount);
+			_lastReverifyOutcome = pooled > 0 ? $"carried through volunteers ({pooled} pooled)" : "no volunteer is pooled any more";
+
+			if (pooled == 0)
+			{
+				WithdrawReachability(ReachabilityClasses.Unverified, default, "the lobby server no longer pools a volunteer this lobby can be carried through");
+				return;
+			}
+
+			GameLog.LogToConsole($"[Reachability] This lobby is still carried through volunteers after {Volatile.Read(ref _reachabilityReverifyCount)} re-check(s) ({_lastReverifyOutcome}).");
+			return;
+		}
+
 		RegistryCapabilities capabilities = await ReadRegistryCapabilitiesAsync(registryUrl, cancellationToken).ConfigureAwait(false);
 		LobbyReachabilitySet set = await VerifyPublishedEndpointsAsync(registryUrl, LobbyPort, capabilities, cancellationToken, reportStage: false).ConfigureAwait(false);
 		Interlocked.Increment(ref _reachabilityReverifyCount);

@@ -23,6 +23,7 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
+using Realm.Shared.Network.Relay;
 using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
@@ -94,6 +95,22 @@ public partial class LobbyManager
 		if (answer == null) return (default, Tr("The lobby server answered without saying where this lobby is."));
 
 		LobbyJoinAnswer joinAnswer = answer.Value;
+
+		// A lobby listed as carried through volunteers has no address this screen may dial: its host's own endpoint is the
+		// one nothing reached. The join is aimed at the path layer instead, and every endpoint rule below is skipped because
+		// there is no endpoint for it to judge.
+		if (joinAnswer.IsRelayed)
+		{
+			RelayConnectionPlan? relayPlan = RelayPlanFor(joinAnswer);
+			if (relayPlan == null || !relayPlan.IsUsable)
+			{
+				return (default, Tr("This lobby is carried through volunteers and the lobby server named none this screen could open, so there is no way into it right now."));
+			}
+
+			GameLog.LogToConsole($"[Relay] This lobby is carried through volunteers; this join opens {relayPlan.Offers.Count} path(s) and sends nothing to the host's own address.");
+			return (new LobbyJoinTarget(string.Empty, 0, false, default, string.Empty, 0, relayPlan), string.Empty);
+		}
+
 		IReadOnlyList<LobbyEndpointInfo> endpoints = joinAnswer.EndpointsOrStatedAddress();
 
 		LobbyEndpointChoice choice = LobbyEndpointSelection.Choose(endpoints, hasIpv4, hasIpv6);
@@ -470,6 +487,19 @@ public partial class LobbyManager
 				// A router that maps a port per destination stands in front of the IPv4 endpoints only. A lobby that also
 				// offers a family no router translates keeps that family, and the registration drops the rest.
 				reachability.Verified.Exists(endpoint => !LobbyAddresses.NeedsHolePunch(endpoint.FamilyValue)));
+			// A lobby none of whose endpoints answered can still be joined when this host accepts being carried and the lobby
+			// server pools at least one volunteer it measured as open. That is not a claim about this machine's port: the
+			// class the server gives the lobby states that players arrive through a carrier it measured, and the join answer it
+			// hands out offers no address of this machine at all. With no volunteer pooled, the refusal below is unchanged.
+			bool carriedByVolunteers = false;
+			if (decision != HostReachabilityFailure.None && AcceptsRelayedConnections && reachability.Verified.Count == 0 && await CountVolunteerCandidatesAsync(RegistryServerUrl) > 0)
+			{
+				carriedByVolunteers = true;
+				decision = LobbyJoinability.Decide(true, LoopbackJoinOutcome.Answered, HostReachabilityFailure.None, carriedThroughVolunteers: true);
+				ReachabilityClass = ReachabilityClasses.Relayed;
+				GameLog.LogToConsole("[Relay] No endpoint of this lobby answered from outside, and this lobby server pools volunteers it measured as reachable, so this lobby is published through them.");
+			}
+
 			if (decision != HostReachabilityFailure.None)
 			{
 				// A refusal that is about the endpoint rather than about a check that never answered is described from the
@@ -481,9 +511,10 @@ public partial class LobbyManager
 				return false;
 			}
 
-			LobbyEndpointInfo primary = reachability.Verified.Find(endpoint => endpoint.FamilyValue == LobbyAddressFamily.IPv4) ?? reachability.Verified[0];
-			LobbyEndpointRegistration primaryRegistration = reachability.EndpointRegistrations.Find(registration => LobbyAddresses.ParseFamilyName(registration.Family) == primary.FamilyValue) ?? reachability.EndpointRegistrations[0];
-			_routerReachability = RouterReachability.Confirmed;
+			LobbyEndpointInfo? primary = carriedByVolunteers ? null : reachability.Verified.Find(endpoint => endpoint.FamilyValue == LobbyAddressFamily.IPv4) ?? reachability.Verified[0];
+			LobbyEndpointRegistration primaryRegistration = default!;
+			if (!carriedByVolunteers) primaryRegistration = reachability.EndpointRegistrations.Find(registration => LobbyAddresses.ParseFamilyName(registration.Family) == primary!.FamilyValue) ?? reachability.EndpointRegistrations[0];
+			if (!carriedByVolunteers) _routerReachability = RouterReachability.Confirmed;
 
 			ReportHostLobbyStage(HostLobbyStage.RegisteringLobby);
 
@@ -499,9 +530,9 @@ public partial class LobbyManager
 					// port every player's punch reaches. On a router that does not translate the port it is the port this
 					// lobby's transport holds, and a router that translates it was measured to keep one mapping for every
 					// destination before anything was published at it.
-					HostPort = primary.Port,
+					HostPort = carriedByVolunteers ? lobbyPort : primary!.Port,
 					NatType = LocalNatType.ToString(),
-					ReportedHostIP = primary.DialAddress,
+					ReportedHostIP = carriedByVolunteers ? string.Empty : primary!.DialAddress,
 					PasswordHash = "",
 					MaxPlayers = OpenSlotCount,
 					SlotsUsed = PlayerList.Count,
@@ -514,9 +545,9 @@ public partial class LobbyManager
 					PublicKey = mapInfo.PublicKey,
 					MapHash = mapInfo.MapHash,
 					MapSizeBytes = mapInfo.SizeBytes,
-					ReachabilityProbeId = primaryRegistration.ProbeId,
-					ObservedPort = _publishedReachability?.ObservedPort ?? 0,
-					Endpoints = reachability.EndpointRegistrations,
+					ReachabilityProbeId = carriedByVolunteers ? null : primaryRegistration.ProbeId,
+					ObservedPort = carriedByVolunteers ? 0 : _publishedReachability?.ObservedPort ?? 0,
+					Endpoints = carriedByVolunteers ? [] : reachability.EndpointRegistrations,
 					AcceptRelays = AcceptsRelayedConnections
 				};
 

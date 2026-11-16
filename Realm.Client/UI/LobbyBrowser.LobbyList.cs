@@ -450,6 +450,18 @@ public partial class LobbyBrowser
 			lblReachability.VerticalAlignment = VerticalAlignment.Center;
 			hBox.AddChild(lblReachability);
 		}
+		else if (data.ReachabilityClass == ReachabilityClasses.Relayed)
+		{
+			var lblReachability = new Label();
+			lblReachability.Name = "LblReachability_Label";
+			lblReachability.Text = Tr("RELAY");
+			lblReachability.TooltipText = Tr("This lobby cannot be reached at its own address, so the lobby server carries the connection through volunteers it measured as reachable. A relay costs some latency, and the match reports what it measured.");
+			lblReachability.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			lblReachability.AddThemeColorOverride("font_color", new Color(0.55f, 0.7f, 0.9f));
+			lblReachability.AddThemeFontSizeOverride("font_size", 14);
+			lblReachability.VerticalAlignment = VerticalAlignment.Center;
+			hBox.AddChild(lblReachability);
+		}
 
 		var lblMode = new Label();
 		lblMode.Name = "LblMode_Label";

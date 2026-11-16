@@ -28,15 +28,25 @@ namespace Realm.Shared.Reachability;
 /// </param>
 public readonly record struct LobbyJoinAnswer(string HostAddress, int HostPort, string? LocalAddress, IReadOnlyList<LobbyEndpointInfo> Endpoints, int PunchPort = 0, string PunchToken = "", RegistryCapabilities? Capabilities = null, string ReachabilityClass = "", IReadOnlyList<RelayCandidateMessage>? Relays = null)
 {
+	/// <summary>Whether this lobby is admitted only through the volunteers the answer offers.</summary>
+	public bool IsRelayed => ReachabilityClasses.IsRelayed(ReachabilityClass);
+
 	/// <summary>
 	///     The endpoints to choose from, in the shape every caller wants them: the list the answer carried, or the single
 	///     endpoint the two older fields state. A server from before endpoints could be listed names exactly one, and it is
-	///     the one to dial, so the absence of a list is never treated as "this lobby cannot be reached".
+	///     the one to dial, so the absence of a list is never treated as "this lobby cannot be reached". A lobby carried
+	///     through volunteers is the one exception, and states no dialable endpoint at all.
 	/// </summary>
 	/// <returns>The endpoints to choose from.</returns>
 	public IReadOnlyList<LobbyEndpointInfo> EndpointsOrStatedAddress()
 	{
 		if (Endpoints.Count > 0) return Endpoints;
+
+		// A lobby carried through volunteers has no address a player may dial. The address it states is where its host is,
+		// which is exactly the address nothing reached, so falling back to it would spend an attempt on a host already
+		// measured unreachable.
+		if (IsRelayed) return Endpoints;
+
 		if (HostAddress.Length == 0 || HostPort <= 0) return Endpoints;
 
 		return new[]

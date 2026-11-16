@@ -99,10 +99,11 @@ public static class ReachabilityStates
 }
 
 /// <summary>
-///     How reachable a lobby's game port was shown to be, which is what a listing states instead of a promise. A port a node
-///     reached without the host punching it is <see cref="Open" />; one that answered only after the host punched is
-///     <see cref="PunchOnly" />, which is the common home-router case and is joinable; one nothing reached is
-///     <see cref="Unverified" /> and is not published at all.
+///     How reachable a lobby was shown to be, which is what a listing states instead of a promise. A port a node reached
+///     without the host punching it is <see cref="Open" />; one that answered only after the host punched is
+///     <see cref="PunchOnly" />, which is the common home-router case and is joinable; one whose own endpoints nothing
+///     reached but which this node can carry through volunteers it measured as open is <see cref="Relayed" />; one nothing
+///     reached at all is <see cref="Unverified" /> and is not published.
 /// </summary>
 public static class ReachabilityClasses
 {
@@ -112,21 +113,32 @@ public static class ReachabilityClasses
 	/// <summary>The game port answered only after the host punched the node, so joining requires both sides to punch.</summary>
 	public const string PunchOnly = "PunchOnly";
 
-	/// <summary>Nothing reached the game port, so whether a player could join is unknown.</summary>
+	/// <summary>
+	///     None of the lobby's own endpoints answered this node, and the connection is carried through volunteers this node
+	///     measured as open instead. It says nothing about the host's own address: a player is never sent there.
+	/// </summary>
+	public const string Relayed = "Relayed";
+
+	/// <summary>Nothing reached the game port and nothing can carry it, so whether a player could join is unknown.</summary>
 	public const string Unverified = "Unverified";
 
 	/// <summary>Every class this build states, which is what a node lists in its capabilities.</summary>
-	public static readonly IReadOnlyList<string> All = new[] { Open, PunchOnly, Unverified };
+	public static readonly IReadOnlyList<string> All = new[] { Open, PunchOnly, Relayed, Unverified };
 
 	/// <summary>Whether a lobby of this class may be published: everything but <see cref="Unverified" /> is listed.</summary>
 	/// <param name="reachabilityClass">The class a check measured.</param>
 	/// <returns>Whether a lobby measured this way may be listed.</returns>
-	public static bool IsPublishable(string? reachabilityClass) => reachabilityClass is Open or PunchOnly;
+	public static bool IsPublishable(string? reachabilityClass) => reachabilityClass is Open or PunchOnly or Relayed;
 
-	/// <summary>Whether a string is one of the three classes, which is what makes it safe to compare or to store.</summary>
+	/// <summary>Whether a string is one of the classes, which is what makes it safe to compare or to store.</summary>
 	/// <param name="reachabilityClass">The class to recognise.</param>
 	/// <returns>Whether the class is one this build knows.</returns>
-	public static bool IsKnown(string? reachabilityClass) => reachabilityClass is Open or PunchOnly or Unverified;
+	public static bool IsKnown(string? reachabilityClass) => reachabilityClass is Open or PunchOnly or Relayed or Unverified;
+
+	/// <summary>Whether a lobby of this class is joined through volunteers rather than at an address of its own.</summary>
+	/// <param name="reachabilityClass">The class a lobby is listed with.</param>
+	/// <returns>Whether every player of it arrives through a volunteer.</returns>
+	public static bool IsRelayed(string? reachabilityClass) => reachabilityClass == Relayed;
 
 	/// <summary>
 	///     How strong the claim a class makes is, from the strongest to the weakest. It is what decides whether a fresh
@@ -134,12 +146,13 @@ public static class ReachabilityClasses
 	///     browser shows rows in: this one is about the claim, that one is about what a player should look at first.
 	/// </summary>
 	/// <param name="reachabilityClass">The class to rank.</param>
-	/// <returns>Zero for a lobby reachable without a punch, then one that needs a punch, then one that was not shown to be reachable at all, including a class this build does not know.</returns>
+	/// <returns>Zero for a lobby reachable without a punch, then one that needs a punch, then one carried by volunteers, then one that was not shown to be reachable at all, including a class this build does not know.</returns>
 	public static int Rank(string? reachabilityClass) => reachabilityClass switch
 	{
 		Open => 0,
 		PunchOnly => 1,
-		_ => 2
+		Relayed => 2,
+		_ => 3
 	};
 
 	/// <summary>Whether a measured class claims less than the class a lobby is listed with, which is the only direction a re-check may move it.</summary>
@@ -161,6 +174,17 @@ public static class ReachabilityClasses
 		if (reachabilityClass == Open) return PunchOnly;
 		if (reachabilityClass == PunchOnly) return Unverified;
 		return Unverified;
+	}
+
+	/// <summary>
+	///     What a class becomes when the volunteers carrying it are gone. A lobby that was listed as relayed stops claiming it
+	///     can admit anybody once this node holds no volunteer for it, because that is the measurement it rested on.
+	/// </summary>
+	/// <param name="reachabilityClass">The class the lobby was listed with.</param>
+	/// <returns>The class a lobby nothing can carry is listed with.</returns>
+	public static string DowngradeWithoutCarrier(string? reachabilityClass)
+	{
+		return reachabilityClass == Relayed ? Unverified : reachabilityClass ?? Unverified;
 	}
 
 	/// <summary>
@@ -291,6 +315,12 @@ public static class ReachabilityErrorCodes
 
 	/// <summary>A lobby that does not state the port its game transport holds cannot be listed, because no player could be told where to connect.</summary>
 	public const string PortNotStated = "lobby_port_not_stated";
+
+	/// <summary>
+	///     A host asked to publish through volunteers while this node pools none it measured as open. Nothing may be listed
+	///     through a carrier the node never measured, so the lobby is refused until one exists.
+	/// </summary>
+	public const string RelayUnavailable = "lobby_relay_unavailable";
 }
 
 /// <summary>

@@ -118,7 +118,7 @@ public partial class LobbyManager
 			return false;
 		}
 
-		_joinEndpoint = LobbyAddresses.Describe(target.Ip, target.Port);
+		_joinEndpoint = target is { Relay.IsUsable: true, Ip: "" } ? "relay" : LobbyAddresses.Describe(target.Ip, target.Port);
 		MarkJoinPhase(JoinPhases.Resolve, "resolved", resolveStarted);
 
 		_connectedHostIp = target.Ip;

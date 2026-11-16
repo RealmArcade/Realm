@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -35,6 +37,37 @@ public partial class LobbyManager
 	///     before relays existed.
 	/// </summary>
 	public bool AcceptsRelayedConnections => GameSettings.AcceptRelayedConnections && !IsSinglePlayer;
+
+	/// <summary>
+	///     Asks the lobby server how many volunteers it currently pools. It is asked before a lobby that nothing reached is
+	///     published, so a host learns that no volunteer is available instead of publishing a lobby with no way in.
+	/// </summary>
+	/// <param name="registryUrl">The lobby server about to publish the lobby.</param>
+	/// <returns>How many candidates it offered, or zero when it offered none or could not be asked.</returns>
+	private async Task<int> CountVolunteerCandidatesAsync(string registryUrl)
+	{
+		if (string.IsNullOrEmpty(registryUrl)) return 0;
+
+		try
+		{
+			using HttpResponseMessage response = await _httpClient.GetAsync($"{registryUrl.TrimEnd('/')}/relays/candidates");
+			if (!response.IsSuccessStatusCode) return 0;
+
+			using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+			foreach (string propertyName in new[] { "Candidates", "candidates", "Relays", "relays" })
+			{
+				if (!document.RootElement.TryGetProperty(propertyName, out System.Text.Json.JsonElement list)) continue;
+				return list.ValueKind == System.Text.Json.JsonValueKind.Array ? list.GetArrayLength() : 0;
+			}
+
+			return 0;
+		}
+		catch (Exception exception) when (exception is System.Net.Http.HttpRequestException or System.Text.Json.JsonException or TaskCanceledException)
+		{
+			GameLog.LogToConsole($"[Relay] {registryUrl} could not say which volunteers it pools, so a lobby nothing reached stays unpublished: {exception.Message}");
+			return 0;
+		}
+	}
 
 	/// <summary>
 	///     Reads the volunteers a join answer stated into the plan both peers open. A lobby server that offered none, or a

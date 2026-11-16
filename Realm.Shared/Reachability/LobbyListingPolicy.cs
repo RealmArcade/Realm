@@ -31,8 +31,9 @@ public static class LobbyListingPolicy
 	{
 		ReachabilityClasses.Open => 0,
 		ReachabilityClasses.PunchOnly => 1,
-		ReachabilityClasses.Unverified => 3,
-		_ => 2
+		ReachabilityClasses.Relayed => 2,
+		ReachabilityClasses.Unverified => 4,
+		_ => 3
 	};
 
 	/// <summary>
