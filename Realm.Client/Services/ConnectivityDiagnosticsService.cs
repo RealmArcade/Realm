@@ -144,7 +144,7 @@ public class ConnectivityDiagnosticsService
 			{
 				rule = await GameContext.WindowsFirewall.ReadRuleStateAsync(portForFirewall, firewallTimeout.Token).ConfigureAwait(false);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
 			{
 				rule = WindowsFirewallRuleState.Unknown;
 			}
@@ -158,6 +158,8 @@ public class ConnectivityDiagnosticsService
 			TunnelAdapterUp = LocalTunnelAdapters.AnyUp(),
 			PreferredPortHeldElsewhere = IsPreferredPortHeldByAnotherProgram(lobby, known.PreferredPort, known.PreferredPortHeldElsewhere)
 		};
+
+		cancellationToken.ThrowIfCancellationRequested();
 
 		_reading = facts;
 		_readingAudience = audience;
@@ -220,6 +222,10 @@ public class ConnectivityDiagnosticsService
 			timeout.CancelAfter(LobbyServerProbeTimeoutMilliseconds);
 			using HttpResponseMessage response = await LobbyServerProbeClient.GetAsync($"{registryServerUrl.TrimEnd('/')}/lobbies", timeout.Token).ConfigureAwait(false);
 			return response.IsSuccessStatusCode || (int)response.StatusCode < 500;
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+			throw;
 		}
 		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or OperationCanceledException or NotSupportedException or UriFormatException)
 		{
