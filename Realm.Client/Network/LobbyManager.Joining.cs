@@ -992,6 +992,7 @@ public partial class LobbyManager
 
 		bool wasBuilding = _matchPresentationOpen;
 		var session = _lobbySession;
+		GameContext.Connectivity.RememberEvidence();
 		if (session != null)
 		{
 			DetachLobbySession(session);
@@ -1021,6 +1022,7 @@ public partial class LobbyManager
 
 		var session = _lobbySession;
 		int hostedPort = session?.Port ?? ENetPort;
+		GameContext.Connectivity.RememberEvidence();
 		if (session != null)
 		{
 			DetachLobbySession(session);

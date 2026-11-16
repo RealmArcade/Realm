@@ -461,6 +461,12 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public int BoundPort => _lobbySession?.Port ?? ENetPort;
 
+	/// <summary>
+	///     Whether this screen is holding a lobby: seated in one, whether it administers it or joined it. A screen that gave
+	///     its lobby up holds nothing, and everything the lobby measured is then only what was copied out of it beforehand.
+	/// </summary>
+	public bool HoldsLobby => _lobbySession != null;
+
 	public bool IsCountdownActive => _countdownActive;
 
 	/// <summary>

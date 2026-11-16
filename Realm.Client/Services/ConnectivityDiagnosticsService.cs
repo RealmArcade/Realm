@@ -49,28 +49,32 @@ public class ConnectivityDiagnosticsService
 	private bool _hostTroubleshootingRequested;
 
 	/// <summary>
-	///     What the last hosted lobby measured, whether or not this screen still holds it. A live lobby is read as it is now;
-	///     once it has been given up, the copy kept when the host left it is read instead, so a host who closed a lobby to read
-	///     about it still has the failure, the ports and the addresses that lobby was measured with.
+	///     What the last hosted lobby measured, whether or not this screen still holds it. A lobby this screen is seated in is
+	///     read as it is now; once it has been given up, the copy kept when the lobby went away is read instead, so a host who
+	///     closed a lobby to read about it still has the failure, the ports and the verdicts that lobby was measured with. The
+	///     live manager cannot answer for it: giving a lobby up takes the registered lobby, the published endpoint and the
+	///     class the lobby server measured, and what is left of it reads as a lobby nothing ever measured.
 	/// </summary>
 	public ConnectivityEvidence CurrentEvidence
 	{
 		get
 		{
 			LobbyManager? lobby = GameContext.Lobby;
-			if (lobby != null) return Capture(lobby);
-			return _hasRememberedEvidence ? _rememberedEvidence : default;
+			if (lobby is { HoldsLobby: true }) return Capture(lobby);
+			if (_hasRememberedEvidence) return _rememberedEvidence;
+			return lobby != null ? Capture(lobby) : default;
 		}
 	}
 
 	/// <summary>
-	///     Keeps what the lobby this screen holds has measured, so it survives the lobby being given up. A host who opens
-	///     troubleshooting from inside a room calls this before leaving, because leaving is what takes the evidence away.
+	///     Keeps what the lobby this screen holds has measured, so it survives the lobby being given up. Every path that gives
+	///     one up calls this before the lobby is gone, because giving it up is what takes the evidence away, and a screen that
+	///     holds no lobby has nothing newer to remember than what is already kept.
 	/// </summary>
 	public void RememberEvidence()
 	{
 		LobbyManager? lobby = GameContext.Lobby;
-		if (lobby == null) return;
+		if (lobby is not { HoldsLobby: true }) return;
 
 		_rememberedEvidence = Capture(lobby);
 		_hasRememberedEvidence = true;
@@ -153,6 +157,7 @@ public class ConnectivityDiagnosticsService
 
 		ConnectivityFacts known = DescribeKnownFacts(audience);
 		LobbyManager? lobby = GameContext.Lobby;
+		bool holdsLobby = lobby is { HoldsLobby: true };
 		int portForFirewall = known.ListedPort > 0 ? known.ListedPort : known.PreferredPort;
 
 		bool answered = lobby != null && await AskLobbyServerAsync(lobby.RegistryServerUrl, cancellationToken).ConfigureAwait(false);
@@ -178,7 +183,7 @@ public class ConnectivityDiagnosticsService
 			LobbyServerProbed = lobby != null,
 			LobbyServerAnswered = answered,
 			TunnelAdapterUp = LocalTunnelAdapters.AnyUp(),
-			PreferredPortHeldElsewhere = IsPreferredPortHeldByAnotherProgram(lobby, known.PreferredPort, known.PreferredPortHeldElsewhere)
+			PreferredPortHeldElsewhere = IsPreferredPortHeldByAnotherProgram(holdsLobby ? lobby : null, known.PreferredPort, known.PreferredPortHeldElsewhere)
 		};
 
 		cancellationToken.ThrowIfCancellationRequested();

@@ -56,13 +56,13 @@ public static class ConnectivitySentences
 	public const string TroubleshootingStayCancel = "Stay in Lobby";
 
 	/// <summary>The label of the button that runs one issue's check.</summary>
-	public const string DiagnoseButton = "CHECK THIS ONE";
+	public const string DiagnoseButton = "RUN DIAGNOSTICS";
 
 	/// <summary>The label of the button that runs every check and ranks what it finds.</summary>
 	public const string RunAllButton = "RUN FULL DIAGNOSTICS";
 
 	/// <summary>The label of the button that searches the web for the phrase beside it.</summary>
-	public const string SearchButton = "SEARCH";
+	public const string SearchButton = "OPEN WEB SEARCH";
 
 	/// <summary>The caption above the phrase a reader can search for their own hardware.</summary>
 	public const string SearchCaption = "SEARCH FOR";

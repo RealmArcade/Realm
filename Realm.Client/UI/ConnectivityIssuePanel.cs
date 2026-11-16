@@ -496,7 +496,7 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 		row.AddChild(phrase);
 
 		Button search = UIStyle.CreateActionButton("IssueSearch_Button", TranslationServer.Translate(ConnectivitySentences.SearchButton), 12);
-		search.CustomMinimumSize = new Vector2(130, 30);
+		search.CustomMinimumSize = new Vector2(200, 30);
 		search.Icon = UIStyle.GetUnicodeIconTexture(UnicodeIcons.SEARCH, 12, UIStyle.ColorGold);
 		search.AddThemeConstantOverride("icon_max_width", 12);
 		search.AddThemeConstantOverride("h_separation", 8);
@@ -630,11 +630,12 @@ public partial class ConnectivityIssuePanel : VBoxContainer
 
 	/// <summary>
 	///     The value a next step states: the address players on this network join at, or the sentence that says where that
-	///     address is when there is none to offer.
+	///     address is when there is none to offer. An address belongs to a lobby that is still being held: a host who gave one
+	///     up would otherwise read the address of a room that nobody can join any more.
 	/// </summary>
 	private string RenderNextStepValue()
 	{
-		string? address = GameContext.Connectivity.CurrentEvidence.DirectConnectAddress;
+		string? address = GameContext.Lobby is { HoldsLobby: true } ? GameContext.Connectivity.CurrentEvidence.DirectConnectAddress : null;
 		return string.IsNullOrEmpty(address) ? ConnectivityHelpText.Text(ConnectivitySentences.NextStepAddressFallback) : address;
 	}
 

@@ -104,13 +104,14 @@ public partial class ConnectivityTroubleshootingDialog : Control
 	/// <summary>
 	///     Shows the hosting-only half of the card. The address is offered only while this screen still holds the lobby it
 	///     belongs to: a host who gave a lobby up has no lobby for anyone to join at it, so an address there would invite a
-	///     player into a room that no longer exists.
+	///     player into a room that no longer exists. The lobby manager itself outlives every lobby, so it is the lobby it holds
+	///     rather than the manager that answers this.
 	/// </summary>
 	private void ApplyScenario()
 	{
 		if (_directSection == null || !IsInstanceValid(_directSection)) return;
 
-		_directSection.Visible = _audience == ConnectivityAudience.Hosting && GameContext.Lobby != null;
+		_directSection.Visible = _audience == ConnectivityAudience.Hosting && GameContext.Lobby is { HoldsLobby: true };
 	}
 
 	private void BuildLayout()
