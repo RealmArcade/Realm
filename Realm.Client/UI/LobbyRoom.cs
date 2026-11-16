@@ -412,10 +412,11 @@ public partial class LobbyRoom : Control
 		bool invitesPlayers = !Lobby.IsSinglePlayer;
 
 		// Both ways of inviting a player are offered at once: a friend on Steam and a player handed an address join the same
-		// lobby, and which of them a host has to hand is a fact about that player rather than about the lobby. A Steam invite
-		// needs the lobby server to know the lobby, because it carries the id a friend's client joins with, so a lobby no
-		// registry accepted offers its address alone.
-		_steamInviteButton.Visible = invitesPlayers && !string.IsNullOrEmpty(Lobby.ActiveLobbyId);
+		// lobby, and which of them a host has to hand is a fact about that player rather than about the lobby. The Steam half
+		// stays offered to a host whose lobby is not listed, because the window it opens is also where a host learns why no
+		// friends are shown - Steam may not be running, or the lobby server may not know the lobby - and a button that hides
+		// itself in exactly that state is the one case where the host is told nothing.
+		_steamInviteButton.Visible = invitesPlayers && (Lobby.IsHost || !string.IsNullOrEmpty(Lobby.ActiveLobbyId));
 		_shareAddressButton.Visible = invitesPlayers;
 		_unlistedLobbyHint.Visible = invitesPlayers && Lobby.IsHost && Lobby.IsUnlisted;
 		_unlistedLobbyCheck.Visible = invitesPlayers && Lobby.IsHost;
@@ -458,7 +459,12 @@ public partial class LobbyRoom : Control
 
 	private void OpenInviteFriendsDialog()
 	{
-		if (Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId)
+		if (_friendsDialog == null || !GodotObject.IsInstanceValid(_friendsDialog)) _friendsDialog = CreateFriendsDialog();
+
+		// A screen without Steam is shown the window with the reason in it, rather than a sentence about the lobby: the
+		// friends the host is looking for cannot be listed whatever the lobby's listing says.
+		bool steamAvailable = GameContext.Steam.IsAvailable;
+		if (steamAvailable && Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId)
 		{
 			GameContext.UserInterface?.ShowPopupMessage(
 				Tr("LOBBY INVITES"),
@@ -466,15 +472,16 @@ public partial class LobbyRoom : Control
 			return;
 		}
 
-		if (_friendsDialog == null || !GodotObject.IsInstanceValid(_friendsDialog))
-		{
-			_friendsDialog = new SteamFriendsDialog();
-			AddChild(_friendsDialog);
-			_friendsDialog.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			_friendsDialog.InvitesSent += OnFriendInvitesSent;
-		}
+		_friendsDialog!.ShowFor(Lobby.ActiveLobbyId ?? string.Empty, Lobby.MaxPlayers);
+	}
 
-		_friendsDialog.ShowFor(lobbyId, Lobby.MaxPlayers);
+	private SteamFriendsDialog CreateFriendsDialog()
+	{
+		SteamFriendsDialog dialog = new SteamFriendsDialog();
+		AddChild(dialog);
+		dialog.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		dialog.InvitesSent += OnFriendInvitesSent;
+		return dialog;
 	}
 
 	private void OnFriendInvitesSent(int sentCount)

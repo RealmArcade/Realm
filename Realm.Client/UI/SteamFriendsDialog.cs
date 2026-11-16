@@ -16,6 +16,7 @@ public partial class SteamFriendsDialog : Control
 
 	private ColorRect _dismissOverlay = null!;
 	private PanelContainer _panel = null!;
+	private Label _subtitleLabel = null!;
 	private Label _setupLabel = null!;
 	private Label _steamUnavailableLabel = null!;
 	private Label _emptyLabel = null!;
@@ -51,17 +52,22 @@ public partial class SteamFriendsDialog : Control
 			parent.MoveChild(this, parent.GetChildCount() - 1);
 		}
 
+		// The friends the player came for are Steam's, so a screen without Steam says why the list is empty instead of
+		// showing a list that is empty for a reason the player cannot see. The reason is the same sentence every other
+		// Steam-only surface states, so the player is never left guessing which part of their setup is at fault.
 		if (!GameContext.Steam.IsAvailable)
 		{
-			_steamUnavailableLabel.Text = GameContext.Steam.UnavailableExplanation;
+			_subtitleLabel.Text = string.Empty;
+			_steamUnavailableLabel.Text = TranslationServer.Translate("Connect to Steam to see your Steam friends. Your friends list is only readable while the Steam client is running and signed in.");
 			_steamUnavailableLabel.Visible = true;
 			_friendScroll.Visible = false;
 			_emptyLabel.Visible = false;
 			_sendButton.Disabled = true;
-			_setupLabel.Text = string.Empty;
+			_setupLabel.Text = GameContext.Steam.UnavailableExplanation;
 			return;
 		}
 
+		_subtitleLabel.Text = TranslationServer.Translate("Choose the friends to invite. They receive the invitation from Steam and can join this lobby with one click.");
 		_steamUnavailableLabel.Visible = false;
 		_friendScroll.Visible = true;
 
@@ -130,16 +136,16 @@ public partial class SteamFriendsDialog : Control
 		titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		content.AddChild(titleLabel);
 
-		var subtitleLabel = new Label();
-		subtitleLabel.Name = "Subtitle_Label";
-		subtitleLabel.Text = TranslationServer.Translate("Choose the friends to invite. They receive the invitation from Steam and can join this lobby with one click.");
-		subtitleLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		subtitleLabel.CustomMinimumSize = new Vector2(PanelWidth - 80, 0);
-		subtitleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		subtitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		subtitleLabel.AddThemeColorOverride("font_color", new Color(0.78f, 0.8f, 0.86f));
-		subtitleLabel.AddThemeFontSizeOverride("font_size", 13);
-		content.AddChild(subtitleLabel);
+		_subtitleLabel = new Label();
+		_subtitleLabel.Name = "Subtitle_Label";
+		_subtitleLabel.Text = TranslationServer.Translate("Choose the friends to invite. They receive the invitation from Steam and can join this lobby with one click.");
+		_subtitleLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_subtitleLabel.CustomMinimumSize = new Vector2(PanelWidth - 80, 0);
+		_subtitleLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_subtitleLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		_subtitleLabel.AddThemeColorOverride("font_color", new Color(0.78f, 0.8f, 0.86f));
+		_subtitleLabel.AddThemeFontSizeOverride("font_size", 13);
+		content.AddChild(_subtitleLabel);
 
 		_setupLabel = new Label();
 		_setupLabel.Name = "Setup_Label";

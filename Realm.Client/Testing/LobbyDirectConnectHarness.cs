@@ -356,8 +356,9 @@ public partial class LobbyDirectConnectHarness : Node
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-		// A lobby no registry accepted is still opened, and it is still shared by address: the address button is offered and
-		// the Steam invite is not, because a Steam invite carries the id only a registered lobby has.
+		// A lobby no registry accepted is still opened, and it is still shared by address. Both invite buttons stay
+		// offered: the Steam one carries the id only a registered lobby has, so its window is where a host is told that
+		// and is the only place a screen without Steam learns why no friends are listed.
 		Button? shareAddress = room.GetNodeOrNull<Button>("ShareAddressButton");
 		if (shareAddress == null) return (21, "the lobby room draws no button that shares a private lobby's address");
 		if (!shareAddress.Visible) return (21, "the button that shares the address is hidden in a private lobby");
@@ -368,7 +369,7 @@ public partial class LobbyDirectConnectHarness : Node
 
 		Button? steamInvite = room.GetNodeOrNull<Button>("SteamInviteButton");
 		if (steamInvite == null) return (26, "the lobby room draws no Steam invite button");
-		if (steamInvite.Visible) return (26, "a lobby no registry accepted shows the Steam invite button, which needs the id a registry gives it");
+		if (!steamInvite.Visible) return (26, "a lobby no registry accepted hides the Steam invite button, so its window can never say why no friends are listed");
 
 		Label? hint = room.GetNodeOrNull<Label>("UnlistedLobbyHint");
 		if (hint == null) return (27, "the lobby room draws no note saying what a private lobby's address is for");
