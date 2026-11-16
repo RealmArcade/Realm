@@ -127,6 +127,31 @@ public class RelayWireContractTests
 		Assert.That(unreadable.Reason, Is.Not.Empty);
 	}
 
+	[Test]
+	public void TheTransportFacesOneLoopbackPortPerConnectionAndItNeverMoves()
+	{
+		RelayConnectionPlan plan = RelayConnectionPlan.From(Ticket, [Candidate("first", 5001), Candidate("second", 5002)], duplicationEnabled: false, duplicationBudgetBytesPerSecond: 0);
+		RelayPathMux? firstMux = RelayConnectionFactory.TryBuild(plan, isAuthority: true, out string firstFailure);
+		RelayPathMux? secondMux = RelayConnectionFactory.TryBuild(plan, isAuthority: true, out string secondFailure);
+		Assert.That(firstMux, Is.Not.Null, firstFailure);
+		Assert.That(secondMux, Is.Not.Null, secondFailure);
+		if (firstMux == null || secondMux == null) return;
+
+		using var first = new RelayUdpShim(firstMux, 0);
+		using var second = new RelayUdpShim(secondMux, 0);
+		Assert.That(first.TryOpen(out string firstOpenFailure), Is.True, firstOpenFailure);
+		Assert.That(second.TryOpen(out string secondOpenFailure), Is.True, secondOpenFailure);
+
+		int firstPort = first.Port;
+		Assert.That(firstPort, Is.GreaterThan(0));
+		Assert.That(second.Port, Is.Not.EqualTo(firstPort), "one connection is one peer to the transport, so two connections cannot share the port the transport sees");
+
+		firstMux.RemoveAllPaths();
+		Assert.That(firstMux.PathCount, Is.EqualTo(0));
+		Assert.That(first.TryOpen(out _), Is.True);
+		Assert.That(first.Port, Is.EqualTo(firstPort), "a volunteer going away changes which carrier is used, never what the transport connected to");
+	}
+
 	private static RelayCandidateMessage Candidate(string relayId, int port)
 	{
 		return new RelayCandidateMessage
