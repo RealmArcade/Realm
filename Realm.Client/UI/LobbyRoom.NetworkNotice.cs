@@ -23,7 +23,7 @@ public partial class LobbyRoom
 		if (!measuredFailure && !playerReported) return;
 
 		_networkNoticeShown = true;
-		RestrictiveNetworkDialog.Show(this);
+		RestrictiveNetworkDialog.Show();
 	}
 
 	private void RefreshNetworkNotice()

@@ -800,7 +800,7 @@ public partial class LobbyRoom : Control
 			return;
 		}
 
-		RestrictiveNetworkDialog.Show(this, ReturnFromLobby);
+		RestrictiveNetworkDialog.Show(ReturnFromLobby);
 	}
 
 	private void OnLobbyKickReceived(string reason)

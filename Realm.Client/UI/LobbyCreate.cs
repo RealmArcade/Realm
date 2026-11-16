@@ -372,7 +372,7 @@ public partial class LobbyCreate : Control
 
 			if (lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None })
 			{
-				RestrictiveNetworkDialog.Show(this);
+				RestrictiveNetworkDialog.Show();
 				return;
 			}
 
@@ -410,7 +410,7 @@ public partial class LobbyCreate : Control
 
 		if (lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None })
 		{
-			RestrictiveNetworkDialog.Show(this);
+			RestrictiveNetworkDialog.Show();
 			return;
 		}
 

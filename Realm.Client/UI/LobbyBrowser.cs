@@ -625,7 +625,7 @@ public partial class LobbyBrowser : Control
 			LocalizedText.Bind(errorLabel, RenderRefusedConnect);
 			errorLabel.Visible = true;
 
-			if (IsNetworkJoinFailure(lobby)) RestrictiveNetworkDialog.Show(this);
+			if (IsNetworkJoinFailure(lobby)) RestrictiveNetworkDialog.Show();
 		}
 
 		string? RenderRefusedConnect()
@@ -818,7 +818,7 @@ public partial class LobbyBrowser : Control
 	{
 		if (GameContext.Lobby is { } lobby && IsNetworkJoinFailure(lobby))
 		{
-			RestrictiveNetworkDialog.Show(this);
+			RestrictiveNetworkDialog.Show();
 			return;
 		}
 
