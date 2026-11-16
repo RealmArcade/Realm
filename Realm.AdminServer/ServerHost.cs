@@ -1,5 +1,6 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Globalization;
+using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -30,7 +31,9 @@ public record ServerSetup(
 	ConcurrentDictionary<string, WebSocket> HostConnections,
 	string SeederId,
 	int CapacityPercent,
-	UdpReachabilityProbeService ReachabilityProbe);
+	UdpReachabilityProbeService ReachabilityProbe,
+	JoinerPunchRelay JoinerRelay,
+	JoinFailureFeedback JoinFailureFeedback);
 
 public static class ServerHost
 {
@@ -141,7 +144,8 @@ public static class ServerHost
 	// is part of the node rather than of one route.
 	var reachabilityProbePort = builder.Configuration.GetValue<int?>("ReachabilityProbePort") ?? UdpReachabilityProbeService.DefaultProbePort;
 	var reachabilityProbePublicIp = builder.Configuration.GetValue<string>("ReachabilityProbePublicIp") ?? string.Empty;
-	var reachabilityProbe = new UdpReachabilityProbeService(reachabilityProbePort, reachabilityProbePublicIp);
+	var reachabilityProbePublicIpv6 = builder.Configuration.GetValue<string>("ReachabilityProbePublicIpV6") ?? string.Empty;
+	var reachabilityProbe = new UdpReachabilityProbeService(reachabilityProbePort, reachabilityProbePublicIp, reachabilityProbePublicIpv6);
 	builder.Services.AddSingleton(reachabilityProbe);
 
 	var app = builder.Build();
@@ -171,9 +175,18 @@ public static class ServerHost
 
 
 	var hostConnections = new ConcurrentDictionary<string, WebSocket>();
+	var lobbyRegistry = app.Services.GetRequiredService<LobbyRegistry>();
+	var joinerRelay = new JoinerPunchRelay(hostConnections, lobbyRegistry, message => Console.WriteLine($"[JoinerRelay] {message}"));
+	var joinFailureFeedback = new JoinFailureFeedback(hostConnections, lobbyRegistry, message => Console.WriteLine($"[JoinFeedback] {message}"));
 
 	app.Lifetime.ApplicationStopping.Register(reachabilityProbe.Dispose);
-	Console.WriteLine($"[Reachability] Lobbies are registered only after this node reaches their game port from UDP port {reachabilityProbePort}; that port must be reachable over UDP at this node's public address, and ReachabilityProbePublicIp names that address when it differs from the HTTP host name.");
+	app.Lifetime.ApplicationStopping.Register(joinerRelay.Dispose);
+	if (builder.Configuration.GetValue("ReachabilityAllowLocalCaller", false))
+	{
+		Console.WriteLine("[Reachability] ReachabilityAllowLocalCaller is on, so this node also checks lobbies that reach it from inside the node's own network. A check like that proves only that same network can see the lobby, so this is for a development node on one machine and must stay off on a node that serves players.");
+	}
+
+	Console.WriteLine($"[Reachability] Lobbies are registered only after this node reaches their game port from UDP port {reachabilityProbePort}; that port must be reachable over UDP at this node's public address, and ReachabilityProbePublicIp names that address when it differs from the HTTP host name. The same check is made in IPv6 from the same port number when this node has an IPv6 stack, and ReachabilityProbePublicIpV6 names that address.");
 
 
 	_ = Task.Run(async () =>
@@ -207,7 +220,7 @@ public static class ServerHost
 		}
 	});
 
-		return new ServerSetup(app, cas, adminPublicKeys, servesClientDownloads, hostConnections, seederId, capacityPercent, reachabilityProbe);
+		return new ServerSetup(app, cas, adminPublicKeys, servesClientDownloads, hostConnections, seederId, capacityPercent, reachabilityProbe, joinerRelay, joinFailureFeedback);
 	}
 
 	/// <summary>Every 63 seconds, pull cluster state from the peers and drop events older than a day.</summary>

@@ -24,6 +24,13 @@ public static class ReachabilityPunch
 	/// </summary>
 	public static ReadOnlySpan<byte> Datagram => "PUNCH"u8;
 
+	/// <summary>
+	///     How many copies of one punch are sent. A single datagram states the endpoint it left from, which is the whole of
+	///     what a router needs to open, and copies sent back to back add nothing to it: the retries that matter are the ones
+	///     spaced out over a join attempt, not a burst of duplicates.
+	/// </summary>
+	public const int DatagramSendCount = 1;
+
 	/// <summary>The longest check name a punch can carry, which is the size of the identifier a ticket states.</summary>
 	public const int MaximumProbeIdBytes = 64;
 

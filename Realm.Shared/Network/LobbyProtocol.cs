@@ -49,7 +49,21 @@ public enum LobbyCommandKind : byte
 	SetSlotOpen = 19,
 
 	/// <summary>Chooses the shroud mode the match plays, in <see cref="LobbyCommand.Progress" />.</summary>
-	SetShroudMode = 20
+	SetShroudMode = 20,
+
+	/// <summary>
+	///     States, in <see cref="LobbyCommand.Text" />, a sentence the lobby's authority writes into its own chat history as a
+	///     System line. Only the seat that administers the lobby may send one: it is how a host tells its players what its
+	///     network is doing, and it is the authority that stores and broadcasts the line so every peer sees it.
+	/// </summary>
+	ReportJoinFailure = 21,
+
+	/// <summary>
+	///     The authority states that a fresh check of its own lobby claims less reachability than the lobby is listed with, so
+	///     every seat reads the same line and the lobby's history keeps it. Sent by the lobby's administrator only, and the
+	///     authority stores it as a system line rather than as anything a remote peer said.
+	/// </summary>
+	ReportReachability = 22
 }
 
 /// <summary>

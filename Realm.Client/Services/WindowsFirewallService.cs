@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
@@ -55,14 +56,25 @@ public class WindowsFirewallService : IWindowsFirewallCommandRunner
 	/// </summary>
 	public async Task<WindowsFirewallRuleState> ReadRuleStateAsync(int port, CancellationToken cancellationToken = default)
 	{
-		string query = WindowsFirewallRules.BuildPowerShellStateQuery(port);
+		string query = WindowsFirewallRules.BuildPowerShellStateQuery(port, AuthorityExecutablePath);
 		string token = await RunAsync("powershell", $"-NoProfile -NonInteractive -Command \"{query}\"", ReadCommandTimeoutMilliseconds, cancellationToken).ConfigureAwait(false);
 
 		WindowsFirewallRuleState fromPowerShell = WindowsFirewallRules.ParseStateToken(token);
 		if (fromPowerShell != WindowsFirewallRuleState.Unknown) return fromPowerShell;
 
-		string show = await RunAsync("netsh", WindowsFirewallRules.BuildShowCommand(port), ReadCommandTimeoutMilliseconds, cancellationToken).ConfigureAwait(false);
+		string show = await RunAsync("netsh", WindowsFirewallRules.BuildShowCommand(port, AuthorityExecutablePath), ReadCommandTimeoutMilliseconds, cancellationToken).ConfigureAwait(false);
 		return WindowsFirewallRules.ParseShowOutput(show);
+	}
+
+	/// <summary>
+	///     Names every allowance this build has made on this machine, so a per-port rule from a build that could not name its
+	///     program can be removed rather than left beside the one rule this build keeps.
+	/// </summary>
+	public async Task<IReadOnlyList<string>> ReadRuleNamesAsync(CancellationToken cancellationToken = default)
+	{
+		string query = WindowsFirewallRules.BuildPowerShellListCommand();
+		string output = await RunAsync("powershell", $"-NoProfile -NonInteractive -Command \"{query}\"", ReadCommandTimeoutMilliseconds, cancellationToken).ConfigureAwait(false);
+		return WindowsFirewallRules.ParseRuleNames(output);
 	}
 
 	/// <summary>
@@ -105,7 +117,7 @@ public class WindowsFirewallService : IWindowsFirewallCommandRunner
 
 		string message = result.Grant switch
 		{
-			WindowsFirewallGrant.AlreadyOpen => $"UDP port {port} is already allowed in by '{WindowsFirewallRules.RuleName(port)}'.",
+			WindowsFirewallGrant.AlreadyOpen => $"UDP port {port} is already allowed in by '{WindowsFirewallRules.RuleName(port, AuthorityExecutablePath)}'.",
 			WindowsFirewallGrant.Granted => $"UDP port {port} is now allowed in.",
 			WindowsFirewallGrant.Declined => $"The elevation prompt for UDP port {port} was dismissed, so the port stays closed until the next attempt to host asks again.",
 			WindowsFirewallGrant.NotApplicable => "This platform has no Windows firewall rule to add.",

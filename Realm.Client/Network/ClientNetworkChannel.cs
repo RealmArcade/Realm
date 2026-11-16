@@ -1,6 +1,7 @@
 using System;
 using Godot;
 using Realm.Shared.Network;
+using Realm.Shared.Reachability;
 
 namespace Realm.Client.Network;
 
@@ -14,12 +15,32 @@ public partial class ClientNetworkChannel : Node
 	private const int LongSilenceTimeoutMilliseconds = 86_400_000;
 
 	public event Action<NetworkFrameKind, byte[]>? FrameArrived;
+	public event Action? ConnectionFailed;
+	public event Action? ServerDisconnected;
 
 	private readonly SimulatedLink _simulatedLink = SimulatedLink.FromEnvironment();
 
 	public SimulatedLink SimulatedLink => _simulatedLink;
 
 	public new bool IsConnected => Multiplayer.MultiplayerPeer?.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connected;
+
+	public bool IsConnecting => Multiplayer.MultiplayerPeer?.GetConnectionStatus() == MultiplayerPeer.ConnectionStatus.Connecting;
+
+	public override void _Ready()
+	{
+		Multiplayer.ConnectionFailed += OnMultiplayerConnectionFailed;
+		Multiplayer.ServerDisconnected += OnMultiplayerServerDisconnected;
+	}
+
+	public override void _ExitTree()
+	{
+		Multiplayer.ConnectionFailed -= OnMultiplayerConnectionFailed;
+		Multiplayer.ServerDisconnected -= OnMultiplayerServerDisconnected;
+	}
+
+	private void OnMultiplayerConnectionFailed() => ConnectionFailed?.Invoke();
+
+	private void OnMultiplayerServerDisconnected() => ServerDisconnected?.Invoke();
 
 	/// <summary>
 	///     Hands on the frames a simulated link has finished with. Every frame travels through the queue even when the link
@@ -70,7 +91,11 @@ public partial class ClientNetworkChannel : Node
 		failure = string.Empty;
 
 		Error error = CreateClientPeer(address, port, localPort, out ENetMultiplayerPeer? peer);
-		if (error != Error.Ok && localPort > 0) error = CreateClientPeer(address, port, 0, out peer);
+		if (error != Error.Ok && localPort > 0)
+		{
+			GD.Print($"[RealmNetwork] Local port {localPort} could not be held for this join ({error}), so the socket takes the port the system chooses.");
+			error = CreateClientPeer(address, port, 0, out peer);
+		}
 
 		if (error != Error.Ok || peer == null)
 		{
@@ -95,6 +120,28 @@ public partial class ClientNetworkChannel : Node
 		if (authorityPeer == null) return false;
 
 		authorityPeer.SetTimeout(LongSilenceTimeoutLimit, LongSilenceTimeoutMilliseconds, LongSilenceTimeoutMilliseconds);
+		return true;
+	}
+
+	/// <summary>
+	///     Sends one datagram from the socket this client's ENet peer already holds, which is the port a host's answer has to
+	///     arrive at. A punch sent from anywhere else opens the router on the wrong port: the host's reply is then delivered
+	///     to a socket nothing is reading, which looks exactly like a host that never answered.
+	/// </summary>
+	/// <param name="address">The address to punch.</param>
+	/// <param name="port">The port to punch.</param>
+	/// <param name="payload">The datagram to send.</param>
+	/// <returns>Whether the peer had a socket to send it from.</returns>
+	public bool SendToAddress(string address, int port, ReadOnlySpan<byte> payload)
+	{
+		if (string.IsNullOrWhiteSpace(address) || port <= 0) return false;
+		if (Multiplayer.MultiplayerPeer is not ENetMultiplayerPeer peer) return false;
+
+		var host = peer.GetHost();
+		if (host == null) return false;
+
+		byte[] datagram = payload.ToArray();
+		for (int attempt = 0; attempt < ReachabilityPunch.DatagramSendCount; attempt++) host.SocketSend(address, port, datagram);
 		return true;
 	}
 

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
+using Realm.Shared.Reachability;
 using HttpClient = System.Net.Http.HttpClient;
 using Timer = Godot.Timer;
 using static Godot.Control;
@@ -28,6 +29,9 @@ public partial class LobbyBrowser : Control
 
 	private List<LobbyData> _allLobbies = new List<LobbyData>();
 	private List<LobbyData> _filteredLobbies = new List<LobbyData>();
+
+	/// <summary>How many listed lobbies the current filters hide only because they could not be shown to be reachable.</summary>
+	private int _hiddenUnreachableCount;
 	private bool _connectionFailed;
 
 	private Panel _bgPanel = null!;
@@ -44,6 +48,7 @@ public partial class LobbyBrowser : Control
 	private readonly List<(string Tag, CheckBox CheckBox)> _tagFilters = new();
 	private CheckBox _betaTestingMapsCheck = null!;
 	private CheckBox _versionMismatchCheck = null!;
+	private CheckBox _unreachableLobbiesCheck = null!;
 	private VBoxContainer _lobbyListContainer = null!;
 
 	private Label _browserTitle = null!;
@@ -266,6 +271,19 @@ public partial class LobbyBrowser : Control
 		_versionMismatchCheck.TooltipText = TranslationServer.Translate("Also list lobbies that run a different game version and cannot be joined from this build");
 		_versionMismatchCheck.ButtonPressed = false;
 		SetupFilterCheckbox(_versionMismatchCheck);
+
+		_unreachableLobbiesCheck = new CheckBox
+		{
+			Name = "UnreachableLobbiesCheck",
+			Text = TranslationServer.Translate("Show unreachable lobbies"),
+			TooltipText = TranslationServer.Translate("Also list lobbies whose host could not be shown to be reachable from outside, which most players cannot join"),
+			ButtonPressed = false,
+			FocusMode = FocusModeEnum.None
+		};
+		SetupFilterCheckbox(_unreachableLobbiesCheck);
+		var filterRows = GetNode<VBoxContainer>("FilterPanel/VBoxContainer");
+		filterRows.AddChild(_unreachableLobbiesCheck);
+		filterRows.MoveChild(_unreachableLobbiesCheck, _versionMismatchCheck.GetIndex() + 1);
 	}
 
 	private void SetupFilterCheckbox(CheckBox checkBox)
@@ -471,7 +489,7 @@ public partial class LobbyBrowser : Control
 		hintLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		hintLabel.CustomMinimumSize = new Vector2(500, 0);
 		hintLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		hintLabel.Text = Tr("The port is 8999 when the address does not name one.");
+		hintLabel.Text = string.Format(Tr("The port is {0} when the address does not name one."), LobbyManager.DefaultGamePort);
 		hintLabel.AddThemeFontSizeOverride("font_size", 11);
 		hintLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.72f, 0.78f));
 		vbox.AddChild(hintLabel);
@@ -606,13 +624,15 @@ public partial class LobbyBrowser : Control
 			refusalReason = lobby.LastHostError ?? lobby.LobbyJoinError ?? Tr("The host did not answer.");
 			LocalizedText.Bind(errorLabel, RenderRefusedConnect);
 			errorLabel.Visible = true;
+
+			if (JoinPhases.IsKnown(lobby.LastJoinPhase)) RestrictiveNetworkDialog.Show();
 		}
 
 		string? RenderRefusedConnect()
 		{
 			if (refusedEndpoint == null) return null;
 
-			return $"{string.Format(Tr("Could not reach {0}."), refusedEndpoint)}\n{refusalReason}\n\n{Tr("The host must keep the lobby open and allow UDP traffic on that port. Players outside their network also need the host's router to forward the port.")}";
+			return $"{string.Format(Tr("Could not reach {0}."), refusedEndpoint)}\n{refusalReason}";
 		}
 	}
 
@@ -788,9 +808,20 @@ public partial class LobbyBrowser : Control
 		return overlay;
 	}
 
+	/// <summary>
+	///     States a join that failed from the lobby list. Every failure the phase machine can name is answered with the one
+	///     connectivity notice; a failure no phase names is stated as it arrived.
+	/// </summary>
+	/// <param name="message">What the lobby said went wrong.</param>
 	private void ShowLobbyJoinErrorPopup(string message)
 	{
-		GameContext.UserInterface?.ShowPopupMessage("CONNECTION ERROR", message);
+		if (GameContext.Lobby is { } lobby && JoinPhases.IsKnown(lobby.LastJoinPhase))
+		{
+			RestrictiveNetworkDialog.Show();
+			return;
+		}
+
+		GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("CONNECTION FAILED"), message);
 	}
 
 	protected override void Dispose(bool disposing)

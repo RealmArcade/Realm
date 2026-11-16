@@ -20,6 +20,7 @@ public class PeerSeederManager
 	private MultiplayerPeer? _previousPeer;
 	private CancellationTokenSource? _cts;
 	private bool _isSeeding;
+	private int _seederPort;
 	private string _seederId = "";
 
 	public int CapacityPercentage { get; set; } = 100;
@@ -45,26 +46,28 @@ public class PeerSeederManager
 		_seederId = Guid.NewGuid().ToString("N");
 		_cts = new CancellationTokenSource();
 
-		int localPort = GameContext.Lobby.ENetPort + 15;
+		_seederPort = 0;
 		try
 		{
 			_enetPeer = new ENetMultiplayerPeer();
-			var err = _enetPeer.CreateServer(localPort, 1);
+			var err = _enetPeer.CreateServer(0, 1);
 			if (err != Error.Ok)
 			{
-				GameLog.LogError($"[PeerSeeder] Failed to create ENet Seeder server on port {localPort}: {err}");
+				GameLog.LogError($"[PeerSeeder] Failed to create ENet Seeder server on a port the system chose: {err}");
 				_isSeeding = false;
 				return;
 			}
 
+			_seederPort = _enetPeer.GetHost().GetLocalPort();
+
 			_previousPeer = GameContext.Lobby.Multiplayer.MultiplayerPeer;
 			GameContext.Lobby.Multiplayer.MultiplayerPeer = _enetPeer;
 
-			GameLog.LogToConsole($"[PeerSeeder] Bound ENet seeder listener on port {localPort}");
+			GameLog.LogToConsole($"[PeerSeeder] Bound ENet seeder listener on port {_seederPort}");
 		}
 		catch (Exception ex)
 		{
-			GameLog.LogError($"[PeerSeeder] Failed to bind ENet listener on port {localPort}: {ex.Message}");
+			GameLog.LogError($"[PeerSeeder] Failed to bind the ENet seeder listener: {ex.Message}");
 			_isSeeding = false;
 			return;
 		}
@@ -161,7 +164,6 @@ public class PeerSeederManager
 				if (lobby == null) break;
 
 				var mapIds = GetFullyAvailableMapIds();
-				int publicPort = lobby.PublicPort + 15;
 				string publicIp = lobby.PublicIP;
 
 				if (mapIds.Count > 0)
@@ -170,7 +172,7 @@ public class PeerSeederManager
 					{
 						SeederId = _seederId,
 						ReportedIP = publicIp,
-						Port = publicPort,
+						Port = _seederPort,
 						MapIds = mapIds,
 						CapacityPercentage = CapacityPercentage,
 						AcceptingUploads = AcceptingUploads

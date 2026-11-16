@@ -34,9 +34,6 @@ public partial class LobbyCreate : Control
 	private OptionButton _versionSelectButton = null!;
 	private HBoxContainer _versionContainer = null!;
 	private Label _versionLabel = null!;
-	private OptionButton _visibilitySelectButton = null!;
-	private HBoxContainer _visibilityContainer = null!;
-	private Label _visibilityLabel = null!;
 	private RichTextLabel _briefingText = null!;
 	private TextureRect _mapThumbnail = null!;
 
@@ -146,33 +143,6 @@ public partial class LobbyCreate : Control
 
 		contentContainer.AddChild(_versionContainer);
 		contentContainer.MoveChild(_versionContainer, mapHeaderVBox.GetIndex() + 1);
-
-		_visibilityContainer = new HBoxContainer();
-		_visibilityContainer.Name = "VisibilityContainer";
-		_visibilityContainer.Alignment = BoxContainer.AlignmentMode.Center;
-		_visibilityContainer.AddThemeConstantOverride("separation", 10);
-		_visibilityContainer.CustomMinimumSize = new Vector2(620, 44);
-		_visibilityContainer.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-
-		_visibilityLabel = new Label();
-		_visibilityLabel.Name = "VisibilityLabel_Label";
-		_visibilityLabel.Text = Tr("LOBBY TYPE:");
-		_visibilityLabel.VerticalAlignment = VerticalAlignment.Center;
-		_visibilityContainer.AddChild(_visibilityLabel);
-
-		_visibilitySelectButton = new OptionButton();
-		_visibilitySelectButton.Name = "VisibilitySelectButton";
-		_visibilitySelectButton.CustomMinimumSize = new Vector2(420, 44);
-		_visibilitySelectButton.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		_visibilitySelectButton.AddItem(TranslationServer.Translate("PUBLIC - LISTED IN THE LOBBY BROWSER"));
-		_visibilitySelectButton.AddItem(TranslationServer.Translate("DIRECT - ONLY PLAYERS WITH YOUR ADDRESS"));
-		_visibilitySelectButton.ItemSelected += (idx) => GameContext.UserInterface?.PlayClickSound();
-		_visibilitySelectButton.TooltipText = TranslationServer.Translate("A public lobby is listed in the lobby browser and needs the lobby server. A direct lobby is not listed: you send its address to the people you want to play with, and they join through Direct Connect. Choose direct when the lobby server is unavailable or when you only want friends on this network.");
-		_visibilityContainer.AddChild(_visibilitySelectButton);
-
-		contentContainer.AddChild(_visibilityContainer);
-		contentContainer.MoveChild(_visibilityContainer, _versionContainer.GetIndex() + 1);
-		_visibilityContainer.Visible = GameContext.Lobby?.IsSinglePlayer != true;
 
 		var textPanelWrapper = GetNode<PanelContainer>("CentralPanel/ContentContainer/BriefingPanel/TextPanelWrapper");
 		textPanelWrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBriefingTextPlate());
@@ -325,16 +295,6 @@ public partial class LobbyCreate : Control
 		_versionSelectButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 		_versionSelectButton.AddThemeFontSizeOverride("font_size", 15);
 
-		_visibilityLabel.Text = Tr("LOBBY TYPE:");
-		_visibilityLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		_visibilityLabel.AddThemeFontSizeOverride("font_size", 14);
-
-		UIStyle.ApplyCustomLobbyDropdown(_visibilitySelectButton);
-		_visibilitySelectButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_visibilitySelectButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		_visibilitySelectButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
-		_visibilitySelectButton.AddThemeFontSizeOverride("font_size", 15);
-
 		_briefingText.AddThemeColorOverride("default_color", new Color(0.92f, 0.94f, 0.98f));
 		_briefingText.AddThemeFontSizeOverride("normal_font_size", 15);
 
@@ -384,17 +344,10 @@ public partial class LobbyCreate : Control
 			return;
 		}
 
-		await ContinueHosting(mapInfo.PathName, mapInfo.DisplayName, selectedVersion, IsDirectLobbySelected());
+		await ContinueHosting(mapInfo.PathName, mapInfo.DisplayName, selectedVersion);
 	}
 
-	/// <summary>
-	///     Whether the host chose a lobby that only players holding its address can join. A direct lobby is opened without
-	///     asking a registry to publish it, which is what makes hosting work when the lobby server cannot be reached.
-	/// </summary>
-	/// <returns>Whether the lobby should be direct rather than listed.</returns>
-	private bool IsDirectLobbySelected() => _visibilitySelectButton.Selected == 1;
-
-	private async Task ContinueHosting(string pathName, string displayName, string selectedVersion, bool directOnly)
+	private async Task ContinueHosting(string pathName, string displayName, string selectedVersion)
 	{
 		var lobby = GameContext.Lobby;
 		if (lobby == null) return;
@@ -417,9 +370,9 @@ public partial class LobbyCreate : Control
 
 			GameContext.UserInterface?.PlayWarningSound();
 
-			if (lobby.LastHostFailure is { } loopbackFailure && loopbackFailure.Failure != HostReachabilityFailure.None)
+			if (lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None })
 			{
-				ShowReachabilityHelpModal(loopbackFailure, offerDirectHosting: false);
+				RestrictiveNetworkDialog.Show();
 				return;
 			}
 
@@ -441,93 +394,56 @@ public partial class LobbyCreate : Control
 			return;
 		}
 
-		// The lobby is open and nobody can see it yet. Hosting publishes it straight away and takes the host into its room,
-		// where every setting its map states is changed: a host no longer confirms a panel of settings before its lobby
-		// exists, because the lobby room is where those settings are read and edited.
-		if (directOnly)
-		{
-			await PublishDirectLobbyAsync();
-			return;
-		}
-
-		await PublishPreparedLobbyAsync();
+		// The lobby is open and nobody can see it yet. The host goes into its room first, because that is where the map's
+		// settings are read and edited, and publishing a listed lobby means waiting on a registry node: making a host sit
+		// through that before they can touch a single setting is the wait this flow exists to remove. The room's chat says
+		// what is happening, and says so again if the lobby could not be listed. A lobby that could not be listed stays open
+		// to the players its address is handed to, and its host can offer it in the browser again from the room.
+		GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
+		_ = PublishListedLobbyAsync();
 	}
 
-	private void ReportLobbyHostingFailure(LobbyManager lobby, bool directOnly = false)
+	private void ReportLobbyHostingFailure(LobbyManager lobby)
 	{
 		GameContext.UserInterface?.PlayWarningSound();
 		GameLog.LogError("[LobbyCreate] Failed to host lobby.");
 
-		if (lobby.LastHostFailure is { } reachability && reachability.Failure != HostReachabilityFailure.None)
+		if (lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None })
 		{
-			ShowReachabilityHelpModal(reachability, offerDirectHosting: !directOnly);
+			RestrictiveNetworkDialog.Show();
 			return;
 		}
 
-		string errorMsg = lobby.LastHostError ?? (directOnly
-			? Tr("Failed to open the lobby.")
-			: Tr("Failed to host lobby on the registry server."));
-		ShowHostErrorModal(errorMsg);
+		ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to host lobby on the registry server."));
 	}
 
-	private async Task PublishPreparedLobbyAsync()
+	/// <summary>
+	///     Publishes the lobby the host is already sitting in, without holding the screen it was started from. A failure
+	///     leaves the lobby open to players who are given its address and reports that in the room's chat, so the host is
+	///     never left in a room that silently nobody can find.
+	/// </summary>
+	private async Task PublishListedLobbyAsync()
 	{
 		LobbyManager? lobby = GameContext.Lobby;
 		if (lobby == null) return;
 
-		_createButton.Disabled = true;
-		ShowHostProgressOverlay();
 		lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
-		bool published = await lobby.PublishPreparedLobbyAsync();
-		lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
-		HideHostProgressOverlay();
-		_createButton.Disabled = false;
-
-		if (published)
+		bool listed;
+		try
 		{
-			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
-			return;
+			listed = await lobby.PublishPreparedLobbyDirectlyOnFailureAsync();
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[LobbyCreate] The lobby could not be published: {exception.Message}");
+			listed = false;
+		}
+		finally
+		{
+			lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
 		}
 
-		ReportLobbyHostingFailure(lobby);
-	}
-
-	/// <summary>
-	///     Opens the prepared lobby to players holding its address and takes the host into it. No registry is asked to
-	///     publish it, so this is the path a host uses when the lobby server is unavailable, and the lobby room is where the
-	///     host reads the address to send to the players who should join.
-	/// </summary>
-	private async Task PublishDirectLobbyAsync()
-	{
-		LobbyManager? lobby = GameContext.Lobby;
-		if (lobby == null) return;
-
-		_createButton.Disabled = true;
-		ShowHostProgressOverlay(TranslationServer.Translate("OPENING YOUR LOBBY"));
-		lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
-		bool published = await lobby.PublishDirectLobbyAsync();
-		lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
-		HideHostProgressOverlay();
-		_createButton.Disabled = false;
-
-		if (published)
-		{
-			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
-			return;
-		}
-
-		ReportLobbyHostingFailure(lobby, directOnly: true);
-	}
-
-	/// <summary>
-	///     Switches this screen to a direct lobby and hosts it, which is what the reachability help offers a host whose
-	///     listed lobby could not be published. The map, version and every other choice on the screen are the ones that host
-	///     already made.
-	/// </summary>
-	private void HostAsDirectLobby()
-	{
-		_visibilitySelectButton.Selected = 1;
-		OnCreatePressed();
+		if (!listed) GameContext.UserInterface?.PlayWarningSound();
 	}
 
 	private async void EnsureFestivalFeaturedMapInstalledAsync()

@@ -1013,6 +1013,9 @@ public partial class EditorService : IEditorAPI
 		}
 
 		ref var ts = ref World.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity);
+
+		ts.Width = defaultWidth;
+		ts.Depth = defaultDepth;
 		ts.SetHeights(defaultHeights);
 		ts.PathingCodes = defaultPathing;
 		World.Set(GameContext.Simulation.WorldEntity, ts);

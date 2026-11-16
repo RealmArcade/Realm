@@ -204,20 +204,100 @@ public partial class LobbyManager : BaseMapTransferNode
 	}
 
 	public NatType LocalNatType { get; private set; } = NatType.Open;
+
+	/// <summary>
+	///     The class this lobby was listed with: reachable without a punch, reachable only after one, or not shown to have
+	///     been reachable at all. It is what the lobby room, the diagnostics block and the advice a host reads follow from.
+	/// </summary>
+	public string ReachabilityClass { get; private set; } = ReachabilityClasses.Unverified;
+
+	/// <summary>
+	///     Whether this lobby's router reused one outside port for the destinations that were measured, which is what decides
+	///     whether forwarding a port is advice worth giving or an impossibility to state.
+	/// </summary>
+	public string MappingBehaviour { get; private set; } = MappingBehaviours.Unknown;
+
+	/// <summary>
+	///     The last thing a player was told when a join into this lobby failed, as the lobby's host was told it. It is kept
+	///     for the diagnostics a host copies: a failure that reached this host's chat is the one piece of evidence about the
+	///     lobby's network that its own measurements cannot produce.
+	/// </summary>
+	public string? LastPlayerJoinFailure { get; private set; }
+
 	public bool IsHost { get; set; }
 
 	/// <summary>
-	///     Whether this screen's lobby is reachable only by the players it gives its address to, rather than being listed on
-	///     a registry. A direct lobby is opened and administered exactly as a listed one is; the difference is that no lobby
-	///     server knows it exists.
+	///     Whether this screen's lobby is kept out of the lobby browser, either because its host asked for that or because no
+	///     registry could be made to list it. An unlisted lobby is opened and administered exactly as a listed one is: it
+	///     keeps its seat, its host channel and the players it invites, and only stops being offered to players browsing.
 	/// </summary>
-	public bool IsDirectLobby { get; private set; }
+	public bool IsUnlisted { get; private set; }
 
 	/// <summary>
 	///     The address a player on this network joins this screen's lobby with, in the `address:port` form every player
-	///     pastes into the direct connect dialog. It is the address a host sends to the people they want to play with.
+	///     pastes into the direct connect dialog. It is the address a host sends to the people they want to play with, and
+	///     it is this network's IPv4 address whenever this machine has one, because that is the address the players in the
+	///     same room as the host dial; a machine that holds only IPv6 states its IPv6 address, which is the only one it has.
 	/// </summary>
-	public string DirectConnectAddress => $"{GetLocalIPAddress()}:{(LobbyPort > 0 ? LobbyPort : ENetPort)}";
+	public string DirectConnectAddress => LobbyAddresses.Describe(BestLocalConnectHost(), LobbyPort > 0 ? LobbyPort : ENetPort);
+
+	/// <summary>
+	///     The address players whose network gives them IPv6 reach this lobby at, or nothing when this machine holds no
+	///     advertisable IPv6 address. It is offered beside the address above rather than instead of it: a dual-stack host
+	///     has one player to invite on their own network and another anywhere on IPv6, and handing either of them the other
+	///     player's address is how an invite stops working. It needs no router forward, which is why it is worth showing
+	///     even when the IPv4 route needs one that a host cannot make.
+	/// </summary>
+	public string? Ipv6ConnectAddress
+	{
+		get
+		{
+			IPAddress? best = LocalEndpointDiscovery.BestIPv6Address();
+			return best == null ? null : LobbyAddresses.Describe(best.ToString(), LobbyPort > 0 ? LobbyPort : ENetPort);
+		}
+	}
+
+	/// <summary>
+	///     The best address this machine holds for another player to join this lobby at, or the IPv4 address this machine
+	///     has always advertised when it holds nothing else.
+	/// </summary>
+	/// <returns>The address to state, without a port.</returns>
+	private static string BestLocalConnectHost()
+	{
+		LobbyEndpointCandidate? best = LocalEndpointDiscovery.Best(LobbyAddressFamily.IPv4) ?? LocalEndpointDiscovery.Best(LobbyAddressFamily.IPv6);
+		return best?.Address.ToString() ?? GetLocalIPAddress();
+	}
+
+	/// <summary>
+	///     The endpoints a registry node verified for the lobby this screen last published, one per family it is reachable
+	///     in. It is empty until a listed lobby is registered, and it is what the lobby room reads to say which families
+	///     the lobby is offered over.
+	/// </summary>
+	public IReadOnlyList<LobbyEndpointInfo> PublishedEndpoints => _publishedEndpoints;
+
+	private List<LobbyEndpointInfo> _publishedEndpoints = new();
+
+	/// <summary>
+	///     The family this screen connected to the lobby it is in over, which is stated in the lobby room and in the log so
+	///     a dual-stack path can be told apart from an IPv4 one without reading a packet capture.
+	/// </summary>
+	public LobbyAddressFamily JoinedLobbyFamily { get; private set; } = LobbyAddressFamily.Unknown;
+
+	/// <summary>
+	///     Whether this screen accepts an endpoint inside its own network as publishable, which is set only by a development
+	///     harness that puts the lobby server on the machine it is hosting from. A node that serves players states the same
+	///     thing about itself in its capabilities (<see cref="Realm.Shared.Reachability.RegistryCapabilities.AllowsLocalCallers" />),
+	///     which is the path a real host takes; this one exists because a node built before that statement existed cannot
+	///     make it, and the old-node rig has to publish through exactly such a node.
+	/// </summary>
+	/// </summary>
+	public bool AllowNonPublicEndpointForDevelopment { get; set; }
+
+	/// <summary>
+	///     Whether this machine holds a global IPv6 address, which is the only thing that lets it reach a lobby published
+	///     over IPv6. It is read when a lobby is joined and never on a match tick.
+	/// </summary>
+	public static bool LocalIpv6Available => LocalEndpointDiscovery.HasGlobalIpv6();
 
 	/// <summary>
 	///     The address this lobby was confirmed to be reachable at from outside this network, or nothing while nothing
@@ -275,11 +355,20 @@ public partial class LobbyManager : BaseMapTransferNode
 			string mapName = !string.IsNullOrEmpty(HostedMapDisplayName) ? HostedMapDisplayName : ActiveMapName;
 			string address = PublicConnectAddress ?? DirectConnectAddress;
 
+			// The address is stated with the port whether or not the port is the one a direct connect would assume: a message
+			// a player can act on is one that says where to go, and the rest of it is what to do about the one thing that
+			// can still stop them getting in. The class decides that sentence, because a lobby a router was measured to
+			// forward for needs no advice and one that only opens on a punch does.
+			string fallback = ReachabilityClass == ReachabilityClasses.Open
+				? TranslationServer.Translate("A lobby server reached this address from outside without anything sent first, so a join should need nothing else.")
+				: string.Format(TranslationServer.Translate("If you cannot join, the host should try enabling UPnP on their router or forwarding UDP port {0} to their machine."), LobbyPort > 0 ? LobbyPort : DefaultGamePort);
+
 			return string.Join(
 				"\n",
 				string.Format(TranslationServer.Translate("Join my Realm lobby: {0}"), mapName),
 				string.Format(TranslationServer.Translate("Address: {0}"), address),
-				TranslationServer.Translate("In Realm, choose PLAY, then Join Private Lobby via IP Address, and paste the address."));
+				TranslationServer.Translate("In Realm, choose PLAY, then Join Private Lobby via IP Address, and paste the address."),
+				fallback);
 		}
 	}
 	public string? ActiveLobbyId { get; private set; }
@@ -372,6 +461,12 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public int BoundPort => _lobbySession?.Port ?? ENetPort;
 
+	/// <summary>
+	///     Whether this screen is holding a lobby: seated in one, whether it administers it or joined it. A screen that gave
+	///     its lobby up holds nothing, and everything the lobby measured is then only what was copied out of it beforehand.
+	/// </summary>
+	public bool HoldsLobby => _lobbySession != null;
+
 	public bool IsCountdownActive => _countdownActive;
 
 	/// <summary>
@@ -401,6 +496,20 @@ public partial class LobbyManager : BaseMapTransferNode
 	private CancellationTokenSource? _wsCts;
 	private string? _hostPublicIp;
 	private int _hostPublicPort;
+	private int _hostPublicPortMeasuredForLocalPort;
+
+	/// <summary>
+	///     Puts one line in front of the host without pretending a player said it. It is the only status surface the lobby
+	///     room already has, and the room is the one place a host is looking while a lobby is being published in the
+	///     background, so a listing that fails is reported where the address is shown rather than in a dialog that is gone.
+	/// </summary>
+	/// <param name="message">The already-translated sentence to show.</param>
+	private void NotifyHostLine(string message)
+	{
+		if (string.IsNullOrWhiteSpace(message)) return;
+
+		ChatReceived?.Invoke(TranslationServer.Translate("System"), message, false, DateTime.UtcNow.Ticks);
+	}
 	private RouterReachability _routerReachability = RouterReachability.NoRouterForward;
 	public string PublicIP => _hostPublicIp ?? "127.0.0.1";
 	public int PublicPort => _hostPublicPort > 0 ? _hostPublicPort : BoundPort;
@@ -474,6 +583,14 @@ public partial class LobbyManager : BaseMapTransferNode
 	public event Action? CountdownCancelled;
 	public event Action? CountdownFinished;
 	public event Action<string>? ActiveMapChanged;
+
+	/// <summary>
+	///     Raised when a lobby this screen hosts could not be shown to be reachable, so it stays open to the players it is
+	///     given the address to instead of being listed. It is the moment the room's connectivity summary has something to
+	///     state: the host is already in the lobby room, the lobby is still joinable by address, and the thing to change is on
+	///     this machine or its router.
+	/// </summary>
+	public event Action? LobbyPublicationRefused;
 
 	/// <summary>
 	///     Raised when the lobby's map asks its host to read a warning before the match starts, with the text that host has

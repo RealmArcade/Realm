@@ -15,6 +15,7 @@ using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
+using Realm.Shared.Reachability;
 using Realm.Shared.Accounts;
 using Realm.Shared.Simulation;
 
@@ -46,10 +47,12 @@ public partial class LobbyRoom : Control
 	private PanelContainer _chatPanel = null!;
 
 	private Button _backButton = null!;
-	private Button _steamInviteButton = null!;
-	private Button _shareAddressButton = null!;
-	private Label _privateLobbyHint = null!;
-	private SteamFriendsDialog? _friendsDialog;
+	private Button _invitePlayersButton = null!;
+	private Label _unlistedLobbyHint = null!;
+	private CheckBox _unlistedLobbyCheck = null!;
+
+	private Label _lobbyFamiliesHint = null!;
+	private InvitePlayersDialog? _invitePlayersDialog;
 	private Button _startButton = null!;
 	private Label _mapNameLabel = null!;
 	private LineEdit _chatInput = null!;
@@ -123,12 +126,24 @@ public partial class LobbyRoom : Control
 
 
 		_backButton = GetNode<Button>("BackButton");
-		_steamInviteButton = GetNode<Button>("SteamInviteButton");
-		_shareAddressButton = GetNode<Button>("ShareAddressButton");
-		_privateLobbyHint = GetNode<Label>("PrivateLobbyHint");
+		_invitePlayersButton = GetNode<Button>("InvitePlayersButton");
+		_unlistedLobbyHint = GetNode<Label>("UnlistedLobbyHint");
 		_startButton = GetNode<Button>("StartButton");
-		_privateLobbyHint.Text = TranslationServer.Translate("Private Lobby: Send your IP address to players so they can join.");
+		_unlistedLobbyHint.Text = TranslationServer.Translate("Your lobby is not advertised publicly but direct invites are still available.");
+		_lobbyFamiliesHint = GetNode<Label>("LobbyFamiliesHint");
+		_unlistedLobbyCheck = GetNode<CheckBox>("UnlistedLobbyCheck");
+		_unlistedLobbyCheck.Text = TranslationServer.Translate("Private");
+		_unlistedLobbyCheck.TooltipText = TranslationServer.Translate("Your lobby is not advertised publicly but direct invites are still available.");
+		_unlistedLobbyCheck.FocusMode = FocusModeEnum.None;
+		_unlistedLobbyCheck.Toggled += OnUnlistedLobbyToggled;
+		UpdateLobbyFamiliesHint();
 		ApplyInviteVisibility();
+		if (Lobby.IsHost)
+		{
+			// A lobby that could not be shown reachable stays open to the players it is given the address to, so the room
+			// says so at the moment the listing was refused rather than after somebody has failed to get in.
+			Lobby.LobbyPublicationRefused += OnLobbyPublicationRefused;
+		}
 
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");
@@ -240,6 +255,10 @@ public partial class LobbyRoom : Control
 		_chatLog.Text = $"[color=#ffd700]{Tr("System: Connected to Lobby.")}[/color]\n";
 		_chatInput.TextSubmitted += OnChatSubmitted;
 
+		// A lobby whose network has already refused it opens the notice the moment its host arrives, so the restriction is
+		// explained before the host starts setting up a match players cannot reach.
+		if (Lobby.IsHost) PostNetworkNotice();
+
 
 		var mapImage = new TextureRect();
 		mapImage.Name = "MapImage_TextureRect";
@@ -326,49 +345,120 @@ public partial class LobbyRoom : Control
 
 
 	/// <summary>
-	///     Whether this lobby is played at an address its host sends around instead of being listed for the lobby browser
-	///     to find. The staging id the authority opens a direct lobby under states the same thing as the flag, and a screen
-	///     that joined by address reads it from there.
+	///     Says which address families this lobby can be joined over, which is the only way a host can tell that its lobby
+	///     is reachable over IPv6 and that the players it matters to can reach it. The sentence is drawn through a renderer
+	///     because it is built from live state, so a language change redraws it rather than leaving the language it was
+	///     first drawn in on screen.
 	/// </summary>
-	private static bool IsDirectConnectLobby =>
-		Lobby.IsDirectLobby ||
-		(Lobby.ActiveLobbyId is { Length: > 0 } activeLobbyId && activeLobbyId.StartsWith("direct-", StringComparison.Ordinal));
+	private void UpdateLobbyFamiliesHint()
+	{
+		if (!GodotObject.IsInstanceValid(_lobbyFamiliesHint)) return;
+
+		LocalizedText.Bind(_lobbyFamiliesHint, RenderLobbyFamiliesHint);
+		_lobbyFamiliesHint.Visible = RenderLobbyFamiliesHint() != null;
+	}
+
+	private string? RenderLobbyFamiliesHint()
+	{
+		(bool offersIpv4, bool offersIpv6) = DescribeOfferedFamilies();
+		if (offersIpv4 && offersIpv6)
+		{
+			return TranslationServer.Translate("This lobby is reachable over IPv6 and IPv4, so players on either can join it.");
+		}
+
+		if (offersIpv6)
+		{
+			return TranslationServer.Translate("This lobby is reachable over IPv6 only. Players without a global IPv6 address cannot join it.");
+		}
+
+		return null;
+	}
 
 	/// <summary>
-	///     Shows the one invite button this lobby can use. A Steam invite needs a lobby the lobby browser lists, because that
-	///     list is what a friend's client finds and joins; a lobby that is not listed hands out the address its host reads
-	///     from the dialog instead. The note beside that button is the host's, since an address a joining player passes on is
-	///     the host's and not their own.
+	///     Which families this screen's lobby is offered over. A listed lobby states the endpoints a registry node reached;
+	///     one that is not listed is judged by the addresses this machine holds, which is what its invite tells players to
+	///     dial.
 	/// </summary>
+	/// <returns>Whether IPv4 and whether IPv6 are offered.</returns>
+	private (bool OffersIpv4, bool OffersIpv6) DescribeOfferedFamilies()
+	{
+		bool offersIpv4 = false;
+		bool offersIpv6 = false;
+
+		IReadOnlyList<LobbyEndpointInfo> published = Lobby.PublishedEndpoints;
+		for (int index = 0; index < published.Count; index++)
+		{
+			LobbyAddressFamily family = published[index].FamilyValue;
+			if (family == LobbyAddressFamily.IPv4) offersIpv4 = true;
+			if (family == LobbyAddressFamily.IPv6) offersIpv6 = true;
+		}
+
+		if (offersIpv4 || offersIpv6) return (offersIpv4, offersIpv6);
+		if (!Lobby.IsHost) return (Lobby.JoinedLobbyFamily != LobbyAddressFamily.IPv6, Lobby.JoinedLobbyFamily == LobbyAddressFamily.IPv6);
+
+		// Read once: two readings of the machine's addresses can disagree when an interface changes between them, and a hint
+		// that states a family the row beneath it does not offer is worse than the sentence it was meant to explain.
+		List<LobbyEndpointCandidate> held = LocalEndpointDiscovery.Discover();
+		return (held.Exists(candidate => candidate.Family == LobbyAddressFamily.IPv4), held.Exists(candidate => candidate.Family == LobbyAddressFamily.IPv6));
+	}
+
 	private void ApplyInviteVisibility()
 	{
 		bool invitesPlayers = !Lobby.IsSinglePlayer;
-		bool directLobby = IsDirectConnectLobby;
 
-		_steamInviteButton.Visible = invitesPlayers && !directLobby;
-		_shareAddressButton.Visible = invitesPlayers && directLobby;
-		_privateLobbyHint.Visible = invitesPlayers && directLobby && Lobby.IsHost;
+		// One door for every way of inviting a player: the Steam friend list and the addresses this lobby is played at are
+		// two halves of the same window, so there is nothing about the lobby's listing that can hide one of them.
+		_invitePlayersButton.Visible = invitesPlayers;
+		_unlistedLobbyHint.Visible = invitesPlayers && Lobby.IsHost && Lobby.IsUnlisted;
+		_unlistedLobbyCheck.Visible = invitesPlayers && Lobby.IsHost;
+		UpdateUnlistedLobbyCheck();
 	}
 
-	private void OpenInviteFriendsDialog()
+	private void UpdateUnlistedLobbyCheck()
 	{
-		if (Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId)
-		{
-			GameContext.UserInterface?.ShowPopupMessage(
-				Tr("LOBBY INVITES"),
-				Tr("Invites need a lobby the server lists. Share the lobby's direct connect address instead."));
-			return;
-		}
+		if (!GodotObject.IsInstanceValid(_unlistedLobbyCheck)) return;
 
-		if (_friendsDialog == null || !GodotObject.IsInstanceValid(_friendsDialog))
-		{
-			_friendsDialog = new SteamFriendsDialog();
-			AddChild(_friendsDialog);
-			_friendsDialog.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			_friendsDialog.InvitesSent += OnFriendInvitesSent;
-		}
+		bool unlisted = Lobby.IsUnlisted;
+		if (_unlistedLobbyCheck.ButtonPressed == unlisted) return;
+		_unlistedLobbyCheck.SetPressedNoSignal(unlisted);
+	}
 
-		_friendsDialog.ShowFor(lobbyId, Lobby.MaxPlayers);
+	private async void OnUnlistedLobbyToggled(bool unlisted)
+	{
+		GameContext.UserInterface?.PlayClickSound();
+
+		bool applied = await Lobby.SetLobbyUnlistedAsync(unlisted);
+		UpdateUnlistedLobbyCheck();
+		ApplyInviteVisibility();
+
+		if (!applied)
+		{
+			GameContext.UserInterface?.PlayWarningSound();
+			UpdateUnlistedLobbyCheck();
+		}
+	}
+
+	private void OnLobbyPublicationRefused()
+	{
+		_publicationRefused = true;
+		RefreshNetworkNotice();
+		ApplyInviteVisibility();
+	}
+
+	private void OpenInvitePlayersDialog()
+	{
+		if (_invitePlayersDialog == null || !GodotObject.IsInstanceValid(_invitePlayersDialog)) _invitePlayersDialog = CreateInvitePlayersDialog();
+
+		_invitePlayersDialog.ShowFor(Lobby.IsHost, Lobby.ActiveLobbyId ?? string.Empty, Lobby.MaxPlayers);
+	}
+
+	private InvitePlayersDialog CreateInvitePlayersDialog()
+	{
+		InvitePlayersDialog dialog = new InvitePlayersDialog();
+		AddChild(dialog);
+		dialog.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		dialog.InvitesSent += OnFriendInvitesSent;
+		return dialog;
 	}
 
 	private void OnFriendInvitesSent(int sentCount)
@@ -417,6 +507,7 @@ public partial class LobbyRoom : Control
 			Lobby.CountdownCancelled -= OnCountdownCancelled;
 			Lobby.CountdownFinished -= OnCountdownFinished;
 			Lobby.HostStabilityUpdated -= UpdateHostStabilityLabel;
+			Lobby.LobbyPublicationRefused -= OnLobbyPublicationRefused;
 			Lobby.ActiveMapChanged -= OnActiveMapChanged;
 			Lobby.StartWarningReceived -= OnStartWarningReceived;
 		}
@@ -564,6 +655,7 @@ public partial class LobbyRoom : Control
 
 		UpdatePlayersHeading();
 		SetupStartButton();
+		ApplyInviteVisibility();
 	}
 
 	private void UpdatePlayersHeading()
@@ -660,6 +752,10 @@ public partial class LobbyRoom : Control
 		string color = senderName == "System" ? "#ffd700" : (senderName == myName ? "#5cd6ff" : "#d4a0a0");
 		string timestamp = ChatPanel.FormatTimestamp(timestampUtcTicks);
 		_chatLog.Text += $"[color=#a0a0a0][{timestamp}][/color] [color={color}]{senderName}[/color]: {message}\n";
+
+		// A player's failed join reaches this host as a chat line, and it is the one report that can say a lobby needs the
+		// notice: it disproves a lobby the lobby server measured as reachable.
+		if (Lobby.IsHost) RefreshNetworkNotice();
 	}
 
 	private void OnLobbyConnectionFailed(string reason)
@@ -670,18 +766,20 @@ public partial class LobbyRoom : Control
 		ShowConnectionFailedPopup(reason);
 	}
 
+	/// <summary>
+	///     States a join that failed. Every failure the phase machine can name is answered with the one connectivity notice, so
+	///     the player is told the same thing wherever the handshake stopped; a failure no phase names is stated as it arrived.
+	/// </summary>
+	/// <param name="reason">What the lobby said went wrong.</param>
 	private void ShowConnectionFailedPopup(string reason)
 	{
-		string displayReason = reason;
-		if (reason == "Direct connection handshake failed.")
+		if (JoinPhases.IsKnown(Lobby.LastJoinPhase))
 		{
-			displayReason = $"{Tr("Direct connection handshake failed.")}\n\n{Tr("The host's router may be blocking incoming UDP traffic on port 8999. Ensure UPnP is enabled on the host's router, configure UDP port 8999 forwarding, or connect via a Virtual LAN (Tailscale / Radmin).")}";
+			RestrictiveNetworkDialog.Show(ReturnFromLobby);
+			return;
 		}
 
-		GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), displayReason)}", () =>
-		{
-			ReturnFromLobby();
-		});
+		GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), reason)}", ReturnFromLobby);
 	}
 
 	private void OnLobbyKickReceived(string reason)

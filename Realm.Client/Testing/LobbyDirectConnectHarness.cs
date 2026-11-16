@@ -28,6 +28,10 @@ public partial class LobbyDirectConnectHarness : Node
 	private string _hostMode = "direct";
 	private bool _deadRegistry;
 
+	private string _registry = string.Empty;
+
+	private string _lobbyId = string.Empty;
+
 	public override void _Ready()
 	{
 		_ = RunAsync();
@@ -48,6 +52,10 @@ public partial class LobbyDirectConnectHarness : Node
 				"createcheck" => await RunCreateScreenCheckAsync(),
 				"roomcheck" => await RunLobbyRoomCheckAsync(),
 				"connectcheck" => await RunDirectConnectDialogCheckAsync(),
+				"listedguest" => await RunListedGuestAsync(),
+				"v6guest" => await RunIpv6GuestAsync(),
+				"ipv6" => await RunIpv6DriverAsync(),
+				"oldnode" => await RunOldNodeDriverAsync(),
 				_ => await RunGuestAsync()
 			};
 		}
@@ -102,10 +110,37 @@ public partial class LobbyDirectConnectHarness : Node
 				case "--dead-registry":
 					_deadRegistry = value == "1";
 					break;
+				case "--registry":
+					// One flag names the node for every role, because a role that hosts and a role that joins a listed lobby
+					// differ in what they do with it, not in which node it is.
+					_registry = value;
+					_liveRegistryUrl = value;
+					break;
+				case "--lobby":
+					_lobbyId = value;
+					break;
+				case "--lobby-id":
+					_joinedLobbyId = value;
+					break;
+				case "--lobby-file":
+					_lobbyFile = value;
+					break;
+				case "--allow-local-registry":
+					_allowLocalRegistry = value == "1";
+					break;
+				case "--expect":
+					_expectedFamily = value;
+					break;
+				case "--seat-count":
+					_seatGuests = int.Parse(value, CultureInfo.InvariantCulture);
+					break;
+				case "--old-registry-dll":
+					_oldRegistryAssembly = value;
+					break;
 			}
 		}
 
-		if (_role is "host" or "roomcheck" or "driver" && string.IsNullOrEmpty(_mapFolder)) throw new InvalidOperationException("--map is required to host.");
+		if (_role is "host" or "roomcheck" or "driver" or "oldnode" && string.IsNullOrEmpty(_mapFolder)) throw new InvalidOperationException("--map is required to host.");
 	}
 
 	private async Task<(int ExitCode, string Outcome)> RunHostAsync()
@@ -114,6 +149,9 @@ public partial class LobbyDirectConnectHarness : Node
 		string mapName = Path.GetFileName(Path.TrimEndingDirectorySeparator(_mapFolder));
 
 		if (_deadRegistry) PointTheRegistryAtAnUnreachableServer(lobby);
+		else if (_liveRegistryUrl.Length > 0) PointTheRegistryAt(lobby, _liveRegistryUrl);
+
+		lobby.AllowNonPublicEndpointForDevelopment = _allowLocalRegistry;
 
 		bool opened = _hostMode switch
 		{
@@ -124,11 +162,28 @@ public partial class LobbyDirectConnectHarness : Node
 		if (!opened) return (2, $"hosting failed: {lobby.LastHostError ?? "no reason was recorded"}");
 
 		_port = lobby.LobbyPort;
-		if (_inviteFile.Length > 0) File.WriteAllText(_inviteFile, _port.ToString(CultureInfo.InvariantCulture));
-		GameLog.LogToConsole($"[DIRECT_HARNESS] mode={_hostMode} direct={lobby.IsDirectLobby} address={lobby.DirectConnectAddress} public={lobby.PublicConnectAddress ?? "none"}; waiting for a direct guest.");
 
-		bool seated = await WaitUntilAsync(() => lobby.PlayerList.Exists(player => !player.IsHost && !player.IsComputer), _waitSeconds);
-		if (!seated) return (3, $"no guest arrived on port {_port} within {_waitSeconds} s; seats {lobby.PlayerList.Count}");
+		// The lobby's own identifier goes beside its port, because a listed join is the only kind that asks the registry
+		// where the lobby is and the only kind whose punch a host has to be told about.
+		if (_inviteFile.Length > 0)
+		{
+			File.WriteAllText(_inviteFile, $"{_port.ToString(CultureInfo.InvariantCulture)}\n{lobby.ActiveLobbyId ?? string.Empty}\n");
+		}
+
+		if (_lobbyFile.Length > 0) File.WriteAllText(_lobbyFile, lobby.ActiveLobbyId ?? string.Empty);
+		GameLog.LogToConsole($"[DIRECT_HARNESS] mode={_hostMode} unlisted={lobby.IsUnlisted} address={lobby.DirectConnectAddress} public={lobby.PublicConnectAddress ?? "none"}; waiting for a direct guest.");
+
+		// The page a host copies for a report is written out here, line by line, because it is the one artifact a support
+		// request cannot be answered without and the one nobody can reproduce after the lobby is closed.
+		foreach (string line in lobby.DescribeNetworkDiagnostics().Split('\n'))
+		{
+			GameLog.LogToConsole($"[DIAGNOSTICS] {line}");
+		}
+
+		// A dual-stack host is meant to seat a player from each family at the same time, which is a different claim from
+		// seating one player twice in two runs, so the number of guests to wait for is stated by the run that starts them.
+		bool seated = await WaitUntilAsync(() => lobby.PlayerList.FindAll(player => !player.IsHost && !player.IsComputer).Count >= _seatGuests, _waitSeconds);
+		if (!seated) return (3, $"only {lobby.PlayerList.Count} seat(s) filled on port {_port} within {_waitSeconds} s, and {_seatGuests} guest(s) were expected");
 
 		return (0, $"the lobby on port {_port} seated {lobby.PlayerList.Count} player(s)");
 	}
@@ -279,21 +334,13 @@ public partial class LobbyDirectConnectHarness : Node
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
+		// The create screen no longer asks whether a lobby should be listed: every lobby is opened the same way, and the
+		// choice moved into the lobby room, where the host can change it after the lobby already exists.
 		Control? visibility = screen.GetNodeOrNull<Control>("CentralPanel/ContentContainer/VisibilityContainer");
-		OptionButton? selector = visibility?.GetNodeOrNull<OptionButton>("VisibilitySelectButton");
-		if (visibility == null || selector == null) return (10, "the create screen draws no lobby type selector");
-		if (!visibility.Visible) return (11, "the lobby type selector is hidden on the create screen");
-		if (selector.ItemCount != 2) return (12, $"the lobby type selector offers {selector.ItemCount} choice(s)");
-
-		string listed = selector.GetItemText(0);
-		string direct = selector.GetItemText(1);
-		if (!listed.Contains("PUBLIC", StringComparison.Ordinal) || !direct.Contains("DIRECT", StringComparison.Ordinal))
-		{
-			return (13, $"the lobby type choices do not name both kinds: '{listed}' / '{direct}'");
-		}
+		if (visibility != null) return (10, "the create screen still draws a lobby type selector");
 
 		screen.QueueFree();
-		return (0, $"the create screen offers '{listed}' and '{direct}'");
+		return (0, "the create screen asks for no lobby type, so every lobby is opened the same way");
 	}
 
 	private async Task<(int ExitCode, string Outcome)> RunLobbyRoomCheckAsync()
@@ -309,8 +356,9 @@ public partial class LobbyDirectConnectHarness : Node
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-		// A lobby that is not listed can only be shared as an address, and a Steam invite cannot reach it at all, so the
-		// screen offers the one button that works rather than using a single button for both kinds of lobby.
+		// A lobby no registry accepted is still opened, and it is still shared by address. Both invite buttons stay
+		// offered: the Steam one carries the id only a registered lobby has, so its window is where a host is told that
+		// and is the only place a screen without Steam learns why no friends are listed.
 		Button? shareAddress = room.GetNodeOrNull<Button>("ShareAddressButton");
 		if (shareAddress == null) return (21, "the lobby room draws no button that shares a private lobby's address");
 		if (!shareAddress.Visible) return (21, "the button that shares the address is hidden in a private lobby");
@@ -321,14 +369,32 @@ public partial class LobbyDirectConnectHarness : Node
 
 		Button? steamInvite = room.GetNodeOrNull<Button>("SteamInviteButton");
 		if (steamInvite == null) return (26, "the lobby room draws no Steam invite button");
-		if (steamInvite.Visible) return (26, "a private lobby shows the Steam invite button, which cannot reach it");
+		if (!steamInvite.Visible) return (26, "a lobby no registry accepted hides the Steam invite button, so its window can never say why no friends are listed");
 
-		Label? hint = room.GetNodeOrNull<Label>("PrivateLobbyHint");
+		Label? hint = room.GetNodeOrNull<Label>("UnlistedLobbyHint");
 		if (hint == null) return (27, "the lobby room draws no note saying what a private lobby's address is for");
 		if (!hint.Visible) return (27, "the private lobby note is hidden in a private lobby");
-		if (!hint.Text.Contains("Send your IP address", StringComparison.Ordinal))
+		if (!hint.Text.Contains("Your lobby is not advertised publicly", StringComparison.Ordinal))
 		{
 			return (27, $"the private lobby note reads '{hint.Text}'");
+		}
+
+		Button? diagnostics = room.GetNodeOrNull<Button>("CopyDiagnostics_Button");
+		if (diagnostics == null) return (29, "the lobby room draws no button that copies this lobby's network diagnostics");
+
+		string diagnosticsBlock = lobby.DescribeNetworkDiagnostics();
+		foreach (string required in new[] { "game port (listed):", "game port (transport holds):", "address measured for this machine:", "reachability class:", "router mapping:", "firewall:", "last player join failure:" })
+		{
+			if (!diagnosticsBlock.Contains(required, StringComparison.Ordinal)) return (29, $"the diagnostics block never states '{required}'");
+		}
+
+		diagnostics.EmitSignal(BaseButton.SignalName.Pressed);
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+		Label? diagnosticsFeedback = room.GetNodeOrNull<Label>("CopyDiagnostics_Button/../DiagnosticsFeedback_Label");
+		if (diagnosticsFeedback == null || !diagnosticsFeedback.Visible)
+		{
+			return (29, "pressing the diagnostics button said nothing, so a host cannot tell whether anything was copied");
 		}
 
 		shareAddress.EmitSignal(BaseButton.SignalName.Pressed);
@@ -390,6 +456,11 @@ public partial class LobbyDirectConnectHarness : Node
 		if (!inviteMessage.Contains(inviteAddress, StringComparison.Ordinal)) return (25, $"the invite message does not name the address '{inviteAddress}': {inviteMessage}");
 		if (!inviteMessage.Contains("Join Private Lobby", StringComparison.Ordinal)) return (25, $"the invite message does not say where the address goes: {inviteMessage}");
 
+		// The port is stated even when it is the one a direct connect assumes, and the message carries the one thing that
+		// can still stop a join, so a friend who cannot get in does not have to ask which port to open.
+		if (!inviteMessage.Contains($":{lobby.LobbyPort}", StringComparison.Ordinal)) return (25, $"the invite message never states the port the lobby is played at ({lobby.LobbyPort}): {inviteMessage}");
+		if (!inviteMessage.Contains("UPnP", StringComparison.Ordinal)) return (25, $"the invite message states no fallback for a player who cannot join: {inviteMessage}");
+
 		room.QueueFree();
 		return (0, $"the lobby room offers 'INVITE PLAYERS' with the private-lobby note and copies an invite for {inviteAddress}");
 	}
@@ -412,11 +483,13 @@ public partial class LobbyDirectConnectHarness : Node
 		{
 			DirectConnectHistory.Remember("192.168.1.42", 8999);
 			DirectConnectHistory.Remember("38.148.48.39", 9001);
+			DirectConnectHistory.Remember("2001:db8::1", 8999);
 			DirectConnectHistory.Remember("192.168.1.42", 8999);
 
 			List<DirectConnectHistoryEntry> remembered = DirectConnectHistory.LoadRecent();
-			if (remembered.Count != 2) return (40, $"joining two addresses left {remembered.Count} recent address(es) instead of 2");
+			if (remembered.Count != 3) return (40, $"joining three addresses left {remembered.Count} recent address(es) instead of 3");
 			if (remembered[0].Address != "192.168.1.42:8999") return (40, $"the address joined last is not first: '{remembered[0].Address}'");
+			if (remembered[1].Address != "[2001:db8::1]:8999") return (40, $"an IPv6 address is remembered as '{remembered[1].Address}' instead of the form a host sends");
 
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 			var browser = GD.Load<PackedScene>("res://UI/LobbyBrowser.tscn").Instantiate();
@@ -444,14 +517,23 @@ public partial class LobbyDirectConnectHarness : Node
 			if (addressInput == null) return (41, "the direct connect dialog draws no address field");
 			if (addressInput.Text != "192.168.1.42:8999") return (42, $"the address field opens at '{addressInput.Text}' instead of the address joined last");
 
-			Button? olderAddress = FindNode<Button>(overlay, "RecentAddress1_Button");
+			Button? olderAddress = FindNode<Button>(overlay, "RecentAddress2_Button");
 			if (olderAddress == null) return (43, "the dialog lists only one recent address");
 			olderAddress.EmitSignal(BaseButton.SignalName.Pressed);
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 			if (addressInput.Text != "38.148.48.39:9001") return (44, $"choosing an older address filled '{addressInput.Text}' instead of it");
 
+			// The form an IPv6 address is stated in has to survive the whole round trip: joined, written to the history this
+			// screen keeps, and put back into the field a player presses Connect in.
+			Button? ipv6Address = FindNode<Button>(overlay, "RecentAddress1_Button");
+			if (ipv6Address == null) return (46, "the dialog lists no address for a lobby joined over IPv6");
+			if (ipv6Address.Text != "[2001:db8::1]:8999") return (46, $"the IPv6 address is offered as '{ipv6Address.Text}'");
+			ipv6Address.EmitSignal(BaseButton.SignalName.Pressed);
+			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			if (addressInput.Text != "[2001:db8::1]:8999") return (46, $"choosing an IPv6 address filled '{addressInput.Text}' instead of it");
+
 			browser.QueueFree();
-			return (0, "the direct connect dialog opens at 192.168.1.42:8999 and offers 38.148.48.39:9001 again");
+			return (0, "the direct connect dialog opens at 192.168.1.42:8999, offers 38.148.48.39:9001 again, and fills '[2001:db8::1]:8999' from a lobby joined over IPv6");
 		}
 		finally
 		{
@@ -474,7 +556,17 @@ public partial class LobbyDirectConnectHarness : Node
 	private async Task<(int ExitCode, string Outcome)> RunGuestAsync()
 	{
 		LobbyManager lobby = GameContext.Lobby ?? throw new InvalidOperationException("The LobbyManager autoload is unavailable.");
-		if (!await WaitForInviteFileAsync()) return (4, $"the host never wrote its port to '{_inviteFile}'");
+		if (_lobbyId.Length == 0 && !await WaitForInviteFileAsync()) return (4, $"the host never wrote its port to '{_inviteFile}'");
+
+		if (_registry.Length > 0) PointTheRegistryAt(lobby, _registry);
+
+		if (_lobbyId.Length > 0)
+		{
+			bool joinedByListing = await lobby.JoinLobbyAsync(_lobbyId);
+			return joinedByListing
+				? (0, $"joined lobby {_lobbyId} through the registry, {lobby.PlayerList.Count} seat(s) after admission")
+				: (6, $"the listed join of lobby {_lobbyId} failed: {lobby.LastHostError ?? lobby.LobbyJoinError ?? "no reason was recorded"}");
+		}
 
 		if (_port <= 0) return (5, "the host never named the port it listens on");
 
@@ -499,9 +591,20 @@ public partial class LobbyDirectConnectHarness : Node
 	/// <param name="lobby">The lobby manager whose registry list is replaced.</param>
 	private static void PointTheRegistryAtAnUnreachableServer(LobbyManager lobby)
 	{
+		PointTheRegistryAt(lobby, "http://127.0.0.1:1");
+	}
+
+	/// <summary>
+	///     Points this run at one lobby server instead of the ones the build ships with, which is what lets a harness run
+	///     against a server on another machine or in another network namespace.
+	/// </summary>
+	/// <param name="lobby">The lobby whose server list is replaced.</param>
+	/// <param name="url">The lobby server this run talks to.</param>
+	private static void PointTheRegistryAt(LobbyManager lobby, string url)
+	{
 		var servers = lobby.OfficialServers;
 		servers.Clear();
-		servers.Add("http://127.0.0.1:1");
+		servers.Add(url.TrimEnd('/'));
 		GameLog.LogToConsole($"[DIRECT_HARNESS] The registry is set to {servers[0]} for this run.");
 	}
 

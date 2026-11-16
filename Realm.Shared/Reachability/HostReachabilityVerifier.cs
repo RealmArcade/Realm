@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using System.Text.Json;
 
 namespace Realm.Shared.Reachability;
@@ -22,17 +23,62 @@ public enum HostReachabilityFailure
 	/// <summary>The registry node could not be reached over UDP, so the game port could not be checked.</summary>
 	ProbeSocketUnknown,
 
+	/// <summary>
+	///     The registry node has no socket in the family this endpoint is reached in, so the endpoint was never checked.
+	///     It is stated apart from <see cref="ProbeUnanswered" /> because nothing is wrong with this machine's network: the
+	///     node in front of it cannot measure this kind of endpoint at all.
+	/// </summary>
+	ProbeFamilyUnavailable,
+
 	/// <summary>The registry node's probes never reached the game port.</summary>
-	ProbeUnanswered
+	ProbeUnanswered,
+
+	/// <summary>
+	///     The registry node judged the lobby from inside the lobby's own network, so its answer says nothing about players
+	///     elsewhere. A node on the same machine or network cannot rehearse a public join, because every route it takes is
+	///     one that never leaves that network.
+	/// </summary>
+	ProbeFromOwnNetwork,
+
+	/// <summary>
+	///     The router gave the game port a different outside port for every destination, so the port the lobby is reached at
+	///     is not one a joining player can be told. A punch can only open a way for the endpoint it was aimed at, which makes
+	///     a lobby of this shape unjoinable until the port is forwarded or the players share an overlay network.
+	/// </summary>
+	MappingPerDestination,
+
+	/// <summary>
+	///     The router translated the game port's outside port and this node could not measure whether it keeps one mapping
+	///     for every destination, because the second destination's punch never arrived. Nothing is known to be broken, and
+	///     nothing was proved either: a mapping made per destination cannot be joined by punching, so a lobby is not
+	///     published on an outside port nobody showed it keeps for every player.
+	/// </summary>
+	MappingUnmeasured
 }
 
 /// <summary>
-///     The outcome of rehearsing a join against a registry node. A verified lobby states the endpoint the registry measured,
-///     which is the address a peer on the public internet must use; a refused one states what could not be shown.
+///     The outcome of rehearsing a join against a registry node. A verified lobby states the endpoint a peer on the public
+///     internet must use: this machine's public address with the outside port the router exposes for it, which is the port
+///     every player's punch will reach, and which is the port the lobby listens on only on a router that does not translate
+///     it. The class and the mapping behaviour are what the check measured, and they are what the advice to the host follows
+///     from.
 /// </summary>
 public record HostReachabilityResult(HostReachabilityFailure Failure, string ProbeId, string PublicIp, int PublicPort, string Detail)
 {
 	public bool Verified => Failure == HostReachabilityFailure.None;
+
+	/// <summary>
+	///     The port the check observed the game port answering from. It equals <see cref="PublicPort" /> when the router reuses
+	///     one external port for every destination, and differs when it makes one per destination, which is what
+	///     <see cref="MappingBehaviour" /> states.
+	/// </summary>
+	public int ObservedPort { get; init; }
+
+	/// <summary>How reachable the game port was shown to be: open, punch-only, or unverified.</summary>
+	public string ReachabilityClass { get; init; } = ReachabilityClasses.Unverified;
+
+	/// <summary>Whether the router reused one external port for the destinations that were measured, or made one per destination.</summary>
+	public string MappingBehaviour { get; init; } = MappingBehaviours.Unknown;
 
 	/// <summary>
 	///     The endpoint the rehearsal punched, which is the endpoint the host's router made a mapping toward. A router keeps
@@ -43,6 +89,19 @@ public record HostReachabilityResult(HostReachabilityFailure Failure, string Pro
 
 	/// <summary>The port the rehearsal punched, or zero when nothing was punched.</summary>
 	public int ProbePort { get; init; }
+
+	/// <summary>
+	///     The family the verified endpoint is reached over, as the lobby protocol names it: what the endpoint list a lobby
+	///     is published with states, and what decides whether a joining player needs a hole punch.
+	/// </summary>
+	public string Family { get; init; } = string.Empty;
+
+	/// <summary>
+	///     Whether the game port answered a socket this node never punched. That is the whole difference between a lobby a
+	///     stranger can dial and one only a punch opens, and it is a measurement rather than a property of the address's
+	///     family, so it is stated beside the endpoint instead of being guessed from it.
+	/// </summary>
+	public bool ColdAnswered { get; init; }
 
 	public static HostReachabilityResult Refused(HostReachabilityFailure failure, string detail) => new(failure, string.Empty, string.Empty, 0, detail);
 }
@@ -85,16 +144,31 @@ public class HostReachabilityVerifier
 	/// </summary>
 	public async Task<HostReachabilityResult> VerifyAsync(string registryBaseUrl, string advertisedIp, int advertisedPort, Func<string, int, string, bool> punch, CancellationToken cancellationToken = default)
 	{
-		ReachabilityTicket? ticket = await BeginAsync(registryBaseUrl, advertisedIp, advertisedPort, cancellationToken).ConfigureAwait(false);
-		if (ticket == null) return HostReachabilityResult.Refused(HostReachabilityFailure.RegistryUnreachable, $"the registry node '{registryBaseUrl}' did not start a reachability check");
+		// An address the host could not state is the host that cannot measure its own public endpoint, which is exactly what
+		// asking a registry node is for: the check is made in whatever family the node answers in, and the family is read from
+		// the answer. Only an address the host did state is held to its own family.
+		LobbyAddressFamily advertisedFamily = LobbyAddresses.FamilyOf(advertisedIp);
 
-		string probeAddress = await ResolveProbeAddressAsync(registryBaseUrl, ticket, cancellationToken).ConfigureAwait(false);
-		if (string.IsNullOrEmpty(probeAddress))
+		(ReachabilityTicket? ticket, HostReachabilityFailure beginFailure) = await BeginAsync(registryBaseUrl, advertisedIp, advertisedPort, cancellationToken).ConfigureAwait(false);
+		if (ticket == null)
 		{
-			return HostReachabilityResult.Refused(HostReachabilityFailure.ProbeSocketUnknown, $"the registry node '{registryBaseUrl}' did not state the address its checks come from");
+			return beginFailure == HostReachabilityFailure.ProbeFromOwnNetwork
+				? HostReachabilityResult.Refused(beginFailure, $"the registry node '{registryBaseUrl}' reaches this computer from inside its own network, so a check from it could only ever describe that network")
+				: HostReachabilityResult.Refused(HostReachabilityFailure.RegistryUnreachable, $"the registry node '{registryBaseUrl}' did not start a reachability check");
 		}
 
-		_log($"rehearsing a join to {advertisedIp}:{advertisedPort} through the registry node's probe socket {probeAddress}:{ticket.ProbePort}");
+		string probeAddress = await ResolveProbeAddressAsync(registryBaseUrl, ticket, advertisedFamily, cancellationToken).ConfigureAwait(false);
+
+		// A probe in one family can never measure an endpoint in another: a datagram does not cross families, and the
+		// answer it produced would describe a socket none of this lobby's players can reach.
+		if (probeAddress.Length == 0 || (advertisedFamily != LobbyAddressFamily.Unknown && LobbyAddresses.FamilyOf(probeAddress) != advertisedFamily))
+		{
+			return HostReachabilityResult.Refused(
+				HostReachabilityFailure.ProbeFamilyUnavailable,
+				$"the registry node '{registryBaseUrl}' checks lobbies from an address that is not the family {advertisedIp} is reached over");
+		}
+
+		_log($"rehearsing a join to {LobbyAddresses.Describe(advertisedIp, advertisedPort)} through the registry node's probe socket {LobbyAddresses.Describe(probeAddress, ticket.ProbePort)}");
 
 		long beginMilliseconds = Environment.TickCount64;
 		long deadlineMilliseconds = beginMilliseconds + Math.Max(ticket.WindowMilliseconds, 0) + DeadlineGraceMilliseconds;
@@ -103,25 +177,74 @@ public class HostReachabilityVerifier
 
 		while (Environment.TickCount64 < deadlineMilliseconds && !cancellationToken.IsCancellationRequested)
 		{
+			// The punch is offered for every endpoint, including an IPv6 one: it costs one datagram, and a host that
+			// reaches the node through a translation somewhere is exactly the host it exists for. A node that needs no
+			// punch for an endpoint ignores it, and an IPv6 endpoint answers whether or not it was punched.
 			lastPunchAccepted |= punch(probeAddress, ticket.ProbePort, ticket.ProbeId);
+
+			// The second destination is punched every time as well, because the port that punch arrives from is the other
+			// half of the mapping measurement: two destinations that see the same outside port are a router that keeps one
+			// mapping for every peer, and two that do not are a router no punch can open for a player.
+			if (ticket.MappingProbePort > 0) lastPunchAccepted |= punch(probeAddress, ticket.MappingProbePort, ticket.ProbeId);
+
 			lastReport = await ReadAsync(registryBaseUrl, ticket.ProbeId, cancellationToken).ConfigureAwait(false);
-			if (lastReport is { Answered: true }) return Verified(ticket.ProbeId, lastReport, advertisedIp, advertisedPort, probeAddress, ticket.ProbePort);
+
+			// An answer that needed a punch is finished only once the second destination has been measured too. A port
+			// open to strangers answers on its own before the punch has been read, and needs no second destination: a
+			// router that lets an unpunched datagram through is forwarding one outside port to this machine whatever the
+			// player, so the outside port it measured is the one every player dials.
+			bool measured = ticket.MappingProbePort == 0 || lastReport is { SecondObservedPort: > 0 } or { ColdAnswered: true };
+			if (lastReport is { Answered: true } && measured) return Verified(ticket.ProbeId, lastReport, advertisedIp, advertisedPort, advertisedFamily, probeAddress, ticket.ProbePort);
 
 			await Task.Delay(PollIntervalMilliseconds, cancellationToken).ConfigureAwait(false);
 		}
+
+		// The port answered but the second destination's punch never arrived, so what the answer measured is one outside
+		// port for one destination. That is not silence, and saying so would name the wrong thing to fix.
+		if (lastReport is { Answered: true }) return Verified(ticket.ProbeId, lastReport, advertisedIp, advertisedPort, advertisedFamily, probeAddress, ticket.ProbePort);
 
 		string detail = DescribeSilence(ticket, probeAddress, advertisedIp, advertisedPort, lastReport, lastPunchAccepted);
 		return HostReachabilityResult.Refused(HostReachabilityFailure.ProbeUnanswered, detail);
 	}
 
-	private static HostReachabilityResult Verified(string probeId, ReachabilityReport report, string advertisedIp, int advertisedPort, string probeAddress, int probePort)
+	private static HostReachabilityResult Verified(string probeId, ReachabilityReport report, string advertisedIp, int advertisedPort, LobbyAddressFamily family, string probeAddress, int probePort)
 	{
 		string observedIp = string.IsNullOrEmpty(report.ObservedIp) ? advertisedIp : report.ObservedIp;
 		int observedPort = report.ObservedPort > 0 ? report.ObservedPort : advertisedPort;
-		return new HostReachabilityResult(HostReachabilityFailure.None, probeId, observedIp, observedPort, $"the registry node reached the game port and measured the public endpoint {observedIp}:{observedPort}")
+		LobbyAddressFamily measuredFamily = family == LobbyAddressFamily.Unknown ? LobbyAddresses.FamilyOf(observedIp) : family;
+
+		// The mapping is measured by the two destinations, never by comparing the outside port to the one the lobby holds:
+		// a router that translates the port and keeps one mapping for every peer is the shape a punch exists for, and
+		// listing it at the port it listens on would send every player to a port the router does not expose.
+		string mappingBehaviour = MappingBehaviours.FromMeasurement(observedPort, report.SecondObservedPort);
+		string reachabilityClass = ReachabilityClasses.FromReport(report, mappingBehaviour);
+
+		HostReachabilityFailure failure = HostReachabilityFailure.None;
+		string detail;
+		if (mappingBehaviour == MappingBehaviours.PerDestination)
 		{
+			failure = HostReachabilityFailure.MappingPerDestination;
+			detail = $"the registry node reached the game port, but the two destinations it was measured at saw it from the outside ports {observedPort} and {report.SecondObservedPort}, so the router gives every player a port of their own and a punch can open a way for one player and no other";
+		}
+		else if (mappingBehaviour == MappingBehaviours.Unknown && observedPort != advertisedPort && !report.ColdAnswered)
+		{
+			failure = HostReachabilityFailure.MappingUnmeasured;
+			detail = $"the registry node reached the game port at the outside port {observedPort} while the lobby listens on {advertisedPort}, and its punch toward the node's second socket never arrived, so whether the router keeps that one outside port for every player was not measured";
+		}
+		else
+		{
+			detail = $"the registry node reached the game port and measured the public endpoint {LobbyAddresses.Describe(observedIp, observedPort)} ({reachabilityClass}, mapping {mappingBehaviour}, cold answer {report.ColdAnswered}, second destination {report.SecondObservedPort}, lobby port {advertisedPort})";
+		}
+
+		return new HostReachabilityResult(failure, probeId, observedIp, observedPort, detail)
+		{
+			ObservedPort = observedPort,
+			ReachabilityClass = reachabilityClass,
+			MappingBehaviour = mappingBehaviour,
 			ProbeIp = probeAddress,
-			ProbePort = probePort
+			ProbePort = probePort,
+			Family = LobbyAddresses.FamilyName(measuredFamily),
+			ColdAnswered = report.ColdAnswered
 		};
 	}
 
@@ -129,10 +252,10 @@ public class HostReachabilityVerifier
 	{
 		int attempts = lastReport?.Attempts ?? 0;
 		string state = lastReport?.State ?? "no answer";
-		return $"none of {attempts} probes from {probeAddress}:{ticket.ProbePort} to {advertisedIp}:{advertisedPort} came back (state '{state}', punch accepted: {punchAccepted})";
+		return $"none of {attempts} probes from {LobbyAddresses.Describe(probeAddress, ticket.ProbePort)} to {LobbyAddresses.Describe(advertisedIp, advertisedPort)} came back (state '{state}', punch accepted: {punchAccepted})";
 	}
 
-	private async Task<ReachabilityTicket?> BeginAsync(string registryBaseUrl, string advertisedIp, int advertisedPort, CancellationToken cancellationToken)
+	private async Task<(ReachabilityTicket? Ticket, HostReachabilityFailure Failure)> BeginAsync(string registryBaseUrl, string advertisedIp, int advertisedPort, CancellationToken cancellationToken)
 	{
 		try
 		{
@@ -141,18 +264,24 @@ public class HostReachabilityVerifier
 
 			var request = new ReachabilityBeginRequest(advertisedIp ?? string.Empty, advertisedPort, RequestedWindowMilliseconds);
 			using HttpResponseMessage response = await _httpClient.PostAsJsonAsync(Combine(registryBaseUrl, ReachabilityRoutes.Begin), request, JsonOptions, timeout.Token).ConfigureAwait(false);
+			if ((int)response.StatusCode == ReachabilityStatusCodes.CallerOnOwnNetwork)
+			{
+				_log($"the registry node '{registryBaseUrl}' refused to check this lobby because it reaches this computer from inside its own network");
+				return (null, HostReachabilityFailure.ProbeFromOwnNetwork);
+			}
+
 			if (!response.IsSuccessStatusCode)
 			{
 				_log($"the registry node refused to start a reachability check: {(int)response.StatusCode} {response.ReasonPhrase}");
-				return null;
+				return (null, HostReachabilityFailure.None);
 			}
 
-			return await response.Content.ReadFromJsonAsync<ReachabilityTicket>(JsonOptions, timeout.Token).ConfigureAwait(false);
+			return (await response.Content.ReadFromJsonAsync<ReachabilityTicket>(JsonOptions, timeout.Token).ConfigureAwait(false), HostReachabilityFailure.None);
 		}
 		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or NotSupportedException)
 		{
 			_log($"the registry node could not be asked to check this lobby's endpoint: {exception.GetType().Name}: {exception.Message}");
-			return null;
+			return (null, HostReachabilityFailure.None);
 		}
 	}
 
@@ -175,22 +304,47 @@ public class HostReachabilityVerifier
 		}
 	}
 
-	private static async Task<string> ResolveProbeAddressAsync(string registryBaseUrl, ReachabilityTicket ticket, CancellationToken cancellationToken)
+	/// <summary>
+	///     Works out the address the registry node's checks will arrive from, in the family the endpoint is reached in. The
+	///     node states it when it was told what its public address is, which a node behind a name it does not know itself
+	///     needs; otherwise this node's name is resolved in the family the check is made in. Resolving it in any other
+	///     family would name an address the check can never come from.
+	/// </summary>
+	private static async Task<string> ResolveProbeAddressAsync(string registryBaseUrl, ReachabilityTicket ticket, LobbyAddressFamily family, CancellationToken cancellationToken)
 	{
-		if (!string.IsNullOrEmpty(ticket.ProbeIp) && IPAddress.TryParse(ticket.ProbeIp, out IPAddress? statedAddress)) return statedAddress.ToString();
+		if (!string.IsNullOrEmpty(ticket.ProbeIp) && IPAddress.TryParse(ticket.ProbeIp, out IPAddress? statedAddress))
+		{
+			if (family == LobbyAddressFamily.Unknown || LobbyAddresses.FamilyOf(statedAddress) == family) return statedAddress.ToString();
+		}
+
+		if (ticket.Family.Length > 0 && family != LobbyAddressFamily.Unknown && LobbyAddresses.ParseFamilyName(ticket.Family) != family) return string.Empty;
 		if (!Uri.TryCreate(registryBaseUrl, UriKind.Absolute, out Uri? registryUri)) return string.Empty;
 
 		try
 		{
 			IPAddress[] addresses = await Dns.GetHostAddressesAsync(registryUri.Host, cancellationToken).ConfigureAwait(false);
-			foreach (IPAddress address in addresses)
+
+			// An address the host did not state leaves the family to this node's name, which is resolved in the order that
+			// reaches an IPv4-only host first and an IPv6-only node at all.
+			if (family == LobbyAddressFamily.Unknown)
 			{
-				if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) return address.ToString();
+				foreach (IPAddress candidate in addresses)
+				{
+					if (candidate.AddressFamily == AddressFamily.InterNetwork) return candidate.ToString();
+				}
+
+				return addresses.Length > 0 ? addresses[0].ToString() : string.Empty;
 			}
 
-			return addresses.Length > 0 ? addresses[0].ToString() : string.Empty;
+			AddressFamily wanted = family == LobbyAddressFamily.IPv6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
+			foreach (IPAddress candidate in addresses)
+			{
+				if (candidate.AddressFamily == wanted) return candidate.ToString();
+			}
+
+			return string.Empty;
 		}
-		catch (Exception exception) when (exception is System.Net.Sockets.SocketException or ArgumentException)
+		catch (Exception exception) when (exception is SocketException or ArgumentException)
 		{
 			return string.Empty;
 		}

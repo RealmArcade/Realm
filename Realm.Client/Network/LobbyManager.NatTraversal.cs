@@ -50,6 +50,7 @@ public partial class LobbyManager
 	{
 		GameLog.LogToConsole("[LobbyManager] Starting STUN NAT Type Test...");
 		LocalNatType = await NatTypeTester.DetermineNatTypeAsync(0);
+		HasLocalNatType = true;
 		GameLog.LogToConsole($"[LobbyManager] NAT Type Classified: {LocalNatType}");
 
 		await ResolvePublicEndpointAsync(ENetPort);
@@ -64,10 +65,12 @@ public partial class LobbyManager
 	/// <param name="localPort">The local port the lobby listens on.</param>
 	private async Task ResolvePublicEndpointAsync(int localPort)
 	{
-		_hostPublicIp = null;
-		_hostPublicPort = 0;
-		_routerReachability = RouterReachability.NoRouterForward;
+		// The external port a router hands out belongs to one local port. Measuring again for a different port must not
+		// leave the last answer behind: a failed measurement would otherwise advertise the previous port for a lobby that
+		// is listening somewhere else.
+		if (_hostPublicPortMeasuredForLocalPort != localPort) _hostPublicPort = 0;
 
+		_routerReachability = RouterReachability.NoRouterForward;
 		try
 		{
 			var dnsAddresses = await Dns.GetHostAddressesAsync("stun.l.google.com");
@@ -83,7 +86,7 @@ public partial class LobbyManager
 				GameLog.LogToConsole($"[LobbyManager] Direct STUN on port {localPort} failed: {ex.Message}");
 			}
 
-			if (result == null || !result.Success || result.MappedEndPoint == null)
+			if ((result == null || !result.Success || result.MappedEndPoint == null) && string.IsNullOrEmpty(_hostPublicIp))
 			{
 				using var udp = new UdpClient();
 				udp.ExclusiveAddressUse = false;
@@ -107,12 +110,22 @@ public partial class LobbyManager
 				}
 			}
 
-			if (result == null || !result.Success || result.MappedEndPoint is not IPEndPoint mappedEndPoint) return;
-
-			bool mappedFromBoundPort = result.LocalEndPoint is IPEndPoint localEndPoint && localEndPoint.Port == localPort;
-			_hostPublicIp = mappedEndPoint.Address.ToString();
-			_hostPublicPort = mappedFromBoundPort ? mappedEndPoint.Port : localPort;
-			GameLog.LogToConsole($"[STUN] Local {localPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
+			if (result != null && result.Success && result.MappedEndPoint is IPEndPoint mappedEndPoint)
+			{
+				bool mappedFromBoundPort = result.LocalEndPoint is IPEndPoint localEndPoint && localEndPoint.Port == localPort;
+				_hostPublicIp = mappedEndPoint.Address.ToString();
+				if (mappedFromBoundPort)
+				{
+					_hostPublicPort = mappedEndPoint.Port;
+					_hostPublicPortMeasuredForLocalPort = localPort;
+				}
+				else if (_hostPublicPort <= 0)
+				{
+					_hostPublicPort = localPort;
+					_hostPublicPortMeasuredForLocalPort = localPort;
+				}
+				GameLog.LogToConsole($"[STUN] Local {localPort} -> Public {_hostPublicIp}:{_hostPublicPort}");
+			}
 		}
 		catch (Exception ex)
 		{
@@ -182,20 +195,79 @@ public partial class LobbyManager
 	///     of the joining player. Nothing is registered until this answers, because a lobby other players can see and cannot
 	///     reach is worse than a lobby that states what is wrong on the machine that tried to host it.
 	/// </summary>
-	private async Task<HostReachabilityResult> VerifyLobbyReachabilityAsync(string registryUrl, int lobbyPort)
+	/// <param name="registryUrl">The registry node about to publish the lobby.</param>
+	/// <param name="lobbyPort">The game port the lobby listens on.</param>
+	/// <returns>What the lobby is verified at, or what stopped it being published.</returns>
+	private async Task<LobbyReachabilitySet> RehearsePublishedEndpointsAsync(string registryUrl, int lobbyPort)
 	{
-		var verifier = new HostReachabilityVerifier(_httpClient, message => GameLog.LogToConsole($"[Reachability] {message}"));
-		HostReachabilityResult result = await verifier.VerifyAsync(registryUrl, _hostPublicIp ?? string.Empty, lobbyPort, PunchProbeEndpointAsync);
-		if (result.Verified)
+		RegistryCapabilities capabilities = await ReadRegistryCapabilitiesAsync(registryUrl, CancellationToken.None);
+		LobbyReachabilitySet set = await VerifyPublishedEndpointsAsync(registryUrl, lobbyPort, capabilities, CancellationToken.None);
+
+		if (set.Verified.Count == 0)
 		{
-			GameLog.LogToConsole($"[Reachability] The registry reached this lobby's game port and measured {result.PublicIp}:{result.PublicPort} ({LocalNatType} NAT).");
-		}
-		else
-		{
-			GameLog.LogError($"[Reachability] {result.Failure}: {result.Detail}");
+			HostReachabilityResult refused = DescribeReachabilityRefusal(registryUrl, set);
+			GameLog.LogError($"[Reachability] {refused.Failure}: {refused.Detail}");
+			return set;
 		}
 
-		return result;
+		ApplyPublishedEndpoints(set.Verified);
+
+		// Stated only for a lobby offered over more than one family: a machine with no IPv6 addresses nobody, and adding a
+		// line to its log for a path it does not have is a change to a working machine for no reason.
+		if (set.Verified.Count > 1 || set.Verified[0].FamilyValue != LobbyAddressFamily.IPv4)
+		{
+			GameLog.LogToConsole($"[Reachability] This lobby is listed over {DescribeFamilyList(OfferedFamilies(set))} at {DescribeVerifiedEndpoints(set)}.");
+		}
+
+		return set;
+	}
+
+	/// <summary>
+	///     States why a lobby that offered endpoints verified none of them. A family this node cannot check at all is named
+	///     as the node's own limit rather than as this machine's network, because the two send the host to different places.
+	/// </summary>
+	/// <param name="registryUrl">The registry node that was asked.</param>
+	/// <param name="set">What the rehearsal produced.</param>
+	/// <param name="decision">The refusal the lobby's joinability came to, which says which half of the rehearsal it is about.</param>
+	/// <returns>The refusal to show the host.</returns>
+	private static HostReachabilityResult DescribeReachabilityRefusal(string registryUrl, LobbyReachabilitySet set, HostReachabilityFailure decision = HostReachabilityFailure.ProbeUnanswered)
+	{
+		if (decision == HostReachabilityFailure.ProbeFromOwnNetwork)
+		{
+			return HostReachabilityResult.Refused(decision, $"the registry node '{registryUrl}' measured this lobby at {DescribeVerifiedEndpoints(set)}, which is not an address a player elsewhere can be sent to");
+		}
+
+		if (set.UncheckedFamilies.Count == 0) return set.FirstFailure ?? HostReachabilityResult.Refused(decision, "no endpoint of this lobby was measured");
+
+		string families = string.Join(" + ", set.UncheckedFamilies);
+		return HostReachabilityResult.Refused(
+			HostReachabilityFailure.ProbeFamilyUnavailable,
+			$"the lobby server '{registryUrl}' has no socket to check a {families} endpoint from, so this lobby could not be verified there");
+	}
+
+	/// <summary>The families this lobby is published over, in the order they were measured.</summary>
+	/// <param name="set">What the rehearsal produced.</param>
+	/// <returns>The distinct families that answered.</returns>
+	private static List<LobbyAddressFamily> OfferedFamilies(LobbyReachabilitySet set)
+	{
+		var families = new List<LobbyAddressFamily>(set.Verified.Count);
+		for (int index = 0; index < set.Verified.Count; index++)
+		{
+			LobbyAddressFamily family = set.Verified[index].FamilyValue;
+			if (!families.Contains(family)) families.Add(family);
+		}
+
+		return families;
+	}
+
+	/// <summary>The measured endpoints, written the way a player reads an address.</summary>
+	/// <param name="set">What the rehearsal produced.</param>
+	/// <returns>One address per verified endpoint.</returns>
+	private static string DescribeVerifiedEndpoints(LobbyReachabilitySet set)
+	{
+		var described = new List<string>(set.Verified.Count);
+		for (int index = 0; index < set.Verified.Count; index++) described.Add(set.Verified[index].Describe());
+		return string.Join(" and ", described);
 	}
 
 	/// <summary>

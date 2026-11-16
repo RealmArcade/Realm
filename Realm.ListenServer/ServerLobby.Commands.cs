@@ -95,9 +95,29 @@ public partial class ServerLobby
 				ReportHostStability(command.Text);
 				break;
 			case LobbyCommandKind.PunchAddress:
-				if (!isAdmin) return;
+				if (!isAdmin)
+				{
+					_log.Write($"peer {peerId} asked for a punch at {command.Address}:{command.Port} without administering this lobby, so nothing was sent");
+					return;
+				}
 				if (string.IsNullOrWhiteSpace(command.Address) || command.Port <= 0 || command.Port > 65535) return;
 				_punchAddress(LobbyLimits.Sanitize(command.Address, 64), command.Port, LobbyLimits.Sanitize(command.Text, ReachabilityPunch.MaximumProbeIdBytes));
+				break;
+			case LobbyCommandKind.ReportJoinFailure:
+				if (!isAdmin)
+				{
+					_log.Write($"peer {peerId} stated a join failure without administering this lobby, so nothing was published to its chat");
+					return;
+				}
+				AddSystemChat(command.Text ?? string.Empty);
+				break;
+			case LobbyCommandKind.ReportReachability:
+				if (!isAdmin)
+				{
+					_log.Write($"peer {peerId} stated a reachability change without administering this lobby, so nothing was published to its chat");
+					return;
+				}
+				AddSystemChat(command.Text ?? string.Empty);
 				break;
 			case LobbyCommandKind.RequestChatHistory:
 				foreach (LobbyChatMessage line in _chatHistory)
