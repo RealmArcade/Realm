@@ -353,7 +353,7 @@ public partial class InvitePlayersDialog : Control
 			bool prepared = await GameContext.Steam.OpenInviteLobbyAsync(_gameLobbyId, _maximumMembers);
 			if (!GodotObject.IsInstanceValid(this)) return;
 
-			_setupLabel.Text = prepared ? string.Empty : TranslationServer.Translate("Steam could not prepare an invite. Close this window and try again.");
+			_setupLabel.Text = prepared ? string.Empty : TranslationServer.Translate("Failed to connect to Steam. Restart Steam client and Game and try again. Otherwise, send IP address directly to friends so they can join.");
 			_sendButton.Disabled = !prepared;
 		}
 		catch (Exception exception)
