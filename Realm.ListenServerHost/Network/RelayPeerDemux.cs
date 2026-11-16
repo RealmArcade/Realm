@@ -23,6 +23,15 @@ public sealed class RelayPeerDemux : IDisposable
 	/// </summary>
 	public const int DeadEntryLifetimeMilliseconds = 30_000;
 
+	/// <summary>
+	///     How long an entry that carried nothing at all is kept. An entry is opened when the lobby server hands a join its
+	///     volunteers, which is before the joining screen has tried anything, and that screen only reaches the entry once the
+	///     lobby's own address has failed: its whole direct budget can pass before a single datagram arrives here. An entry
+	///     therefore waits far longer than dead silence is waited out, because a connection that has not started yet and one
+	///     that has gone are only told apart by the join still being on its way.
+	/// </summary>
+	public const int WaitingEntryLifetimeMilliseconds = 120_000;
+
 	private readonly List<OpenEntry> _entries = new();
 	private readonly int _gamePort;
 	private bool _disposed;
@@ -53,7 +62,7 @@ public sealed class RelayPeerDemux : IDisposable
 			return false;
 		}
 
-		PruneEntriesWithoutAPath();
+		Maintain(Environment.TickCount64);
 
 		// One connection is seated once. A plan that arrives again names the same ticket and therefore the same token, and a
 		// second entry for it would forward the same datagrams to the game port from another loopback address, which ENet
@@ -93,18 +102,31 @@ public sealed class RelayPeerDemux : IDisposable
 	}
 
 	/// <summary>
-	///     Gives up every entry whose connection has stopped being answered and cannot come back: its path layer reports no
-	///     live path, which is stated once a second by the lane that measures it. It is asked only when a join arrives, which
-	///     is the only moment a freed entry is worth anything, so nothing here runs on a clock.
+	///     Gives up the entries that are holding a socket, a lane and a probe loop for nothing. An entry that carried a
+	///     datagram and has stopped being answered is a connection that ended; an entry that carried nothing at all is a join
+	///     that either has not arrived yet or never will, and it is judged on the far longer lifetime its own wait is worth.
+	///     It is called by the clock that runs the match and by every join, so a freed entry is freed the moment it is known
+	///     to be free rather than when the next join happens to ask.
 	/// </summary>
-	private void PruneEntriesWithoutAPath()
+	/// <param name="nowMilliseconds">The clock the entries' ages are read against.</param>
+	public void Maintain(long nowMilliseconds)
 	{
-		long now = Environment.TickCount64;
+		if (_disposed) return;
+
 		for (int index = _entries.Count - 1; index >= 0; index--)
 		{
 			OpenEntry entry = _entries[index];
-			if (now - entry.OpenedAtMilliseconds < DeadEntryLifetimeMilliseconds) continue;
-			if (entry.Shim.Summary.Best != null) continue;
+			long age = nowMilliseconds - entry.OpenedAtMilliseconds;
+
+			if (entry.Shim.DeliveredToTransport == 0)
+			{
+				if (age < WaitingEntryLifetimeMilliseconds) continue;
+			}
+			else
+			{
+				if (age < DeadEntryLifetimeMilliseconds) continue;
+				if (entry.Shim.Summary.Best != null) continue;
+			}
 
 			_entries[index].Shim.Dispose();
 			_entries.RemoveAt(index);

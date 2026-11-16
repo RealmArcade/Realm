@@ -275,7 +275,7 @@ public sealed class RelayPathMux : IDisposable
 			.Append(" unmoved=").Append(_droppedWithoutPath)
 			.Append(" best=");
 
-		RelayPath? best = ChooseBestPath();
+		RelayPath? best = ChooseReportedPath();
 		builder.Append(best == null ? "none" : best.Carrier.PathId.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
 
 		for (int index = 0; index < _pathCount; index++)
@@ -319,13 +319,14 @@ public sealed class RelayPathMux : IDisposable
 	/// <summary>
 	///     What the path currently carrying this connection measured, or null when no path is left that a volunteer has
 	///     answered on. A screen reads this to say what a relayed connection costs instead of promising it is as good as a
-	///     direct one.
+	///     direct one, so a path that has been sent on but not yet answered is not a carrier: it is the path the next probe
+	///     will measure, and reporting it would describe a connection as working before anything said it was.
 	/// </summary>
 	public RelayPathSample? BestPath
 	{
 		get
 		{
-			RelayPath? best = ChooseBestPath();
+			RelayPath? best = ChooseReportedPath();
 			return best == null ? null : best.Statistics.Sample(best.Carrier.PathId, best.IsLive);
 		}
 	}
@@ -354,6 +355,20 @@ public sealed class RelayPathMux : IDisposable
 		var identifiers = new byte[_pathCount];
 		for (int index = 0; index < _pathCount; index++) identifiers[index] = _paths[index].Carrier.PathId;
 		return identifiers;
+	}
+
+	/// <summary>
+	///     The path this connection is described as carried by: the best one a volunteer has answered on, or nothing while
+	///     none has. Sending picks a path before anything is known about it, which is right; describing the connection that
+	///     way would claim a carrier no measurement supports, so the two choices are stated apart.
+	/// </summary>
+	/// <returns>The path to report, or null when nothing has been answered.</returns>
+	private RelayPath? ChooseReportedPath()
+	{
+		RelayPath? best = ChooseBestPath();
+		if (best == null) return null;
+
+		return best.Statistics.ProbesAnswered > 0 ? best : null;
 	}
 
 	private RelayPath? ChooseBestPath()

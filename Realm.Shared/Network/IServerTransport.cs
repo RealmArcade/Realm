@@ -67,5 +67,13 @@ public interface IServerTransport : IDisposable
 	/// <returns>The relayed connections, or a line stating that the transport is direct only.</returns>
 	string DescribeRelayedEntries();
 
+	/// <summary>
+	///     Gives up the relayed entries that are carrying nothing, so a join that went direct, or one that never arrived,
+	///     stops costing a loopback socket, a lane and a volunteer a probe a second. It is called by the clock that runs the
+	///     match rather than by the next join, and a transport that carries no relayed connection answers it by doing nothing.
+	/// </summary>
+	/// <param name="nowMilliseconds">The clock the entries' ages are read against.</param>
+	void MaintainRelayedEntries(long nowMilliseconds);
+
 	void Stop();
 }

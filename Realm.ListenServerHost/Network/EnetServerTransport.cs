@@ -136,6 +136,13 @@ public class EnetServerTransport : IServerTransport
 	/// <returns>One block per connection, or a line stating that the transport is direct only.</returns>
 	public string DescribeRelayedEntries() => _relayedPeers?.Describe() ?? "relay carrier=direct";
 
+	/// <summary>
+	///     Gives up the relayed entries that are no longer carrying anything, so a join that went direct, or one that never
+	///     arrived, stops costing a socket, a lane and a volunteer a probe a second.
+	/// </summary>
+	/// <param name="nowMilliseconds">The clock the entries' ages are read against.</param>
+	public void MaintainRelayedEntries(long nowMilliseconds) => _relayedPeers?.Maintain(nowMilliseconds);
+
 	private void Attach()
 	{
 		_channel.Multiplayer.MultiplayerPeer = _peer;

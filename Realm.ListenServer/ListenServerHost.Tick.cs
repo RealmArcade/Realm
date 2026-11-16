@@ -26,6 +26,15 @@ public partial class ListenServerHost
 		_lobby?.Tick(lobbyDelta);
 		if (!IsRunning) return;
 
+		// A relayed entry outlives the join that opened it only while that join is still on its way, so the entries are
+		// judged on a clock rather than on the next join asking. It is stated before anything else in the tick because it
+		// costs a comparison per entry and nothing here is on the match's own path.
+		if (nowSeconds >= _nextRelayMaintenanceSeconds)
+		{
+			_nextRelayMaintenanceSeconds = nowSeconds + RelayMaintenanceIntervalSeconds;
+			_transport.MaintainRelayedEntries(System.Environment.TickCount64);
+		}
+
 		PrepareLobbyWorldIfDue();
 
 		// A lobby whose script is already running keeps its roster current while the players are still choosing seats. Once
@@ -157,6 +166,10 @@ public partial class ListenServerHost
 	private const long RateLimitReportIntervalMilliseconds = 1000;
 
 	private const double ObstacleCheckIntervalSeconds = 1.0;
+
+	private const double RelayMaintenanceIntervalSeconds = 1.0;
+
+	private double _nextRelayMaintenanceSeconds;
 
 	public void Stop()
 	{
