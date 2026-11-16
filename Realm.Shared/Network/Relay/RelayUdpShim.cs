@@ -30,6 +30,7 @@ public sealed class RelayUdpShim : IRelayPathSink, IDisposable
 	private Thread? _lane;
 	private CancellationTokenSource? _cancellation;
 	private string _description = string.Empty;
+	private RelayPathSummary _summary = RelayPathSummary.Empty;
 	private long _lastDescriptionMilliseconds;
 	private int _deliveredToTransport;
 	private int _refusedBeforeTransportWasKnown;
@@ -120,6 +121,13 @@ public sealed class RelayUdpShim : IRelayPathSink, IDisposable
 	/// <returns>One line per path and a line for the connection.</returns>
 	public string Describe() => _description;
 
+	/// <summary>
+	///     The paths this connection held the last time its lane stated them, and what the best of them measured. The lane
+	///     publishes a new value once a second and nothing else writes it, so a screen reads one immutable statement rather
+	///     than fields another lane is measuring.
+	/// </summary>
+	public RelayPathSummary Summary => _summary;
+
 	/// <summary>Hands one inner datagram from the relayed path to the transport this shim speaks to.</summary>
 	/// <param name="inner">The datagram the peer sent.</param>
 	/// <param name="delivery">The guarantee the peer stated for it.</param>
@@ -192,6 +200,7 @@ public sealed class RelayUdpShim : IRelayPathSink, IDisposable
 
 		_lastDescriptionMilliseconds = now;
 		_description = $"relay shim port={Port} delivered={_deliveredToTransport} dropped={_refusedBeforeTransportWasKnown}\n{_mux.Describe()}";
+		_summary = new RelayPathSummary(_mux.PathCount, _mux.BestPath);
 	}
 
 	public void Dispose()

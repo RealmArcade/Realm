@@ -363,7 +363,11 @@ public partial class LobbyManager
 
 		StartHostReachabilityKeepAlive();
 
-		NotifyHostLine($"{TranslationServer.Translate("This lobby is listed now; players browsing the lobby list can join it at")} {PublicConnectAddress ?? DirectConnectAddress}");
+		// A lobby carried through volunteers has no address of this machine's to hand out: the one it was measured at is the
+		// one nothing reached, so telling the host to share it would send players at a port that does not answer.
+		NotifyHostLine(ReachabilityClass == ReachabilityClasses.Relayed
+			? TranslationServer.Translate("This lobby is listed now; players browsing the lobby list join it through the volunteers carrying it, because nothing reached this machine's own port.")
+			: $"{TranslationServer.Translate("This lobby is listed now; players browsing the lobby list can join it at")} {PublicConnectAddress ?? DirectConnectAddress}");
 		PlayerListUpdated?.Invoke();
 		return true;
 	}

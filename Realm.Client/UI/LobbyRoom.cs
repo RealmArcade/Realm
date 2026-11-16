@@ -77,6 +77,8 @@ public partial class LobbyRoom : Control
 	private bool _ignoreReadinessOnStart;
 	private Label? _unstableWarningLabel;
 	private Label? _hostStabilityLabel;
+	private Label? _relayedConnectionLabel;
+	private Timer? _relayStatusTimer;
 
 	private Label _authorshipWarningLabel = null!;
 	private Label _primaryAuthorLabel = null!;
@@ -191,6 +193,35 @@ public partial class LobbyRoom : Control
 		_hostStabilityLabel.OffsetRight = 300;
 		_hostStabilityLabel.OffsetTop = 85;
 		_hostStabilityLabel.OffsetBottom = 110;
+
+		_relayedConnectionLabel = new Label();
+		_relayedConnectionLabel.Name = "RelayedConnectionLabel";
+		_relayedConnectionLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		_relayedConnectionLabel.VerticalAlignment = VerticalAlignment.Center;
+		_relayedConnectionLabel.AddThemeFontSizeOverride("font_size", 13);
+		_relayedConnectionLabel.AddThemeColorOverride("font_color", new Color(0.55f, 0.75f, 0.95f));
+		_relayedConnectionLabel.Visible = false;
+		_relayedConnectionLabel.MouseFilter = MouseFilterEnum.Pass;
+		AddChild(_relayedConnectionLabel);
+		_relayedConnectionLabel.SetAnchorsPreset(LayoutPreset.CenterTop);
+		_relayedConnectionLabel.GrowHorizontal = GrowDirection.Both;
+		_relayedConnectionLabel.OffsetLeft = -400;
+		_relayedConnectionLabel.OffsetRight = 400;
+		_relayedConnectionLabel.OffsetTop = 108;
+		_relayedConnectionLabel.OffsetBottom = 130;
+		LocalizedText.Bind(_relayedConnectionLabel, RenderRelayedConnection);
+		LocalizedText.SetTooltip(_relayedConnectionLabel, "A volunteer forwards this connection and cannot read it. The latency shown includes the relay's measured cost.");
+
+		_relayStatusTimer = new Timer
+		{
+			Name = "RelayStatusTimer",
+			WaitTime = RelayStatusIntervalSeconds,
+			Autostart = true,
+			OneShot = false
+		};
+		_relayStatusTimer.Timeout += RefreshRelayedConnection;
+		AddChild(_relayStatusTimer);
+		RefreshRelayedConnection();
 
 		if (!Lobby.IsHost)
 		{
@@ -474,6 +505,7 @@ public partial class LobbyRoom : Control
 
 	public override void _ExitTree()
 	{
+		_relayStatusTimer?.Stop();
 		GameContext.Steam.CloseInviteLobby();
 
 		if (GameContext.Lobby != null)

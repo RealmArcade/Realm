@@ -32,6 +32,12 @@ public partial class LobbyManager
 	public bool IsConnectionRelayed => _relayShim != null;
 
 	/// <summary>
+	///     What this screen's relayed connection held the last time its path layer stated them, and what its best path
+	///     measured. An empty statement means the connection takes the direct path.
+	/// </summary>
+	public RelayPathSummary RelayedPathSummary => _relayShim?.Summary ?? RelayPathSummary.Empty;
+
+	/// <summary>
 	///     Whether a lobby this screen hosts accepts its connections being carried through volunteers. It is the host's own
 	///     setting and is stated when the lobby is registered, so a lobby that turns it off is published exactly as it was
 	///     before relays existed.

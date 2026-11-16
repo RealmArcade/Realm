@@ -3,6 +3,30 @@ using System;
 namespace Realm.Shared.Network.Relay;
 
 /// <summary>
+///     What one path of a connection measured, as a value a screen can read without keeping the path layer. It is stated
+///     rather than formatted so the connection status and the diagnostics page describe a path from the same numbers.
+/// </summary>
+/// <param name="PathId">The path identifier this measurement belongs to.</param>
+/// <param name="RoundTripMilliseconds">The round trip the path last measured, or zero while it has measured none.</param>
+/// <param name="JitterMilliseconds">The jitter the path last measured.</param>
+/// <param name="LossPercent">The share of this path's probes that was never answered.</param>
+/// <param name="Answered">Whether a volunteer has ever answered on this path, which is what a measurement requires.</param>
+public readonly record struct RelayPathSample(byte PathId, int RoundTripMilliseconds, int JitterMilliseconds, float LossPercent, bool Answered);
+
+/// <summary>
+///     One statement of what a connection's paths are worth right now: how many it holds and what the best of them
+///     measured. It is published as a whole by the lane that measures the paths, so a screen reads one immutable answer
+///     instead of fields that are being written underneath it.
+/// </summary>
+/// <param name="PathCount">How many paths the connection holds.</param>
+/// <param name="Best">What the path carrying the connection measured, or null when no path is answered.</param>
+public sealed record RelayPathSummary(int PathCount, RelayPathSample? Best)
+{
+	/// <summary>The statement of a connection that holds no paths, which is what a direct connection reports.</summary>
+	public static RelayPathSummary Empty { get; } = new(0, null);
+}
+
+/// <summary>
 ///     What one path of a connection has measured about itself. Every field is counted from datagrams this side sent,
 ///     received or refused, so a path is never described by anything but what it did.
 /// </summary>
@@ -49,6 +73,11 @@ public sealed class RelayPathStatistics
 	///     the distance those trips land from each other and by every percent of them that never arrived.
 	/// </summary>
 	public int Score => RoundTripMilliseconds + 2 * JitterMilliseconds + (int)(LossPercent * 20f);
+
+	/// <summary>States this path's measurements as a value, so a screen can describe it without holding the path layer.</summary>
+	/// <param name="pathId">The path the measurements belong to.</param>
+	/// <returns>The path's measurements.</returns>
+	public RelayPathSample Sample(byte pathId) => new(pathId, RoundTripMilliseconds, JitterMilliseconds, LossPercent, ProbesAnswered > 0);
 
 	/// <summary>Forgets every measurement, which a path that moved to a new endpoint starts from.</summary>
 	public void Reset()

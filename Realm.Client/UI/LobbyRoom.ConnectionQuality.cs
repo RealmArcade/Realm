@@ -16,11 +16,53 @@ using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
 using Realm.Shared.Accounts;
+using Realm.Shared.Network.Relay;
 
 namespace Realm.Client.UI;
 
 public partial class LobbyRoom
 {
+	private const double RelayStatusIntervalSeconds = 1.0;
+
+	/// <summary>
+	///     States, once a second, whether this screen's own connection is carried by volunteers and what that costs. The
+	///     line exists because a relayed join needs no configuration, and a connection that needs no configuration must still
+	///     say what it is: the alternative is a player judging a relay by a stutter nobody named.
+	/// </summary>
+	private void RefreshRelayedConnection()
+	{
+		if (_relayedConnectionLabel == null || !GodotObject.IsInstanceValid(_relayedConnectionLabel)) return;
+
+		_relayedConnectionLabel.Visible = GameContext.Lobby?.IsConnectionRelayed ?? false;
+		_relayedConnectionLabel.Text = RenderRelayedConnection() ?? string.Empty;
+	}
+
+	/// <summary>
+	///     Builds the relayed-connection line from the path layer's own last statement rather than from anything this screen
+	///     assumed, so a connection whose volunteers have stopped answering says that instead of reporting the cost it last
+	///     measured.
+	/// </summary>
+	/// <returns>The line, or empty when this connection takes the direct path.</returns>
+	private string? RenderRelayedConnection()
+	{
+		LobbyManager? lobby = GameContext.Lobby;
+		if (lobby == null || !lobby.IsConnectionRelayed) return string.Empty;
+
+		int volunteers = lobby.RelayedVolunteers.Count;
+		RelayPathSummary summary = lobby.RelayedPathSummary;
+		if (summary.Best is not { Answered: true } best)
+		{
+			return string.Format(Tr("Carried through {0} volunteer(s): no path is answering."), volunteers);
+		}
+
+		return string.Format(
+			Tr("Carried through {0} volunteer(s) over {1} path(s): {2} ms, {3}% loss."),
+			volunteers,
+			summary.PathCount,
+			best.RoundTripMilliseconds,
+			best.LossPercent.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
+	}
+
 	private int ParsePingValue(string latency)
 	{
 		if (string.IsNullOrEmpty(latency) || latency == "--" || latency == "measuring...")

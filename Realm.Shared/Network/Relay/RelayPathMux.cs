@@ -310,6 +310,20 @@ public sealed class RelayPathMux : IDisposable
 		return null;
 	}
 
+	/// <summary>
+	///     What the path currently carrying this connection measured, or null when no path is left that a volunteer has
+	///     answered on. A screen reads this to say what a relayed connection costs instead of promising it is as good as a
+	///     direct one.
+	/// </summary>
+	public RelayPathSample? BestPath
+	{
+		get
+		{
+			RelayPath? best = ChooseBestPath();
+			return best == null ? null : best.Statistics.Sample(best.Carrier.PathId);
+		}
+	}
+
 	/// <summary>States the identifier of every path this connection holds, which is what the diagnostics page lists.</summary>
 	/// <returns>The path identifiers in the order they were added.</returns>
 	public byte[] PathIds()
