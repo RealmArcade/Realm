@@ -99,7 +99,10 @@ that is exactly what the local endpoint per connection exists to prevent.
    `[Relay]` lines on either screen.
 
 This is the regression check that matters most. Any change in direct play is a defect in this feature regardless of what
-relaying does.
+relaying does. Measured on the one-machine rig: two screens hosted and joined a lobby with no volunteer anywhere, each
+applied 146 descriptions over the same four seconds, both diagnostics read `carried through: direct`, and the authority's
+log contained no `relay:` line at all. The check to repeat across two real networks is the same one; what it cannot carry
+over is the loopback path both screens took.
 
 ## Scenario 5 — a machine that cannot relay
 
