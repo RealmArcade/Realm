@@ -354,7 +354,7 @@ public partial class LobbyManager
 			// anybody who is given its address. Losing the listing is not a reason to close it under the host's feet.
 			IsUnlisted = true;
 			ActiveLobbyId = null;
-			NotifyHostLine($"{TranslationServer.Translate("This lobby could not be listed, so only players you send the address to can join it.")} {LastHostError}");
+			NotifyHostLine(TranslationServer.Translate("Failed to create public lobby. Send IP address directly to friends so they can join."));
 			GameLog.LogError($"[LobbyManager] The lobby is not listed; players who are given {DirectConnectAddress} can still join it.");
 			PlayerListUpdated?.Invoke();
 			LobbyPublicationRefused?.Invoke();
