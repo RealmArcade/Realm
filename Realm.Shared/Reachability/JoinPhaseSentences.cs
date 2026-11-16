@@ -1,60 +1,29 @@
 namespace Realm.Shared.Reachability;
 
 /// <summary>
-///     The sentence a join failure is shown with, chosen by the phase that broke. Each phase has its own because the thing a
-///     player has to change is different for each one: a lobby server that is down, a lobby server that will not say where
-///     the lobby is, a host that never punched, a host whose port never answered, and an authority that refused are five
-///     different problems. The sentences live here, beside the phases and as constants, so a phase added without one is
-///     caught by a test rather than quietly shown as the generic line, and so the text a screen translates is still a
-///     literal the localization generator can see.
+///     The sentences a join failure is stated with. A player is told the one thing that is true wherever the handshake broke -
+///     this network could not carry a lobby connection - and the step that broke is kept for the log and for the lobby's own
+///     report, where it is read by whoever is diagnosing the match rather than by the player who wanted to play it.
 /// </summary>
 public static class JoinPhaseSentences
 {
-	/// <summary>The sentence for a lobby server that could not be reached.</summary>
-	public const string Registry = "The lobby server could not be reached, so this lobby could not be found.";
-
-	/// <summary>The sentence for an answer that did not say where the lobby is.</summary>
-	public const string Resolve = "The lobby server answered without saying where this lobby is.";
-
-	/// <summary>The sentence for a screen that could not report its own endpoint.</summary>
-	public const string Report = "This screen could not tell the lobby where it is, so the host could not send toward it.";
-
-	/// <summary>The sentence for a host that never punched this screen.</summary>
-	public const string Punch = "The lobby's host never sent toward this screen, so the way back was never opened. The host may need UPnP enabled or this UDP port forwarded.";
-
-	/// <summary>The sentence for a host that punched and whose game port stayed silent.</summary>
-	public const string Answer = "The lobby's host sent toward this screen but its game port never answered. The host may need this UDP port forwarded, or this network may need a VPN or an overlay network.";
-
-	/// <summary>The sentence for an authority that refused this screen.</summary>
-	public const string Admission = "The lobby's authority refused this screen.";
-
-	/// <summary>The sentence for a lobby that admitted this screen and never described itself.</summary>
-	public const string Session = "The lobby admitted this screen but never described itself to it.";
-
-	/// <summary>The sentence for a failure this build cannot name, which is the one line that states nothing specific.</summary>
-	public const string Unnamed = "The lobby's authority did not answer in time.";
+	/// <summary>
+	///     The sentence a joining screen states for a failure at any step. It is also the translation key, so it is the text
+	///     every surface that explains a restriction shows.
+	/// </summary>
+	public const string RestrictiveNetwork = "Your ISP has a restrictive firewall that cannot be bypassed. You may have trouble hosting or joining lobbies. Try joining a different lobby, playing single-player, or contacting us on discord for troubleshooting advice.";
 
 	/// <summary>
-	///     The sentence for a phase. The text is also the translation key: a build with no translation for it shows the
-	///     English sentence, which is the behaviour every other string in the game already has.
+	///     The sentence for a phase. Every phase states the same sentence: the step is an internal detail of the handshake,
+	///     and a player cannot act on the difference between a punch that never arrived and a port that stayed silent.
 	/// </summary>
-	/// <param name="phase">The phase that broke, named from <see cref="JoinPhases" />.</param>
+	/// <param name="phase">The phase that broke, named from <see cref="JoinPhases" />. It is stated in the log, not in the sentence.</param>
 	/// <returns>The sentence to show.</returns>
-	public static string For(string? phase) => phase switch
-	{
-		JoinPhases.Registry => Registry,
-		JoinPhases.Resolve => Resolve,
-		JoinPhases.Report => Report,
-		JoinPhases.Punch => Punch,
-		JoinPhases.Answer => Answer,
-		JoinPhases.Admission => Admission,
-		JoinPhases.Session => Session,
-		_ => Unnamed
-	};
+	public static string For(string? phase) => RestrictiveNetwork;
 
 	/// <summary>The sentence for a failure this build cannot name.</summary>
 	/// <returns>The sentence to show.</returns>
-	public static string Generic() => Unnamed;
+	public static string Generic() => RestrictiveNetwork;
 
 	/// <summary>How the lobby's host reads a player that could not find the lobby through the lobby server.</summary>
 	public const string HostRegistry = "the lobby could not be found through the lobby server";
@@ -81,9 +50,9 @@ public static class JoinPhaseSentences
 	public const string HostUnnamed = "the handshake failed";
 
 	/// <summary>
-	///     The step as the lobby's own chat states it, which is the same phase said from the host's side: a joiner reads what
-	///     it has to change, and the host reads what the lobby it is running did or did not do. Every phase has its own line
-	///     here for the same reason it has its own sentence on the joining screen.
+	///     The step as the lobby's own chat states it, which is the same phase said from the host's side: the host reads what
+	///     the lobby it is running did or did not do, which is what tells a host whose side of the handshake broke. Every
+	///     phase has its own line here because the host is the reader who can act on the difference.
 	/// </summary>
 	/// <param name="phase">The phase the joiner reported.</param>
 	/// <returns>The step, phrased for the host.</returns>

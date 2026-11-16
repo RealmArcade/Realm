@@ -625,7 +625,7 @@ public partial class LobbyBrowser : Control
 			LocalizedText.Bind(errorLabel, RenderRefusedConnect);
 			errorLabel.Visible = true;
 
-			if (IsNetworkJoinFailure(lobby)) RestrictiveNetworkDialog.Show();
+			if (JoinPhases.IsKnown(lobby.LastJoinPhase)) RestrictiveNetworkDialog.Show();
 		}
 
 		string? RenderRefusedConnect()
@@ -809,26 +809,19 @@ public partial class LobbyBrowser : Control
 	}
 
 	/// <summary>
-	///     States a join that failed from the lobby list. A failure at a network step is answered with the one connectivity
-	///     notice; a lobby that refused the seat is stated as it arrived, because it describes a problem the player does not
-	///     have.
+	///     States a join that failed from the lobby list. Every failure the phase machine can name is answered with the one
+	///     connectivity notice; a failure no phase names is stated as it arrived.
 	/// </summary>
 	/// <param name="message">What the lobby said went wrong.</param>
 	private void ShowLobbyJoinErrorPopup(string message)
 	{
-		if (GameContext.Lobby is { } lobby && IsNetworkJoinFailure(lobby))
+		if (GameContext.Lobby is { } lobby && JoinPhases.IsKnown(lobby.LastJoinPhase))
 		{
 			RestrictiveNetworkDialog.Show();
 			return;
 		}
 
 		GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("CONNECTION FAILED"), message);
-	}
-
-	private static bool IsNetworkJoinFailure(LobbyManager lobby)
-	{
-		string phase = lobby.LastJoinPhase;
-		return JoinPhases.IsKnown(phase) && phase != JoinPhases.Admission && phase != JoinPhases.Session;
 	}
 
 	protected override void Dispose(bool disposing)

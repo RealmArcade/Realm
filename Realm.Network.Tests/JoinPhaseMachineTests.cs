@@ -39,18 +39,15 @@ public class JoinPhaseMachineTests
 	}
 
 	[Test]
-	public void EveryPhaseAFailureIsReportedAgainstHasItsOwnSentence()
+	public void EveryPhaseAFailureIsReportedAgainstStatesTheOneRestrictionSentence()
 	{
-		var sentences = new HashSet<string>(System.StringComparer.Ordinal);
 		foreach (string phase in JoinPhases.All)
 		{
-			string sentence = JoinPhaseSentences.For(phase);
-			Assert.That(sentence, Is.Not.Empty, phase);
-			Assert.That(sentences.Add(sentence), Is.True, $"{phase} states a sentence another phase already states");
+			Assert.That(JoinPhaseSentences.For(phase), Is.EqualTo(JoinPhaseSentences.RestrictiveNetwork), phase);
 		}
 
-		Assert.That(JoinPhaseSentences.For("not-a-phase"), Is.EqualTo(JoinPhaseSentences.Generic()));
-		Assert.That(sentences.Contains(JoinPhaseSentences.Generic()), Is.False, "a phase without its own sentence would read as an unnamed failure");
+		Assert.That(JoinPhaseSentences.For("not-a-phase"), Is.EqualTo(JoinPhaseSentences.RestrictiveNetwork));
+		Assert.That(JoinPhaseSentences.Generic(), Is.EqualTo(JoinPhaseSentences.RestrictiveNetwork));
 	}
 
 	[Test]

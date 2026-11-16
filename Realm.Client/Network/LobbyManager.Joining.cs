@@ -137,25 +137,15 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
-	///     The sentence a failure at one step of the join is shown with. Each step has its own, because the thing a player has
-	///     to change is different for each: a lobby server that is down, a lobby server that will not say where the lobby is, a
-	///     host that never sent toward this screen, and a host whose port never answered are four different problems.
+	///     The sentence a failure at any step of the join is shown with. The step that broke is kept in the log and in the
+	///     lobby's own report, where it is read by somebody diagnosing the match; the player is told the one thing that is true
+	///     wherever the handshake stopped.
 	/// </summary>
-	/// <param name="phase">The step that failed.</param>
+	/// <param name="phase">The step that failed, which the sentence no longer names.</param>
 	/// <returns>The sentence to show.</returns>
 	private static string JoinFailureSentence(string phase)
 	{
-		return phase switch
-		{
-			JoinPhases.Registry => Tr(JoinPhaseSentences.Registry),
-			JoinPhases.Resolve => Tr(JoinPhaseSentences.Resolve),
-			JoinPhases.Report => Tr(JoinPhaseSentences.Report),
-			JoinPhases.Punch => Tr(JoinPhaseSentences.Punch),
-			JoinPhases.Answer => Tr(JoinPhaseSentences.Answer),
-			JoinPhases.Admission => Tr(JoinPhaseSentences.Admission),
-			JoinPhases.Session => Tr(JoinPhaseSentences.Session),
-			_ => Tr(JoinPhaseSentences.Unnamed)
-		};
+		return Tr(JoinPhaseSentences.For(phase));
 	}
 
 	/// <summary>
@@ -616,7 +606,7 @@ public partial class LobbyManager
 		try
 		{
 			var completed = await Task.WhenAny(decided.Task, Task.Delay(budget));
-			string? failure = completed == decided.Task ? decided.Task.Result : "The lobby's authority did not answer in time.";
+			string? failure = completed == decided.Task ? decided.Task.Result : Tr(JoinPhaseSentences.RestrictiveNetwork);
 			return (failure, helloAnswered);
 		}
 		finally

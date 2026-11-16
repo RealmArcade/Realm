@@ -767,23 +767,19 @@ public partial class LobbyRoom : Control
 	}
 
 	/// <summary>
-	///     States a join that failed. A failure at a network step is answered with the one connectivity notice, because the
-	///     action it asks for is the same whoever is at fault; anything else - an authority that is gone, a lobby that refused
-	///     this seat, a seam in the game - is stated as it arrived.
+	///     States a join that failed. Every failure the phase machine can name is answered with the one connectivity notice, so
+	///     the player is told the same thing wherever the handshake stopped; a failure no phase names is stated as it arrived.
 	/// </summary>
 	/// <param name="reason">What the lobby said went wrong.</param>
 	private void ShowConnectionFailedPopup(string reason)
 	{
-		string phase = Lobby.LastJoinPhase;
-		bool networkFailure = JoinPhases.IsKnown(phase) && phase != JoinPhases.Admission && phase != JoinPhases.Session;
-
-		if (Lobby.IsHost || !networkFailure)
+		if (JoinPhases.IsKnown(Lobby.LastJoinPhase))
 		{
-			GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), reason)}", ReturnFromLobby);
+			RestrictiveNetworkDialog.Show(ReturnFromLobby);
 			return;
 		}
 
-		RestrictiveNetworkDialog.Show(ReturnFromLobby);
+		GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), reason)}", ReturnFromLobby);
 	}
 
 	private void OnLobbyKickReceived(string reason)

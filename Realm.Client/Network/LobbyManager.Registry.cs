@@ -91,7 +91,7 @@ public partial class LobbyManager
 	{
 		string respText = await response.Content.ReadAsStringAsync();
 		LobbyJoinAnswer? answer = LobbyJoinAnswers.TryParse(respText);
-		if (answer == null) return (default, Tr("The lobby server answered without saying where this lobby is."));
+		if (answer == null) return (default, Tr(JoinPhaseSentences.RestrictiveNetwork));
 
 		LobbyJoinAnswer joinAnswer = answer.Value;
 		IReadOnlyList<LobbyEndpointInfo> endpoints = joinAnswer.EndpointsOrStatedAddress();
