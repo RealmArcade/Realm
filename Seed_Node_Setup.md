@@ -13,6 +13,14 @@ This guide describes how to host a community **Lobby & Discovery Server** (also 
 
 ---
 
+## 🔗 Client and lobby server versions must match
+
+A lobby is published at the port its game transport holds, with the reachability class the node measured, the router's
+mapping behaviour, and the failures its players reported. Every one of those is agreed between the client and the node, so
+a client and a lobby server from different builds state different things about the same lobby: the older node would list a
+lobby at the port its probe observed, which is a port no player can reach. Update the clients and the seed nodes together,
+and check a listed join once after doing so.
+
 ## 🧠 What is a Seed Node?
 When a player hosts a game, the client contacts a registry server configured in [servers.json](file:///C:/temp/Realm/Realm.Clientservers.json). The registry server:
 1. Records the host's public IP, port, and NAT type.

@@ -1,3 +1,5 @@
+﻿using Realm.Shared.Reachability;
+
 namespace Realm.AdminServer.Models;
 
 public class LobbyInfo
@@ -7,7 +9,6 @@ public class LobbyInfo
 	public required string HostIP { get; set; }
 	public required int HostPort { get; set; }
 	public required string NatType { get; set; }
-	public required string PasswordHash { get; set; }
 	public required int MaxPlayers { get; set; }
 	public required int SlotsUsed { get; set; }
 	public string? GameVersion { get; set; }
@@ -21,6 +22,26 @@ public class LobbyInfo
 	public string? HostToken { get; set; }
 	public int HostPingBaseline { get; set; }
 	public string? LocalIP { get; set; }
+	public int? LocalPort { get; set; }
 	public long MapSizeBytes { get; set; }
 	public bool IsGameInProgress { get; set; }
+
+	/// <summary>Whether this lobby is offered in the lobby browser. A lobby that is not listed stays registered, keeps its host channel and is joined by its residents and the players they invite; it is simply not offered to players browsing.</summary>
+	public bool Listed { get; set; } = true;
+
+	/// <summary>How reachable the lobby's game port was shown to be by the node that measured it: open, punch-only or unverified.</summary>
+	public string? ReachabilityClass { get; set; }
+
+	/// <summary>Whether the host's router reused one external port for every destination or made one per destination.</summary>
+	public string? MappingBehaviour { get; set; }
+
+	/// <summary>The external port the measuring node saw the game port answer from, which is not the port a player is sent to.</summary>
+	public int ObservedPort { get; set; }
+
+	/// <summary>
+	///     Every endpoint this lobby is reachable at, one per address family it was published in, each carrying the result
+	///     of the check this node made of it. A lobby registered by a client that states no endpoint list has the single
+	///     endpoint this node measured in its place, so a listing always has the same shape.
+	/// </summary>
+	public List<LobbyEndpointInfo> Endpoints { get; set; } = new();
 }

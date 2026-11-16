@@ -1,3 +1,5 @@
+﻿using Realm.Shared.Reachability;
+
 namespace Realm.AdminServer.Models;
 
 public record RegisterRequest(
@@ -5,7 +7,6 @@ public record RegisterRequest(
 	int HostPort,
 	string NatType,
 	string? ReportedHostIP,
-	string? PasswordHash,
 	int MaxPlayers,
 	int SlotsUsed,
 	int HostPingBaseline,
@@ -16,5 +17,9 @@ public record RegisterRequest(
 	string? PublicKey = null,
 	string? MapHash = null,
 	long? MapSizeBytes = null,
-	string? ReachabilityProbeId = null
+	string? ReachabilityProbeId = null,
+	int? LocalPort = null,
+	int? ObservedPort = null,
+	IReadOnlyList<LobbyEndpointRegistration>? Endpoints = null,
+	bool? Listed = null
 );

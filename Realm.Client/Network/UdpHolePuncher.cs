@@ -19,6 +19,7 @@ public class UdpHolePuncher
 		using var udp = new UdpClient();
 		udp.ExclusiveAddressUse = false;
 		udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+		udp.Client.LingerState = new LingerOption(false, 0);
 
 		try
 		{

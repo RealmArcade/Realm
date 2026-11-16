@@ -137,6 +137,7 @@ public partial class ServerLobby
 	private void AddSystemChat(string message)
 	{
 		if (string.IsNullOrWhiteSpace(message)) return;
+		_log.Write($"system chat: {LobbyLimits.Sanitize(message, LobbyLimits.MaximumChatMessageLength)}");
 
 		var line = new LobbyChatMessage
 		{

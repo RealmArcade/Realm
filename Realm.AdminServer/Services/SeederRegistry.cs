@@ -49,6 +49,26 @@ public class SeederRegistry
 		return _seeders.Values.ToList();
 	}
 
+	/// <summary>
+	///     The seeders that may be offered to a player elsewhere: every one this node reached from outside. A LAN-only
+	///     seeder stays registered - the players on its own network can still be sent to it - but it is never advertised,
+	///     because an endpoint that does not answer is worse than no seeder at all.
+	/// </summary>
+	/// <returns>The seeders that may be advertised.</returns>
+	public List<SeederInfo> GetAdvertised()
+	{
+		PruneStale();
+		return _seeders.Values.Where(seeder => !seeder.LanOnly).ToList();
+	}
+
+	/// <summary>One seeder by identifier, or null when this node holds none under that name.</summary>
+	/// <param name="seederId">The seeder's identifier.</param>
+	/// <returns>The seeder, or null.</returns>
+	public SeederInfo? Get(string seederId)
+	{
+		return seederId != null && _seeders.TryGetValue(seederId, out SeederInfo? seeder) ? seeder : null;
+	}
+
 	public List<SeederInfo> GetSeedersForMap(string mapIdOrManifestHash)
 	{
 		PruneStale();
@@ -61,6 +81,7 @@ public class SeederRegistry
 		string normalizedQuery = rawQuery.Replace('_', ' ');
 
 		return _seeders.Values
+			.Where(s => !s.LanOnly)
 			.Where(s => s.MapIds != null && s.MapIds.Any(m =>
 			{
 				if (string.IsNullOrWhiteSpace(m)) return false;

@@ -248,7 +248,7 @@ public partial class LobbyManager
 	private async Task<ENetMultiplayerPeer?> EstablishEphemeralConnectionAsync(string targetIp, int targetPort, CancellationToken cancellationToken)
 	{
 		bool isLocal = targetIp == "127.0.0.1" || targetIp == "localhost" || targetIp == PublicIP;
-		int clientPort = ENetPort + 16;
+		int clientPort = isLocal ? 0 : FindFreeUdpPort();
 		if (!isLocal) await UdpHolePuncher.PunchHoleAsync(targetIp, targetPort, clientPort);
 
 		var peer = new ENetMultiplayerPeer();
@@ -365,4 +365,24 @@ public partial class LobbyManager
 	}
 
 	private static string Tr(string text) => TranslationServer.Translate(text);
+
+	/// <summary>
+	///     Asks the operating system for a port nothing holds, which is the port a download's own connection is punched from
+	///     and then made on. It is asked for rather than derived from the lobby's port, because a second lobby or anything
+	///     else on this machine may already hold the number a derivation would pick.
+	/// </summary>
+	/// <returns>A port nothing is listening on, or zero when the system offered none.</returns>
+	private static int FindFreeUdpPort()
+	{
+		try
+		{
+			using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+			socket.Bind(new IPEndPoint(IPAddress.Any, 0));
+			return ((IPEndPoint)socket.LocalEndPoint!).Port;
+		}
+		catch (SocketException)
+		{
+			return 0;
+		}
+	}
 }

@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
+using Realm.Shared.Reachability;
 using HttpClient = System.Net.Http.HttpClient;
 using Timer = Godot.Timer;
 using static Godot.Control;
@@ -110,6 +111,7 @@ public partial class LobbyBrowser
 
 		int slotsUsed = GetIntProp(item, "slotsUsed", 0);
 		int maxPlayers = GetIntProp(item, "maxPlayers", 8);
+		(bool OffersIpv4, bool OffersIpv6) families = ReadOfferedFamilies(item);
 
 		return new LobbyData
 		{
@@ -122,8 +124,53 @@ public partial class LobbyBrowser
 			Ping = calculatedPing,
 			GameVersion = GetStringProp(item, "gameVersion"),
 			MapSizeBytes = mapSizeBytes,
-			MapSizeFormatted = MapAssetManager.FormatSizeInMB(mapSizeBytes)
+			MapSizeFormatted = MapAssetManager.FormatSizeInMB(mapSizeBytes),
+			ReachabilityClass = GetStringProp(item, "reachabilityClass"),
+			OffersIpv4 = families.OffersIpv4,
+			OffersIpv6 = families.OffersIpv6
 		};
+	}
+
+	/// <summary>
+	///     Reads which address families a listed lobby can be joined over, so the browser states it. A lobby server from
+	///     before endpoints could be listed states one host address, and its family is the whole answer for that lobby.
+	/// </summary>
+	/// <param name="item">The lobby the registry listed.</param>
+	/// <returns>Which families the lobby offers, after reading its endpoint list.</returns>
+	private static (bool OffersIpv4, bool OffersIpv6) ReadOfferedFamilies(JsonElement item)
+	{
+		bool offersIpv4 = false;
+		bool offersIpv6 = false;
+
+		foreach (string propertyName in new[] { "endpoints", "Endpoints" })
+		{
+			if (!item.TryGetProperty(propertyName, out JsonElement list) || list.ValueKind != JsonValueKind.Array) continue;
+
+			foreach (JsonElement endpoint in list.EnumerateArray())
+			{
+				if (endpoint.ValueKind != JsonValueKind.Object) continue;
+				if (endpoint.TryGetProperty("verified", out JsonElement verified) && verified.ValueKind == JsonValueKind.False) continue;
+
+				string family = endpoint.TryGetProperty("family", out JsonElement familyProperty) ? familyProperty.GetString() ?? string.Empty : string.Empty;
+				if (LobbyAddresses.ParseFamilyName(family) == LobbyAddressFamily.Unknown)
+				{
+					string address = endpoint.TryGetProperty("address", out JsonElement addressProperty) ? addressProperty.GetString() ?? string.Empty : string.Empty;
+					family = LobbyAddresses.FamilyName(LobbyAddresses.FamilyOf(address));
+				}
+
+				LobbyAddressFamily parsedFamily = LobbyAddresses.ParseFamilyName(family);
+				if (parsedFamily == LobbyAddressFamily.IPv4) offersIpv4 = true;
+				if (parsedFamily == LobbyAddressFamily.IPv6) offersIpv6 = true;
+			}
+
+			break;
+		}
+
+		if (offersIpv4 || offersIpv6) return (offersIpv4, offersIpv6);
+
+		string hostIp = GetStringProp(item, "hostIP");
+		if (hostIp.Length == 0) hostIp = GetStringProp(item, "hostIp");
+		return (LobbyAddresses.FamilyOf(hostIp) != LobbyAddressFamily.IPv6, LobbyAddresses.FamilyOf(hostIp) == LobbyAddressFamily.IPv6);
 	}
 
 	private static int CalculatePing(JsonElement item, string hostIp, int clientBaseline)
@@ -175,6 +222,28 @@ public partial class LobbyBrowser
 		return 0;
 	}
 
+	/// <summary>The families a listed lobby offers, as the one label that says it.</summary>
+	/// <param name="data">The lobby the registry listed.</param>
+	/// <returns>The translation key that names the families.</returns>
+	private static string ConnectionLabelKey(LobbyData data)
+	{
+		if (data.OffersIpv4 && data.OffersIpv6) return "IPv6 + IPv4";
+		if (data.OffersIpv6) return "IPv6 only";
+		return "IPv4 only";
+	}
+
+	/// <summary>
+	///     The colour the families are written in. A lobby this computer cannot reach at all is coloured as the warning it
+	///     is, so an IPv6-only lobby is not a green row that refuses when pressed.
+	/// </summary>
+	/// <param name="data">The lobby the registry listed.</param>
+	/// <returns>The colour for the families label.</returns>
+	private static Color ConnectionColor(LobbyData data)
+	{
+		if (data.OffersIpv6 && !data.OffersIpv4) return LobbyManager.LocalIpv6Available ? new Color(0.3f, 0.8f, 0.4f) : new Color(0.85f, 0.65f, 0.3f);
+		return new Color(0.75f, 0.75f, 0.8f);
+	}
+
 	private void OnLobbiesFetched(List<LobbyData> list)
 	{
 		_connectionFailed = false;
@@ -206,6 +275,16 @@ public partial class LobbyBrowser
 	{
 		_filteredLobbies = _allLobbies.ToList();
 
+		_hiddenUnreachableCount = 0;
+		if (!_unreachableLobbiesCheck.ButtonPressed)
+		{
+			// A lobby whose host was never shown to be reachable is not an opportunity: joining it waits out a timeout. It is
+			// hidden behind a control a player can tick rather than removed, because the measurement can be wrong and the host
+			// may have fixed the network since it was published.
+			_filteredLobbies = _filteredLobbies.Where(x => !LobbyListingPolicy.IsHiddenByDefault(x.ReachabilityClass)).ToList();
+			_hiddenUnreachableCount = _allLobbies.Count(x => LobbyListingPolicy.IsHiddenByDefault(x.ReachabilityClass));
+		}
+
 		string query = _searchBar.Text.Trim().ToLower();
 		if (!string.IsNullOrEmpty(query))
 		{
@@ -228,6 +307,8 @@ public partial class LobbyBrowser
 			_filteredLobbies = _filteredLobbies.Where(x => IsJoinableGameVersion(x.GameVersion)).ToList();
 		}
 
+		_filteredLobbies.Sort((left, right) => LobbyListingPolicy.Compare(left.ReachabilityClass, left.Ping, left.Map, right.ReachabilityClass, right.Ping, right.Map));
+
 		RefreshLobbyDisplay();
 	}
 
@@ -237,7 +318,6 @@ public partial class LobbyBrowser
 
 		return string.Equals(lobbyGameVersion, RealmVersion.GameBinaryVersion, StringComparison.Ordinal);
 	}
-
 	private HashSet<string> GetActiveModes()
 	{
 		var modes = new HashSet<string>();
@@ -277,7 +357,9 @@ public partial class LobbyBrowser
 			lbl.Name = noLobbiesOnline ? "NoLobbiesOnline_Label" : "NoLobbiesMatched_Label";
 			lbl.Text = noLobbiesOnline
 				? TranslationServer.Translate("No lobbies are open right now. Realm is new, so the player base is still growing.\n\nStart a lobby and invite friends, or play single player against AI bots.")
-				: TranslationServer.Translate("No lobbies match your search or filters.");
+				: _hiddenUnreachableCount > 0
+					? TranslationServer.Translate("No lobbies match your search or filters. Some lobbies are hidden because their host could not be shown to be reachable: tick SHOW UNREACHABLE LOBBIES to see them.")
+					: TranslationServer.Translate("No lobbies match your search or filters.");
 			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 			lbl.CustomMinimumSize = new Vector2(760, 0);
 			lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -341,6 +423,34 @@ public partial class LobbyBrowser
 		lblSize.VerticalAlignment = VerticalAlignment.Center;
 		hBox.AddChild(lblSize);
 
+		// A lobby is listed with what was measured about its network, so a player can tell a lobby that works from
+		// anywhere apart from one that only opens after both sides punch. Nothing is stated for a class this build does
+		// not know, because guessing one would be the one thing the class exists to stop.
+		if (data.ReachabilityClass == ReachabilityClasses.PunchOnly)
+		{
+			var lblReachability = new Label();
+			lblReachability.Name = "LblReachability_Label";
+			lblReachability.Text = Tr("PUNCH");
+			lblReachability.TooltipText = Tr("Both sides send a packet first, which is how most home routers let a join in.");
+			lblReachability.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			lblReachability.AddThemeColorOverride("font_color", new Color(0.85f, 0.75f, 0.4f));
+			lblReachability.AddThemeFontSizeOverride("font_size", 14);
+			lblReachability.VerticalAlignment = VerticalAlignment.Center;
+			hBox.AddChild(lblReachability);
+		}
+		else if (data.ReachabilityClass == ReachabilityClasses.Open)
+		{
+			var lblReachability = new Label();
+			lblReachability.Name = "LblReachability_Label";
+			lblReachability.Text = Tr("OPEN");
+			lblReachability.TooltipText = Tr("A lobby server reached this lobby without the host sending anything first, so a join needs nothing special.");
+			lblReachability.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			lblReachability.AddThemeColorOverride("font_color", new Color(0.4f, 0.8f, 0.45f));
+			lblReachability.AddThemeFontSizeOverride("font_size", 14);
+			lblReachability.VerticalAlignment = VerticalAlignment.Center;
+			hBox.AddChild(lblReachability);
+		}
+
 		var lblMode = new Label();
 		lblMode.Name = "LblMode_Label";
 		lblMode.Text = data.Mode;
@@ -358,6 +468,18 @@ public partial class LobbyBrowser
 		lblPlayers.AddThemeFontSizeOverride("font_size", 15);
 		lblPlayers.VerticalAlignment = VerticalAlignment.Center;
 		hBox.AddChild(lblPlayers);
+
+		// Which families the lobby can be joined over, so a lobby this computer cannot reach is readable before it is
+		// pressed rather than only after it refuses.
+		var lblConnection = new Label();
+		lblConnection.Name = "LblConnection_Label";
+		lblConnection.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		lblConnection.AddThemeColorOverride("font_color", ConnectionColor(data));
+		lblConnection.AddThemeFontSizeOverride("font_size", 15);
+		lblConnection.VerticalAlignment = VerticalAlignment.Center;
+		lblConnection.TooltipText = TranslationServer.Translate("The kinds of address this lobby can be joined over. IPv6 needs no port forward and no hole punch.");
+		LocalizedText.Set(lblConnection, ConnectionLabelKey(data));
+		hBox.AddChild(lblConnection);
 
 		var lblPing = new Label();
 		lblPing.Name = "LblPing_Label";

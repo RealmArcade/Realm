@@ -11,6 +11,7 @@ using Realm.AdminServer.Services;
 using Realm.Shared;
 using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
+using Realm.Shared.Reachability;
 using Realm.Shared.Metadata;
 using Realm.AdminServer.Helpers;
 
@@ -19,15 +20,23 @@ namespace Realm.AdminServer;
 /// <summary>Seeder registration and the public seeder listings.</summary>
 public static class SeederEndpoints
 {
+	private const int SeederConfirmationTimeoutMilliseconds = 3000;
+
 	public static void MapSeederEndpoints(WebApplication app, ServerSetup setup)
 	{
-	app.MapPost("/seeders/register", (SeederRegisterRequest req, SeederRegistry registry, HttpContext context) =>
+	app.MapPost("/seeders/register", async (SeederRegisterRequest req, SeederRegistry registry, IHttpClientFactory httpClientFactory, HttpContext context) =>
 	{
-		var ip = context.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "127.0.0.1";
+		var ip = (context.Connection.RemoteIpAddress ?? System.Net.IPAddress.Loopback).ToString();
 		if (!string.IsNullOrEmpty(req.ReportedIP) && req.ReportedIP != "0.0.0.0" && req.ReportedIP != "127.0.0.1")
 		{
 			ip = req.ReportedIP;
 		}
+
+		// A seeder states where it believes players should reach it, and a seeder behind a router that forwards nothing
+		// states an address that answers on its own network and nowhere else. Nothing about the statement itself can be
+		// believed, so the endpoint is reached from here before it is offered: a seeder this node cannot reach is kept for the
+		// players its own network serves and is not advertised to anybody else.
+		bool confirmed = await ConfirmSeederEndpointAsync(registry, httpClientFactory, req.SeederId, ip, req.Port).ConfigureAwait(false);
 
 		var info = new SeederInfo
 		{
@@ -36,10 +45,14 @@ public static class SeederEndpoints
 			Port = req.Port,
 			MapIds = req.MapIds,
 			CapacityPercentage = req.CapacityPercentage,
-			AcceptingUploads = req.AcceptingUploads
+			AcceptingUploads = req.AcceptingUploads,
+			LanOnly = !SeederAdvertisement.IsAdvertisable(ip, confirmed),
+			ConfirmedAt = confirmed ? DateTime.UtcNow : null
 		};
 		registry.Register(info);
-		return Results.Ok(new { Status = "Registered" });
+
+		if (info.LanOnly) Console.WriteLine($"[Seeder] {req.SeederId} states {ip}:{req.Port}, which this node could not reach from outside, so it is kept as a LAN-only seeder and not offered to remote players.");
+		return Results.Ok(new { Status = "Registered", Advertised = !info.LanOnly });
 	});
 
 	app.MapPost("/seeders/unregister", (SeederUnregisterRequest req, SeederRegistry registry) =>
@@ -50,7 +63,7 @@ public static class SeederEndpoints
 
 	app.MapGet("/seeders", (SeederRegistry registry) =>
 	{
-		var list = registry.GetAll().Select(s => new
+		var list = registry.GetAdvertised().Select(s => new
 		{
 			ip = s.IP,
 			port = s.Port,
@@ -63,7 +76,7 @@ public static class SeederEndpoints
 
 	app.MapGet("/api/seeders", (SeederRegistry registry) =>
 	{
-		var list = registry.GetAll().Select(s => new SeederNodeDto
+		var list = registry.GetAdvertised().Select(s => new SeederNodeDto
 		{
 			SeederId = s.SeederId,
 			IP = s.IP,
@@ -85,6 +98,31 @@ public static class SeederEndpoints
 		});
 	});
 
+	}
+
+	/// <summary>
+	///     Reaches the seeder's stated endpoint from this node, which is on the public internet, so a success is evidence that
+	///     a player elsewhere can reach it too. A confirmation still in date is believed rather than repeated: a seeder
+	///     registers on a timer and a request per registration would be a lot of requests for one fact.
+	/// </summary>
+	private static async Task<bool> ConfirmSeederEndpointAsync(SeederRegistry registry, IHttpClientFactory httpClientFactory, string seederId, string ip, int port)
+	{
+		if (!ReachabilityAddresses.IsPubliclyRoutable(ip) || port is <= 0 or > 65535) return false;
+
+		SeederInfo? existing = registry.Get(seederId);
+		if (existing != null && SeederAdvertisement.IsConfirmationFresh(existing.ConfirmedAt, DateTime.UtcNow) && existing.IP == ip && existing.Port == port) return true;
+
+		try
+		{
+			using var timeout = new CancellationTokenSource(SeederConfirmationTimeoutMilliseconds);
+			using HttpClient client = httpClientFactory.CreateClient();
+			using HttpResponseMessage response = await client.GetAsync($"http://{ip}:{port}/api/seeders/catalog", timeout.Token).ConfigureAwait(false);
+			return response.IsSuccessStatusCode;
+		}
+		catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or UriFormatException)
+		{
+			return false;
+		}
 	}
 
 	public static void MapSeederDownloadEndpoints(WebApplication app, ServerSetup setup)

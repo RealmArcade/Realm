@@ -247,7 +247,16 @@ public partial class LobbyManager
 			LocalizationManager.GetCurrentLanguageCode());
 
 		ReportHostLobbyStage(HostLobbyStage.LoadingMap);
-		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start, ENetPort);
+
+		// The port is asked for by name first, because a lobby on a port that never changes is the only kind a player can
+		// forward once and be reachable at forever. The system's choice is the fallback for the case that makes a fixed
+		// port impossible - another instance already holding it - and it is taken only after the named port was refused.
+		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start, DefaultGamePort);
+		if (!lobbyStarted.Started)
+		{
+			GameLog.LogToConsole($"[LobbyManager] UDP port {DefaultGamePort} could not be taken for this lobby ({lobbyStarted.Failure}), so the socket takes the port the system chooses.");
+			lobbyStarted = await session.TryStartLobbyAsync(start);
+		}
 		LastAuthorityLogPath = lobbyStarted.LogPath;
 		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
 		if (!lobbyStarted.Started)
@@ -300,7 +309,18 @@ public partial class LobbyManager
 	///     host may have changed any setting the lobby offers in between, and the match plays the settings the lobby holds
 	///     when it starts.
 	/// </summary>
-	public async Task<bool> PublishPreparedLobbyAsync()
+	public Task<bool> PublishPreparedLobbyAsync() => PublishPreparedLobbyAsync(keepLobbyOnFailure: false);
+
+	/// <summary>
+	///     Publishes the prepared lobby without taking it away when it cannot be listed, which is what a host already sitting
+	///     in its room needs: the lobby is open and reachable by anybody who is given its address, so a registry that cannot
+	///     confirm it costs the host the listing rather than the lobby. The host is told in the room's own chat, because the
+	///     screen that asked for the lobby has already moved on to it.
+	/// </summary>
+	/// <returns>Whether the lobby is listed on a registry node. False means it is open to players holding its address.</returns>
+	public Task<bool> PublishPreparedLobbyDirectlyOnFailureAsync() => PublishPreparedLobbyAsync(keepLobbyOnFailure: true);
+
+	private async Task<bool> PublishPreparedLobbyAsync(bool keepLobbyOnFailure)
 	{
 		ClientServerSession? prepared = _lobbySession;
 		if (prepared == null || !prepared.IsRunning || !IsHost)
@@ -312,23 +332,38 @@ public partial class LobbyManager
 
 		string mapDisplayName = string.IsNullOrEmpty(HostedMapDisplayName) ? ActiveMapName : HostedMapDisplayName;
 
-		IsDirectLobby = false;
+		IsUnlisted = false;
+		if (keepLobbyOnFailure) NotifyHostLine(TranslationServer.Translate("Checking whether players elsewhere can reach this lobby. You can set up the match while this runs."));
 		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
 		await OpenLobbyEndpointAsync(prepared.Port);
 
-		Diagnostics.StartHostListener(prepared.Port + 1);
+		Diagnostics.StartHostListener();
 
 		// The lobby is only published once a public node has reached its game port, so nobody sees a lobby that a
 		// timeout is waiting behind.
 		bool registered = await RegisterLobbyWithRegistryAsync(ActiveMapName, mapDisplayName, HostedMapVersion, prepared.Port);
 		if (!registered)
 		{
-			TeardownHostedLobby(prepared);
+			if (!keepLobbyOnFailure)
+			{
+				TeardownHostedLobby(prepared);
+				return false;
+			}
+
+			// The port is already open and the router's forward, if any, is already held, so the lobby is still joinable by
+			// anybody who is given its address. Losing the listing is not a reason to close it under the host's feet.
+			IsUnlisted = true;
+			ActiveLobbyId = null;
+			NotifyHostLine(TranslationServer.Translate(LobbyPublicationSentences.PublicLobbyNotCreated));
+			GameLog.LogError($"[LobbyManager] The lobby is not listed; players who are given {DirectConnectAddress} can still join it.");
+			PlayerListUpdated?.Invoke();
+			LobbyPublicationRefused?.Invoke();
 			return false;
 		}
 
 		StartHostReachabilityKeepAlive();
 
+		NotifyHostLine($"{TranslationServer.Translate("This lobby is listed now; players browsing the lobby list can join it at")} {PublicConnectAddress ?? DirectConnectAddress}");
 		PlayerListUpdated?.Invoke();
 		return true;
 	}
@@ -368,7 +403,7 @@ public partial class LobbyManager
 		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
 		await OpenLobbyEndpointAsync(prepared.Port);
 
-		IsDirectLobby = true;
+		IsUnlisted = true;
 		ActiveLobbyId = null;
 		GameLog.LogToConsole($"[LobbyManager] This lobby is not listed anywhere; share {DirectConnectAddress} with the players who should join.");
 		if (PublicConnectAddress is { Length: > 0 } publicAddress)
@@ -389,6 +424,40 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
+	///     Keeps this lobby out of the lobby browser, or offers it there again. The lobby itself does not change: the same
+	///     seat, the same host channel and the same invited players stay, and only what a browsing player is shown changes.
+	///     Offering it again runs the measurement publishing it runs, because a lobby is listed only where a registry node
+	///     reached its game port.
+	/// </summary>
+	/// <param name="unlisted">Whether this lobby should stop being offered in the browser.</param>
+	/// <returns>Whether the lobby is now in the state that was asked for.</returns>
+	public async Task<bool> SetLobbyUnlistedAsync(bool unlisted)
+	{
+		if (!IsHost || IsSinglePlayer) return false;
+
+		if (unlisted)
+		{
+			IsUnlisted = true;
+			NotifyHostLine(TranslationServer.Translate("This lobby is private now, so it is not offered in the lobby browser. Players you invite, or who have its address, can still join."));
+		}
+		else if (string.IsNullOrEmpty(ActiveLobbyId))
+		{
+			bool listed = await PublishPreparedLobbyDirectlyOnFailureAsync();
+			PlayerListUpdated?.Invoke();
+			return listed;
+		}
+		else
+		{
+			IsUnlisted = false;
+			NotifyHostLine(TranslationServer.Translate("This lobby is offered in the lobby browser again."));
+		}
+
+		if (!string.IsNullOrEmpty(ActiveLobbyId)) await SendHeartbeatAsync(ActiveLobbyId, _wsCts?.Token ?? CancellationToken.None);
+		PlayerListUpdated?.Invoke();
+		return IsUnlisted == unlisted;
+	}
+
+	/// <summary>
 	///     Makes a prepared lobby's game port reachable and measures the address it is reached on. A dismissed firewall prompt
 	///     is recorded rather than treated as a failure: hosting still works on this machine, and the lobby room states what
 	///     other machines will meet.
@@ -399,6 +468,44 @@ public partial class LobbyManager
 		// Asked for on every attempt, because a dismissed prompt leaves the port closed and is almost always a misclick
 		// rather than a decision to host unreachable lobbies.
 		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(port);
+
+		DiscoverOfferedEndpoints(port);
+
+		// A machine that offers an IPv6 address is promising a family it has never seen its own game port answer in, and that
+		// promise rests on Godot's transport holding a socket in both families. Asking this machine's own loopback over IPv6
+		// is the cheapest way to find out it no longer does, and it costs one datagram when it does. It is asked on loopback
+		// so the answer is about the transport rather than about a firewall: no inbound rule is consulted for traffic this
+		// machine sends itself.
+		if (FirstOffer(LobbyAddressFamily.IPv6) is { } offeredIpv6)
+		{
+			bool answersOverIpv6 = await LobbyPortCheck.AnswersAsync(IPAddress.IPv6Loopback, port, cancellationToken: CancellationToken.None);
+			if (answersOverIpv6)
+			{
+				GameLog.LogToConsole($"[LobbyManager] The game port answers over IPv6 on this machine, so {offeredIpv6.Describe()} is a route players with IPv6 can take.");
+			}
+			else
+			{
+				GameLog.LogError($"[LobbyManager] This machine holds the IPv6 address {offeredIpv6.Describe()}, but its own game port did not answer over IPv6. Nothing about the router or the firewall is involved in this check, so the transport is what to look at: a build whose ENet no longer binds both address families looks exactly like this.");
+			}
+		}
+
+		// A lobby offered over IPv6 alone is a lobby with nothing for a router to do: the address it is reached at is the
+		// one this machine holds, so there is no translation to map and no public endpoint to measure. The router half is
+		// skipped entirely rather than allowed to fail, because nothing was asked of it.
+		if (!_offersIpv4)
+		{
+			_hostPublicIp = null;
+			_hostPublicPort = 0;
+			_routerReachability = RouterReachability.NoRouterForward;
+			IsRestrictedHost = false;
+
+			if (_offeredIpv6Endpoint is { } onlyEndpoint)
+			{
+				GameLog.LogToConsole($"[LobbyManager] This machine holds no IPv4 address other than loopback, so the lobby is offered over IPv6 only at {onlyEndpoint.Describe()}; that address needs no router mapping.");
+			}
+
+			return;
+		}
 
 		await ResolvePublicEndpointAsync(port);
 
@@ -595,7 +702,7 @@ public partial class LobbyManager
 	{
 		ReleaseSeedingSlot();
 
-		IsDirectLobby = false;
+		IsUnlisted = false;
 		IsHost = true;
 		MaxPlayers = ResolvePlayablePlayerSlots(mapPathName, explicitVersion);
 		LastLobbyWarning = null;
