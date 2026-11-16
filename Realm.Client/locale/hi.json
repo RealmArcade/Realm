@@ -80,6 +80,7 @@
   "Network diagnostics copied to clipboard": "नेटवर्क डायग्नोस्टिक्स क्लिपबोर्ड पर कॉपी हो गए",
   "STEAM FRIENDS": "STEAM मित्र",
   "Steam is not running. Open the Steam client, sign in, and restart Realm to invite your Steam friends.": "Steam नहीं चल रहा है। Steam क्लाइंट खोलें, साइन इन करें और अपने Steam मित्रों को आमंत्रित करने के लिए Realm को पुनः प्रारंभ करें।",
+  "Your ISP has a restrictive firewall that cannot be bypassed. You may have trouble hosting or joining lobbies. Try joining a different lobby, playing single-player, or contacting us on discord for troubleshooting advice.": "आपके इंटरनेट प्रदाता का फ़ायरवॉल सख़्त है और इसे बायपास नहीं किया जा सकता। लॉबी होस्ट करने या जॉइन करने में आपको परेशानी हो सकती है। किसी दूसरी लॉबी में जॉइन करने, सिंगल-प्लेयर खेलने, या समस्या-समाधान सलाह के लिए हमसे Discord पर संपर्क करने की कोशिश करें।",
   "Your lobby is not advertised publicly but direct invites are still available.": "आपकी लॉबी सार्वजनिक रूप से प्रचारित नहीं होती, लेकिन सीधे निमंत्रण अभी भी उपलब्ध हैं।",
   "AI": "AI",
   "AI SETTINGS": "AI सेटिंग्स",
@@ -2927,6 +2928,5 @@
   "this router gives every destination a different outside port, which a punch cannot open": "यह राउटर हर गंतव्य को अलग बाहरी पोर्ट देता है जिसे पंच नहीं खोल सकता",
   "this router's outside port could no longer be shown to be the same for every player": "इस राउटर का बाहरी पोर्ट अब सभी खिलाड़ियों के लिए एक ही सिद्ध नहीं होता",
   "unresolved": "तय नहीं हुआ",
-  "{0} player(s) could not reach this lobby in the last minute: {1}; they tried {2}. {3}": "पिछले एक मिनट में {0} खिलाड़ी इस लॉबी तक नहीं पहुँच सके: {1}; उन्होंने {2} आज़माया। {3}",
-  "Your ISP has a restrictive firewall that cannot be bypassed. You may have trouble hosting or joining lobbies. Contact our discord channel for troubleshooting advice.": "आपके इंटरनेट प्रदाता का फ़ायरवॉल सख़्त है और इसे बायपास नहीं किया जा सकता। लॉबी होस्ट करने या जॉइन करने में आपको परेशानी हो सकती है। समस्या-समाधान सलाह के लिए हमारे Discord चैनल पर संपर्क करें।"
+  "{0} player(s) could not reach this lobby in the last minute: {1}; they tried {2}. {3}": "पिछले एक मिनट में {0} खिलाड़ी इस लॉबी तक नहीं पहुँच सके: {1}; उन्होंने {2} आज़माया। {3}"
 }

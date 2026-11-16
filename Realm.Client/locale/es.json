@@ -80,6 +80,7 @@
   "Network diagnostics copied to clipboard": "Diagnóstico de red copiado al portapapeles",
   "STEAM FRIENDS": "AMIGOS DE STEAM",
   "Steam is not running. Open the Steam client, sign in, and restart Realm to invite your Steam friends.": "Steam no se está ejecutando. Abre el cliente de Steam, inicia sesión y reinicia Realm para invitar a tus amigos de Steam.",
+  "Your ISP has a restrictive firewall that cannot be bypassed. You may have trouble hosting or joining lobbies. Try joining a different lobby, playing single-player, or contacting us on discord for troubleshooting advice.": "Tu proveedor de internet tiene un cortafuegos restrictivo que no se puede evitar. Puedes tener problemas al alojar o unirte a salas. Intenta unirte a otra sala, jugar en un solo jugador o contactarnos en Discord para recibir ayuda.",
   "Your lobby is not advertised publicly but direct invites are still available.": "Tu sala no se anuncia públicamente, pero las invitaciones directas siguen disponibles.",
   "AI": "IA",
   "AI SETTINGS": "AJUSTES DE IA",
@@ -2927,6 +2928,5 @@
   "this router gives every destination a different outside port, which a punch cannot open": "este router da un puerto exterior distinto a cada destino, que una perforación no puede abrir",
   "this router's outside port could no longer be shown to be the same for every player": "el puerto exterior de este router ya no se pudo demostrar igual para todos los jugadores",
   "unresolved": "sin resolver",
-  "{0} player(s) could not reach this lobby in the last minute: {1}; they tried {2}. {3}": "{0} jugador(es) no pudieron llegar a esta sala en el último minuto: {1}; lo intentaron en {2}. {3}",
-  "Your ISP has a restrictive firewall that cannot be bypassed. You may have trouble hosting or joining lobbies. Contact our discord channel for troubleshooting advice.": "Tu proveedor de internet tiene un cortafuegos restrictivo que no se puede eludir. Es posible que tengas problemas para alojar o unirte a salas. Consulta nuestro canal de Discord para obtener ayuda."
+  "{0} player(s) could not reach this lobby in the last minute: {1}; they tried {2}. {3}": "{0} jugador(es) no pudieron llegar a esta sala en el último minuto: {1}; lo intentaron en {2}. {3}"
 }

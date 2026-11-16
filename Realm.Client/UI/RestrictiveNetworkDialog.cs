@@ -22,7 +22,7 @@ namespace Realm.Client.UI;
 [GlobalClass]
 public partial class RestrictiveNetworkDialog : Control
 {
-	public const string Message = "Your ISP has a restrictive firewall that cannot be bypassed. You may have trouble hosting or joining lobbies. Contact our discord channel for troubleshooting advice.";
+	public const string Message = "Your ISP has a restrictive firewall that cannot be bypassed. You may have trouble hosting or joining lobbies. Try joining a different lobby, playing single-player, or contacting us on discord for troubleshooting advice.";
 
 	private const string CopyDiagnosticsText = "COPY NETWORK DIAGNOSTICS";
 	private const string CopiedText = "Network diagnostics copied to clipboard";

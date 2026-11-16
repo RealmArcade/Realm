@@ -80,6 +80,7 @@
   "Network diagnostics copied to clipboard": "Diagnóstico de rede copiado para a área de transferência",
   "STEAM FRIENDS": "AMIGOS DA STEAM",
   "Steam is not running. Open the Steam client, sign in, and restart Realm to invite your Steam friends.": "A Steam não está em execução. Abre o cliente da Steam, inicia sessão e reinicia o Realm para convidar os teus amigos da Steam.",
+  "Your ISP has a restrictive firewall that cannot be bypassed. You may have trouble hosting or joining lobbies. Try joining a different lobby, playing single-player, or contacting us on discord for troubleshooting advice.": "O teu fornecedor de internet tem uma firewall restritiva que não pode ser contornada. Podes ter problemas ao alojar ou entrar em salas. Tenta entrar noutra sala, jogar sozinho ou falar connosco no Discord para obteres ajuda.",
   "Your lobby is not advertised publicly but direct invites are still available.": "A sua sala não é anunciada publicamente, mas os convites diretos continuam disponíveis.",
   "AI": "IA",
   "AI SETTINGS": "DEFINIÇÕES DE IA",
@@ -2927,6 +2928,5 @@
   "this router gives every destination a different outside port, which a punch cannot open": "este roteador dá uma porta externa diferente a cada destino, que o hole punching não consegue abrir",
   "this router's outside port could no longer be shown to be the same for every player": "a porta externa deste roteador não pôde mais ser comprovada a mesma para todos os jogadores",
   "unresolved": "não resolvido",
-  "{0} player(s) could not reach this lobby in the last minute: {1}; they tried {2}. {3}": "{0} jogador(es) não conseguiram alcançar esta sala no último minuto: {1}; tentaram {2}. {3}",
-  "Your ISP has a restrictive firewall that cannot be bypassed. You may have trouble hosting or joining lobbies. Contact our discord channel for troubleshooting advice.": "O teu fornecedor de internet tem uma firewall restritiva que não pode ser contornada. Podes ter problemas ao alojar ou entrar em salas. Pede ajuda no nosso canal do Discord."
+  "{0} player(s) could not reach this lobby in the last minute: {1}; they tried {2}. {3}": "{0} jogador(es) não conseguiram alcançar esta sala no último minuto: {1}; tentaram {2}. {3}"
 }
