@@ -39,6 +39,12 @@ public class PeerRelayVolunteer
 	/// <summary>The port this machine forwards on, or zero while it is not volunteering.</summary>
 	public int Port => _forwarder?.Port ?? 0;
 
+	/// <summary>
+	///     Whether the lobby server this machine registered with pooled it. An offer that is open but not pooled is carrying
+	///     nothing and is handed to nobody, so the screen states that rather than the offer it made.
+	/// </summary>
+	public bool IsPooled { get; private set; }
+
 	/// <summary>What this machine has forwarded, which its settings page and its log state.</summary>
 	public RelayForwarderStatistics? Usage => _forwarder?.Statistics;
 
@@ -100,6 +106,7 @@ public class PeerRelayVolunteer
 		_forwarder = forwarder;
 		_lifecycle = lifecycle;
 		_isVolunteering = true;
+		IsPooled = false;
 		_startedBudgetBytesPerSecond = GameSettings.VolunteerRelayBudgetBytesPerSecond;
 		_startedMaximumConnections = GameSettings.VolunteerRelayMaximumConnections;
 
@@ -137,6 +144,7 @@ public class PeerRelayVolunteer
 		if (!_isVolunteering) return;
 
 		_isVolunteering = false;
+		IsPooled = false;
 		_startedBudgetBytesPerSecond = 0;
 		_startedMaximumConnections = 0;
 		_lifecycle?.Cancel();
@@ -187,6 +195,7 @@ public class PeerRelayVolunteer
 					string measuredClass = await MeasureOwnReachabilityAsync(lobby, forwarder, token).ConfigureAwait(false);
 					(bool pooled, string reason) = await RegisterAsync(httpClient, registryUrl, lobby, forwarder, measuredClass, token).ConfigureAwait(false);
 					registered = pooled;
+					IsPooled = pooled;
 					_lastStatement = pooled
 						? $"This machine is offering to carry up to {GameSettings.VolunteerRelayMaximumConnections} of another player's connections on port {forwarder.Port}, within {GameSettings.VolunteerRelayBudgetBytesPerSecond} bytes a second."
 						: reason;
@@ -211,6 +220,7 @@ public class PeerRelayVolunteer
 					// own screen said it was offered, so the offer is made again rather than renewed into silence.
 					GameLog.LogToConsole("[RelayVolunteer] The lobby server no longer pools this machine, so it is offering its bandwidth again.");
 					registered = false;
+					IsPooled = false;
 				}
 			}
 			catch (OperationCanceledException)
@@ -221,6 +231,12 @@ public class PeerRelayVolunteer
 			{
 				GameLog.LogError($"[RelayVolunteer] Registration with {registryUrl} failed, so this machine may not be pooled: {exception.GetType().Name}: {exception.Message}");
 				registered = false;
+
+				// Nothing this machine offers reached the node that hands volunteers out, so the screen stops claiming an offer
+				// that was pooled and states the failure instead. The socket stays open and the loop keeps retrying, because a
+				// node that is briefly away is not a reason to give up a setting the player turned on.
+				IsPooled = false;
+				_lastStatement = string.Empty;
 			}
 
 			await Task.Delay(registered ? HeartbeatMilliseconds : RegistrationRetryMilliseconds, token).ConfigureAwait(false);

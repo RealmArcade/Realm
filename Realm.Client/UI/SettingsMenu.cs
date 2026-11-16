@@ -650,6 +650,10 @@ public partial class SettingsMenu : Control
 		PeerRelayVolunteer volunteer = GameContext.PeerRelay;
 		RelayForwarderStatistics? usage = volunteer.Usage;
 
+		// An offer the lobby server never pooled is carrying nothing and is handed to nobody, so the page says that instead
+		// of the offer it made: the only sentence here that may claim a machine is being used is one a node confirmed.
+		if (volunteer.IsVolunteering && !volunteer.IsPooled) return TranslationServer.Translate("This machine is offering its bandwidth, but the lobby server has not pooled it yet.");
+
 		string state = volunteer.Statement.Length > 0
 			? volunteer.Statement
 			: GameSettings.VolunteerRelay
