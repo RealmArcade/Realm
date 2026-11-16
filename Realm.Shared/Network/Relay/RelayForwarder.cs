@@ -177,6 +177,14 @@ public sealed class RelayForwarder : IDisposable
 			{
 				length = _socket.ReceiveFrom(_receiveBuffer, SocketFlags.None, ref sender);
 			}
+			catch (SocketException exception) when (exception.SocketErrorCode == SocketError.MessageSize)
+			{
+				// A datagram wider than one relayed datagram is not one this volunteer carries. The operating system refuses
+				// to hand it over whole, so it is counted here rather than lost between the socket and the counters: a
+				// volunteer's line states everything it dropped, not only what it managed to read.
+				Statistics.DroppedInvalid++;
+				continue;
+			}
 			catch (SocketException)
 			{
 				break;
