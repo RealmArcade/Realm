@@ -27,6 +27,13 @@ public sealed class RelayForwarderStatistics
 	/// <summary>The datagrams this volunteer dropped because the connection they name has only one peer so far.</summary>
 	public int DroppedUnpaired { get; set; }
 
+	/// <summary>
+	///     The datagrams this volunteer took in and could not hand to the other peer's socket. They are counted apart from the
+	///     budget because a volunteer reading its own usage must be able to tell reaching its cap from its operating system
+	///     refusing a send, and only one of those is something it chose.
+	/// </summary>
+	public int DroppedOnSend { get; set; }
+
 	/// <summary>The bytes this volunteer forwarded.</summary>
 	public long BytesForwarded { get; set; }
 
@@ -34,7 +41,7 @@ public sealed class RelayForwarderStatistics
 	public int Connections { get; set; }
 
 	/// <summary>How many datagrams this volunteer ended up not carrying, for every reason together.</summary>
-	public int Dropped => DroppedForBudget + DroppedInvalid + RefusedUnknownConnection + DroppedUnpaired;
+	public int Dropped => DroppedForBudget + DroppedInvalid + RefusedUnknownConnection + DroppedUnpaired + DroppedOnSend;
 }
 
 /// <summary>
@@ -276,13 +283,13 @@ public sealed class RelayForwarder : IDisposable
 			int sent = _socket.SendTo(datagram, SocketFlags.None, destination!);
 			if (sent != datagram.Length)
 			{
-				Statistics.DroppedForBudget++;
+				Statistics.DroppedOnSend++;
 				return;
 			}
 		}
 		catch (SocketException)
 		{
-			Statistics.DroppedForBudget++;
+			Statistics.DroppedOnSend++;
 			return;
 		}
 
@@ -376,6 +383,11 @@ public sealed class RelayForwarder : IDisposable
 
 		public long LastSeenMilliseconds { get; set; }
 
+		/// <summary>Whether this sender is one of the two peers this connection is carried between.</summary>
+		/// <param name="sender">The peer to place.</param>
+		/// <returns>Whether the peer is the first or the second of the pair.</returns>
+		public bool IsEither(EndPoint sender) => First.Equals(sender) || (Second != null && Second.Equals(sender));
+
 		/// <summary>
 		///     Reads where one datagram is forwarded to. The first peer a connection is heard from opens the pair, the second
 		///     distinct one closes it, and a third address is refused: a stranger that learned a token still cannot make the
@@ -384,11 +396,6 @@ public sealed class RelayForwarder : IDisposable
 		/// <param name="sender">The peer this datagram arrived from.</param>
 		/// <param name="destination">The other peer, or null when the sender is not one of the pair.</param>
 		/// <returns>Whether this sender is one of the pair the volunteer carries.</returns>
-		/// <summary>Whether this sender is one of the two peers this connection is carried between.</summary>
-		/// <param name="sender">The peer to place.</param>
-		/// <returns>Whether the peer is the first or the second of the pair.</returns>
-		public bool IsEither(EndPoint sender) => First.Equals(sender) || (Second != null && Second.Equals(sender));
-
 		public bool TryDescribeRoute(EndPoint sender, out EndPoint? destination)
 		{
 			destination = null;
