@@ -30,6 +30,8 @@ public class PeerRelayVolunteer
 	private CancellationTokenSource? _lifecycle;
 	private bool _isVolunteering;
 	private string _lastStatement = string.Empty;
+	private int _startedBudgetBytesPerSecond;
+	private int _startedMaximumConnections;
 
 	/// <summary>Whether this machine is forwarding other players' connections right now.</summary>
 	public bool IsVolunteering => _isVolunteering;
@@ -48,15 +50,22 @@ public class PeerRelayVolunteer
 
 	/// <summary>
 	///     Runs the volunteer between matches. It is called from the same slow loop that keeps map seeding up to date, so a
-	///     setting either way takes effect without the player restarting anything.
+	///     setting either way takes effect without the player restarting anything: the offer is opened with whatever the
+	///     settings say now, and an offer opened with other limits is given up and made again, because the budget and the
+	///     connection ceiling are the only control the player has over what this machine spends.
 	/// </summary>
 	public void CheckIdleAndVolunteerStatus()
 	{
 		bool shouldVolunteer = IsVolunteerConditionMet();
+		if (shouldVolunteer && _isVolunteering && !OfferMatchesSettings()) Stop(unregister: false);
 
 		if (shouldVolunteer && !_isVolunteering) Start();
 		else if (!shouldVolunteer && _isVolunteering) Stop();
 	}
+
+	/// <summary>Whether the offer this machine is making was opened with the limits its settings state now.</summary>
+	/// <returns>Whether the running forwarder is the one the settings describe.</returns>
+	private bool OfferMatchesSettings() => _startedBudgetBytesPerSecond == GameSettings.VolunteerRelayBudgetBytesPerSecond && _startedMaximumConnections == GameSettings.VolunteerRelayMaximumConnections;
 
 	private static bool IsVolunteerConditionMet()
 	{
@@ -91,6 +100,8 @@ public class PeerRelayVolunteer
 		_forwarder = forwarder;
 		_lifecycle = lifecycle;
 		_isVolunteering = true;
+		_startedBudgetBytesPerSecond = GameSettings.VolunteerRelayBudgetBytesPerSecond;
+		_startedMaximumConnections = GameSettings.VolunteerRelayMaximumConnections;
 
 		CancellationToken token = lifecycle.Token;
 		Task forwarding = Task.Run(() => forwarder!.Run(token), token);
@@ -111,19 +122,36 @@ public class PeerRelayVolunteer
 	///     Stops offering this machine's bandwidth. The forwarding socket is closed at once, so nothing it was carrying is
 	///     delayed behind a shutdown, and the pool is told so it stops handing this machine out.
 	/// </summary>
-	public void Stop()
+	public void Stop() => Stop(unregister: true);
+
+	/// <summary>
+	///     Gives up the forwarding socket and the lane that ran it.
+	/// </summary>
+	/// <param name="unregister">
+	///     Whether the lobby server is told to forget this machine. A machine restarting its own offer keeps its place instead:
+	///     the identifier it is pooled under is the identifier an unregister would remove, so a request that arrived after the
+	///     new offer was pooled would take the volunteer out of the pool it had just joined.
+	/// </param>
+	private void Stop(bool unregister)
 	{
 		if (!_isVolunteering) return;
 
 		_isVolunteering = false;
+		_startedBudgetBytesPerSecond = 0;
+		_startedMaximumConnections = 0;
 		_lifecycle?.Cancel();
 		_forwarder?.Dispose();
 		_forwarder = null;
 		_lifecycle = null;
 
-		SendUnregisterRequest();
-		_lastStatement = "This machine stopped carrying other players' connections.";
-		GameLog.LogToConsole("[RelayVolunteer] Stopped carrying other players' connections.");
+		if (unregister) SendUnregisterRequest();
+
+		_lastStatement = unregister
+			? "This machine stopped carrying other players' connections."
+			: "This machine is offering its bandwidth again with the limits this page states.";
+		GameLog.LogToConsole(unregister
+			? "[RelayVolunteer] Stopped carrying other players' connections."
+			: "[RelayVolunteer] The offer is being made again with the limits the settings state now.");
 	}
 
 	/// <summary>
@@ -160,7 +188,7 @@ public class PeerRelayVolunteer
 					(bool pooled, string reason) = await RegisterAsync(httpClient, registryUrl, lobby, forwarder, measuredClass, token).ConfigureAwait(false);
 					registered = pooled;
 					_lastStatement = pooled
-						? $"This machine is offering to carry up to {forwarder.Statistics.Connections} of {GameSettings.VolunteerRelayMaximumConnections} connections on port {forwarder.Port}."
+						? $"This machine is offering to carry up to {GameSettings.VolunteerRelayMaximumConnections} of another player's connections on port {forwarder.Port}, within {GameSettings.VolunteerRelayBudgetBytesPerSecond} bytes a second."
 						: reason;
 
 					if (!pooled)
@@ -176,9 +204,13 @@ public class PeerRelayVolunteer
 						return;
 					}
 				}
-				else
+				else if (!await HeartbeatAsync(httpClient, registryUrl, forwarder, token).ConfigureAwait(false))
 				{
-					await HeartbeatAsync(httpClient, registryUrl, forwarder, token).ConfigureAwait(false);
+					// A node restarts, is redeployed, or forgets a volunteer that went quiet for longer than its membership lasts.
+					// A volunteer that kept heartbeating into a pool that no longer holds it would be carrying nothing while its
+					// own screen said it was offered, so the offer is made again rather than renewed into silence.
+					GameLog.LogToConsole("[RelayVolunteer] The lobby server no longer pools this machine, so it is offering its bandwidth again.");
+					registered = false;
 				}
 			}
 			catch (OperationCanceledException)
@@ -256,11 +288,23 @@ public class PeerRelayVolunteer
 		return (answer.Advertised, answer.Reason.Length > 0 ? answer.Reason : "The lobby server did not pool this machine, so it is carrying nothing.");
 	}
 
-	private async Task HeartbeatAsync(HttpClient httpClient, string registryUrl, RelayForwarder forwarder, CancellationToken token)
+	/// <summary>
+	///     Tells the lobby server this volunteer is still here and how many connections it holds.
+	/// </summary>
+	/// <param name="httpClient">The client the request is sent with.</param>
+	/// <param name="registryUrl">The lobby server that pooled this machine.</param>
+	/// <param name="forwarder">The forwarder whose usage is reported.</param>
+	/// <param name="token">What stops the request when this machine stops offering.</param>
+	/// <returns>Whether the node still pools this machine.</returns>
+	private async Task<bool> HeartbeatAsync(HttpClient httpClient, string registryUrl, RelayForwarder forwarder, CancellationToken token)
 	{
 		var payload = new { RelayId = _volunteerId, ActiveConnections = forwarder.Statistics.Connections };
 		var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 		using HttpResponseMessage response = await httpClient.PostAsync($"{registryUrl.TrimEnd('/')}/relays/heartbeat", content, token).ConfigureAwait(false);
+		if (!response.IsSuccessStatusCode) return false;
+
+		string body = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
+		return RelayHeartbeatAnswer.TryParse(body, out RelayHeartbeatAnswer answer) && answer.Known;
 	}
 
 	private void SendUnregisterRequest()

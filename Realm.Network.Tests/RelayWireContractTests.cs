@@ -128,6 +128,19 @@ public class RelayWireContractTests
 	}
 
 	[Test]
+	public void TheHeartbeatAnswerSaysWhetherTheNodeStillPoolsTheMachine()
+	{
+		Assert.That(RelayHeartbeatAnswer.TryParse("{\"status\":\"Recorded\"}", out RelayHeartbeatAnswer recorded), Is.True);
+		Assert.That(recorded.Known, Is.True);
+
+		Assert.That(RelayHeartbeatAnswer.TryParse("{\"Status\":\"Unknown\"}", out RelayHeartbeatAnswer unknown), Is.True);
+		Assert.That(unknown.Known, Is.False);
+
+		Assert.That(RelayHeartbeatAnswer.TryParse("not json", out RelayHeartbeatAnswer unreadable), Is.False);
+		Assert.That(unreadable.Known, Is.False, "an answer this build cannot read is not evidence that the machine is still pooled");
+	}
+
+	[Test]
 	public void TheTransportFacesOneLoopbackPortPerConnectionAndItNeverMoves()
 	{
 		RelayConnectionPlan plan = RelayConnectionPlan.From(Ticket, [Candidate("first", 5001), Candidate("second", 5002)], duplicationEnabled: false, duplicationBudgetBytesPerSecond: 0);
