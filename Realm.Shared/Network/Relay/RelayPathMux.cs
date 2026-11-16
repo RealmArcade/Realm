@@ -30,6 +30,17 @@ public sealed class RelayPathMux : IDisposable
 
 	private const int ProbeHistoryLength = 16;
 
+	/// <summary>
+	///     How long a path may go without answering a probe before this connection stops believing it carries anything. A
+	///     UDP tunnel has no close to observe: the socket stays bound after the volunteer behind it has gone, so silence is
+	///     the only evidence of a path that is gone, and a path that has not been answered in this long is never reported as
+	///     carrying a peer.
+	/// </summary>
+	public const int ProbeSilenceTimeoutMilliseconds = 4000;
+
+	/// <summary>How many probes a path must have sent before its silence is taken as evidence of anything.</summary>
+	public const int MinimumProbesBeforeSilenceCounts = 3;
+
 	private readonly RelayConnectionToken _token;
 	private readonly RelayDatagramCipher _cipher;
 	private readonly RelayDuplicateWindow _duplicates = new();
@@ -45,6 +56,7 @@ public sealed class RelayPathMux : IDisposable
 	private int _pathCount;
 	private int _messageSequence;
 	private int _probeSequence;
+	private int _droppedWithoutPath;
 	private double _duplicationAllowance;
 	private long _lastBudgetMilliseconds;
 	private bool _disposed;
@@ -73,6 +85,12 @@ public sealed class RelayPathMux : IDisposable
 	/// <summary>The datagrams this connection has refused as duplicates, whichever paths carried them.</summary>
 	public int DuplicateCount => _duplicates.DuplicateCount;
 
+	/// <summary>
+	///     The datagrams this connection could not move at all, because no path was left that a volunteer had answered on.
+	///     It is the one counter that distinguishes a relayed connection that is merely slow from one that is gone.
+	/// </summary>
+	public int DroppedWithoutPath => _droppedWithoutPath;
+
 	/// <summary>Whether any path is open and able to carry a datagram.</summary>
 	public bool HasOpenPath
 	{
@@ -80,7 +98,7 @@ public sealed class RelayPathMux : IDisposable
 		{
 			for (int index = 0; index < _pathCount; index++)
 			{
-				if (_paths[index].Carrier.IsOpen) return true;
+				if (_paths[index].IsLive) return true;
 			}
 
 			return false;
@@ -157,13 +175,21 @@ public sealed class RelayPathMux : IDisposable
 		if (_disposed || inner.Length > RelayEnvelope.MaximumInnerDatagramBytes) return 0;
 
 		RelayPath? best = ChooseBestPath();
-		if (best == null) return 0;
+		if (best == null)
+		{
+			_droppedWithoutPath++;
+			return 0;
+		}
 
 		_messageSequence = (_messageSequence + 1) & RelayEnvelope.MessageSequenceMask;
 		byte deliveryFlag = RelayEnvelope.DeliveryFlag(delivery, probe: false);
 
 		int copies = SendOnPath(best, deliveryFlag, inner) ? 1 : 0;
-		if (copies == 0) return 0;
+		if (copies == 0)
+		{
+			_droppedWithoutPath++;
+			return 0;
+		}
 
 		if (!_duplicationEnabled || _pathCount < 2) return copies;
 
@@ -224,6 +250,7 @@ public sealed class RelayPathMux : IDisposable
 			}
 
 			SendProbeIfDue(path, now);
+			RetireIfSilent(path, now);
 			DecayIfStale(path, now);
 		}
 	}
@@ -239,6 +266,7 @@ public sealed class RelayPathMux : IDisposable
 		builder.Append("relay token=").Append(_token.ToHex())
 			.Append(" paths=").Append(_pathCount)
 			.Append(" duplicates=").Append(_duplicates.DuplicateCount)
+			.Append(" no-path-dropped=").Append(_droppedWithoutPath)
 			.Append(" best=");
 
 		RelayPath? best = ChooseBestPath();
@@ -253,6 +281,7 @@ public sealed class RelayPathMux : IDisposable
 			builder.Append("relay path=").Append(path.Carrier.PathId)
 				.Append(" carrier=").Append(path.Carrier.Capabilities.Kind)
 				.Append(" open=").Append(path.Carrier.IsOpen)
+				.Append(" live=").Append(path.IsLive)
 				.Append(" rtt=").Append(statistics.RoundTripMilliseconds).Append("ms")
 				.Append(" jitter=").Append(statistics.JitterMilliseconds).Append("ms")
 				.Append(" loss=").Append(statistics.LossPercent.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)).Append('%')
@@ -296,7 +325,7 @@ public sealed class RelayPathMux : IDisposable
 		for (int index = 0; index < _pathCount; index++)
 		{
 			RelayPath path = _paths[index];
-			if (!path.Carrier.IsOpen) continue;
+			if (!path.IsLive) continue;
 			if (!RelayPathScoring.IsBetterThan(path.Statistics, best?.Statistics)) continue;
 
 			best = path;
@@ -311,7 +340,7 @@ public sealed class RelayPathMux : IDisposable
 		for (int index = 0; index < _pathCount; index++)
 		{
 			RelayPath path = _paths[index];
-			if (ReferenceEquals(path, best) || !path.Carrier.IsOpen) continue;
+			if (ReferenceEquals(path, best) || !path.IsLive) continue;
 			if (!RelayPathScoring.IsBetterThan(path.Statistics, second?.Statistics)) continue;
 
 			second = path;
@@ -351,6 +380,7 @@ public sealed class RelayPathMux : IDisposable
 		path.Statistics.JitterMilliseconds = path.Statistics.ProbesAnswered == 0 ? jitter : (path.Statistics.JitterMilliseconds * 3 + jitter) / 4;
 		path.Statistics.RoundTripMilliseconds = path.Statistics.ProbesAnswered == 0 ? roundTrip : (path.Statistics.RoundTripMilliseconds * 3 + roundTrip) / 4;
 		path.Statistics.ProbesAnswered++;
+		path.NoteProbeAnswered(now);
 	}
 
 	private void SendProbeIfDue(RelayPath path, long now)
@@ -368,6 +398,22 @@ public sealed class RelayPathMux : IDisposable
 
 		path.RememberProbe(_probeSequence, now);
 		path.Statistics.ProbesSent++;
+	}
+
+	/// <summary>
+	///     Stops this connection believing a path that has stopped answering. It is not a removal: the path keeps its place,
+	///     its measurements and its carrier, and simply stops being chosen or reported as carrying anything. A connection
+	///     whose last path retired reports no open path, which is what lets its owner say the peer is unreachable instead of
+	///     pretending the volunteer is still there.
+	/// </summary>
+	/// <param name="path">The path to judge.</param>
+	/// <param name="now">The clock the silence is measured against.</param>
+	private static void RetireIfSilent(RelayPath path, long now)
+	{
+		if (path.HasFailed || path.Statistics.ProbesSent < MinimumProbesBeforeSilenceCounts) return;
+		if (now - path.LastProbeAnswerMilliseconds < ProbeSilenceTimeoutMilliseconds) return;
+
+		path.HasFailed = true;
 	}
 
 	private void SendProbeAnswer(RelayPath path, int probeSequence)
@@ -418,11 +464,29 @@ public sealed class RelayPathMux : IDisposable
 			Statistics = new RelayPathStatistics();
 			LastProbeMilliseconds = Now;
 			LastDecayMilliseconds = Now;
+			LastProbeAnswerMilliseconds = Now;
 		}
 
 		public IRelayCarrier Carrier { get; }
 
 		public RelayPathStatistics Statistics { get; }
+
+		/// <summary>Whether this path has been silent long enough that this connection no longer believes it carries anything.</summary>
+		public bool HasFailed { get; set; }
+
+		/// <summary>Whether this path is both open at its carrier and answered by the volunteer behind it.</summary>
+		public bool IsLive => !HasFailed && Carrier.IsOpen;
+
+		/// <summary>When this path was last answered, or when it was opened while it has never been answered.</summary>
+		public long LastProbeAnswerMilliseconds { get; private set; }
+
+		/// <summary>Records that the volunteer behind this path answered, which is the evidence that it is still there.</summary>
+		/// <param name="now">The clock the answer arrived on.</param>
+		public void NoteProbeAnswered(long now)
+		{
+			LastProbeAnswerMilliseconds = now;
+			HasFailed = false;
+		}
 
 		public int PathSequence { get; set; }
 

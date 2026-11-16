@@ -245,7 +245,21 @@ public partial class ListenServerHost : IServerTransportSink
 		if (recorder == null || writer == null) return;
 
 		double recordedSeconds = (_simulation?.TickCount ?? 0) * MatchTiming.FixedTickSeconds;
-		writer.Enqueue(_arguments.RecordAuthorityPath, recorder.BuildReport(recordedSeconds, MatchTiming.SimulationTickRateHz, includeSequenceCoverage));
+		SnapshotReportFile[] files = recorder.BuildReport(recordedSeconds, MatchTiming.SimulationTickRateHz, includeSequenceCoverage);
+
+		// The relay block is stated with every report, including when no connection is relayed: a report that named the
+		// paths only once a volunteer was involved would hide the moment the path moved, which is the one thing these lines
+		// exist to make visible. Two authorities' reports then compare line by line.
+		string relayed = _transport.DescribeRelayedEntries().TrimEnd();
+		for (int index = 0; index < files.Length; index++)
+		{
+			SnapshotReportFile file = files[index];
+			if (!file.FileName.EndsWith(".txt", StringComparison.Ordinal)) continue;
+
+			files[index] = file with { Contents = $"{file.Contents.TrimEnd()}\n{relayed}\n" };
+		}
+
+		writer.Enqueue(_arguments.RecordAuthorityPath, files);
 	}
 
 	private const int TrafficReportIntervalSequences = MatchTiming.SnapshotRateHz * 10;
