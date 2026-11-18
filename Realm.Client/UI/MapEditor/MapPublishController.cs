@@ -224,8 +224,16 @@ public sealed class MapPublishController
 				AuthorSteamId = GameContext.Steam.SteamId
 			};
 
-			WorkshopMapEntry? existingItem = await SteamWorkshopService.FindByMapNameAsync(mapTitle, CancellationToken.None);
+			WorkshopMapEntry? existingItem = await SteamWorkshopService.FindOwnedByMapNameAsync(mapTitle, GameContext.Steam.SteamId, CancellationToken.None);
 			ulong existingItemId = existingItem?.PublishedFileId ?? 0;
+			if (existingItemId == 0)
+			{
+				WorkshopMapEntry? sameNameItem = await SteamWorkshopService.FindByMapNameAsync(mapTitle, CancellationToken.None);
+				if (sameNameItem is { } foreignItem)
+				{
+					GameLog.LogToConsole($"[Publish] '{mapTitle}' is published as a new item; Workshop item {foreignItem.PublishedFileId} belongs to {foreignItem.AuthorSteamId} and states the same map name.");
+				}
+			}
 
 			string? thumbnailPath = PrepareWorkshopPreview(workspace, stagingRoot);
 			var publishResult = await SteamWorkshopService.PublishAsync(

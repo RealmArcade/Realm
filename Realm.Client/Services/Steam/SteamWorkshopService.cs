@@ -283,6 +283,30 @@ public static class SteamWorkshopService
 	}
 
 	/// <summary>
+	///     Finds the newest item a given account published for a map, which is the item a re-publish updates. A map name is
+	///     not reserved by Steam: two creators can publish maps whose names match, and an update can only be aimed at an
+	///     item the caller owns, so the search is limited to that account's own items.
+	/// </summary>
+	/// <param name="mapName">The map's folder name.</param>
+	/// <param name="authorSteamId">The SteamID64 that must own the item, or zero when this screen has no Steam identity.</param>
+	/// <param name="cancellationToken">Gives up the query.</param>
+	/// <returns>The newest matching item this account owns, or null when it has published none.</returns>
+	public static async Task<WorkshopMapEntry?> FindOwnedByMapNameAsync(string mapName, ulong authorSteamId, CancellationToken cancellationToken)
+	{
+		if (!IsAvailable || authorSteamId == 0 || string.IsNullOrWhiteSpace(mapName)) return null;
+
+		string normalizedName = NormalizeMapName(mapName);
+		var entries = await BrowseAsync(mapName, BrowsePageCount, cancellationToken);
+
+		return entries
+			.Where(entry => !entry.IsBanned)
+			.Where(entry => entry.AuthorSteamId == authorSteamId)
+			.Where(entry => MatchesMapName(entry, normalizedName))
+			.OrderByDescending(entry => entry.TimeUpdated)
+			.FirstOrDefault();
+	}
+
+	/// <summary>
 	///     Finds every item this account has subscribed to whose map states a given folder name, which is what a screen
 	///     checks when it already holds a map and needs the item id back for a re-publish.
 	/// </summary>

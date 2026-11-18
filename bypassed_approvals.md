@@ -364,3 +364,20 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **The same loop allocated on every tick.** A 64-entry pointer array and a 64 KiB payload buffer were built per call, and
   this runs once per simulation tick on the authority's match thread - about two megabytes a second of garbage for
   nothing. Both are instance fields now, and the buffer only grows if a message is larger than the one before it.
+## Whose Workshop item a re-publish updates
+
+- **The publisher looked its existing item up by map name across every creator.** `MapPublishController` asked
+  `SteamWorkshopService.FindByMapNameAsync` for the item to update, and that answers the newest item for this AppID whose
+  metadata states the same map name, whoever owns it. Steam reserves no map name and an update can only be aimed at an
+  item the caller owns, so a creator whose map shared a name with anybody else's - a remake, a common word, a port -
+  would have every publish aimed at a stranger's item and fail instead of creating their own.
+- **The fix is a search limited to the caller's own items.** `FindOwnedByMapNameAsync` filters on the item's owner as
+  Steam reports it, and the publish path uses it. When no owned item exists but another creator's item states the same
+  name, the publish now goes ahead as a new item and the console names both, because the alternative - refusing to
+  publish because somebody else took the name - would let one creator block another.
+- **Left as a known limitation, deliberately:** a name that two creators both publish is still ambiguous to the screens
+  that resolve a map *by name* rather than by item id (`MapStorageService.CheckForNewerVersionAsync` for the storage
+  list's update offer, `MapProvisioningService.DownloadLatestAsync` for the details download button). The join path is not
+  affected: a lobby advertises the Workshop item id and `LobbyMapCompatibilityService` subscribes to exactly that item.
+  Closing the remaining gap needs the installed package to record the item it came from, which is a map-format change and
+  a decision for the design rather than a repair.
