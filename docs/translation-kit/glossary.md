@@ -4,6 +4,9 @@ Each language below shows sentences the catalog already translates that use the 
 wording the game already uses instead of inventing a second name for the same thing. They are read from
 `Realm.Client/locale/<language>.json`; regenerate this file rather than editing it if the catalogs change.
 
+Absence is meaningful: a term with no example is one the catalogs have never had to say, so the first translation of it
+sets the word.
+
 ## ar
 
 **lobby**
@@ -21,6 +24,8 @@ wording the game already uses instead of inventing a second name for the same th
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → بنشرك محتوى على Realm، فإنك تمنحنا الإذن باستضافة خريطتك وتوزيعها وعرضها حتى يتمكن الأشخاص من لعبها.
 - `CONNECTING TO HOST ...` → جارٍ الاتصال بالمضيف...
 
+**workshop** - no existing example
+
 **Steam**
 
 - `Open Steam's add friend dialog for {0}.` → يفتح نافذة Steam لإضافة {0} كصديق.
@@ -36,15 +41,9 @@ wording the game already uses instead of inventing a second name for the same th
 - `Asset exceeds 15 MB size limit. Publish aborted.` → يتجاوز الأصل الحد الأقصى للحجم وهو 15 ميغابايت. تم إلغاء النشر.
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → بنشرك محتوى على Realm، فإنك تمنحنا الإذن باستضافة خريطتك وتوزيعها وعرضها حتى يتمكن الأشخاص من لعبها.
 
-**code**
+**join code** - no existing example
 
-- `CODE & DATA` → البرمجة والبيانات
-- `Copied script code to clipboard` → تم نسخ كود السكريبت إلى الحافظة
-
-**join**
-
-- `Join our Discord` → انضم إلى Discord الخاص بنا
-- `Join the Realm Community` → انضم إلى مجتمع Realm
+**trust** - no existing example
 
 **version**
 
@@ -73,6 +72,8 @@ wording the game already uses instead of inventing a second name for the same th
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Durch das Veröffentlichen von Inhalten auf Realm erteilen Sie uns die Erlaubnis, Ihre Karte zu hosten, zu verteilen und anzuzeigen, damit andere sie spielen können.
 - `CONNECTING TO HOST ...` → VERBINDUNG ZUM HOST WIRD HERGESTELLT ...
 
+**workshop** - no existing example
+
 **Steam**
 
 - `Open Steam's add friend dialog for {0}.` → Öffnet Steams Dialog zum Hinzufügen von {0} als Freund.
@@ -88,15 +89,9 @@ wording the game already uses instead of inventing a second name for the same th
 - `Asset exceeds 15 MB size limit. Publish aborted.` → Das Asset überschreitet das Größenlimit von 15 MB. Veröffentlichung abgebrochen.
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Durch das Veröffentlichen von Inhalten auf Realm erteilen Sie uns die Erlaubnis, Ihre Karte zu hosten, zu verteilen und anzuzeigen, damit andere sie spielen können.
 
-**code**
+**join code** - no existing example
 
-- `CODE & DATA` → CODE & DATEN
-- `Copied script code to clipboard` → Skriptcode in die Zwischenablage kopiert
-
-**join**
-
-- `Join our Discord` → Tritt unserem Discord bei
-- `Join the Realm Community` → Tritt der Realm-Community bei
+**trust** - no existing example
 
 **version**
 
@@ -125,6 +120,8 @@ wording the game already uses instead of inventing a second name for the same th
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Al publicar contenido en Realm, nos otorgas permiso para alojar, distribuir y mostrar tu mapa para que la gente pueda jugarlo.
 - `CONNECTING TO HOST ...` → CONECTANDO CON EL HOST ...
 
+**workshop** - no existing example
+
 **Steam**
 
 - `Open Steam's add friend dialog for {0}.` → Abre el diálogo de añadir amigo de Steam para {0}.
@@ -140,15 +137,9 @@ wording the game already uses instead of inventing a second name for the same th
 - `Asset exceeds 15 MB size limit. Publish aborted.` → El recurso supera el límite de tamaño de 15 MB. Publicación cancelada.
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Al publicar contenido en Realm, nos otorgas permiso para alojar, distribuir y mostrar tu mapa para que la gente pueda jugarlo.
 
-**code**
+**join code** - no existing example
 
-- `CODE & DATA` → CÓDIGO Y DATOS
-- `Copied script code to clipboard` → Código de script copiado al portapapeles
-
-**join**
-
-- `Join our Discord` → Únete a nuestro Discord
-- `Join the Realm Community` → Únete a la comunidad de Realm
+**trust** - no existing example
 
 **version**
 
@@ -177,6 +168,8 @@ wording the game already uses instead of inventing a second name for the same th
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → En publiant du contenu sur Realm, vous nous autorisez à héberger, distribuer et afficher votre carte afin que d'autres puissent y jouer.
 - `CONNECTING TO HOST ...` → CONNEXION À L'HÔTE...
 
+**workshop** - no existing example
+
 **Steam**
 
 - `Open Steam's add friend dialog for {0}.` → Ouvre la fenêtre d'ajout d'ami Steam pour {0}.
@@ -192,15 +185,9 @@ wording the game already uses instead of inventing a second name for the same th
 - `Asset exceeds 15 MB size limit. Publish aborted.` → La ressource dépasse la limite de taille de 15 Mo. Publication interrompue.
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → En publiant du contenu sur Realm, vous nous autorisez à héberger, distribuer et afficher votre carte afin que d'autres puissent y jouer.
 
-**code**
+**join code** - no existing example
 
-- `CODE & DATA` → CODE & DONNÉES
-- `Copied script code to clipboard` → Code du script copié dans le presse-papiers
-
-**join**
-
-- `Join our Discord` → Rejoindre notre Discord
-- `Join the Realm Community` → Rejoindre la communauté Realm
+**trust** - no existing example
 
 **version**
 
@@ -229,6 +216,8 @@ wording the game already uses instead of inventing a second name for the same th
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Realm पर सामग्री प्रकाशित करके, आप हमें अपने मानचित्र को होस्ट करने, वितरित करने और प्रदर्शित करने की अनुमति देते हैं ताकि लोग इसे खेल सकें।
 - `CONNECTING TO HOST ...` → होस्ट से कनेक्ट हो रहा है ...
 
+**workshop** - no existing example
+
 **Steam**
 
 - `Open Steam's add friend dialog for {0}.` → {0} को मित्र के रूप में जोड़ने के लिए Steam विंडो खोलें।
@@ -244,15 +233,9 @@ wording the game already uses instead of inventing a second name for the same th
 - `Asset exceeds 15 MB size limit. Publish aborted.` → एसेट का आकार 15 MB की सीमा से अधिक है। प्रकाशन रद्द किया गया।
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Realm पर सामग्री प्रकाशित करके, आप हमें अपने मानचित्र को होस्ट करने, वितरित करने और प्रदर्शित करने की अनुमति देते हैं ताकि लोग इसे खेल सकें।
 
-**code**
+**join code** - no existing example
 
-- `CODE & DATA` → कोड और डेटा
-- `Copied script code to clipboard` → स्क्रिप्ट कोड क्लिपबोर्ड पर कॉपी किया गया
-
-**join**
-
-- `Join our Discord` → हमारे Discord से जुड़ें
-- `Join the Realm Community` → Realm समुदाय से जुड़ें
+**trust** - no existing example
 
 **version**
 
@@ -281,6 +264,8 @@ wording the game already uses instead of inventing a second name for the same th
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Realmでコンテンツを公開することにより、プレイヤーがマップをプレイできるように、マップをホスト、配布、および表示する許可を当社に付与するものとします。
 - `CONNECTING TO HOST ...` → ホストに接続中...
 
+**workshop** - no existing example
+
 **Steam**
 
 - `Open Steam's add friend dialog for {0}.` → {0} をフレンドに追加する Steam の画面を開きます。
@@ -296,15 +281,9 @@ wording the game already uses instead of inventing a second name for the same th
 - `Asset exceeds 15 MB size limit. Publish aborted.` → アセットが15 MBのサイズ制限を超えています。公開を中止しました。
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Realmでコンテンツを公開することにより、プレイヤーがマップをプレイできるように、マップをホスト、配布、および表示する許可を当社に付与するものとします。
 
-**code**
+**join code** - no existing example
 
-- `CODE & DATA` → コードとデータ
-- `Copied script code to clipboard` → スクリプトコードをクリップボードにコピーしました
-
-**join**
-
-- `Join our Discord` → Discord に参加
-- `Join the Realm Community` → Realm コミュニティに参加
+**trust** - no existing example
 
 **version**
 
@@ -333,6 +312,8 @@ wording the game already uses instead of inventing a second name for the same th
 - `Also list asset packs, which carry shared assets and cannot be hosted on their own` → 공유 에셋을 담고 있어 단독으로 호스트할 수 없는 에셋 팩도 표시
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Realm에 콘텐츠를 게시하면 해당 맵을 호스팅, 배포, 표시하여 사람들이 플레이할 수 있도록 허용하는 것입니다.
 
+**workshop** - no existing example
+
 **Steam**
 
 - `A Steam friend` → Steam 친구
@@ -348,15 +329,9 @@ wording the game already uses instead of inventing a second name for the same th
 - `Asset exceeds 15 MB size limit. Publish aborted.` → 에셋이 15MB 크기 제한을 초과했습니다. 게시를 중단했습니다.
 - `Before publish` → 게시 전
 
-**code**
+**join code** - no existing example
 
-- `CODE & DATA` → 코드 및 데이터
-- `Choose whether to copy assets, configured templates with their dependencies, or map script code` → 에셋, 종속 항목이 포함된 구성 템플릿, 맵 스크립트 코드 중 무엇을 복사할지 선택
-
-**join**
-
-- `Join our Discord` → Discord 참여
-- `Join the Realm Community` → Realm 커뮤니티 참여
+**trust** - no existing example
 
 **version**
 
@@ -385,6 +360,8 @@ wording the game already uses instead of inventing a second name for the same th
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Ao publicar conteúdo no Realm, você nos concede permissão para hospedar, distribuir e exibir seu mapa para que as pessoas possam jogá-lo.
 - `CONNECTING TO HOST ...` → CONECTANDO AO HOSPEDEIRO ...
 
+**workshop** - no existing example
+
 **Steam**
 
 - `Open Steam's add friend dialog for {0}.` → Abre a janela de adicionar amigo da Steam para {0}.
@@ -400,15 +377,9 @@ wording the game already uses instead of inventing a second name for the same th
 - `Asset exceeds 15 MB size limit. Publish aborted.` → O recurso excede o limite de tamanho de 15 MB. Publicação abortada.
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Ao publicar conteúdo no Realm, você nos concede permissão para hospedar, distribuir e exibir seu mapa para que as pessoas possam jogá-lo.
 
-**code**
+**join code** - no existing example
 
-- `CODE & DATA` → CÓDIGO E DADOS
-- `Copied script code to clipboard` → Código do script copiado para a área de transferência
-
-**join**
-
-- `Join our Discord` → Entre no nosso Discord
-- `Join the Realm Community` → Entre na comunidade Realm
+**trust** - no existing example
 
 **version**
 
@@ -437,6 +408,8 @@ wording the game already uses instead of inventing a second name for the same th
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Публикуя контент в Realm, вы даете нам разрешение размещать, распространять и отображать вашу карту, чтобы другие могли в нее играть.
 - `CONNECTING TO HOST ...` → ПОДКЛЮЧЕНИЕ К ХОСТУ...
 
+**workshop** - no existing example
+
 **Steam**
 
 - `Open Steam's add friend dialog for {0}.` → Открывает окно Steam для добавления {0} в друзья.
@@ -452,15 +425,9 @@ wording the game already uses instead of inventing a second name for the same th
 - `Asset exceeds 15 MB size limit. Publish aborted.` → Размер ресурса превышает лимит в 15 МБ. Публикация отменена.
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → Публикуя контент в Realm, вы даете нам разрешение размещать, распространять и отображать вашу карту, чтобы другие могли в нее играть.
 
-**code**
+**join code** - no existing example
 
-- `CODE & DATA` → КОД И ДАННЫЕ
-- `Copied script code to clipboard` → Код скрипта скопирован в буфер обмена
-
-**join**
-
-- `Join our Discord` → Присоединяйтесь к нашему Discord
-- `Join the Realm Community` → Присоединяйтесь к сообществу Realm
+**trust** - no existing example
 
 **version**
 
@@ -489,6 +456,8 @@ wording the game already uses instead of inventing a second name for the same th
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → 在 Realm 上发布内容即表示您授予我们托管、分发和展示您的地图的权限，以便其他玩家可以进行游戏。
 - `CONNECTING TO HOST ...` → 正在连接到主机...
 
+**workshop** - no existing example
+
 **Steam**
 
 - `Open Steam's add friend dialog for {0}.` → 打开 Steam 的添加好友窗口，以添加 {0}。
@@ -504,15 +473,9 @@ wording the game already uses instead of inventing a second name for the same th
 - `Asset exceeds 15 MB size limit. Publish aborted.` → 资产大小超过 15 MB 限制。发布已中止。
 - `By publishing content on Realm, you grant us permission to host, distribute, and display your map so people can play it.` → 在 Realm 上发布内容即表示您授予我们托管、分发和展示您的地图的权限，以便其他玩家可以进行游戏。
 
-**code**
+**join code** - no existing example
 
-- `CODE & DATA` → 代码与数据
-- `Copied script code to clipboard` → 已将脚本代码复制到剪贴板
-
-**join**
-
-- `Join our Discord` → 加入我们的 Discord
-- `Join the Realm Community` → 加入 Realm 社区
+**trust** - no existing example
 
 **version**
 
