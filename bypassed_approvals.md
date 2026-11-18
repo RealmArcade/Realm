@@ -424,3 +424,27 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   `authorship_key_...rkey` filename and the Discord URL pattern were left untranslated in every language, because they are
   identifiers a player has to type or match, not words. And `BUILD  ` was left as `BUILD  ` in all ten, since it is drawn
   as a label beside a build number rather than as a sentence, and each catalog already carries Latin technical labels.
+## The category filter that compared translated text
+
+- **A translation fix exposed a bug in the object manager, and it was fixed without asking.** `InstanceManagerDialog`
+  added the type filter's items already translated (`Units` -> `Einheiten`, `All Types` -> `Alle Typen`) and then decided
+  which category was selected by reading that item's text back and comparing it with the English group key. In English
+  it matched; in every other language it matched nothing, so choosing a category emptied the tree while `Alle Typen`
+  stayed correct. The same comparison decided which filter to preselect in `OpenDialog(initialTypeFilter)`.
+- **The filter now reads its own id, not its own text.** `_typeFilterOpt` already carried ids 1..8, so the selection is
+  resolved through `GetSelectedId()` against a canonical key list and the ids are mapped back to indexes for the
+  preselect path. Category headings translate the key for display instead of printing it raw. This is a behaviour change
+  in a screen nobody asked about, taken because the alternative was translating the filter and shipping a control that
+  visibly breaks in nine languages; it is recorded here rather than in a task because it is a defect found while doing
+  the task, not a design decision.
+- **What was deliberately left in English, and why.** Map *data* stays untranslated: a template's
+  `Damage: 5 | Range: 2 | Type: pierce` description and a `Custom Preset 3` name are written into `metadata.json` and read
+  back as content, so translating them would write the editor's language into every player's copy of the map. The WASM
+  console keeps English too - its status line sits beside raw compiler output, it writes the same text to a log file, and
+  a translated `dotnet publish failed` would be harder to search for than to read. The inspector's `Pos / Rot / Scale`
+  abbreviations and numeric readouts were treated as notation rather than prose.
+- **The Settings overlay was not built.** The stated next step after this pass was letting Settings open over a match or
+  the editor, so language registration has somewhere to heal visibly. That is a new capability - a pause menu surface
+  that does not exist today, with its own input and lifecycle questions - so it is left as a documented limit in
+  [the test plan](docs/steam-test-plan.md) group K rather than invented here. Group K says plainly that registration is
+  observable live only on the Settings screen until that changes.
