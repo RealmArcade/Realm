@@ -208,6 +208,10 @@ public partial class GameOver : Control
 		if (_matchResultReported) return;
 		_matchResultReported = true;
 
+		// The result line is captured before any account check: an exported diagnostics summary states how the last match
+		// ended whether or not there is a record to report it against.
+		DiagnosticsService.LastMatchSummary = $"{(GameContext.IsGameOver ? "finished" : "left early")}, {(GameContext.SessionState.IsTestMode ? "playtest" : "match")}, map {GameContext.ActiveMapName}";
+
 		if (GameContext.Host?.IsRankedMultiplayerMatch != true) return;
 		if (!GameContext.Account.IsSignedIn) return;
 

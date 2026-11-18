@@ -51,8 +51,8 @@ public partial class MainMenu : Control
 	private PlayerProfileDialog? _profileDialog;
 	private AnnouncementsDialog _announcementsDialog = null!;
 	private DiscordCommunityDialog? _discordDialog;
-	private OptionButton _versionDropdown = null!;
-	private Label _outdatedLabel = null!;
+	private Label _steamStateLabel = null!;
+	private Button _steamRetryButton = null!;
 
 	private static Font _norseFont = null!;
 	private static Font _norseBoldFont = null!;
@@ -75,6 +75,60 @@ public partial class MainMenu : Control
 		GameContext.Account.Changed += OnAccountChanged;
 		RefreshAccountPresentation();
 		RestoreAccountSession();
+		ShowCrashOfferIfAny();
+	}
+
+	/// <summary>
+	///     Offers, once, to export the diagnostics of a session that ended unexpectedly. It is a single non-blocking row: a
+	///     modal on the main menu would greet a player with a dialog about a failure they have already moved past, and the
+	///     offer is recorded as seen so it cannot repeat.
+	/// </summary>
+	private void ShowCrashOfferIfAny()
+	{
+		string? crashPath = DiagnosticsService.UnacknowledgedCrashReport;
+		if (crashPath == null) return;
+
+		var row = new HBoxContainer();
+		row.Name = "CrashOfferRow_HBoxContainer";
+		row.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide);
+		row.OffsetTop = -44;
+		row.OffsetBottom = -12;
+		row.OffsetLeft = 24;
+		row.OffsetRight = -24;
+		row.AddThemeConstantOverride("separation", 12);
+		row.Alignment = BoxContainer.AlignmentMode.Center;
+		AddChild(row);
+
+		var label = new Label();
+		label.Name = "CrashOfferLabel_Label";
+		label.Text = TranslationServer.Translate("Realm closed unexpectedly last time. Export diagnostics?");
+		label.VerticalAlignment = VerticalAlignment.Center;
+		label.AddThemeColorOverride("font_color", new Color(0.95f, 0.7f, 0.35f));
+		label.AddThemeFontSizeOverride("font_size", 13);
+		row.AddChild(label);
+
+		var exportButton = UIStyle.CreateBareButton("CrashOfferExport_Button");
+		UIStyle.ApplyButtonText(exportButton, TranslationServer.Translate("EXPORT"), 12);
+		UIStyle.ApplyButtonStyleBoxes(exportButton);
+		exportButton.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		exportButton.Pressed += () =>
+		{
+			DiagnosticsService.ExportDiagnostics(includeSteamId: false);
+			DiagnosticsService.AcknowledgeCrashReport(crashPath);
+			row.QueueFree();
+		};
+		row.AddChild(exportButton);
+
+		var dismissButton = UIStyle.CreateBareButton("CrashOfferDismiss_Button");
+		UIStyle.ApplyButtonText(dismissButton, TranslationServer.Translate("DISMISS"), 12);
+		UIStyle.ApplyButtonStyleBoxes(dismissButton);
+		dismissButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		dismissButton.Pressed += () =>
+		{
+			DiagnosticsService.AcknowledgeCrashReport(crashPath);
+			row.QueueFree();
+		};
+		row.AddChild(dismissButton);
 	}
 
 	public override void _ExitTree()
@@ -388,6 +442,11 @@ public partial class MainMenu : Control
 		if (_socialPopoverOverlay != null) _socialPopoverOverlay.Visible = false;
 	}
 
+	/// <summary>
+	///     States the build this screen is running and, when Steamworks could not start, that Steam features are off, with the
+	///     one action that can change it. A build difference is a Steam update, so nothing here offers to fetch or run another
+	///     version of the game.
+	/// </summary>
 	private void CreateVersionSelector()
 	{
 		var versionBox = new HBoxContainer();
@@ -400,85 +459,51 @@ public partial class MainMenu : Control
 
 		var lbl = new Label();
 		lbl.Name = "Lbl_Label";
-		lbl.Text = TranslationServer.Translate("Version: ");
+		lbl.Text = string.Format(TranslationServer.Translate("Version: {0}"), RealmVersion.GameBinaryVersion);
 		lbl.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
 		lbl.AddThemeFontOverride("font", _norseFont);
 		lbl.AddThemeFontSizeOverride("font_size", 16);
 		lbl.VerticalAlignment = VerticalAlignment.Center;
 		versionBox.AddChild(lbl);
 
-		_versionDropdown = new OptionButton();
-		_versionDropdown.Name = "VersionDropdown_OptionButton";
-		_versionDropdown.CustomMinimumSize = new Vector2(160, 32);
-		_versionDropdown.AddThemeFontOverride("font", _norseFont);
-		_versionDropdown.AddThemeFontSizeOverride("font_size", 14);
-		_versionDropdown.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-		_versionDropdown.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		versionBox.AddChild(_versionDropdown);
+		_steamStateLabel = new Label();
+		_steamStateLabel.Name = "SteamStateLabel_Label";
+		_steamStateLabel.Text = TranslationServer.Translate("Steam features are off");
+		_steamStateLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.7f, 0.35f));
+		_steamStateLabel.AddThemeFontOverride("font", _norseFont);
+		_steamStateLabel.AddThemeFontSizeOverride("font_size", 14);
+		_steamStateLabel.VerticalAlignment = VerticalAlignment.Center;
+		_steamStateLabel.TooltipText = GameContext.Steam.UnavailableExplanation;
+		_steamStateLabel.Visible = !GameContext.Steam.IsAvailable;
+		versionBox.AddChild(_steamStateLabel);
 
-		_outdatedLabel = new Label();
-		_outdatedLabel.Name = "OutdatedLabel_Label";
-		_outdatedLabel.Text = TranslationServer.Translate("Outdated");
-		_outdatedLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.35f, 0.35f));
-		_outdatedLabel.AddThemeFontOverride("font", _norseFont);
-		_outdatedLabel.AddThemeFontSizeOverride("font_size", 14);
-		_outdatedLabel.VerticalAlignment = VerticalAlignment.Center;
-		_outdatedLabel.Visible = false;
-		versionBox.AddChild(_outdatedLabel);
-
-		var downloadBtn = new Button();
-		downloadBtn.Name = "DownloadBtn_Button";
-		downloadBtn.Text = TranslationServer.Translate("DOWNLOAD...");
-		downloadBtn.AddThemeFontOverride("font", _norseBoldFont);
-		downloadBtn.AddThemeFontSizeOverride("font_size", 12);
-		downloadBtn.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-		downloadBtn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		downloadBtn.CustomMinimumSize = new Vector2(110, 32);
-		UIStyle.ApplyButtonStyleBoxesClearingFocus(downloadBtn);
-		downloadBtn.Pressed += () => OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
-		versionBox.AddChild(downloadBtn);
-
-		PopulateVersionDropdown();
-		CheckForUpdatesAsync();
+		_steamRetryButton = UIStyle.CreateBareButton("SteamRetryButton_Button");
+		_steamRetryButton.Text = TranslationServer.Translate("RETRY STEAM");
+		_steamRetryButton.AddThemeFontOverride("font", _norseBoldFont);
+		_steamRetryButton.AddThemeFontSizeOverride("font_size", 12);
+		_steamRetryButton.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
+		_steamRetryButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		_steamRetryButton.CustomMinimumSize = new Vector2(140, 32);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_steamRetryButton);
+		_steamRetryButton.Visible = !GameContext.Steam.IsAvailable;
+		_steamRetryButton.Pressed += OnSteamRetryPressed;
+		versionBox.AddChild(_steamRetryButton);
 	}
 
-	private async void CheckForUpdatesAsync()
+	private void OnSteamRetryPressed()
 	{
-		if (await GameUpdateService.IsNewerReleasePublishedAsync())
+		GameContext.Steam.Retry();
+
+		bool available = GameContext.Steam.IsAvailable;
+		_steamStateLabel.Visible = !available;
+		_steamStateLabel.TooltipText = GameContext.Steam.UnavailableExplanation;
+		_steamRetryButton.Visible = !available;
+
+		if (!available)
 		{
-			_outdatedLabel.Visible = true;
-		}
-	}
-
-	private void PopulateVersionDropdown()
-	{
-		_versionDropdown.Clear();
-		_versionDropdown.AddItem(RealmVersion.GameBinaryVersion);
-		_versionDropdown.SetItemMetadata(0, "current");
-
-		if (!OS.HasFeature("editor"))
-		{
-			foreach (string version in GameUpdateService.GetOtherInstalledVersions(LobbyManager.GetBaseGameDirectory()))
-			{
-				_versionDropdown.AddItem(version);
-				_versionDropdown.SetItemMetadata(_versionDropdown.ItemCount - 1, version);
-			}
-		}
-
-		_versionDropdown.ItemSelected += OnVersionSelected;
-	}
-
-	private void OnVersionSelected(long index)
-	{
-		string meta = _versionDropdown.GetItemMetadata((int)index).AsString();
-		if (meta == "current" || string.IsNullOrEmpty(meta)) return;
-
-		string targetExe = LobbyManager.GetVersionExecutablePath(meta);
-
-		if (File.Exists(targetExe))
-		{
-			OS.CreateProcess(targetExe, new string[] { });
-			GetTree().Quit();
+			GameContext.UserInterface?.ShowPopupMessage(
+				TranslationServer.Translate("STEAM UNAVAILABLE"),
+				GameContext.Steam.UnavailableExplanation);
 		}
 	}
 

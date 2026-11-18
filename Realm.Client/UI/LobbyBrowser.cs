@@ -680,28 +680,15 @@ public partial class LobbyBrowser : Control
 		container.Visible = false;
 	}
 
-	private void ShowVersionMismatchPopup(string lobbyVersion, string currentVersion)
+	/// <summary>
+	///     States that a lobby is running a different build of the game and that Steam is what closes the gap. There is no
+	///     installed copy of another build to run and no page to download one from, so nothing here offers either.
+	/// </summary>
+	private void ShowDifferentBuildNotice(string lobbyVersion, string currentVersion)
 	{
-		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(lobbyVersion));
-
-		string promptText = versionExistsLocally
-			? Tr("The running game version doesn't match the lobby. Re-launch game with correct version?")
-			: Tr("The required game version is not installed. Download it?");
-		string message = $"{string.Format(Tr("Host Version: {0}"), lobbyVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
-
-		GameContext.UserInterface?.ShowConfirmationDialog(message, () =>
-		{
-			if (versionExistsLocally)
-			{
-				string targetExe = LobbyManager.GetVersionExecutablePath(lobbyVersion);
-				OS.CreateProcess(targetExe, new string[] { });
-				GetTree().Quit();
-			}
-			else
-			{
-				OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
-			}
-		}, confirmText: versionExistsLocally ? "RELAUNCH" : "DOWNLOAD", titleOverride: "VERSION MISMATCH");
+		GameContext.UserInterface?.ShowPopupMessage(
+			Tr("DIFFERENT GAME VERSION"),
+			$"{string.Format(Tr("This lobby is running Realm {0}, and this screen is running {1}."), lobbyVersion, currentVersion)}\n\n{Tr("Steam keeps every player on the current build. Restart Realm through Steam to update it.")}");
 	}
 
 	private void TriggerRefresh()

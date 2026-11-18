@@ -516,7 +516,7 @@ public partial class LobbyBrowser
 
 				if (!string.IsNullOrEmpty(data.GameVersion) && data.GameVersion != RealmVersion.GameBinaryVersion)
 				{
-					ShowVersionMismatchPopup(data.GameVersion, RealmVersion.GameBinaryVersion);
+					ShowDifferentBuildNotice(data.GameVersion, RealmVersion.GameBinaryVersion);
 					return;
 				}
 

@@ -28,6 +28,7 @@ public partial class ListenServerEntry : Node
 	private readonly ConcurrentQueue<string?> _incomingControlLines = new();
 	private readonly BlockingCollection<string> _pendingReplies = new(new ConcurrentQueue<string>(), 64);
 
+	private readonly SteamAuthorityContext _steam = new();
 	private ServerLog? _log;
 	private ServerNetworkChannel? _channel;
 	private ParentProcessWatchdog? _parentWatchdog;
@@ -51,8 +52,13 @@ public partial class ListenServerEntry : Node
 			return;
 		}
 
+		AuthorityCrashCapture.Install(_logPath);
+
 		_log = new ServerLog(_logPath);
 		_log.Write($"resident authority up pid={System.Environment.ProcessId} build={RealmVersion.GameBuildNumber}");
+
+		_steam.TryStart();
+		_log.Write(_steam.Describe());
 
 		_channel = GetNode<ServerNetworkChannel>("/root/RealmNetwork");
 
@@ -69,6 +75,8 @@ public partial class ListenServerEntry : Node
 	public override void _PhysicsProcess(double delta)
 	{
 		if (_log == null) return;
+
+		_steam.Pump();
 
 		DrainControlCommands();
 
@@ -214,6 +222,16 @@ public partial class ListenServerEntry : Node
 		EndMatch("a new match was put on this authority");
 
 		ServerArguments arguments = ServerArguments.From(command, _logPath, _dataFolderPath);
+
+		// Every seat in a networked match is a Steam identity and every remote peer reaches this process over Steam P2P, so a
+		// networked host is refused while Steamworks has no identity here. A loopback match needs no identity at all and is
+		// allowed through, which is what keeps single-player playable on a machine without a usable Steam client.
+		if (arguments.Lobby && !arguments.LoopbackOnly && !_steam.TryStart())
+		{
+			log.Write($"a networked match was refused because this authority has no Steam identity: {_steam.InitializationMessage}");
+			Reply(command, accepted: false, $"this authority has no Steam identity, so it cannot host a networked match: {_steam.InitializationMessage}");
+			return;
+		}
 		var transport = new EnetServerTransport(channel, command.Port, command.WasmDebug);
 		var host = new MatchHost(arguments, log, transport);
 
@@ -341,6 +359,8 @@ public partial class ListenServerEntry : Node
 		_log?.Write("stopped");
 		_log?.Dispose();
 		_log = null;
+
+		_steam.Dispose();
 
 		_parentWatchdog?.Dispose();
 		_parentWatchdog = null;

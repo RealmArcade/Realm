@@ -8,13 +8,15 @@ using Steamworks;
 namespace Realm.Client.Services;
 
 /// <summary>
-///     Owns the one Steamworks context this process ever has. Every account feature works without it, so a build that is not
-///     launched by Steam, a machine without the Steam client and a development run that has no native library all continue
-///     with <see cref="IsAvailable" /> false instead of failing. While it is false, Steam is not offered as a sign-in provider at
-///     all, because a ticket minted by this process is the only identity the authority can verify, and there is no way to mint
-///     one without the client. The process never relaunches itself into one fixed application: a single build is shipped as both
-///     the demo and the base game, so asking Steam to restart it under either id would send the other product's install to the
-///     wrong store page. It initialises against whichever application Steam launched it as instead.
+///     Owns the one Steamworks context this process ever has, and is the single identity a player has: the SteamID64, the
+///     persona name, the avatar and the AppID all come from here and nowhere else. Steam is the platform whenever the game
+///     runs, so no account feature is written to survive without it. A machine with no usable Steam client is a local-only
+///     installation: single-player, the editor, local maps and <c>.rmap</c> import still work, and every Steam-backed feature
+///     is absent rather than present and failing. There is no guest identity and no display name typed on this machine,
+///     because a name nothing verified would be the first step back to a second identity model. The process never relaunches
+///     itself into one fixed application: a single build is shipped as both the demo and the base game, so asking Steam to
+///     restart it under either id would send the other product's install to the wrong store page. It initialises against
+///     whichever application Steam launched it as instead.
 /// </summary>
 public partial class SteamService
 {
@@ -35,6 +37,12 @@ public partial class SteamService
 	private bool _initialized;
 
 	private bool _stopped;
+
+	private string _initializationMessage = string.Empty;
+
+	private Texture2D? _avatarTexture;
+
+	private ulong _avatarTextureSteamId;
 
 	private Callback<GetTicketForWebApiResponse_t>? _ticketResponseCallback;
 
@@ -71,6 +79,19 @@ public partial class SteamService
 
 	public bool IsAvailable => _initialized;
 
+	/// <summary>
+	///     Whether the player chose to continue without Steam at startup. It is the only thing that tells a local-only launch
+	///     apart from one that has not been asked yet, so a screen that offers Steam-backed actions can say why they are gone
+	///     instead of looking like a build that is still starting.
+	/// </summary>
+	public bool StartedWithoutSteam { get; private set; }
+
+	/// <summary>
+	///     What Steamworks said when it refused to start, verbatim and in English. The translated explanation is what the player
+	///     reads; this is what a support report needs, because a bare boolean makes every failure look the same.
+	/// </summary>
+	public string InitializationMessage => _initializationMessage;
+
 	public bool CanOpenStorePage => _initialized && SteamApplicationIds.FullGameAppId != 0;
 
 	/// <summary>
@@ -89,30 +110,60 @@ public partial class SteamService
 			if (result != ESteamAPIInitResult.k_ESteamAPIInitResult_OK)
 			{
 				UnavailableReason = DescribeUnavailableReason(result);
-				GameLog.LogToConsole($"[Steam] Steamworks stays off: {UnavailableReason} ({result}) {message}");
+				_initializationMessage = string.IsNullOrWhiteSpace(message) ? result.ToString() : message;
+				GameLog.LogToConsole($"[Steam] Steamworks stays off: {UnavailableReason} ({result}) {_initializationMessage}");
 				return;
 			}
 
 			_initialized = true;
 			UnavailableReason = SteamUnavailableReason.Available;
+			_initializationMessage = string.Empty;
+			StartedWithoutSteam = false;
 			RegisterLobbyCallbacks();
-			GameLog.LogToConsole($"[Steam] running as application {SteamUtils.GetAppID().m_AppId}");
+			GameLog.LogToConsole($"[Steam] running as application {SteamUtils.GetAppID().m_AppId}, player {SteamUser.GetSteamID().m_SteamID}");
 		}
 		catch (Exception exception) when (IsMissingNativeLibrary(exception))
 		{
 			UnavailableReason = SteamUnavailableReason.NativeLibraryMissing;
-			GameLog.LogToConsole($"[Steam] {NativeLibraryName} is not shipped with this build, so Steamworks stays off and Steam is not offered as a sign-in provider");
+			_initializationMessage = exception.Message;
+			GameLog.LogToConsole($"[Steam] {NativeLibraryName} is not shipped with this build, so Steamworks stays off and this installation can only play locally");
 		}
 		catch (Exception exception) when (IsMismatchedNativeLibrary(exception))
 		{
 			UnavailableReason = SteamUnavailableReason.NativeLibraryMismatch;
+			_initializationMessage = exception.Message;
 			GameLog.LogError($"[Steam] the {NativeLibraryName} shipped with this build does not match Steamworks.NET: {exception.Message}");
 		}
 		catch (Exception exception)
 		{
 			UnavailableReason = SteamUnavailableReason.InitializationFailed;
+			_initializationMessage = exception.Message;
 			GameLog.LogError($"[Steam] Steamworks is not usable in this build: {exception.Message}");
 		}
+	}
+
+	/// <summary>
+	///     Tries Steamworks again after a start that could not reach it, which is what the startup choice and the persistent
+	///     no-Steam marker offer. It is a no-op once Steamworks is running or was deliberately given up, so a screen cannot use
+	///     it to bring a shut-down context back.
+	/// </summary>
+	/// <returns>Whether Steamworks is running after the attempt.</returns>
+	public bool Retry()
+	{
+		if (_stopped || _initialized) return _initialized;
+
+		Start();
+		return _initialized;
+	}
+
+	/// <summary>
+	///     Records that the player chose to continue without Steam. Nothing about the process changes: it is a state the screens
+	///     read so they can hide what cannot work instead of offering it.
+	/// </summary>
+	public void ContinueWithoutSteam()
+	{
+		if (_initialized) return;
+		StartedWithoutSteam = true;
 	}
 
 	/// <summary>
@@ -163,8 +214,8 @@ public partial class SteamService
 	/// <summary>
 	///     Mints a single-use auth session ticket for the authority to exchange for this player's SteamID64, in the hex form the
 	///     Steam Web API accepts. The ticket arrives through a Steamworks callback that <see cref="Pump" /> delivers, so this must
-	///     be awaited from a frame that keeps pumping; an empty answer means Steamworks could not mint one, and the player still
-	///     has an unverified name to play under.
+	///     be awaited from a frame that keeps pumping; an empty answer means Steamworks could not mint one, and a screen that
+	///     needs a verified identity therefore cannot act.
 	/// </summary>
 	public async Task<string> RequestWebApiTicketAsync()
 	{
@@ -606,6 +657,45 @@ public partial class SteamService
 			{
 				GameLog.LogError($"[Steam] this player's Steam id could not be read: {exception.Message}");
 				return 0;
+			}
+		}
+	}
+
+	/// <summary>
+	///     The Steam avatar of the player this process is signed in as, as a texture ready to draw, or <c>null</c> while
+	///     Steamworks is not running or Steam has not produced one yet. The image is held on this service because Steam hands
+	///     out a handle rather than bytes: the texture is built once from that handle and given back to every screen that shows
+	///     who the player is.
+	/// </summary>
+	/// <returns>The player's Steam avatar, or <c>null</c> when there is no Steam identity to draw.</returns>
+	public Texture2D? PlayerAvatar
+	{
+		get
+		{
+			if (!_initialized) return null;
+
+			ulong steamId = SteamId;
+			if (steamId == 0) return null;
+			if (_avatarTexture != null && _avatarTextureSteamId == steamId) return _avatarTexture;
+
+			try
+			{
+				int avatarHandle = SteamFriends.GetLargeFriendAvatar(new CSteamID(steamId));
+				if (avatarHandle <= 0) return _avatarTexture;
+				if (!SteamUtils.GetImageSize(avatarHandle, out uint width, out uint height) || width == 0 || height == 0) return _avatarTexture;
+
+				var pixels = new byte[width * height * 4];
+				if (!SteamUtils.GetImageRGBA(avatarHandle, pixels, pixels.Length)) return _avatarTexture;
+
+				var image = Image.CreateFromData((int)width, (int)height, false, Image.Format.Rgba8, pixels);
+				_avatarTexture = ImageTexture.CreateFromImage(image);
+				_avatarTextureSteamId = steamId;
+				return _avatarTexture;
+			}
+			catch (Exception exception)
+			{
+				GameLog.LogError($"[Steam] this player's avatar could not be read: {exception.Message}");
+				return _avatarTexture;
 			}
 		}
 	}

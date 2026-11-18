@@ -576,21 +576,9 @@ public partial class LobbyCreate : Control
 
 	private void ShowMapBuildMismatchModal(string mapPath, string mapDisplayName, string mapBuildNumber, string currentBuildNumber)
 	{
-		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(mapBuildNumber));
+		string message = $"{string.Format(Tr("Map: {0}"), mapDisplayName)}\n{string.Format(Tr("Map Build: {0}"), mapBuildNumber)} | {string.Format(Tr("Current Build: {0}"), currentBuildNumber)}\n\n{Tr("This map was made on a different build of Realm. Restart through Steam to update the game, or open the map in the Map Editor to upgrade it.")}";
 
-		string promptText = Tr("This map is out of date. To host this match, download the matching game build or open the map in the Map Editor to upgrade it.");
-		string message = $"{string.Format(Tr("Map: {0}"), mapDisplayName)}\n{string.Format(Tr("Map Build: {0}"), mapBuildNumber)} | {string.Format(Tr("Current Build: {0}"), currentBuildNumber)}\n\n{promptText}";
-
-		GameContext.UserInterface?.ShowConfirmationDialog(message, () =>
-		{
-			if (versionExistsLocally)
-			{
-				string exePath = LobbyManager.GetVersionExecutablePath(mapBuildNumber);
-				OS.CreateProcess(exePath, Array.Empty<string>());
-				GetTree().Quit();
-			}
-			}, confirmText: versionExistsLocally ? string.Format(Tr("LAUNCH {0}"), mapBuildNumber) : string.Format(Tr("DOWNLOAD {0}"), mapBuildNumber),
-			cancelText: TranslationServer.Translate("CANCEL"), titleOverride: "MAP BUILD MISMATCH");
+		GameContext.UserInterface?.ShowPopupMessage(Tr("MAP BUILD MISMATCH"), message);
 	}
 
 	private void ShowHostErrorModal(string errorMessage)

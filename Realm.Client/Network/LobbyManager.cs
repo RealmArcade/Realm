@@ -72,33 +72,6 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
 
-	public static string GetBaseGameDirectory()
-	{
-		string exePath = OS.GetExecutablePath();
-		string baseDir = Path.GetDirectoryName(exePath) ?? "";
-
-		int versionsIndex = baseDir.IndexOf($"{Path.DirectorySeparatorChar}versions{Path.DirectorySeparatorChar}");
-		if (versionsIndex == -1) versionsIndex = baseDir.IndexOf("/versions/");
-		if (versionsIndex == -1 && baseDir.EndsWith($"{Path.DirectorySeparatorChar}versions")) versionsIndex = baseDir.Length - 9;
-		if (versionsIndex == -1 && baseDir.EndsWith("/versions")) versionsIndex = baseDir.Length - 9;
-
-		if (versionsIndex != -1)
-		{
-			baseDir = baseDir.Substring(0, versionsIndex);
-		}
-
-		return baseDir;
-	}
-
-	public static string GetVersionExecutablePath(string targetVersion)
-	{
-		string baseDir = GetBaseGameDirectory();
-		string exePath = OS.GetExecutablePath();
-		string fileName = Path.GetFileName(exePath);
-
-		return Path.Combine(baseDir, "versions", targetVersion, fileName);
-	}
-
 	public List<string> OfficialServers { get; private set; } = new();
 	public List<string> RegistryServers => OfficialServers;
 	private int _currentServerIndex = 0;

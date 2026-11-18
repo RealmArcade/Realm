@@ -141,6 +141,8 @@ public partial class UIManager : Control
 
 		GetTree().AutoAcceptQuit = false;
 
+		await EnsureSteamResolvedAsync();
+
 		if (GameContext.Lobby != null && GameContext.Lobby.IsGameStarted)
 		{
 			TransitionTo(GameScreen.InGameHUD);
@@ -149,6 +151,27 @@ public partial class UIManager : Control
 		{
 			TransitionTo(GameScreen.MainMenu);
 		}
+	}
+
+	/// <summary>
+	///     Holds the first screen until the player has either a working Steam identity or an explicit decision to play
+	///     without one. A launch that reaches Steam returns immediately; a launch that does not gets the choice, because
+	///     continuing into a menu with every Steam-backed action missing looks like a broken build rather than a local one.
+	/// </summary>
+	private async Task EnsureSteamResolvedAsync()
+	{
+		if (GameContext.Steam.IsAvailable || GameContext.Steam.StartedWithoutSteam) return;
+
+		var gate = new SteamStartupGate();
+		var resolved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		gate.Resolved += () => resolved.TrySetResult(true);
+		gate.QuitRequested += () => resolved.TrySetResult(false);
+		AddChild(gate);
+
+		bool continueIntoGame = await resolved.Task;
+
+		if (GodotObject.IsInstanceValid(gate)) gate.QueueFree();
+		if (!continueIntoGame) GetTree().Quit();
 	}
 
 	public override void _Notification(int what)

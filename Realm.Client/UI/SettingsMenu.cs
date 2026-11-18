@@ -169,8 +169,79 @@ public partial class SettingsMenu : Control
 		PopulateDropdowns();
 		SetupSliders();
 		SetupButtons();
+		BuildDiagnosticsRow();
 
 		LoadCurrentSettings();
+	}
+
+	/// <summary>
+	///     Adds the one diagnostics row to the gameplay panel: the folder the logs sit in, and one archive the player chooses
+	///     to produce and send. Nothing here uploads anything, and the row says whether the SteamID is included before it
+	///     writes the archive.
+	/// </summary>
+	private void BuildDiagnosticsRow()
+	{
+		var panel = GetNodeOrNull<VBoxContainer>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox");
+		if (panel == null || panel.HasNode("DiagnosticsRow")) return;
+
+		var separator = new HSeparator();
+		separator.Name = "DiagnosticsSeparator_HSeparator";
+		panel.AddChild(separator);
+
+		var row = new HBoxContainer();
+		row.Name = "DiagnosticsRow";
+		row.AddThemeConstantOverride("separation", 10);
+		panel.AddChild(row);
+
+		var title = new Label();
+		title.Name = "DiagnosticsTitle_Label";
+		title.Text = TranslationServer.Translate("Diagnostics");
+		title.VerticalAlignment = VerticalAlignment.Center;
+		title.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		title.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		title.AddThemeFontSizeOverride("font_size", 14);
+		row.AddChild(title);
+
+		var openButton = UIStyle.CreateBareButton("DiagnosticsOpenFolder_Button");
+		UIStyle.ApplyButtonText(openButton, TranslationServer.Translate("OPEN LOG FOLDER"), 12);
+		UIStyle.ApplyButtonStyleBoxes(openButton);
+		openButton.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		openButton.Pressed += DiagnosticsService.OpenLogFolder;
+		row.AddChild(openButton);
+
+		var exportButton = UIStyle.CreateBareButton("DiagnosticsExport_Button");
+		UIStyle.ApplyButtonText(exportButton, TranslationServer.Translate("EXPORT DIAGNOSTICS"), 12);
+		UIStyle.ApplyButtonStyleBoxes(exportButton);
+		exportButton.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		exportButton.Pressed += OnExportDiagnosticsPressed;
+		row.AddChild(exportButton);
+
+		var note = new Label();
+		note.Name = "DiagnosticsNote_Label";
+		note.Text = TranslationServer.Translate("Writes one archive of this session's logs to disk. Nothing is uploaded. Your SteamID is not included.");
+		note.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		note.CustomMinimumSize = new Vector2(420, 0);
+		note.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		note.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
+		note.AddThemeFontSizeOverride("font_size", 11);
+		panel.AddChild(note);
+	}
+
+	private void OnExportDiagnosticsPressed()
+	{
+		string archivePath = DiagnosticsService.ExportDiagnostics(includeSteamId: false);
+
+		if (archivePath.Length == 0)
+		{
+			GameContext.UserInterface?.ShowPopupMessage(
+				TranslationServer.Translate("EXPORT FAILED"),
+				TranslationServer.Translate("The diagnostics archive could not be written. Open the log folder and send the most recent log file instead."));
+			return;
+		}
+
+		GameContext.UserInterface?.ShowPopupMessage(
+			TranslationServer.Translate("DIAGNOSTICS EXPORTED"),
+			string.Format(TranslationServer.Translate("The archive was written to {0} and nothing was sent anywhere."), archivePath));
 	}
 
 	private void PopulateDropdowns()
