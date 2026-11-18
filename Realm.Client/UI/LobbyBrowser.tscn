@@ -150,7 +150,7 @@ vertical_alignment = 2
 [node name="SizeCol" type="Label" parent="LobbyPanel/VBoxContainer/TableHeader"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "SIZE"
+text = "CODE"
 vertical_alignment = 2
 
 [node name="ModeCol" type="Label" parent="LobbyPanel/VBoxContainer/TableHeader"]
@@ -165,10 +165,10 @@ size_flags_horizontal = 3
 text = "PLAYERS"
 vertical_alignment = 2
 
-[node name="PingCol" type="Label" parent="LobbyPanel/VBoxContainer/TableHeader"]
+[node name="BuildCol" type="Label" parent="LobbyPanel/VBoxContainer/TableHeader"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "PING  "
+text = "BUILD  "
 horizontal_alignment = 2
 vertical_alignment = 2
 

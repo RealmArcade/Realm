@@ -54,7 +54,7 @@ public partial class MapEditorHUD
 
 		if (string.IsNullOrWhiteSpace(accountUserName))
 		{
-			ShowFeedback(TranslationServer.Translate("Your account has no user name, so no authorship key can be created."));
+			ShowFeedback(TranslationServer.Translate("Your Steam profile has no name yet, so no authorship key can be created."));
 			return false;
 		}
 
@@ -368,7 +368,7 @@ public partial class MapEditorHUD
 			string accountUserName = GameContext.Steam.UserName;
 			if (string.IsNullOrWhiteSpace(accountUserName))
 			{
-				ShowFeedback(TranslationServer.Translate("Your account has no user name, so no authorship key can be created."));
+				ShowFeedback(TranslationServer.Translate("Your Steam profile has no name yet, so no authorship key can be created."));
 				return;
 			}
 

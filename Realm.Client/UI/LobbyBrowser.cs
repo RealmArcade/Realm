@@ -53,7 +53,7 @@ public partial class LobbyBrowser : Control
 	private Label _sizeCol = null!;
 	private Label _modeCol = null!;
 	private Label _playersCol = null!;
-	private Label _pingCol = null!;
+	private Label _buildCol = null!;
 	private Timer _refreshTimer = null!;
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
@@ -81,7 +81,7 @@ public partial class LobbyBrowser : Control
 		_sizeCol = GetNodeOrNull<Label>("LobbyPanel/VBoxContainer/TableHeader/SizeCol");
 		_modeCol = GetNode<Label>("LobbyPanel/VBoxContainer/TableHeader/ModeCol");
 		_playersCol = GetNode<Label>("LobbyPanel/VBoxContainer/TableHeader/PlayersCol");
-		_pingCol = GetNode<Label>("LobbyPanel/VBoxContainer/TableHeader/PingCol");
+		_buildCol = GetNode<Label>("LobbyPanel/VBoxContainer/TableHeader/BuildCol");
 
 
 		ApplyStyles();
@@ -216,7 +216,7 @@ public partial class LobbyBrowser : Control
 		tableHeader.GetParent().RemoveChild(tableHeader);
 		headerWrapper.AddChild(tableHeader);
 
-		foreach (var lbl in new[] { _mapCol, _sizeCol, _modeCol, _playersCol, _pingCol })
+		foreach (var lbl in new[] { _mapCol, _sizeCol, _modeCol, _playersCol, _buildCol })
 		{
 			if (lbl == null) continue;
 			lbl.Text = Tr(lbl.Text);
