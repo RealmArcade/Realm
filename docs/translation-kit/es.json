@@ -200,5 +200,16 @@
   "🗑️ Delete": "🗑️ Eliminar",
   "🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.": "🚀 [b]Publicar tu mapa[/b]\nTu mapa se sube al Steam Workshop bajo tu propia cuenta. Realm no revisa nada antes y no hay lista de espera: el elemento existe en cuanto termina la subida.\n\n[b]Quién puede verlo:[/b] eliges la visibilidad del elemento en Steam. Un elemento público aparece en la biblioteca de mapas del juego en cuanto Steam lo tiene; uno solo para amigos o privado sigue siendo jugable por cualquiera a quien se lo des, y por los jugadores para los que alojas.\n\n[b]Actualizarlo:[/b] volver a publicar actualiza el mismo elemento en su sitio, así que los suscriptores reciben la nueva versión. Si cambias el nombre del mapa, se crea un elemento nuevo, porque el elemento se encuentra por su nombre.\n\n[b]Jugarlo antes de publicar:[/b] usa Probar mapa para jugarlo directamente desde este espacio de trabajo, y aloja una sala con él para jugar con otras personas. Ninguno de los dos pasos necesita el Workshop.\n\n[b]Crédito:[/b] el propietario del elemento del Workshop es el autor registrado, y el manifiesto del mapa lista los mapas y recursos con los que se construyó para que sus creadores aparezcan acreditados en el juego.",
   "🛡️ Upgrades": "🛡️ Mejoras",
-  "🪄 Abilities": "🪄 Habilidades"
+  "🪄 Abilities": "🪄 Habilidades",
+  "Genre:": "Género:",
+  "Total Storage:": "Almacenamiento total:",
+  "Version:": "Versión:",
+  "BLAKE3: {0}  •  Size: {1}  •  Modified: {2}": "BLAKE3: {0}  •  Tamaño: {1}  •  Modificado: {2}",
+  "Downloading... {0}%": "Descargando... {0} %",
+  "1 Version": "1 versión",
+  "{0} Versions": "{0} versiones",
+  "MAP DETAILS: {0}": "DETALLES DEL MAPA: {0}",
+  "FILE SIZE: {0}": "TAMAÑO DEL ARCHIVO: {0}",
+  "ENGINE VERSION: {0}": "VERSIÓN DEL MOTOR: {0}",
+  "VERSION: {0}": "VERSIÓN: {0}"
 }

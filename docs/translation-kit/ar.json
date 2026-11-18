@@ -200,5 +200,16 @@
   "🗑️ Delete": "🗑️ حذف",
   "🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.": "🚀 [b]نشر خريطتك[/b]\nتُرفع خريطتك إلى Steam Workshop بحسابك الخاص. لا يراجع Realm شيئًا مسبقًا، ولا توجد قائمة انتظار: يصبح العنصر موجودًا بمجرد انتهاء الرفع.\n\n[b]من يمكنه رؤيتها:[/b] تختار ظهور العنصر على Steam. العنصر العام يظهر في مكتبة الخرائط داخل اللعبة بمجرد وصوله إلى Steam؛ أما العنصر المخصص للأصدقاء أو الخاص فيبقى قابلًا للعب من أي شخص تسلّمه إياه، ومن اللاعبين الذين تستضيف لهم.\n\n[b]تحديثها:[/b] النشر مرة أخرى يحدّث العنصر نفسه في مكانه، فيتلقى المشتركون الإصدار الجديد. إذا أعدت تسمية الخريطة، يُنشأ عنصر جديد بدلًا من ذلك، لأن العنصر يُعثر عليه باسمه.\n\n[b]لعبها قبل النشر:[/b] استخدم «اختبار الخريطة» للعبها مباشرة من مساحة العمل هذه، واستضف ردهة بها للعب مع آخرين. لا تحتاج أي من الخطوتين إلى Workshop.\n\n[b]النسبة:[/b] مالك عنصر Workshop هو المنشئ المسجّل، ويسرد بيان الخريطة الخرائط والأصول التي بُنيت منها لتُنسَب إلى منشئيها في اللعبة.",
   "🛡️ Upgrades": "🛡️ الترقيات",
-  "🪄 Abilities": "🪄 القدرات"
+  "🪄 Abilities": "🪄 القدرات",
+  "Genre:": "النوع:",
+  "Total Storage:": "إجمالي التخزين:",
+  "Version:": "الإصدار:",
+  "BLAKE3: {0}  •  Size: {1}  •  Modified: {2}": "BLAKE3: {0}  •  الحجم: {1}  •  آخر تعديل: {2}",
+  "Downloading... {0}%": "جارٍ التنزيل... {0}%",
+  "1 Version": "إصدار واحد",
+  "{0} Versions": "{0} إصدارات",
+  "MAP DETAILS: {0}": "تفاصيل الخريطة: {0}",
+  "FILE SIZE: {0}": "حجم الملف: {0}",
+  "ENGINE VERSION: {0}": "إصدار المحرك: {0}",
+  "VERSION: {0}": "الإصدار: {0}"
 }

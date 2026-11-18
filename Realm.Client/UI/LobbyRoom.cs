@@ -565,7 +565,9 @@ public partial class LobbyRoom : Control
 
 	private void UpdatePlayersHeading()
 	{
-		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({Lobby.PlayingPlayerCount}/{Lobby.OpenSlotCount})";
+		LocalizedText.Bind(_playersTitle, () => Lobby == null
+			? null
+			: $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({Lobby.PlayingPlayerCount}/{Lobby.OpenSlotCount})");
 	}
 
 	private bool CheckHostVersionMismatch()

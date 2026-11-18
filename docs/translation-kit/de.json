@@ -200,5 +200,16 @@
   "🗑️ Delete": "🗑️ Löschen",
   "🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.": "🚀 [b]Deine Karte veröffentlichen[/b]\nDeine Karte wird unter deinem eigenen Konto in den Steam Workshop hochgeladen. Realm prüft vorher nichts, und es gibt keine Warteliste: Der Eintrag existiert, sobald der Upload fertig ist.\n\n[b]Wer sie sehen kann:[/b] Die Sichtbarkeit des Eintrags stellst du auf Steam ein. Ein öffentlicher Eintrag erscheint in der Kartenbibliothek im Spiel, sobald Steam ihn hat; ein Eintrag nur für Freunde oder ein privater lässt sich weiterhin von jedem spielen, dem du ihn gibst, und von Spielern, für die du hostest.\n\n[b]Aktualisieren:[/b] Ein erneutes Veröffentlichen aktualisiert denselben Eintrag an Ort und Stelle, sodass Abonnenten die neue Version erhalten. Wenn du die Karte umbenennst, entsteht stattdessen ein neuer Eintrag, weil der Eintrag über seinen Namen gefunden wird.\n\n[b]Vor dem Veröffentlichen spielen:[/b] Mit „Karte testen“ spielst du sie direkt aus diesem Arbeitsbereich, und mit einer Lobby hostest du sie für andere. Keiner dieser Schritte braucht den Workshop.\n\n[b]Nennung:[/b] Der Besitzer des Workshop-Eintrags ist der eingetragene Autor, und das Manifest der Karte listet die Karten und Assets, aus denen sie gebaut wurde, damit ihre Ersteller im Spiel genannt werden.",
   "🛡️ Upgrades": "🛡️ Verbesserungen",
-  "🪄 Abilities": "🪄 Fähigkeiten"
+  "🪄 Abilities": "🪄 Fähigkeiten",
+  "Genre:": "Genre:",
+  "Total Storage:": "Gesamtspeicher:",
+  "Version:": "Version:",
+  "BLAKE3: {0}  •  Size: {1}  •  Modified: {2}": "BLAKE3: {0}  •  Größe: {1}  •  Geändert: {2}",
+  "Downloading... {0}%": "Wird heruntergeladen... {0}%",
+  "1 Version": "1 Version",
+  "{0} Versions": "{0} Versionen",
+  "MAP DETAILS: {0}": "KARTENDETAILS: {0}",
+  "FILE SIZE: {0}": "DATEIGRÖSSE: {0}",
+  "ENGINE VERSION: {0}": "ENGINE-VERSION: {0}",
+  "VERSION: {0}": "VERSION: {0}"
 }

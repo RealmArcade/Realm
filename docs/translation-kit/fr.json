@@ -200,5 +200,16 @@
   "🗑️ Delete": "🗑️ Supprimer",
   "🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.": "🚀 [b]Publier votre carte[/b]\nVotre carte est envoyée au Steam Workshop sous votre propre compte. Rien n’est examiné par Realm au préalable, et il n’y a pas de file d’attente : l’élément existe dès que l’envoi est terminé.\n\n[b]Qui peut la voir :[/b] vous choisissez la visibilité de l’élément sur Steam. Un élément public apparaît dans la bibliothèque de cartes du jeu dès que Steam l’a ; un élément réservé aux amis ou privé reste jouable par toute personne à qui vous le donnez, et par les joueurs pour qui vous hébergez.\n\n[b]La mettre à jour :[/b] publier à nouveau met à jour le même élément sur place, les abonnés reçoivent donc la nouvelle version. Si vous renommez la carte, un nouvel élément est créé à la place, car l’élément est retrouvé par son nom.\n\n[b]Y jouer avant de publier :[/b] utilisez Tester la carte pour y jouer directement depuis cet espace de travail, et hébergez un salon avec elle pour jouer avec d’autres. Aucune de ces étapes ne nécessite le Workshop.\n\n[b]Crédit :[/b] le propriétaire de l’élément Workshop est l’auteur enregistré, et le manifeste de la carte liste les cartes et ressources dont elle est construite, afin que leurs créateurs soient crédités en jeu.",
   "🛡️ Upgrades": "🛡️ Améliorations",
-  "🪄 Abilities": "🪄 Capacités"
+  "🪄 Abilities": "🪄 Capacités",
+  "Genre:": "Genre :",
+  "Total Storage:": "Stockage total :",
+  "Version:": "Version :",
+  "BLAKE3: {0}  •  Size: {1}  •  Modified: {2}": "BLAKE3 : {0}  •  Taille : {1}  •  Modifié : {2}",
+  "Downloading... {0}%": "Téléchargement... {0} %",
+  "1 Version": "1 version",
+  "{0} Versions": "{0} versions",
+  "MAP DETAILS: {0}": "DÉTAILS DE LA CARTE : {0}",
+  "FILE SIZE: {0}": "TAILLE DU FICHIER : {0}",
+  "ENGINE VERSION: {0}": "VERSION DU MOTEUR : {0}",
+  "VERSION: {0}": "VERSION : {0}"
 }

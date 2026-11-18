@@ -200,5 +200,16 @@
   "🗑️ Delete": "🗑️ 削除",
   "🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.": "🚀 [b]マップを公開する[/b]\nマップはあなた自身のアカウントで Steam Workshop にアップロードされます。Realm による事前審査はなく、順番待ちもありません。アップロードが終わった時点でアイテムは存在します。\n\n[b]誰が見られるか:[/b] アイテムの公開範囲は Steam 側で選びます。公開アイテムは Steam が受け取った時点でゲーム内のマップライブラリに表示されます。フレンド限定や非公開のアイテムでも、渡した相手やあなたがホストするプレイヤーは遊べます。\n\n[b]更新する:[/b] もう一度公開すると同じアイテムがその場で更新され、購読者に新しいバージョンが届きます。マップの名前を変えると、アイテムは名前で検索されるため新しいアイテムが作られます。\n\n[b]公開前に遊ぶ:[/b] 「マップをテスト」でこのワークスペースから直接遊べ、ロビーを立てれば他の人と遊べます。どちらも Workshop を必要としません。\n\n[b]クレジット:[/b] Workshop アイテムの所有者が記録上の作者となり、マップのマニフェストには構成に使ったマップとアセットが並ぶため、それらの制作者もゲーム内でクレジットされます。",
   "🛡️ Upgrades": "🛡️ アップグレード",
-  "🪄 Abilities": "🪄 アビリティ"
+  "🪄 Abilities": "🪄 アビリティ",
+  "Genre:": "ジャンル:",
+  "Total Storage:": "合計ストレージ:",
+  "Version:": "バージョン:",
+  "BLAKE3: {0}  •  Size: {1}  •  Modified: {2}": "BLAKE3: {0}  •  サイズ: {1}  •  更新: {2}",
+  "Downloading... {0}%": "ダウンロード中... {0}%",
+  "1 Version": "1 バージョン",
+  "{0} Versions": "{0} バージョン",
+  "MAP DETAILS: {0}": "マップ詳細: {0}",
+  "FILE SIZE: {0}": "ファイルサイズ: {0}",
+  "ENGINE VERSION: {0}": "エンジンバージョン: {0}",
+  "VERSION: {0}": "バージョン: {0}"
 }

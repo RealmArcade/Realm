@@ -200,5 +200,16 @@
   "🗑️ Delete": "🗑️ हटाएं",
   "🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.": "🚀 [b]अपना मानचित्र प्रकाशित करना[/b]\nआपका मानचित्र आपके अपने खाते से Steam Workshop पर अपलोड होता है। Realm पहले कुछ समीक्षा नहीं करता, और कोई प्रतीक्षा सूची नहीं है: अपलोड पूरा होते ही आइटम मौजूद होता है।\n\n[b]कौन देख सकता है:[/b] आइटम की दृश्यता आप Steam पर चुनते हैं। सार्वजनिक आइटम Steam के पास आते ही इन-गेम मानचित्र लाइब्रेरी में दिखता है; केवल-मित्र या निजी आइटम भी उस हर व्यक्ति द्वारा खेला जा सकता है जिसे आप इसे देते हैं, और उन खिलाड़ियों द्वारा जिनके लिए आप होस्ट करते हैं।\n\n[b]इसे अपडेट करना:[/b] दोबारा प्रकाशित करने पर वही आइटम उसी जगह अपडेट होता है, इसलिए सदस्यों को नया संस्करण मिलता है। यदि आप मानचित्र का नाम बदलते हैं, तो इसके बजाय नया आइटम बनता है, क्योंकि आइटम उसके नाम से खोजा जाता है।\n\n[b]प्रकाशन से पहले खेलना:[/b] «मानचित्र का परीक्षण» से इसे सीधे इस कार्यक्षेत्र से खेलें, और इसके साथ लॉबी होस्ट करके दूसरों के साथ खेलें। दोनों में से किसी चरण को Workshop की ज़रूरत नहीं।\n\n[b]श्रेय:[/b] Workshop आइटम का स्वामी दर्ज निर्माता होता है, और मानचित्र का मेनिफ़ेस्ट उन मानचित्रों और एसेट को सूचीबद्ध करता है जिनसे यह बना, ताकि उनके निर्माताओं को गेम में श्रेय मिले।",
   "🛡️ Upgrades": "🛡️ अपग्रेड",
-  "🪄 Abilities": "🪄 क्षमताएं"
+  "🪄 Abilities": "🪄 क्षमताएं",
+  "Genre:": "शैली:",
+  "Total Storage:": "कुल संग्रहण:",
+  "Version:": "संस्करण:",
+  "BLAKE3: {0}  •  Size: {1}  •  Modified: {2}": "BLAKE3: {0}  •  आकार: {1}  •  अंतिम बदलाव: {2}",
+  "Downloading... {0}%": "डाउनलोड हो रहा है... {0}%",
+  "1 Version": "1 संस्करण",
+  "{0} Versions": "{0} संस्करण",
+  "MAP DETAILS: {0}": "मानचित्र विवरण: {0}",
+  "FILE SIZE: {0}": "फ़ाइल आकार: {0}",
+  "ENGINE VERSION: {0}": "इंजन संस्करण: {0}",
+  "VERSION: {0}": "संस्करण: {0}"
 }

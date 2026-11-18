@@ -200,5 +200,16 @@
   "🗑️ Delete": "🗑️ 삭제",
   "🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.": "🚀 [b]내 맵 게시하기[/b]\n맵은 내 계정으로 Steam Workshop에 업로드됩니다. Realm이 미리 검토하지 않으며 대기 목록도 없습니다. 업로드가 끝나는 즉시 아이템이 존재합니다.\n\n[b]누가 볼 수 있는지:[/b] 아이템 공개 범위는 Steam에서 직접 고릅니다. 공개 아이템은 Steam이 받는 즉시 게임 내 맵 라이브러리에 나타납니다. 친구 전용이나 비공개 아이템도 건네준 사람과 내가 호스트하는 플레이어는 플레이할 수 있습니다.\n\n[b]업데이트:[/b] 다시 게시하면 같은 아이템이 그 자리에서 업데이트되어 구독자가 새 버전을 받습니다. 맵 이름을 바꾸면 아이템은 이름으로 찾기 때문에 대신 새 아이템이 만들어집니다.\n\n[b]게시 전에 플레이:[/b] '맵 테스트'로 이 작업 공간에서 바로 플레이하고, 로비를 열어 다른 사람과 플레이하세요. 두 단계 모두 Workshop이 필요하지 않습니다.\n\n[b]크레디트:[/b] Workshop 아이템의 소유자가 기록상 제작자이며, 맵의 매니페스트에는 구성에 사용한 맵과 에셋이 나열되어 그 제작자들도 게임에서 크레디트를 받습니다.",
   "🛡️ Upgrades": "🛡️ 업그레이드",
-  "🪄 Abilities": "🪄 능력"
+  "🪄 Abilities": "🪄 능력",
+  "Genre:": "장르:",
+  "Total Storage:": "총 저장 공간:",
+  "Version:": "버전:",
+  "BLAKE3: {0}  •  Size: {1}  •  Modified: {2}": "BLAKE3: {0}  •  크기: {1}  •  수정: {2}",
+  "Downloading... {0}%": "내려받는 중... {0}%",
+  "1 Version": "버전 1개",
+  "{0} Versions": "버전 {0}개",
+  "MAP DETAILS: {0}": "맵 상세 정보: {0}",
+  "FILE SIZE: {0}": "파일 크기: {0}",
+  "ENGINE VERSION: {0}": "엔진 버전: {0}",
+  "VERSION: {0}": "버전: {0}"
 }

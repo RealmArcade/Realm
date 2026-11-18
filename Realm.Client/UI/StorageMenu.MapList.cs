@@ -129,7 +129,9 @@ public partial class StorageMenu
 
 		var subLbl = new Label();
 		subLbl.Name = "SubLbl_Label";
-		string versionsText = map.Versions.Count == 1 ? "1 Version" : $"{map.Versions.Count} Versions";
+		string versionsText = map.Versions.Count == 1
+			? TranslationServer.Translate("1 Version")
+			: string.Format(TranslationServer.Translate("{0} Versions"), map.Versions.Count);
 		subLbl.Text = $"{map.Author} • {versionsText} • {map.FormattedTotalSize}";
 		subLbl.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		subLbl.AddThemeFontSizeOverride("font_size", 11);
@@ -155,10 +157,12 @@ public partial class StorageMenu
 		_selectedMapContainer.Visible = true;
 
 		_selectedTitleLabel.Text = map.Title;
-		_selectedAuthorLabel.Text = $"Author: {map.Author}";
-		_selectedGenreLabel.Text = $"Genre: {map.Genre}" + (map.Tags.Count > 0 ? $" • Tags: {string.Join(", ", map.Tags)}" : "");
-		_selectedTotalSizeLabel.Text = $"Total Storage: {map.FormattedTotalSize}";
-		_selectedDescriptionLabel.Text = !string.IsNullOrWhiteSpace(map.Description) ? map.Description : "No description provided.";
+		LocalizedText.Bind(_selectedAuthorLabel, () => $"{TranslationServer.Translate("Author:")} {map.Author}");
+		LocalizedText.Bind(_selectedGenreLabel, () => map.Tags.Count > 0
+			? $"{TranslationServer.Translate("Genre:")} {map.Genre}  •  {TranslationServer.Translate("Tags:")} {string.Join(", ", map.Tags)}"
+			: $"{TranslationServer.Translate("Genre:")} {map.Genre}");
+		LocalizedText.Bind(_selectedTotalSizeLabel, () => $"{TranslationServer.Translate("Total Storage:")} {map.FormattedTotalSize}");
+		LocalizedText.Bind(_selectedDescriptionLabel, () => !string.IsNullOrWhiteSpace(map.Description) ? map.Description : TranslationServer.Translate("No description provided."));
 
 		if (!string.IsNullOrEmpty(map.ThumbnailPath) && File.Exists(map.ThumbnailPath))
 		{
@@ -225,7 +229,7 @@ public partial class StorageMenu
 
 		var verLabel = new Label();
 		verLabel.Name = "VerLabel_Label";
-		verLabel.Text = $"Version {version.Version}";
+		LocalizedText.Bind(verLabel, () => $"{TranslationServer.Translate("Version:")} {version.Version}");
 		verLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		verLabel.AddThemeFontSizeOverride("font_size", 14);
 		verLabel.MouseFilter = MouseFilterEnum.Ignore;
@@ -234,7 +238,11 @@ public partial class StorageMenu
 		var detailsLabel = new Label();
 		detailsLabel.Name = "DetailsLabel_Label";
 		string shortHash = version.ManifestHash.Length >= 12 ? version.ManifestHash.Substring(0, 12) + "..." : version.ManifestHash;
-		detailsLabel.Text = $"BLAKE3: {shortHash}  •  Size: {version.FormattedSize}  •  Modified: {version.LastModified:yyyy-MM-dd HH:mm}";
+		LocalizedText.Bind(detailsLabel, () => string.Format(
+			TranslationServer.Translate("BLAKE3: {0}  •  Size: {1}  •  Modified: {2}"),
+			shortHash,
+			version.FormattedSize,
+			version.LastModified.ToString("yyyy-MM-dd HH:mm")));
 		detailsLabel.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
 		detailsLabel.AddThemeFontSizeOverride("font_size", 11);
 		detailsLabel.MouseFilter = MouseFilterEnum.Ignore;

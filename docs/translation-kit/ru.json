@@ -200,5 +200,16 @@
   "🗑️ Delete": "🗑️ Удалить",
   "🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.": "🚀 [b]Публикация вашей карты[/b]\nКарта загружается в Steam Workshop под вашей учётной записью. Realm ничего не проверяет заранее, и списка ожидания нет: элемент существует, как только загрузка завершится.\n\n[b]Кто её видит:[/b] видимость элемента вы задаёте в Steam. Открытый элемент появляется в библиотеке карт в игре, как только Steam его получит; элемент только для друзей или приватный всё равно доступен для игры любому, кому вы его передадите, и игрокам, для которых вы размещаете лобби.\n\n[b]Обновление:[/b] повторная публикация обновляет тот же элемент на месте, поэтому подписчики получают новую версию. Если переименовать карту, вместо этого создаётся новый элемент, потому что элемент находится по имени.\n\n[b]Игра до публикации:[/b] используйте «Проверить карту», чтобы играть прямо из этого рабочего пространства, и разместите лобби с ней, чтобы играть с другими. Ни один из шагов не требует Workshop.\n\n[b]Указание автора:[/b] владелец элемента Workshop — официально указанный автор, а манифест карты перечисляет карты и ресурсы, из которых она собрана, чтобы их авторы были указаны в игре.",
   "🛡️ Upgrades": "🛡️ Улучшения",
-  "🪄 Abilities": "🪄 Способности"
+  "🪄 Abilities": "🪄 Способности",
+  "Genre:": "Жанр:",
+  "Total Storage:": "Всего занято:",
+  "Version:": "Версия:",
+  "BLAKE3: {0}  •  Size: {1}  •  Modified: {2}": "BLAKE3: {0}  •  Размер: {1}  •  Изменено: {2}",
+  "Downloading... {0}%": "Загрузка... {0}%",
+  "1 Version": "1 версия",
+  "{0} Versions": "Версий: {0}",
+  "MAP DETAILS: {0}": "О КАРТЕ: {0}",
+  "FILE SIZE: {0}": "РАЗМЕР ФАЙЛА: {0}",
+  "ENGINE VERSION: {0}": "ВЕРСИЯ ДВИЖКА: {0}",
+  "VERSION: {0}": "ВЕРСИЯ: {0}"
 }

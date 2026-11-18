@@ -104,12 +104,10 @@ public partial class MapDetails
 
 		if (_mapData == null) return;
 
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/gold_g.webp",
-			string.Format(TranslationServer.Translate("POSITIVE: {0}%"), _mapData.PositivePercent));
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/alliance_flag.webp",
-			string.Format(TranslationServer.Translate("VOTES: {0}"), _mapData.VotesUp + _mapData.VotesDown));
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/clock.webp",
-			string.Format(TranslationServer.Translate("LAST UPDATED: {0}"), _mapData.UpdatedOn?.ToString("yyyy-MM-dd") ?? TranslationServer.Translate("unknown")));
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/gold_g.webp", "POSITIVE: {0}%", _mapData.PositivePercent);
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/alliance_flag.webp", "VOTES: {0}", _mapData.VotesUp + _mapData.VotesDown);
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/clock.webp", "LAST UPDATED: {0}",
+			_mapData.UpdatedOn?.ToString("yyyy-MM-dd") ?? TranslationServer.Translate("unknown"));
 	}
 
 	private void PopulateTechInfo()
@@ -121,14 +119,14 @@ public partial class MapDetails
 
 		if (_mapData == null) return;
 
-		AddStatRow(_techInfoContainer, "res://Assets/UI/wood_logs.webp", $"FILE SIZE: {_mapData.FileSize}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/gold_g.webp", $"ENGINE VERSION: {_mapData.EngineVersion}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_shield.webp",
-			string.Format(TranslationServer.Translate("WORKSHOP ITEM: {0}"), _mapData.WorkshopId != 0 ? _mapData.WorkshopId.ToString() : TranslationServer.Translate("not published")));
-		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_axe.webp", $"VERSION: {_mapData.Version}");
+		AddStatRow(_techInfoContainer, "res://Assets/UI/wood_logs.webp", "FILE SIZE: {0}", _mapData.FileSize);
+		AddStatRow(_techInfoContainer, "res://Assets/UI/gold_g.webp", "ENGINE VERSION: {0}", _mapData.EngineVersion);
+		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_shield.webp", "WORKSHOP ITEM: {0}",
+			_mapData.WorkshopId != 0 ? _mapData.WorkshopId.ToString() : TranslationServer.Translate("not published"));
+		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_axe.webp", "VERSION: {0}", _mapData.Version);
 	}
 
-	private void AddStatRow(VBoxContainer container, string iconPath, string text)
+	private void AddStatRow(VBoxContainer container, string iconPath, string template, params object?[] arguments)
 	{
 		var rowPanel = new PanelContainer();
 		rowPanel.Name = "RowPanel_PanelContainer";
@@ -148,39 +146,36 @@ public partial class MapDetails
 		icon.Texture = TrimmedTextureLoader.LoadTrimmedTexture(iconPath);
 		hBox.AddChild(icon);
 
-		string[] parts = text.Split(new char[] { ':' }, 2);
-		if (parts.Length == 2)
-		{
-			var keyLabel = new Label();
-			keyLabel.Name = "KeyLabel_Label";
-			keyLabel.Text = parts[0].Trim() + ":";
-			keyLabel.VerticalAlignment = VerticalAlignment.Center;
-			keyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-			keyLabel.AddThemeFontSizeOverride("font_size", 12);
-			hBox.AddChild(keyLabel);
+		var keyLabel = new Label();
+		keyLabel.Name = "KeyLabel_Label";
+		keyLabel.VerticalAlignment = VerticalAlignment.Center;
+		keyLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		keyLabel.AddThemeFontSizeOverride("font_size", 12);
+		hBox.AddChild(keyLabel);
 
-			var valueLabel = new Label();
-			valueLabel.Name = "ValueLabel_Label";
-			valueLabel.Text = parts[1].Trim();
-			valueLabel.VerticalAlignment = VerticalAlignment.Center;
-			valueLabel.AddThemeColorOverride("font_color", new Color(0.92f, 0.94f, 0.98f));
-			valueLabel.AddThemeFontSizeOverride("font_size", 13);
-			valueLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			hBox.AddChild(valueLabel);
-		}
-		else
-		{
-			var label = new Label();
-			label.Name = "Label_Label";
-			label.Text = text;
-			label.VerticalAlignment = VerticalAlignment.Center;
-			label.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-			label.AddThemeFontSizeOverride("font_size", 13);
-			hBox.AddChild(label);
-		}
+		var valueLabel = new Label();
+		valueLabel.Name = "ValueLabel_Label";
+		valueLabel.VerticalAlignment = VerticalAlignment.Center;
+		valueLabel.AddThemeColorOverride("font_color", new Color(0.92f, 0.94f, 0.98f));
+		valueLabel.AddThemeFontSizeOverride("font_size", 13);
+		valueLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		hBox.AddChild(valueLabel);
+
+		LocalizedText.Bind(keyLabel, () => SplitStatRow(template, arguments).Key);
+		LocalizedText.Bind(valueLabel, () => SplitStatRow(template, arguments).Value);
 
 		container.AddChild(rowPanel);
 		AttachHoverAnimation(rowPanel, 1.02f, UIStyle.ColorGoldDull, new Color(0.45f, 0.38f, 0.25f, 0.35f));
+	}
+
+	private static (string Key, string Value) SplitStatRow(string template, object?[] arguments)
+	{
+		string translated = TranslationServer.Translate(template);
+		string formatted = arguments.Length == 0 ? translated : string.Format(translated, arguments);
+
+		int separator = formatted.IndexOfAny([':', '：']);
+		if (separator <= 0) return (string.Empty, formatted.Trim());
+		return (formatted[..(separator + 1)], formatted[(separator + 1)..].Trim());
 	}
 
 	private void WrapSectionInCard(VBoxContainer parent, Label titleLabel, Control contentControl, bool isAccentCard = false)

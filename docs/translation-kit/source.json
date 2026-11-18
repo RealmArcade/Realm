@@ -200,5 +200,16 @@
   "🗑️ Delete": "🗑️ Delete",
   "🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.": "🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.",
   "🛡️ Upgrades": "🛡️ Upgrades",
-  "🪄 Abilities": "🪄 Abilities"
+  "🪄 Abilities": "🪄 Abilities",
+  "Genre:": "Genre:",
+  "Total Storage:": "Total Storage:",
+  "Version:": "Version:",
+  "BLAKE3: {0}  •  Size: {1}  •  Modified: {2}": "BLAKE3: {0}  •  Size: {1}  •  Modified: {2}",
+  "Downloading... {0}%": "Downloading... {0}%",
+  "1 Version": "1 Version",
+  "{0} Versions": "{0} Versions",
+  "MAP DETAILS: {0}": "MAP DETAILS: {0}",
+  "FILE SIZE: {0}": "FILE SIZE: {0}",
+  "ENGINE VERSION: {0}": "ENGINE VERSION: {0}",
+  "VERSION: {0}": "VERSION: {0}"
 }

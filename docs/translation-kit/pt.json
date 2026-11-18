@@ -200,5 +200,16 @@
   "🗑️ Delete": "🗑️ Excluir",
   "🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.": "🚀 [b]Publicar o seu mapa[/b]\nSeu mapa é enviado ao Steam Workshop na sua própria conta. Nada é revisado pelo Realm antes, e não há fila de espera: o item existe assim que o upload termina.\n\n[b]Quem pode vê-lo:[/b] você escolhe a visibilidade do item na Steam. Um item público aparece na biblioteca de mapas do jogo assim que a Steam o tiver; um item somente para amigos ou privado continua jogável por qualquer pessoa a quem você o entregue, e pelos jogadores para quem você hospeda.\n\n[b]Atualizá-lo:[/b] publicar novamente atualiza o mesmo item no lugar, então os inscritos recebem a nova versão. Se você renomear o mapa, um novo item é criado, porque o item é encontrado pelo nome.\n\n[b]Jogá-lo antes de publicar:[/b] use Testar mapa para jogá-lo direto deste espaço de trabalho, e hospede uma sala com ele para jogar com outras pessoas. Nenhuma das etapas precisa do Workshop.\n\n[b]Crédito:[/b] o dono do item do Workshop é o autor registrado, e o manifesto do mapa lista os mapas e recursos com que foi construído para que seus criadores sejam creditados no jogo.",
   "🛡️ Upgrades": "🛡️ Melhorias",
-  "🪄 Abilities": "🪄 Habilidades"
+  "🪄 Abilities": "🪄 Habilidades",
+  "Genre:": "Gênero:",
+  "Total Storage:": "Armazenamento total:",
+  "Version:": "Versão:",
+  "BLAKE3: {0}  •  Size: {1}  •  Modified: {2}": "BLAKE3: {0}  •  Tamanho: {1}  •  Modificado: {2}",
+  "Downloading... {0}%": "Baixando... {0}%",
+  "1 Version": "1 versão",
+  "{0} Versions": "{0} versões",
+  "MAP DETAILS: {0}": "DETALHES DO MAPA: {0}",
+  "FILE SIZE: {0}": "TAMANHO DO ARQUIVO: {0}",
+  "ENGINE VERSION: {0}": "VERSÃO DA ENGINE: {0}",
+  "VERSION: {0}": "VERSÃO: {0}"
 }

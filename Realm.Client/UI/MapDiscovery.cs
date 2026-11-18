@@ -460,7 +460,7 @@ public partial class MapDiscovery : Control
 
 		var creator = new Label();
 		creator.Name = "Creator_Label";
-		creator.Text = $"By: {map.Creator}  •  {map.Genre}";
+		LocalizedText.Bind(creator, () => $"{string.Format(TranslationServer.Translate("By: {0}"), map.Creator)}  •  {map.Genre}");
 		if (_fontNorseBold != null) creator.AddThemeFontOverride("font", _fontNorseBold);
 		creator.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		creator.AddThemeFontSizeOverride("font_size", 14);

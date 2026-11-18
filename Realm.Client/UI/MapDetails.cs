@@ -470,7 +470,8 @@ public partial class MapDetails : Control
 	{
 		if (_mapData == null) return;
 
-		UIStyle.ApplyTitle(_titleLabel, $"MAP DETAILS: {_mapData.Title}", 28);
+		UIStyle.ApplyTitle(_titleLabel, TranslationServer.Translate("MAP DETAILS: {0}"), 28);
+		LocalizedText.Set(_titleLabel, "MAP DETAILS: {0}", _mapData.Title);
 		_creatorLabel.Text = _mapData.Creator.Length > 0
 			? string.Format(TranslationServer.Translate("By: {0}"), _mapData.Creator)
 			: TranslationServer.Translate("By: an author Steam has not named");
@@ -516,7 +517,7 @@ public partial class MapDetails : Control
 		else
 		{
 			UIStyle.ApplyButtonText(_downloadButton, TranslationServer.Translate("DOWNLOAD MAP"), 18);
-			_downloadSubtitle.Text = $"File Size: {_mapData.FileSize}";
+			_downloadSubtitle.Text = string.Format(TranslationServer.Translate("FILE SIZE: {0}"), _mapData.FileSize);
 			_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		}
 	}
@@ -616,7 +617,7 @@ public partial class MapDetails : Control
 				{
 					lastReportedPercent = currentPercent;
 					_downloadProgress = currentPercent;
-					_downloadButton.Text = $"Downloading... {currentPercent}%";
+					_downloadButton.Text = string.Format(TranslationServer.Translate("Downloading... {0}%"), currentPercent);
 					_downloadSubtitle.Text = $"{currentPercent}% ({_mapData.FileSize})";
 				}
 			},
