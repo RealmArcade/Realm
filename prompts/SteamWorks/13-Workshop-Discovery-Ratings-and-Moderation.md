@@ -22,7 +22,7 @@ Steam Workshop already provides the listing, preview, description, tags, search,
 ## Requirements
 
 1. **Discovery is Workshop search.** Browse and search map items by title, tags, trend, rating, newest and most subscribed. Use Steam's paging and filters. Do not keep a Realm discovery feed or a Realm ranking algorithm.
-2. **Ratings are Workshop up/down votes, not stars.** Show a positive percentage and a vote count (`m_unVotesUp` / `m_unVotesDown`), plus favorites/subscribers. Remove the Realm star rating, the "verified review" badge and the written-review system. Do not synthesise a 1-5 star widget from `m_flScore`; that would be fake precision on a Bayesian average.
+2. **Ratings are Workshop up/down votes, not stars.** Show a positive percentage and a vote count (`m_unVotesUp` / `m_unVotesDown`), plus favorites/subscribers. Remove the Realm star rating, the "verified review" badge and the written-review system, including their UI: the end-of-match star picker is `Realm.Client/UI/GameOver.ReviewPopup.cs` and the submit path is `GameOver.Metrics.cs`. Delete both with the backend, or a star widget survives with nothing to send to and a player gets a prompt for a review that cannot be posted. Do not synthesise a 1-5 star widget from `m_flScore`; that would be fake precision on a Bayesian average.
 3. **Reviews become Workshop comments.** Do not embed a review composer, a star picker or a text body. Provide an "Open on Steam Workshop" action where the player can read and write comments in Steam. Remove review moderation tools.
 4. **Greenlight and beta disappear.** A map is published at the visibility its author chose. There is no 100-review threshold, no [Beta-Testing] prefix and no Realm approval step. If the game needs a quality signal, use the trusted filter below or a small curated list of Workshop item IDs maintained by the developer. Do not rebuild voting thresholds and do not turn the curated list into a publish gate.
 5. **Creator views are Workshop-derived, with Steam profile links.** Remove creator registration, the old creator portal pages, maintainer lists and name reservation. The item owner is the author; group Workshop items by `m_ulSteamIDOwner`, query that owner's published items with `CreateQueryUserUGCRequest` **for the current AppID only**, and link to their Steam profile and Workshop author page. Steam has no global creator directory, so this is a derived view, not a complete index. Each creator row shows the Steam persona and avatar, up to five other published items **for this AppID** (never items from another game), the map's optional Discord server invite, and "View Steam Profile" / "View Workshop" actions (task 16). The game does not store profile fields or display donation links; it only reads Steam, opens Steam's pages and opens the one Discord invite declared by the map.
@@ -57,7 +57,7 @@ Steam Workshop already provides the listing, preview, description, tags, search,
 ## Acceptance criteria
 
 - Map discovery uses Workshop search, tags and sorting.
-- Ratings and favorites come from Workshop up/down votes; the custom review/star system is gone.
+- Ratings and favorites come from Workshop up/down votes; the custom review/star system is gone, including `GameOver.ReviewPopup.cs` and the review submit in `GameOver.Metrics.cs`, with no orphaned star control or localization key left behind.
 - No greenlight, beta prefix, awards, screenshots gallery, playtime metric or creator registration remains.
 - Reporting and moderation link to Steam Workshop; the ban and incompatible actions are documented.
 - A Verified list is a Workshop collection or a static curation list, not a voting service or a publish gate.
@@ -80,7 +80,7 @@ Steam Workshop already provides the listing, preview, description, tags, search,
 - Do not assume Realm can delete a Workshop item. It can ban or mark incompatible; only the owner or Valve can delete.
 - Do not build a CDN purge service. If a Realm mirror exists, prune the mirror only.
 - Do not build a creator database in the game. Derive creator views from Workshop items and link to Steam's profile and Workshop pages (task 16); there is no Realm profile data.
-- Do not query without the current AppID. A SteamID is global, so an unfiltered creator query shows that person's maps for other games.
+- Do not query without the current AppID. A SteamID is global, so an unfiltered creator query shows that person's maps for other games. Reading never crosses AppIDs; the single exception in the whole codebase is the publish write in task 07, which passes the target AppID to `CreateItem`/`StartItemUpdate` deliberately.
 - Do not carry a demo-era vote count or score onto the official item, and do not average the two. They are different items; the count starts again and the Verified collection covers the gap.
 - Do not add a general link list to the creator row. The only extra creator link is the optional Discord invite in the map's metadata.
 - Do not delete the map detail panel's useful fields (author, size, votes) along with the portal-specific ones.

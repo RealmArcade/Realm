@@ -38,7 +38,7 @@ Delete the registry half of the lobby manager:
 - The registry client, registry endpoint failover, node lists, retry loops and circuit breakers used for lobby calls.
 - Heartbeat and keep-alive code that exists only to keep a registry listing alive.
 - The join request/response path, join-phase reporting to the registry, and the direct "join by lobby id" HTTP call.
-- The server list, official server URLs, embedded admin public keys used to verify registry responses, and the `servers.json` configuration if it is only for the registry.
+- The server list, official server URLs, embedded admin public keys used to verify registry responses, and the `ServersConfig`/`ServersConfigHelper` surface together with the runtime `servers.json` it reads. That file is generated, not committed; the committed template is `Realm.Client/servers.template.json`, and if the surface has no other consumer by the end of this task, the template goes too.
 - The registry-backed lobby browser refresh. The browser now reads Steam lobbies.
 - Registry-specific diagnostics, stability tracking and host-stage reporting that no longer has a consumer.
 
@@ -64,7 +64,7 @@ Do not delete the Steam lobby browser, the Steam join, the lobby protocol, the s
 
 - There is no `LobbyRegistry`, `LobbyEndpoints` or equivalent lobby HTTP service in the solution.
 - The client makes no HTTP call to create, list, join, heartbeat or close a lobby.
-- `servers.json` and the client server list no longer affect the lobby path.
+- `ServersConfig`, `servers.json` and `Realm.Client/servers.template.json` no longer affect the lobby path, and the template is deleted if nothing else reads the surface.
 - The lobby browser and join still work entirely through Steam.
 - No path reaches a lobby except the Steam lobby list and membership in a Steam lobby.
 - No code references the deleted registry models or endpoints.
@@ -77,4 +77,4 @@ Do not delete the Steam lobby browser, the Steam join, the lobby protocol, the s
 - Do not keep a "legacy registry" path for old clients. Old builds are not supported.
 - Do not leave the registry's data store tables behind in a migration that still runs on startup. Remove the storage and the migration.
 - Do not remove the loopback authority control channel. It is not the lobby registry.
-- Do not delete the ENet client needed by "Join by IP"; it is not the registry.
+- Do not delete the ENet client needed by "Join by IP" in this task; it is not the registry, and the tasks that own its removal are 02 (the client's join dialog) and 06 (the traversal and host-side surface). It is not a survivor — the task report should say so, so the next task does not read it as one.

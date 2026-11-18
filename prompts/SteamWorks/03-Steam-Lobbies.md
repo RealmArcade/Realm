@@ -19,8 +19,8 @@ This task makes the Steam lobby the real lobby. It owns the directory, membershi
 
 ## Requirements
 
-1. **Create through Steam.** Hosting creates a Steam lobby with the correct visibility: public for the browser, friends-only for friends, private for invite-only, invisible for hidden. Set the maximum members from the map's playable slots, capped at Steam's lobby limit.
-2. **Lobby metadata is the game's advertisement.** Store the map name, map version, map hash, map `EngineGeneration`, game build number, protocol version, mode, seat count, host SteamID and any short settings the browser needs. Keep the total well under Steam's per-value limit. Do not store a full match configuration blob that belongs in the lobby protocol.
+1. **Create through Steam.** Hosting creates a Steam lobby with the correct visibility: public for the browser, friends-only for friends, private for invite-only, invisible for hidden. Set the maximum members from the map's playable slots, capped at Steam's lobby limit. **A code-gated lobby needs headroom over its seats.** Requirement 6 admits a member to the room before the code is entered, so a room sized exactly to the seats fills with people who cannot play and refuses the ones holding the code. With a join code set, allow the playable slots plus a small headroom (two is enough for an event), and once the seats are taken stop admitting new members with `SetLobbyJoinable(false)` rather than letting the room keep filling. Without a code, the limit is exactly the seat count.
+2. **Lobby metadata is the game's advertisement.** Store the map name, map version, map hash, map `EngineGeneration`, game build number, protocol version, mode, seat count, host SteamID and any short settings the browser needs. Keep every value short: the documented limits are 8,192 bytes per value (`k_cubChatMetadataMax`) and 255 characters per key, and Valve documents no separate total budget, so treat the budget as "short strings only" rather than measuring against a number that does not exist. Do not store a full match configuration blob that belongs in the lobby protocol.
 3. **Browse through Steam.** The browser requests Steam lobbies with filters for game build, protocol, map and mode, and a distance filter where useful. Show the host persona, map, mode, current/max players and a join button. Steam returns a bounded result set; show up to that bound and let filters narrow it. Do not build pagination, a region server or a ping column.
 4. **Join through Steam.** Joining enters the Steam lobby, reads its metadata, and then connects to the host's SteamID through the task 02 transport. A join that cannot enter the Steam lobby explains why: it closed, it is full, it is friends-only, or the game build differs.
 5. **Invites are Steam invites, and any seated player can send one.** The lobby room has an Invite Friends action that opens the Steam invite dialog for the current lobby. Every seated player has it, not only the host: a friends-only Steam lobby is joinable by friends **and by invitees**, and `InviteUserToLobby` works from any member, so a player who brought their own friend does not have to route the invite through the host. Accepting an invite enters the Steam lobby and then the match lobby. The existing `+connect_lobby` launch path should work while the game is running and at startup. Visibility, settings and the start stay with the host, who is the Steam lobby owner.
@@ -43,10 +43,10 @@ This task makes the Steam lobby the real lobby. It owns the directory, membershi
 
 ## Steam limits to design within
 
-- Lobby metadata has a small per-value and total budget. Keep the browser fields short; put detailed match settings in the lobby protocol.
+- Lobby metadata is limited per value (8,192 bytes) and per key (255 characters), with no documented total. Keep the browser fields short and put detailed match settings in the lobby protocol.
 - The lobby member limit is 250. Realm maps are much smaller; use the map's playable slots.
 - A lobby list request returns a bounded number of results. Filters, not pagination, are the way to narrow it.
-- Steam lobbies are scoped to the AppID. Only one AppID is live at a time: the demo until the official AppID is available, then the official AppID alone. Do not build a registry to bridge AppIDs, and do not keep demo-era lobbies alive after the switch.
+- Steam lobbies are scoped to the AppID. Only one AppID is live at a time: the demo until the official AppID releases, then the official AppID alone. The official AppID already exists as the demo's base game, so this is a release date rather than a missing identifier. Do not build a registry to bridge AppIDs, and do not keep demo-era lobbies alive after the switch.
 
 ## Out of scope
 
@@ -60,6 +60,7 @@ This task makes the Steam lobby the real lobby. It owns the directory, membershi
 - A friends-only lobby does not appear publicly, but a friend can join from an invite.
 - A player who is a friend of a seated non-host member can be invited by that member and join.
 - A lobby with a join code appears in the browser, admits a member to the room, and refuses a seat until the code is entered; the code is absent from Steam lobby metadata.
+- A code-gated lobby admits up to its seat count plus the small headroom, and closes to new members once the seats are taken, so a stranger without the code can never occupy the last seat.
 - Joining connects through Steam and reaches the lobby room.
 - The browser and lobby room show no IP, port, region or registry status.
 - A build or map mismatch is refused before the match starts with a clear message.
@@ -74,4 +75,5 @@ This task makes the Steam lobby the real lobby. It owns the directory, membershi
 - Do not expose the host's IP in the lobby metadata. The host is a SteamID.
 - Do not build a lobby password service. Use Steam visibility and invites for privacy, and one optional join code for a community event gate. Do not put the code in Steam lobby metadata, do not turn it into a credential or a session, and do not make it a prerequisite for standing in the room.
 - Do not restrict invites to the host. Steam lets any member invite, and a friends-only lobby admits invitees who are not the host's friends; suppressing that only makes players relay Steam IDs by hand.
+- Do not size a code-gated lobby to its seat count. The room admits code-less members by design, so the room needs headroom and the seats need closing; a room at exactly the seat count turns the code into a denial of entry for the people it was written for.
 - Do not assume lobby ownership moves usefully when the host leaves; the authority is on the host's machine, so the match ends.

@@ -17,6 +17,13 @@ The authority currently listens with Godot's ENet peer and the client connects t
 
 ENet does not disappear entirely in this task, but what remains of it stops being multiplayer. The host's own screen reaches its authority over a loopback socket today, and that socket is ENet; it stays as internal IPC bound to the loopback address. What is retired is the remote path on top of it: the listener that binds beyond loopback, the host's port choice, and the client's "Join Private Lobby via IP Address" dialog, together with the guest seat that path admits. There is no second way to reach a match, and no screen asks a player for an address.
 
+**The loopback decision is recorded here, not left as a carve-out.** `ISteamNetworkingSockets::CreateSocketPair` is present in the pinned Steamworks.NET 2024.8.0 and is the documented in-process loopback, so the host's own seat could ride the same transport as every remote peer. Two designs are therefore defensible and one has to be chosen in writing:
+
+- **Keep ENet for the loopback seat (the default).** It already works, it is one less thing to call across a process boundary, and it keeps the Steam callbacks out of single-player, which must run with no Steam client at all. This choice must be stated in the task report, not implied by the absence of a change.
+- **Move the loopback seat onto `CreateSocketPair`.** That deletes the ENet peer, the IPC carve-outs in tasks 02, 06 and 19, and the "loopback stays ENet" caveat in every later task, at the cost of making the local seat depend on Steam initialisation.
+
+Do not leave the question open, and do not start the second option halfway. The default is the first: it is smaller, and a single-player match with no Steam client must keep working either way.
+
 **This replaces the transport, not just the socket.** Godot's ENet peer gives the match unreliable-sequenced delivery, and the snapshot path depends on it: a delta states only the units that changed since the description before it, the client holds a description that arrived ahead of a hole and asks for the run, and the repair ring answers that hole. Steam's peer-to-peer sockets offer reliable-ordered and unreliable messages, and an unreliable message carries no ordering guarantee at all. The receive path therefore has to enforce what ENet used to provide, and the match-critical sync layer has to be re-measured rather than assumed. The remote ENet path survives exactly long enough to be the control: it carries the same game frames over the transport the game was tuned on, so a regression can be attributed to the transport instead of to the game. It is deleted in this task once the comparison in "The measurement that decides this migration" is accepted, and it is never visible to a player in the meantime.
 
 Steam's peer-to-peer sockets provide the connection, authentication, encryption and Steam Datagram Relay. They are not a Godot `MultiplayerPeer`, and they are not a drop-in replacement for the ENet transport. Do not attempt to wrap them in `SceneMultiplayer` or `MultiplayerPeerExtension`; `MultiplayerPeerExtension` is a GDExtension-facing class and would add a native module for no benefit. Send the game's frames as Steam messages and keep the game's own frame codec.
@@ -45,18 +52,18 @@ Do not frame it as Steam versus your relay. The volunteer relay in this reposito
 
 1. **Record the baseline first, on the unchanged build.** A host on an ordinary connection — not behind carrier-grade NAT, which is question 2 — with six to eight joiners on different networks, a fixed map and a fixed duration. Record descriptions sent and received, fragment counts and reassembly failures, repair requests and baseline recoveries with their reason codes, the presentation delay each peer settled at, every frame the cursor ran dry, round trip and loss.
 2. **Repeat the identical scenario over Steam P2P**: same map, same seat count, same duration, same network shapes.
-3. **Accept on feel first.** A player must not be able to tell which transport is underneath them. A felt regression is a failure even when the numbers look reasonable; if it feels the same or better, accept it and continue.
+3. **Accept on feel first, with more than one person and without telling them which build is which.** "A player must not be able to tell" measured by the person who wrote the change is not a measurement. Run two builds — ENet and Steam P2P — with the same map and seat count, and ask two or three people who were not told which is which to say whether either felt worse, and to name the one they would keep. A felt regression is a failure even when the numbers look reasonable; if it feels the same or better, accept it and continue. If only one tester is available, say so in the report rather than presenting a single opinion as a comparison.
 4. **If it feels worse, diagnose before concluding.** A Steam callback pump that runs once per tick, a delta left buffered for coalescing instead of sent immediately, a fragment size above a comfortable Steam datagram, a seat count nobody has tested, and the authority-identity pivot in task 00 are all fixable, and none of them is evidence against Steam. Bound the effort, then decide.
 5. **If it cannot be made acceptable within that bound, stop and report.** Do not delete the remote ENet path and do not proceed to the deletion tasks. "Steam's networking is not good enough for this game" is a legitimate outcome of this task, and this is the only place it can be discovered.
 6. **State the outcome in one line**: what was compared, the delay each peer settled at on each transport, the frames the cursor ran dry, and whether a player would notice.
 
 **Question 2 — informational, gates nothing: can a host behind carrier-grade NAT be played against through Steam's relay?**
 
-The current build has no working hosting behind carrier-grade NAT: the relay is unfinished, unmerged and has never run, so those players join other lobbies and cannot host. That is the status quo, and it is what this question is measured against.
+The current build ships punch and reachability measurement — a real, maintained subsystem, described in `AGENTS.md` and covered by five test suites — but the relay needed to seat a host behind carrier-grade NAT is unfinished, exists only on an unmerged branch, and has never carried a match. So those players join other lobbies and cannot host. That is the status quo, and it is what this question is measured against: the measurement is not whether punch works, it is whether Steam's relay seats a host that our own never could.
 
 - If a relayed host is playable at lobby size, hosting behind carrier-grade NAT becomes a capability the game can advertise, and it is the strongest single reason to prefer Steam over finishing a custom relay.
 - If it is not playable, nothing is lost. Those players keep today's behaviour, the game says so plainly, and **no deletion task is blocked on this answer**. Do not revive the relay branch on `main` as a fallback.
-- Deleting the relay code in `main` destroys nothing: it lives on its branch in git history, so the option to finish it survives the deletion.
+- Task 06 deletes nothing of the relay from `main`, because none of it is there: it lives on its branch in git history, so the option to finish it survives that task untouched.
 
 Run question 2 when a teammate or volunteer with a restrictive network is available. It is a capability check, not a precondition, and it must not be run instead of question 1.
 
@@ -109,12 +116,13 @@ The ECS sync layer is the most timing-sensitive code in the project and this tas
 - A description that arrives after a newer one is dropped, and the repair path does not report it as a hole.
 - Internal peer IDs are not reused within a match, and a closed peer's repair ring and queued frames are cleared before its number is handed out again.
 - The pre-change and post-change measurements are reported, with every scenario that could not be run named explicitly.
+- The loopback decision is recorded in the task report: which transport carries the host's own seat and why, with `CreateSocketPair` either adopted or explicitly declined.
 - The snapshot fragmentation and repair tests still compile and, if run, pass unchanged.
 - The authority logs the peer's SteamID and the path type Steam selected.
 
 ## Pitfalls
 
-- **Do not try to connect the host's client to its own SteamID.** The host's own connection stays on the loopback channel. Remote peers use Steam.
+- **Do not route the host's own seat through Steam.** It is not mechanically forbidden — GameNetworkingSockets will connect a process to its own SteamID and relay the traffic over the network to itself — but it spends a relay hop on a seat that could use a loopback socket, on a code path nothing else exercises. Keep the host's seat on loopback unless the `CreateSocketPair` decision above is taken deliberately.
 - **Do not use `SceneMultiplayer` for this.** Its RPC layer assumes a `MultiplayerPeer`, and a Steam peer is not one. Send frames directly.
 - **Do not poll Steam callbacks only when a frame is expected.** Pump them every frame or tick on both processes, or connections and disconnects will appear late.
 - **Do not put snapshots on the reliable stream to avoid fragmentation.** That recreates the head-of-line stall the existing design explicitly avoids.
@@ -127,4 +135,4 @@ The ECS sync layer is the most timing-sensitive code in the project and this tas
 - **Do not invent a guest identity.** Without the direct-IP path there is no peer Steam has not authenticated, so there is no case in which the game needs a name it cannot verify.
 - **Do not create a second frame codec for Steam.** If the frame contract needs a small adapter, adapt; do not fork the protocol.
 - If the authority cannot initialise Steamworks as the host user, implement the pivot documented in task 00 behind the transport factory. Do not fall back to a custom relay.
-- The repository pins Steamworks.NET 2024.8.0. If the P2P socket APIs are missing from that version, upgrade the managed package and the native library together, and document the version pair; do not mix versions.
+- The repository pins Steamworks.NET 2024.8.0, and every entry point this task needs is present in it: `SteamAPI_InitEx`/`ESteamAPIInitResult`, `CreateListenSocketP2P`, `ConnectP2P`, `SendMessageToConnection`, `ReceiveMessagesOnConnection`, `GetConnectionRealTimeStatus`, `CreateSocketPair` and the `k_nSteamNetworkingSend_*` flags. Do not upgrade the package as a precaution. If a documented call really is missing, upgrade the managed package and the native library together and document the version pair; never mix them.

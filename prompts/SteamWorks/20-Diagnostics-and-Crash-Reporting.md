@@ -2,10 +2,10 @@
 
 > Read `00-Architecture-and-Task-Order.md` first. It defines the Steam-first assumptions, the player-identity/infrastructure split and the task order.
 
-**Depends on:** nothing for the local export and crash capture, which work against the current build; 22 for closing the gap the admin server leaves when it is deleted.
+**Depends on:** nothing for the local export and crash capture, which work against the current build and are committed in stage 1 of the migration branch; 22 for closing the gap the admin server leaves when it is deleted, which is when requirement 6 is decided.
 **Unblocks:** nothing; it closes the observability gap the migration opens.
 
-**Ship the local half early.** Requirements 1–5 and 7 are a self-contained export and crash-capture feature, and they are worth most immediately after the transport change in task 02, when a player saying "it felt laggy" or a disconnect reason is the thing you need to see. Do not wait for the admin server to be deleted: land them as their own branch before the networking cutover, and leave only requirement 6 — whether a hosted error service is ever adopted — at the end of the migration.
+**Commit the local half early in the branch.** Requirements 1–5 and 7 are a self-contained export and crash-capture feature, and they are worth most immediately before the transport change in task 02, when a player saying "it felt laggy" or a disconnect reason is the thing you need to see. They are committed with stage 1 of the migration branch, before the networking stage, and only requirement 6 — whether a hosted error service is ever adopted — is left for the end of the branch. This task is not two deliverables to juggle: it is one task whose local half is committed early in the lineage and whose decision is written at the end.
 
 ## User story
 

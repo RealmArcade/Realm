@@ -22,7 +22,7 @@ This is a cleanup task. Do not add features, do not start a new service, and do 
 - Do not delete `Realm.AdminServer` or `Realm.Tools.Admin` here: task 22 owns that deletion and has already merged by the time this task runs. Verify they are gone from the solution, the build scripts, the publish profiles and every deployment configuration, and record anything task 22 missed rather than half-removing a project in the sweep.
 - Remove project references to it and any test project that exists only to test it.
 - Remove its app settings, database files, storage roots, TLS/DNS settings, container or service definitions and secrets.
-- Remove the shared `ServersConfig`, `servers.json`, admin public keys and distribution/account configuration that no longer has a consumer.
+- Remove the shared `ServersConfig`/`ServersConfigHelper` surface, the runtime `servers.json`, its committed template `Realm.Client/servers.template.json`, the admin public keys and the distribution/account configuration that no longer has a consumer. If a caller survives, it is the last caller of a dead endpoint: chase the caller, not the config.
 - Remove packages that were only used by the deleted server, storage, cluster or database code.
 - Ensure `Realm.Client` has no compile-time reference to the authority beyond the existing build-ordering reference, and no reference to the deleted platform namespaces.
 - Ensure the client and the authority both ship the Steam native library, and that development builds have the development AppID file only in local output.
@@ -57,15 +57,16 @@ Document, and verify where possible:
 - Lobbies are enabled for the live AppID, and the release targets the official AppID only.
 - Stats, achievements, cloud and rich presence are configured.
 - The Workshop Legal Agreement is accepted by the publishing account.
-- The build ships the correct Steam native library for each platform.
-- A two-account host/join test passes on two networks.
+- The build ships the correct Steam native library for each platform, and the client makes no request to a release feed, an account host or a lobby registry.
+- A two-account host/join test passes on two networks, with the second Steam client signed into a second account.
 - A publish/subscribe/download/play test passes with a second account.
 - Invites work from the friends list and from the in-game dialog.
 
 ## Verification
 
-- Build the whole solution and fix every reference to a deleted project or namespace.
-- Search the repository for the removed terms: `AdminServer`, `LobbyRegistry`, `Reachability`, `Relay`, `Seeder`, `AccountStore`, `AccountId`, `ServersConfig`, `servers.json`, `steam_appid.txt` in release output, and any old hosting doc. Do not delete `ContentAddressableStorage` or the host-transfer path; they serve local maps.
+- Build the whole solution (`Realm.slnx`) and fix every reference to a deleted project or namespace.
+- Search the repository for the removed terms: `AdminServer`, `LobbyRegistry`, `Reachability`, `Relay`, `Seeder`, `AccountStore`, `AccountId`, `ServersConfig`, `servers.json`, `servers.template.json`, `GameUpdateService`, `api.github.com`, `GetVersionExecutablePath`, `versions/`, `steam_appid.txt` in release output, and any old hosting doc. Two of those are the cheapest residue levers in the codebase: `ServersConfigHelper` / `GetDefaultServerUrl` / `GetAccountAuthorityUrl` / `RegistryServerUrl` are how ten client services reach a server, so they outlive every individual feature deletion; and `GameUpdateService` is the only remaining outbound call to a non-Steam host.
+- Do not delete `ContentAddressableStorage` or the host-transfer path; they serve local maps.
 - The website in `D:\git\Realm\Website` was checked and does not call any `Realm.AdminServer` endpoint, so removing the server cannot break it. Do not add anything to the game that depends on that site either; it is not part of this repository and not a runtime dependency.
 - Launch the client through Steam and exercise: menu, single-player, editor open/save, host a lobby, join from a second account, invite from the friends list, subscribe to a Workshop map, play it, and return to the menu.
 - Launch the client without Steam, continue without it, and confirm single-player, the editor and local map play work while multiplayer, Workshop, invites and stats are hidden with a reason and the no-Steam marker is visible.

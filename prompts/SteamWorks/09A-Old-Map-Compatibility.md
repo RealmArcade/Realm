@@ -15,9 +15,11 @@ As the developer, I want to keep changing the engine without promising that ever
 
 ## Context
 
-Today the game cannot play an old map at all. `metadata.json` carries `GameBuildNumber`, and it is compared with `RealmVersion.GameBuildNumber` for exact string equality in `MapSelectionService` and `LobbyCreate` (which shows a build-mismatch modal), and again in both authority handshakes (`server_rejected_build`). `MapUpgradeService` can move a map forward, but it is only ever invoked from the editor (`MapEditorHUD.MapUpgrade`). So a map authored on `v0.0.4` is refused by a `v0.0.6` build with no path forward for a player who only has the Workshop item.
+Today the game cannot play an old map at all. `metadata.json` carries `GameBuildNumber`, and it is compared with `RealmVersion.GameBuildNumber` for exact string equality in `MapSelectionService` and `LobbyCreate` (which shows a build-mismatch modal), and again in both authority handshakes (`server_rejected_build`). `MapUpgradeService` can move a map forward, but a player never reaches it: it is invoked from the editor only, in `MapEditorHUD.MapUpgrade.cs` and `MapEditorHUD.MapLoad.cs`. So a map authored on `v0.0.4` is refused by a `v0.0.6` build with no path forward for a player who only has the Workshop item.
 
-The previous plan solved this by keeping several whole game builds available and letting a player launch the one a lobby needed. That is not implementable on Steam and it is not necessary. Three separate things can break an old map, and each has a cheaper remedy:
+The current client also carries a half-built answer to this: a `versions/<build>/` folder convention, a version dropdown in the main menu, and relaunch-or-download popups in the lobby browser, lobby creation, the lobby room and the replay list, all pointing `LobbyManager.GetVersionExecutablePath` at another installed build or at GitHub releases. **It is coded, it has never been exercised, and it is removed rather than finished** (requirements 26-29). It is not implementable as a shipped feature — no Steamworks API installs an old depot, a beta branch needs the player to switch manually, and a second AppID per version means a store review per version — and it is not needed once map data migrates forward and the script import surface is additive. Its existence is a documentation trap: a task that only closes the mismatch gate leaves the dropdown and four relaunch paths orphaned in the build.
+
+Three separate things can break an old map, and each has a cheaper remedy:
 
 1. **The map's data does not parse.** Metadata, terrain, templates and package layout are read by a strict canonical loader with no fallbacks. `MapUpgradeService` already repairs exactly this, one sequential migration per release.
 2. **The map's script calls a map-API surface that changed.** The compiled `.wasm` is instantiated by the authority and its imports are satisfied by the current host. If a host import was removed or its signature changed, instantiation fails.
@@ -27,7 +29,7 @@ Cases 1 and 2 are cheap to make permanent. Case 3 is the only genuine break, and
 
 ## What is possible, and what is not
 
-**Not possible on Steam.** The game cannot install an old depot of itself: there is no Steamworks API to download an arbitrary depot, SteamCMD needs a login and is a programmer tool, and Steam beta branches require the player to switch manually in the Steam client, which is the friction this migration exists to remove. A second AppID per version means a store review per version. Shipping an old build as a Workshop item is a second distribution channel for executables under Valve's content platform, and it still would not work: an old build can only join a Steam lobby if it was compiled with Steam networking and the lobby protocol of the current build, which builds that already shipped were not.
+**Not possible on Steam.** The game cannot install an old depot of itself: there is no Steamworks API to download an arbitrary depot, SteamCMD needs a login and is a programmer tool, and Steam beta branches require the player to switch manually in the Steam client, which is the friction this migration exists to remove. A second AppID per version means a store review per version. Shipping an old build as a Workshop item is a second distribution channel for executables under Valve's content platform, and it still would not work: an old build can only join a Steam lobby if it was compiled with Steam networking and the lobby protocol of the current build, which builds that already shipped were not. Finally, the launcher that tried it never ran: there is no tested behaviour to preserve, no player who has used it, and no failure it has been shown to fix.
 
 **Therefore no old build can ever be retrofitted.** Whatever mechanism is chosen has to exist in the current build and every build after it. Since every map that exists today predates it, the guarantee starts at the first build that ships with this task, and older maps are upgraded once by their author or by a reviewed mirror. Say this plainly in the release notes instead of implying a guarantee that cannot be kept.
 
@@ -62,9 +64,17 @@ Cases 1 and 2 are cheap to make permanent. Case 3 is the only genuine break, and
 
 ### 4. Guards that keep the contract from eroding
 
-15. Extend the existing `ReplicationContractTests` to assert that the replicated component table is append-only relative to the previous release tag: no id removed, renumbered or reused. This is the one place the repository already protects the wire contract, and the guard belongs beside it.
-16. Add a build-time check that compares the map-script import surface this build exposes (the generated bindings/WIT and the assembly's public members that the generator discovers) with the previous release tag, and fails the build when an import disappears or its signature changes. A generation bump is the only way to pass that check, and it must be a deliberate, visible edit.
-17. Do not add a guard that forbids adding. Growth is the normal path; only removal and retyping are failures.
+15. Extend the existing `ReplicationContractTests` to assert that the replicated component table is append-only: no id removed, renumbered or reused. Compare it against a **committed baseline**, not a git tag. The release workflow checks out at depth 1, so tags are absent there, and this repository's tags are `0.0.1_Pre-Alpha_Rev_*` rather than a comparable release version, so a tag comparison would compare against nothing and pass. This is the one place the repository already protects the wire contract, and the guard belongs beside it.
+16. Add a build-time check that compares the map-script import surface this build exposes (the generated bindings/WIT and the assembly's public members that the generator discovers) with a **committed baseline** (`MapApiSurface.baseline.json` at the repository root), and fails the build when an import disappears or its signature changes. A generation bump is the only way to pass that check, and it must be a deliberate, visible edit in the same change.
+17. Create the agent skill that performs and explains the analysis: `.agents/skills/skill-map-api-surface-guard/SKILL.md`, in the shape of the skills already in that folder (frontmatter with `name`, `description` and `metadata.opencode/slash`, then a Purpose and a numbered Workflow). It must:
+    - regenerate the surface and the baseline with the one documented command the build uses, so the skill and CI cannot disagree about what "the surface" is;
+    - diff the regenerated surface against the committed baseline and report every change per member, classified as added, removed or retyped;
+    - treat added as normal, and report each removal or retype with the map-script members that would stop linking and the generation gate that follows;
+    - check that `EngineGeneration` was bumped in the same change when the diff is breaking, and fail the analysis when it was not;
+    - print the regeneration command rather than editing `MapApiSurface.baseline.json` on its own, so accepting a surface change is always an author's deliberate act rather than a tool's;
+    - run `dotnet build Realm.slnx` at the end, per the repository's rule that code is compiled after it is changed.
+
+    The point of the skill is that the rule in this task is enforceable by a person reading a pull request: the baseline diff is the evidence, and the skill is how it is produced and read without remembering which generator emits which file. Neither guard may forbid adding: growth is the normal path, and only removal and retyping are failures.
 
 ### 5. State the support window, and the way out
 
@@ -83,6 +93,13 @@ Cases 1 and 2 are cheap to make permanent. Case 3 is the only genuine break, and
 24. **Rollback is a real operation, and it must be safe to use.** Keep the previous release build available so it can be set live again from the Steamworks Builds page if a release breaks a wide part of the catalog. Rollback is only safe if the newer build did not change persisted local state the older build cannot read — settings, the local map store, the asset index — so either keep that state forward-compatible across a release or state in the release notes what a rollback discards. Do not roll back silently: a rolled-back player whose maps were published from the newer build sees them refused by the generation gate, which is honest but has to be explained.
 25. **Keep the two remedies distinct.** A wide break is answered by rollback plus a corrected build; a narrow break is answered by the affected authors rebuilding and republishing their maps. Do not answer a wide break by asking every creator to recompile, and do not answer a narrow break by reverting the engine for everyone.
 
+### 8. Retire the version launcher, and state what a replay promises
+
+26. **Delete the launcher machinery rather than closing its gate.** All of it exists today and all of it goes: `LobbyManager.GetBaseGameDirectory` and `GetVersionExecutablePath` including the `/versions/` path parsing, `MainMenu.PopulateVersionDropdown` and the dropdown it fills, `LobbyBrowser.ShowVersionMismatchPopup` with its relaunch and download actions, the `VersionMismatchCheck` filter beside the browser, `LobbyCreate`'s map build mismatch modal, `LobbyRoom.CheckHostVersionMismatch` and its `ShowVersionMismatchPopup`, and `ReplayListPanel.ShowVersionMismatchPopup`. Remove the nodes they read, their scene entries and their localization keys. Do not leave a disabled control, a hidden checkbox or a method with no caller: an unreachable relaunch path is the same defect one refactor later.
+27. **Give each context the one line it actually needs.** A build difference between two screens is a Steam update, not a version to go and install ("Restart Realm through Steam to update"). A map whose generation is newer than the build keeps the "needs a newer version of Realm" line with an update action. A lobby whose map is on an older supported generation opens, per requirement 4. A replay this build cannot read names the version it was recorded with and says this build cannot open it. None of these is a dialog offering to start another build.
+28. **State what a replay promises, in the code and in the release notes.** A replay is supported while its recorded format stays readable, which is the intention behind changing the format only when there is no other way. There is no promise that an older format opens, no migration of old replays and no retention policy beyond whatever the player keeps locally. `ReplayListPanel` already reads `GameVersion` from the replay header: keep that field, use it to decide readability, and refuse with one line instead of relaunching.
+29. **Do not replace the launcher with anything.** No depot download, no branch-switch UI, no bundled second client and no "install the version this lobby needs" service. If an unreadable replay or an unsupported generation ever justifies an old build, that is a new product decision with its own task, exactly as item 20 says about old-engine hosting.
+
 ## UX
 
 - A map authored on an older build shows a small "Made for an earlier version of Realm" note in the map details, not a warning dialog.
@@ -90,11 +107,13 @@ Cases 1 and 2 are cheap to make permanent. Case 3 is the only genuine break, and
 - Joining such a map works the same way; the joiner's own copy is upgraded quietly.
 - A map from a newer build than the player's game says "This map needs a newer version of Realm" with a Steam update action, not a build-mismatch modal.
 - A map whose script can no longer run says "This map needs to be updated by its author" and links to its Workshop page.
+- A build difference between two screens says to restart through Steam. There is no relaunch button, no download button and no version picker anywhere in the client, including the main menu and the replay list.
+- A replay recorded by a build whose format this one cannot read says so in one line, names the version, and opens nothing else.
 - Nothing in the primary flow mentions generations, hashes or migrations. The advanced map details may state the generation the way they state the version.
 
 ## Out of scope
 
-- Downloading or launching old game builds, and per-version AppIDs. The beta branch in requirement 23 is a forward-only pre-release channel; it never serves an older engine to a player.
+- Downloading or launching old game builds, and per-version AppIDs. The launcher that already exists is deleted by requirement 26 and nothing replaces it; the beta branch in requirement 23 is a forward-only pre-release channel and never serves an older engine to a player.
 - Publishing old engine versions or simulation layers as Workshop items.
 - Recompiling another creator's script automatically. Only the author or a mirror maintainer can do that.
 - Changing `MapUpgradeService`'s migration model. Each release still transitions from the immediate prior version.
@@ -108,8 +127,11 @@ Cases 1 and 2 are cheap to make permanent. Case 3 is the only genuine break, and
 - The authority receives a migrated folder, and a failed migration refuses the map with the actionable message rather than a partial load.
 - A map from a newer generation than the game is refused before the match starts, with an update action.
 - `EngineGeneration` round-trips through save, export and publish, and the migration that writes `1` into older maps builds.
-- The append-only component guard fails when a replicated component id is removed, renumbered or reused.
+- The append-only component guard fails when a replicated component id is removed, renumbered or reused, and it compares against the committed baseline so it runs in a depth-1 CI checkout.
 - The import-surface check fails when a WASM host import is removed or retyped, and passes when one is added.
+- `.agents/skills/skill-map-api-surface-guard/SKILL.md` exists, reproduces the CI comparison from the documented command, and reports a breaking diff without a generation bump as a failure.
+- The version launcher is gone: no `versions/` path resolution, no version dropdown, no relaunch-or-download popup in the lobby browser, lobby creation, lobby room or replay list, and no orphaned scene node, filter checkbox or localization key.
+- A replay from an unreadable format is refused with one line naming its version, and nothing in the client offers to start another build.
 - An old map whose script still uses only surviving imports runs unchanged on the current build.
 - No old build, depot download, version switcher or per-generation runtime exists in the solution; the beta branch is a pre-release channel only.
 - The most recently used session copy survives the end of a match and is reused when the same map is opened again without a Workshop update; opening a different map, or the same map with a new package hash, replaces it and never leaves a half-built copy behind.
@@ -124,6 +146,8 @@ Cases 1 and 2 are cheap to make permanent. Case 3 is the only genuine break, and
 - Do not add a per-generation reader, a "version 1 metadata" parser or a fallback branch in the loader. The migration chain is the only path, as the repository policy already states.
 - Do not treat a script ABI break as fixable at runtime. If an import is gone, only a recompile fixes the map; say so instead of shimming.
 - Do not build a compatibility promise for builds that already shipped. They cannot participate; the guarantee starts here.
+- Do not leave the version launcher half-removed. Closing the mismatch gate and leaving the dropdown, the four relaunch paths and the browser's mismatch filter is the failure mode this task replaced a "previous plan" with: the code looks load-bearing, nobody knows it never ran, and the next agent either finishes an unimplementable feature or deletes it in a different task.
+- Do not promise replay portability. Replays are not maps: they record a simulation, and a format change makes an old one unreadable with nothing to migrate it from. Say that plainly instead of adding a second compatibility contract nobody asked for.
 - Do not let the generation number become a second game version. It changes only on a break that the additive rules cannot express.
 - Do not silently drop an old generation. Mark the maps and say what the player can do.
 - Do not hard-link the retained copy to Steam's folder to make reuse cheap. A hard link shares the file, so an in-place Steam write still changes the map under it; reuse is keyed on an unchanged package hash, not on a shared inode.

@@ -17,7 +17,11 @@ Task 02 moved every remote peer onto Steam's peer-to-peer sockets and retired th
 
 This task deletes the automatic traversal and relay completely. It is a deletion task: do not replace it with a simpler custom fallback, do not keep a "if Steam fails, try the relay" path, and do not keep the direct-IP surface it used to justify.
 
-**This deletion gives up no capability.** The relay, punch and reachability code here has never carried a match: it was written on an unmerged branch for a problem Steam now solves, so removing it removes dead weight rather than a working path, and it is not blocked waiting on any network measurement. What it does have to respect is ordering — task 05 must have removed the registry that called these services and task 02 must have moved every remote peer onto Steam, or the deletion leaves a caller with nothing behind it. If a future decision needs a custom relay after all, the code is preserved on its branch in git history; `main` does not keep a copy.
+**Say what is actually being given up, because the two halves are not the same.** Punch and reachability measurement are **shipped**: they are on `main`, they are the listing policy `AGENTS.md` describes, and five suites in `Realm.Network.Tests` cover them. They are being *replaced*, not thrown away as dead weight — Steam owns traversal now, so the capability keeps an owner, and the honest justification is "Steam does this better and for free" rather than "this never worked". The **volunteer relay** is the opposite case: it exists only on an unmerged branch and has never carried a match, so deleting the relay half gives up nothing at all, and the code survives in git history if it is ever wanted again.
+
+Do not let the second fact excuse the first. The claim that nothing here ever worked invites a reader to skip the one capability question that survives the swap — task 02's question 2, whether a host behind carrier-grade NAT can be played against through Steam's relay. That question gates nothing in this task, and it must not be answered by keeping this subsystem alive.
+
+What this task does have to respect is ordering: task 05 must have removed the registry that called these services and task 02 must have moved every remote peer onto Steam, or the deletion leaves a caller with nothing behind it.
 
 ## In scope
 
@@ -46,9 +50,9 @@ This task deletes the automatic traversal and relay completely. It is a deletion
 
 ### Tests, tools and documentation
 
-- Delete the tests that exist only for reachability probes, joinability policy and relay behaviour. Do not weaken them into placeholder tests.
+- Delete the tests that exist only for reachability probes, joinability policy and relay behaviour. In `Realm.Network.Tests` that is `ReachabilityCheckTests`, `ReachabilityContractTests`, `ReachabilityLocalCallerTests`, `ReachabilityNatMatrixTests`, `ReachabilityRouterTests`, `JoinCapabilityTests`, `JoinPhaseMachineTests`, `LobbyJoinabilityTests` and `Ipv6EndpointTests`. Do not weaken them into placeholder tests, and do not leave the project referencing a deleted helper.
 - Delete or archive outside the shipped project the network rig and the manual cross-network relay test plan.
-- Delete `Hosting_Behind_Restrictive_NAT.md` and `IPv6_Lobby_Decision.md`, plus `Manual_Test_Volunteer_Relay.md` if it is present (it is branch-only and should not be), and any other document that tells players to enable UPnP or test a relay.
+- Delete `docs/Hosting_Behind_Restrictive_NAT.md`, `IPv6_Lobby_Decision.md` and `Seed_Node_Setup.md` (both at the repository root, not under `docs/`), plus `Manual_Test_Volunteer_Relay.md` if it is present (it is branch-only and should not be), `docs/rigs/` if its only subject is the reachability rig, and any other document that tells players to enable UPnP, seed a map or test a relay.
 - Replace them with a short statement where hosting is documented: Steam connects the peers, the game never asks a player to forward a port or configure a router, and a machine without Steam can play single-player and the editor but not multiplayer. Do not write a replacement guide for a path that no longer exists.
 - Update the README and architecture docs to say that Steam owns NAT traversal and relay.
 

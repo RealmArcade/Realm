@@ -44,6 +44,8 @@ So the game renders no donation or payment surface anywhere, and the publish dia
 
 Sell only AppID-wide items for the official game — the supporter flair first, and at most a small fixed catalogue of appearance variants (a nameplate colour, a banner, a badge).
 
+**Two mechanisms, both serverless, and nothing else.** The default is the **Steam Inventory Service**: item definitions authored by the developer, the sale through `ISteamInventory::StartPurchase` and the Item Store, and the entitlement read from the player's own inventory. A **cosmetic DLC** is the accepted alternative where one purchasable unit is simpler than a catalogue of items: the product is created on the partner site, and the client reads ownership with `SteamApps.BIsSubscribedApp` for the DLC's own AppID. Both end in the same place — one boolean the client computes locally, with no call to anything this project operates. **`ISteamMicroTxn` is excluded**, and deliberately: it needs a developer-run purchasing backend holding a publisher key to authorise every transaction, which is a service, and having none is the point of this task. Do not add a third mechanism, a store page of our own, or a "temporary" backend without a new task that argues for it.
+
 - Item definitions are authored by the developer for the official AppID, once, and rarely touched. Create them from the Steamworks partner tooling or a script run on the developer's own machine. Nothing about item definitions may live in the repository, a build, a shipped config or a map.
 - No product per map, per creator, per asset or per cosmetic bundle that a map declares. No `SetItemPaymentRules` call exists in the project. No creator is ever a payee.
 - Define and ship the supporter flair and stop. The catalogue grows when there is a reason to, not in anticipation.
@@ -121,7 +123,7 @@ If it happens, these are mandatory rather than optional:
 
 ## Completion
 
-- The supporter flair is defined for the official AppID, bought in a sandbox configuration and worn, and a player who owns nothing sees it on someone else.
+- The supporter flair is defined for the official AppID and worn, and a player who owns nothing sees it on someone else. The mechanism used — an Inventory Service item, a cosmetic DLC, or both — is named in the report, together with every partner-site step that had to be performed and every purchase step that could only be exercised in a sandbox.
 - A free player has every map, mode and seat, and no screen shows a price for a map or a purchase control for UGC.
 - A refund removes the flair at the next session without a dialog, a kick or a change to the match.
 - `IGameAPI`, map metadata and the ECS contain nothing about entitlements, prices or revenue.

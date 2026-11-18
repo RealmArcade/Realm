@@ -58,10 +58,10 @@ Every feature is listed with where its replacement lives. Anything not in this t
 
 ### 3. Delete the callers, the tests and the build
 
-- Remove both projects from `Realm.Client/Realm.Client.sln` and any other solution file, and delete the project directories.
+- Remove both projects from every solution file and delete the project directories. There are three: `Realm.slnx` at the root, which is what CI builds, `Realm.Client/Realm.Client.sln`, and `Realm.ListenServerHost/Realm.ListenServerHost.sln`.
 - Remove every client caller that only existed for the server. The known ones are `CreatorDiscoveryService` (`/api/creators`), the creator registration call in `EditorAssetImport`, the metrics report in `GameOver.Metrics`, the `asset_author` lookups in `LobbyRoom.MapAuthorship` and `MapStorageService`, and the creator check in `NetworkService`. Each is owned by the task in the table; this task deletes whatever is still there once those tasks have merged, and must not leave a call site pointing at an endpoint that no longer exists.
 - Delete `Realm.Client/Testing/LobbyDirectConnectHarness.Ipv6.cs`: it launches `Realm.AdminServer.dll` as a registry node and has no other purpose.
-- Delete the tests that assert contracts of the deleted services rather than adapting them: `Realm.Network.Tests/RelayPoolMembershipTests`, `ReachabilityContractTests`, `JoinCapabilityTests` and `Ipv6EndpointTests`, and the `ProjectReference` to `Realm.AdminServer` in `Realm.Network.Tests.csproj`. A test for a service that no longer ships is a false statement about the product.
+- Delete the tests that assert contracts of the deleted services rather than adapting them. Every test file in `Realm.Network.Tests` whose subject is reachability, joinability, join phases or IPv6 endpoints goes: `ReachabilityCheckTests`, `ReachabilityContractTests`, `ReachabilityLocalCallerTests`, `ReachabilityNatMatrixTests`, `ReachabilityRouterTests`, `JoinCapabilityTests`, `JoinPhaseMachineTests`, `LobbyJoinabilityTests` and `Ipv6EndpointTests` — nine files. Also remove the `ProjectReference` to `Realm.AdminServer` in `Realm.Network.Tests.csproj`, and delete the file `LobbyDirectConnectHarness.Ipv6.cs` leaves the harness with. What remains in that project is the lobby identity wire contract and whatever else is not about a deleted subsystem; if that is nothing, the project goes too. A test for a service that no longer ships is a false statement about the product.
 - Remove the AdminServer publish, archive and artifact-upload steps from `.github/workflows/build.yml`. A release artifact for a service nobody runs is how a deleted service comes back.
 - Delete `appsettings.template.json`, `ServerHost`, `AdminAuthorityOptions` and the server's configuration surface with the projects.
 - Delete or rewrite the documents that describe running the server: `docs/Hosting_Behind_Restrictive_NAT.md` and `IPv6_Lobby_Decision.md` describe infrastructure that no longer exists. Do not leave a hosting guide for a deleted service; task 15 owns the final documentation pass, and this task at minimum removes anything that instructs a reader to deploy it. `docs/Manual_Test_Volunteer_Relay.md` is branch-only and should already be absent; if it is present, it goes with the rest.
@@ -76,7 +76,7 @@ Do not stand up anything to take the server's place: no hosted function, no stat
 
 ### 6. Verify the deletion
 
-- `dotnet build` succeeds for the client solution and for the authority, with no reference to either deleted project.
+- `dotnet build Realm.slnx` succeeds with no reference to either deleted project, and so do `Realm.Client/Realm.Client.sln` and `Realm.ListenServerHost/Realm.ListenServerHost.sln`.
 - The game starts and plays single-player offline with no server reachable, opens the editor and imports a `.rmap`.
 - `Realm.AdminServer` and `Realm.Tools.Admin` appear nowhere in the repository outside `bin`/`obj` and git history: no `using`, no project reference, no workflow step, no config key, no documentation instruction.
 - The release workflow produces no admin-server artifact.
