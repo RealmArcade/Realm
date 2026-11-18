@@ -407,3 +407,20 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   their item is the one their copy came from and the one every joiner can be given. When the host is hosting a map
   somebody else published - the ordinary case for a downloaded Workshop map - there is no owned item, so the newest
   same-name item is still the answer, which is the only route available until a map records the item it came from.
+## The translations no native speaker has read
+
+- **All ten catalogs were translated by the agent, not by a native speaker.** The branch added 202 strings with no
+  translations behind them, so every Steam surface read English in nine languages. Leaving that was the larger defect:
+  a player who cannot read English met an unlabelled button, while a slightly awkward sentence still names the action.
+  Every language was written against the vocabulary its own catalog already used - German keeps "Lobby" and "Karte",
+  Spanish keeps "sala" and "mapa", Japanese keeps "ロビー" and "マップ", Arabic keeps "الردهة" and "الخريطة" - so the
+  wording matches the screens beside it even where a native speaker would phrase a sentence differently.
+- **What the checks do and do not cover.** `Realm.TranslationTool -- verify` proves every key is present, non-empty, and
+  keeps its placeholders and BBCode identical to English, which is what a silent break would look like; a merge script
+  refuses a stale key, and an indexed generator refuses a skipped entry so text cannot slide onto the wrong key. None of
+  that checks whether the German for "trust mark" reads naturally. The readiness document now states this as review work
+  rather than as missing coverage, and the kit's README hands it over in that form.
+- **Two judgement calls inside the text.** "Steam", "Workshop", "SteamID64", `.rmap`, `terrain.json`, the
+  `authorship_key_...rkey` filename and the Discord URL pattern were left untranslated in every language, because they are
+  identifiers a player has to type or match, not words. And `BUILD  ` was left as `BUILD  ` in all ten, since it is drawn
+  as a label beside a build number rather than as a sentence, and each catalog already carries Latin technical labels.
