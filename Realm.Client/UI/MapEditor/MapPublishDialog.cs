@@ -1,4 +1,5 @@
 ﻿using Godot;
+using Realm.Client.Services;
 
 namespace Realm.Client.UI.MapEditor;
 
@@ -31,6 +32,8 @@ public partial class MapPublishDialog : Control
 		BuildHeader(body, mapTitle, mapVersion);
 
 		BuildMaintainerInfo(body);
+
+		BuildCreatorGuidance(body);
 
 		body.AddChild(new Control { CustomMinimumSize = new Vector2(0, 5) });
 
@@ -80,6 +83,48 @@ public partial class MapPublishDialog : Control
 		workshopInfoLabel.AddThemeFontSizeOverride("font_size", 11);
 		workshopInfoLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		body.AddChild(workshopInfoLabel);
+	}
+
+	/// <summary>
+	///     Tells the creator, once, what belongs on Steam and what belongs on a community server instead. It links Valve's
+	///     rules rather than quoting a prohibition whose wording it would have to invent, and it offers no support address:
+	///     the answer for a creator who wants to take money for their work is their own Discord, not a Realm inbox.
+	/// </summary>
+	/// <param name="body">The card the guidance is added to.</param>
+	private static void BuildCreatorGuidance(VBoxContainer body)
+	{
+		var guidanceLabel = new Label
+		{
+			Name = "CreatorGuidance_Label",
+			Text = TranslationServer.Translate("Steam bans maps that post links to external payment systems (Patreon etc.). Put your donation links on your Discord server instead."),
+			AutowrapMode = TextServer.AutowrapMode.Word,
+			CustomMinimumSize = new Vector2(520, 0),
+			SizeFlagsHorizontal = SizeFlags.ExpandFill
+		};
+		guidanceLabel.AddThemeFontSizeOverride("font_size", 11);
+		guidanceLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		body.AddChild(guidanceLabel);
+
+		var linkRow = new HBoxContainer();
+		linkRow.Name = "CreatorGuidanceLinks_HBoxContainer";
+		linkRow.Alignment = BoxContainer.AlignmentMode.Center;
+		linkRow.AddThemeConstantOverride("separation", 12);
+		body.AddChild(linkRow);
+
+		linkRow.AddChild(CreateExternalLink("SteamOnlineConduct_Button", TranslationServer.Translate("Steam Online Conduct"), "https://store.steampowered.com/online_conduct"));
+		linkRow.AddChild(CreateExternalLink("SteamWorkshopLegal_Button", TranslationServer.Translate("Workshop Legal Agreement"), "https://steamcommunity.com/workshop/workshoplegalagreement"));
+		linkRow.AddChild(CreateExternalLink("EditSteamProfile_Button", TranslationServer.Translate("EDIT STEAM PROFILE"), $"https://steamcommunity.com/profiles/{GameContext.Steam.SteamId}/edit"));
+	}
+
+	private static Button CreateExternalLink(string name, string text, string url)
+	{
+		var button = new Button { Name = name, Text = text };
+		button.Set("icon_max_width", 0);
+		button.FocusMode = FocusModeEnum.None;
+		button.AddThemeFontSizeOverride("font_size", 11);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
+		button.Pressed += () => OS.ShellOpen(url);
+		return button;
 	}
 
 	private static (ProgressBar Progress, Label Status) BuildProgressSection(VBoxContainer body)
