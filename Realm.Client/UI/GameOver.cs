@@ -11,7 +11,6 @@ using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.UI.InGame;
 using Realm.Shared.Distribution;
-using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;

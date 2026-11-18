@@ -231,6 +231,15 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   icon, and the `CreatorInfo` struct — its `DonationLink` and `ContactInfo` fields were the creator-registry shape and
   nothing read it. The creator's Steam profile, Workshop page and other items stay in the map details panel, which is
   where task 16 puts them.
+- **Thirty-three files still imported an `HttpClient` they never used.** The registry polling each of them once did was
+  removed from one file at a time and the alias stayed behind, so a reader opening the lobby room, the map editor or the
+  VSCode bridge saw a web client they had no way to find a caller for. The aliases are gone, as is `LobbyRoom`'s
+  `_sharedHttpClient`, which was constructed and never sent anything. The three files that genuinely use one keep it:
+  the announcements sign-up and the two editor installers, and there the alias is load-bearing because `Godot` exports a
+  type of the same name.
+- **The locale prune was re-checked with the repository's own tool.** `Realm.TranslationTool -- prune` reports "nothing to
+  prune" for all ten catalogs, so the hand pass removed exactly the keys that tool removes and left no key English does
+  not have.
 - **Checked and left alone:** `RegistryService`, `RegistryLookups`, `RegistryKeyMatching` and `GameHost.Registry.cs` are
   the placeable-template store, not a lobby registry; `AccountID_t` in `SteamWorkshopService` is Steamworks' own type;
   `RouteReachabilityEntry` and `CombatAndDamageService.Reach` are combat reach; the "punch", "star rating" and

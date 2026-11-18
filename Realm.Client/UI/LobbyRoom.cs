@@ -9,7 +9,6 @@ using NSec.Cryptography;
 using Realm.Client.Network;
 using Realm.Shared;
 using Realm.Shared.Network;
-using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
@@ -83,7 +82,6 @@ public partial class LobbyRoom : Control
 	private List<string> _otherAuthorsList = new List<string>();
 
 
-	private static readonly HttpClient _sharedHttpClient = new HttpClient();
 	public const int NEUTRAL_PLAYER_INDEX = PlayerColorConfig.NEUTRAL_PLAYER_INDEX;
 	public static Color GetPlayerColor(int playerIndex) => PlayerColorConfig.GetColor(playerIndex);
 	public static string GetPlayerColorName(int playerIndex) => PlayerColorConfig.GetName(playerIndex);
