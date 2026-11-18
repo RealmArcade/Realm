@@ -26,6 +26,8 @@ public class SteamClientLink : IDisposable
 
 	private readonly byte[] _payloadBuffer = new byte[64 * 1024];
 
+	private readonly IntPtr[] _messagePointers = new IntPtr[MaximumMessagesPerPoll];
+
 	private HSteamNetConnection _connection = HSteamNetConnection.Invalid;
 
 	private ESteamNetworkingConnectionState _state = ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_None;
@@ -136,12 +138,11 @@ public class SteamClientLink : IDisposable
 
 		if (!IsConnected) return;
 
-		var pointers = new IntPtr[MaximumMessagesPerPoll];
 		int received;
 
 		try
 		{
-			received = SteamNetworkingSockets.ReceiveMessagesOnConnection(_connection, pointers, MaximumMessagesPerPoll);
+			received = SteamNetworkingSockets.ReceiveMessagesOnConnection(_connection, _messagePointers, MaximumMessagesPerPoll);
 		}
 		catch (Exception exception)
 		{
@@ -151,7 +152,7 @@ public class SteamClientLink : IDisposable
 
 		for (int index = 0; index < received; index++)
 		{
-			IntPtr pointer = pointers[index];
+			IntPtr pointer = _messagePointers[index];
 			try
 			{
 				SteamNetworkingMessage_t message = SteamNetworkingMessage_t.FromIntPtr(pointer);
