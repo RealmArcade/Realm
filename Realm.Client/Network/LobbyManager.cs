@@ -188,6 +188,18 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	/// <summary>The trust mark this lobby advertises for its map, resolved once when the lobby is published.</summary>
 	private MapTrustState _publishedMapTrust = MapTrustState.Trusted;
+
+	/// <summary>
+	///     The Workshop item the lobby's map is published as, as the advertisement states it, or zero when the map was never
+	///     published. A joiner compares it with the item it has, and an absence is what selects the host-transfer path.
+	/// </summary>
+	private ulong _publishedMapWorkshopId;
+
+	/// <summary>
+	///     The private copy of the active map this session plays from, which is the installed package migrated to this build.
+	///     Empty until a lobby is opened or joined.
+	/// </summary>
+	public string ActiveMapSessionDirectory { get; set; } = string.Empty;
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
 	public int MatchSeed { get; private set; }

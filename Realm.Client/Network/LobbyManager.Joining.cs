@@ -86,6 +86,22 @@ public partial class LobbyManager
 				ActiveMapVersion = SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.MapVersionKey);
 			}
 
+			// The map is checked before the connection is asked for, because a screen that cannot play the map would only
+			// take a seat in the room and be refused, or worse, be admitted to a match it cannot draw.
+			ulong.TryParse(SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.MapWorkshopIdKey), NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong advertisedWorkshopId);
+			string mapFailure = await LobbyMapCompatibilityService.EvaluateAsync(
+				mapName,
+				advertisedWorkshopId,
+				SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.MapHashKey),
+				SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.EngineGenerationKey));
+			if (mapFailure.Length > 0)
+			{
+				SteamLobbyDirectory.Leave(steamLobbyId);
+				LobbyJoinError = mapFailure;
+				ConnectionFailed?.Invoke(mapFailure);
+				return false;
+			}
+
 			var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
 			if (channel == null)
 			{

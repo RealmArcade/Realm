@@ -64,6 +64,10 @@ public partial class MainMenu : Control
 	{
 		TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
+		// A session copy left half-built by a run that ended in the middle of preparing a map is swept here, before any
+		// screen can open a lobby and mistake it for a retained copy.
+		GameContext.MapSessionCopy.SweepOrphans();
+
 		BindNodes();
 		StylePanels();
 		SetupButtons();

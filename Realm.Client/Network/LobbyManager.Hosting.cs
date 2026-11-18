@@ -201,12 +201,24 @@ public partial class LobbyManager
 		HostedMapDisplayName = mapDisplayName;
 		HostedMapVersion = string.IsNullOrWhiteSpace(explicitVersion) ? "1.0.0" : explicitVersion;
 
-		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
-		if (string.IsNullOrEmpty(mapDirectory))
+		string? installedMapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
+		if (string.IsNullOrEmpty(installedMapDirectory))
 		{
 			LastHostError = $"The map folder for '{mapPathName}' could not be found.";
 			return false;
 		}
+
+		// The lobby plays a private copy of the installed package with the map's data migrated to this build, rather than
+		// the folder Steam owns and replaces, so what it advertises is a package every joiner already holds.
+		string? mapDirectory = GameContext.MapSessionCopy.TryPrepare(installedMapDirectory);
+		if (string.IsNullOrEmpty(mapDirectory))
+		{
+			LastHostError = GameContext.MapSessionCopy.LastRefusal;
+			GameLog.LogError($"[LobbyManager] '{mapPathName}' cannot be played: {LastHostError}");
+			return false;
+		}
+
+		ActiveMapSessionDirectory = mapDirectory;
 
 		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
 		if (channel == null)
@@ -339,6 +351,7 @@ public partial class LobbyManager
 
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapKey, ActiveMapName);
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapVersionKey, HostedMapVersion);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapWorkshopIdKey, _publishedMapWorkshopId.ToString(CultureInfo.InvariantCulture));
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapHashKey, mapHash);
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.EngineGenerationKey, RealmVersion.EngineGeneration.ToString(CultureInfo.InvariantCulture));
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.GameBuildKey, RealmVersion.GameBuildNumber);
@@ -366,6 +379,7 @@ public partial class LobbyManager
 			if (item == null) return MapTrustPolicy.EvaluateUnpublished();
 
 			WorkshopMapEntry published = item.Value;
+			_publishedMapWorkshopId = published.PublishedFileId;
 			return MapTrustPolicy.Evaluate(published.PublishedFileId, published.VotesUp, published.VotesDown, published.TimeUpdated);
 		}
 		catch (Exception exception)
@@ -492,13 +506,25 @@ public partial class LobbyManager
 		InitializeHostState(mapPathName, explicitVersion);
 		LobbyPort = 0;
 
-		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
-		if (string.IsNullOrEmpty(mapDirectory))
+		string? installedMapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
+		if (string.IsNullOrEmpty(installedMapDirectory))
 		{
 			LastHostError = $"The map folder for '{mapPathName}' could not be found.";
 			GD.PushError($"[LobbyManager] {LastHostError}");
 			return false;
 		}
+
+		// A single-player match reads the same private copy a hosted one does, so the map it plays is the one this build
+		// migrated rather than the folder its author or Steam owns.
+		string? mapDirectory = GameContext.MapSessionCopy.TryPrepare(installedMapDirectory);
+		if (string.IsNullOrEmpty(mapDirectory))
+		{
+			LastHostError = GameContext.MapSessionCopy.LastRefusal;
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			return false;
+		}
+
+		ActiveMapSessionDirectory = mapDirectory;
 
 		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
 		if (channel == null)

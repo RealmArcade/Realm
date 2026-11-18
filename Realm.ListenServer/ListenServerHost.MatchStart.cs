@@ -59,7 +59,10 @@ public partial class ListenServerHost
 				_scriptLogSink = null;
 			}
 
-			return "The match could not start; the authority's log explains why.";
+			// The lobby reads this line to every member, so it names the map and the half that failed instead of sending
+			// players to a log file most of them cannot open. The authority's log still holds the line that failed.
+			string failingMap = string.IsNullOrEmpty(_lobby?.MapName) ? "the map" : $"'{_lobby?.MapName}'";
+			return $"The map {failingMap} could not start: its world or its script failed to load. The host's log names the failure.";
 		}
 
 		ResetPauseAllowances();

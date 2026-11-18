@@ -434,10 +434,10 @@ public partial class LobbyCreate : Control
 		string selectedVersion = GetSelectedVersion();
 		var mapInfo = GetSelectedMapInfo();
 
-		if (MapSelectionService.IsBuildMismatch(mapInfo.BuildNumber))
+		if (MapSelectionService.IsEngineGenerationUnsupported(mapInfo.EngineGeneration))
 		{
 			GameContext.UserInterface?.PlayWarningSound();
-			ShowMapBuildMismatchModal(mapInfo.PathName, mapInfo.DisplayName, mapInfo.BuildNumber, RealmVersion.GameBuildNumber);
+			GameContext.UserInterface?.ShowPopupMessage(Tr("THIS MAP NEEDS A NEWER VERSION OF REALM"), Tr("This map needs a newer version of Realm. Update the game and try again."));
 			return;
 		}
 
@@ -646,22 +646,15 @@ public partial class LobbyCreate : Control
 		return "1.0.0";
 	}
 
-	private (string PathName, string DisplayName, string BuildNumber) GetSelectedMapInfo()
+	private (string PathName, string DisplayName, int EngineGeneration) GetSelectedMapInfo()
 	{
 		if (_selectedMapIndex >= 0 && _selectedMapIndex < _availableMaps.Count)
 		{
 			var map = _availableMaps[_selectedMapIndex];
-			return (map.PathName, map.DisplayName, map.GameBuildNumber);
+			return (map.PathName, map.DisplayName, map.EngineGeneration);
 		}
 
-		return ("melee", "Melee Battlefield", RealmVersion.GameBuildNumber);
-	}
-
-	private void ShowMapBuildMismatchModal(string mapPath, string mapDisplayName, string mapBuildNumber, string currentBuildNumber)
-	{
-		string message = $"{string.Format(Tr("Map: {0}"), mapDisplayName)}\n{string.Format(Tr("Map Build: {0}"), mapBuildNumber)} | {string.Format(Tr("Current Build: {0}"), currentBuildNumber)}\n\n{Tr("This map was made on a different build of Realm. Restart through Steam to update the game, or open the map in the Map Editor to upgrade it.")}";
-
-		GameContext.UserInterface?.ShowPopupMessage(Tr("MAP BUILD MISMATCH"), message);
+		return ("melee", "Melee Battlefield", RealmVersion.EngineGeneration);
 	}
 
 	private void ShowHostErrorModal(string errorMessage)

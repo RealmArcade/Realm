@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Realm.Client.UI;
 
@@ -11,6 +11,7 @@ public struct MapBriefingDetails
 	public string HowToPlayObjective;
 	public List<string> Tags;
 	public string GameBuildNumber;
+	public int EngineGeneration;
 	public string Version;
 	public string ManifestHash;
 	public string MapType;

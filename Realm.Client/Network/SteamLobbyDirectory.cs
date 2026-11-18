@@ -26,6 +26,12 @@ public static class SteamLobbyDirectory
 	/// <summary>The hash of the map content the host will run.</summary>
 	public const string MapHashKey = "mapHash";
 
+	/// <summary>
+	///     The Workshop item the lobby's map is published as, or zero when it was never published. A joiner compares it
+	///     with the item it holds, and an absence is what tells it the host cannot send the map through Steam.
+	/// </summary>
+	public const string MapWorkshopIdKey = "mapWorkshopId";
+
 	/// <summary>The engine generation the map declares, which decides whether an older game can play it.</summary>
 	public const string EngineGenerationKey = "generation";
 

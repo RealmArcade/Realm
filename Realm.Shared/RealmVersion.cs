@@ -1,11 +1,11 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Reflection;
 
 namespace Realm.Shared;
 
 public static class RealmVersion
 {
-	public const string GameBuildNumber = "v0.0.6";
+	public const string GameBuildNumber = "v0.0.7";
 
 	/// <summary>
 	///     The engine generation this build reads and writes. A map declares the generation it was made for; one at or below

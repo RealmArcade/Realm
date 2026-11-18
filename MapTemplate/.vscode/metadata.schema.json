@@ -21,6 +21,15 @@
       "description": "The Realm build the map was authored and published against. A lobby only offers the map to a build that matches it exactly.",
       "x-realm-sensitive": true
     },
+    "EngineGeneration": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "title": "EngineGeneration",
+      "description": "The workflow generation this map's data was authored against. A game reads maps of its own generation and upgrades older ones on a private copy, while a newer generation needs a newer game.",
+      "x-realm-sensitive": true
+    },
     "MapProperties": {
       "type": "object",
       "title": "MapProperties",
@@ -50,6 +59,14 @@
           ],
           "title": "Author",
           "description": "The name the map credits as its author."
+        },
+        "DiscordServerInviteLink": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "title": "DiscordServerInviteLink",
+          "description": "An optional permanent Discord server invite the creator runs, which is the one creator link the game shows beyond Steam. Only an https invite on discord.gg, discord.com/invite or discordapp.com/invite is accepted; a pasted discord.gg/<code> is normalised to its https form."
         },
         "SuggestedPlayers": {
           "type": [
@@ -490,60 +507,6 @@
         }
       },
       "additionalProperties": false
-    },
-    "Dependencies": {
-      "type": "array",
-      "title": "Dependencies",
-      "description": "Other published maps this map builds on. Their content is merged into this one before the map's own templates are resolved.",
-      "items": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "description": "Another published map this map builds on, pinned to the version and content hash its author expects.",
-        "properties": {
-          "Id": {
-            "type": "string",
-            "title": "Id",
-            "description": "The identifier the dependency is published under.",
-            "x-realm-sensitive": true
-          },
-          "Name": {
-            "type": "string",
-            "title": "Name",
-            "description": "The name the dependency is listed under, shown to the author."
-          },
-          "Version": {
-            "type": "string",
-            "title": "Version",
-            "description": "The exact version of the dependency this map was authored against.",
-            "x-realm-sensitive": true
-          },
-          "Hash": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "title": "Hash",
-            "description": "The content hash of the dependency this map was authored against, so the same bytes are merged.",
-            "x-realm-sensitive": true
-          },
-          "IsOptional": {
-            "type": "boolean",
-            "title": "IsOptional",
-            "description": "Whether the map still loads when the dependency cannot be found."
-          },
-          "Url": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "title": "Url",
-            "description": "Where the dependency may be downloaded from when it is not already installed."
-          }
-        },
-        "additionalProperties": false
-      }
     },
     "Templates": {
       "type": "object",

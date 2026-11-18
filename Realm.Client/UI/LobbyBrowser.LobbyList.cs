@@ -198,11 +198,6 @@ public partial class LobbyBrowser
 			_filteredLobbies = _filteredLobbies.Where(x => activeModes.Contains(x.Mode.ToLower())).ToList();
 		}
 
-		if (!_versionMismatchCheck.ButtonPressed)
-		{
-			_filteredLobbies = _filteredLobbies.Where(x => IsJoinableGameVersion(x.GameVersion)).ToList();
-		}
-
 		// Off unless the player asks for it: hiding a lobby nobody vouched for is the player's choice, never the default.
 		if (_trustedOnlyCheck.ButtonPressed)
 		{
@@ -216,12 +211,6 @@ public partial class LobbyBrowser
 		RefreshLobbyDisplay();
 	}
 
-	private static bool IsJoinableGameVersion(string lobbyGameVersion)
-	{
-		if (string.IsNullOrEmpty(lobbyGameVersion)) return true;
-
-		return string.Equals(lobbyGameVersion, RealmVersion.GameBinaryVersion, StringComparison.Ordinal);
-	}
 	private HashSet<string> GetActiveModes()
 	{
 		var modes = new HashSet<string>();

@@ -45,8 +45,6 @@ public partial class LobbyBrowser : Control
 	private LineEdit _searchBar = null!;
 	private readonly List<(string Tag, CheckBox CheckBox)> _tagFilters = new();
 	private CheckBox _trustedOnlyCheck = null!;
-	private CheckBox _versionMismatchCheck = null!;
-	private CheckBox _unreachableLobbiesCheck = null!;
 	private VBoxContainer _lobbyListContainer = null!;
 
 	private Label _browserTitle = null!;
@@ -74,7 +72,6 @@ public partial class LobbyBrowser : Control
 
 		_searchBar = GetNode<LineEdit>("SearchBar");
 		_trustedOnlyCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/TrustedOnlyCheck");
-		_versionMismatchCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/VersionMismatchCheck");
 		_lobbyListContainer = GetNode<VBoxContainer>("LobbyPanel/VBoxContainer/ScrollContainer/LobbyListContainer");
 
 
@@ -249,23 +246,6 @@ public partial class LobbyBrowser : Control
 		_trustedOnlyCheck.ButtonPressed = false;
 		SetupFilterCheckbox(_trustedOnlyCheck);
 
-		_versionMismatchCheck.Text = TranslationServer.Translate("Show mismatched game version");
-		_versionMismatchCheck.TooltipText = TranslationServer.Translate("Also list lobbies that run a different game version and cannot be joined from this build");
-		_versionMismatchCheck.ButtonPressed = false;
-		SetupFilterCheckbox(_versionMismatchCheck);
-
-		_unreachableLobbiesCheck = new CheckBox
-		{
-			Name = "UnreachableLobbiesCheck",
-			Text = TranslationServer.Translate("Show unreachable lobbies"),
-			TooltipText = TranslationServer.Translate("Also list lobbies whose host could not be shown to be reachable from outside, which most players cannot join"),
-			ButtonPressed = false,
-			FocusMode = FocusModeEnum.None
-		};
-		SetupFilterCheckbox(_unreachableLobbiesCheck);
-		var filterRows = GetNode<VBoxContainer>("FilterPanel/VBoxContainer");
-		filterRows.AddChild(_unreachableLobbiesCheck);
-		filterRows.MoveChild(_unreachableLobbiesCheck, _versionMismatchCheck.GetIndex() + 1);
 	}
 
 	private void SetupFilterCheckbox(CheckBox checkBox)

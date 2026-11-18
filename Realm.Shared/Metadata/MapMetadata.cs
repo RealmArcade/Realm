@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Realm.Shared.Serialization;
 
@@ -18,13 +18,14 @@ public class MapMetadata
 	[SchemaSensitive]
 	public string? GameBuildNumber { get; set; }
 
+	[JsonPropertyName("EngineGeneration")]
+	[SchemaDescription("The workflow generation this map's data was authored against. A game reads maps of its own generation and upgrades older ones on a private copy, while a newer generation needs a newer game.")]
+	[SchemaSensitive]
+	public int? EngineGeneration { get; set; }
+
 	[JsonPropertyName("MapProperties")]
 	[SchemaDescription("Everything the map says about itself to a player: its name, its author, its size, its lighting and the slots it offers.")]
 	public MapInfoMetadata MapProperties { get; set; } = new();
-
-	[JsonPropertyName("Dependencies")]
-	[SchemaDescription("Other published maps this map builds on. Their content is merged into this one before the map's own templates are resolved.")]
-	public List<MapDependencyMetadata> Dependencies { get; set; } = new();
 
 	[JsonPropertyName("Templates")]
 	[SchemaDescription("Every unit, building, prop, resource, ability, weapon, upgrade, item, consumable, attachment and visual effect the map defines.")]

@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 using Realm.Shared.Serialization;
 
 namespace Realm.Shared.Metadata;
@@ -20,6 +20,9 @@ public class MapInfoMetadata
 
 	[SchemaDescription("The name the map credits as its author.")]
 	public string? Author { get; set; }
+
+	[SchemaDescription("An optional permanent Discord server invite the creator runs, which is the one creator link the game shows beyond Steam. Only an https invite on discord.gg, discord.com/invite or discordapp.com/invite is accepted; a pasted discord.gg/<code> is normalised to its https form.")]
+	public string? DiscordServerInviteLink { get; set; }
 
 	[SchemaDescription("How many players the map is designed for, written as text such as 2-4.")]
 	public string? SuggestedPlayers { get; set; }
