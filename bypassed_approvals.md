@@ -395,3 +395,15 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   read, and the readiness doc described the featured list as gone while the code still reads one if a build ships it.
   Both now state what the code does and name the collection route as the intended next step, and the test plan carries
   it as a pivot with the two ways to settle it: ship the list, or write the query and decide where its id lives.
+## The item a host advertises for its own map
+
+- **A host advertised whichever item was newest under its map's name.** `ResolveHostedMapTrustAsync` asked
+  `MapProvisioningService.FindLatestPublishedAsync`, which is a name lookup across every creator, and the id it answered
+  is what the lobby publishes as `MapWorkshopIdKey` and what the joiner downloads. A host who published their own map
+  while somebody else's item carried the same name - and was updated more recently - would advertise that stranger's
+  item, so every joiner would download the wrong package and then be refused by the map-hash check, with neither side
+  told why.
+- **The host's own item is preferred now, and the name lookup stays as the fallback.** When the host published the map,
+  their item is the one their copy came from and the one every joiner can be given. When the host is hosting a map
+  somebody else published - the ordinary case for a downloaded Workshop map - there is no owned item, so the newest
+  same-name item is still the answer, which is the only route available until a map records the item it came from.

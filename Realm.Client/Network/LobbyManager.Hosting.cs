@@ -367,6 +367,12 @@ public partial class LobbyManager
 	///     query the item would put a Workshop round trip in front of every join. A map that is not on the Workshop states
 	///     itself as untrusted, which is exactly what a local map is.
 	/// </summary>
+	/// <remarks>
+	///     The item this lobby names is the one this account published for the map when there is one, because that is the
+	///     item the host's own copy came from and the only one every joiner can be given. A name lookup across every
+	///     creator can answer an item somebody else published under the same map name, which no joiner could match against
+	///     the host's package.
+	/// </remarks>
 	/// <returns>The mark this lobby advertises.</returns>
 	private async Task<MapTrustState> ResolveHostedMapTrustAsync()
 	{
@@ -374,7 +380,8 @@ public partial class LobbyManager
 
 		try
 		{
-			WorkshopMapEntry? item = await MapProvisioningService.FindLatestPublishedAsync(ActiveMapName);
+			WorkshopMapEntry? item = await SteamWorkshopService.FindOwnedByMapNameAsync(ActiveMapName, GameContext.Steam.SteamId, CancellationToken.None)
+				?? await MapProvisioningService.FindLatestPublishedAsync(ActiveMapName);
 			if (item == null) return MapTrustPolicy.EvaluateUnpublished();
 
 			WorkshopMapEntry published = item.Value;
