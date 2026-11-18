@@ -534,10 +534,14 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   a computer seat cannot vote - so an author cannot greenlight a map with bots and cannot forge a seat's vote.
 - **The ledger is keyed by map name, like `MapHistoryService`, and not by package hash.** A hash resets on every edit,
   which would make 25 unreachable on an actively developed map; a path breaks when the workspace is moved or renamed.
-  The exchange format is deliberately plain text (a copyable code the voter pastes into chat and the author pastes back)
-  while the on-disk record is compact binary, and the code and the task both say plainly that this is obfuscation, not
-  security. Anyone who edits the file or uses SteamCMD gets around it, and the bar is aimed at the player who did not
-  realise their map was unfinished.
+  The exchange format is a copyable code the voter pastes into chat and the author pastes back, and it is an authenticated
+  envelope rather than readable text: `base64url(version | nonce | tag | ciphertext)` around a small JSON payload, sealed
+  with `AesGcm` under a key derived from a constant compiled into `Realm.Shared`. Plain base64 of JSON was rejected for
+  the same reason a printed SteamID was - a tester should be able to drop a vote in a public channel without handing
+  anyone a decoder - and the GCM tag buys tamper resistance for free, so an edited code fails to open instead of turning
+  into a different vote. The ledger file stores the same records encoded for the same reason, and the code says where the
+  key lives that it is not a secret: it ships in every build, so a determined person can mint any vote, and the bar is
+  aimed at the player who did not realise their map was unfinished.
 - **Updates inherit the greenlight, and the 5-vote update check was dropped.** Greenlight belongs to the map, not to a
   build; the alternative was a crash fix costing another 25 votes, which teaches authors not to fix crashes. What the
   author actually wanted from that check - "did I break my own map" - is answered earlier and deterministically: the
