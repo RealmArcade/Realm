@@ -177,7 +177,8 @@ public partial class LobbyManager
 
 	/// <summary>
 	///     Opens this screen's lobby, takes its seat in it and lets the map state the defaults the lobby starts with, and then
-	///     publishes it: the port is opened, a registry node is asked to reach it, and only then is the lobby registered.
+	///     publishes it: the authority is listening and the Steam lobby carries its map, seats and join code, and only then
+	///     can Steam place a player in it.
 	/// </summary>
 	public async Task<bool> HostLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
 	{
@@ -188,7 +189,7 @@ public partial class LobbyManager
 	///     Opens the lobby this screen will host without publishing it. The authority is started, this screen takes the seat
 	///     that administers it, the map's own lobby rules have run, and the settings the match will play are the ones the
 	///     lobby state names - so a host can read them and confirm them before anybody can see the lobby. Nothing about the
-	///     machine's network is touched here: the port is opened, verified and registered by
+	///     machine's network is touched here: the authority's listener and the Steam lobby that advertises it are opened by
 	///     <see cref="PublishPreparedLobbyAsync" />.
 	/// </summary>
 	public async Task<bool> PrepareHostedLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
@@ -470,7 +471,7 @@ public partial class LobbyManager
 	/// <summary>
 	///     Opens a lobby only this screen can reach, so a single player picks a map, adds the AI players they want and starts
 	///     the match from the same screen a hosted match begins in. Nothing about the machine's network is used: the authority
-	///     binds the loopback address, takes whatever port it finds free, and no registry is told the lobby exists.
+	///     binds the loopback address, takes whatever port it finds free, and no Steam lobby is opened to advertise it.
 	/// </summary>
 	/// <param name="mapPathName">The map whose lobby is opened.</param>
 	/// <param name="explicitVersion">The map version to play, or the newest the screen holds when omitted.</param>

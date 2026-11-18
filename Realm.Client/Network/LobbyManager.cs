@@ -135,9 +135,9 @@ public partial class LobbyManager : BaseMapTransferNode
 	public bool IsHost { get; set; }
 
 	/// <summary>
-	///     Whether this screen's lobby is kept out of the lobby browser, either because its host asked for that or because no
-	///     registry could be made to list it. An unlisted lobby is opened and administered exactly as a listed one is: it
-	///     keeps its seat, its host channel and the players it invites, and only stops being offered to players browsing.
+	///     Whether this screen's lobby is kept out of the lobby browser because its host published it to friends or by
+	///     invitation only. An unlisted lobby is opened and administered exactly as a listed one is: it keeps its seat, its
+	///     host channel and the players it invites, and only stops being offered to players browsing.
 	/// </summary>
 	public bool IsUnlisted { get; private set; }
 
@@ -220,7 +220,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	///     properties state, which is what a map that never runs a lobby script plays.
 	/// </summary>
 	/// <summary>
-	///     The display name the lobby waiting to be published was opened with, which is what the registry lists it as.
+	///     The display name the lobby waiting to be published was opened with, which is what Steam shows the lobby as.
 	/// </summary>
 	public string HostedMapDisplayName { get; private set; } = string.Empty;
 

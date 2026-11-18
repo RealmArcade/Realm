@@ -491,10 +491,10 @@ public partial class LobbyCreate : Control
 		}
 
 		// The lobby is open and nobody can see it yet. The host goes into its room first, because that is where the map's
-		// settings are read and edited, and publishing a listed lobby means waiting on a registry node: making a host sit
-		// through that before they can touch a single setting is the wait this flow exists to remove. The room's chat says
-		// what is happening, and says so again if the lobby could not be listed. A lobby that could not be listed stays open
-		// to the players its address is handed to, and its host can offer it in the browser again from the room.
+		// settings are read and edited, and publishing a listed lobby means waiting on Steam: making a host sit through that
+		// before they can touch a single setting is the wait this flow exists to remove. The room's chat says what is
+		// happening, and says so again if the lobby could not be published, which takes it down rather than leaving the host
+		// in a room nobody can find.
 		GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
 		_ = PublishListedLobbyAsync();
 	}

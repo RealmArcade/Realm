@@ -101,7 +101,7 @@ public class MapMetadata
 	public List<string>? Attributions { get; set; }
 
 	[JsonPropertyName("EngineVersion")]
-	[SchemaDescription("The engine binary that published this map, which the registry reports beside the map. It is written when the map is signed.")]
+	[SchemaDescription("The engine binary that published this map, so a reader can tell which build produced the shipped files. It is written when the map is signed.")]
 	[SchemaDerived("publish")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public string? EngineVersion { get; set; }

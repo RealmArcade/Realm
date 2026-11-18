@@ -160,9 +160,9 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
-	///     How long one join attempt waits for the lobby's authority to admit this screen. Hole punching on a slow link
-	///     legitimately takes seconds, so the budget is spent on one attempt instead of being divided between several: a
-	///     retry is for silence, and a refusal is an answer that a second attempt would only repeat.
+	///     How long one join attempt waits for the lobby's authority to admit this screen. A Steam connection on a slow link
+	///     legitimately takes seconds to come up, so the budget is spent on one attempt instead of being divided between
+	///     several: a retry is for silence, and a refusal is an answer that a second attempt would only repeat.
 	/// </summary>
 	private const int JoinAttemptTimeoutMilliseconds = 15000;
 
