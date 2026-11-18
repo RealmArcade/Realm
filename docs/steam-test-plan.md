@@ -107,8 +107,10 @@ the deleted item must not be played.
 editor: record what happens - a second public item, or the private one updated. This is unverified behaviour of Steam's
 own-item query rather than a decision made here, and the answer decides whether the editor needs a visibility control.
 5. **A banned item** republished: record whether a fresh item appears and whether the creator is told anything.
-6. Repeat step 2 of the main group with B subscribed to A's item while both `Arena` items exist: the join must resolve
-the item the lobby advertises, not whichever `Arena` was updated most recently.
+6. **The lobby advertises the host's own item.** With both `Arena` items existing and B's the more recently updated one,
+A hosts their map and B reads the lobby's advertisement: the item id must be A's, not the newest `Arena`. Then repeat
+step 2 of the main group (join over the advertised item) and confirm the join downloads A's package and passes the hash
+check. Before this was fixed, B downloaded the other `Arena` and was refused with no reason on either side.
 
 ## F. The workspace archive tool
 
