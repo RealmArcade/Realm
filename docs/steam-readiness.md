@@ -62,9 +62,11 @@ and broken. This is where "we hid the button" and "we hid the feature" differ, a
 presentation frames a map script addresses, and the HUD's own values are all statically plausible and have not been
 watched.
 
-**A translated screen showing English.** Coverage is no longer the question: all ten catalogs carry the keys this branch
-added, and `Realm.TranslationTool -- verify` reports 0 missing, 0 empty, 0 placeholder and 0 BBCode mismatches
-for every one of them. What has not happened is a native speaker reading them. They were written against the vocabulary
+**A translated screen showing English.** Coverage is no longer the question: `Realm.TranslationTool -- verify` reports
+0 missing, 0 empty, 0 placeholder and 0 BBCode mismatches for all ten catalogs, and the pass went on past the keys this
+branch added to the editor's own dialogs as well, so `-- coverage` now leaves only strings that are meant to stay
+identical to English - node names collected from scenes, example placeholders, shortcut hints and brand names. What has
+not happened is a native speaker reading them. They were written against the vocabulary
 each catalog already used - lobby, map, host, publish and invite keep the words the game already showed - but wording is
 not something a compiler checks, so the first pass in each language is a review rather than a proof. [The translation
 kit](translation-kit/README.md) is how that review is handed over and how the next string gets added. The other half of

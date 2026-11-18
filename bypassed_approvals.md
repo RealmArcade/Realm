@@ -420,6 +420,16 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   refuses a stale key, and an indexed generator refuses a skipped entry so text cannot slide onto the wrong key. None of
   that checks whether the German for "trust mark" reads naturally. The readiness document now states this as review work
   rather than as missing coverage, and the kit's README hands it over in that form.
+- **The pass did not stop at the Steam surfaces.** Those were what the branch broke, but the editor had been drifting for
+  longer: `-- coverage` read 171 to 183 English prose keys in nine catalogs before this pass. Filling them went surface
+  by surface - the map generator and the cross-map import dialogs, the procedural animation studio and decal builder, the
+  VFX stage sequence, the map-package import path, the GLB converter, the anchor editor, the asset browser, the index
+  verification and the command toasts - and the catalogs now leave 19 to 32 keys per language, every one of which is
+  meant to stay identical to English: node names collected from scenes (`BtnZoom_Button`), example placeholders shown in
+  an empty field (`vfx_slug`, `decal_texture_id`, `your.email@example.com`, `https://discord.gg/<code>`), shortcut
+  strings (`Ctrl + S / Ctrl + O`), and brand or product names (`Steam Workshop`, `Mixamo`, and the languages where
+  `Audio`, `Decal (PBR)` or `STEAM OFFLINE` are spelled the same way). `-- verify` still reports 0 missing, 0 empty, 0
+  placeholder and 0 BBCode mismatches for all ten.
 - **Two judgement calls inside the text.** "Steam", "Workshop", "SteamID64", `.rmap`, `terrain.json`, the
   `authorship_key_...rkey` filename and the Discord URL pattern were left untranslated in every language, because they are
   identifiers a player has to type or match, not words. And `BUILD  ` was left as `BUILD  ` in all ten, since it is drawn
