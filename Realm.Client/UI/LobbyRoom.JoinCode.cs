@@ -118,6 +118,14 @@ public partial class LobbyRoom
 	{
 		if (_joinCodePanel == null) return;
 
+		// A single-player match seats this screen and the map's computer players, so there is nobody a code could keep out
+		// and no Steam lobby for the code to be compared against.
+		if (Lobby.IsSinglePlayer)
+		{
+			_joinCodePanel.Visible = false;
+			return;
+		}
+
 		if (Lobby.IsHost)
 		{
 			// The host writes the code rather than presenting it, so the field is always offered and says what it is for.
