@@ -401,6 +401,25 @@ public static class SteamLobbyDirectory
 	}
 
 	/// <summary>
+	///     Sets how Steam lists the lobby: public ones appear in the browser, friends-only ones in a friend's list, private
+	///     ones only through an invitation and invisible ones nowhere. A host may change this between opening the room and
+	///     publishing it, which is why it is written again when the lobby is published.
+	/// </summary>
+	public static void SetVisibility(ulong lobbyId, ELobbyType visibility)
+	{
+		if (!IsAvailable || lobbyId == 0) return;
+
+		try
+		{
+			SteamMatchmaking.SetLobbyType(new CSteamID(lobbyId), visibility);
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[SteamLobby] the lobby's visibility could not be set: {exception.Message}");
+		}
+	}
+
+	/// <summary>
 	///     Opens or closes the lobby to new members. A code-gated lobby closes once its seats are taken, so a stranger
 	///     without the code can never occupy the last one.
 	/// </summary>

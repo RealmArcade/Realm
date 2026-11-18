@@ -47,31 +47,108 @@ public partial class LobbyManager
 	/// <summary>The address family the current join is aimed at, which is what decides whether a punch is needed.</summary>
 	private LobbyAddressFamily _joinFamily = LobbyAddressFamily.Unknown;
 
+	/// <summary>
+	///     Joins somebody else's match. The id is a Steam lobby: entering it is Steam's decision, the host it names is a
+	///     SteamID, and the connection is Steam's peer-to-peer socket. Nothing here asks a registry, punches a router or reads
+	///     an address, because Steam owns the directory and the routing.
+	/// </summary>
+	/// <param name="lobbyId">The Steam lobby id, as the browser listed it.</param>
+	/// <returns>Whether this screen is standing in the lobby and admitted to it.</returns>
 	public async Task<bool> JoinLobbyAsync(string lobbyId)
 	{
 		InitializeClientState(lobbyId);
-		await EnsureNatTypeMeasuredAsync();
+		SteamLobbyId = 0;
 
-		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
+		if (!SteamLobbyDirectory.IsAvailable)
+		{
+			LobbyJoinError = GameContext.Steam.UnavailableExplanation;
+			ConnectionFailed?.Invoke(LobbyJoinError);
+			return false;
+		}
 
-		_joinStartedMilliseconds = Environment.TickCount64;
-		_joinPhase = JoinPhases.Registry;
-		_joinEndpoint = string.Empty;
-		_joinAttempts = 0;
-		_joinFamily = LobbyAddressFamily.Unknown;
+		if (!ulong.TryParse(lobbyId, NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong steamLobbyId) || steamLobbyId == 0)
+		{
+			LobbyJoinError = TranslationServer.Translate("This lobby no longer exists.");
+			ConnectionFailed?.Invoke(LobbyJoinError);
+			return false;
+		}
 
 		try
 		{
-			return await JoinFromRegistryAsync(lobbyId, clientPublicIp);
+			string enterFailure = await SteamLobbyDirectory.JoinAsync(steamLobbyId);
+			if (enterFailure.Length > 0)
+			{
+				LobbyJoinError = enterFailure;
+				ConnectionFailed?.Invoke(enterFailure);
+				return false;
+			}
+
+			SteamLobbyId = steamLobbyId;
+			AttachSteamLobbyEvents();
+
+			string hostSteamIdText = SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.HostSteamIdKey);
+			if (!ulong.TryParse(hostSteamIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong hostSteamId) || hostSteamId == 0)
+			{
+				SteamLobbyDirectory.Leave(steamLobbyId);
+				LobbyJoinError = TranslationServer.Translate("This lobby does not name a host this screen can reach.");
+				ConnectionFailed?.Invoke(LobbyJoinError);
+				return false;
+			}
+
+			string mapName = SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.MapKey);
+			if (!string.IsNullOrEmpty(mapName))
+			{
+				ActiveMapName = mapName;
+				ActiveMapVersion = SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.MapVersionKey);
+			}
+
+			var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
+			if (channel == null)
+			{
+				LobbyJoinError = "This build has no channel to an authority.";
+				ConnectionFailed?.Invoke(LobbyJoinError);
+				return false;
+			}
+
+			GameContext.ServerSession?.Dispose();
+			GameContext.DetachServerSession();
+
+			var session = new ClientServerSession(channel);
+			session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
+			AttachLobbySession(session);
+
+			if (!session.TryJoinSteamLobby(hostSteamId, LocalizationManager.GetCurrentLanguageCode(), out string joinFailure))
+			{
+				DropLobbySession(session);
+				SteamLobbyDirectory.Leave(steamLobbyId);
+				LobbyJoinError = joinFailure;
+				ConnectionFailed?.Invoke(joinFailure);
+				return false;
+			}
+
+			_isConnectedToHost = true;
+
+			var admission = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromMilliseconds(JoinAttemptTimeoutMilliseconds));
+			if (admission.Failure != null)
+			{
+				DropLobbySession(session);
+				SteamLobbyDirectory.Leave(steamLobbyId);
+				LobbyJoinError = admission.Failure;
+				ConnectionFailed?.Invoke(admission.Failure);
+				return false;
+			}
+
+			IsHost = session.IsAdmin;
+			return true;
 		}
-		catch (Exception ex)
+		catch (Exception exception)
 		{
-			GameLog.LogError($"[LobbyManager] Join error: {ex.Message}");
-			ConnectionFailed?.Invoke(ex.Message);
+			GameLog.LogError($"[LobbyManager] Join error: {exception.Message}");
+			LobbyJoinError = exception.Message;
+			ConnectionFailed?.Invoke(exception.Message);
 			return false;
 		}
 	}
-
 
 	private async Task<bool> JoinFromRegistryAsync(string lobbyId, string clientPublicIp)
 	{

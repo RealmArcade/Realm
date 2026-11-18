@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using Godot;
@@ -173,6 +174,18 @@ public class ClientServerSession : IDisposable
 	public bool ConnectedOverLoopback => System.Net.IPAddress.TryParse(_address, out System.Net.IPAddress? connectedAddress) && System.Net.IPAddress.IsLoopback(connectedAddress);
 
 	public string WireTableHash => _local ? _localWireTableHash : string.Empty;
+
+	/// <summary>
+	///     The hash of the map content this session prepared, which the Steam lobby advertises so a joiner can tell whether
+	///     it will be running the same map the host is.
+	/// </summary>
+	public string MapHash => _mapHash;
+
+	/// <summary>
+	///     The Steam lobby this session's match belongs to, which travels to the authority so it can admit exactly the
+	///     identities Steam lists as members. It is zero for a loopback lobby, which seats only the host's own screen.
+	/// </summary>
+	public ulong SteamLobbyId { get; set; }
 
 	public event Action<PeerRosterAssignment>? Seated;
 
@@ -368,7 +381,11 @@ public class ClientServerSession : IDisposable
 			LoopbackOnly = start.LoopbackOnly,
 			AdminToken = _adminToken,
 			MapName = start.MapName,
-			MaxPlayers = start.MaxPlayers
+			MaxPlayers = start.MaxPlayers,
+
+			// The Steam lobby is the authority's one record of who may be seated. A loopback lobby seats only this screen and
+			// states none.
+			SteamLobbyId = start.LoopbackOnly ? 0 : SteamLobbyId
 		};
 
 		return await StartOnLocalAuthorityAsync(target, command, start.LogDirectory, start.DataFolderPath, start.Language);
@@ -422,6 +439,33 @@ public class ClientServerSession : IDisposable
 		_joinedLocalPort = localPort;
 		_address = address;
 		_port = port;
+		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
+		return true;
+	}
+
+	/// <summary>
+	///     Joins a host over Steam. The host is a SteamID and nothing else: Steam authenticated both ends, chose the route
+	///     and will relay it if a direct path is not available, so there is no address, port or punch ticket here.
+	/// </summary>
+	/// <param name="hostSteamId">The host's SteamID64, as the Steam lobby states it.</param>
+	/// <param name="language">The language this screen asks the authority to answer in.</param>
+	/// <param name="failure">Why the connection could not be started.</param>
+	/// <returns>Whether the connection is open and the lobby handshake can begin.</returns>
+	public bool TryJoinSteamLobby(ulong hostSteamId, string language, out string failure)
+	{
+		failure = string.Empty;
+		IsDebugSession = false;
+
+		_mapHash = string.Empty;
+		if (!_channel.TryConnectToSteamHost(hostSteamId, out failure)) return false;
+
+		_language = language;
+		_joined = true;
+		_started = true;
+		_joinedPort = 0;
+		_joinedLocalPort = 0;
+		_address = hostSteamId.ToString(CultureInfo.InvariantCulture);
+		_port = 0;
 		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
 		return true;
 	}

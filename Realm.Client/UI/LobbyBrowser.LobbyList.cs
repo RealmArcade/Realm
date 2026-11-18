@@ -1,19 +1,16 @@
-﻿// The lobby list end to end: fetch the registry listing, parse each entry into LobbyData (including the
-// ping estimate and map size), apply the tag and search filters, then render one row per surviving lobby.
-// Every path in here is about a list the user has not touched yet, which is why it is separate from the
-// wiring in the root file.
+// The lobby list end to end: ask Steam for the lobbies this screen could join, read each one's advertisement
+// into LobbyData, apply the tag and search filters, then render one row per surviving lobby. Every path in
+// here is about a list the user has not touched yet, which is why it is separate from the wiring in the
+// root file.
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
-using Realm.Shared.Reachability;
-using HttpClient = System.Net.Http.HttpClient;
+using Steamworks;
 using Timer = Godot.Timer;
 using static Godot.Control;
 using static Godot.CanvasItem;
@@ -25,224 +22,109 @@ namespace Realm.Client.UI;
 
 public partial class LobbyBrowser
 {
+	/// <summary>
+	///     Asks Steam for the lobbies this screen could join and reads each one's advertisement. Steam is the directory, so
+	///     there is no server to poll, no region node to pick and nothing measured about anybody's network: a lobby is either
+	///     in Steam's answer or it does not exist.
+	/// </summary>
 	private void FetchLobbiesFromRegistry()
 	{
-		if (GameContext.Lobby is not { } lobby) return;
-
-		lobby.RandomizeServerIndex();
-		Task.Run(async () =>
-		{
-			try
-			{
-				var json = await GameContext.Lobby.FetchLobbiesRawAsync();
-				if (json == null)
-				{
-					Callable.From(() => OnLobbiesFetchedFallback()).CallDeferred();
-					return;
-				}
-
-				int clientBaseline = await GameContext.Lobby.MeasurePingToRegistryAsync();
-				using var doc = JsonDocument.Parse(json);
-				var lobbyList = new List<LobbyData>();
-
-				foreach (var item in doc.RootElement.EnumerateArray())
-				{
-					lobbyList.Add(ParseLobbyData(item, clientBaseline));
-				}
-
-				Callable.From(() => OnLobbiesFetched(lobbyList)).CallDeferred();
-			}
-			catch (Exception ex)
-			{
-				GameLog.LogError($"[LobbyBrowser] Error fetching lobbies: {ex.Message}");
-				Callable.From(() => OnLobbiesFetchedFallback()).CallDeferred();
-			}
-		});
+		_ = FetchLobbiesFromSteamAsync();
 	}
 
-	private static string GetStringProp(JsonElement item, string key, string fallback = "")
+	private async Task FetchLobbiesFromSteamAsync()
 	{
-		if (item.TryGetProperty(key, out var prop))
+		if (!SteamLobbyDirectory.IsAvailable)
 		{
-			return prop.GetString() ?? fallback;
+			OnLobbiesUnavailable();
+			return;
 		}
 
-		return fallback;
+		try
+		{
+			IReadOnlyList<ulong> lobbyIds = await SteamLobbyDirectory.BrowseAsync();
+			if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+
+			var lobbyList = new List<LobbyData>(lobbyIds.Count);
+			foreach (ulong lobbyId in lobbyIds) lobbyList.Add(ReadLobby(lobbyId));
+
+			OnLobbiesFetched(lobbyList);
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[LobbyBrowser] Steam's lobby list could not be read: {exception.Message}");
+			if (GodotObject.IsInstanceValid(this) && IsInsideTree()) OnLobbiesUnavailable();
+		}
 	}
 
-	private static int GetIntProp(JsonElement item, string key, int fallback = 0)
+	/// <summary>
+	///     Reads one Steam lobby's advertisement into the row the browser draws. The map's compatibility is decided here so a
+	///     lobby whose generation or build this screen cannot play is marked rather than joined and then failed.
+	/// </summary>
+	/// <param name="lobbyId">The Steam lobby id.</param>
+	/// <returns>The lobby as the browser shows it.</returns>
+	private static LobbyData ReadLobby(ulong lobbyId)
 	{
-		if (item.TryGetProperty(key, out var prop) && prop.ValueKind == JsonValueKind.Number)
-		{
-			return prop.GetInt32();
-		}
+		string map = SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.MapKey);
+		string mapVersion = SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.MapVersionKey);
+		int seats = ParseSeatCount(SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.SeatsKey));
+		int members = SteamLobbyDirectory.GetMemberCount(lobbyId);
+		ulong owner = SteamLobbyDirectory.GetOwnerSteamId(lobbyId);
 
-		return fallback;
-	}
-
-	private static bool GetBoolProp(JsonElement item, string key, bool fallback = false)
-	{
-		if (item.TryGetProperty(key, out var prop) && prop.ValueKind is JsonValueKind.True or JsonValueKind.False)
-		{
-			return prop.GetBoolean();
-		}
-
-		return fallback;
-	}
-
-	private static LobbyData ParseLobbyData(JsonElement item, int clientBaseline)
-	{
-		string hostIp = GetStringProp(item, "hostIP");
-		if (string.IsNullOrEmpty(hostIp))
-		{
-			hostIp = GetStringProp(item, "hostIp");
-		}
-
-		int calculatedPing = CalculatePing(item, hostIp, clientBaseline);
-		long mapSizeBytes = GetMapSizeBytes(item);
-
-		string mapName = GetStringProp(item, "map");
-		string mapVersion = GetStringProp(item, "mapVersion");
-
-		if (mapSizeBytes <= 0)
-		{
-			mapSizeBytes = MapAssetManager.GetMapTotalSizeBytes(mapName, mapVersion);
-		}
-
-		int slotsUsed = GetIntProp(item, "slotsUsed", 0);
-		int maxPlayers = GetIntProp(item, "maxPlayers", 8);
-		(bool OffersIpv4, bool OffersIpv6) families = ReadOfferedFamilies(item);
+		(string reason, bool compatible) = DescribeCompatibility(map, SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.EngineGenerationKey));
 
 		return new LobbyData
 		{
-			LobbyId = GetStringProp(item, "lobbyId"),
-			Map = mapName,
-			Mode = "Melee",
-			IsGreenlit = GetBoolProp(item, "isGreenlit"),
-			MapCreator = GetStringProp(item, "mapCreator"),
-			Players = $"{slotsUsed}/{maxPlayers}",
-			Ping = calculatedPing,
-			GameVersion = GetStringProp(item, "gameVersion"),
-			MapSizeBytes = mapSizeBytes,
-			MapSizeFormatted = MapAssetManager.FormatSizeInMB(mapSizeBytes),
-			ReachabilityClass = GetStringProp(item, "reachabilityClass"),
-			OffersIpv4 = families.OffersIpv4,
-			OffersIpv6 = families.OffersIpv6
+			LobbyId = lobbyId.ToString(),
+			Map = string.IsNullOrEmpty(map) ? "melee" : map,
+			MapVersion = string.IsNullOrEmpty(mapVersion) ? "1.0.0" : mapVersion,
+			Mode = SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.ModeKey),
+			HostName = DescribeHost(owner),
+			HostSteamId = SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.HostSteamIdKey),
+			Players = $"{members}/{seats}",
+			GameVersion = SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.GameBuildKey),
+			RequiresCode = SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.RequiresCodeKey) == "1",
+			IsCompatible = compatible,
+			IncompatibleReason = reason
 		};
 	}
 
-	/// <summary>
-	///     Reads which address families a listed lobby can be joined over, so the browser states it. A lobby server from
-	///     before endpoints could be listed states one host address, and its family is the whole answer for that lobby.
-	/// </summary>
-	/// <param name="item">The lobby the registry listed.</param>
-	/// <returns>Which families the lobby offers, after reading its endpoint list.</returns>
-	private static (bool OffersIpv4, bool OffersIpv6) ReadOfferedFamilies(JsonElement item)
+	private static int ParseSeatCount(string seats)
 	{
-		bool offersIpv4 = false;
-		bool offersIpv6 = false;
-
-		foreach (string propertyName in new[] { "endpoints", "Endpoints" })
-		{
-			if (!item.TryGetProperty(propertyName, out JsonElement list) || list.ValueKind != JsonValueKind.Array) continue;
-
-			foreach (JsonElement endpoint in list.EnumerateArray())
-			{
-				if (endpoint.ValueKind != JsonValueKind.Object) continue;
-				if (endpoint.TryGetProperty("verified", out JsonElement verified) && verified.ValueKind == JsonValueKind.False) continue;
-
-				string family = endpoint.TryGetProperty("family", out JsonElement familyProperty) ? familyProperty.GetString() ?? string.Empty : string.Empty;
-				if (LobbyAddresses.ParseFamilyName(family) == LobbyAddressFamily.Unknown)
-				{
-					string address = endpoint.TryGetProperty("address", out JsonElement addressProperty) ? addressProperty.GetString() ?? string.Empty : string.Empty;
-					family = LobbyAddresses.FamilyName(LobbyAddresses.FamilyOf(address));
-				}
-
-				LobbyAddressFamily parsedFamily = LobbyAddresses.ParseFamilyName(family);
-				if (parsedFamily == LobbyAddressFamily.IPv4) offersIpv4 = true;
-				if (parsedFamily == LobbyAddressFamily.IPv6) offersIpv6 = true;
-			}
-
-			break;
-		}
-
-		if (offersIpv4 || offersIpv6) return (offersIpv4, offersIpv6);
-
-		string hostIp = GetStringProp(item, "hostIP");
-		if (hostIp.Length == 0) hostIp = GetStringProp(item, "hostIp");
-		return (LobbyAddresses.FamilyOf(hostIp) != LobbyAddressFamily.IPv6, LobbyAddresses.FamilyOf(hostIp) == LobbyAddressFamily.IPv6);
+		return int.TryParse(seats, out int parsed) && parsed > 0 ? parsed : 8;
 	}
 
-	private static int CalculatePing(JsonElement item, string hostIp, int clientBaseline)
+	private static string DescribeHost(ulong ownerSteamId)
 	{
-		if (hostIp == "127.0.0.1" || hostIp == "localhost" || string.IsNullOrEmpty(hostIp))
+		if (ownerSteamId == 0) return string.Empty;
+
+		try
 		{
-			return 5;
+			return SteamFriends.GetFriendPersonaName(new CSteamID(ownerSteamId));
 		}
-
-		double distanceKm = 0;
-		if (item.TryGetProperty("distanceKm", out var distProp))
+		catch (Exception)
 		{
-			distanceKm = distProp.GetDouble();
+			return string.Empty;
 		}
-		else if (item.TryGetProperty("distance", out distProp))
-		{
-			distanceKm = distProp.GetDouble();
-		}
-
-		int hostPingBaseline = 20;
-		if (item.TryGetProperty("hostPingBaseline", out var baselineProp))
-		{
-			hostPingBaseline = baselineProp.GetInt32();
-		}
-
-		double geoPing = 10.0 + (distanceKm / 100.0);
-		double clientOverhead = Math.Max(0, clientBaseline - 20);
-		double hostOverhead = Math.Max(0, hostPingBaseline - 20);
-		return (int)Math.Round(geoPing + clientOverhead + hostOverhead);
-	}
-
-	private static long GetMapSizeBytes(JsonElement item)
-	{
-		if (item.TryGetProperty("mapSizeBytes", out var sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
-		{
-			return sizeProp.GetInt64();
-		}
-
-		if (item.TryGetProperty("MapSizeBytes", out sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
-		{
-			return sizeProp.GetInt64();
-		}
-
-		if (item.TryGetProperty("mapSize", out sizeProp) && sizeProp.ValueKind == JsonValueKind.Number)
-		{
-			return sizeProp.GetInt64();
-		}
-
-		return 0;
-	}
-
-	/// <summary>The families a listed lobby offers, as the one label that says it.</summary>
-	/// <param name="data">The lobby the registry listed.</param>
-	/// <returns>The translation key that names the families.</returns>
-	private static string ConnectionLabelKey(LobbyData data)
-	{
-		if (data.OffersIpv4 && data.OffersIpv6) return "IPv6 + IPv4";
-		if (data.OffersIpv6) return "IPv6 only";
-		return "IPv4 only";
 	}
 
 	/// <summary>
-	///     The colour the families are written in. A lobby this computer cannot reach at all is coloured as the warning it
-	///     is, so an IPv6-only lobby is not a green row that refuses when pressed.
+	///     Decides whether this screen can play a lobby's map. The build is filtered by Steam before the list arrives, so
+	///     what is left to check is the generation the map declares: one newer than this game cannot be read, and one the game
+	///     still supports is upgraded on a private copy.
 	/// </summary>
-	/// <param name="data">The lobby the registry listed.</param>
-	/// <returns>The colour for the families label.</returns>
-	private static Color ConnectionColor(LobbyData data)
+	/// <param name="map">The lobby's map path name.</param>
+	/// <param name="generationText">The engine generation the map declares.</param>
+	/// <returns>Why the lobby cannot be played, and whether it can.</returns>
+	private static (string Reason, bool Compatible) DescribeCompatibility(string map, string generationText)
 	{
-		if (data.OffersIpv6 && !data.OffersIpv4) return LobbyManager.LocalIpv6Available ? new Color(0.3f, 0.8f, 0.4f) : new Color(0.85f, 0.65f, 0.3f);
-		return new Color(0.75f, 0.75f, 0.8f);
+		if (string.IsNullOrEmpty(map)) return (string.Empty, true);
+		if (!int.TryParse(generationText, out int generation)) return (string.Empty, true);
+		if (generation <= RealmVersion.EngineGeneration) return (string.Empty, true);
+
+		return (TranslationServer.Translate("This map was made for a newer version of Realm."), false);
 	}
+
 
 	private void OnLobbiesFetched(List<LobbyData> list)
 	{
@@ -256,7 +138,11 @@ public partial class LobbyBrowser
 		ApplyFilters();
 	}
 
-	private void OnLobbiesFetchedFallback()
+	/// <summary>
+	///     States that Steam could not answer, which is the only way the list is unavailable now that Steam is the directory.
+	///     There is no second server to fall back to and no address to type instead.
+	/// </summary>
+	private void OnLobbiesUnavailable()
 	{
 		_connectionFailed = true;
 		_allLobbies.Clear();
@@ -265,25 +151,17 @@ public partial class LobbyBrowser
 
 	private string GetMapDisplayName(LobbyData data)
 	{
-		if (data.IsGreenlit) return data.Map;
+		if (string.IsNullOrEmpty(data.HostName)) return data.Map;
 
-		string betaDisplayName = $"[{Tr("Beta-Testing")}] {data.Map}";
-		return string.IsNullOrEmpty(data.MapCreator) ? betaDisplayName : $"{betaDisplayName} - {data.MapCreator}";
+		return $"{data.Map} - {data.HostName}";
 	}
 
 	private void ApplyFilters()
 	{
+		// Nothing is filtered out by default. An empty browser with no explanation is a worse failure than one weak lobby, and
+		// Steam has already narrowed the list to lobbies this build can talk to.
 		_filteredLobbies = _allLobbies.ToList();
-
 		_hiddenUnreachableCount = 0;
-		if (!_unreachableLobbiesCheck.ButtonPressed)
-		{
-			// A lobby whose host was never shown to be reachable is not an opportunity: joining it waits out a timeout. It is
-			// hidden behind a control a player can tick rather than removed, because the measurement can be wrong and the host
-			// may have fixed the network since it was published.
-			_filteredLobbies = _filteredLobbies.Where(x => !LobbyListingPolicy.IsHiddenByDefault(x.ReachabilityClass)).ToList();
-			_hiddenUnreachableCount = _allLobbies.Count(x => LobbyListingPolicy.IsHiddenByDefault(x.ReachabilityClass));
-		}
 
 		string query = _searchBar.Text.Trim().ToLower();
 		if (!string.IsNullOrEmpty(query))
@@ -297,17 +175,14 @@ public partial class LobbyBrowser
 			_filteredLobbies = _filteredLobbies.Where(x => activeModes.Contains(x.Mode.ToLower())).ToList();
 		}
 
-		if (!_betaTestingMapsCheck.ButtonPressed)
-		{
-			_filteredLobbies = _filteredLobbies.Where(x => x.IsGreenlit).ToList();
-		}
-
 		if (!_versionMismatchCheck.ButtonPressed)
 		{
 			_filteredLobbies = _filteredLobbies.Where(x => IsJoinableGameVersion(x.GameVersion)).ToList();
 		}
 
-		_filteredLobbies.Sort((left, right) => LobbyListingPolicy.Compare(left.ReachabilityClass, left.Ping, left.Map, right.ReachabilityClass, right.Ping, right.Map));
+		// Sorted by map, because Steam supplies no distance or ping for a lobby and inventing one would be a column that looks
+		// measured and is not.
+		_filteredLobbies.Sort((left, right) => string.Compare(left.Map, right.Map, StringComparison.OrdinalIgnoreCase));
 
 		RefreshLobbyDisplay();
 	}
@@ -339,7 +214,7 @@ public partial class LobbyBrowser
 		if (_connectionFailed)
 		{
 			var lbl = new Label();
-			lbl.Name = "RegistryUnavailable_Label";
+			lbl.Name = "SteamUnavailable_Label";
 			lbl.Text = TranslationServer.Translate("⚠️ Failed to connect to the lobby registry server. Please check your internet connection or try again later.\n\nSingle player against AI bots is always available from the main menu.");
 			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 			lbl.CustomMinimumSize = new Vector2(760, 0);
@@ -357,9 +232,7 @@ public partial class LobbyBrowser
 			lbl.Name = noLobbiesOnline ? "NoLobbiesOnline_Label" : "NoLobbiesMatched_Label";
 			lbl.Text = noLobbiesOnline
 				? TranslationServer.Translate("No lobbies are open right now. Realm is new, so the player base is still growing.\n\nStart a lobby and invite friends, or play single player against AI bots.")
-				: _hiddenUnreachableCount > 0
-					? TranslationServer.Translate("No lobbies match your search or filters. Some lobbies are hidden because their host could not be shown to be reachable: tick SHOW UNREACHABLE LOBBIES to see them.")
-					: TranslationServer.Translate("No lobbies match your search or filters.");
+				: TranslationServer.Translate("No lobbies match your search or filters.");
 			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 			lbl.CustomMinimumSize = new Vector2(760, 0);
 			lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -403,57 +276,33 @@ public partial class LobbyBrowser
 		hBox.Name = "HBox_HBoxContainer";
 		panel.AddChild(hBox);
 
-		bool isBetaTesting = !data.IsGreenlit;
-
 		var lblMap = new Label();
 		lblMap.Name = "LblMap_Label";
 		lblMap.Text = $"  {GetMapDisplayName(data)}";
 		lblMap.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblMap.AddThemeColorOverride("font_color", isBetaTesting ? new Color(0.95f, 0.6f, 0.35f) : new Color(0.9f, 0.85f, 0.7f));
+		lblMap.AddThemeColorOverride("font_color", data.IsCompatible ? new Color(0.9f, 0.85f, 0.7f) : new Color(0.85f, 0.45f, 0.35f));
 		lblMap.AddThemeFontSizeOverride("font_size", 16);
 		lblMap.VerticalAlignment = VerticalAlignment.Center;
+		if (!data.IsCompatible) lblMap.TooltipText = data.IncompatibleReason;
 		hBox.AddChild(lblMap);
 
-		var lblSize = new Label();
-		lblSize.Name = "LblSize_Label";
-		lblSize.Text = data.MapSizeFormatted;
-		lblSize.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblSize.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
-		lblSize.AddThemeFontSizeOverride("font_size", 15);
-		lblSize.VerticalAlignment = VerticalAlignment.Center;
-		hBox.AddChild(lblSize);
-
-		// A lobby is listed with what was measured about its network, so a player can tell a lobby that works from
-		// anywhere apart from one that only opens after both sides punch. Nothing is stated for a class this build does
-		// not know, because guessing one would be the one thing the class exists to stop.
-		if (data.ReachabilityClass == ReachabilityClasses.PunchOnly)
+		// A lobby gated by a join code says so, because the code is what admits a seat and the lobby is still listed.
+		if (data.RequiresCode)
 		{
-			var lblReachability = new Label();
-			lblReachability.Name = "LblReachability_Label";
-			lblReachability.Text = Tr("PUNCH");
-			lblReachability.TooltipText = Tr("Both sides send a packet first, which is how most home routers let a join in.");
-			lblReachability.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			lblReachability.AddThemeColorOverride("font_color", new Color(0.85f, 0.75f, 0.4f));
-			lblReachability.AddThemeFontSizeOverride("font_size", 14);
-			lblReachability.VerticalAlignment = VerticalAlignment.Center;
-			hBox.AddChild(lblReachability);
-		}
-		else if (data.ReachabilityClass == ReachabilityClasses.Open)
-		{
-			var lblReachability = new Label();
-			lblReachability.Name = "LblReachability_Label";
-			lblReachability.Text = Tr("OPEN");
-			lblReachability.TooltipText = Tr("A lobby server reached this lobby without the host sending anything first, so a join needs nothing special.");
-			lblReachability.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-			lblReachability.AddThemeColorOverride("font_color", new Color(0.4f, 0.8f, 0.45f));
-			lblReachability.AddThemeFontSizeOverride("font_size", 14);
-			lblReachability.VerticalAlignment = VerticalAlignment.Center;
-			hBox.AddChild(lblReachability);
+			var lblCode = new Label();
+			lblCode.Name = "LblJoinCode_Label";
+			lblCode.Text = TranslationServer.Translate("CODE");
+			lblCode.TooltipText = TranslationServer.Translate("This lobby asks for a join code before it seats you.");
+			lblCode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			lblCode.AddThemeColorOverride("font_color", new Color(0.85f, 0.75f, 0.4f));
+			lblCode.AddThemeFontSizeOverride("font_size", 14);
+			lblCode.VerticalAlignment = VerticalAlignment.Center;
+			hBox.AddChild(lblCode);
 		}
 
 		var lblMode = new Label();
 		lblMode.Name = "LblMode_Label";
-		lblMode.Text = data.Mode;
+		lblMode.Text = string.IsNullOrEmpty(data.Mode) ? "Melee" : data.Mode;
 		lblMode.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblMode.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.8f));
 		lblMode.AddThemeFontSizeOverride("font_size", 15);
@@ -469,34 +318,12 @@ public partial class LobbyBrowser
 		lblPlayers.VerticalAlignment = VerticalAlignment.Center;
 		hBox.AddChild(lblPlayers);
 
-		// Which families the lobby can be joined over, so a lobby this computer cannot reach is readable before it is
-		// pressed rather than only after it refuses.
-		var lblConnection = new Label();
-		lblConnection.Name = "LblConnection_Label";
-		lblConnection.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblConnection.AddThemeColorOverride("font_color", ConnectionColor(data));
-		lblConnection.AddThemeFontSizeOverride("font_size", 15);
-		lblConnection.VerticalAlignment = VerticalAlignment.Center;
-		lblConnection.TooltipText = TranslationServer.Translate("The kinds of address this lobby can be joined over. IPv6 needs no port forward and no hole punch.");
-		LocalizedText.Set(lblConnection, ConnectionLabelKey(data));
-		hBox.AddChild(lblConnection);
-
-		var lblPing = new Label();
-		lblPing.Name = "LblPing_Label";
-		lblPing.Text = $"{data.Ping} ms  ";
-		lblPing.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		lblPing.HorizontalAlignment = HorizontalAlignment.Right;
-		lblPing.AddThemeColorOverride("font_color", data.Ping < 80 ? new Color(0.3f, 0.8f, 0.4f) : new Color(0.85f, 0.65f, 0.3f));
-		lblPing.AddThemeFontSizeOverride("font_size", 15);
-		lblPing.VerticalAlignment = VerticalAlignment.Center;
-		hBox.AddChild(lblPing);
-
 		var lblVersion = new Label();
 		lblVersion.Name = "LblVersion_Label";
-		lblVersion.Text = $"v{data.GameVersion}  ";
+		lblVersion.Text = $"{data.GameVersion}  ";
 		lblVersion.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		lblVersion.HorizontalAlignment = HorizontalAlignment.Right;
-		lblVersion.AddThemeColorOverride("font_color", data.GameVersion == RealmVersion.GameBinaryVersion ? new Color(0.3f, 0.8f, 0.4f) : new Color(0.85f, 0.3f, 0.3f));
+		lblVersion.AddThemeColorOverride("font_color", new Color(0.3f, 0.8f, 0.4f));
 		lblVersion.AddThemeFontSizeOverride("font_size", 15);
 		lblVersion.VerticalAlignment = VerticalAlignment.Center;
 		hBox.AddChild(lblVersion);
@@ -517,6 +344,15 @@ public partial class LobbyBrowser
 				if (!string.IsNullOrEmpty(data.GameVersion) && data.GameVersion != RealmVersion.GameBinaryVersion)
 				{
 					ShowDifferentBuildNotice(data.GameVersion, RealmVersion.GameBinaryVersion);
+					return;
+				}
+
+				// A map made for a newer engine is refused before the join instead of opened and then failed, so the player reads
+				// which of the two is out of date.
+				if (!data.IsCompatible)
+				{
+					GameContext.UserInterface?.PlayWarningSound();
+					GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("MAP NOT COMPATIBLE"), data.IncompatibleReason);
 					return;
 				}
 
@@ -543,7 +379,7 @@ public partial class LobbyBrowser
 					panel.MouseFilter = MouseFilterEnum.Stop;
 					string errMsg = !string.IsNullOrEmpty(GameContext.Lobby.LobbyJoinError)
 						? GameContext.Lobby.LobbyJoinError
-						: "Direct connection handshake failed. The host could not be reached.";
+						: TranslationServer.Translate("Steam could not connect to the host.");
 					GameContext.Lobby.LobbyJoinError = null;
 					ShowLobbyJoinErrorPopup(errMsg);
 				}

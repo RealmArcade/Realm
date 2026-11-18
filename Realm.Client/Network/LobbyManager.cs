@@ -13,6 +13,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
+using Steamworks;
 using Realm.Ecs;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -346,6 +347,21 @@ public partial class LobbyManager : BaseMapTransferNode
 		}
 	}
 	public string? ActiveLobbyId { get; private set; }
+
+	/// <summary>
+	///     The Steam lobby that stands for this screen's lobby, or zero when it is not in one. It is the directory entry, the
+	///     membership list and the invite target, and the Realm lobby id a screen joins is this number as a string.
+	/// </summary>
+	public ulong SteamLobbyId { get; private set; }
+
+	/// <summary>
+	///     The optional code a host set so a community event can be gated without a password service. It is never written to
+	///     Steam metadata, it is not a credential, and the authority is what compares it before seating anybody.
+	/// </summary>
+	public string JoinCode { get; set; } = string.Empty;
+
+	/// <summary>Who may see and enter the lobby the host opens: public, friends-only, private or invisible.</summary>
+	public ELobbyType HostedVisibility { get; set; } = ELobbyType.k_ELobbyTypePublic;
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
 	public int MatchSeed { get; private set; }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -13,6 +13,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
+using Steamworks;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
@@ -238,6 +239,29 @@ public partial class LobbyManager
 		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
 
+		// Steam's lobby is created before the authority is told to start, because it is what the authority admits peers
+		// against: a match that started without one would have to admit everybody or nobody.
+		if (!GameContext.Steam.IsAvailable)
+		{
+			LastHostError = GameContext.Steam.UnavailableExplanation;
+			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		SteamLobbyId = await SteamLobbyDirectory.CreateAsync(HostedVisibility, MaxPlayers, !string.IsNullOrEmpty(JoinCode));
+		if (SteamLobbyId == 0)
+		{
+			LastHostError = TranslationServer.Translate("Steam could not create this lobby. Try again in a moment.");
+			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		session.SteamLobbyId = SteamLobbyId;
+		ActiveLobbyId = SteamLobbyId.ToString();
+		AttachSteamLobbyEvents();
+
 		var start = new ServerLobbyStart(
 			ProjectSettings.GlobalizePath(mapDirectory),
 			mapPathName,
@@ -320,8 +344,21 @@ public partial class LobbyManager
 	/// <returns>Whether the lobby is listed on a registry node. False means it is open to players holding its address.</returns>
 	public Task<bool> PublishPreparedLobbyDirectlyOnFailureAsync() => PublishPreparedLobbyAsync(keepLobbyOnFailure: true);
 
+	/// <summary>
+	///     Publishes the prepared lobby by creating the Steam lobby that stands for it. Steam owns the directory, the
+	///     membership and the invites, so there is no port to open, no router to ask, no public node to reach the lobby first
+	///     and no registry to register with: the lobby exists when Steam says it does, and it is found because Steam knows
+	///     about it.
+	/// </summary>
+	/// <param name="keepLobbyOnFailure">
+	///     Kept for the callers that used to keep a reachable-but-unlisted lobby open. Steam either created the lobby or it did
+	///     not, so a failure here always takes the lobby down and this flag no longer changes anything.
+	/// </param>
+	/// <returns>Whether Steam now holds a lobby for this match.</returns>
 	private async Task<bool> PublishPreparedLobbyAsync(bool keepLobbyOnFailure)
 	{
+		_ = keepLobbyOnFailure;
+
 		ClientServerSession? prepared = _lobbySession;
 		if (prepared == null || !prepared.IsRunning || !IsHost)
 		{
@@ -330,40 +367,50 @@ public partial class LobbyManager
 			return false;
 		}
 
-		string mapDisplayName = string.IsNullOrEmpty(HostedMapDisplayName) ? ActiveMapName : HostedMapDisplayName;
-
-		IsUnlisted = false;
-		if (keepLobbyOnFailure) NotifyHostLine(TranslationServer.Translate("Checking whether players elsewhere can reach this lobby. You can set up the match while this runs."));
-		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
-		await OpenLobbyEndpointAsync(prepared.Port);
-
-		Diagnostics.StartHostListener();
-
-		// The lobby is only published once a public node has reached its game port, so nobody sees a lobby that a
-		// timeout is waiting behind.
-		bool registered = await RegisterLobbyWithRegistryAsync(ActiveMapName, mapDisplayName, HostedMapVersion, prepared.Port);
-		if (!registered)
+		if (!SteamLobbyDirectory.IsAvailable)
 		{
-			if (!keepLobbyOnFailure)
-			{
-				TeardownHostedLobby(prepared);
-				return false;
-			}
-
-			// The port is already open and the router's forward, if any, is already held, so the lobby is still joinable by
-			// anybody who is given its address. Losing the listing is not a reason to close it under the host's feet.
-			IsUnlisted = true;
-			ActiveLobbyId = null;
-			NotifyHostLine(TranslationServer.Translate(LobbyPublicationSentences.PublicLobbyNotCreated));
-			GameLog.LogError($"[LobbyManager] The lobby is not listed; players who are given {DirectConnectAddress} can still join it.");
-			PlayerListUpdated?.Invoke();
-			LobbyPublicationRefused?.Invoke();
+			LastHostError = GameContext.Steam.UnavailableExplanation;
+			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			TeardownHostedLobby(prepared);
 			return false;
 		}
 
-		StartHostReachabilityKeepAlive();
+		string mapDisplayName = string.IsNullOrEmpty(HostedMapDisplayName) ? ActiveMapName : HostedMapDisplayName;
 
-		NotifyHostLine($"{TranslationServer.Translate("This lobby is listed now; players browsing the lobby list can join it at")} {PublicConnectAddress ?? DirectConnectAddress}");
+		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
+		bool requiresCode = !string.IsNullOrEmpty(JoinCode);
+		ulong steamLobbyId = SteamLobbyId;
+
+		if (steamLobbyId == 0)
+		{
+			LastHostError = TranslationServer.Translate("This lobby has no Steam lobby behind it.");
+			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			TeardownHostedLobby(prepared);
+			return false;
+		}
+
+		IsUnlisted = HostedVisibility != ELobbyType.k_ELobbyTypePublic;
+		SteamLobbyDirectory.SetVisibility(steamLobbyId, HostedVisibility);
+
+		// Steam metadata is the advertisement, not the lobby state: seats, teams and settings stay in the lobby protocol.
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapKey, ActiveMapName);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapVersionKey, HostedMapVersion);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapHashKey, prepared.MapHash);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.EngineGenerationKey, RealmVersion.EngineGeneration.ToString(CultureInfo.InvariantCulture));
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.GameBuildKey, RealmVersion.GameBuildNumber);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.ModeKey, "Melee");
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.SeatsKey, MaxPlayers.ToString(CultureInfo.InvariantCulture));
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.HostSteamIdKey, GameContext.Steam.SteamId.ToString(CultureInfo.InvariantCulture));
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.RequiresCodeKey, requiresCode ? "1" : "0");
+
+		LobbyPort = prepared.Port;
+
+		NotifyHostLine(HostedVisibility == ELobbyType.k_ELobbyTypePublic
+			? TranslationServer.Translate("This lobby is listed in Steam now; your friends can also join from their Steam friends list.")
+			: TranslationServer.Translate("This lobby is open. Invite your Steam friends; they join from their friends list."));
+
+		if (requiresCode) NotifyHostLine(TranslationServer.Translate("Players standing in this lobby need the join code before they can take a seat."));
+
 		PlayerListUpdated?.Invoke();
 		return true;
 	}

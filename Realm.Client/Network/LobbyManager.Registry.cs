@@ -192,6 +192,15 @@ public partial class LobbyManager
 		bool hostedHere = IsHost;
 		_lobbySession = null;
 
+		// The Steam lobby is the directory entry and the membership list, so leaving it is what closes the lobby for
+		// everybody: the host leaving ends the match, and a joiner leaving frees their seat.
+		if (SteamLobbyId != 0)
+		{
+			DetachSteamLobbyEvents();
+			SteamLobbyDirectory.Leave(SteamLobbyId);
+			SteamLobbyId = 0;
+		}
+
 		UnregisterActiveLobbyFromRegistry();
 
 		if (session != null)

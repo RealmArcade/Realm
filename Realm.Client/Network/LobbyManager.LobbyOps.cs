@@ -193,6 +193,11 @@ public partial class LobbyManager
 	{
 		if (!IsHost) return;
 
+		// The lobby closes when the match starts. There is no join-in-progress here, so a member arriving after the start
+		// would stand in a room whose match they cannot enter; Steam stops admitting them at the same moment the countdown
+		// begins.
+		if (SteamLobbyId != 0) SteamLobbyDirectory.SetJoinable(SteamLobbyId, false);
+
 		_lobbySession?.SendLobbyCommand(new LobbyCommand
 		{
 			Kind = LobbyCommandKind.StartCountdown,
@@ -275,7 +280,16 @@ public partial class LobbyManager
 
 		if (senderName == "System") return;
 
-		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		// The lobby's own chat carries the line whenever the lobby exists, because it is what keeps the history and the
+		// team-only channel. Steam's lobby chat is the path that works before that connection does, which is the window
+		// between entering the Steam lobby and being admitted to a seat.
+		if (_lobbySession == null)
+		{
+			if (SteamLobbyId != 0) SteamLobbyDirectory.SendChat(message);
+			return;
+		}
+
+		_lobbySession.SendLobbyCommand(new LobbyCommand
 		{
 			Kind = LobbyCommandKind.Chat,
 			Text = message
