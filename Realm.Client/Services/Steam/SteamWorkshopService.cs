@@ -230,6 +230,38 @@ public static class SteamWorkshopService
 	}
 
 	/// <summary>
+	///     Reads the items one creator published for this game, newest first, which is the strip the creator panel shows.
+	///     The query names the running AppID, because a SteamID is global and an unfiltered query would offer the creator's
+	///     items for other games as if they were maps here.
+	/// </summary>
+	/// <param name="creatorSteamId">The creator's SteamID64, as the Workshop item states its owner.</param>
+	/// <param name="maximumCount">How many items to show at most.</param>
+	/// <param name="cancellationToken">Gives up the query.</param>
+	/// <returns>The creator's items for this game, newest first.</returns>
+	public static async Task<IReadOnlyList<WorkshopMapEntry>> BrowseByAuthorAsync(ulong creatorSteamId, uint maximumCount, CancellationToken cancellationToken)
+	{
+		if (!IsAvailable || creatorSteamId == 0) return Array.Empty<WorkshopMapEntry>();
+
+		UGCQueryHandle_t handle = SteamUGC.CreateQueryUserUGCRequest(
+			new AccountID_t((uint)(creatorSteamId & 0xFFFFFFFF)),
+			EUserUGCList.k_EUserUGCList_Published,
+			EUGCMatchingUGCType.k_EUGCMatchingUGCType_Items,
+			EUserUGCListSortOrder.k_EUserUGCListSortOrder_CreationOrderDesc,
+			ConsumerAppId,
+			ConsumerAppId,
+			1);
+
+		if (handle == UGCQueryHandle_t.Invalid) return Array.Empty<WorkshopMapEntry>();
+
+		SteamUGC.SetReturnTotalOnly(handle, false);
+		IReadOnlyList<WorkshopMapEntry> entries = await RunQueryAsync(handle, cancellationToken);
+		return entries
+			.Where(entry => !entry.IsBanned)
+			.Take((int)Math.Max(1, maximumCount))
+			.ToList();
+	}
+
+	/// <summary>
 	///     Finds the newest item that states a given map folder name. This is how a lobby names a map and the screen
 	///     turns that name into a subscription, without either of them trusting a title.
 	/// </summary>

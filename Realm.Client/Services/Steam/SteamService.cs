@@ -39,6 +39,9 @@ public partial class SteamService
 
 	private ulong _avatarTextureSteamId;
 
+	/// <summary>Avatars read for other people this session, which is a session cache and never a stored profile.</summary>
+	private readonly Dictionary<ulong, Texture2D?> _personaAvatars = new();
+
 
 
 	private Callback<LobbyEnter_t>? _lobbyEnterCallback;
@@ -440,6 +443,40 @@ public partial class SteamService
 				GameLog.LogError($"[Steam] this player's avatar could not be read: {exception.Message}");
 				return _avatarTexture;
 			}
+		}
+	}
+
+	/// <summary>
+	///     The Steam avatar of any player Steam knows, which is what a creator row draws beside the author's name. Steam
+	///     hands out a handle rather than bytes, and a texture built from a handle Steam later releases goes stale, so the
+	///     images are cached per identity and never written to disk: a name or an avatar is a profile Steam owns and the game
+	///     only reads.
+	/// </summary>
+	/// <param name="steamId">The SteamID64 whose avatar to read.</param>
+	/// <returns>The avatar as a texture, or null when Steam has not produced one.</returns>
+	public Texture2D? GetAvatar(ulong steamId)
+	{
+		if (!_initialized || steamId == 0) return null;
+		if (_personaAvatars.TryGetValue(steamId, out Texture2D? cachedAvatar)) return cachedAvatar;
+
+		try
+		{
+			int avatarHandle = SteamFriends.GetLargeFriendAvatar(new CSteamID(steamId));
+			if (avatarHandle <= 0) return null;
+			if (!SteamUtils.GetImageSize(avatarHandle, out uint width, out uint height) || width == 0 || height == 0) return null;
+
+			var pixels = new byte[width * height * 4];
+			if (!SteamUtils.GetImageRGBA(avatarHandle, pixels, pixels.Length)) return null;
+
+			var image = Image.CreateFromData((int)width, (int)height, false, Image.Format.Rgba8, pixels);
+			var texture = ImageTexture.CreateFromImage(image);
+			_personaAvatars[steamId] = texture;
+			return texture;
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[Steam] the avatar for {steamId} could not be read: {exception.Message}");
+			return null;
 		}
 	}
 

@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
+using Realm.Client.Core;
 using Realm.Client.Network;
 using FileAccess = Godot.FileAccess;
 using static Godot.Control;
@@ -35,6 +37,10 @@ public partial class MapDetails : Control
 	private Button _attributionButton = null!;
 	private Button _steamProfileButton = null!;
 	private Button _workshopButton = null!;
+	private Button _discordButton = null!;
+	private Button _otherMapsButton = null!;
+	private TextureRect _creatorAvatar = null!;
+	private HBoxContainer _otherMapsStrip = null!;
 	private AttributionPopover _attributionPopover = null!;
 
 
@@ -83,6 +89,9 @@ public partial class MapDetails : Control
 	private Label _versionLabel = null!;
 
 	private MapData _mapData = null!;
+
+	/// <summary>The invite the map itself states, read from its metadata when the details are shown.</summary>
+	private string _statedDiscordInvite = string.Empty;
 	private int _carouselIndex = 0;
 	private bool _isDownloading = false;
 	private float _downloadProgress = 0.0f;
@@ -259,6 +268,25 @@ public partial class MapDetails : Control
 	/// </summary>
 	private void SetupSteamLinks()
 	{
+		// The creator is a Steam account, so the row is the account's own face and name rather than a name the map typed.
+		// Nothing here is stored: an avatar or a persona is read from Steam each session, and a private profile simply
+		// draws no picture.
+		_creatorAvatar = new TextureRect();
+		_creatorAvatar.Name = "CreatorAvatar_TextureRect";
+		_creatorAvatar.CustomMinimumSize = new Vector2(48, 48);
+		_creatorAvatar.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+		_creatorAvatar.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+		_creatorAvatar.Visible = false;
+		_headerPanel.GetNode<VBoxContainer>("VBoxContainer").AddChild(_creatorAvatar);
+		_headerPanel.GetNode<VBoxContainer>("VBoxContainer").MoveChild(_creatorAvatar, _creatorLabel.GetIndex());
+
+		_otherMapsStrip = new HBoxContainer();
+		_otherMapsStrip.Name = "OtherMapsStrip_HBoxContainer";
+		_otherMapsStrip.Alignment = BoxContainer.AlignmentMode.Center;
+		_otherMapsStrip.AddThemeConstantOverride("separation", 8);
+		_otherMapsStrip.Visible = false;
+		_headerPanel.GetNode<VBoxContainer>("VBoxContainer").AddChild(_otherMapsStrip);
+
 		_steamProfileButton = CreateHeaderLink("SteamProfileButton_Button", TranslationServer.Translate("VIEW STEAM PROFILE"));
 		_steamProfileButton.Pressed += () =>
 		{
@@ -276,6 +304,73 @@ public partial class MapDetails : Control
 			GameContext.UserInterface?.PlayClickSound();
 			OS.ShellOpen($"https://steamcommunity.com/sharedfiles/filedetails/?id={_mapData.WorkshopId}");
 		};
+
+		_otherMapsButton = CreateHeaderLink("OtherMapsButton_Button", TranslationServer.Translate("OTHER MAPS BY THIS CREATOR"));
+		_otherMapsButton.Pressed += () =>
+		{
+			if (_mapData?.CreatorSteamId is not > 0) return;
+
+			GameContext.UserInterface?.PlayClickSound();
+			OS.ShellOpen($"https://steamcommunity.com/profiles/{_mapData.CreatorSteamId}/myworkshopfiles/?appid={GameContext.Steam.AppId.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+		};
+
+		_discordButton = CreateHeaderLink("DiscordButton_Button", TranslationServer.Translate("JOIN THE CREATOR'S DISCORD"));
+		_discordButton.Pressed += () =>
+		{
+			if (!DiscordInvite.TryNormalize(_statedDiscordInvite, out string inviteLink)) return;
+
+			GameContext.UserInterface?.PlayClickSound();
+			OS.ShellOpen(inviteLink);
+		};
+	}
+
+	/// <summary>
+	///     The creator's other items for this game, drawn as a strip of their titles. The query names the running AppID, so
+	///     an item the creator published for another game can never appear here, and an empty answer is a normal state: the
+	///     author simply has nothing else published.
+	/// </summary>
+	/// <param name="creatorSteamId">The SteamID64 the item states as its owner.</param>
+	private async void LoadOtherMapsByCreator(ulong creatorSteamId)
+	{
+		foreach (Node child in _otherMapsStrip.GetChildren()) child.QueueFree();
+		_otherMapsStrip.Visible = false;
+
+		if (creatorSteamId == 0 || !SteamWorkshopService.IsAvailable) return;
+		if (_mapData?.CreatorSteamId != creatorSteamId) return;
+
+		try
+		{
+			IReadOnlyList<WorkshopMapEntry> others = await SteamWorkshopService.BrowseByAuthorAsync(creatorSteamId, 5, CancellationToken.None);
+			if (!GodotObject.IsInstanceValid(this) || _mapData?.CreatorSteamId != creatorSteamId) return;
+
+			foreach (WorkshopMapEntry entry in others)
+			{
+				if (entry.PublishedFileId == _mapData?.WorkshopId) continue;
+
+				var itemButton = new Button();
+				itemButton.Name = $"OtherMap_{entry.PublishedFileId}_Button";
+				itemButton.Text = entry.Title;
+				itemButton.TooltipText = string.Format(TranslationServer.Translate("{0} at {1}% positive"), entry.Title, entry.VotesUp + entry.VotesDown > 0 ? (int)(entry.VotesUp * 100 / (entry.VotesUp + entry.VotesDown)) : 0);
+				itemButton.Set("icon_max_width", 0);
+				itemButton.FocusMode = FocusModeEnum.None;
+				itemButton.CustomMinimumSize = new Vector2(150, 24);
+				itemButton.AddThemeFontSizeOverride("font_size", 11);
+				UIStyle.ApplyButtonStyleBoxesClearingFocus(itemButton);
+				ulong publishedFileId = entry.PublishedFileId;
+				itemButton.Pressed += () =>
+				{
+					GameContext.UserInterface?.PlayClickSound();
+					OS.ShellOpen($"https://steamcommunity.com/sharedfiles/filedetails/?id={publishedFileId}");
+				};
+				_otherMapsStrip.AddChild(itemButton);
+			}
+
+			_otherMapsStrip.Visible = _otherMapsStrip.GetChildCount() > 0;
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[MapDetails] the creator's other maps could not be read: {exception.Message}");
+		}
 	}
 
 	private Button CreateHeaderLink(string name, string text)
@@ -320,8 +415,55 @@ public partial class MapDetails : Control
 			_attributionPopover.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		}
 
-		IReadOnlyList<string> sourceMapNames = MapAttributionLookup.Resolve(_mapData?.Attribution_SourceMap, _mapData?.Title, _mapData?.Version);
+		// The credits name the creators whose work the map carries, which is the reason the panel exists: a source map with a
+		// known author is shown with that author, and composition counts the same as an imported file.
+		string? mapDirectory = GameHost.ResolveMapDirectory(_mapData?.Title, _mapData?.Version);
+		IReadOnlyList<MapCreditEntry> credits = mapDirectory != null
+			? GameContext.MapAttributionService.CollectCredits(mapDirectory)
+			: Array.Empty<MapCreditEntry>();
+
+		IReadOnlyList<string> sourceMapNames = credits.Count > 0
+			? credits.Select(DescribeCredit).ToList()
+			: MapAttributionLookup.Resolve(_mapData?.Attribution_SourceMap, _mapData?.Title, _mapData?.Version);
 		_attributionPopover.ShowFor(_attributionButton, sourceMapNames);
+	}
+
+	/// <summary>
+	///     States one credit as the creator the package names, so the attribution panel answers who made the work rather than
+	///     only which map it came from. A source that names nobody is shown as an unknown source, which is a normal state and
+	///     not a damaged record.
+	/// </summary>
+	/// <param name="credit">The source and what the package says about it.</param>
+	/// <returns>The line the panel shows for that source.</returns>
+	private static string DescribeCredit(MapCreditEntry credit)
+	{
+		string authorName = credit.AuthorSteamId != 0
+			? GameContext.Steam.GetPersonaName(credit.AuthorSteamId)
+			: string.Empty;
+
+		if (authorName.Length == 0) return credit.SourceMap;
+		return string.Format(TranslationServer.Translate("{0} by {1}"), credit.SourceMap, authorName);
+	}
+
+	private static string ReadStatedDiscordInvite(string? mapTitle, string? mapVersion)
+	{
+		if (string.IsNullOrWhiteSpace(mapTitle)) return string.Empty;
+
+		try
+		{
+			string? mapDirectory = GameHost.ResolveMapDirectory(mapTitle, mapVersion);
+			if (string.IsNullOrEmpty(mapDirectory)) return string.Empty;
+
+			string metadataPath = Path.Combine(mapDirectory, "metadata.json");
+			if (!File.Exists(metadataPath)) return string.Empty;
+
+			return GameContext.MetadataService.LoadMetadata(metadataPath).MapProperties?.DiscordServerInviteLink ?? string.Empty;
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[MapDetails] the map's stated Discord invite could not be read: {exception.Message}");
+			return string.Empty;
+		}
 	}
 
 	private void OnVersionSelected(int index)
@@ -346,6 +488,17 @@ public partial class MapDetails : Control
 
 		_steamProfileButton.Visible = _mapData.CreatorSteamId != 0;
 		_workshopButton.Visible = _mapData.WorkshopId != 0;
+		_statedDiscordInvite = ReadStatedDiscordInvite(_mapData.Title, _mapData.Version);
+		_otherMapsButton.Visible = _mapData.CreatorSteamId != 0 && SteamWorkshopService.IsAvailable;
+		_discordButton.Visible = DiscordInvite.IsValid(_statedDiscordInvite);
+
+		// A creator's face and their other work are Steam's, and Steam can be absent: without it the row keeps the name the
+		// map states and hides the actions that would need an account.
+		Texture2D? creatorAvatar = _mapData.CreatorSteamId != 0 ? GameContext.Steam.GetAvatar(_mapData.CreatorSteamId) : null;
+		_creatorAvatar.Texture = creatorAvatar;
+		_creatorAvatar.Visible = creatorAvatar != null;
+
+		LoadOtherMapsByCreator(_mapData.CreatorSteamId);
 
 		_descText.Text = _mapData.Description;
 
