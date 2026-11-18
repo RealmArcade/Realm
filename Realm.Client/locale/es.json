@@ -2633,5 +2633,7 @@
   "{0} needs {1} more {2}": "{0} necesita {1} más de {2}",
   "{0} version(s)  •  {1}": "{0} versión(es)  •  {1}",
   "{0} version(s) use {1}. Packed: {2}.": "{0} versión(es) usan {1}. Empaquetado: {2}.",
-  "System": "Sistema"
+  "System": "Sistema",
+  "✂️ Copy": "COPIAR",
+  "Matches played": "Partidas jugadas"
 }

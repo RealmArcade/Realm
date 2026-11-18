@@ -58,12 +58,13 @@ and broken. This is where "we hid the button" and "we hid the feature" differ, a
 presentation frames a map script addresses, and the HUD's own values are all statically plausible and have not been
 watched.
 
-**A translated screen showing English.** Two things sit here. The nine non-English catalogs are each missing the 204
-keys this branch added (`Realm.TranslationTool -- verify` counts them per catalog). Most are strings that did not exist
-before, so they read English until they are translated, which is ordinary; the ones to look at are the rewrites, where
-a message a player used to read in their own language now reads in English because its key changed. And a string
-rendered through a path that does not register its key shows English even where a translation exists, which is why the
-test plan's local group should be run in one non-English language as well as English.
+**A translated screen showing English.** Two things sit here. The nine non-English catalogs are each missing the 202
+keys this branch added (`Realm.TranslationTool -- verify` counts them per catalog). Almost all are strings that did not
+exist before, so they read English until they are translated, which is ordinary: the migration replaced whole feature
+vocabularies rather than rewording individual messages, and comparing the branch point's catalogs against today's found
+only two messages whose old translation still said the same thing - `✂️ Copy` and `Matches played` - which are carried
+over. And a string rendered through a path that does not register its key shows English even where a translation
+exists, which is why the test plan's local group should be run in one non-English language as well as English.
 
 ## The order to check it in
 
