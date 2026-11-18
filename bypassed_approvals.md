@@ -106,3 +106,31 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   `MapDistributionServer`, `CreatorDiscoveryService` and `WindowsFirewallService`.
 - **`servers.json` is dropped from the two map-folder file filters.** It was excluded from map discovery back when the
   client carried one; nothing writes it now.
+
+## 06A — Terms for Steam content
+
+- **Both documents were still the federated-platform text.** They described a "centralized coordination layer", a "UGC
+  registry", "community node hosting … participant relays", "registered Realm Platform users" and donations "within the
+  Realm Platform". That is the largest gap the sweep found: the game no longer has any of it, so the documents now name
+  Steam as the platform and the developer as the publisher of one free game.
+- **The canonical licence URL moved to the committed text.** It pointed at `realm-game.com/..._v1.txt`, a page on a site
+  that is not part of this repository and that nothing verified. It now points at
+  `Terms/RealmPlatform_UGC_License.txt` in the public repository, which is the file the build ships, so the URL and the
+  text cannot drift. A repository URL is a weaker canonical document than a versioned page; the counsel review document
+  asks whether a page should serve it again, and that is a one-line change.
+- **The licence is version 2.0 and the acceptance is recorded locally.** `MetadataService.UgcLicenseVersion` is what the
+  editor compares against, `UgcLicenseAcceptance` writes `user://ugc_license_acceptance.json` with the version and date,
+  and `UgcLicenseDialog` shows the summary, the full text and Valve's agreement before the first publish continues. A
+  version bump asks again; nothing is stored about the creator beyond that.
+- **The template licence and every shipped map's metadata were rewritten**, not left as the old summary. `MapTemplate/`
+  is copied into every new workspace, so a stale copy there would have been the text most creators actually read.
+- **The publish panel still described the deleted beta and greenlight flow.** It promised a "Beta-Testing Phase", a
+  play-time/ratings threshold, graduation and a permanently reserved map name, and offered a "bypassing greenlit
+  deduplication" checkbox. It now describes what publishing does: an item under the creator's account, visibility
+  chosen on Steam, updates in place, rename creates a new item, and playing before publishing without the Workshop.
+- **"Greenlit" vocabulary survives in code, not in what players read.** The shared-asset reference feature and the
+  manifest's existing `GreenlitReferences` field keep their names because renaming a manifest field is a map-format
+  change, which the platform rules forbid. Every string a player sees says "shared assets" instead.
+- **The announcements sign-up is kept and disclosed.** It posts a name and address to the e-mail provider's form, which
+  is a third-party service rather than a Realm account, so it stays and the ToS privacy clause says what it sends. The
+  counsel review flags whether a consent line is needed beside the field.

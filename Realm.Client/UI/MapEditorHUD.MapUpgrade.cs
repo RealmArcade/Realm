@@ -183,6 +183,20 @@ namespace Realm.Client.UI
 		/// </summary>
 		private void PublishMapActionView(bool fullExport = false)
 		{
+			if (!UgcLicenseAcceptance.IsAccepted(MetadataService.UgcLicenseVersion))
+			{
+				var licenseDialog = new UgcLicenseDialog();
+				licenseDialog.Initialize(accepted =>
+				{
+					if (!accepted) return;
+
+					UgcLicenseAcceptance.RecordAcceptance(MetadataService.UgcLicenseVersion);
+					PublishMapActionView(fullExport);
+				});
+				AddChild(licenseDialog);
+				return;
+			}
+
 			_publishController ??= new MapPublishController(new PublishHooks(
 				this, ShowFeedback, AppendWasmConsoleLog, () => _wasmHasErrors, hasErrors => _wasmHasErrors = hasErrors,
 				SetWasmConsoleStatus, EnsureSignedInForPublishing,

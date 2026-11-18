@@ -203,8 +203,6 @@ public partial class AnnouncementsDialog : Control
 	private static string ResolveDefaultName()
 	{
 		return GameContext.Steam.UserName;
-
-		return GameContext.Steam.UserName;
 	}
 
 	private void StartSubscribe()

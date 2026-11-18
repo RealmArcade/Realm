@@ -1,36 +1,130 @@
-REALM PLATFORM
-ONLINE SERVICES & API TERMS OF USE
+REALM
+TERMS OF USE
 
-1. SCOPE OF SERVICES
-"ONLINE SERVICES & API" refers to the centralized coordination layer operated by the 
-Realm Platform Operator, including: databases, UGC registry, and player data.
+Version 2.0, effective from the first release of the Steam build.
 
-The underlying "Realm Engine" code is licensed under the MIT License, which governs 
-local compilation and execution only. The MIT License does not convey any right or 
-license to access, query, coordinate with, or authenticate against Official Services 
-or databases. Official Services are reserved exclusively for authorized official client builds.
+These Terms cover the Realm game client, the Realm map editor and the map tools that ship with them. They do not cover
+maps themselves: a map's own licence is the UGC License that ships beside this document (Terms/RealmPlatform_UGC_License.txt).
+The engine source code is licensed separately under the MIT License (Terms/RealmEngine_License.txt).
 
-2. ACCESS LIMITATIONS & NODE PARTICIPATION
-- Community Node Hosting: Operators hosting community nodes do so as participant 
-  relays within the federated network under license from the Platform Operator. 
-  Hosting a node conveys no ownership over the UGC catalog, account registry, or 
-  central platform metadata.
-- Unauthorized Ingress: Third-party client binaries, unauthorized forks, or 
-  independent forks of Realm Engine may not authenticate against, query, or 
-  route traffic through Official Services or federated community nodes connected 
-  to the official database.
+1. WHAT REALM IS, AND WHAT IT IS NOT
 
-3. REVERSE ENGINEERING & CREDENTIAL ABUSE
-Users and third-party developers may not:
-- Impersonate official network endpoints or bypass API authentication.
-- Scrape data from official endpoints.
-- Route third-party builds or forks through Official Services.
+Realm is a free strategy game with a map editor and a scripting system for maps. It runs on Steam.
 
-4. INDEPENDENT HOSTING & STANDALONE BUILDS
-Third-party forks, standalone distributions, or independently published games built with the Realm Engine code operate as entirely distinct software products. They must route through their own independently hosted backend infrastructure, user registries, databases, and endpoints. Creation of an independent standalone build using Realm Engine does not entitle that software, its developers, or its end users to inclusion in the Realm Platform network, nor does it confer access to the Realm Platform UGC registry.
+- Steam provides the player's identity, the lobby directory, the peer-to-peer transport between players, the Workshop that
+  hosts and distributes maps, the achievements, the statistics, the leaderboards, the cloud storage, the moderation of
+  Workshop content, and the creator's public profile and Workshop pages.
+- The developer of Realm does not operate player accounts, a profile service, a lobby directory, a map download service, a
+  content delivery network, a relay or a game server. There is no Realm account, password or e-mail associated with
+  playing the game.
+- Realm's multiplayer path is Steam's. There is no direct-address connection, no forwarded port and no second network.
 
-5. MONETIZATION & IN-GAME ECONOMIES
-Creators may accept voluntary donations or offer cosmetic, non-gameplay-altering 
-rewards for their UGC within the Realm Platform. Creators may not implement 
-pay-to-win mechanics, lock gameplay balance/features behind paywalls, or circumvent 
-the Platform Operator's designated monetization APIs.
+2. STEAM'S TERMS
+
+Your use of Steam, of your Steam account, of the Workshop and of anything you buy through Steam is governed by the Steam
+Subscriber Agreement and, for Workshop content, the Steam Workshop Legal Agreement. Valve may remove content, restrict or
+suspend accounts and change what is available. The developer of Realm does not control purchases, payments, refunds,
+account enforcement or what Valve hosts, and cannot reverse any of them.
+
+These Terms apply on top of Valve's terms to the parts of the product that are Realm's: the client, the editor, the map
+tools and the in-game presentation. Where these Terms and Valve's terms differ about a Valve service, Valve's terms decide.
+
+3. WHAT YOU MAY RELY ON
+
+These promises do not depend on a service the developer operates, which is why they can be made:
+
+- The engine source stays available under the MIT License.
+- A map exports to a self-contained `.rmap` file that runs offline, so a map you made can be played without Steam and
+  without the Workshop.
+- Single-player, the editor, local map play and `.rmap` import need no Steam login.
+- There is no DRM wrapper and no mandatory Steam launch check.
+- The game is free. No map, mode, feature, seat, unit, building or match option is for sale, and nothing purchasable
+  changes gameplay, reach, information, matchmaking or randomness.
+
+These are the promises the developer controls. They are not a promise about how long Valve will operate Steam, and they
+do not make Valve's services permanent.
+
+4. MAPS AND UGC
+
+Maps, their scripts, their art and the other content published for Realm are "UGC". A creator owns their UGC. Publishing
+a map grants the licences stated in the UGC License, including the right of other players to mirror, fork and maintain it
+for use with the official game.
+
+The developer of Realm may hide, ban, mark incompatible or remove UGC in the game's own surfaces, decline to mirror an
+item, and report an item to Valve. Only the creator or Valve can delete a Workshop item. A creator's public presence is
+their Steam profile and their Workshop page; the developer does not host a creator profile, biography or link list.
+
+5. REVERSE ENGINEERING AND IMPERSONATION
+
+You may read, build and modify the engine source under the MIT License. You may not:
+
+- present a modified build, a fork or a standalone product as Realm, or as endorsed by Realm;
+- use the Realm name or logo as your own product's name, or in a way that suggests endorsement (Terms/TRADEMARK.md);
+- scrape the in-game curation or any Steam surface;
+- copy another creator's content into a product outside the official game without that creator's permission, as set out
+  in the UGC License.
+
+6. STANDALONE BUILDS AND FORKS
+
+A fork, a standalone distribution or an independently published game built from the Realm engine is a distinct product. It
+must use its own Steam AppID and its own Steamworks account. It receives no licence to Realm's Workshop items, to the
+in-game curation, or to UGC published for the official game, and it is not covered by these Terms.
+
+A creator may export and publish, as a standalone product anywhere, a map whose every asset and script they authored
+personally. Assets imported from another creator, and content brought in by referencing another map, may not be carried
+into that product without that creator's separate written permission.
+
+7. PURCHASES
+
+The game is free. The only things the developer sells are cosmetic items of their own for the official game, through
+Steam. Valve processes the payment and Valve's terms govern the transaction; the developer processes no payment, holds no
+funds and hosts no store.
+
+- No map, mode, feature, seat, unit, building or match option is purchasable.
+- No creator content is sold, and no creator receives a share of any sale.
+- A cosmetic item never affects gameplay, reach, information, matchmaking or randomness. Cosmetic assets ship inside the
+  game, so a player who does not own an item still sees it on the player who does. A refund removes the item and changes
+  nothing else.
+
+8. CREATOR LINKS AND DONATIONS
+
+The game displays no donation, payment, store or advertising link. It shows a Steam-managed purchase control for the
+developer's own cosmetics, and, for a map, the optional Discord server invite that the map's creator declared in the map's
+metadata. Neither is a link to a payment page.
+
+A creator's own support channel is the community they run, linked from their Steam profile or their own Discord server.
+Valve's rules prohibit commercial activity in Workshop content, including soliciting payment, so a donation request
+belongs there rather than in a Workshop item or in the game. The creator is responsible for what they publish in either
+place.
+
+9. MODERATION AND TAKEDOWNS
+
+The developer may hide, ban, mark incompatible or remove a mirror of UGC, and may report an item to Valve. Valve moderates
+the Workshop.
+
+A copyright complaint is made through the product's own reporting path: the end-of-match screen and the main menu open the
+project's GitHub issue tracker, where a "DMCA/Copyright Infringement Report" issue is the intake. A report is reviewed, and
+the item is hidden from the game's surfaces and reported to Valve where the report is upheld. Valve's own notice process
+runs in parallel and is the process that can remove a Workshop item.
+
+10. PRIVACY
+
+Realm stores no account, password, e-mail, biography or profile copy. What it keeps locally is what the game needs to run:
+settings, the map store, exported logs and, in a map's metadata, the creator's SteamID64, attribution tags and an optional
+Discord invite. The optional announcements sign-up in the main menu sends the name and address you type to the e-mail
+provider that delivers it, and nothing else; declining it changes nothing about the game. Diagnostics are exported only
+when the player asks, and the SteamID is included only when the player ticks the box that says so.
+
+Steam's privacy settings govern what your Steam profile and Workshop pages show. The creator can hide or delete their
+Steam content through Steam.
+
+11. CHANGES
+
+These Terms are versioned. A material change takes effect with the release that carries it, and the version a map was
+published under is recorded in that map's metadata. If you do not accept a change, your remedy is to stop using the
+product; maps you have already exported remain yours and keep running offline.
+
+12. CONTACT
+
+Support, bug reports and takedown requests are handled through the project's GitHub repository. There is no support
+mailbox and no support desk.

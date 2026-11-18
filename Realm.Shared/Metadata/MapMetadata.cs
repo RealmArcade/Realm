@@ -11,7 +11,7 @@ public class MapMetadata
 	[JsonPropertyName("license")]
 	[SchemaDescription("The licence the map's content is published under, stored as an exact URL so the same licence text is agreed to by everybody who downloads the map.")]
 	[SchemaSensitive]
-	public string License { get; set; } = "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt";
+	public string License { get; set; } = "https://github.com/RealmArcade/Realm/blob/main/Terms/RealmPlatform_UGC_License.txt";
 
 	[JsonPropertyName("GameBuildNumber")]
 	[SchemaDescription("The Realm build the map was authored and published against. A lobby only offers the map to a build that matches it exactly.")]

@@ -1,5 +1,5 @@
-{
-  "license": "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt",
+﻿{
+  "license": "https://github.com/RealmArcade/Realm/blob/main/Terms/RealmPlatform_UGC_License.txt",
   "GameBuildNumber": "v0.0.6",
   "MapProperties": {
     "MapName": "Rules Asset_Pack",

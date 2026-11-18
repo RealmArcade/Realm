@@ -13,7 +13,9 @@ namespace Realm.Client.Services;
 
 public class MetadataService
 {
-	public const string UgcLicenseUrl = "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt";
+	public const string UgcLicenseVersion = "2.0";
+
+	public const string UgcLicenseUrl = "https://github.com/RealmArcade/Realm/blob/main/Terms/RealmPlatform_UGC_License.txt";
 
 	public event Action<string>? MetadataSaved;
 

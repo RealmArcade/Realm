@@ -144,7 +144,7 @@ public partial class MapEditorHUD
 
 		CreatePublishMapOptimizationTip(wsPath, vbox);
 
-		var chkFullExport = new CheckBox { Text = TranslationServer.Translate("Full Export (Include all physical assets in package, bypassing greenlit deduplication)"), ButtonPressed = false };
+		var chkFullExport = new CheckBox { Text = TranslationServer.Translate("Full Export (include every physical asset in the package instead of referencing copies already shared)"), ButtonPressed = false };
 		chkFullExport.AddThemeConstantOverride("icon_max_width", 0);
 		UIStyle.ApplyCheckboxStyle(chkFullExport);
 		vbox.AddChild(chkFullExport);
@@ -212,8 +212,8 @@ public partial class MapEditorHUD
 
 	private void BindPublishMapInstructions(OptionButton optType, RichTextLabel instructionsText)
 	{
-		string textArcade = TranslationServer.Translate("🚀 [b]Publishing Your Custom Map[/b]\nTo maintain a high-quality community arcade, all new maps start in a Beta-Testing Phase.\n\nOnce your map hits our community play-time metrics (gaining enough unique players, ratings, & community playtime), it will become available for official publishing to community maps screens.\n\nUntil then, it is up to you to share it with the community & market it until you hit that threshold.\nYour map is ready to play right now! Click the 'Export' button to share it. Host a lobby with your map & wait for players to join.\nMessage the community via discord channels, etc to explain your map & convince them to try it. If they enjoy it, they will probably re-host it, which will help you hit the graduation threshold more quickly.\n\nWhile in testing, your map name will include a prefix [Beta-Testing] so players know it's an active work-in-progress. However, you should still do as much personal testing as possible before public hosting to avoid a frustrating experience for your testers.\n\nAfter graduation, your map name will be permanently reserved to your creator profile so no one else can use that same name.");
-		string textAssetPack = TranslationServer.Translate("📦 [b]Publishing a Reusable Asset Pack[/b]\nWant to share your custom 3D models, audio, or code scripts with other map makers?\n\nIn Realm, Asset Packs are published as playable Showcase/Demo Maps.\n\n[b]Build a Playground:[/b] Turn your asset pack into a map where players can preview the functionality provided by your systems, view your models, etc.\n\n[b]Gather Community Metrics:[/b] Just like a regular map, your asset pack will start in a \"beta\" phase before being promoted on community discovery pages. Read the \"Custom Arcade Map\" section for more information.\n\n[b]Easy Importing:[/b] Once a player has a copy of your map, they can import assets from it into their maps via the map editor.\n\n[b]Automatic Credit:[/b] When creators import from you, the system tracks your files' signatures and automatically adds your info to their map credits.");
+		string textArcade = TranslationServer.Translate("🚀 [b]Publishing Your Map[/b]\nYour map is uploaded to the Steam Workshop under your own account. Nothing is reviewed by Realm first, and there is no waiting list: the item exists as soon as the upload finishes.\n\n[b]Who can see it:[/b] you choose the item's visibility on Steam. A public item appears in the in-game map library once Steam has it; a friends-only or private one is still playable by anyone you hand it to, and by players you host for.\n\n[b]Updating it:[/b] publishing again updates the same item in place, so subscribers receive the new version. If you rename the map, a new item is created instead, because the item is found by its name.\n\n[b]Playing it before you publish:[/b] use Test Map to play it straight out of this workspace, and host a lobby with it to play with other people. Neither step needs the Workshop.\n\n[b]Credit:[/b] the Workshop item's owner is the author of record, and the map's manifest lists the maps and assets it was built from so their creators are credited in game.");
+		string textAssetPack = TranslationServer.Translate("📦 [b]Publishing a Reusable Asset Pack[/b]\nShare your custom 3D models, audio or code scripts with other map makers as a Workshop item.\n\n[b]Build a playground:[/b] turn the pack into a map where players can preview your models and try the systems you are sharing.\n\n[b]It stays out of the map library:[/b] the item is marked as an asset pack, so players browsing maps do not see it as a game to play, and the editor lists it wherever assets are imported from.\n\n[b]Easy importing:[/b] once a player has a copy, they import assets from it into their own maps in the editor.\n\n[b]Credit:[/b] imported files keep their author metadata, so the map that imports them credits you automatically.");
 
 		Action updateText = () => { instructionsText.Text = optType.Selected == 0 ? textArcade : textAssetPack; };
 		updateText();
@@ -238,7 +238,7 @@ public partial class MapEditorHUD
 		tipMargin.AddThemeConstantOverride("margin_right", 10);
 		tipPanel.AddChild(tipMargin);
 
-		var tipLabel = new Label { Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend running 'Prune Unused Assets' and 'Normalize References' in the Map Utilities dialog before publishing to remove unused files and reference shared greenlit assets (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes)), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(1160, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		var tipLabel = new Label { Text = "💡 " + string.Format(TranslationServer.Translate("Optimization Advisory: We recommend running 'Prune Unused Assets' and 'Normalize References' in the Map Utilities dialog before publishing to remove unused files and reference assets that are already shared (potential savings: {0})."), MapStorageService.FormatBytes(potentialSavedBytes)), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(1160, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		tipLabel.AddThemeFontSizeOverride("font_size", 12);
 		tipLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		tipMargin.AddChild(tipLabel);
@@ -389,7 +389,7 @@ public partial class MapEditorHUD
 		RefreshKeyOptions();
 		RefreshSelectedKeyDetails();
 
-		var idBackupWarn = new Label { Text = "⚠️ " + TranslationServer.Translate("Important: Back up your key file! Your authorship key proves ownership of your map name and allows future updates. If you lose your key file, you will permanently lose ownership and the ability to update this map."), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(1156, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		var idBackupWarn = new Label { Text = "⚠️ " + TranslationServer.Translate("Important: back up your key file. Your authorship key signs this map's metadata, so an update signed with a lost key cannot be shown as yours. Steam still owns the Workshop item, and you can publish updates without a key, unsigned."), AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(1156, 0), SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		idBackupWarn.AddThemeFontSizeOverride("font_size", 11);
 		idBackupWarn.AddThemeColorOverride("font_color", new Color(1.0f, 0.75f, 0.35f));
 		idVBox.AddChild(idBackupWarn);
