@@ -381,3 +381,17 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   affected: a lobby advertises the Workshop item id and `LobbyMapCompatibilityService` subscribes to exactly that item.
   Closing the remaining gap needs the installed package to record the item it came from, which is a map-format change and
   a decision for the design rather than a repair.
+## The Verified collection the mark was supposed to read
+
+- **The trusted mark is votes-and-age plus an optional file, and the collection route is not written.** Task 13 asks for
+  a map to be vouched for by membership of a developer-owned Workshop collection, read with `GetQueryUGCChildren`, with a
+  local configuration file as the fallback if collections cannot be queried. What exists is the fallback only:
+  `MapTrustPolicy` reads `config/featured_workshop_items.json`, no build ships that file, and nothing reads a collection.
+- **It was not written because there is nothing to point it at.** A collection query needs a collection id, and no id is
+  configured anywhere - the official catalog does not exist yet, and inventing a config format to hold an id that no
+  collection answers would be a format decision taken to satisfy a checklist. The mark behaves exactly as documented
+  without it: a map too new to have votes is untrusted, and says so.
+- **What was wrong was the documentation, not the behaviour.** `AGENTS.md` stated collection membership as if it were
+  read, and the readiness doc described the featured list as gone while the code still reads one if a build ships it.
+  Both now state what the code does and name the collection route as the intended next step, and the test plan carries
+  it as a pivot with the two ways to settle it: ship the list, or write the query and decide where its id lives.

@@ -40,7 +40,7 @@ Two rules for the whole plan:
 | Start the client with Steam running | The menu names the player's Steam persona, and the profile dialog shows Steam's avatar and profile link |
 | Start a single-player match, play to a result, return to the menu | The match runs; `GameOver` writes a one-line match summary that a later diagnostics export carries |
 | Open a map in the editor, save, playtest with `btnTestMap` | The workspace compiles, the playtest attaches to the authority, and the authority prints its PID and workspace |
-| Map library: open it with no filter set | Every map is listed with a trust mark; nothing is hidden before the player asks for a filter |
+| Map library: open it with no filter set | Every map is listed with a trust mark; nothing is hidden before the player asks for a filter. On a catalog with no votes yet every item reads untrusted ("too new"), which is the threshold's own behaviour and not a defect: the Verified collection that would vouch for a new map is not read by any build yet |
 | Settings → Diagnostics → Export diagnostics | One zip in the log folder, revealed in the file manager, containing the session logs and an environment summary; nothing is transmitted |
 | Create ten-plus sessions, then check the log folder size | The folder stays bounded by the documented caps (`DiagnosticsService` retains 10 sessions and 32 MB) |
 
@@ -172,6 +172,11 @@ redesign.
 - **The trust threshold starts low.** `MapTrustPolicy`/`MapCatalogFilter` hide nothing by default; the confirmation sits
   on entering an untrusted lobby. If a first-time visitor's library looks noisy, raise the threshold rather than
   filtering by default.
+- **Nothing is vouched for yet.** Trust is votes and item age, plus an optional `config/featured_workshop_items.json`
+  that no build ships. Reading the children of a developer-owned Verified Workshop collection with `GetQueryUGCChildren`
+  is the intended way to vouch for a map too new to have votes, and it is not written: there is no collection id to point
+  it at. So every item is "too new" until it collects votes, and a first run looks uniformly untrusted. Before the
+  official catalog opens, either ship the list or write the collection query together with the place its id is stated.
 - **Asset packs are Workshop items.** The editor's art pack is published as an ordinary item marked `IsAssetPack` and
   filtered out of browsing. That is the one place a non-map item exists, and it is worth confirming it never appears in
   the map library or a lobby.

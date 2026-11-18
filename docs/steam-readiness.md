@@ -20,7 +20,7 @@ Each of these holds for the current head of `steam_rewrite` and was checked by t
 | The client cannot call the authority in process | `Realm.Client.csproj` carries only the `ReferenceOutputAssembly="false"` ordering reference; no `using Realm.ListenServer` exists in client source. |
 | Nothing references a deleted page or file | Every `GetNode`/`GetNodeOrNull` literal resolves against its scene apart from fallback chains and nodes inside instanced sub-scenes; every `res://` literal resolves against the Godot project that owns the referencing file apart from the optional `config/featured_workshop_items.json`, whose absence the trust policy treats as "features nothing"; no orphaned `.cs.uid` remains. |
 | A seat's SteamID is the identity Steam asserted | `ListenServerHost.ResolveSeatSteamId` takes `_transport.TryGetPeerSteamId` first and uses the hello's number only when the transport asserts none (the host's own screen on loopback, and a match started without a lobby). It is the identity used for the lobby seat, the slot reclaim, the kick list and `SetPeerSteamId`. |
-| The translation catalogs match their call sites | `Realm.TranslationTool -- prune` reports nothing to prune for all ten translated catalogs, and each catalog's key set is a subset of `en.json`. |
+| No catalog carries a key its call sites lost | `Realm.TranslationTool -- prune` reports nothing to prune for all ten catalogs, and each catalog's key set is a subset of `en.json`. Coverage is a separate matter, stated under **Unproven**. |
 | The authoring schemas are one vocabulary | `metadata`, `terrain` and `manifest` schemas are byte-identical between `Realm.MapEditorExtension` and the copy in `MapTemplate/.vscode`. |
 | A re-publish only updates an item its creator owns | `MapPublishController` finds the item to update with `SteamWorkshopService.FindOwnedByMapNameAsync`, which filters on the owner Steam reports, because Steam reserves no map name and no update can be aimed at somebody else's item. A same-name item owned by another account is named in the console and the map is published as a new item. |
 | A prepared map survives its own preparation | `MapSessionCopyService.TryPrepare` builds the copy beside the retained folder, removes the old one, moves the build into place and only then sweeps the session root - so the sweep cannot reach the folder it was about to install. It was the other way round, which deleted the copy and refused every map outside the session root. |
@@ -55,9 +55,12 @@ and broken. This is where "we hid the button" and "we hid the feature" differ, a
 presentation frames a map script addresses, and the HUD's own values are all statically plausible and have not been
 watched.
 
-**A translated screen showing English.** The ten catalogs were pruned to `en.json`'s key set. If a string is rendered
-through a path that does not register its key, it shows English in a translated session rather than failing, which is why
-the test plan's local group should be run in one non-English language as well as English.
+**A translated screen showing English.** Two things sit here. The nine non-English catalogs are each missing the 204
+keys this branch added (`Realm.TranslationTool -- verify` counts them per catalog). Most are strings that did not exist
+before, so they read English until they are translated, which is ordinary; the ones to look at are the rewrites, where
+a message a player used to read in their own language now reads in English because its key changed. And a string
+rendered through a path that does not register its key shows English even where a translation exists, which is why the
+test plan's local group should be run in one non-English language as well as English.
 
 ## The order to check it in
 
@@ -77,9 +80,12 @@ The migrations most likely to have a defect that only play reveals, in the order
 
 - **The collapsed lobby-publish path** — two entry points became one, and the caller that used the "on failure" name now
   calls the plain one. If a publish failure is reported anywhere but the host's progress card, it is here.
-- **The trusted mark** — the featured-item list is gone, so trust comes from Steam votes, item age and a Workshop
-  collection. A fresh item is "too new" by design; if the library looks uniformly untrusted on a first run, that is the
-  threshold, not a bug in the mark.
+- **The trusted mark** — trust is computed from Steam's vote counts and how recently the item changed; the curated list
+  that would vouch for a map too new to be voted on is read from `config/featured_workshop_items.json`, which no build
+  ships, and membership of a developer-owned Verified Workshop collection is not read at all yet. So on a fresh catalog
+  every item is "too new" by design and the library reads uniformly untrusted. That is the threshold working, not a bug
+  in the mark - but it is also the gap to close before the official catalog opens, and it is listed as a pivot rather
+  than repaired here because no collection id exists to read.
 - **The creator panel in map details** — it queries Steam for the creator's other items for this AppID only. A creator
   who publishes for another game should show only their Realm maps, and a private profile should read as neutral rather
   than broken.
