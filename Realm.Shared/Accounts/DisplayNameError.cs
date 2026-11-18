@@ -1,8 +1,8 @@
 namespace Realm.Shared.Accounts;
 
 /// <summary>
-///     Why a candidate DisplayName was refused. Each value maps to one translatable message, so a rejection never has to be
-///     inferred from free text.
+///     Why a name a seat stated was not usable as it stood, so it is cleaned and cut rather than carried verbatim. There is no
+///     "already taken" or "looks like another name" case, because a name is Steam's persona and nothing claims it.
 /// </summary>
 public enum DisplayNameError
 {
@@ -20,9 +20,5 @@ public enum DisplayNameError
 
 	CombiningMarkWithoutBase = 6,
 
-	NoLettersOrDigits = 7,
-
-	AlreadyTaken = 8,
-
-	VisuallySimilar = 9
+	NoLettersOrDigits = 7
 }

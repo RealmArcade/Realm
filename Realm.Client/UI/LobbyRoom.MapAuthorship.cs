@@ -14,7 +14,6 @@ using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
-using Realm.Shared.Accounts;
 using Realm.Shared.Services;
 
 namespace Realm.Client.UI;

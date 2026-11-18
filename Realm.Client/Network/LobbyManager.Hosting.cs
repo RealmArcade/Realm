@@ -20,7 +20,6 @@ using Realm.Client.Services.Steam;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
-using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;

@@ -4,7 +4,6 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
-using Realm.Shared.Accounts;
 
 namespace Realm.Client.UI.InGame;
 

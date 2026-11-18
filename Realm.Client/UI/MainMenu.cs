@@ -10,7 +10,6 @@ using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Services;
 using Realm.Client.Utils;
-using Realm.Shared.Accounts;
 
 namespace Realm.Client.UI;
 
@@ -454,9 +453,9 @@ public partial class MainMenu : Control
 	}
 
 	/// <summary>
-	///     Play opens the lobby browser without an account, because browsing lobbies and joining multiplayer matches need no
-	///     online identity; a signed-out player plays under the unverified name shown on the profile button. Only publishing a
-	///     map and submitting a verified review at the end of a match ask for a sign-in.
+	///     Play opens the lobby browser, which is Steam's directory. With no Steam client there is nothing to list and nothing to
+	///     join, so the browser states that reason and offers no lobby; single player, the editor and local maps are reached from
+	///     their own buttons and never depend on Steam.
 	/// </summary>
 	private void OnPlayPressed()
 	{

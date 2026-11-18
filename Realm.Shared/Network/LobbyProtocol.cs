@@ -399,9 +399,9 @@ public partial struct MapTransferReply
 public static class LobbyLimits
 {
 	/// <summary>
-	///     The seat's name ceiling in UTF-16 units. It is deliberately the DisplayName byte ceiling: a legal DisplayName never
-	///     exceeds <see cref="DisplayNameRules.MaximumUtf8Bytes" /> UTF-8 bytes, and UTF-8 never uses fewer bytes than the UTF-16
-	///     units it encodes, so a registered name can never be truncated on its way into a seat.
+	///     The seat's name ceiling in UTF-16 units. It is deliberately the name byte ceiling: a persona that already reads cleanly
+	///     never exceeds <see cref="DisplayNameRules.MaximumUtf8Bytes" /> UTF-8 bytes, and UTF-8 never uses fewer bytes than the
+	///     UTF-16 units it encodes, so such a name is never truncated on its way into a seat.
 	/// </summary>
 	public const int MaximumPlayerNameLength = DisplayNameRules.MaximumUtf8Bytes;
 	public const int MaximumFactionLength = 48;
@@ -474,9 +474,9 @@ public static class LobbyLimits
 	}
 
 	/// <summary>
-	///     The name a lobby carries for a peer. A legal name is passed through untouched; anything else is reduced to a
-	///     control-free, grapheme-safe rendering, so a seat can never hold a name that is unreadable or a string cut in the
-	///     middle of a surrogate pair. Steam owns the name itself, so this only makes it safe to draw.
+	///     The name a lobby carries for a peer. A persona that already reads cleanly is passed through untouched; anything else
+	///     is reduced to a control-free, grapheme-safe rendering, so a seat can never hold a name that is unreadable or a string
+	///     cut in the middle of a surrogate pair. Steam owns the name itself, so this only makes it safe to draw.
 	/// </summary>
 	public static string SanitizeDisplayName(string? value)
 	{

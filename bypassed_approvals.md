@@ -264,6 +264,23 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   the same id, and `Register` drops the duplicate — not new components. The `ComponentIds` constants that map scripts read
   are additionally enforced at startup by `VerifySharedComponentIds`, which refuses to boot a build whose canonical order
   drifted from those constants.
+- **The account system's name uniqueness machinery survived in `Realm.Shared`.** `DisplayNameRules` is 473 lines, and
+  most of it existed so two accounts could not claim the same typed name: a case-folded uniqueness key with its own expansion
+  table, a Greek/Cyrillic homoglyph skeleton with a hand-written lookalike map, `AreVisuallyConfusable`, and the "already
+  taken" and "looks like another account's name" rejection codes. With Steam personas as the only identity, nothing is
+  registered, nothing is looked up and no caller remained for any of it: `Fold`, `ComputeUniquenessKey`,
+  `ComputeConfusableSkeleton`, `AreVisuallyConfusable`, `IsValid` and `DescribeError` had zero call sites in the whole
+  repository. What survives is the part a lobby still performs — collapse the whitespace, refuse control and format
+  characters, cut at a grapheme boundary — with `TryCanonicalize` now private because `AdmitForLobby` was its only remaining
+  caller. The class and method summaries were rewritten to say what it does now, since they described registration, sign-in
+  lookup and rename.
+- **Twenty-one client files imported that namespace without using it**, left from the deleted account client. Removed; the
+  build is the proof, because a namespace that no longer supplied a type would have failed to resolve.
+- **`MainMenu.OnPlayPressed` documented a flow that does not exist** — "opens the lobby browser without an account", a
+  "signed-out player" playing "under the unverified name", and a "verified review at the end of a match" ask for a sign-in.
+  Play opens Steam's directory, which states its reason and offers nothing when there is no Steam client. `SteamService.UserName`
+  and the lobby name ceiling carried the same vocabulary ("the name a sign-in claims", "a registered name") and now describe
+  Steam's persona and a name that reads cleanly.
 - **Checked and left alone:** `RegistryService`, `RegistryLookups`, `RegistryKeyMatching` and `GameHost.Registry.cs` are
   the placeable-template store, not a lobby registry; `AccountID_t` in `SteamWorkshopService` is Steamworks' own type;
   `RouteReachabilityEntry` and `CombatAndDamageService.Reach` are combat reach; the "punch", "star rating" and

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
-using Realm.Shared.Accounts;
 using Steamworks;
 
 namespace Realm.Client.Services;
@@ -364,8 +363,8 @@ public partial class SteamService
 	}
 
 	/// <summary>
-	///     The name Steam knows this player by, or an empty string when Steamworks is not running. It is the name a sign-in
-	///     claims, because the ticket proves the Steam account and not a name typed on this machine.
+	///     The persona Steam knows this player by, or an empty string when Steamworks is not running. Nothing types or stores it:
+	///     it is the name the Steam client reports for the account behind it, which is why no name is ever claimed by this machine.
 	/// </summary>
 	public string UserName
 	{
