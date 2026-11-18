@@ -1,0 +1,159 @@
+# Steam test plan
+
+What a Steam-first build is checked against before it is called working. Nothing in this document was run while the
+migration was coded: the branch was verified by compilation and static reading only, so every item below is unverified
+until someone plays it.
+
+Two rules for the whole plan:
+
+- **Record what happened, not what should have happened.** A step that could not be run (no second account, no second
+  network, no partner-site access) is reported as not run, with the reason. A step that passed because nothing visibly
+  broke is not a pass unless the thing it tested actually appeared.
+- **Read the logs before believing the screen.** A hidden multiplayer surface, a refused join or a silent export all look
+  identical to "nothing happened" from the outside.
+
+## Where the evidence lives
+
+| What | Where |
+| --- | --- |
+| Client session logs, crash files, exported zips | `user://logs` (`DiagnosticsService.LogDirectory`, printed by Settings → Diagnostics → Open log folder) |
+| Authority log for this screen's own matches | beside those logs, named `local_authority.listen_server.<pid>.log` (`LocalAuthority.LogFileName`) |
+| Authority PID and exported JIT ELF (debug playtest only) | printed by the authority at match start |
+| Diagnostics export | Settings → Diagnostics → Export diagnostics; writes a zip in the log folder and reveals it |
+| Crash offer | one line on the main menu after an unexpected exit, once per crash (`DiagnosticsService.UnacknowledgedCrashReport`) |
+
+## Setup
+
+1. `dotnet build Realm.slnx`, then import and run `Realm.Client` in Godot 4.7 mono (the checkout's Godot path is in
+   `AGENTS.md`).
+2. **Development AppID file.** Local runs need `steam_appid.txt` containing the demo AppID beside the executable that
+   starts (the export folder, or the Godot binary's working directory). It is gitignored and must never appear in an
+   export; step G checks that.
+3. **Two accounts.** Steam networking cannot be exercised with one account, so a real multiplayer test needs two Steam
+   clients signed into two accounts, ideally on two networks. Everything in group A can be done alone first.
+4. **A map to publish.** Any map folder that compiles; the editor's `btnPublish` is the publish path.
+
+## A. Local only (one account, no network tests)
+
+| Step | Expected |
+| --- | --- |
+| Start the client with Steam running | The menu names the player's Steam persona, and the profile dialog shows Steam's avatar and profile link |
+| Start a single-player match, play to a result, return to the menu | The match runs; `GameOver` writes a one-line match summary that a later diagnostics export carries |
+| Open a map in the editor, save, playtest with `btnTestMap` | The workspace compiles, the playtest attaches to the authority, and the authority prints its PID and workspace |
+| Map library: open it with no filter set | Every map is listed with a trust mark; nothing is hidden before the player asks for a filter |
+| Settings → Diagnostics → Export diagnostics | One zip in the log folder, revealed in the file manager, containing the session logs and an environment summary; nothing is transmitted |
+| Create ten-plus sessions, then check the log folder size | The folder stays bounded by the documented caps (`DiagnosticsService` retains 10 sessions and 32 MB) |
+
+## B. Hosting and joining (two accounts)
+
+1. Account A: host a lobby on a Workshop map. Watch the host progress card — it should show the map loading and the host
+   taking its seat, with no port, relay or registry step in between.
+2. Account B: find A's lobby in the browser. It is listed with the map name, seat count, trust mark and whether a code is
+   required.
+3. B joins. Expect seats, chat and the start countdown over the lobby protocol, then a complete match.
+4. **Record:** the lobby metadata A published (map name, version, hash, generation, build, seats, host SteamID, trust
+   mark, code flag), the time from B's click to B's first drawn frame, and whether the match ran to a result without a
+   repair request storm in either log.
+
+The high-value question here is not "did it work on my LAN" but "did Steam choose a path without a port prompt". A join
+that only succeeds when both machines are on the same network is a finding, not a pass.
+
+## C. Join code
+
+1. Host a lobby with a code. B, standing in the room without the code, cannot take a seat, and the room still has room
+   for B plus the players who have the code (the lobby is created with code-gated headroom).
+2. B enters the wrong code, then the right one. The refusal is a translated line, not a silent nothing.
+3. Confirm the code appears in no Steam lobby metadata: it is compared on the authority only.
+
+## D. Invitations and rich presence
+
+1. A invites B from the Steam friends list. B accepts and lands in A's lobby.
+2. B invites A back from inside the lobby. Any seated player may invite, not just the host.
+3. Start the game from a friend's Join Game action while it is closed. The `+connect_lobby` argument should land the
+   player in that lobby without a second click (`SteamRuntime.ReadConnectLobbyArgument`).
+4. Check rich presence while in the menu, in a lobby and in a match: it should name the state to a friend, and clear on
+   exit.
+
+## E. Workshop publish and subscribe
+
+1. Account A publishes a map from the editor. The item is created (first publish) or updated in place, with a preview
+   image converted from the map's thumbnail.
+2. Inspect the uploaded folder in the Steam client: it should be the canonical copy only — no `bin/`, `obj/`, `.vscode/`,
+   history or keys.
+3. Account B subscribes, downloads, and plays the map from a lobby that names the item.
+4. A republishes with a change; B receives the update and a lobby naming the item runs the new version.
+5. **The private-session-copy rule:** after playing, exactly one session copy of that map should remain, keyed by item id
+   and package hash, and it must not be a hard link to the Workshop folder.
+6. B unsubscribes and deletes the item's local files; a lobby that names it must refuse with a readable reason rather
+   than loading a stale copy.
+
+## F. The workspace archive tool
+
+`tools/WorkshopArchive` is a developer tool and is run by hand with a partner publisher key in the environment. Check it
+on one item: the archive folder holds the item's files plus a reviewable JSON record naming the source item, creator
+SteamID, license clause, reviewer and date, and nothing is uploaded anywhere. This is the only place a publisher key is
+used, and it must never be read from a committed file or a build.
+
+## G. No Steam client at all
+
+1. Stop the Steam client entirely, then start the build.
+2. `SteamStartupGate` offers to continue without Steam. Accept.
+3. Single player, the editor, local map play and `.rmap` import all work. Hosting, joining, invites, the Workshop, stats
+   and leaderboards are absent, each explaining the reason (`SteamService.UnavailableExplanation`), and no surface is
+   left clickable and broken.
+4. No DRM prompt, no mandatory Steam check, no relaunch-to-update dialog.
+5. Inspect an exported build: it ships `steam_api64.dll` beside the client **and** beside the authority, and no
+   `steam_appid.txt`.
+
+Steam offline mode is a different state and is worth one run of its own: Steam initialises, local features work, and
+multiplayer's behaviour should be the honest failure rather than a hidden button.
+
+## H. Map compatibility across a build
+
+1. Publish a map from this build, then raise `RealmVersion.GameBuildNumber` in a local build only.
+2. The published map must still be playable: the generation is what gates a map, not the build number.
+3. Raise `EngineGeneration` past the map's stated generation and confirm the map is refused with an update action, in the
+   map details rather than in a warning dialog.
+
+## I. Failure surfaces
+
+1. Publish a map whose script traps on instantiation, and join a lobby running it. The client should say the map's
+   script failed and name the map, with the log path in an advanced field — not present as a game crash.
+2. Kill the authority process during a match. The client should report the disconnect reason rather than freeze.
+3. Close the client with an unhandled exception forced (a test build is fine). The next launch offers the diagnostics
+   export once; dismissing it must not make it return on the following launch.
+
+## J. Two-network reality check
+
+Repeat B and D with the two accounts on different networks (one on a phone hotspot is enough). This is where a transport
+assumption shows up: the host's authority must be reachable over Steam's own path, with no forwarded port and no relay
+of ours.
+
+## Pivot candidates to settle during the test
+
+These are the decisions most likely to be wrong in a way that only playing reveals. Each is a single change, not a
+redesign.
+
+- **The donate button is gone.** The main menu's footer link was deleted as a donation surface, even though it funded the
+  project rather than a creator. If the project wants that link back, the rule in `AGENTS.md` has to say why a developer
+  donation link is not the thing the Workshop rule bans.
+- **Authorship signatures are optional.** Publishing works with no key selected, and nothing installs, joins or gates on
+  a signature. If a signed map should be visibly marked as signed, that is a presentation change; if it should be
+  required, that is a format change and belongs in its own task.
+- **A publish identity is the map's name.** A renamed map creates a second Workshop item rather than moving the first,
+  and the lookup is one query per publish. If renames are common, an identity stored in `metadata.json` may be the
+  smaller cost.
+- **The trust threshold starts low.** `MapTrustPolicy`/`MapCatalogFilter` hide nothing by default; the confirmation sits
+  on entering an untrusted lobby. If a first-time visitor's library looks noisy, raise the threshold rather than
+  filtering by default.
+- **Asset packs are Workshop items.** The editor's art pack is published as an ordinary item marked `IsAssetPack` and
+  filtered out of browsing. That is the one place a non-map item exists, and it is worth confirming it never appears in
+  the map library or a lobby.
+- **The archive tool is manual.** If mirroring becomes routine, the operator steps (key from the environment, record per
+  mirror) are the part to automate, not the publishing decision.
+
+## Reporting
+
+For each group: pass, fail, or not run — with the log excerpt or the on-screen text that decided it. Anything that
+needed the partner site, a second account or a second network and was not available goes in the "not run" list rather
+than being inferred from code.
