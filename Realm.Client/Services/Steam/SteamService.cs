@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
@@ -22,16 +22,12 @@ public partial class SteamService
 {
 	private const string NativeLibraryName = "steam_api64";
 
-	private const string GameLobbyIdMetadataKey = "realm_game_lobby_id";
-
 	/// <summary>
 	///     The overlay dialog Steam opens for a user it should add as a friend. The name is Steamworks' own spelling of the
 	///     dialog, and it is the only way a game can put a request in front of the player who has to confirm it.
 	/// </summary>
 	private const string FriendDialogAddFriend = "friendadd";
 
-
-	private static readonly TimeSpan InviteLobbyTimeout = TimeSpan.FromSeconds(10);
 
 	private bool _initialized;
 
@@ -44,7 +40,6 @@ public partial class SteamService
 	private ulong _avatarTextureSteamId;
 
 
-	private CallResult<LobbyCreated_t>? _lobbyCreatedCallResult;
 
 	private Callback<LobbyEnter_t>? _lobbyEnterCallback;
 
@@ -54,11 +49,8 @@ public partial class SteamService
 
 
 
-	private TaskCompletionSource<bool>? _inviteLobbyCreation;
 
-	private ulong _inviteLobbySteamId;
 
-	private string? _inviteLobbyGameLobbyId;
 
 	private ulong _pendingJoinedLobbySteamId;
 
@@ -291,151 +283,6 @@ public partial class SteamService
 		}
 	}
 
-	/// <summary>
-	///     Prepares the Steam lobby an invite is sent through and stamps it with the match lobby it stands for. The Steam
-	///     lobby carries no match state: it exists only so Steam can deliver an invitation whose acceptance leads back to a
-	///     lobby id this game can join, which is why every member of the match lobby can hold one of its own.
-	/// </summary>
-	public async Task<bool> OpenInviteLobbyAsync(string gameLobbyId, int maximumMembers)
-	{
-		if (!_initialized) return false;
-		if (string.IsNullOrEmpty(gameLobbyId)) return false;
-		if (_inviteLobbySteamId != 0 && string.Equals(_inviteLobbyGameLobbyId, gameLobbyId, StringComparison.Ordinal)) return true;
-
-		TaskCompletionSource<bool>? creationInFlight = _inviteLobbyCreation;
-		if (creationInFlight != null && string.Equals(_inviteLobbyGameLobbyId, gameLobbyId, StringComparison.Ordinal))
-		{
-			Task ready = await Task.WhenAny(creationInFlight.Task, Task.Delay(InviteLobbyTimeout)).ConfigureAwait(true);
-			if (ready == creationInFlight.Task) return await creationInFlight.Task.ConfigureAwait(true);
-		}
-
-		CloseInviteLobby();
-
-		_inviteLobbyGameLobbyId = gameLobbyId;
-		var creation = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		_inviteLobbyCreation = creation;
-
-		try
-		{
-			SteamAPICall_t createCall = SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypePrivate, Math.Clamp(maximumMembers, 2, 250));
-			_lobbyCreatedCallResult?.Dispose();
-			_lobbyCreatedCallResult = CallResult<LobbyCreated_t>.Create(OnLobbyCreated);
-			_lobbyCreatedCallResult.Set(createCall);
-		}
-		catch (Exception exception)
-		{
-			GameLog.LogError($"[Steam] an invite lobby could not be requested: {exception.Message}");
-			_inviteLobbyCreation = null;
-			_inviteLobbyGameLobbyId = null;
-			return false;
-		}
-
-		Task finished = await Task.WhenAny(creation.Task, Task.Delay(InviteLobbyTimeout)).ConfigureAwait(true);
-		if (finished != creation.Task)
-		{
-			_inviteLobbyCreation = null;
-			_inviteLobbyGameLobbyId = null;
-			return false;
-		}
-
-		return await creation.Task.ConfigureAwait(true);
-	}
-
-	/// <summary>
-	///     Asks Steam to invite each of these friends to the prepared invite lobby, and answers how many invitations Steam
-	///     accepted. Steam shows each friend the invitation itself, so their accept leads them straight into this match.
-	/// </summary>
-	public int InviteFriends(IReadOnlyList<ulong> friendSteamIds)
-	{
-		if (!_initialized || _inviteLobbySteamId == 0 || friendSteamIds == null) return 0;
-
-		var inviteLobbyId = new CSteamID(_inviteLobbySteamId);
-		int sent = 0;
-
-		foreach (ulong friendSteamId in friendSteamIds)
-		{
-			if (friendSteamId == 0) continue;
-
-			try
-			{
-				if (SteamMatchmaking.InviteUserToLobby(inviteLobbyId, new CSteamID(friendSteamId)))
-				{
-					sent++;
-				}
-			}
-			catch (Exception exception)
-			{
-				GameLog.LogError($"[Steam] an invitation could not be sent: {exception.Message}");
-			}
-		}
-
-		GameLog.LogToConsole($"[Steam] invited {sent} of {friendSteamIds.Count} selected friend(s)");
-		return sent;
-	}
-
-	/// <summary>
-	///     Gives up the invite lobby this screen was holding, which makes every invitation sent through it stop working.
-	///     A match lobby that other players are still in is unaffected, because their own invites stand on their own lobbies.
-	/// </summary>
-	public void CloseInviteLobby()
-	{
-		_inviteLobbyCreation = null;
-		_inviteLobbyGameLobbyId = null;
-
-		LeaveInviteLobby(_inviteLobbySteamId);
-		_inviteLobbySteamId = 0;
-	}
-
-	private void OnLobbyCreated(LobbyCreated_t created, bool ioFailure)
-	{
-		TaskCompletionSource<bool>? creation = _inviteLobbyCreation;
-		_inviteLobbyCreation = null;
-
-		string? gameLobbyId = _inviteLobbyGameLobbyId;
-		bool isWanted = !ioFailure && created.m_eResult == EResult.k_EResultOK && !string.IsNullOrEmpty(gameLobbyId);
-
-		if (!isWanted)
-		{
-			_inviteLobbyGameLobbyId = null;
-
-			if (!ioFailure && created.m_eResult == EResult.k_EResultOK && created.m_ulSteamIDLobby != 0)
-			{
-				LeaveInviteLobby(created.m_ulSteamIDLobby);
-			}
-
-			creation?.TrySetResult(false);
-			return;
-		}
-
-		_inviteLobbySteamId = created.m_ulSteamIDLobby;
-
-		try
-		{
-			SteamMatchmaking.SetLobbyData(new CSteamID(_inviteLobbySteamId), GameLobbyIdMetadataKey, gameLobbyId);
-		}
-		catch (Exception exception)
-		{
-			GameLog.LogError($"[Steam] the invite lobby could not be described: {exception.Message}");
-		}
-
-		GameLog.LogToConsole($"[Steam] invite lobby {_inviteLobbySteamId} stands for match lobby {gameLobbyId}");
-		creation?.TrySetResult(_inviteLobbySteamId != 0);
-	}
-
-	private void LeaveInviteLobby(ulong inviteLobbySteamId)
-	{
-		if (inviteLobbySteamId == 0) return;
-
-		try
-		{
-			SteamMatchmaking.LeaveLobby(new CSteamID(inviteLobbySteamId));
-		}
-		catch (Exception exception)
-		{
-			GameLog.LogError($"[Steam] the invite lobby could not be left: {exception.Message}");
-		}
-	}
-
 	private void OnGameLobbyJoinRequested(GameLobbyJoinRequested_t requested)
 	{
 		if (requested.m_steamIDLobby.m_SteamID == 0) return;
@@ -482,26 +329,13 @@ public partial class SteamService
 			return;
 		}
 
-		string gameLobbyId = string.Empty;
+		// The Steam lobby is the match lobby, so the invitation already names the one thing a join needs. This screen is
+		// only a member of it until the lobby manager takes the room over: leaving here would make Steam tell every other
+		// member that this player arrived and left again.
+		string lobbyId = joinedLobbySteamId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-		try
-		{
-			gameLobbyId = SteamMatchmaking.GetLobbyData(new CSteamID(joinedLobbySteamId), GameLobbyIdMetadataKey);
-			SteamMatchmaking.LeaveLobby(new CSteamID(joinedLobbySteamId));
-		}
-		catch (Exception exception)
-		{
-			GameLog.LogError($"[Steam] the invited lobby could not be read: {exception.Message}");
-		}
-
-		if (string.IsNullOrEmpty(gameLobbyId))
-		{
-			GameLog.LogError("[Steam] the invitation describes no match lobby, so there is nothing to join");
-			return;
-		}
-
-		GameLog.LogToConsole($"[Steam] an invitation was accepted for match lobby {gameLobbyId}");
-		LobbyInviteAccepted?.Invoke(new SteamLobbyInvite(gameLobbyId, inviterName));
+		GameLog.LogToConsole($"[Steam] an invitation was accepted for Steam lobby {lobbyId}");
+		LobbyInviteAccepted?.Invoke(new SteamLobbyInvite(lobbyId, inviterName));
 	}
 
 	/// <summary>

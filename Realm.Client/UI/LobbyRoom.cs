@@ -318,12 +318,19 @@ public partial class LobbyRoom : Control
 	{
 		bool invitesPlayers = !Lobby.IsSinglePlayer;
 
-		// One door for every way of inviting a player: the Steam friend list and the addresses this lobby is played at are
-		// two halves of the same window, so there is nothing about the lobby's listing that can hide one of them.
+		// One door for inviting a player: Steam's own invitation window, which is also where the friends list lives. A
+		// lobby's listing is a separate choice, so nothing about it hides the invitation.
 		_invitePlayersButton.Visible = invitesPlayers;
 		_unlistedLobbyHint.Visible = invitesPlayers && Lobby.IsHost && Lobby.IsUnlisted;
 		_unlistedLobbyCheck.Visible = invitesPlayers && Lobby.IsHost;
 		UpdateUnlistedLobbyCheck();
+
+		// A disabled overlay is not a failure and does not hide the invitation: Steam still holds the lobby, the friends
+		// list and the invitation, and the game simply says so instead of pretending the window opened.
+		if (invitesPlayers && GameContext.Steam.IsAvailable && !GameContext.Steam.IsOverlayEnabled)
+		{
+			ShowInviteFeedback(Tr("The Steam overlay is off, so invitations and your friends list open in the Steam client itself."));
+		}
 	}
 
 	private void UpdateUnlistedLobbyCheck()
@@ -389,8 +396,6 @@ public partial class LobbyRoom : Control
 
 	public override void _ExitTree()
 	{
-		GameContext.Steam.CloseInviteLobby();
-
 		if (GameContext.Lobby != null)
 		{
 			Lobby.PlayerListUpdated -= PopulatePlayersList;

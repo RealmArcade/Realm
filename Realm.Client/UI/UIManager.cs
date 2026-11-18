@@ -56,6 +56,9 @@ public partial class UIManager : Control
 	/// </summary>
 	public bool HasVisibleScreen => _currentScreen != null && GodotObject.IsInstanceValid(_currentScreen);
 
+	/// <summary>The screen this manager is showing, which is what a status or an invitation is written against.</summary>
+	public GameScreen CurrentScreen => _targetScreen;
+
 	public void TransitionToMapDetails(MapData mapData)
 	{
 		_selectedMapData = mapData;
