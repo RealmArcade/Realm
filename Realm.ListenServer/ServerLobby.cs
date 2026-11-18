@@ -17,7 +17,7 @@ public partial class ServerLobby : ILobbySeatTable
 
 	private readonly Action<int> _disconnect;
 
-	private readonly Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> _startMatch;
+	private readonly Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<ulong, int>, int, string?> _startMatch;
 
 	private readonly Action _lobbyAbandoned;
 
@@ -71,7 +71,6 @@ public partial class ServerLobby : ILobbySeatTable
 	///     come back, so a kicked client reconnects before it has read the reason; that reconnect is answered with the
 	///     refusal instead of a fresh seat.
 	/// </summary>
-	private readonly HashSet<string> _refusedSessionTokens = new(StringComparer.Ordinal);
 
 	private const int MaximumChatHistory = 200;
 
@@ -80,7 +79,6 @@ public partial class ServerLobby : ILobbySeatTable
 
 	private double _linkStatisticsTimer;
 
-	private const int MaximumSessionTokenLength = 64;
 
 	private int _adminPeerId;
 	private long _revision;
@@ -91,7 +89,7 @@ public partial class ServerLobby : ILobbySeatTable
 	private bool _matchStarted;
 
 	public ServerLobby(ServerArguments arguments, ServerLog log, Action<int, NetworkFrameKind, byte[], FrameDelivery> send, Action<int> disconnect,
-		Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> startMatch, Action lobbyAbandoned,
+		Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<ulong, int>, int, string?> startMatch, Action lobbyAbandoned,
 		Func<int, PeerLinkStatistics?> readPeerLink, Func<string?> readStartWarning)
 	{
 		_log = log;

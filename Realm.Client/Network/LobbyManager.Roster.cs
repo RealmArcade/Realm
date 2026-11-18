@@ -43,7 +43,7 @@ public partial class LobbyManager
 			int difficulty = isComputer
 				? (int)LobbyBotDifficultyRules.Clamp((int)player.Difficulty)
 				: (int)LobbyBotDifficultyRules.Default;
-			seats.Add(new MatchRosterSeat(player.Slot, player.AccountId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer, difficulty, player.Faction));
+			seats.Add(new MatchRosterSeat(player.Slot, player.SteamId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer, difficulty, player.Faction));
 		}
 
 		seats.Sort((left, right) => left.Slot.CompareTo(right.Slot));
@@ -67,7 +67,6 @@ public partial class LobbyManager
 
 	public override void _ExitTree()
 	{
-		GameContext.Account.Changed -= OnAccountChanged;
 		GameContext.UnregisterLobby(this);
 	}
 

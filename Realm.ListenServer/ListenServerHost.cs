@@ -46,7 +46,7 @@ public partial class ListenServerHost : IServerTransportSink
 
 	private readonly Dictionary<int, string> _peerLanguages = new();
 
-	private readonly Dictionary<string, int> _sessionTokenSlots = new();
+	private readonly Dictionary<ulong, int> _steamIdSlots = new();
 
 	private double _lastTickSeconds;
 	private double _nextTickTime;
@@ -229,7 +229,7 @@ public partial class ListenServerHost : IServerTransportSink
 		}
 	}
 
-	private readonly Dictionary<string, int> _lobbySessionSlots = new(StringComparer.Ordinal);
+	private readonly Dictionary<ulong, int> _lobbySessionSlots = new();
 	private long _deliveredPresentationCount;
 	private int _rateLimitedCommandCount;
 	private long _nextRateLimitReportTicks;

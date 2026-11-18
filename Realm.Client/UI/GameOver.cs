@@ -212,12 +212,8 @@ public partial class GameOver : Control
 		DiagnosticsService.LastMatchSummary = $"{(GameContext.IsGameOver ? "finished" : "left early")}, {(GameContext.SessionState.IsTestMode ? "playtest" : "match")}, map {GameContext.ActiveMapName}";
 
 		if (GameContext.Host?.IsRankedMultiplayerMatch != true) return;
-		if (!GameContext.Account.IsSignedIn) return;
 
-		string matchId = DescribeMatchForRecord();
-		if (matchId.Length == 0) return;
-
-		_ = GameContext.Account.ReportMatchResultAsync(matchId, _isVictory);
+		GameContext.Steam.RecordMatchResult(_isVictory);
 	}
 
 	/// <summary>

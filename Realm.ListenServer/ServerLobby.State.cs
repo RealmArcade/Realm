@@ -44,12 +44,10 @@ public partial class ServerLobby
 	private byte[] SerializeStateFor(LobbyStateMessage state, int peerId)
 	{
 		LobbySeat[] seats = state.Seats;
-		for (int index = 0; index < seats.Length; index++) seats[index].SessionToken = string.Empty;
 
 		for (int index = 0; index < seats.Length; index++)
 		{
 			if (seats[index].PeerId != peerId) continue;
-			if (_seats.TryGetValue(seats[index].Slot, out LobbySeat seat)) seats[index].SessionToken = seat.SessionToken;
 			break;
 		}
 
@@ -63,7 +61,6 @@ public partial class ServerLobby
 		foreach (LobbySeat seat in _seats.Values)
 		{
 			LobbySeat published = seat;
-			published.SessionToken = string.Empty;
 			seats[index++] = published;
 		}
 

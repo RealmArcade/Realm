@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Realm.Ecs;
 using Realm.Shared.Maps;
@@ -36,7 +36,7 @@ public class MatchRosterSeatTable : ILobbySeatTable
 			_seats[seat.Slot] = new LobbySeat
 			{
 				Slot = seat.Slot,
-				AccountId = seat.AccountId,
+				SteamId = seat.SteamId,
 				Name = seat.Name,
 				Faction = seat.Faction,
 				Team = seat.Team,
@@ -45,8 +45,7 @@ public class MatchRosterSeatTable : ILobbySeatTable
 				IsHost = !seat.IsComputer && !hostAssigned,
 				IsReady = true,
 				IsMapReady = true,
-				IsLoadReady = true,
-				SessionToken = string.Empty
+				IsLoadReady = true
 			};
 
 			if (!seat.IsComputer) hostAssigned = true;

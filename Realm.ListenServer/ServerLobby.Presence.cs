@@ -29,7 +29,7 @@ public partial class ServerLobby
 			return;
 		}
 
-		if (IsSessionSeatedOnAnotherConnection(seat))
+		if (IsSteamIdSeatedOnAnotherConnection(seat))
 		{
 			_seats.Remove(seat.Slot);
 			_slotByPeer.Remove(peerId);

@@ -185,7 +185,7 @@ public partial class ListenServerHost
 		_frameRings.Clear();
 		_connectedPeers.Clear();
 		_peerLanguages.Clear();
-		_sessionTokenSlots.Clear();
+		_steamIdSlots.Clear();
 		_lobbySessionSlots.Clear();
 		_lobby = null;
 		_mapShares = null;

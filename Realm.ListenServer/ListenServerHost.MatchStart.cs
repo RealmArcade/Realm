@@ -17,7 +17,7 @@ namespace Realm.ListenServer;
 /// <summary>turning a lobby roster into a running match.</summary>
 public partial class ListenServerHost
 	{
-	private string? StartMatchFromLobby(IReadOnlyList<MatchRosterSeat> roster, IReadOnlyList<(int PeerId, int Slot)> assignments, IReadOnlyDictionary<string, int> sessionSlots, int seed)
+	private string? StartMatchFromLobby(IReadOnlyList<MatchRosterSeat> roster, IReadOnlyList<(int PeerId, int Slot)> assignments, IReadOnlyDictionary<ulong, int> sessionSlots, int seed)
 	{
 		if (_simulation != null) return "This lobby has already started its match.";
 
@@ -68,7 +68,7 @@ public partial class ListenServerHost
 		foreach (var pair in sessionSlots)
 		{
 			_lobbySessionSlots[pair.Key] = pair.Value;
-			_sessionTokenSlots[pair.Key] = pair.Value;
+			_steamIdSlots[pair.Key] = pair.Value;
 		}
 
 		for (int index = 0; index < assignments.Count; index++)

@@ -70,9 +70,7 @@ public class ClientServerSession : IDisposable
 
 	private string _playerName = string.Empty;
 
-	private long _accountId;
 
-	private string _sessionToken = string.Empty;
 
 	private ulong _steamId;
 
@@ -344,15 +342,12 @@ public class ClientServerSession : IDisposable
 	}
 
 	/// <summary>
-	///     States who this screen is to the lobby it is about to hold or join. The Steam id travels with the rest because the
-	///     lobby publishes the seats to each other, and the end-of-match table is where a player can act on the people they
-	///     just played with.
+	///     States who this screen is to the lobby it is about to hold or join. The Steam id is the whole identity: it is
+	///     what the seat, a reconnect and the end-of-match table are keyed by, and Steam asserts it on the socket.
 	/// </summary>
-	public void ConfigureLobbyIdentity(string playerName, string sessionToken, long accountId, ulong steamId)
+	public void ConfigureLobbyIdentity(string playerName, ulong steamId)
 	{
 		_playerName = playerName ?? string.Empty;
-		_sessionToken = sessionToken ?? string.Empty;
-		_accountId = accountId;
 		_steamId = steamId;
 	}
 
@@ -788,8 +783,6 @@ public class ClientServerSession : IDisposable
 			MapHash = _mapHash,
 			Language = _language,
 			PlayerName = _playerName,
-			AccountId = _accountId,
-			SessionToken = _sessionToken,
 			SteamId = _steamId
 		};
 

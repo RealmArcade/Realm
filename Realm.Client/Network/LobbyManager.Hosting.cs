@@ -80,7 +80,7 @@ public partial class LobbyManager
 		{
 			PeerId = 1,
 			Slot = humanSlot,
-			AccountId = AccountId,
+			SteamId = GameContext.Steam.SteamId,
 			Name = PlayerDisplayName,
 			Faction = "HUMAN",
 			Team = $"Team {humanSlot}",
@@ -90,7 +90,6 @@ public partial class LobbyManager
 			Jitter = "0 ms",
 			PacketLoss = "0%",
 			BinaryVersion = RealmVersion.GameBinaryVersion,
-			SessionToken = LobbySessionToken
 		};
 		PlayerList.Add(hostPlayer);
 
@@ -110,8 +109,7 @@ public partial class LobbyManager
 				Latency = "0 ms",
 				Jitter = "0 ms",
 				PacketLoss = "0%",
-				BinaryVersion = RealmVersion.GameBinaryVersion,
-				SessionToken = string.Empty
+				BinaryVersion = RealmVersion.GameBinaryVersion
 			};
 			PlayerList.Add(botPlayer);
 		}
@@ -220,7 +218,7 @@ public partial class LobbyManager
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
 
 		// Steam's lobby is created before the authority is told to start, because it is what the authority admits peers
@@ -484,7 +482,7 @@ public partial class LobbyManager
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
 
 		var start = new ServerLobbyStart(

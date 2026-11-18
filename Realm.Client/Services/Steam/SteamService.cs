@@ -30,7 +30,6 @@ public partial class SteamService
 	/// </summary>
 	private const string FriendDialogAddFriend = "friendadd";
 
-	private static readonly TimeSpan TicketTimeout = TimeSpan.FromSeconds(15);
 
 	private static readonly TimeSpan InviteLobbyTimeout = TimeSpan.FromSeconds(10);
 
@@ -44,7 +43,6 @@ public partial class SteamService
 
 	private ulong _avatarTextureSteamId;
 
-	private Callback<GetTicketForWebApiResponse_t>? _ticketResponseCallback;
 
 	private CallResult<LobbyCreated_t>? _lobbyCreatedCallResult;
 
@@ -54,9 +52,7 @@ public partial class SteamService
 
 	private Callback<GameLobbyJoinRequested_t>? _gameLobbyJoinRequestedCallback;
 
-	private HAuthTicket _pendingTicket = HAuthTicket.Invalid;
 
-	private TaskCompletionSource<string>? _pendingTicketResult;
 
 	private TaskCompletionSource<bool>? _inviteLobbyCreation;
 
@@ -120,6 +116,7 @@ public partial class SteamService
 			_initializationMessage = string.Empty;
 			StartedWithoutSteam = false;
 			RegisterLobbyCallbacks();
+			RequestLifetimeStats();
 			GameLog.LogToConsole($"[Steam] running as application {SteamUtils.GetAppID().m_AppId}, player {SteamUser.GetSteamID().m_SteamID}");
 		}
 		catch (Exception exception) when (IsMissingNativeLibrary(exception))
@@ -207,93 +204,7 @@ public partial class SteamService
 			GameLog.LogError($"[Steam] callbacks stopped: {exception.Message}");
 			_initialized = false;
 			UnavailableReason = SteamUnavailableReason.InitializationFailed;
-			CancelPendingTicket(string.Empty);
 		}
-	}
-
-	/// <summary>
-	///     Mints a single-use auth session ticket for the authority to exchange for this player's SteamID64, in the hex form the
-	///     Steam Web API accepts. The ticket arrives through a Steamworks callback that <see cref="Pump" /> delivers, so this must
-	///     be awaited from a frame that keeps pumping; an empty answer means Steamworks could not mint one, and a screen that
-	///     needs a verified identity therefore cannot act.
-	/// </summary>
-	public async Task<string> RequestWebApiTicketAsync()
-	{
-		if (!_initialized) return string.Empty;
-
-		_ticketResponseCallback ??= new Callback<GetTicketForWebApiResponse_t>(OnTicketResponse);
-		CancelPendingTicket(string.Empty);
-
-		var pending = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-		_pendingTicketResult = pending;
-
-		HAuthTicket ticket;
-		try
-		{
-			ticket = SteamUser.GetAuthTicketForWebApi(SteamAuthTicket.Identity);
-		}
-		catch (Exception exception)
-		{
-			GameLog.LogError($"[Steam] a sign-in ticket could not be requested: {exception.Message}");
-			_pendingTicketResult = null;
-			return string.Empty;
-		}
-
-		if (ticket == HAuthTicket.Invalid)
-		{
-			_pendingTicketResult = null;
-			return string.Empty;
-		}
-
-		_pendingTicket = ticket;
-
-		Task finished = await Task.WhenAny(pending.Task, Task.Delay(TicketTimeout)).ConfigureAwait(true);
-		if (finished != pending.Task)
-		{
-			CancelPendingTicket(string.Empty);
-			return string.Empty;
-		}
-
-		return await pending.Task.ConfigureAwait(true);
-	}
-
-	private void OnTicketResponse(GetTicketForWebApiResponse_t response)
-	{
-		TaskCompletionSource<string>? pending = _pendingTicketResult;
-		if (pending == null) return;
-		if (response.m_hAuthTicket != _pendingTicket) return;
-
-		_pendingTicketResult = null;
-
-		if (response.m_eResult != EResult.k_EResultOK || response.m_cubTicket <= 0)
-		{
-			pending.TrySetResult(string.Empty);
-			return;
-		}
-
-		pending.TrySetResult(Convert.ToHexString(response.m_rgubTicket, 0, response.m_cubTicket).ToLowerInvariant());
-	}
-
-	private void CancelPendingTicket(string result)
-	{
-		TaskCompletionSource<string>? pending = _pendingTicketResult;
-		_pendingTicketResult = null;
-
-		if (_pendingTicket != HAuthTicket.Invalid)
-		{
-			try
-			{
-				SteamUser.CancelAuthTicket(_pendingTicket);
-			}
-			catch (Exception exception)
-			{
-				GameLog.LogError($"[Steam] a sign-in ticket could not be cancelled: {exception.Message}");
-			}
-
-			_pendingTicket = HAuthTicket.Invalid;
-		}
-
-		pending?.TrySetResult(result);
 	}
 
 	public void Stop()
@@ -301,8 +212,6 @@ public partial class SteamService
 		if (!_initialized || _stopped) return;
 
 		_stopped = true;
-		CancelPendingTicket(string.Empty);
-
 		try
 		{
 			SteamAPI.Shutdown();

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
@@ -23,10 +23,10 @@ public partial class ServerLobby
 	private readonly Dictionary<int, WaitingForJoinCode> _waitingJoins = new();
 
 	/// <summary>
-	///     The session identities that have presented the code, which is what lets a dropped seat reconnect without being
+	///     The Steam identities that have presented the code, which is what lets a dropped seat reconnect without being
 	///     asked again. It holds identities rather than peer ids because a reconnect always arrives on a new connection.
 	/// </summary>
-	private readonly HashSet<string> _joinCodeGrantedSessions = new(StringComparer.Ordinal);
+	private readonly HashSet<ulong> _joinCodeGrantedSteamIds = new();
 
 	/// <summary>
 	///     The Steam identities this lobby removed, which its authority refuses by name. A kicked player's Steam lobby
@@ -47,27 +47,25 @@ public partial class ServerLobby
 	///     Whether a peer that just arrived may take a seat yet. A lobby with no code seats everybody; a lobby with a code
 	///     seats nobody until that screen presents it, except its own administrator, who wrote it.
 	/// </summary>
-	/// <param name="sessionToken">The session identity the arriving peer states, which a reconnect presents again.</param>
+	/// <param name="steamId">The Steam identity Steam asserted for the arriving peer, which a reconnect presents again.</param>
 	/// <param name="proveAdmin">Whether the arriving peer proved the ticket that administers this lobby.</param>
 	/// <returns>Whether the peer waits in the room instead of taking a seat.</returns>
-	private bool WaitsForJoinCode(string sessionToken, bool proveAdmin)
+	private bool WaitsForJoinCode(ulong steamId, bool proveAdmin)
 	{
 		if (_joinCode.Length == 0) return false;
 		if (proveAdmin) return false;
-		if (sessionToken.Length == 0) return true;
+		if (steamId == 0) return true;
 
-		return !_joinCodeGrantedSessions.Contains(sessionToken);
+		return !_joinCodeGrantedSteamIds.Contains(steamId);
 	}
 
 	/// <summary>Remembers a member standing in the room until the code is presented.</summary>
 	/// <param name="peerId">The connection the member arrived on.</param>
 	/// <param name="name">The name the member plays under.</param>
-	/// <param name="accountId">The account the member plays as.</param>
-	/// <param name="sessionToken">The session identity the member states.</param>
 	/// <param name="steamId">The Steam identity Steam asserted for the member.</param>
-	private void WaitForJoinCode(int peerId, string name, long accountId, string sessionToken, ulong steamId)
+	private void WaitForJoinCode(int peerId, string name, ulong steamId)
 	{
-		_waitingJoins[peerId] = new WaitingForJoinCode(name, accountId, LobbyLimits.Sanitize(sessionToken, MaximumSessionTokenLength), steamId);
+		_waitingJoins[peerId] = new WaitingForJoinCode(name, steamId);
 		_log.Write($"peer {peerId} stands in this lobby without a seat: it gates its seats with a join code");
 	}
 
@@ -96,7 +94,7 @@ public partial class ServerLobby
 			return;
 		}
 
-		if (waiting.SessionToken.Length > 0) _joinCodeGrantedSessions.Add(waiting.SessionToken);
+		if (waiting.SteamId != 0) _joinCodeGrantedSteamIds.Add(waiting.SteamId);
 		SeatWaitingMember(peerId, waiting);
 	}
 
@@ -107,7 +105,7 @@ public partial class ServerLobby
 	{
 		_waitingJoins.Remove(peerId);
 
-		string rejection = SeatPeer(peerId, waiting.Name, waiting.AccountId, waiting.SessionToken, waiting.SteamId, proveAdmin: false, out bool isAdmin);
+		string rejection = SeatPeer(peerId, waiting.Name, waiting.SteamId, proveAdmin: false, out bool isAdmin);
 		if (rejection.Length > 0)
 		{
 			_log.Write($"peer {peerId} presented the join code but could not be seated: {rejection}");
@@ -140,7 +138,7 @@ public partial class ServerLobby
 		else
 		{
 			_log.Write("this lobby now gates its seats with a join code");
-			_joinCodeGrantedSessions.Clear();
+			_joinCodeGrantedSteamIds.Clear();
 		}
 
 		AddSystemChat(_joinCode.Length == 0
@@ -180,5 +178,5 @@ public partial class ServerLobby
 	private IEnumerable<int> WaitingJoinPeers => _waitingJoins.Keys;
 
 	/// <summary>What a member stated when it arrived and was made to wait for a join code.</summary>
-	private readonly record struct WaitingForJoinCode(string Name, long AccountId, string SessionToken, ulong SteamId);
+	private readonly record struct WaitingForJoinCode(string Name, ulong SteamId);
 }

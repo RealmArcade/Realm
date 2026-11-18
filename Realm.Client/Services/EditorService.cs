@@ -85,16 +85,6 @@ public partial class EditorService : IEditorAPI
 		return EditorAssetImport.GetRtexWebpBytes(localRtex);
 	}
 
-	public async Task<string?> ProcessCreatorRegistrationAsync(string username, string pubKeyStr, Key key)
-	{
-		return await EditorAssetImport.ProcessCreatorRegistrationAsync(username, pubKeyStr, key);
-	}
-
-	public async Task<string?> RegisterCreatorAsync(string username, string pubKeyStr, Key key)
-	{
-		return await EditorAssetImport.RegisterCreatorAsync(username, pubKeyStr, key);
-	}
-
 	public bool IsTargetUnit(string unitId, string? targetId)
 	{
 		if (string.IsNullOrEmpty(targetId)) return true;

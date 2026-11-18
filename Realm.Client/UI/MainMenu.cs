@@ -72,9 +72,7 @@ public partial class MainMenu : Control
 		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
 		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
 
-		GameContext.Account.Changed += OnAccountChanged;
 		RefreshAccountPresentation();
-		RestoreAccountSession();
 		ShowCrashOfferIfAny();
 	}
 
@@ -131,51 +129,6 @@ public partial class MainMenu : Control
 		row.AddChild(dismissButton);
 	}
 
-	public override void _ExitTree()
-	{
-		GameContext.Account.Changed -= OnAccountChanged;
-	}
-
-	private void OnAccountChanged()
-	{
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
-
-		Callable.From(RefreshAccountPresentation).CallDeferred();
-	}
-
-	/// <summary>
-	///     Adopts the session stored at the last sign-in before the player asks for anything. Nothing is asked of the authority
-	///     here, so the menu is signed in just as quickly whether or not it is reachable, and the account screen is what confirms
-	///     the session afterwards. With no session to adopt, the Steam identity this machine already has is signed in quietly in
-	///     the background, so a player who owns the game through Steam never has to find the sign-in button.
-	/// </summary>
-	private void RestoreAccountSession()
-	{
-		GameContext.Account.Restore();
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
-
-		Callable.From(RefreshAccountPresentation).CallDeferred();
-
-		if (!GameContext.Account.IsSignedIn) _ = SignInWithSteamAtLaunchAsync();
-	}
-
-	/// <summary>
-	///     Signs in with Steam on its own, and says nothing about how it went: the name on the profile button simply stops being
-	///     unverified, and a launch where Steamworks is absent, the authority is unreachable or the ticket is refused leaves the
-	///     screen exactly as it was. The one outcome that asks for the player is a Steam persona the authority will not register,
-	///     which opens the card already showing the username dialog, because that card is the only surface that ever asks for a name.
-	/// </summary>
-	private async Task SignInWithSteamAtLaunchAsync()
-	{
-		AccountOperationResult result = await GameContext.Account.SignInWithSteamIdentityAsync();
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
-		if (result.Succeeded) return;
-		if (!AccountService.IsDisplayNameRefusal(result.ErrorCode)) return;
-
-		OpenProfileDialog();
-
-		if (_profileDialog != null && GodotObject.IsInstanceValid(_profileDialog)) _profileDialog.OpenNameConflict(result);
-	}
 
 	private void RefreshAccountPresentation()
 	{
@@ -196,18 +149,16 @@ public partial class MainMenu : Control
 
 		Label nameLabel = _profileButton.GetNodeOrNull<Label>("Nameplate/Label");
 		Label statusLabel = _profileButton.GetNodeOrNull<Label>("Badge/Label");
-		bool signedIn = GameContext.Account.IsSignedIn;
+		bool signedIn = GameContext.Steam.IsAvailable;
 
 		if (nameLabel != null)
 		{
-			nameLabel.Text = signedIn
-				? GameContext.Account.DisplayName
-				: UnverifiedNameMark.Apply(GameContext.Account.EffectiveUserName);
+			nameLabel.Text = signedIn ? GameContext.Steam.UserName : TranslationServer.Translate("Guest");
 		}
 
 		if (statusLabel != null)
 		{
-			statusLabel.Text = signedIn ? string.Empty : TranslationServer.Translate("SIGNED OUT");
+			statusLabel.Text = signedIn ? string.Empty : TranslationServer.Translate("STEAM OFFLINE");
 		}
 	}
 
@@ -225,7 +176,6 @@ public partial class MainMenu : Control
 			_profileDialog?.QueueFree();
 			_profileDialog = null;
 		};
-		_profileDialog.UserNameChanged = RefreshAccountPresentation;
 		AddChild(_profileDialog);
 		_profileDialog.Open();
 	}

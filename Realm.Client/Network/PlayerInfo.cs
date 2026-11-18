@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text.Json.Serialization;
 using Godot;
 using Realm.Shared.Network;
@@ -17,7 +17,6 @@ public class PlayerInfo
 	///     The account the seat belongs to, or 0 for a guest or computer seat. The name is only ever a display value; this is
 	///     the identity.
 	/// </summary>
-	public long AccountId { get; set; }
 	public string Name { get; set; } = "";
 
 	/// <summary>
@@ -74,6 +73,5 @@ public class PlayerInfo
 	public bool IsLoadReady { get; set; }
 
 	[JsonIgnore]
-	public string SessionToken { get; set; } = Guid.NewGuid().ToString();
 	public bool IsDisconnected { get; set; } = false;
 }

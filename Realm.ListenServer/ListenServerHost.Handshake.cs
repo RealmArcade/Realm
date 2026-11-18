@@ -98,7 +98,7 @@ public partial class ListenServerHost
 		int team;
 		if (_lobbySessionSlots.Count > 0)
 		{
-			if (string.IsNullOrEmpty(hello.SessionToken) || !_lobbySessionSlots.TryGetValue(hello.SessionToken, out playerSlot))
+			if (hello.SteamId == 0 || !_lobbySessionSlots.TryGetValue(hello.SteamId, out playerSlot))
 			{
 				_log.Write($"peer {peerId} refused: this match's roster was arranged by a lobby, and this connection is not one of its seats");
 				SendHello(peerId, LobbyRosterClosedRejection);
@@ -116,7 +116,7 @@ public partial class ListenServerHost
 
 			team = simulation.ReadTeam(playerSlot);
 		}
-		else if (!TryReclaimSessionSlot(simulation, peerId, hello.SessionToken, out playerSlot, out team)
+		else if (!TryReclaimSteamIdSlot(simulation, peerId, hello.SteamId, out playerSlot, out team)
 		         && !simulation.TryAssignPlayerSlot(peerId, out playerSlot, out team))
 		{
 			const string noSlot = "server_rejected_no_free_slot";
@@ -126,7 +126,7 @@ public partial class ListenServerHost
 			return;
 		}
 
-		if (!string.IsNullOrEmpty(hello.SessionToken)) _sessionTokenSlots[hello.SessionToken] = playerSlot;
+		if (hello.SteamId != 0) _steamIdSlots[hello.SteamId] = playerSlot;
 		BeginSeatedPeerBookkeeping(peerId, playerSlot, simulation.TickCount);
 		simulation.SetPlayerLanguage(playerSlot, hello.Language);
 		simulation.SetPeerSteamId(peerId, hello.SteamId);

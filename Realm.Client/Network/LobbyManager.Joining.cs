@@ -98,7 +98,7 @@ public partial class LobbyManager
 			GameContext.DetachServerSession();
 
 			var session = new ClientServerSession(channel);
-			session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
+			session.ConfigureLobbyIdentity(PlayerDisplayName, GameContext.Steam.SteamId);
 			AttachLobbySession(session);
 
 			if (!session.TryJoinSteamLobby(hostSteamId, LocalizationManager.GetCurrentLanguageCode(), out string joinFailure))
@@ -501,7 +501,6 @@ public partial class LobbyManager
 			{
 				PeerId = seat.PeerId,
 				Slot = seat.Slot,
-				AccountId = seat.AccountId,
 				SteamId = seat.SteamId,
 				Name = seat.Name ?? string.Empty,
 				Faction = seat.Faction ?? string.Empty,
@@ -519,7 +518,6 @@ public partial class LobbyManager
 				Jitter = FormatLinkMilliseconds(seat.JitterMilliseconds),
 				PacketLoss = FormatLinkPercent(seat.PacketLossPercent),
 				BinaryVersion = RealmVersion.GameBinaryVersion,
-				SessionToken = seat.SessionToken ?? string.Empty
 			});
 		}
 	}
@@ -604,7 +602,6 @@ public partial class LobbyManager
 	private void OnLobbyChat(LobbyChatMessage line)
 	{
 		string sender = string.IsNullOrEmpty(line.SenderName) ? "System" : line.SenderName;
-		if (line.SenderPeerId > 0 && line.SenderAccountId == 0) sender = UnverifiedNameMark.Apply(sender);
 
 		int senderSlot = PlayerList.Find(p => p.PeerId == line.SenderPeerId)?.Slot ?? 0;
 		if (line.SenderPeerId > 0) ServerChatCommandReceived?.Invoke(senderSlot, line.Message);

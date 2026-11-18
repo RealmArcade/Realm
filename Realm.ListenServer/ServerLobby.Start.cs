@@ -88,12 +88,12 @@ public partial class ServerLobby
 
 		var roster = new List<MatchRosterSeat>(_seats.Count);
 		var assignments = new List<(int PeerId, int Slot)>(_seats.Count);
-		var sessionSeats = new Dictionary<string, int>(_seats.Count, StringComparer.Ordinal);
+		var sessionSeats = new Dictionary<ulong, int>(_seats.Count);
 		foreach (LobbySeat seat in _seats.Values)
 		{
 			string faction = ResolveSeatFaction(seat.Faction, offeredFactions, factionPicker);
-			roster.Add(new MatchRosterSeat(seat.Slot, seat.AccountId, seat.Name, seat.Team, seat.TeamName, seat.IsComputer, (int)LobbyBotDifficultyRules.Clamp(seat.Difficulty), faction));
-			if (!seat.IsComputer && seat.SessionToken.Length > 0) sessionSeats[seat.SessionToken] = seat.Slot;
+			roster.Add(new MatchRosterSeat(seat.Slot, seat.SteamId, seat.Name, seat.Team, seat.TeamName, seat.IsComputer, (int)LobbyBotDifficultyRules.Clamp(seat.Difficulty), faction));
+			if (!seat.IsComputer && seat.SteamId != 0) sessionSeats[seat.SteamId] = seat.Slot;
 			if (!seat.IsComputer && !seat.IsDisconnected && seat.PeerId > 0) assignments.Add((seat.PeerId, seat.Slot));
 		}
 
@@ -146,8 +146,8 @@ public partial class ServerLobby
 	/// </summary>
 	/// <param name="roster">The seats the match is being started with, in slot order.</param>
 	/// <param name="assignments">The peer to slot assignments the match seats its connections by.</param>
-	/// <param name="sessionSlots">The session token to slot assignments a reconnecting peer is recognised by.</param>
-	private static void GroupTeamsTogether(List<MatchRosterSeat> roster, List<(int PeerId, int Slot)> assignments, Dictionary<string, int> sessionSlots)
+	/// <param name="sessionSlots">The Steam identity to slot assignments a reconnecting peer is recognised by.</param>
+	private static void GroupTeamsTogether(List<MatchRosterSeat> roster, List<(int PeerId, int Slot)> assignments, Dictionary<ulong, int> sessionSlots)
 	{
 		var playing = new List<MatchRosterSeat>(roster.Count);
 		for (int index = 0; index < roster.Count; index++)
@@ -179,7 +179,7 @@ public partial class ServerLobby
 
 		if (sessionSlots.Count == 0) return;
 
-		var groupedSessions = new Dictionary<string, int>(sessionSlots.Count, StringComparer.Ordinal);
+		var groupedSessions = new Dictionary<ulong, int>(sessionSlots.Count);
 		foreach (var pair in sessionSlots)
 		{
 			groupedSessions[pair.Key] = slotByOldSlot.TryGetValue(pair.Value, out int groupedSlot) ? groupedSlot : pair.Value;

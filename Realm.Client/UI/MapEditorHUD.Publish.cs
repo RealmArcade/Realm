@@ -25,9 +25,9 @@ public partial class MapEditorHUD
 
 	private bool EnsureSignedInForPublishing()
 	{
-		if (GameContext.Account.IsSignedIn) return true;
+		if (GameContext.Steam.IsAvailable) return true;
 
-		ShowFeedback(TranslationServer.Translate("Sign in to publish maps. Offline play and editing still work without an account."));
+		ShowFeedback(GameContext.Steam.UnavailableExplanation);
 		return false;
 	}
 
@@ -35,7 +35,7 @@ public partial class MapEditorHUD
 	{
 		string keysDirectory = GetAuthorshipKeysDirectory();
 		var keys = AuthorshipKeyHelper.EnumerateAuthorshipKeys(keysDirectory);
-		string accountUserName = GameContext.Account.DisplayName;
+		string accountUserName = GameContext.Steam.UserName;
 
 		foreach (AuthorshipKeyInfo keyInfo in keys)
 		{
@@ -93,7 +93,7 @@ public partial class MapEditorHUD
 			return authorsKeyData.UserName;
 		}
 
-		string accountUserName = GameContext.Account.DisplayName;
+		string accountUserName = GameContext.Steam.UserName;
 		return string.IsNullOrWhiteSpace(accountUserName) ? "MapAuthor" : accountUserName;
 	}
 
@@ -155,7 +155,6 @@ public partial class MapEditorHUD
 
 		if (createdAuthorshipKey && TryGetSelectedAuthorshipKey(out NSec.Cryptography.Key? createdPublishKey, out _, out _) && createdPublishKey != null)
 		{
-			CheckCreatorRegistrationAndPrompt(createdPublishKey);
 		}
 	}
 
@@ -360,13 +359,13 @@ public partial class MapEditorHUD
 		{
 			GameContext.UserInterface?.PlayClickSound();
 
-			if (!GameContext.Account.IsSignedIn)
+			if (!GameContext.Steam.IsAvailable)
 			{
-				ShowFeedback(TranslationServer.Translate("Sign in to create an authorship key."));
+				ShowFeedback(GameContext.Steam.UnavailableExplanation);
 				return;
 			}
 
-			string accountUserName = GameContext.Account.DisplayName;
+			string accountUserName = GameContext.Steam.UserName;
 			if (string.IsNullOrWhiteSpace(accountUserName))
 			{
 				ShowFeedback(TranslationServer.Translate("Your account has no user name, so no authorship key can be created."));
@@ -384,7 +383,6 @@ public partial class MapEditorHUD
 
 			if (createdNew && createdKey != null)
 			{
-				CheckCreatorRegistrationAndPrompt(createdKey);
 			}
 		};
 

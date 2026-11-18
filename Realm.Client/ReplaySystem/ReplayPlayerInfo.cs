@@ -1,4 +1,4 @@
-using MemoryPack;
+﻿using MemoryPack;
 
 namespace Realm.Client.ReplaySystem;
 
@@ -11,7 +11,6 @@ public partial class ReplayPlayerInfo
 	///     The account the replay participant played as, or 0 for a guest or computer slot. A replay header records the
 	///     identity beside the name, because the name may have changed since the match was recorded.
 	/// </summary>
-	public long AccountId { get; set; }
 
 	public string Name { get; set; } = null!;
 	public string Faction { get; set; } = null!;

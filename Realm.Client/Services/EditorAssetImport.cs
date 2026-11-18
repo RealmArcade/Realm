@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
@@ -192,45 +192,6 @@ public static class EditorAssetImport
 		{
 			GameLog.LogError($"Failed to read Rtex bytes: {ex.Message}");
 			return null;
-		}
-	}
-
-	public static async Task<string?> ProcessCreatorRegistrationAsync(string username, string pubKeyStr, Key key)
-	{
-		if (!Realm.Shared.NameNormalizationHelper.ValidateUsername(username, out var validationError))
-		{
-			return JsonSerializer.Serialize(new { Message = validationError ?? "Invalid username." });
-		}
-
-		if (!GameContext.Account.IsSignedIn || string.IsNullOrEmpty(GameContext.Account.SessionToken))
-		{
-			return JsonSerializer.Serialize(new { Message = "Sign in with Steam before registering a map key." });
-		}
-
-		return await RegisterCreatorAsync(username, pubKeyStr, key);
-	}
-
-	public static async Task<string?> RegisterCreatorAsync(string username, string pubKeyStr, Key key)
-	{
-		byte[] payloadBytes = Encoding.UTF8.GetBytes(CreatorRegistrationProof.BuildPayload(username, pubKeyStr, null, null));
-		byte[] sigBytes = SignatureAlgorithm.Ed25519.Sign(key, payloadBytes);
-		string signatureStr = Convert.ToBase64String(sigBytes);
-
-		var regPayload = new { Username = username, PublicKey = pubKeyStr, Signature = signatureStr };
-		string registrationServerUrl = AccountService.AuthorityUrl;
-
-		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-		httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GameContext.Account.SessionToken);
-		var content = new StringContent(JsonSerializer.Serialize(regPayload), Encoding.UTF8, "application/json");
-		var res = await httpClient.PostAsync(registrationServerUrl + "/api/creators/register", content);
-
-		if (res.IsSuccessStatusCode)
-		{
-			return null;
-		}
-		else
-		{
-			return await res.Content.ReadAsStringAsync();
 		}
 	}
 

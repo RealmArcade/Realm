@@ -296,18 +296,25 @@ public partial class LobbyManager
 		});
 	}
 
-	public bool HasRegisteredSessionToken(int peerId)
+	/// <summary>Whether a seat in this lobby was taken by a player Steam identified.</summary>
+	/// <param name="peerId">The connection to ask about.</param>
+	/// <returns>True when the peer holds an identified seat.</returns>
+	public bool HasIdentifiedSeat(int peerId)
 	{
 		PlayerInfo? player = PlayerList.Find(p => p.PeerId == peerId);
-		return player != null && !string.IsNullOrEmpty(player.SessionToken);
+		return player != null && player.SteamId != 0;
 	}
 
-	public bool TryGetReconnectOwnerForHarness(string sessionToken, out int slot)
+	/// <summary>Finds the slot a Steam identity already holds, which is how a harness watches a reconnect.</summary>
+	/// <param name="steamId">The Steam identity to look for.</param>
+	/// <param name="slot">The slot that identity holds.</param>
+	/// <returns>Whether the identity was already seated.</returns>
+	public bool TryGetReconnectOwnerForHarness(ulong steamId, out int slot)
 	{
 		slot = -1;
-		if (string.IsNullOrEmpty(sessionToken)) return false;
+		if (steamId == 0) return false;
 
-		PlayerInfo? owner = PlayerList.Find(p => !string.IsNullOrEmpty(p.SessionToken) && string.Equals(p.SessionToken, sessionToken, StringComparison.Ordinal));
+		PlayerInfo? owner = PlayerList.Find(p => p.SteamId == steamId);
 		if (owner == null) return false;
 
 		slot = owner.Slot;

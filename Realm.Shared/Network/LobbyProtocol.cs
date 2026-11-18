@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using MemoryPack;
 using Realm.Shared.Accounts;
@@ -137,8 +137,6 @@ public partial struct LobbySeat
 
 	public int Slot;
 
-	public long AccountId;
-
 	public string Name;
 	public string Faction;
 
@@ -159,8 +157,6 @@ public partial struct LobbySeat
 	public bool IsLoadReady;
 
 	public bool IsDisconnected;
-
-	public string SessionToken;
 
 	public int LatencyMilliseconds;
 
@@ -341,9 +337,9 @@ public partial struct LobbyChatMessage
 	public int SenderPeerId;
 
 	/// <summary>
-	///     The account whose seat spoke, filled by the authority from the seat rather than from anything the sender typed.
+	///     The SteamID64 whose seat spoke, filled by the authority from the seat rather than from anything the sender typed.
 	/// </summary>
-	public long SenderAccountId;
+	public ulong SenderSteamId;
 
 	public string SenderName;
 	public string Message;
@@ -478,14 +474,13 @@ public static class LobbyLimits
 	}
 
 	/// <summary>
-	///     The name a lobby carries for a peer. A legal DisplayName is passed through untouched; anything else is reduced to a
-	///     control-free, grapheme-safe rendering so a seat can never hold a name the account authority would refuse or a string
-	///     cut in the middle of a surrogate pair. The unverified mark is stripped, because whether a name is marked is what the
-	///     screen knows about the seat, never something the seat declares about itself.
+	///     The name a lobby carries for a peer. A legal name is passed through untouched; anything else is reduced to a
+	///     control-free, grapheme-safe rendering, so a seat can never hold a name that is unreadable or a string cut in the
+	///     middle of a surrogate pair. Steam owns the name itself, so this only makes it safe to draw.
 	/// </summary>
 	public static string SanitizeDisplayName(string? value)
 	{
-		return UnverifiedNameMark.Remove(DisplayNameRules.AdmitForLobby(value, MaximumPlayerNameLength));
+		return DisplayNameRules.AdmitForLobby(value, MaximumPlayerNameLength);
 	}
 
 	public static bool IsAcceptableTeamName(string? teamName)

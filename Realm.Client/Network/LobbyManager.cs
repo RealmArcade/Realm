@@ -124,37 +124,17 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	public string? LastLobbyWarning { get; private set; }
 
-	public bool IsSignedIn => GameContext.Account.IsSignedIn;
+	public bool IsSignedIn => GameContext.Steam.IsAvailable;
 
-	public long AccountId => GameContext.Account.AccountId;
+	public ulong SteamId => GameContext.Steam.SteamId;
 
-	public string AuthenticatedUsername => GameContext.Account.DisplayName;
-
-	/// <summary>
-	///     The name a lobby seat carries, resolved by the same rule the profile screen shows, so the name on the card and the
-	///     name in the lobby can never describe the player differently. The lobby appends the seat number when two peers turn out
-	///     to carry the same name.
-	/// </summary>
-	public string PlayerDisplayName => GameContext.Account.EffectiveUserName;
-
-	private readonly string _guestLobbySessionToken = Guid.NewGuid().ToString();
+	public string AuthenticatedUsername => GameContext.Steam.UserName;
 
 	/// <summary>
-	///     The secret a lobby holds this screen's seat by. A signed-in player's secret is minted on this machine when the
-	///     session is adopted and kept beside it, so it outlives a restart and is replaced only by signing out; a player
-	///     playing without an account carries one made for this run. Neither is derived from anything the lobby shows, so
-	///     no other peer can name a seat it does not hold.
+	///     The name a lobby seat carries, which is the player's own Steam persona name. The lobby appends the seat number
+	///     when two peers turn out to carry the same name.
 	/// </summary>
-	public string LobbySessionToken
-	{
-		get
-		{
-			if (!GameContext.Account.IsSignedIn) return _guestLobbySessionToken;
-
-			string seatToken = GameContext.Account.LobbySeatToken;
-			return seatToken.Length > 0 ? seatToken : _guestLobbySessionToken;
-		}
-	}
+	public string PlayerDisplayName => GameContext.Steam.UserName;
 
 	public bool IsHost { get; set; }
 
@@ -387,31 +367,7 @@ public partial class LobbyManager : BaseMapTransferNode
 
 		WarmUpLocalAuthority();
 
-		GameContext.Account.Changed += OnAccountChanged;
-	}
 
-	/// <summary>
-	///     Keeps the local seat on the account it belongs to. A DisplayName change is announced to the lobby so every other
-	///     screen sees the new name without the player leaving and rejoining.
-	/// </summary>
-	private void OnAccountChanged()
-	{
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
-
-		Callable.From(ApplyAccountChange).CallDeferred();
-	}
-
-	private void ApplyAccountChange()
-	{
-		PlayerInfo? me = PlayerList.Find(IsLocalPlayer);
-		if (me == null) return;
-
-		me.AccountId = AccountId;
-		string displayName = PlayerDisplayName;
-		if (string.Equals(me.Name, displayName, StringComparison.Ordinal)) return;
-
-		me.Name = displayName;
-		SendSeatUpdate(me);
 	}
 
 	/// <summary>
