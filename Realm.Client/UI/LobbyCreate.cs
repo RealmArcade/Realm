@@ -49,7 +49,6 @@ public partial class LobbyCreate : Control
 	/// </summary>
 	private LineEdit _joinCodeInput = null!;
 
-	private Label _joinCodeHint = null!;
 	private OptionButton _versionSelectButton = null!;
 	private HBoxContainer _versionContainer = null!;
 	private Label _versionLabel = null!;
@@ -346,16 +345,18 @@ public partial class LobbyCreate : Control
 
 	/// <summary>
 	///     Builds the row that decides who can join the lobby: Steam's visibility, which is what replaces the old listed and
-	///     direct distinction, and the one optional join code a community event is gated with.
+	///     direct distinction, and the one optional join code a community event is gated with. Both choices sit on one
+	///     horizontal row, and what the code is for is the join code group's tooltip rather than a line of its own beneath the
+	///     fields.
 	/// </summary>
 	/// <returns>The row, ready to be added under the map briefing.</returns>
 	private Control BuildLobbyAccessControls()
 	{
-		var row = new VBoxContainer();
+		var row = new HBoxContainer();
 		row.Name = "LobbyAccessRow";
-		row.AddThemeConstantOverride("separation", 10);
+		row.AddThemeConstantOverride("separation", 28);
+		row.Alignment = BoxContainer.AlignmentMode.Center;
 		row.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-		row.CustomMinimumSize = new Vector2(420, 0);
 
 		var visibilityRow = new HBoxContainer();
 		visibilityRow.Name = "VisibilityRow";
@@ -400,18 +401,12 @@ public partial class LobbyCreate : Control
 		_joinCodeInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
 		joinCodeRow.AddChild(_joinCodeInput);
 
-		row.AddChild(joinCodeRow);
+		string joinCodeExplanation = Tr("A join code is for a community event. Leave it empty and anyone who can see the lobby can join.");
+		joinCodeRow.TooltipText = joinCodeExplanation;
+		joinCodeLabel.TooltipText = joinCodeExplanation;
+		_joinCodeInput.TooltipText = joinCodeExplanation;
 
-		_joinCodeHint = new Label();
-		_joinCodeHint.Name = "JoinCodeHint_Label";
-		_joinCodeHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		_joinCodeHint.CustomMinimumSize = new Vector2(420, 0);
-		_joinCodeHint.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		_joinCodeHint.HorizontalAlignment = HorizontalAlignment.Center;
-		_joinCodeHint.AddThemeFontSizeOverride("font_size", 13);
-		_joinCodeHint.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		_joinCodeHint.Text = Tr("A join code is for a community event. Leave it empty and anyone who can see the lobby can join.");
-		row.AddChild(_joinCodeHint);
+		row.AddChild(joinCodeRow);
 
 		return row;
 	}
