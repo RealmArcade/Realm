@@ -84,10 +84,31 @@ that only succeeds when both machines are on the same network is a finding, not 
    history or keys.
 3. Account B subscribes, downloads, and plays the map from a lobby that names the item.
 4. A republishes with a change; B receives the update and a lobby naming the item runs the new version.
-5. **The private-session-copy rule:** after playing, exactly one session copy of that map should remain, keyed by item id
-   and package hash, and it must not be a hard link to the Workshop folder.
+5. **The private-session-copy rule:** after playing, exactly one session copy of that map should remain, keyed by the
+   package hash of the installed copy, and it must not be a hard link to the Workshop folder. Republishing the map makes
+   a new hash, so the next match rebuilds the copy; the old one is swept rather than reused.
 6. B unsubscribes and deletes the item's local files; a lobby that names it must refuse with a readable reason rather
    than loading a stale copy.
+
+### E-2. Two creators, one map name
+
+Steam reserves no map name, and the publisher now looks for the item to update among its own account's items only. This
+is the group that proves it, and it needs both accounts from the setup:
+
+1. **A foreign item is not taken over.** B publishes a map named `Arena`. A then publishes a map also named `Arena` from
+the editor. A's publish must succeed as a new item with its own id, and A's console must name B's item id as belonging to
+somebody else. Before this was fixed, A's publish was aimed at B's item and failed every time.
+2. **A's own republish stays in place.** A changes the map and republishes: the item id shown in the confirmation is the
+same one, and the Workshop page shows the new version rather than a second item.
+3. **A deleted item is republished, not resurrected.** B deletes their item on the partner site, then B publishes the map
+again. The confirmation must name a **new** item id, and a lobby that names the new item must be joinable. The old copy of
+the deleted item must not be played.
+4. **A privatized item** (set to private on the Workshop page, out of the editor's reach) then republished from the
+editor: record what happens - a second public item, or the private one updated. This is unverified behaviour of Steam's
+own-item query rather than a decision made here, and the answer decides whether the editor needs a visibility control.
+5. **A banned item** republished: record whether a fresh item appears and whether the creator is told anything.
+6. Repeat step 2 of the main group with B subscribed to A's item while both `Arena` items exist: the join must resolve
+the item the lobby advertises, not whichever `Arena` was updated most recently.
 
 ## F. The workspace archive tool
 
@@ -143,8 +164,11 @@ redesign.
   a signature. If a signed map should be visibly marked as signed, that is a presentation change; if it should be
   required, that is a format change and belongs in its own task.
 - **A publish identity is the map's name.** A renamed map creates a second Workshop item rather than moving the first,
-  and the lookup is one query per publish. If renames are common, an identity stored in `metadata.json` may be the
-  smaller cost.
+  and the lookup is one query per publish. Publishing now only ever updates an item the publishing account owns, so a
+  shared name no longer blocks a creator. What is still name-resolved is the player's side: the storage list's "newer
+  version" offer and the details screen's download button pick the newest item stating that name, which two same-named
+  maps make ambiguous. The join path is not affected because a lobby advertises the item id. Closing that needs the
+  installed package to record the item it came from, which is a map-format change rather than a repair.
 - **The trust threshold starts low.** `MapTrustPolicy`/`MapCatalogFilter` hide nothing by default; the confirmation sits
   on entering an untrusted lobby. If a first-time visitor's library looks noisy, raise the threshold rather than
   filtering by default.
