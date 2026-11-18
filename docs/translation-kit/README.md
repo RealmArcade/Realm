@@ -1,8 +1,9 @@
 # Translation kit for the Steam surfaces
 
 The Steam-first migration replaced the game's lobby, identity, map-distribution and publishing surfaces, and in doing so
-added 202 English strings that no catalog translates yet. This folder is those strings, handed over as work rather than as
-machine output: a translator fills one file per language, and nothing in the game reads these files.
+added 202 English strings. This folder holds those strings and one filled file per language; a translator works in one
+file, and nothing in the game reads these files. All ten languages are filled, and `Realm.TranslationTool -- verify`
+reports nothing missing in any of them, so what is left here is review and the next string that gets added.
 
 Two of the strings the migration added were carried over automatically, because their meaning had not changed
 (`✂️ Copy` and `Matches played`). Everything else here is genuinely new text, and two things about it are worth knowing
@@ -19,12 +20,15 @@ before starting:
 | File | What it holds |
 | --- | --- |
 | `source.json` | The 202 English strings, key to text. Read this, never edit it. |
-| `<language>.json` | One per catalog (`ar`, `de`, `es`, `fr`, `hi`, `ja`, `ko`, `pt`, `ru`, `zh`): the same keys with an empty value each. This is what gets filled in. |
+| `<language>.json` | One per catalog (`ar`, `de`, `es`, `fr`, `hi`, `ja`, `ko`, `pt`, `ru`, `zh`): the same keys, each with its translated value. A new English string is added to all ten as an empty value and filled the same way. |
 | `glossary.md` | Per language, the existing translated sentences that use "lobby", "map", "host", "Workshop", "Steam", "invite", "publish", "code", "join", "trust", "version" and "seat". Generated from the catalogs, not written by hand. |
 
 ## Filling a language
 
-Translate only the values. Keys are the game's lookup strings and changing one silently loses the translation.
+Translate only the values. Keys are the game's lookup strings and changing one silently loses the translation. A
+language written before this pass can be checked against the vocabulary the others settled on: German, French, Spanish,
+Portuguese, Russian, Chinese, Japanese, Korean, Arabic and Hindi each use the word their catalog already used for lobby,
+map, host, publish and invite, so a new sentence should sound like the ones beside it.
 
 - **Placeholders stay exactly as they are**, including their number: `{0}`, `{1}`, `{2}`. Word order may move them, as
   long as `{0}` still means what it means in English.

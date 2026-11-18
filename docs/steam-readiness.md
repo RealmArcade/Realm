@@ -22,7 +22,8 @@ Each of these holds for the current head of `steam_rewrite` and was checked by t
 | The client cannot call the authority in process | `Realm.Client.csproj` carries only the `ReferenceOutputAssembly="false"` ordering reference; no `using Realm.ListenServer` exists in client source. |
 | Nothing references a deleted page or file | Every `GetNode`/`GetNodeOrNull` literal resolves against its scene apart from fallback chains and nodes inside instanced sub-scenes; every `res://` literal resolves against the Godot project that owns the referencing file apart from the optional `config/featured_workshop_items.json`, whose absence the trust policy treats as "features nothing"; no orphaned `.cs.uid` remains. |
 | A seat's SteamID is the identity Steam asserted | `ListenServerHost.ResolveSeatSteamId` takes `_transport.TryGetPeerSteamId` first and uses the hello's number only when the transport asserts none (the host's own screen on loopback, and a match started without a lobby). It is the identity used for the lobby seat, the slot reclaim, the kick list and `SetPeerSteamId`. |
-| No catalog carries a key its call sites lost | `Realm.TranslationTool -- prune` reports nothing to prune for all ten catalogs, and each catalog's key set is a subset of `en.json`. Coverage is a separate matter, stated under **Unproven**. |
+| No catalog carries a key its call sites lost | `Realm.TranslationTool -- prune` reports nothing to prune for all ten catalogs, and each catalog's key set is a subset of `en.json`. |
+| Every catalog carries this branch's 202 strings | `Realm.TranslationTool -- verify` reports 0 missing, 0 empty, 0 placeholder mismatches and 0 BBCode mismatches for all ten catalogs. The wording is unread by anyone (see **Unproven**). |
 | The authoring schemas are one vocabulary | `metadata`, `terrain` and `manifest` schemas are byte-identical between `Realm.MapEditorExtension` and the copy in `MapTemplate/.vscode`. |
 | A re-publish only updates an item its creator owns | `MapPublishController` finds the item to update with `SteamWorkshopService.FindOwnedByMapNameAsync`, which filters on the owner Steam reports, because Steam reserves no map name and no update can be aimed at somebody else's item. A same-name item owned by another account is named in the console and the map is published as a new item. |
 | A lobby advertises the host's own item for the host's own map | `ResolveHostedMapTrustAsync` asks `FindOwnedByMapNameAsync` first and falls back to the newest same-name item only when the host owns none, which is the case for a map somebody else published. The advertised id is what a joiner downloads, so a stranger's newer same-name item would otherwise be downloaded and then refused by the hash check. |
@@ -58,15 +59,15 @@ and broken. This is where "we hid the button" and "we hid the feature" differ, a
 presentation frames a map script addresses, and the HUD's own values are all statically plausible and have not been
 watched.
 
-**A translated screen showing English.** Two things sit here. The nine non-English catalogs are each missing the 202
-keys this branch added (`Realm.TranslationTool -- verify` counts them per catalog). Almost all are strings that did not
-exist before, so they read English until they are translated, which is ordinary: the migration replaced whole feature
-vocabularies rather than rewording individual messages, and comparing the branch point's catalogs against today's found
-only two messages whose old translation still said the same thing - `✂️ Copy` and `Matches played` - which are carried
-over. [The translation kit](translation-kit/README.md) hands the remaining strings over as work: a source file, one
-stub per language, the existing terminology read out of each catalog, and a merge script that refuses stale keys. And a
-string rendered through a path that does not register its key shows English even where a translation exists, which is
-why the test plan's local group should be run in one non-English language as well as English.
+**A translated screen showing English.** Coverage is no longer the question: all ten catalogs carry the 202 keys this
+branch added, and `Realm.TranslationTool -- verify` reports 0 missing, 0 empty, 0 placeholder and 0 BBCode mismatches
+for every one of them. What has not happened is a native speaker reading them. They were written against the vocabulary
+each catalog already used - lobby, map, host, publish and invite keep the words the game already showed - but wording is
+not something a compiler checks, so the first pass in each language is a review rather than a proof. [The translation
+kit](translation-kit/README.md) is how that review is handed over and how the next string gets added. The other half of
+this item is a string rendered through a path that does not register its key, which shows English even where a
+translation exists, and that is why the test plan's local group should be run in one non-English language as well as
+English.
 
 ## The order to check it in
 
