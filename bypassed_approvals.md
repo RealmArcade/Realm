@@ -58,3 +58,51 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **Map authorship is verified against the key the map carries.** The lobby previously asked the admin server for the
   published key and signature; it now recomputes the unsigned metadata hash and checks the Ed25519 signature in the
   file against the `author_key` beside it. A map that names no key still shows its stated author, unverified.
+
+## 16 — Creator identity
+
+- **The creator panel reads Steam, and nothing is cached.** `CreatorDiscoveryService` asks the Workshop for the items a
+  SteamID owns in this AppID on each open, and the avatar comes from `GetMediumAvatar` per SteamID. A cached copy would
+  be a profile database with a lifetime, which is the thing the migration removes.
+- **Other items are queried for the current AppID only.** A SteamID is global, so the query states the app; a creator
+  who also publishes for another game shows only the maps they made for Realm.
+
+## 17 — Workshop archive
+
+- **The archive tool is a separate console project (`tools/WorkshopArchive`), not part of the shipped game.** It uses the
+  same `SteamWorkshopService` read paths, writes a reviewable JSON record plus the item's files, and takes the partner
+  publisher key from the environment so no key reaches the repository or a build.
+- **No archive is published or served anywhere.** The output is a local folder an operator keeps; `README.md` in the tool
+  says why, because the obvious next step for a "mirror" is a download page and that is exactly what is forbidden.
+
+## 19 — AGENTS.md
+
+- **The old reachability section is replaced whole, not amended.** Its vocabulary (classes, cold probes, translated
+  ports) is the vocabulary of a subsystem that no longer exists, and keeping any of it would read as an instruction.
+- **The new guards are written as prohibitions with the reason attached**, so a future change has to argue with the
+  reason rather than just with a rule. The section deliberately repeats none of the per-task design: it names the
+  boundary and leaves the design in the task files.
+- **`GameBuildNumber` became provenance rather than a gate** in the map format section. The equality gate was what made
+  every published map unplayable after a release, and leaving the old sentence in place would have reinstated it by
+  documentation.
+
+## 15 — Cleanup
+
+- **The donate button, its popover node and its URL are deleted** from the main menu, with the `DONATE` localization key
+  following it on the next build. The task forbids a donation surface in the game, and a footer link to the project's own
+  donation page is that surface even though it funds the developer rather than a creator.
+- **The moderation model and its download step are deleted.** `scripts/fetch-ml-model.ps1` fetched a Hugging Face ONNX
+  model for a toxic-language filter, and no code read it any more; the workflow step and its `SHIP_TOXIC_FILTER_MODEL`
+  switch went with it. Steam's Workshop reporting is the moderation surface now.
+- **`tools/rig/` is deleted.** It existed to make network claims about a lobby registry and reachability classes that no
+  longer exist, and AGENTS.md no longer points at it.
+- **The admin server's build steps are deleted from CI** (publish, archive, upload, `servers.json` injection) along with
+  its launch and task entries and its `.gitignore` lines.
+- **`NameNormalizationHelper` and its suite are deleted.** Every member was unused: the account service was its only
+  caller, and map-name normalisation has its own implementation in `MapProvisioningService`. Its `AnyAscii` and
+  `Fastenshtein` references left `Realm.Shared` with it (`Fastenshtein` remains where the editor's fuzzy asset matching
+  uses it).
+- **29 orphaned `.cs.uid` files are deleted.** They pointed at sources deleted by earlier tasks, including
+  `MapDistributionServer`, `CreatorDiscoveryService` and `WindowsFirewallService`.
+- **`servers.json` is dropped from the two map-folder file filters.** It was excluded from map discovery back when the
+  client carried one; nothing writes it now.
