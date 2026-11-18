@@ -21,6 +21,10 @@ public partial class ListenServerHost
 	{
 		if (!IsRunning) return;
 
+		// A transport that only progresses while it is polled delivers nothing otherwise, and Steam's sockets are one. It
+		// runs on this thread, before any frame is read, and never blocks.
+		_transport.Poll();
+
 		double lobbyDelta = _lastTickSeconds <= 0 ? 0 : Math.Max(0, nowSeconds - _lastTickSeconds);
 		_lastTickSeconds = nowSeconds;
 		_lobby?.Tick(lobbyDelta);

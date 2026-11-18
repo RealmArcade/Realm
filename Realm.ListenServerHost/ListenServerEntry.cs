@@ -219,20 +219,24 @@ public partial class ListenServerEntry : Node
 
 		// One authority holds one match. Whatever it was holding is given up before the next one asks for the port it
 		// wants, because the match it holds is still sitting on its socket.
-		EndMatch("a new match was put on this authority");
-
-		ServerArguments arguments = ServerArguments.From(command, _logPath, _dataFolderPath);
+		EndMatch("a new match was put on this authority");		ServerArguments arguments = ServerArguments.From(command, _logPath, _dataFolderPath);
 
 		// Every seat in a networked match is a Steam identity and every remote peer reaches this process over Steam P2P, so a
 		// networked host is refused while Steamworks has no identity here. A loopback match needs no identity at all and is
 		// allowed through, which is what keeps single-player playable on a machine without a usable Steam client.
-		if (arguments.Lobby && !arguments.LoopbackOnly && !_steam.TryStart())
+		bool isNetworkedMatch = arguments.Lobby && !arguments.LoopbackOnly;
+		if (isNetworkedMatch && !_steam.TryStart())
 		{
 			log.Write($"a networked match was refused because this authority has no Steam identity: {_steam.InitializationMessage}");
 			Reply(command, accepted: false, $"this authority has no Steam identity, so it cannot host a networked match: {_steam.InitializationMessage}");
 			return;
 		}
-		var transport = new EnetServerTransport(channel, command.Port, command.WasmDebug);
+
+		// The host's own seat keeps the loopback socket it has always used, and remote peers arrive on Steam's listener. Both
+		// are one peer set to the simulated match, so single-player runs with no Steam client at all.
+		var loopbackTransport = new EnetServerTransport(channel, command.Port, command.WasmDebug);
+		SteamServerTransport? steamTransport = isNetworkedMatch ? new SteamServerTransport(log) : null;
+		var transport = new CompositeServerTransport(loopbackTransport, steamTransport);
 		var host = new MatchHost(arguments, log, transport);
 
 		try
