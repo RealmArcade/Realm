@@ -17,12 +17,6 @@ public static class MapSelectionService
 		int requestedIndex = IndexOfMap(maps, requestedMapName);
 		if (requestedIndex >= 0) return requestedIndex;
 
-		if (BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE)
-		{
-			int festivalIndex = IndexOfMap(maps, BuildFlags.FESTIVAL_FEATURED_MAP_NAME);
-			if (festivalIndex >= 0) return festivalIndex;
-		}
-
 		int lastHostedIndex = IndexOfMap(maps, GameSettings.LastHostedMapName);
 		if (lastHostedIndex >= 0) return lastHostedIndex;
 

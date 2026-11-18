@@ -95,7 +95,6 @@ public partial class LobbyBrowser : Control
 
 
 		ApplyStyles();
-		ApplyFestivalLayout();
 		CenterFpsCounter();
 
 
@@ -162,14 +161,6 @@ public partial class LobbyBrowser : Control
 		{
 			_bgPanel.AddThemeStyleboxOverride("panel", UIStyle.CreateBgGradient());
 		}
-	}
-
-	private void ApplyFestivalLayout()
-	{
-		_filterPanel.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
-		if (_filterPanel.Visible) return;
-
-		_lobbyPanel.OffsetLeft = 130;
 	}
 
 	private void ApplyFilterPanelStyle()

@@ -236,12 +236,10 @@ public partial class MainMenu : Control
 		}
 
 		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => NavigateTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.webp");
-		_mapDiscoveryButton.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
 		if (_creatorDiscoveryButton != null)
 		{
 			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => NavigateTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.webp");
 			_creatorDiscoveryButton.AddThemeConstantOverride("icon_max_width", 28);
-			_creatorDiscoveryButton.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
 		}
 
 		SetupMenuButton(_mapEditorButton, "MAP EDITOR", () => OnMapEditorPressed(), "res://Assets/UI/menu_editor_button.webp");
@@ -397,7 +395,7 @@ public partial class MainMenu : Control
 		versionBox.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
 		versionBox.Position = new Vector2(110, 10);
 		versionBox.AddThemeConstantOverride("separation", 10);
-		versionBox.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
+		versionBox.Visible = true;
 		AddChild(versionBox);
 
 		var lbl = new Label();

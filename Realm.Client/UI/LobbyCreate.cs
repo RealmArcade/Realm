@@ -234,7 +234,6 @@ public partial class LobbyCreate : Control
 		_openMapLibraryButton.TooltipText = TranslationServer.Translate("Open the map library to choose the map you want to host");
 		RefreshAvailableMaps();
 		SetProcess(false);
-		EnsureFestivalFeaturedMapInstalledAsync();
 	}
 
 	public override void _ExitTree()
@@ -444,66 +443,6 @@ public partial class LobbyCreate : Control
 		}
 
 		if (!listed) GameContext.UserInterface?.PlayWarningSound();
-	}
-
-	private async void EnsureFestivalFeaturedMapInstalledAsync()
-	{
-		try
-		{
-			await InstallFestivalFeaturedMapAsync();
-		}
-		catch (Exception exception)
-		{
-			GameLog.LogError($"[LobbyCreate] Installing the festival featured map failed: {exception}");
-		}
-	}
-
-	private async Task InstallFestivalFeaturedMapAsync()
-	{
-		if (!BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE) return;
-		if (MapProvisioningService.IsInstalled(BuildFlags.FESTIVAL_FEATURED_MAP_NAME)) return;
-
-		_createButton.Disabled = true;
-		ShowHostProgressOverlay(
-			TranslationServer.Translate("PREPARING MAP"),
-			TranslationServer.Translate("Looking for the newest version of `Chaos Arena` map..."));
-
-		bool installed = await MapProvisioningService.DownloadLatestAsync(BuildFlags.FESTIVAL_FEATURED_MAP_NAME, ReportFestivalMapDownloadProgress);
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
-
-		HideHostProgressOverlay();
-		_createButton.Disabled = false;
-
-		if (installed)
-		{
-			RefreshAvailableMaps();
-			return;
-		}
-
-		ShowFestivalMapUnavailableModal();
-	}
-
-	private void ReportFestivalMapDownloadProgress(float progress)
-	{
-		Callable.From(() => UpdateFestivalMapDownloadProgress(progress)).CallDeferred();
-	}
-
-	private void UpdateFestivalMapDownloadProgress(float progress)
-	{
-		if (_hostProgressBar == null || _hostProgressStatusLabel == null) return;
-		if (!GodotObject.IsInstanceValid(_hostProgressBar) || !GodotObject.IsInstanceValid(_hostProgressStatusLabel)) return;
-
-		double percent = Math.Clamp(progress * 100.0, 0, 100);
-		_hostProgressStatusLabel.Text = string.Format(TranslationServer.Translate("Downloading map... {0}%"), (int)percent);
-		_hostProgressBar.Value = Math.Max(_hostProgressBar.Value, percent);
-		_hostProgressCeiling = _hostProgressBar.Value;
-	}
-
-	private void ShowFestivalMapUnavailableModal()
-	{
-		GameContext.UserInterface?.ShowPopupMessage(
-			TranslationServer.Translate("MAP UNAVAILABLE"),
-			TranslationServer.Translate("The map (Chaos Arena) could not be downloaded. Check your internet connection, then open this screen again."));
 	}
 
 	private void ShowHostProgressOverlay(string? titleText = null, string? initialStatus = null)
