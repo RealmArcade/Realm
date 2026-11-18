@@ -169,3 +169,24 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **Checked and left alone:** every button and checkbox in every `.tscn` is referenced by name from code (the only
   unreferenced ones were the placeholders above), no `Pressed` handler is empty, and no UI string promises a feature that
   is gone.
+
+## Stale network path audit
+
+- **Lobby publishing had two entry points that differed only by a dead flag.** `PublishPreparedLobbyAsync()` and
+  `PublishPreparedLobbyDirectlyOnFailureAsync()` shared one body where `_ = keepLobbyOnFailure;` threw the flag away,
+  because a Steam lobby either exists or it does not. Their summaries still described opening a port, asking a router, a
+  registry node reaching the lobby first and reporting a listing failure in the room's chat. One method remains, the
+  summaries describe Steam, and the caller that used the "on failure" name now calls the plain one.
+- **Two port properties were dead.** `ENetPort` was never assigned and `BoundPort` had no reader; both are deleted.
+  `DefaultGamePort` stays, because the authority's loopback socket really does ask for that port by name and the comment
+  there already says why: the named port belongs to internal IPC, not to a player's router.
+- **`EnetMapTransferService` was a whole transfer mechanism nothing called.** Peer map transfer runs through the lobby
+  protocol (`RequestMapTransfer`), so the node that transferred over an ENet peer was unreachable and referenced from no
+  scene. Deleted with its `.uid`.
+- **Checked and left alone:** `CompositeServerTransport` (one peer set over loopback plus Steam, with ids that never
+  recycle — correct and load-bearing), `ClientServerSession`'s loopback connect, the map-download retry loops (they cover
+  a live transfer), and the announcements form (a deliberate third-party call the Terms disclose).
+- **Known-stale dev tooling, not removed:** `Realm.Client/Testing/` still launches Godot instances and joins them with
+  `TryJoin(hostAddress, port)`, a direct-address path the product no longer offers. It is not reachable from the game and
+  nothing outside that folder references it, so it is left for a dedicated decision — retarget it at a Steam lobby or
+  delete it — rather than removed in a sweep whose commit message says otherwise.
