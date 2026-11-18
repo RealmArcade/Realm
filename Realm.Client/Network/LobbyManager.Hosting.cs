@@ -313,16 +313,10 @@ public partial class LobbyManager
 
 		LobbyPort = session.Port;
 
-		// First, and before anything is opened or registered: this screen has to be able to play its own seat. A lobby the
-		// host cannot control its own player in is not one anybody else should be shown either. The check waits for the
-		// lobby to be described back over loopback, which is the last step of entering it as host.
-		ReportHostLobbyStage(HostLobbyStage.AdmittingHost);
-		if (!await VerifyLocalSeatBeforePublishingAsync(session))
-		{
-			TeardownHostedLobby(session);
-			return false;
-		}
-
+		// The admission wait above is the confirmation that this screen can play its own seat: the hello it resolved on came
+		// back over the loopback connection this screen opened to the authority it launched, and the seat it administers was
+		// granted with it. Waiting a second time asks for a hello that has already arrived and times out on a lobby the host
+		// is already sitting in, which is what made every hosted Steam lobby fail its own seat check on port 8999.
 		PlayerListUpdated?.Invoke();
 		return true;
 	}
@@ -585,22 +579,6 @@ public partial class LobbyManager
 
 		PlayerListUpdated?.Invoke();
 		return true;
-	}
-
-	/// <summary>
-	///     Checks the local round trip every hosted lobby depends on, whether or not anybody else will see it. A lobby only
-	///     this machine plays still has to answer this machine, and a lobby other players can see has to answer this machine
-	///     before it is worth publishing: the host controls its own player over this path, and nothing between this screen and
-	///     the authority it launched is allowed to break that.
-	/// </summary>
-	private async Task<bool> VerifyLocalSeatBeforePublishingAsync(ClientServerSession session)
-	{
-		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
-		if (admissionFailure == null) return true;
-
-		LastHostError = $"this screen's own seat could not be confirmed over loopback on port {session.Port}: {admissionFailure}";
-		GameLog.LogError($"[LobbyManager] {LastHostError}");
-		return false;
 	}
 
 	/// <summary>States the step a host's lobby has reached, which the create screen shows while it waits.</summary>
