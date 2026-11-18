@@ -466,9 +466,18 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   sentence, and the other nine carried the English text verbatim. They are translated now, along with the word itself.
 - **`verify` calling a catalog valid does not mean the catalog is translated.** It checks that a key exists, is non-empty
   and keeps its placeholders; a value identical to the English one passes. Measured with a two-or-more-word filter, the
-  catalogs carry **255-267 untranslated prose keys each**, against **31** in Korean - so Korean is effectively complete
-  and the other nine are not, across the editor and HUD rather than the Steam surface this branch translated. Three of
-  those keys were shared by all ten catalogs and are now translated: `Cannot construct: food cap exceeded!`,
-  `Construction cancelled` and the `[S] Cancel Construction` hotkey description. The rest is left as a measured gap
-  rather than a silent one; the remaining keys are pre-existing coverage, and translating ~260 per locale is a batch job
-  with its own review cost, not a repair.
+  catalogs carried **255-267 untranslated prose keys each**, against **31** in Korean - so Korean was effectively
+  complete and the other nine were not.
+- **The player-facing part of that gap is now closed.** Twenty-five keys were still English in nine catalogs and are not
+  authoring tooling: the two quit confirmations, the loading and countdown headings, the settings labels and their
+  explanations (`Frame Rate Limit`, `Distance Muffling`, `Doppler Effect`, `Occluded Unit Outlines` with its description,
+  the recommended-FPS text), `STEAM OFFLINE`, `TOWER DEFENSE`, the imported-content attribution lines, `Quit Match`,
+  `Select All` / `Select None`, `Clear Selection`, `Import Map (.rmap)` and `Failed to start the match.`. They are
+  translated now, which took the nine catalogs from 255-267 English prose keys to **232-244**.
+- **What remains is deliberately left.** Every one of those ~235 residual keys belongs to the map *authoring* tools - the
+  map generator, the procedural-animation studio, the VFX studio, the GLB converter and the cross-map import dialogs -
+  plus slugs and example values (`vfx_slug`, `your.email@example.com`, `func(id: s32, ...)`) and node names that the
+  scanner collected from scenes. A player never opens them; an author does, and an author is already reading a tool whose
+  compiler output, file paths and template ids are English. Translating them is a batch job with its own review cost, and
+  doing it badly would be worse than the English it replaces. Korean is the reference for what complete looks like: 31
+  residual keys, all of them the slugs and identifiers that are meant to stay.
