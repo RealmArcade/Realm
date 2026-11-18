@@ -76,8 +76,10 @@ that only succeeds when both machines are on the same network is a finding, not 
 
 ## E. Workshop publish and subscribe
 
-1. Account A publishes a map from the editor. The item is created (first publish) or updated in place, with a preview
-   image converted from the map's thumbnail.
+1. Account A publishes a map from the editor. The first publish shows the licence and records the acceptance in
+   `user://ugc_license_acceptance.json`; the next publish must not ask again, and bumping `UgcLicenseVersion` must ask
+   again. The item is created (first publish) or updated in place, with a preview image converted from the map's
+   thumbnail.
 2. Inspect the uploaded folder in the Steam client: it should be the canonical copy only — no `bin/`, `obj/`, `.vscode/`,
    history or keys.
 3. Account B subscribes, downloads, and plays the map from a lobby that names the item.
