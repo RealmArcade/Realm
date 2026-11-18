@@ -386,6 +386,33 @@ public partial class SteamService
 	}
 
 	/// <summary>
+	///     Whether this player owns the supporter flair. It is read from Steam every time it is asked and never stored, because a
+	///     refund or a chargeback takes the product away and the game would otherwise keep showing a badge that was returned.
+	///     Nothing in a match depends on the answer: the flair is appearance, and a player who owns nothing keeps every map,
+	///     mode and seat.
+	/// </summary>
+	public bool HasSupporterFlair
+	{
+		get
+		{
+			if (!_initialized) return false;
+
+			uint cosmeticAppId = SteamApplicationIds.SupporterFlairDlcAppId;
+			if (cosmeticAppId == 0) return false;
+
+			try
+			{
+				return SteamApps.BIsSubscribedApp(new AppId_t(cosmeticAppId));
+			}
+			catch (Exception exception)
+			{
+				GameLog.LogError($"[Steam] the supporter flair's ownership could not be read: {exception.Message}");
+				return false;
+			}
+		}
+	}
+
+	/// <summary>
 	///     The SteamID64 this process plays as, or <c>0</c> while Steamworks is not running. It is the identity a seat states
 	///     to the lobby so that the table at the end of a match can point Steam at the person behind it.
 	/// </summary>

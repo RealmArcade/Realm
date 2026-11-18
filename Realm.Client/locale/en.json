@@ -1879,6 +1879,7 @@
   "STONE": "STONE",
   "STORAGE": "STORAGE",
   "SUBSCRIBE": "SUBSCRIBE",
+  "SUPPORTER": "SUPPORTER",
   "SWAY & WIND MOTION DYNAMICS": "SWAY & WIND MOTION DYNAMICS",
   "Safety Notice: Bulk utility operations modify map files directly. Commit to Git or make a backup copy before executing bulk modifications.": "Safety Notice: Bulk utility operations modify map files directly. Commit to Git or make a backup copy before executing bulk modifications.",
   "Saturation:": "Saturation:",

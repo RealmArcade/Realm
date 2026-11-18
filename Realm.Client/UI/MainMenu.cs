@@ -162,7 +162,10 @@ public partial class MainMenu : Control
 
 		if (statusLabel != null)
 		{
-			statusLabel.Text = signedIn ? string.Empty : TranslationServer.Translate("STEAM OFFLINE");
+			// The badge is the one thing money can buy, so it says what it is: a supporter mark, not a rank.
+			statusLabel.Text = !signedIn
+				? TranslationServer.Translate("STEAM OFFLINE")
+				: GameContext.Steam.HasSupporterFlair ? TranslationServer.Translate("SUPPORTER") : string.Empty;
 		}
 	}
 
