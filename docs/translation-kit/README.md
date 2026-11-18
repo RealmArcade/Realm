@@ -61,6 +61,23 @@ dotnet run --project Realm.TranslationTool -- verify
 `prune` must report nothing to remove, and `verify` should report the remaining missing count for that language, which is
 the number of values still empty.
 
+## Seeing what is left
+
+`verify` proves a catalog is *complete*, never that it is *translated*: a value identical to the English one passes it. To
+see how much prose is still English, and where it is authored:
+
+```
+dotnet run --project Realm.TranslationTool -- coverage
+```
+
+It counts, per catalog, the keys whose value is still the English prose, then attributes each of those keys to the
+`.cs` or `.tscn` file that authors it, grouped by area. The prose test is deliberately narrow - two or more Latin words -
+so numbers, units and single identifiers that are meant to stay English do not inflate the number.
+
+The file table is the useful half: it says whether the remainder is the lobby and the HUD, or the map generator and the
+asset importers. When this was written, Korean was complete and the other nine were not, and almost all of what was left
+belonged to the authoring tools rather than to a screen a player sees.
+
 ## Checking it on screen
 
 The strings are drawn by the lobby browser, the lobby room, the invite and profile dialogs, the map library and details

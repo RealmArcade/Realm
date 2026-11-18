@@ -8,6 +8,17 @@ namespace Realm.TranslationTool
 	partial class Program
 	{
 		private const int MaximumReportedEntries = 20;
+		private const int MaximumReportedSources = 25;
+		private const int MinimumProseWordCount = 2;
+		private const int MinimumAttributionRunLength = 12;
+
+		private static readonly string[] UntranslatableDirectoryNames = { "obj", "bin", ".godot", ".git", "node_modules", "Maps", "MapTemplate", "vscode_embedded", "wasi_sdk_embedded" };
+
+		[GeneratedRegex(@"[A-Za-z]{3,}")]
+		private static partial Regex ProseWordRegex();
+
+		[GeneratedRegex(@"[A-Za-z][A-Za-z0-9 ,.:'()\-/&%!?]{11,}")]
+		private static partial Regex AttributionRunRegex();
 
 		[GeneratedRegex(@"\{[^{}]*\}")]
 		private static partial Regex PlaceholderTokenRegex();
@@ -68,9 +79,11 @@ namespace Realm.TranslationTool
 					return Verify(englishCatalog, localePaths);
 				case "prune":
 					return Prune(englishCatalog, localePaths);
+				case "coverage":
+					return Coverage(englishCatalog, localePaths, localeDirectory);
 				default:
 					WriteError($"Error: Unknown command '{args[0]}'.");
-					Console.WriteLine("Usage: Realm.TranslationTool [verify|prune]");
+					Console.WriteLine("Usage: Realm.TranslationTool [verify|prune|coverage]");
 					return 2;
 			}
 		}
@@ -222,6 +235,174 @@ namespace Realm.TranslationTool
 			Console.WriteLine();
 			WriteSuccess($"Pruned {totalRemoved} orphan key(s) across {localePaths.Length} locale catalogs.");
 			return 0;
+		}
+
+		private static int Coverage(Dictionary<string, string> englishCatalog, string[] localePaths, string localeDirectory)
+		{
+			var stillEnglish = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+			var everyEnglishKey = new SortedSet<string>(StringComparer.Ordinal);
+
+			foreach (string localePath in localePaths)
+			{
+				string locale = Path.GetFileNameWithoutExtension(localePath);
+				Dictionary<string, string>? localeCatalog = LoadCatalog(localePath);
+				if (localeCatalog == null)
+				{
+					return 2;
+				}
+
+				var proseKeys = new List<string>();
+				foreach (var englishEntry in englishCatalog)
+				{
+					if (!LooksLikeProse(englishEntry.Value)) continue;
+					if (!localeCatalog.TryGetValue(englishEntry.Key, out string? localizedText)) continue;
+					if (!localizedText.Equals(englishEntry.Value, StringComparison.Ordinal)) continue;
+					proseKeys.Add(englishEntry.Key);
+					everyEnglishKey.Add(englishEntry.Key);
+				}
+
+				stillEnglish[locale] = proseKeys;
+			}
+
+			Console.WriteLine();
+			Console.ForegroundColor = ConsoleColor.Cyan;
+			Console.WriteLine("Keys whose value is still the English prose, per catalog:");
+			Console.ResetColor();
+
+			int proseKeyCount = englishCatalog.Count(entry => LooksLikeProse(entry.Value));
+			foreach (var entry in stillEnglish.OrderBy(entry => entry.Value.Count))
+			{
+				int translated = proseKeyCount - entry.Value.Count;
+				string percentage = proseKeyCount == 0 ? "-" : (translated * 100 / proseKeyCount).ToString();
+				Console.WriteLine($"  {entry.Key}: {entry.Value.Count,4} left  ({translated} of {proseKeyCount} translated, {percentage}%)");
+			}
+
+			if (everyEnglishKey.Count == 0)
+			{
+				Console.WriteLine();
+				WriteSuccess("Every catalog translates every prose key.");
+				return 0;
+			}
+
+			Console.WriteLine();
+			Console.ForegroundColor = ConsoleColor.Cyan;
+			Console.WriteLine($"Where the {everyEnglishKey.Count} untranslated key(s) are authored:");
+			Console.ResetColor();
+
+			var sources = LoadAuthoringSources(localeDirectory);
+			var countsBySource = new Dictionary<string, int>(StringComparer.Ordinal);
+			var unattributed = new List<string>();
+
+			foreach (string key in everyEnglishKey)
+			{
+				string source = Attribute(key, sources) ?? "(no source found)";
+				countsBySource.TryGetValue(source, out int count);
+				countsBySource[source] = count + 1;
+				if (source.Equals("(no source found)", StringComparison.Ordinal)) unattributed.Add(key);
+			}
+
+			foreach (var entry in countsBySource.OrderByDescending(entry => entry.Value).Take(MaximumReportedSources))
+			{
+				Console.WriteLine($"  {entry.Value,4}  {DescribeSource(entry.Key)}");
+			}
+
+			if (countsBySource.Count > MaximumReportedSources)
+			{
+				Console.WriteLine($"  ... and {countsBySource.Count - MaximumReportedSources} more source(s)");
+			}
+
+			Console.WriteLine();
+			Console.WriteLine($"No source found for {unattributed.Count} key(s): slugs, example values and node names collected from scenes.");
+			return 0;
+		}
+
+		private static bool LooksLikeProse(string text)
+		{
+			return ProseWordRegex().Matches(text).Count >= MinimumProseWordCount;
+		}
+
+		private static Dictionary<string, string> LoadAuthoringSources(string localeDirectory)
+		{
+			var sources = new Dictionary<string, string>(StringComparer.Ordinal);
+			string repositoryRoot = Path.GetFullPath(Path.Combine(localeDirectory, "..", ".."));
+			if (!Directory.Exists(repositoryRoot)) return sources;
+
+			foreach (string sourceFile in EnumerateSourceFiles(repositoryRoot))
+			{
+				sources[sourceFile] = File.ReadAllText(sourceFile);
+			}
+
+			return sources;
+		}
+
+		private static IEnumerable<string> EnumerateSourceFiles(string directory)
+		{
+			foreach (string pattern in new[] { "*.cs", "*.tscn" })
+			{
+				foreach (string file in EnumerateFilesSkippingGeneratedDirectories(directory, pattern)) yield return file;
+			}
+		}
+
+		private static IEnumerable<string> EnumerateFilesSkippingGeneratedDirectories(string directory, string pattern)
+		{
+			string[] files;
+			string[] directories;
+
+			try
+			{
+				files = Directory.GetFiles(directory, pattern);
+				directories = Directory.GetDirectories(directory);
+			}
+			catch (UnauthorizedAccessException)
+			{
+				yield break;
+			}
+
+			foreach (string file in files) yield return file;
+
+			foreach (string subDirectory in directories)
+			{
+				string name = Path.GetFileName(subDirectory);
+				if (UntranslatableDirectoryNames.Contains(name, StringComparer.OrdinalIgnoreCase)) continue;
+				foreach (string file in EnumerateFilesSkippingGeneratedDirectories(subDirectory, pattern)) yield return file;
+			}
+		}
+
+		private static string? Attribute(string key, Dictionary<string, string> sources)
+		{
+			var runs = AttributionRunRegex().Matches(key)
+				.Select(match => match.Value.Trim())
+				.Where(run => run.Length >= MinimumAttributionRunLength)
+				.OrderByDescending(run => run.Length);
+
+			foreach (string run in runs)
+			{
+				string needle = run.Length > 40 ? run.Substring(0, 40) : run;
+				foreach (var source in sources)
+				{
+					if (source.Value.Contains(needle, StringComparison.Ordinal)) return source.Key;
+				}
+			}
+
+			return null;
+		}
+
+		private static string DescribeSource(string source)
+		{
+			if (source.Equals("(no source found)", StringComparison.Ordinal)) return source;
+
+			string relative = source.Replace('\\', '/');
+			int markerIndex = relative.LastIndexOf("/Realm.", StringComparison.Ordinal);
+			if (markerIndex >= 0) relative = relative.Substring(markerIndex + 1);
+
+			string area = relative.Contains("/UI/MapEditor", StringComparison.Ordinal) ? "map editor"
+				: relative.Contains("/UI/InGame", StringComparison.Ordinal) ? "in-game"
+				: relative.Contains("/Services", StringComparison.Ordinal) ? "services"
+				: relative.Contains("/Core", StringComparison.Ordinal) ? "core input"
+				: relative.Contains("/UI/", StringComparison.Ordinal) ? "menus and lobby"
+				: "other";
+
+			return $"{area,-16} {relative}";
 		}
 
 		private static int ReportIssues(string title, List<string> issues, bool isError)
