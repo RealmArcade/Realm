@@ -329,3 +329,23 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **"Guest" became "Player".** A guest is a seat Steam did not authenticate, and the branch has deliberately deleted that
   concept, so the word cannot be the name of the one player who is certainly present. "Player" already existed in all ten
   catalogs; the `Guest` key was pruned by the build and then from the nine translations.
+## The session copy that deleted itself
+
+- **`MapSessionCopyService.TryPrepare` removed the copy it was about to install.** The new copy is built in
+  `<signature>.building` beside the retained folder so a failed build never destroys a playable one, and the method then
+  swept the session root keeping only `<signature>` before moving the build into place. The folder being built is a
+  sibling of the retained one and matched nothing the sweep kept, so the sweep deleted it and the following
+  `Directory.Move` threw `DirectoryNotFoundException`, which the method's own `catch` turned into
+  "This map could not be prepared for play."
+- **What that would have cost, if it had run.** `TryPrepare` is the gate for hosting a lobby
+  (`LobbyManager.Hosting`), for the joiner's map compatibility check (`LobbyMapCompatibilityService`) and therefore for
+  every map that is not already inside the session root - every Workshop map and every local map. The retained-copy
+  early return only answers when a complete copy already exists, and a failed move never creates one, so no map could
+  ever have been prepared. It is reachable on the first attempt of the first host or join and on every attempt after it.
+- **The fix is the order of three statements.** The build is written whole, the old folder is removed, the build is moved
+  into its place, and the sweep runs afterwards keeping the folder just installed. That preserves what the original
+  comment promised - the new copy is complete before the old one goes - and the sweep still runs on the same call, so the
+  session root is left holding exactly one copy.
+- **The startup sweep now reads the record instead of the filename.** `FindMostRecentCompleteFolder` named completeness
+  and checked only that a record file existed, so a folder whose build was interrupted could be kept over a good one. It
+  now requires `Complete: true`, and `IsComplete` shares that record reader.

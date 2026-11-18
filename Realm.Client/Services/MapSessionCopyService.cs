@@ -115,9 +115,12 @@ public class MapSessionCopyService
 
 			WriteSessionRecord(buildingDirectory, packageSignature, identity, LastOriginalHash, complete: true);
 
-			// The new copy is whole before the old one goes, so a failed copy never leaves the player with nothing.
-			SweepSessionFolders(sessionRoot, retainedDirectory);
+			// The new copy is whole before the old one goes, so a failed copy never leaves the player with nothing. The
+			// sweep runs last: the folder being built is a sibling of the retained folder, so a sweep before the move
+			// would delete the copy it was about to install and leave nothing to move.
+			TryDeleteDirectory(retainedDirectory);
 			Directory.Move(buildingDirectory, retainedDirectory);
+			SweepSessionFolders(sessionRoot, retainedDirectory);
 		}
 		catch (Exception exception)
 		{
@@ -337,18 +340,22 @@ public class MapSessionCopyService
 
 	private static bool IsComplete(string directory, string packageSignature)
 	{
-		string recordPath = Path.Combine(directory, SessionFileName);
-		if (!File.Exists(recordPath)) return false;
+		SessionCopyRecord? record = ReadRecord(Path.Combine(directory, SessionFileName));
+		return record is { Complete: true } && string.Equals(record.PackageSignature, packageSignature, StringComparison.Ordinal);
+	}
+
+	private static SessionCopyRecord? ReadRecord(string recordPath)
+	{
+		if (!File.Exists(recordPath)) return null;
 
 		try
 		{
-			SessionCopyRecord? record = JsonSerializer.Deserialize<SessionCopyRecord>(File.ReadAllText(recordPath), SessionCopyRecord.SerializerOptions);
-			return record is { Complete: true } && string.Equals(record.PackageSignature, packageSignature, StringComparison.Ordinal);
+			return JsonSerializer.Deserialize<SessionCopyRecord>(File.ReadAllText(recordPath), SessionCopyRecord.SerializerOptions);
 		}
 		catch (Exception exception)
 		{
 			GameLog.LogError($"[MapSessionCopy] '{recordPath}' could not be read: {exception.Message}");
-			return false;
+			return null;
 		}
 	}
 
@@ -382,6 +389,7 @@ public class MapSessionCopyService
 
 			string recordPath = Path.Combine(directory, SessionFileName);
 			if (!File.Exists(recordPath)) continue;
+			if (ReadRecord(recordPath) is not { Complete: true }) continue;
 
 			DateTime written = File.GetLastWriteTimeUtc(recordPath);
 			if (written <= newestWrite) continue;
