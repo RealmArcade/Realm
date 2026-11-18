@@ -1,5 +1,5 @@
-﻿// Filling the page from the map data: feature rows, the star rating, awards, gameplay stats, the
-// tech-info table, and the card wrapper plus hover animation that seat each group.
+﻿// Filling the page from the map data: Workshop facts, votes, the tech-info table, and the card wrapper plus
+// hover animation that seat each group.
 
 using System;
 using System.Collections.Generic;
@@ -26,24 +26,13 @@ public partial class MapDetails
 			child.QueueFree();
 		}
 
+		// A map's own features were a realm-portal field; what Steam states about the item is drawn in the
+		// ratings and tech rows instead, so this panel states the one thing Steam is authoritative about here.
 		if (_mapData == null) return;
 
-		var featureSet = new HashSet<string>(_mapData.Features ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
-		var displayList = new List<string>(_mapData.Features ?? Array.Empty<string>());
-		string[] standardFeatures = { "Custom Units", "Custom Buildings", "Custom Abilities", "Custom Weapons", "Custom Upgrades", "Boss Waves", "Achievements", "Hardcore Mode" };
-
-		foreach (var sf in standardFeatures)
-		{
-			if (!featureSet.Contains(sf) && displayList.Count < 8)
-			{
-				displayList.Add(sf);
-			}
-		}
-
-		foreach (var feat in displayList)
-		{
-			CreateFeatureRow(feat, featureSet.Contains(feat));
-		}
+		CreateFeatureRow(TranslationServer.Translate("Steam Workshop"), _mapData.WorkshopId != 0);
+		CreateFeatureRow(TranslationServer.Translate("Community rated"), _mapData.VotesUp + _mapData.VotesDown > 0);
+		CreateFeatureRow(TranslationServer.Translate("Local map"), _mapData.IsLocalMap);
 	}
 
 	private void CreateFeatureRow(string feat, bool isActive)
@@ -86,67 +75,32 @@ public partial class MapDetails
 
 	private void PopulateRatings()
 	{
-		FillStarsRow(_starsRow1, 5);
-		_votesRow1.Text = $"{_mapData.Votes5Star}   {_mapData.AvgRating} Stars";
+		foreach (Node child in _starsRow1.GetChildren()) child.QueueFree();
+		foreach (Node child in _starsRow2.GetChildren()) child.QueueFree();
+		foreach (Node child in _starsRow3.GetChildren()) child.QueueFree();
+
+		_starsRow1.Visible = false;
+		_starsRow2.Visible = false;
+		_starsRow3.Visible = false;
+
+		long totalVotes = _mapData.VotesUp + _mapData.VotesDown;
+
+		_votesRow1.Text = totalVotes > 0
+			? string.Format(TranslationServer.Translate("{0}% positive — {1} votes"), _mapData.PositivePercent, totalVotes)
+			: TranslationServer.Translate("No Steam Workshop votes yet");
 		_votesRow1.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
 		_votesRow1.AddThemeFontSizeOverride("font_size", 12);
 
-		FillStarsRow(_starsRow2, 3);
-		_votesRow2.Text = $"{_mapData.Votes3Star}   3.0/5 Stars";
+		_votesRow2.Text = string.Format(TranslationServer.Translate("{0} up, {1} down"), _mapData.VotesUp, _mapData.VotesDown);
 		_votesRow2.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
 		_votesRow2.AddThemeFontSizeOverride("font_size", 12);
 
-		FillStarsRow(_starsRow3, 1);
-		_votesRow3.Text = $"{_mapData.Votes1Star}   1.0/5 Stars";
-		_votesRow3.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.9f));
+		string badge = MapTrustPolicy.DescribeBadge(_mapData.Trust);
+		_votesRow3.Text = badge.Length > 0
+			? $"{badge}: {MapTrustPolicy.DescribeReason(_mapData.Trust.Reason)}"
+			: TranslationServer.Translate("Trusted by the Steam Workshop");
+		_votesRow3.AddThemeColorOverride("font_color", _mapData.Trust.IsTrusted ? UIStyle.ColorGold : UIStyle.ColorGoldDull);
 		_votesRow3.AddThemeFontSizeOverride("font_size", 12);
-	}
-
-	private void FillStarsRow(HBoxContainer container, int filledStars)
-	{
-		foreach (Node child in container.GetChildren())
-		{
-			child.QueueFree();
-		}
-
-		for (int i = 0; i < 5; i++)
-		{
-			var star = new Label();
-			star.Name = "Star_Label";
-			star.Text = i < filledStars ? "★" : "☆";
-			star.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-			star.AddThemeFontSizeOverride("font_size", 16);
-			container.AddChild(star);
-		}
-	}
-
-	private void PopulateAwards()
-	{
-		foreach (Node child in _awardsContainer.GetChildren())
-		{
-			child.QueueFree();
-		}
-
-		if (_mapData?.Awards == null) return;
-
-		foreach (var awardPath in _mapData.Awards)
-		{
-			var badgePanel = new PanelContainer();
-			badgePanel.Name = "BadgePanel_PanelContainer";
-			badgePanel.AddThemeStyleboxOverride("panel",
-				UIStyle.CreateCardPlate(new Color(0.08f, 0.09f, 0.12f, 0.85f), UIStyle.ColorGoldDull, 1, 6));
-
-			var rect = new TextureRect();
-			rect.Name = "Rect_TextureRect";
-			rect.CustomMinimumSize = new Vector2(36, 36);
-			rect.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-			rect.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-			rect.Texture = LoadTextureSafe(awardPath) ?? LoadTextureSafe("res://Assets/UI/gold_coin.webp");
-
-			badgePanel.AddChild(rect);
-			AttachHoverAnimation(badgePanel, 1.10f, UIStyle.ColorGold, UIStyle.ColorGoldDull);
-			_awardsContainer.AddChild(badgePanel);
-		}
 	}
 
 	private void PopulateGameplayStats()
@@ -156,9 +110,14 @@ public partial class MapDetails
 			child.QueueFree();
 		}
 
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/clock.webp", $"AVG PLAYTIME: {_mapData.AvgPlaytime}");
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/alliance_flag.webp", $"PLAYER COUNT: {_mapData.PlayerCount}");
-		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/victory_flag.webp", $"COMPLETION RATE: {_mapData.CompletionRate}");
+		if (_mapData == null) return;
+
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/gold_g.webp",
+			string.Format(TranslationServer.Translate("POSITIVE: {0}%"), _mapData.PositivePercent));
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/alliance_flag.webp",
+			string.Format(TranslationServer.Translate("VOTES: {0}"), _mapData.VotesUp + _mapData.VotesDown));
+		AddStatRow(_gameplayStatsContainer, "res://Assets/UI/clock.webp",
+			string.Format(TranslationServer.Translate("LAST UPDATED: {0}"), _mapData.UpdatedOn?.ToString("yyyy-MM-dd") ?? TranslationServer.Translate("unknown")));
 	}
 
 	private void PopulateTechInfo()
@@ -168,10 +127,13 @@ public partial class MapDetails
 			child.QueueFree();
 		}
 
+		if (_mapData == null) return;
+
 		AddStatRow(_techInfoContainer, "res://Assets/UI/wood_logs.webp", $"FILE SIZE: {_mapData.FileSize}");
 		AddStatRow(_techInfoContainer, "res://Assets/UI/gold_g.webp", $"ENGINE VERSION: {_mapData.EngineVersion}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_shield.webp", $"MAX PLAYERS: {_mapData.MaxPlayers}");
-		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_axe.webp", $"GENRE: {_mapData.Genre}");
+		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_shield.webp",
+			string.Format(TranslationServer.Translate("WORKSHOP ITEM: {0}"), _mapData.WorkshopId != 0 ? _mapData.WorkshopId.ToString() : TranslationServer.Translate("not published")));
+		AddStatRow(_techInfoContainer, "res://Assets/UI/battle_axe.webp", $"VERSION: {_mapData.Version}");
 	}
 
 	private void AddStatRow(VBoxContainer container, string iconPath, string text)

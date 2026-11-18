@@ -44,7 +44,7 @@ public partial class LobbyBrowser : Control
 	private Button _hostButton = null!;
 	private LineEdit _searchBar = null!;
 	private readonly List<(string Tag, CheckBox CheckBox)> _tagFilters = new();
-	private CheckBox _betaTestingMapsCheck = null!;
+	private CheckBox _trustedOnlyCheck = null!;
 	private CheckBox _versionMismatchCheck = null!;
 	private CheckBox _unreachableLobbiesCheck = null!;
 	private VBoxContainer _lobbyListContainer = null!;
@@ -73,7 +73,7 @@ public partial class LobbyBrowser : Control
 		_hostButton = GetNode<Button>("HostButton");
 
 		_searchBar = GetNode<LineEdit>("SearchBar");
-		_betaTestingMapsCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/BetaTestingMapsCheck");
+		_trustedOnlyCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/TrustedOnlyCheck");
 		_versionMismatchCheck = GetNode<CheckBox>("FilterPanel/VBoxContainer/VersionMismatchCheck");
 		_lobbyListContainer = GetNode<VBoxContainer>("LobbyPanel/VBoxContainer/ScrollContainer/LobbyListContainer");
 
@@ -244,10 +244,10 @@ public partial class LobbyBrowser : Control
 			_tagFilters.Add((tag, checkBox));
 		}
 
-		_betaTestingMapsCheck.Text = Tr("Show beta-testing maps");
-		_betaTestingMapsCheck.TooltipText = Tr("Also list lobbies for maps that are still in Beta-Testing and have not been greenlit yet");
-		_betaTestingMapsCheck.ButtonPressed = true;
-		SetupFilterCheckbox(_betaTestingMapsCheck);
+		_trustedOnlyCheck.Text = TranslationServer.Translate("Trusted maps only");
+		_trustedOnlyCheck.TooltipText = TranslationServer.Translate("Hide lobbies whose map Steam does not vouch for yet. Off by default: every lobby is listed.");
+		_trustedOnlyCheck.ButtonPressed = false;
+		SetupFilterCheckbox(_trustedOnlyCheck);
 
 		_versionMismatchCheck.Text = TranslationServer.Translate("Show mismatched game version");
 		_versionMismatchCheck.TooltipText = TranslationServer.Translate("Also list lobbies that run a different game version and cannot be joined from this build");

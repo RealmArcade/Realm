@@ -190,8 +190,7 @@ namespace Realm.Client.UI
 				CheckScriptIsOptimized, CheckAssetSizeValidation, () => GetMapNameFromMetadata(), () => GetMapVersionFromMetadata(),
 				SignMapMetadataAsync, GetPublishAuthorName, path => CompileWorkspaceScriptAsync(path),
 				_minimapController == null ? null : path => _minimapController.GenerateAndSaveMinimapThumbnailAsync(path),
-				InvalidateMetadataCache,
-				ShowGreenlightStatusDialog));
+				InvalidateMetadataCache));
 			_publishController.RunAsync(fullExport);
 		}
 

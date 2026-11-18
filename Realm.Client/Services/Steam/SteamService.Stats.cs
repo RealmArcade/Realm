@@ -191,6 +191,27 @@ public partial class SteamService
 	}
 
 	/// <summary>
+	///     The Steam persona name of one identity, which is how a leaderboard row is named. It is empty when Steam has no name
+	///     for that identity yet, so a screen can fall back to stating the identity itself rather than drawing a blank row.
+	/// </summary>
+	/// <param name="steamId">The Steam identity to name.</param>
+	/// <returns>The persona name, or an empty string when Steam has none to give.</returns>
+	public string GetPersonaName(ulong steamId)
+	{
+		if (!_initialized || steamId == 0) return string.Empty;
+
+		try
+		{
+			return SteamFriends.GetFriendPersonaName(new CSteamID(steamId));
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[Steam] the persona name of {steamId} could not be read: {exception.Message}");
+			return string.Empty;
+		}
+	}
+
+	/// <summary>
 	///     Opens this player's own Steam profile in the overlay, which is where their Steam-level record lives. Without
 	///     Steam, or with the overlay disabled, it does nothing: there is no second profile page to fall back to.
 	/// </summary>

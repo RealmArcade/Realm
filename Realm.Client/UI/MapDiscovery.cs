@@ -31,6 +31,7 @@ public partial class MapDiscovery : Control
 	private Button _backButton = null!;
 	private Label _discoveryTitle = null!;
 	private LineEdit _searchBar = null!;
+	private CheckBox _trustedOnlyCheck = null!;
 	private GridContainer _mapGrid = null!;
 
 	private Button _btnAll = null!;
@@ -79,6 +80,7 @@ public partial class MapDiscovery : Control
 		_discoveryTitle = GetNode<Label>("DiscoveryTitle");
 
 		_searchBar = GetNode<LineEdit>("FilterPanel/VBoxContainer/SearchBar");
+		_trustedOnlyCheck = CreateTrustedOnlyToggle();
 		_mapGrid = GetNode<GridContainer>("MapListPanel/VBoxContainer/ScrollContainer/MapGrid");
 
 		_btnAll = GetNode<Button>("FilterPanel/VBoxContainer/CatAll");
@@ -301,6 +303,8 @@ public partial class MapDiscovery : Control
 			_searchQuery = text.Trim();
 			RenderMapGrid();
 		};
+
+		_trustedOnlyCheck.Toggled += _ => RenderMapGrid();
 	}
 
 	private void RenderMapGrid()
@@ -313,6 +317,13 @@ public partial class MapDiscovery : Control
 		var filtered = _allMaps.AsEnumerable();
 		filtered = MapCatalogFilter.ByCategory(filtered, _selectedCategory);
 		filtered = MapCatalogFilter.BySearchQuery(filtered, _searchQuery);
+
+		// Off unless the player asks for it. A new map has no votes yet, and hiding it by default would keep it from
+		// ever collecting any.
+		if (_trustedOnlyCheck.ButtonPressed)
+		{
+			filtered = filtered.Where(map => map.Trust.IsTrusted);
+		}
 
 		var list = filtered.ToList();
 
@@ -332,6 +343,25 @@ public partial class MapDiscovery : Control
 			var card = CreateMapCard(map);
 			_mapGrid.AddChild(card);
 		}
+	}
+
+	/// <summary>
+	///     Adds the trusted-only toggle under the search box. It is off on first run, because every map is visible by
+	///     default and a creator's first upload has not collected the votes a mark asks for.
+	/// </summary>
+	/// <returns>The toggle the grid reads.</returns>
+	private CheckBox CreateTrustedOnlyToggle()
+	{
+		var toggle = new CheckBox { Name = "TrustedOnlyCheck" };
+		toggle.Text = TranslationServer.Translate("Trusted maps only");
+		toggle.TooltipText = TranslationServer.Translate("Hide maps Steam does not vouch for yet. Off by default: every map is listed with its trust mark.");
+		toggle.ButtonPressed = false;
+		toggle.FocusMode = FocusModeEnum.None;
+		toggle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		toggle.AddThemeFontSizeOverride("font_size", 12);
+
+		_filterPanel.GetNode<VBoxContainer>("VBoxContainer").AddChild(toggle);
+		return toggle;
 	}
 
 	private Control CreateMapCard(MapData map)
@@ -405,9 +435,22 @@ public partial class MapDiscovery : Control
 		title.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		headerBox.AddChild(title);
 
+		string trustBadge = MapTrustPolicy.DescribeBadge(map.Trust);
+		if (trustBadge.Length > 0)
+		{
+			var trustLabel = new Label { Name = "TrustLabel_Label" };
+			trustLabel.Text = trustBadge;
+			trustLabel.TooltipText = MapTrustPolicy.DescribeReason(map.Trust.Reason);
+			trustLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+			trustLabel.AddThemeFontSizeOverride("font_size", 12);
+			headerBox.AddChild(trustLabel);
+		}
+
 		var ratingLabel = new Label();
 		ratingLabel.Name = "RatingLabel_Label";
-		ratingLabel.Text = $"★ {map.RatingStars:F1}";
+		ratingLabel.Text = map.VotesUp + map.VotesDown > 0
+			? string.Format(TranslationServer.Translate("{0}% positive"), map.PositivePercent)
+			: TranslationServer.Translate("No votes yet");
 		if (_fontNorseBold != null) ratingLabel.AddThemeFontOverride("font", _fontNorseBold);
 		ratingLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
 		ratingLabel.AddThemeFontSizeOverride("font_size", 17);

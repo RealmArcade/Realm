@@ -91,6 +91,7 @@ public partial class PlayerProfileDialog : Control
 		column.AddChild(CreateIdentityBlock(column));
 		column.AddChild(CreateWarningLabel(column));
 		column.AddChild(CreateSteamProfileButton(column));
+		column.AddChild(CreateLeaderboardButton(column));
 		column.AddChild(CreateBackButton(column));
 	}
 
@@ -153,6 +154,16 @@ public partial class PlayerProfileDialog : Control
 
 		_identityRows.AddChild(CreateIdentityRow(TranslationServer.Translate("SteamID64"), steam.SteamId.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 		_identityRows.AddChild(CreateIdentityRow(TranslationServer.Translate("App build"), RealmVersion.GameBuildNumber));
+
+		if (!steam.TryReadLifetimeRecord(out SteamLifetimeRecord record))
+		{
+			_identityRows.AddChild(CreateIdentityRow(TranslationServer.Translate("Steam record"), TranslationServer.Translate("unavailable offline")));
+			return;
+		}
+
+		_identityRows.AddChild(CreateIdentityRow(TranslationServer.Translate("Matches played"), record.MatchesPlayed.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+		_identityRows.AddChild(CreateIdentityRow(TranslationServer.Translate("Matches won"), record.MatchesWon.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+		_identityRows.AddChild(CreateIdentityRow(TranslationServer.Translate("Matches lost"), record.MatchesLost.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 	}
 
 	private Label CreateIdentityRow(string label, string value)
@@ -182,6 +193,19 @@ public partial class PlayerProfileDialog : Control
 			GameContext.Steam.OpenOwnSteamProfile();
 		};
 		return _steamProfileButton;
+	}
+
+	private Button CreateLeaderboardButton(Node parent)
+	{
+		Button button = CreateActionButton(parent, "LEADERBOARDS");
+		button.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+
+			var dialog = new SteamLeaderboardDialog { Name = "SteamLeaderboardDialog" };
+			parent.GetParent()?.AddChild(dialog);
+		};
+		return button;
 	}
 
 	private Button CreateBackButton(Node parent)

@@ -33,6 +33,8 @@ public partial class MapDetails : Control
 	private Label _titleLabel = null!;
 	private Label _creatorLabel = null!;
 	private Button _attributionButton = null!;
+	private Button _steamProfileButton = null!;
+	private Button _workshopButton = null!;
 	private AttributionPopover _attributionPopover = null!;
 
 
@@ -104,6 +106,7 @@ public partial class MapDetails : Control
 		_titleLabel = GetNode<Label>("HeaderPanel/VBoxContainer/TitleLabel");
 		_creatorLabel = GetNode<Label>("HeaderPanel/VBoxContainer/CreatorLabel");
 		SetupAttributionButton();
+		SetupSteamLinks();
 
 
 		_texLeftPeek = GetNode<TextureRect>("CarouselPanel/LeftPeek");
@@ -250,6 +253,46 @@ public partial class MapDetails : Control
 		UpdateVersionDisplay();
 	}
 
+	/// <summary>
+	///     Adds the two links Steam owns: the author's own profile and the Workshop page of the map, which is where its
+	///     description, screenshots, comments and report button live. Nothing about either is stored by the game.
+	/// </summary>
+	private void SetupSteamLinks()
+	{
+		_steamProfileButton = CreateHeaderLink("SteamProfileButton_Button", TranslationServer.Translate("VIEW STEAM PROFILE"));
+		_steamProfileButton.Pressed += () =>
+		{
+			if (_mapData?.CreatorSteamId is not > 0) return;
+
+			GameContext.UserInterface?.PlayClickSound();
+			OS.ShellOpen($"https://steamcommunity.com/profiles/{_mapData.CreatorSteamId}");
+		};
+
+		_workshopButton = CreateHeaderLink("WorkshopButton_Button", TranslationServer.Translate("OPEN ON STEAM WORKSHOP"));
+		_workshopButton.Pressed += () =>
+		{
+			if (_mapData?.WorkshopId is not > 0) return;
+
+			GameContext.UserInterface?.PlayClickSound();
+			OS.ShellOpen($"https://steamcommunity.com/sharedfiles/filedetails/?id={_mapData.WorkshopId}");
+		};
+	}
+
+	private Button CreateHeaderLink(string name, string text)
+	{
+		var button = new Button { Name = name };
+		button.Text = text;
+		button.Set("icon_max_width", 0);
+		button.CustomMinimumSize = new Vector2(220, 24);
+		button.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		button.FocusMode = FocusModeEnum.None;
+		button.AddThemeFontSizeOverride("font_size", 11);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
+		_headerPanel.GetNode<VBoxContainer>("VBoxContainer").AddChild(button);
+		button.Visible = false;
+		return button;
+	}
+
 	private void SetupAttributionButton()
 	{
 		_attributionButton = new Button();
@@ -297,23 +340,32 @@ public partial class MapDetails : Control
 		if (_mapData == null) return;
 
 		UIStyle.ApplyTitle(_titleLabel, $"MAP DETAILS: {_mapData.Title}", 28);
-		_creatorLabel.Text = $"By: {_mapData.Creator}";
+		_creatorLabel.Text = _mapData.Creator.Length > 0
+			? string.Format(TranslationServer.Translate("By: {0}"), _mapData.Creator)
+			: TranslationServer.Translate("By: an author Steam has not named");
+
+		_steamProfileButton.Visible = _mapData.CreatorSteamId != 0;
+		_workshopButton.Visible = _mapData.WorkshopId != 0;
 
 		_descText.Text = _mapData.Description;
 
 		PopulateFeatures();
 
-		if (_mapData.Screenshots != null && _mapData.Screenshots.Length > 0)
+		if (_mapData.PreviewImages != null && _mapData.PreviewImages.Length > 0)
 		{
-			_carouselSlider.MaxValue = _mapData.Screenshots.Length - 1;
+			_carouselSlider.MaxValue = _mapData.PreviewImages.Length - 1;
 			_carouselSlider.Value = 0;
 			UpdateCarousel();
 		}
 
 		PopulateRatings();
-		PopulateAwards();
 		PopulateGameplayStats();
 		PopulateTechInfo();
+
+		// There is no award system and no screenshot gallery any more: Steam carries one preview per item and the
+		// comments that used to live here, so those blocks are hidden rather than filled with invented content.
+		_awardsTitle.Visible = false;
+		_awardsContainer.Visible = false;
 
 		bool isDownloaded = MapProvisioningService.IsLocalCopyPresent(_mapData);
 
@@ -348,12 +400,12 @@ public partial class MapDetails : Control
 
 	private bool HasValidScreenshots()
 	{
-		return _mapData?.Screenshots != null && _mapData.Screenshots.Length > 0;
+		return _mapData?.PreviewImages != null && _mapData.PreviewImages.Length > 0;
 	}
 
 	private void UpdateCenterTexture()
 	{
-		Texture2D? centerTex = LoadTextureSafe(_mapData.Screenshots[_carouselIndex]);
+		Texture2D? centerTex = LoadTextureSafe(_mapData.PreviewImages[_carouselIndex]);
 		if (centerTex != null)
 		{
 			_texCenter.Texture = centerTex;
@@ -373,12 +425,12 @@ public partial class MapDetails : Control
 
 	private void UpdatePeekTextures()
 	{
-		int len = _mapData.Screenshots.Length;
+		int len = _mapData.PreviewImages.Length;
 		int leftIndex = (_carouselIndex - 1 + len) % len;
 		int rightIndex = (_carouselIndex + 1) % len;
 
-		if (_texLeftPeek != null) _texLeftPeek.Texture = LoadTextureSafe(_mapData.Screenshots[leftIndex]);
-		if (_texRightPeek != null) _texRightPeek.Texture = LoadTextureSafe(_mapData.Screenshots[rightIndex]);
+		if (_texLeftPeek != null) _texLeftPeek.Texture = LoadTextureSafe(_mapData.PreviewImages[leftIndex]);
+		if (_texRightPeek != null) _texRightPeek.Texture = LoadTextureSafe(_mapData.PreviewImages[rightIndex]);
 	}
 
 	private Texture2D? LoadTextureSafe(string resPath)

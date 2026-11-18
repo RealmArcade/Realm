@@ -16,6 +16,7 @@ using Godot;
 using Steamworks;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Services.Steam;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
@@ -344,6 +345,34 @@ public partial class LobbyManager
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.ModeKey, "Melee");
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.SeatsKey, MaxPlayers.ToString(CultureInfo.InvariantCulture));
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.RequiresCodeKey, requiresCode ? "1" : "0");
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapTrustKey, _publishedMapTrust.IsTrusted ? "1" : "0");
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapTrustReasonKey, ((int)_publishedMapTrust.Reason).ToString(CultureInfo.InvariantCulture));
+	}
+
+	/// <summary>
+	///     Reads how much Steam vouches for the map this lobby will run. The host is the side that holds the map, so it is
+	///     the side that states the mark: a joiner cannot judge a map it has not downloaded, and asking every joiner to
+	///     query the item would put a Workshop round trip in front of every join. A map that is not on the Workshop states
+	///     itself as untrusted, which is exactly what a local map is.
+	/// </summary>
+	/// <returns>The mark this lobby advertises.</returns>
+	private async Task<MapTrustState> ResolveHostedMapTrustAsync()
+	{
+		if (!SteamWorkshopService.IsAvailable) return MapTrustPolicy.EvaluateUnpublished();
+
+		try
+		{
+			WorkshopMapEntry? item = await MapProvisioningService.FindLatestPublishedAsync(ActiveMapName);
+			if (item == null) return MapTrustPolicy.EvaluateUnpublished();
+
+			WorkshopMapEntry published = item.Value;
+			return MapTrustPolicy.Evaluate(published.PublishedFileId, published.VotesUp, published.VotesDown, published.TimeUpdated);
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogToConsole($"[LobbyManager] the Workshop could not vouch for '{ActiveMapName}', so the lobby states it as untrusted: {exception.Message}");
+			return MapTrustPolicy.EvaluateUnpublished();
+		}
 	}
 
 	/// <summary>
@@ -412,6 +441,7 @@ public partial class LobbyManager
 
 		// Steam metadata is the advertisement, not the lobby state: seats, teams and settings stay in the lobby protocol.
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.HostSteamIdKey, GameContext.Steam.SteamId.ToString(CultureInfo.InvariantCulture));
+		_publishedMapTrust = await ResolveHostedMapTrustAsync();
 		PublishHostedLobbyMetadata(prepared.MapHash, requiresCode);
 
 		LobbyPort = prepared.Port;

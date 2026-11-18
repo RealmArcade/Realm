@@ -185,6 +185,9 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	/// <summary>The seat count the current advertisement states.</summary>
 	private int _publishedAdvertisementSeats = -1;
+
+	/// <summary>The trust mark this lobby advertises for its map, resolved once when the lobby is published.</summary>
+	private MapTrustState _publishedMapTrust = MapTrustState.Trusted;
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
 	public int MatchSeed { get; private set; }

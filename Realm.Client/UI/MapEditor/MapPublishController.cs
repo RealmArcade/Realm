@@ -47,8 +47,7 @@ public sealed record PublishHooks(
 	Func<string> AuthorName,
 	Func<string, Task> CompileScript,
 	Func<string, Task>? SaveMinimapThumbnail,
-	Action InvalidateMetadataCache,
-	Action<string, string, int, int, double, bool> ShowGreenlight);
+	Action InvalidateMetadataCache);
 
 /// <summary>
 /// The publish pipeline: validate the workspace, compile the map script, package and sign the assets, then hand the

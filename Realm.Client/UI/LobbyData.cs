@@ -1,3 +1,5 @@
+﻿using Realm.Client.Services;
+
 namespace Realm.Client.UI;
 
 /// <summary>
@@ -38,4 +40,7 @@ public struct LobbyData
 
 	/// <summary>Why this screen cannot play the lobby's map, or an empty string when it can.</summary>
 	public string IncompatibleReason;
+
+	/// <summary>How much Steam vouches for the host's map, as the host stated it.</summary>
+	public MapTrustState Trust;
 }

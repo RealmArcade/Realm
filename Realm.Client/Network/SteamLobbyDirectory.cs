@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -40,6 +40,15 @@ public static class SteamLobbyDirectory
 
 	/// <summary>The host's SteamID64, which is what a joiner connects to.</summary>
 	public const string HostSteamIdKey = "hostSteamId";
+
+	/// <summary>
+	///     Whether the host's copy of the map is trusted, which the browser draws as a badge and the join asks about once.
+	///     The host states it because it is the side that holds the map; a joiner cannot judge a map it has not downloaded.
+	/// </summary>
+	public const string MapTrustKey = "mapTrust";
+
+	/// <summary>Why the host's map is not trusted, as a <c>MapTrustReason</c> value so the joiner can name the reason.</summary>
+	public const string MapTrustReasonKey = "mapTrustReason";
 
 	/// <summary>Whether the lobby has a join code. The code itself is never written here, because metadata is public.</summary>
 	public const string RequiresCodeKey = "requiresCode";

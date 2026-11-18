@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3]
+﻿[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://UI/LobbyBrowser.cs" id="1_script"]
 
@@ -121,10 +121,10 @@ layout_mode = 2
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="BetaTestingMapsCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
+[node name="TrustedOnlyCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
 layout_mode = 2
 focus_mode = 0
-text = "Show beta-testing maps"
+text = "Trusted maps only"
 
 [node name="VersionMismatchCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
 layout_mode = 2

@@ -571,10 +571,7 @@ namespace Realm.Client.UI
 			GameContext.UserInterface?.ShowPopupMessage("MAP REQUIRES NEWER GAME VERSION", msg);
 		}
 
-		private void ShowGreenlightStatusDialog(string mapTitle, string mapVersion, int verifiedGoodReviews, int totalReviews, double averageRating, bool isGreenlit)
-		{
-			GreenlightStatusDialog.Show(this, mapTitle, mapVersion, verifiedGoodReviews, totalReviews, averageRating, isGreenlit);
-		}
+
 
 
 

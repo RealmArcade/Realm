@@ -31,8 +31,8 @@ public partial class MapDetails
 	{
 		_btnLeftArrow.Pressed += () =>
 		{
-			if (_mapData?.Screenshots == null || _mapData.Screenshots.Length == 0) return;
-			_carouselIndex = (_carouselIndex - 1 + _mapData.Screenshots.Length) % _mapData.Screenshots.Length;
+			if (_mapData?.PreviewImages == null || _mapData.PreviewImages.Length == 0) return;
+			_carouselIndex = (_carouselIndex - 1 + _mapData.PreviewImages.Length) % _mapData.PreviewImages.Length;
 			_carouselSlider.Value = _carouselIndex;
 			UpdateCarousel();
 			GameContext.UserInterface?.PlayClickSound();
@@ -40,8 +40,8 @@ public partial class MapDetails
 
 		_btnRightArrow.Pressed += () =>
 		{
-			if (_mapData?.Screenshots == null || _mapData.Screenshots.Length == 0) return;
-			_carouselIndex = (_carouselIndex + 1) % _mapData.Screenshots.Length;
+			if (_mapData?.PreviewImages == null || _mapData.PreviewImages.Length == 0) return;
+			_carouselIndex = (_carouselIndex + 1) % _mapData.PreviewImages.Length;
 			_carouselSlider.Value = _carouselIndex;
 			UpdateCarousel();
 			GameContext.UserInterface?.PlayClickSound();

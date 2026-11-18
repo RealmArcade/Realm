@@ -39,7 +39,6 @@ public partial class GameOver : Control
 	private Button _btnMilitary = null!;
 	private Button _btnClose = null!;
 	private Button _btnReportCopyright = null!;
-	private Button _btnWriteReview = null!;
 
 	private VBoxContainer _tableRowsContainer = null!;
 	private Control _graphContainer = null!;
@@ -89,7 +88,6 @@ public partial class GameOver : Control
 		_btnMilitary = GetNode<Button>("MainPanel/VBox/TabContainer/BtnMilitary");
 		_btnClose = GetNode<Button>("BottomButtons/CloseButton");
 		_btnReportCopyright = GetNode<Button>("BottomButtons/BtnReportCopyright");
-		_btnWriteReview = GetNode<Button>("BottomButtons/BtnWriteReview");
 
 		_tableRowsContainer = GetNode<VBoxContainer>("MainPanel/VBox/TableFrame/VBox/TableRowsContainer");
 		_graphContainer = GetNode<Control>("MainPanel/VBox/GraphFrame/VBox/TimelineGraph");
@@ -123,19 +121,9 @@ public partial class GameOver : Control
 		SetupTabs();
 		SetupCloseButton();
 		SetupReportCopyrightButton();
-		SetupWriteReviewButton();
 
 		UpdateTabDisplay();
 		_placementRefreshRemaining = PlacementRefreshSeconds;
-
-		string mapName = GetActiveMapName();
-		double playtimeMinutes = 0.0;
-		if (GodotObject.IsInstanceValid(GameContext.Lobby) && GameContext.Lobby.GameSessionStartTime != null)
-		{
-			playtimeMinutes = (DateTime.UtcNow - GameContext.Lobby.GameSessionStartTime.Value).TotalMinutes;
-		}
-
-		AddLocalPlaytime(mapName, playtimeMinutes);
 
 	}
 
@@ -325,7 +313,6 @@ public partial class GameOver : Control
 	}
 
 
-	private static readonly Dictionary<string, ReviewEntry> _loadedReviews = new();
 
 	private string GetActiveMapName()
 	{
@@ -335,23 +322,6 @@ public partial class GameOver : Control
 		}
 
 		return "castle_td";
-	}
-
-	private void SetupWriteReviewButton()
-	{
-		_btnWriteReview.Flat = false;
-		string mapName = GetActiveMapName();
-		bool hasExisting = _loadedReviews.ContainsKey(mapName);
-		UIStyle.ApplyButtonText(_btnWriteReview, hasExisting ? "Edit Your Review" : "Write a Review", 18);
-
-		UIStyle.ApplyButtonStyleBoxesClearingFocus(_btnWriteReview);
-
-		_btnWriteReview.Pressed += () =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			ShowReviewPopup();
-		};
-		_btnWriteReview.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
 	private void UpdateTabDisplay()

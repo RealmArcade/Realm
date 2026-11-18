@@ -1,4 +1,4 @@
-// The lobby list end to end: ask Steam for the lobbies this screen could join, read each one's advertisement
+﻿// The lobby list end to end: ask Steam for the lobbies this screen could join, read each one's advertisement
 // into LobbyData, apply the tag and search filters, then render one row per surviving lobby. Every path in
 // here is about a list the user has not touched yet, which is why it is separate from the wiring in the
 // root file.
@@ -85,8 +85,29 @@ public partial class LobbyBrowser
 			GameVersion = SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.GameBuildKey),
 			RequiresCode = SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.RequiresCodeKey) == "1",
 			IsCompatible = compatible,
-			IncompatibleReason = reason
+			IncompatibleReason = reason,
+			Trust = ReadTrust(lobbyId)
 		};
+	}
+
+	/// <summary>
+	///     Reads the trust mark the host stated for its map. A lobby that states none is an older host, and its map is
+	///     answered as untrusted: the browser would rather ask once than promise that something vouched for a map it was
+	///     never told about.
+	/// </summary>
+	/// <param name="lobbyId">The Steam lobby id.</param>
+	/// <returns>The mark the lobby advertises.</returns>
+	private static MapTrustState ReadTrust(ulong lobbyId)
+	{
+		bool trusted = SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.MapTrustKey) == "1";
+		if (trusted) return MapTrustState.Trusted;
+
+		string reasonText = SteamLobbyDirectory.GetData(lobbyId, SteamLobbyDirectory.MapTrustReasonKey);
+		MapTrustReason reason = int.TryParse(reasonText, out int parsed) && Enum.IsDefined(typeof(MapTrustReason), parsed)
+			? (MapTrustReason)parsed
+			: MapTrustReason.NotPublished;
+
+		return MapTrustState.Untrusted(reason);
 	}
 
 	private static int ParseSeatCount(string seats)
@@ -151,9 +172,11 @@ public partial class LobbyBrowser
 
 	private string GetMapDisplayName(LobbyData data)
 	{
-		if (string.IsNullOrEmpty(data.HostName)) return data.Map;
+		string badge = MapTrustPolicy.DescribeBadge(data.Trust);
+		string mapName = badge.Length > 0 ? $"{data.Map} [{badge}]" : data.Map;
+		if (string.IsNullOrEmpty(data.HostName)) return mapName;
 
-		return $"{data.Map} - {data.HostName}";
+		return $"{mapName} - {data.HostName}";
 	}
 
 	private void ApplyFilters()
@@ -178,6 +201,12 @@ public partial class LobbyBrowser
 		if (!_versionMismatchCheck.ButtonPressed)
 		{
 			_filteredLobbies = _filteredLobbies.Where(x => IsJoinableGameVersion(x.GameVersion)).ToList();
+		}
+
+		// Off unless the player asks for it: hiding a lobby nobody vouched for is the player's choice, never the default.
+		if (_trustedOnlyCheck.ButtonPressed)
+		{
+			_filteredLobbies = _filteredLobbies.Where(x => x.Trust.IsTrusted).ToList();
 		}
 
 		// Sorted by map, because Steam supplies no distance or ping for a lobby and inventing one would be a column that looks
@@ -215,7 +244,7 @@ public partial class LobbyBrowser
 		{
 			var lbl = new Label();
 			lbl.Name = "SteamUnavailable_Label";
-			lbl.Text = TranslationServer.Translate("⚠️ Failed to connect to the lobby registry server. Please check your internet connection or try again later.\n\nSingle player against AI bots is always available from the main menu.");
+			lbl.Text = TranslationServer.Translate("Steam did not answer with a lobby list. Check that the Steam client is running and try again.\n\nSingle player against AI bots is always available from the main menu.");
 			lbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 			lbl.CustomMinimumSize = new Vector2(760, 0);
 			lbl.SizeFlagsHorizontal = SizeFlags.ExpandFill;
@@ -356,37 +385,68 @@ public partial class LobbyBrowser
 					return;
 				}
 
+				if (!data.Trust.IsTrusted)
+				{
+					GameContext.UserInterface?.PlayWarningSound();
+					AddChild(new UntrustedMapConfirmDialog(data.Map, data.Trust, () => _ = JoinLobbyRowAsync(panel, data)));
+					return;
+				}
+
 				panel.MouseFilter = MouseFilterEnum.Ignore;
 				var connectingOverlay = ShowConnectingPopup();
 
 				if (GameContext.Lobby is not { } lobby) return;
 
-				lobby.ActiveMapName = data.Map;
-				bool success = await lobby.JoinLobbyAsync(data.LobbyId);
-
-				if (connectingOverlay != null && GodotObject.IsInstanceValid(connectingOverlay))
-				{
-					connectingOverlay.QueueFree();
-				}
-
-				if (success)
-				{
-					GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
-				}
-				else
-				{
-					GameContext.UserInterface?.PlayWarningSound();
-					panel.MouseFilter = MouseFilterEnum.Stop;
-					string errMsg = !string.IsNullOrEmpty(GameContext.Lobby.LobbyJoinError)
-						? GameContext.Lobby.LobbyJoinError
-						: TranslationServer.Translate("Steam could not connect to the host.");
-					GameContext.Lobby.LobbyJoinError = null;
-					ShowLobbyJoinErrorPopup(errMsg);
-				}
+				await CompleteLobbyJoinAsync(lobby, panel, data);
 			}
 		};
 
 		return panel;
+	}
+
+	/// <summary>
+	///     Joins one lobby row, which is what both the trusted click and the click a player confirmed run.
+	/// </summary>
+	/// <param name="panel">The row, so it stops accepting clicks while the join runs.</param>
+	/// <param name="data">The lobby to join.</param>
+	private async Task JoinLobbyRowAsync(PanelContainer panel, LobbyData data)
+	{
+		panel.MouseFilter = MouseFilterEnum.Ignore;
+		Control? connectingOverlay = ShowConnectingPopup();
+
+		if (GameContext.Lobby is not { } lobby) return;
+
+		await CompleteLobbyJoinAsync(lobby, panel, data);
+
+		if (connectingOverlay != null && GodotObject.IsInstanceValid(connectingOverlay))
+		{
+			connectingOverlay.QueueFree();
+		}
+	}
+
+	/// <summary>Runs the lobby join and reports its outcome on the row it was started from.</summary>
+	/// <param name="lobby">The lobby manager performing the join.</param>
+	/// <param name="panel">The row that was clicked.</param>
+	/// <param name="data">The lobby being joined.</param>
+	private async Task CompleteLobbyJoinAsync(LobbyManager lobby, PanelContainer panel, LobbyData data)
+	{
+		lobby.ActiveMapName = data.Map;
+		bool success = await lobby.JoinLobbyAsync(data.LobbyId);
+
+		if (success)
+		{
+			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
+			return;
+		}
+
+		GameContext.UserInterface?.PlayWarningSound();
+		if (GodotObject.IsInstanceValid(panel)) panel.MouseFilter = MouseFilterEnum.Stop;
+
+		string errMsg = !string.IsNullOrEmpty(lobby.LobbyJoinError)
+			? lobby.LobbyJoinError
+			: TranslationServer.Translate("Steam could not connect to the host.");
+		lobby.LobbyJoinError = null;
+		ShowLobbyJoinErrorPopup(errMsg);
 	}
 
 }
