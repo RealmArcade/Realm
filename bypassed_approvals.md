@@ -430,6 +430,17 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   strings (`Ctrl + S / Ctrl + O`), and brand or product names (`Steam Workshop`, `Mixamo`, and the languages where
   `Audio`, `Decal (PBR)` or `STEAM OFFLINE` are spelled the same way). `-- verify` still reports 0 missing, 0 empty, 0
   placeholder and 0 BBCode mismatches for all ten.
+- **Fourteen call sites handed raw English to code that translates internally.** `InGameHUD.ShowFeedbackText` translates its
+  argument, and a literal handed to it is never a key: the build prunes any key with no `TranslationServer.Translate(...)`
+  call site, so two of the ten distinct lines - `Construction complete!` and `Unit is already at full health!` - were not in
+  `en.json` at all and read English in every language. Both are wrapped at the call site now, which is what the rest of the
+  same file already did, and the regenerated catalog carries them (2877 keys, two more than before, none dropped). The same
+  audit found nine labels assigned as raw literals: `Game Paused`, the lobby browser's `Search Lobbies...`, the wasm
+  console's `Enter command or chat message...`, `Copy Logs` and `Clear`, the storage menu's `Author: Unknown`,
+  `Genre: Custom Map` and `Total Storage: 0 MB`, and the editor toolbar's `Test Settings` option and tooltip. Those keys did
+  exist and were translated, but the value was written at construction and nothing re-asked the node for it, so a player
+  whose language is not English met them in English until they switched language and back. Wrapping them where they are drawn
+  is a one-line change per site and is the rule the style guide already states; no layout, wording or behaviour changed.
 - **Two judgement calls inside the text.** "Steam", "Workshop", "SteamID64", `.rmap`, `terrain.json`, the
   `authorship_key_...rkey` filename and the Discord URL pattern were left untranslated in every language, because they are
   identifiers a player has to type or match, not words. And `BUILD  ` was left as `BUILD  ` in all ten, since it is drawn
