@@ -5,12 +5,8 @@ namespace Realm.Ecs.Common;
 /// </summary>
 public class ResourceDefinition : Definition
 {
-	public ResourceDefinition(string id, string? displayName = null, string? description = null,
-		string? iconPath = null)
+	public ResourceDefinition(string id, string? displayName = null, string? description = null)
 		: base(id, displayName, description)
 	{
-		IconPath = iconPath ?? string.Empty;
 	}
-
-	public string IconPath { get; set; }
 }

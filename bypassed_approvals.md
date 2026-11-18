@@ -248,6 +248,13 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **`AdminToken` was kept although its name belongs to the deleted admin portal.** It is not an operator credential: the
   host's own screen mints it, puts it in the start command, and proves it back over loopback, which is how the authority
   recognises the peer that started the match as the host. Removing it would delete the host's own seat identity.
+- **The four built-in resources named icon files that have never existed.** `Food`, `Gold`, `Stone` and `Wood` were
+  declared with `res://icons/<name>.png` in `Realm.Ecs`, and no `icons/` folder has ever been committed, so every one of
+  those paths resolved to nothing. Nothing read the value either: `ResourceDefinition.IconPath` had no reader anywhere in
+  the client, the authority or the map API, because the HUD draws resource labels from its own scene rather than from a
+  definition. The paths are removed, and so is the property and the constructor parameter that carried them, rather than
+  left in place for someone to wire a dead path into a bar later. The four attribute call sites now state only an id, a
+  name and a description.
 - **Checked and left alone:** `RegistryService`, `RegistryLookups`, `RegistryKeyMatching` and `GameHost.Registry.cs` are
   the placeable-template store, not a lobby registry; `AccountID_t` in `SteamWorkshopService` is Steamworks' own type;
   `RouteReachabilityEntry` and `CombatAndDamageService.Reach` are combat reach; the "punch", "star rating" and
