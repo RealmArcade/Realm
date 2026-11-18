@@ -454,3 +454,21 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   (`1 Red`, `0 Gaia (gaia)`) are display text whose selection is tracked by id. No place writes a translated string into
   `metadata.json` or a settings file - the tab titles that are translated are Godot node names used as tab titles, not
   data, and each is read by no `GetNode` literal.
+## The neutral seat that showed an identifier, and what "valid" hid
+
+- **The neutral player's label read `0 NEUTRAL_TAN (gaia)`.** `PlayerColorConfig.GetPaletteLabel` printed the palette
+  entry's own name, which for the neutral seat is the data identifier `NEUTRAL_TAN`, and appended a borrowed term from
+  another RTS. `AGENTS.md` forbids borrowed game terms and the project's own naming rule forbids an identifier reaching a
+  label, so the label now reads the translated word for neutral (`0 Neutral`, `0 Neutral`, `0 中立`, `0 محايد`). The
+  colour market is unchanged: the other 24 entries keep their palette names, which are names rather than sentences.
+- **The tooltip that taught the old label was repointed, and nine catalogs had never translated it.** The owner-picker's
+  tooltip named `0 NEUTRAL_TAN (gaia)` inline, so it now names `0 Neutral`; only Korean had a translation of that
+  sentence, and the other nine carried the English text verbatim. They are translated now, along with the word itself.
+- **`verify` calling a catalog valid does not mean the catalog is translated.** It checks that a key exists, is non-empty
+  and keeps its placeholders; a value identical to the English one passes. Measured with a two-or-more-word filter, the
+  catalogs carry **255-267 untranslated prose keys each**, against **31** in Korean - so Korean is effectively complete
+  and the other nine are not, across the editor and HUD rather than the Steam surface this branch translated. Three of
+  those keys were shared by all ten catalogs and are now translated: `Cannot construct: food cap exceeded!`,
+  `Construction cancelled` and the `[S] Cancel Construction` hotkey description. The rest is left as a measured gap
+  rather than a silent one; the remaining keys are pre-existing coverage, and translating ~260 per locale is a batch job
+  with its own review cost, not a repair.

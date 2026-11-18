@@ -122,7 +122,7 @@ public sealed class PlacementSettingsPanel
 		PlayerOption.Set("icon_max_width", 0);
 		PlayerOption.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		PlayerOption.AddThemeFontSizeOverride("font_size", 10);
-		PlayerOption.TooltipText = TranslationServer.Translate("Owner of the next placed unit. Choose 0 NEUTRAL_TAN (gaia) to place neutral objects.");
+		PlayerOption.TooltipText = TranslationServer.Translate("Owner of the next placed unit. Choose 0 Neutral to place neutral objects.");
 
 		for (int i = 0; i < PlayerColorConfig.Palette.Length; i++)
 		{
