@@ -134,3 +134,20 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **The announcements sign-up is kept and disclosed.** It posts a name and address to the e-mail provider's form, which
   is a third-party service rather than a Realm account, so it stays and the ToS privacy clause says what it sends. The
   counsel review flags whether a consent line is needed beside the field.
+
+## Player-facing text sweep (after 06A)
+
+- **The map details lost its awards block and its three empty star rows.** The awards section was only ever hidden and the
+  star rows held nothing; both were widgets for a review system Steam replaced, and the rows still had scene nodes for a
+  1–5 star widget the task explicitly forbids. They are deleted rather than hidden.
+- **The lobby browser header was advertising columns it does not have.** It said SIZE and PING while the rows show an
+  optional join-code chip and the game build, so the headers now say CODE and BUILD. Ping is no longer measured in a
+  browser, because Steam is the directory and nothing is probed.
+- **The authorship key dialog promised a maintainer who could authorise a publish.** There is no maintainer role, no team
+  and no approval step, so the text now says what a key does: it signs your work, it must be backed up, and the public key
+  is the part you may share.
+- **"Your account has no user name" became "Your Steam profile has no name yet".** A Steam profile is not an account the
+  game manages, and the old wording is how a deleted account system creeps back into the copy.
+- **What was checked and left alone:** "Ping" in the match HUD (a real measured round trip), the KICK button (the host's
+  own seat control), join-code and password wording in comments (Steam lobby guides use the same word), and
+  `PrivateKeyEncryptionHelper`'s password (it encrypts an authorship key file, not an account).
