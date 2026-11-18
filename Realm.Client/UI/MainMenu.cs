@@ -154,7 +154,7 @@ public partial class MainMenu : Control
 
 		if (nameLabel != null)
 		{
-			nameLabel.Text = signedIn ? GameContext.Steam.UserName : TranslationServer.Translate("Guest");
+			nameLabel.Text = signedIn ? GameContext.Steam.UserName : TranslationServer.Translate("Player");
 		}
 
 		if (statusLabel != null)

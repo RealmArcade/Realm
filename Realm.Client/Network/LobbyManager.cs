@@ -128,9 +128,17 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	/// <summary>
 	///     The name a lobby seat carries, which is the player's own Steam persona name. The lobby appends the seat number
-	///     when two peers turn out to carry the same name.
+	///     when two peers turn out to carry the same name. A screen with no Steam has no persona to state, so it names
+	///     itself the way a single-player match has always named the person at the keyboard rather than stating nothing.
 	/// </summary>
-	public string PlayerDisplayName => GameContext.Steam.UserName;
+	public string PlayerDisplayName
+	{
+		get
+		{
+			string personaName = GameContext.Steam.UserName;
+			return string.IsNullOrEmpty(personaName) ? TranslationServer.Translate("Player") : personaName;
+		}
+	}
 
 	public bool IsHost { get; set; }
 

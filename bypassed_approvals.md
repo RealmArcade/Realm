@@ -315,3 +315,17 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   "reachability" mentions left in client comments are sentences explaining that those things are absent; the editor
   installers' `api.github.com` and `steam_appid.txt` references are a tool download the developer asks for and a
   development file the release workflow refuses to ship.
+## The name a screen with no Steam plays under
+
+- **`LobbyManager.PlayerDisplayName` returned an empty string when Steam was not running.** It is
+  `GameContext.Steam.UserName`, and the three places that read it wrote `?? TranslationServer.Translate("Guest")` — a
+  fallback that could never run, because the property is an empty string rather than null. A single-player match started
+  without Steam therefore seated its own player under no name at all: an empty `Name` component in `WorldInitService`, an
+  empty `ClientHello.PlayerName` into the roster, and a nameless local player in `GameHost.SetupDefaultPlayers`. Before the
+  migration a local account name always filled it, so this is a removed player-visible fact rather than a changed one.
+- **The property now falls back to the game's own word for the person at the keyboard, and the three call sites name that
+  word too.** The fallback belongs in the property and not at each call site because the hello is built from it: a fix at
+  the display sites alone would have left the authority seating the local player under an empty name.
+- **"Guest" became "Player".** A guest is a seat Steam did not authenticate, and the branch has deliberately deleted that
+  concept, so the word cannot be the name of the one player who is certainly present. "Player" already existed in all ten
+  catalogs; the `Guest` key was pruned by the build and then from the nine translations.
