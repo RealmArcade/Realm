@@ -23,11 +23,19 @@ older data on a private copy, and refuses only a map made by a *newer* engine, w
 
 - The published file ID is the canonical key. A title is a label: two items may share one, and renaming or moving the
   folder never breaks who can play the map.
-- The item's owner is the author of record. Steam's item is the attribution and the access control; nothing requires a
+- The item's owner is the author of record, and the name you see is the Steam persona for the SteamID64 the package
+  states — never a name written into the map. Steam's item is the attribution and the access control; nothing requires a
   signature to publish, install or join.
+- A map also carries a signature over its whole package, so anyone holding the `.rmap` can check offline that it is the
+  copy its signer published, and the game remembers the key it saw for a map and says when a later version uses a
+  different one. When the map is a Workshop item, its page also states which key signs it, and the game shows whether
+  the Steam account that owns the item confirmed that key. These are evidence about the package, not a lock on it: the
+  map is open, editing it is allowed, and an edited copy is simply no longer the signed one.
 - The manifest hash is what a match actually plays. Two machines with different hashes are holding different builds of the
   map, and the host is the side that can fix it: cancel the lobby, let Steam update the map, open the lobby again.
 - Steam's `time_updated` or revision change number is a cache hint, not the map's version.
+- A mirror or a reupload is signed by the account that republished it and credits the original creator; it never carries
+  the original author's key.
 
 ## Publishing
 

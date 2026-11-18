@@ -217,9 +217,12 @@ redesign.
 - **The donate button is gone.** The main menu's footer link was deleted as a donation surface, even though it funded the
   project rather than a creator. If the project wants that link back, the rule in `AGENTS.md` has to say why a developer
   donation link is not the thing the Workshop rule bans.
-- **Authorship signatures are optional.** Publishing works with no key selected, and nothing installs, joins or gates on
-  a signature. If a signed map should be visibly marked as signed, that is a presentation change; if it should be
-  required, that is a format change and belongs in its own task.
+- **Authorship has three tiers, and none of them gates anything.** A map is signed over its whole package, this machine
+  remembers the key it first saw for a map, and a Workshop item's metadata states the key its owner publishes. Publishing,
+  installing, joining and hosting still work with no key at all. The pivot to watch is whether players understand the
+  distinction between "signed" and "Steam-confirmed", and whether a changed-key question reads as a warning about a copy
+  rather than an accusation against the author; both are word and layout changes. Making any tier a requirement would be
+  a policy change and belongs in its own task.
 - **A publish identity is the map's name.** A renamed map creates a second Workshop item rather than moving the first,
   and the lookup is one query per publish. Publishing now only ever updates an item the publishing account owns, so a
   shared name no longer blocks a creator. What is still name-resolved is the player's side: the storage list's "newer

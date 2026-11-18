@@ -138,7 +138,8 @@ Add one new section with the guards below. Write them as project rules, in the s
 - Multiplayer is Steam's, and there is no second path. Do not add a direct-IP join, a LAN multiplayer mode, a port prompt, a UPnP or NAT helper, a relay, a punch, a reachability probe or an automatic fallback when Steam fails.
 - Every seat is a SteamID. Do not add a guest, a locally typed name, a pending-approval peer or any way to seat a peer Steam did not authenticate.
 - The host's own loopback socket is internal IPC. Do not bind it beyond the loopback address, and do not remove it: it carries the host's seat and single-player.
-- Authorship is the Workshop item owner or the attribution tag, never a typed name.
+- Authorship is the Workshop item owner or the attribution tag, never a typed name. A map also carries its own Ed25519 package signature and, when it is a Workshop item, the key fingerprint the item publishes; that is integrity and continuity evidence for `.rmap` copies and never an identity, a gate or a replacement for Steam's item ownership. The displayed author name always comes from Steam for the SteamID64 the package states, and an unconfirmed claim is rendered as a claim.
+- The authorship tiers are additive and must stay that way: signed package, local key continuity, and Steam confirmation. Do not add a key directory, revocation service, reputation database or server, and do not make any tier a condition of publishing, installing, joining or hosting.
 
 **Preserve the game**
 

@@ -2,7 +2,7 @@
 
 > Read `00-Architecture-and-Task-Order.md` first. It defines the Steam-first assumptions, the player-identity/infrastructure split and the task order.
 
-**Depends on:** 07 and 06A.
+**Depends on:** 07, 06A and 09B.
 **Unblocks:** nothing; it is an operational tool.
 
 ## User story
@@ -36,12 +36,12 @@ Steam hosts the content and the creator can delete it with `DeleteItem`, which c
 6. **Deleted, private and banned items.** If an item is no longer returned by the query but exists in the archive, mark it `missing` and keep the content. If `GetPublishedFileDetails` returns a result code, record it. Never delete an archived item because Steam no longer lists it.
 7. **Integrity.** After download, walk the folder, compute SHA-256 per file and a deterministic folder hash, write `manifest.json` with the file list, sizes and hashes, and verify on every run. Mark corrupt items for re-download. Add a `verify` command that loads each archived map with the game's package reader where that is practical.
 8. **Report.** Print a summary: total, new, updated, unchanged, missing, failed, bytes downloaded and archive size. Write `archive_report.json` and `archive_report.md`. Exit non-zero on failures.
-9. **Mirror is manual, reviewed and uploaded from a separate account.** Archiving is automatic; republishing is not. A `stage-mirror <id>` command copies a reviewed item into a `mirror/` folder with a `mirror.json` (original item ID, author SteamID, original title, license version and clause relied on, reviewer SteamID, date, the uploading Steam account and the review note) and a short attribution file. A human uploads it as a Workshop item for the AppID from the dedicated mirror account, never the partner account. Do not publish a mirror as a `.rmap` on a Realm site or anywhere else outside Steam: Realm does not host mirrors off-platform, Steam hosts the item, and `.rmap` is the format a creator shares their own map with. The uploading account is the one an infringement notice or an account strike reaches, and it still publishes under this AppID, so it narrows the notice path rather than putting the app out of reach. Do not auto-republish every item; duplicate listings confuse players and dilute the original author's page.
+9. **Mirror is manual, reviewed and uploaded from a separate account.** Archiving is automatic; republishing is not. A `stage-mirror <id>` command copies a reviewed item into a `mirror/` folder with a `mirror.json` (original item ID, author SteamID, original title, license version and clause relied on, reviewer SteamID, date, the uploading Steam account and the review note) and a short attribution file. The staged copy is then **signed by the mirror account's own key** (task 09B) and records `MirroredFrom` — the original item ID and author SteamID64 — inside its package, so a player sees a licensed copy signed by the account that republished it and credited to its creator. Never carry the original author's `author_key`, `signature` or fingerprint into it. A human uploads it as a Workshop item for the AppID from the dedicated mirror account, never the partner account. Do not publish a mirror as a `.rmap` on a Realm site or anywhere else outside Steam: Realm does not host mirrors off-platform, Steam hosts the item, and `.rmap` is the format a creator shares their own map with. The uploading account is the one an infringement notice or an account strike reaches, and it still publishes under this AppID, so it narrows the notice path rather than putting the app out of reach. Do not auto-republish every item; duplicate listings confuse players and dilute the original author's page.
 10. **Takedown.** A `takedown <id>` command records a request and removes the mirror, not the archive. Honor low-effort mirror requests per policy. Keep the archive copy unless counsel says otherwise.
 11. **No CDN purge.** There is no Realm CDN to purge. The tool may prune the mirror on a schedule; it never deletes a Workshop item.
 12. **Scheduling, and the one deadline that is not a schedule.** Run weekly, or daily, from the developer's machine or a small CI job. The tool is not a server. Document the command and the account setup. Do not add it to the game. Retiring the demo AppID is a hard cutoff rather than a schedule: run a full pass and verify it immediately before the demo is unpublished, because an item missed in the final week is gone rather than late.
 13. **Secrets.** Read `STEAM_WEB_API_KEY` and the SteamCMD account from environment variables or a local, gitignored config. Never commit either. The tool must refuse to run if they are missing.
-14. **Legal hooks.** The archive writes the license version and attribution into each item. It records the creator's SteamID as the author. It does not strip attribution. It does not archive items the developer has been told to remove, unless counsel says to keep a record. It also records the composition an item was built from: read the archived `references.json` and `composed/` and put the referenced map names into the item's index and its `ATTRIBUTION.txt`, because a composed map republishes another creator's assets and scripts under this item, and the mirror reviewer needs to see whose work an item actually carries before deciding whether to review it.
+14. **Legal hooks.** The archive writes the license version and attribution into each item. It records the creator's SteamID as the author. It does not strip attribution. It does not archive items the developer has been told to remove, unless counsel says to keep a record. It also records the composition an item was built from: read the archived `references.json` and `composed/` and put the referenced map names into the item's index and its `ATTRIBUTION.txt`, because a composed map republishes another creator's assets and scripts under this item, and the mirror reviewer needs to see whose work an item actually carries before deciding whether to review it. Finally, the archive keeps the package hash and the signer's fingerprint of every version it downloads, because that is the record a rights question or an impostor report is answered from; if an archived package no longer matches its signature, say so in the report rather than silently archiving a broken copy.
 
 ## UX
 
@@ -63,7 +63,7 @@ This is a developer tool, not a player-facing feature. It may be a CLI or the ad
 - A deleted item remains in the archive and is marked missing.
 - The tool refuses to run without the API key and archive account.
 - The tool never touches the game's runtime or the player's Steam account.
-- A mirror can be staged only with explicit confirmation and attribution.
+- A mirror can be staged only with explicit confirmation and attribution, and its staged package is signed by the mirror account and states `MirroredFrom`.
 - The survey section records whether `steam-workshop-archiver` was adopted, its license, and why it did or did not fit.
 - If adopted, the archive layout and metadata export are documented, and the tool is not vendored into the game repository.
 
@@ -78,6 +78,8 @@ This is a developer tool, not a player-facing feature. It may be a CLI or the ad
 - Do not assume `hcontent_file` is stable across updates; it changes when content changes.
 - Do not archive only `.rmap`; the Workshop item is a folder. Archive the folder as uploaded.
 - Do not treat the archive as a license to re-upload. The license permits it; the manual review decides whether it is appropriate.
+- Do not re-sign a mirror with the original author's key, and do not keep that key or its fingerprint in the mirror's package. The mirror is a copy the mirror account publishes, and the client will say so.
+- Do not archive a signed package without recording whether it verified. An archived copy that no longer matches its signature is evidence of tampering and the report has to carry it.
 - Do not treat a composed item as its uploader's alone. Its `references.json` and `composed/` name the map whose content it carries, and a mirror of it redistributes that map too.
 - Do not upload a mirror from the partner account. Keep the mirror account separate, record which account published each mirror, and do not describe that separation as legal immunity.
 - Do not mirror an item the developer has not personally reviewed, and do not queue mirrors for automatic upload.

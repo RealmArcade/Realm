@@ -71,7 +71,7 @@ Delete the client-side transfer stack:
 - `ContentAddressableStorage`, `MapArchiveHelper`, `MapImportPipeline`, `ServerMapShares` and the host-transfer path for local maps.
 - The Workshop publish and download flows from tasks 07 and 08.
 - The map library and map details UI.
-- Optional in-package signatures if they are still used for credits or integrity.
+- Keep the in-package signature and its attestation: they are not distribution machinery. Task 09B signs the whole package with them, and a `.rmap` shared outside Steam is checked with them. Remove only the server-side signature and attribution endpoints.
 
 ## UX
 

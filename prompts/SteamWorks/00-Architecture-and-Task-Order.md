@@ -22,7 +22,7 @@ This is a migration, not a rewrite of the game. The simulation, map scripting, e
 - The map editor, workspace, publish packaging, local map library and local/private map sharing.
 - The lobby room, seat selection, teams, ready state, match settings, countdown and start flow.
 - In-match HUD, scoreboard, chat, camera and visual style.
-- Map authorship as a credit shown to players, derived from the Steam Workshop item owner, with the creator's Steam profile, Workshop page and the optional Discord server invite the map itself declares.
+- Map authorship as a credit shown to players, derived from the Steam Workshop item owner, with the creator's Steam profile, Workshop page and the optional Discord server invite the map itself declares. A map also carries its own signed package hash for the copies that travel as `.rmap` files, which is integrity and continuity rather than identity (task 09B).
 - Map validation, manifest verification and the WASM sandbox. Workshop is a distribution channel, not a security boundary.
 
 **Steam owns (generic hidden infrastructure):**
@@ -95,6 +95,16 @@ These are the platform facts and the product decisions that follow from them. A 
 
 The friction belongs on the join, not on discovery. The library and the lobby browser show everything and mark each map trusted or untrusted; a player who joins an untrusted lobby, or any lobby whose map is not a Workshop item with a score, gets one confirmation that names the risk (too new or poorly rated, possibly unmaintained) before the join continues. That keeps a new creator's first map visible and playable, gives a returning player a reason to look before entering a lobby nobody vouched for, and needs no second source of truth. Never default the library to hiding maps: an empty browser with no explanation is a worse failure than one weak map.
 
+The trust mark answers "is this map any good". It is a different question from "is this the map its author published", which is answered by the authorship tiers below and shown as a separate line. Do not merge the two into one badge: a well-voted map can be an unsigned copy, and a Steam-confirmed package can be a map nobody has played yet.
+
+**Authorship and tamper evidence.** A map is open and editable, so authorship is a statement about who signed *this package*, not a lock on it. Three tiers, each independent, none of them a gate (task 09B):
+
+- **Signed**: one Ed25519 signature over the whole package hash, stored in `metadata.json` beside `author_key`, so anyone holding a `.rmap` can check offline that no byte changed after signing. The signature proves a key, not a person; the UI says "signed" and never "verified", which stays reserved for the Verified Workshop collection.
+- **Continuity**: the machine remembers the key fingerprint it first saw for a map and reports a different key on a later version. This is the tier that protects an author's reputation, because the victim of a tampered re-upload is a player who already owns the original. No network, no Workshop item, no server.
+- **Steam-confirmed**: when a map is also a Workshop item, the item's own metadata block carries the key fingerprint and Steam reports the item's owner, so the Steam account that owns the item confirms the key. One UGC query, no download. A missing item or an unreachable Steam is "could not confirm", never "unsigned" or "wrong".
+
+The displayed author name always comes from Steam for the SteamID64 the package states, never from a name the package carries; otherwise a package could claim a real creator's name and pass every check. A package claiming a SteamID64 it cannot confirm shows that name as a claim, with no avatar and no Steam links. Nothing here blocks publishing, installing, joining or hosting: the sandbox is the security boundary and the signature is evidence.
+
 **Publishing gate.** The in-game publish tool is the only author-facing path and it uses the Steamworks SDK (`ISteamUGC`), not SteamCMD. Do not embed SteamCMD in the game: it adds a login and Steam Guard dependency the player does not need. The tool gates a **public** publish on an objective checklist (valid Release build, valid manifest, preview image, description, a player start, no missing asset references, no placeholder title, size within limits). Private and Unlisted publishes skip the checklist so an author can test the Workshop flow. The gate is product policy in the author's tool, not a Steam-side approval, and it cannot stop an owner of the AppID from publishing through SteamCMD or changing visibility later on the Workshop page. That bypass is acceptable: someone who uses SteamCMD has already cleared the low-effort bar, and the trusted filter and after-the-fact moderation handle the rest. The build uploaded to the Steam beta branch is compiled with publishing disabled, because a map published from a preview surface can carry a newer generation than the public build understands and the public build is what players run; preview keeps playtesting and `.rmap` export. There is no CDN purge: Steam hosts the content; banning or marking incompatible removes it from the game's surface, and only the owner or Valve can delete the item. If a Realm mirror exists, prune the mirror on its own schedule.
 
 **Content model.** An `ISteamUGC` item is a folder of files downloaded as one unit. There is no API to request individual files or to deduplicate assets across items; SteamPipe may send only changed chunks when an item is updated, but that is not a per-asset contract and not something the game can rely on. The per-asset CAS is therefore the local format for local and private maps and for the editor, not a property of Workshop maps. The decision for this migration is (a): publish the full runtime folder and read it in place from `GetItemInstallInfo`, accepting per-item downloads. Do not build a Realm CDN and do not build (b). Only a complete map that can run a lobby is a Workshop item; do not support individual assets, a "sword" mod or an asset pack that patches another map. Shared assets travel inside a map package, and cross-map reuse is vendored when the map is authored - by copying an asset or a script, or by composition through `references.json`, which writes the referenced map's files and merged metadata into the parent folder on save - so a map declares no load-time dependency on another map and nothing resolves at install or join (task 09). Revisit per-asset deduplication only if cross-map duplication becomes a measured problem, and treat that as a new product decision, not a fallback.
@@ -135,7 +145,7 @@ Never reintroduce a custom relay, punch or lobby registry as the fallback. The p
 
 Run the tasks in the order below. Each task states its dependencies. A replacement task must land before the task that deletes the system it replaces.
 
-Tasks 01 to 14 are the Steam-first cutover, with 09A landing between the Workshop map library and the deletion of the distribution network. Tasks 16, 17 and 18 then add the creator, archive and attribution surfaces, and they must land **before** task 15: 15 is the final sweep, and a sweep that runs before them leaves the Discord field, the SteamID attribution and the archive tool undocumented. Task 22 deletes the two platform projects once the replacements have landed and before the sweep, task 19 updates `AGENTS.md` after 15, and task 20 decides what replaces the diagnostics the admin server used to provide. Task 20 is one task in one place: it runs after the sweep, and the only part worth committing earlier is its local half (requirements 1-5 and 7), because that is the log a transport swap is most likely to need.
+Tasks 01 to 14 are the Steam-first cutover, with 09A and 09B landing between the Workshop map library and the deletion of the distribution network. 09B keeps the map's package signature, which earlier drafts retired together with the asset-attribution key; task 18 therefore lands after it and removes only the attribution half. Tasks 16, 17 and 18 then add the creator, archive and attribution surfaces, and they must land **before** task 15: 15 is the final sweep, and a sweep that runs before them leaves the Discord field, the SteamID attribution and the archive tool undocumented. Task 22 deletes the two platform projects once the replacements have landed and before the sweep, task 19 updates `AGENTS.md` after 15, and task 20 decides what replaces the diagnostics the admin server used to provide. Task 20 is one task in one place: it runs after the sweep, and the only part worth committing earlier is its local half (requirements 1-5 and 7), because that is the log a transport swap is most likely to need.
 
 Tasks 02 and 03 are one networking cutover. Task 02 builds the Steam transport, records the comparison baseline and retires the remote ENet path, and task 03 wires the Steam lobby to it; online play may be unavailable between them, and that is expected. Do not stop after task 02 and keep the old registry join alive as a bridge.
 
@@ -152,10 +162,11 @@ Tasks 02 and 03 are one networking cutover. Task 02 builds the Steam transport, 
 | 08 | Workshop consumption and map library | 07 | Custom map download, CDN client, seeders |
 | 09 | Map identity, versioning and deleting the unused `Dependencies` field (composition stays) | 08 | Custom map IDs, name reservation, dependency portal |
 | 09A | Keep old maps playable after engine updates | 09 | Exact-build map lock, `MapUpgradeService` invoked only in the editor |
+| 09B | Three-tier map authorship verification (signed package, continuity, Steam confirmation) | 07, 08, 09 | Metadata-only author signature, its "ownership" claim and its lack of any memory |
 | 10 | Remove the map distribution network (keep local map sharing) | 09, 09A | Distribution server, CDN, seeders, cluster, portal |
 | 11 | Remove custom accounts and sessions | 04, 07 | Account service, bearer sessions, creator registration |
 | 12 | Steam stats and leaderboards | 11 | Account match stats and custom rankings |
-| 13 | Workshop discovery, ratings and moderation | 08, 11 | Reviews, greenlight, awards, admin portal; adds the trusted filter and creator view |
+| 13 | Workshop discovery, ratings and moderation | 08, 11, 09B | Reviews, greenlight, awards, admin portal; adds the trusted filter and creator view |
 | 14 | Overlay, invites and rich presence | 03 | Custom invite codes and address sharing |
 
 ### Tasks that run after the cutover
@@ -164,9 +175,9 @@ These add a surface or close the migration out. Run them in the order listed: 16
 
 | # | Task | Depends on | Replaces |
 |---|------|------------|----------|
-| 16 | Steam creator identity and Workshop profiles | 01, 09 | Creator registration, portal pages and the external profile site |
-| 17 | Workshop archive and mirror tool | 07, 06A | No equivalent; manual backups |
-| 18 | Attribution keyed by SteamID | 01, 09 | Public-key attribution signatures |
+| 16 | Steam creator identity and Workshop profiles | 01, 09, 09B | Creator registration, portal pages and the external profile site |
+| 17 | Workshop archive and mirror tool | 07, 06A, 09B | No equivalent; manual backups |
+| 18 | Attribution keyed by SteamID | 01, 09, 09B | Asset-author lookup on the platform server; keeps the map's own package signature (09B) |
 | 22 | Delete `Realm.AdminServer` and `Realm.Tools.Admin` | 05, 06, 10, 11, 12, 13, 16, 18 | The platform server, its account, cluster and moderation CLI, and the client callers they leave behind |
 | 15 | Final cleanup and documentation | 01-14, 16, 17, 18, 22 | Platform configs, stale docs and any instruction to run a service |
 | 19 | Update `AGENTS.md` for the Steam-first architecture | 15, 09A | Conflicting project instructions; adds guards against rebuilding the deleted platform and against eroding the map compatibility contract |
@@ -208,13 +219,13 @@ What that means in practice:
 | 4 | 06A | the legal text describes Steam-only distribution and dual-AppID publishing. No code |
 | 5 | 07 | a demo client publishes both the demo item and the dormant official item; `App Publish Permissions` and cloud quota are confirmed on the partner site |
 | 6 | 08 | subscribing, downloading, installing and hosting a Workshop map works, and a local map still travels host-to-host |
-| 7 | 09, 09A | an older-generation map opens instead of being refused, the build-number gate is gone, and the retired launcher code is deleted rather than orphaned |
+| 7 | 09, 09A, 09B | an older-generation map opens instead of being refused, the build-number gate is gone, the retired launcher code is deleted rather than orphaned, and a `.rmap` reports whether its package matches the author's signature and whether the key is the one this machine already knows |
 | 8 | 10 | no distribution server, CDN, seeder or portal code remains |
 | 9 | 11 | no account, session, invitation-token or creator-registration code remains |
 | 10 | 12 | persistent totals and leaderboards come from Steam |
 | 11 | 13 | Workshop discovery, trust marks, reporting and ban/incompatible replace the portal |
 | 12 | 14 | invites and rich presence are Steam's |
-| 13 | 16, 18 | creator panels open Steam, no Realm profile exists, and attribution is SteamID-keyed with the public-key signature gone |
+| 13 | 16, 18 | creator panels open Steam, no Realm profile exists, attribution is SteamID-keyed, and the map's signature survives as the package-integrity record instead of an identity claim |
 | 14 | 17 | the tool lists and archives every item for both AppIDs, including demo-era items |
 | 15 | 22 | both projects are deleted, the release workflow builds no admin artifact, and no code path calls a Realm endpoint |
 | 16 | 15 | the docs describe the shipped architecture and the repository contains no instruction to deploy or operate a service |
@@ -243,6 +254,7 @@ Most tasks keep the familiar screen and only change where the data comes from. T
 | 12 | Persistent totals and leaderboards come from Steam; custom rank/MMR disappears | Which three to five stats survive? Which leaderboards exist (global/friends, per mode)? What replaces MMR or a custom rank? |
 | 13 | Reviews, stars, awards, greenlight and the old creator portal disappear; Workshop provides discovery and the Steam creator pages remain | The card shows a positive percentage and a vote count, not stars. The Verified list is a Workshop collection that overrides a low vote count; it is not a default filter. The creator panel opens the Steam profile and Workshop page; the only in-game creator link beyond Steam is the map's Discord invite, and no donation links are shown. Do comments open the overlay or the Workshop page? |
 | 09A | A map made on an older build now opens instead of being refused; a map from a newer build is refused with an update action | Which generations are supported, and what does the "made for an earlier version" note say? Does the first upgrade of a large map need a loading line? |
+| 09B | Map details gain one authorship line beside the trust mark, and a map whose key changed since the player's copy raises one question | What exactly does each state say, where does the fingerprint appear, and is "Steam-confirmed" distinguishable at a glance from the Verified collection's badge? Does the changed-key question read as a warning without accusing the author? |
 | 14 | Invites, Join Game and rich presence move to Steam | Is the custom friends dialog removed in favour of the overlay? What is shown when the overlay is disabled? |
 | 21 | A player's name can carry a supporter flair, and the publish dialog explains what to keep out of a Workshop item | Where does the flair appear: scoreboard only, or the lobby and map details as well? Is it visible to other players? What does the game say when Steam is offline or the inventory is unavailable? Does the publish guidance read as help rather than a warning that blocks an honest publish? |
 | 02, 04, 06 | The "Join Private Lobby via IP Address" button, the direct-IP host option and the guest seat are removed; every seat is a Steam account | Is anything removed that a returning player relied on? Does any screen still mention an address, a port, a NAT type or a guest? Is the create/join flow shorter than before? |

@@ -2,7 +2,7 @@
 
 > Read `00-Architecture-and-Task-Order.md` first. It defines the Steam-first assumptions, the player-identity/infrastructure split and the task order.
 
-**Depends on:** 01 (SteamID) and 09 (author identity).
+**Depends on:** 01 (SteamID), 09 (author identity) and 09B (persona display and claim presentation).
 **Related:** 07, 08, 13 and 18 surface the creator.
 
 ## User story
@@ -26,7 +26,7 @@ This task does not change the no-DRM policy. The game must keep starting and wor
 1. **No Realm profile service.** Do not build the website route, database, OpenID login, bio, link editor, privacy page or deployment. If the game contains a stub or a link to `realm-game.com/creator_profile`, remove it. No new HTTP endpoint, database or secret. The website repository is not part of this task.
 2. **Resolve a creator from Steam.** Given a SteamID64, read the persona name and avatar through the Steamworks client APIs. Use the profile URL Steam reports, or the canonical `https://steamcommunity.com/profiles/<steamid64>`. Cache only in memory for the session; names and avatars change. A missing avatar shows a neutral placeholder, not an error.
 3. **Other Workshop items, for this AppID only.** Query the creator's published items **for the current AppID** through the Steamworks UGC query API (`CreateQueryUserUGCRequest` with the current AppID), sorted the way the Workshop author page sorts them. Never include items the creator published for another game or another AppID. Show up to a small fixed number (for example five) with title, thumbnail, positive percentage and vote count. Clicking one opens its Workshop page. An empty result is a normal state: show "No other maps for Realm" and the Workshop page action. Do not build a creator index or a global creator directory.
-4. **Surface the creator in map details and credits.** The map details panel, the lobby map card and the in-match credits show the creator's Steam persona and avatar, the other-item strip and these actions:
+4. **Surface the creator in map details and credits.** The map details panel, the lobby map card and the in-match credits show the creator's Steam persona and avatar, the other-item strip and these actions. The SteamID64 comes from the package (`author_steam_id`, task 09B) or from the Workshop item's owner; the name and avatar always come from Steam for that ID. When a package states an ID that Steam could not confirm, show the name as a claim with no avatar and no Steam actions (task 09B, requirement 11), never as the creator's confirmed row:
    - "View Steam Profile" opens the creator's Steam profile.
    - "View Workshop" opens the creator's Workshop page for this AppID.
    - "Other maps by this creator" opens the same list, or the Workshop page when the list is empty.
@@ -43,7 +43,7 @@ This task does not change the no-DRM policy. The game must keep starting and wor
    - The link opens externally in the system browser. Do not embed a Discord client, join a server for the player, or require the player to have Discord installed.
    - Do not add a generic link list, a website field, a donation link, a payment link or a store section. The creator's Steam profile is the place for anything else Steam permits, and the Discord invite is the only channel through which a creator may direct players who want to support their work (task 21). The game shows no purchase control, no price and no support request for a map or a creator.
    - Add a sequential `MapUpgradeService` migration for the new field; no fallback reader.
-7. **Offline and local maps.** With no Steam session, show the map metadata author name and the `DiscordServerInviteLink`; hide the Steam profile, Workshop and other-item actions. A local map with no author SteamID shows the metadata author and the Discord invite only. The invite still opens in the browser without Steam.
+7. **Offline and local maps.** With no Steam session, show the map metadata author name and the `DiscordServerInviteLink`; hide the Steam profile, Workshop and other-item actions, and say that the Steam identity could not be read rather than presenting the metadata name as confirmed. A local map with no author SteamID shows the metadata author and the Discord invite only. The invite still opens in the browser without Steam.
 8. **Privacy.** The game stores only the SteamID64 already present in the map package, the attribution tags and the optional Discord invite. It does not store a bio, a link list, an email or a profile copy. Steam's privacy settings decide what the profile and Workshop pages show; respect a private or unavailable profile with a neutral message.
 9. **Localization.** Every label and error is a `TranslationServer.Translate("literal")` call site. The Discord helper label is a literal at its call site, not text returned from a method.
 10. **Loading and failure.** Show a small inline loading state while the other-item query runs, an empty state when the creator has no other public items for this AppID, and a neutral "Steam profile unavailable" state when Steam is offline. Do not block the map details on the query.
@@ -96,7 +96,8 @@ This task does not change the no-DRM policy. The game must keep starting and wor
 - Do not use a Steam Web API key in the client. Use the Steamworks client APIs.
 - Do not make the creator panel a gate for playing, joining or publishing.
 - Do not show donation links. The developer explicitly does not want them in the game.
-- Do not trust a creator's SteamID from a URL or a map's display name; use the Workshop item owner or the attribution tag.
+- Do not trust a creator's SteamID from a URL, a map's display name or a name the package carries. Use the Workshop item owner, or the package's `author_steam_id` once Steam confirms it against that owner (task 09B).
+- Do not render a package's claimed SteamID64 as an established creator. Without confirmation, name, avatar and profile links would launder a claim into an identity.
 - Do not call the Steam overlay from a background thread.
 - Do not let a private Steam profile look like a broken panel. Show the persona the game already has and a neutral note that the full profile is not public.
 - Do not keep the website alive "for later". The decision is no Realm-hosted profile.

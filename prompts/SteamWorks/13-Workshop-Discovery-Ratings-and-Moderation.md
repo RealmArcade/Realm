@@ -2,7 +2,7 @@
 
 > Read `00-Architecture-and-Task-Order.md` first. It defines the Steam-first assumptions, the player-identity/infrastructure split and the task order.
 
-**Depends on:** 08, 11.
+**Depends on:** 08, 11 and 09B (the authorship line it shows beside the trust mark).
 **Unblocks:** 15.
 
 ## User story
@@ -32,6 +32,8 @@ Steam Workshop already provides the listing, preview, description, tags, search,
 9. **Map details keep the useful fields.** Show the Workshop title, author, preview, positive percentage and vote count, subscribers, last updated, tags, size and an "Open on Steam Workshop" link. Remove Realm-only ratings, reviews, awards, playtime, creator badges and maintainers.
 10. **Delete the portal backend.** Remove discovery feed endpoints, ratings, reviews, awards, screenshots, the old creator portal pages and endpoints, maintainers, greenlight requests, admin greenlight endpoints and map metrics. There is no external Realm creator profile; the creator links open Steam (task 16). Task 15 removes the remaining admin server.
 11. **Trusted marking, not a default filter.** Trusted means membership in the Verified Workshop collection, or a configured minimum vote count and minimum score. The Verified collection is the manual override for a good map that is too new to have votes. The threshold starts low and is raised as the catalog grows; it is not a fixed 100. This is a presentation policy, not a platform primitive. Every map and every lobby is visible by default and carries a trust mark; a "Trusted only" filter exists for a player who wants it, and it is off on first run. Entering a lobby whose map is untrusted, or whose map is not on Workshop at all, requires one confirmation that names the reason (too new, poorly rated, unmaintained, or not published) before the join continues. A local map keeps its "Local map" badge and is untrusted for this purpose, because nothing on Steam vouches for it. Hide nothing without the player asking, and never describe an untrusted map as unsafe: the map script is sandboxed either way and the warning is about quality and maintenance.
+
+    The authorship result (task 09B) is a second, independent line on every map and lobby: signed or unsigned, whether the package still matches its signature, whether the key is the one this machine already knows, and whether Steam confirmed it. Do not fold it into the trust mark, do not let a good vote score imply a signature, and do not let the Verified collection override a broken signature — curation says the map is good, not that this copy is the one its author made.
 12. **Votes belong to an item, so a dual-published map has two scores.** The demo item and the dormant official item are separate items with separate votes and subscribers, and nothing carries between them (task 07). Compute the trust mark from the item the running AppID actually sees, never blend the two counts, and never read a map's empty official item as evidence the map is unproven. Every map starts at zero votes on its official item, which is exactly why the Verified collection exists and should be populated before the official catalog opens. Set the launch posture deliberately: for the first weeks after release, trust comes from the Verified collection rather than from a vote minimum, because a catalogue in which every map carries an untrusted warning is a worse first impression than a curated one that is.
 13. **No CDN purge.** Steam hosts the content. Banning or marking an item incompatible removes it from the game's surface; only the owner or Valve can delete it. Do not build a purge service. If a Realm mirror exists, prune the mirror on its own schedule, not the Workshop item.
 
@@ -61,6 +63,7 @@ Steam Workshop already provides the listing, preview, description, tags, search,
 - No greenlight, beta prefix, awards, screenshots gallery, playtime metric or creator registration remains.
 - Reporting and moderation link to Steam Workshop; the ban and incompatible actions are documented.
 - A Verified list is a Workshop collection or a static curation list, not a voting service or a publish gate.
+- The authorship result from task 09B appears separately from the trust mark, and the Verified collection never substitutes for it.
 - Every map is visible by default and carries a trust mark, and the Verified collection overrides a low vote count.
 - Entering an untrusted lobby, or one whose map is not on Workshop, requires one confirmation that names the reason.
 - The "Trusted only" filter is available in both places and is off on first run.
@@ -84,3 +87,4 @@ Steam Workshop already provides the listing, preview, description, tags, search,
 - Do not carry a demo-era vote count or score onto the official item, and do not average the two. They are different items; the count starts again and the Verified collection covers the gap.
 - Do not add a general link list to the creator row. The only extra creator link is the optional Discord invite in the map's metadata.
 - Do not delete the map detail panel's useful fields (author, size, votes) along with the portal-specific ones.
+- Do not merge authorship into the trust mark. A curated map can be an unsigned copy and an unproven map can carry a valid signature; one badge for both tells a player neither fact.
