@@ -520,3 +520,43 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **The leaderboard screen was parented into the card's inner margin.** It was added to the column's parent, a
   `MarginContainer` inside the card, so its full-rect backdrop and body would have been laid out inside the card instead of
   over the screen. It now hangs off the profile dialog itself, the same full-screen surface the profile is drawn on.
+## The unlisted-first catalogue, and moving the greenlight to the author's machine
+
+- **A first publish is now Unlisted, not "private or unlisted".** `SetItemVisibility` takes `Unlisted`, which is
+  reachable by link and absent from Workshop browse and search, so the accidental case - a player pressing Publish the
+  moment the editor opens on a blank map - produces a URL nobody has rather than a row in the catalogue. The alternative
+  considered and rejected was publishing publicly and filtering afterwards, because hiding a published map is the
+  discovery filter the project forbids while never publishing it publicly is not a filter at all.
+- **The playtest bar became local, and it is the only thing that unlocks Public.** The old threshold was 100 verified
+  reviews with a request and an admin queue, all inside the deleted server. The replacement is 25 distinct verified
+  SteamIDs, collected by the authority during hosted matches and accumulated in `%LOCALAPPDATA%\Realm\playtest` on the
+  author's machine. Votes are keyed by the identity the handshake established, never by a SteamID the client states, and
+  a computer seat cannot vote - so an author cannot greenlight a map with bots and cannot forge a seat's vote.
+- **The ledger is keyed by map name, like `MapHistoryService`, and not by package hash.** A hash resets on every edit,
+  which would make 25 unreachable on an actively developed map; a path breaks when the workspace is moved or renamed.
+  The exchange format is deliberately plain text (a copyable code the voter pastes into chat and the author pastes back)
+  while the on-disk record is compact binary, and the code and the task both say plainly that this is obfuscation, not
+  security. Anyone who edits the file or uses SteamCMD gets around it, and the bar is aimed at the player who did not
+  realise their map was unfinished.
+- **Updates inherit the greenlight, and the 5-vote update check was dropped.** Greenlight belongs to the map, not to a
+  build; the alternative was a crash fix costing another 25 votes, which teaches authors not to fix crashes. What the
+  author actually wanted from that check - "did I break my own map" - is answered earlier and deterministically: the
+  publish runs the loader's own validation and refuses, and every upload writes a change note so Steam's **Revert to
+  this version** on the item's Change Notes tab is a one-click rollback. Steam serves the latest version to every
+  subscriber and offers no per-subscriber choice, so no version picker was built.
+- **Game-branch versioning was rejected.** SDK 1.60+ lets a creator tag each upload with the game branch it supports,
+  and Steam then serves the newest compatible one. It is a per-app switch that invites exactly the version-switcher and
+  old-engine path the platform contract deletes, and it is meaningless for a game with one live forward-only build.
+- **Unique titles are advice, never a namespace.** The publish tool queries the current AppID for a colliding title and
+  asks for a different name, excluding the author's own items because one map's demo and official item deliberately
+  share a title. It can be dismissed, it never runs in the loader, and a downloaded map whose title another map uses
+  still loads. `00`'s "titles are not unique" and 09's "titles are labels" both now say so explicitly so the two rules
+  cannot be read as contradicting.
+- **The verified mark moved to the one bit a creator cannot write.** `SteamUGCDetails_t.m_bAcceptedForUse` is set by
+  the developer on the partner site, so unlike the `greenlit` key-value tag it cannot be spoofed, and it needs no
+  collection, no shipped build and no service. It is now the preferred source for trusted-ness, with a developer
+  collection or a local list as alternatives. The two marks stay separate lines in the UI: greenlit means people played
+  it, verified means the developer vouched for it.
+- **Not verified, and left to the implementer:** whether the accepted-for-use flag can be filtered server-side in the
+  target SDK. The published-file-details field is documented; the query side was not confirmed here, so task 13 says to
+  test which of the flag, a collection or a local list the SDK supports and to record the answer rather than assuming it.

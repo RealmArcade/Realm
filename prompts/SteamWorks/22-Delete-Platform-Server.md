@@ -47,7 +47,7 @@ Every feature is listed with where its replacement lives. Anything not in this t
 | `/api/publish_map/*` (initiate, finalize, upload_asset, asset_author) | `ISteamUGC` publishing in the editor (07). `asset_author` lookups die with public-key attribution (18). |
 | `/api/cluster/*`, `ClusterEventService`, `ClusterPeerSync`, quorum sync loop, `AdminPublicKeys`, key generation | No federated nodes exist (05, 06, 10). There is no cluster to sync. |
 | `/api/maps/{title}/maintainers/*`, `MapMaintainerHelper` | Forks and reviewed mirrors with SteamID credits (17, 18). A map is maintained by publishing a fork, not by adding a maintainer to a registry row. |
-| `/api/admin/greenlight`, `/api/maps/greenlight_status/{mapId}`, `AdminGreenlightRequest` | The publish checklist plus the trusted marks (07, 13). |
+| `/api/admin/greenlight`, `/api/maps/greenlight_status/{mapId}`, `AdminGreenlightRequest` | The publish checklist (07), the local playtest bar that unlocks a public release (07A) and the trusted marks (13). Nothing replaces the endpoint: no request is sent anywhere. |
 | `/api/admin/bans*` | Partner-site moderation for items (13). Per-player gating is a Steam-level and lobby-level concern, not a server table. |
 | `/api/maps/report_metrics`, `MapStats`, `PlayerMapEngagement`, `MapMetricsReport` | Steam stats for anything player-facing (12). Per-map playtime and engagement charts are dropped, not reimplemented. |
 | `/api/discovery/maps`, `/api/creators*` (register, check, list, portfolio), `CreatorDiscoveryService` data | `CreateQueryAllUGCRequest` and `CreateQueryUserUGCRequest` in the client (08, 13, 16); attribution by SteamID (18). |
