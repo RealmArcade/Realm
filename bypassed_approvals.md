@@ -474,10 +474,14 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   the recommended-FPS text), `STEAM OFFLINE`, `TOWER DEFENSE`, the imported-content attribution lines, `Quit Match`,
   `Select All` / `Select None`, `Clear Selection`, `Import Map (.rmap)` and `Failed to start the match.`. They are
   translated now, which took the nine catalogs from 255-267 English prose keys to **232-244**.
-- **What remains is deliberately left.** Every one of those ~235 residual keys belongs to the map *authoring* tools - the
-  map generator, the procedural-animation studio, the VFX studio, the GLB converter and the cross-map import dialogs -
-  plus slugs and example values (`vfx_slug`, `your.email@example.com`, `func(id: s32, ...)`) and node names that the
-  scanner collected from scenes. A player never opens them; an author does, and an author is already reading a tool whose
-  compiler output, file paths and template ids are English. Translating them is a batch job with its own review cost, and
-  doing it badly would be worse than the English it replaces. Korean is the reference for what complete looks like: 31
-  residual keys, all of them the slugs and identifiers that are meant to stay.
+- **What remains belongs to the map authoring tools.** The map generator, the cross-map import dialogs, the
+  procedural-animation and VFX studios, the GLB converter and the asset importers, plus slugs and example values
+  (`vfx_slug`, `your.email@example.com`, `func(id: s32, ...)`) and node names the scanner collected from scenes. They are
+  being translated in batches, largest surface first, rather than left out: the generator's 35 strings and the import
+  dialog's 30 are done, which took the nine catalogs from 232-244 English prose keys to **171-183**. `coverage` is the
+  live count and the source of truth here - every figure in this paragraph was true on the day it was written, and the
+  command is how the next person checks it instead of trusting the number.
+- **Why the authoring surface is last, not skipped.** A player never opens those dialogs; an author does, and an author
+  is already reading a tool whose compiler output, file paths and template ids are English. That makes the surface less
+  urgent, not unimportant, and it is why it was batched rather than done in one pass where a five-placeholder summary
+  sentence in nine languages would have been a guess with no way left to review it.
