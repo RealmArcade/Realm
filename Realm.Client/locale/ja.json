@@ -2873,5 +2873,7 @@
   "MAP DETAILS: {0}": "マップ詳細: {0}",
   "FILE SIZE: {0}": "ファイルサイズ: {0}",
   "ENGINE VERSION: {0}": "エンジンバージョン: {0}",
-  "VERSION: {0}": "バージョン: {0}"
+  "VERSION: {0}": "バージョン: {0}",
+  "Construction complete!": "建設完了！",
+  "Unit is already at full health!": "ユニットの体力はすでに満タンです！"
 }

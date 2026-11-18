@@ -2873,5 +2873,7 @@
   "MAP DETAILS: {0}": "地图详情：{0}",
   "FILE SIZE: {0}": "文件大小：{0}",
   "ENGINE VERSION: {0}": "引擎版本：{0}",
-  "VERSION: {0}": "版本：{0}"
+  "VERSION: {0}": "版本：{0}",
+  "Construction complete!": "建造完成！",
+  "Unit is already at full health!": "单位生命值已满！"
 }

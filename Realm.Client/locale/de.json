@@ -2873,5 +2873,7 @@
   "MAP DETAILS: {0}": "KARTENDETAILS: {0}",
   "FILE SIZE: {0}": "DATEIGRÖSSE: {0}",
   "ENGINE VERSION: {0}": "ENGINE-VERSION: {0}",
-  "VERSION: {0}": "VERSION: {0}"
+  "VERSION: {0}": "VERSION: {0}",
+  "Construction complete!": "Bau abgeschlossen!",
+  "Unit is already at full health!": "Die Einheit hat bereits volle Gesundheit!"
 }

@@ -214,8 +214,8 @@ public sealed class TopToolbarPanel
 			TestSettingsOption.AddThemeFontOverride("font", font);
 		}
 		TestSettingsOption.AddThemeFontSizeOverride("font_size", 11);
-		TestSettingsOption.TooltipText = "Test Settings";
-		TestSettingsOption.AddItem("Test Settings", 0);
+		TestSettingsOption.TooltipText = TranslationServer.Translate("Test Settings");
+		TestSettingsOption.AddItem(TranslationServer.Translate("Test Settings"), 0);
 		TestSettingsOption.Selected = -1;
 		TestSettingsOption.Text = UnicodeIcons.CHEVRON_DOWN;
 		hooks.StyleOptionPopup(TestSettingsOption);

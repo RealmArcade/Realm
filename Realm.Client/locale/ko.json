@@ -2873,5 +2873,7 @@
   "MAP DETAILS: {0}": "맵 상세 정보: {0}",
   "FILE SIZE: {0}": "파일 크기: {0}",
   "ENGINE VERSION: {0}": "엔진 버전: {0}",
-  "VERSION: {0}": "버전: {0}"
+  "VERSION: {0}": "버전: {0}",
+  "Construction complete!": "건설 완료!",
+  "Unit is already at full health!": "유닛의 체력이 이미 최대입니다!"
 }

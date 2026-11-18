@@ -2873,5 +2873,7 @@
   "MAP DETAILS: {0}": "मानचित्र विवरण: {0}",
   "FILE SIZE: {0}": "फ़ाइल आकार: {0}",
   "ENGINE VERSION: {0}": "इंजन संस्करण: {0}",
-  "VERSION: {0}": "संस्करण: {0}"
+  "VERSION: {0}": "संस्करण: {0}",
+  "Construction complete!": "निर्माण पूर्ण!",
+  "Unit is already at full health!": "यूनिट का स्वास्थ्य पहले से पूर्ण है!"
 }

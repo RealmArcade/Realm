@@ -2873,5 +2873,7 @@
   "MAP DETAILS: {0}": "تفاصيل الخريطة: {0}",
   "FILE SIZE: {0}": "حجم الملف: {0}",
   "ENGINE VERSION: {0}": "إصدار المحرك: {0}",
-  "VERSION: {0}": "الإصدار: {0}"
+  "VERSION: {0}": "الإصدار: {0}",
+  "Construction complete!": "اكتمل البناء!",
+  "Unit is already at full health!": "الوحدة بكامل صحتها بالفعل!"
 }

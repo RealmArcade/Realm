@@ -173,7 +173,7 @@ public partial class WasmConsoleWindow : Window
 
 		_commandInput = new LineEdit();
 		_commandInput.Name = "CommandInput_LineEdit";
-		_commandInput.PlaceholderText = "Enter command or chat message...";
+		_commandInput.PlaceholderText = TranslationServer.Translate("Enter command or chat message...");
 		_commandInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		UIStyle.ApplyTextInput(_commandInput, 13);
 		_commandInput.TextSubmitted += OnCommandSubmitted;
@@ -181,13 +181,13 @@ public partial class WasmConsoleWindow : Window
 
 		var copyButton = new Button();
 		copyButton.Name = "CopyButton_Button";
-		copyButton.Text = "Copy Logs";
+		copyButton.Text = TranslationServer.Translate("Copy Logs");
 		copyButton.Pressed += CopyLogsToClipboard;
 		bottomHBox.AddChild(copyButton);
 
 		var clearButton = new Button();
 		clearButton.Name = "ClearButton_Button";
-		clearButton.Text = "Clear";
+		clearButton.Text = TranslationServer.Translate("Clear");
 		clearButton.Pressed += ClearLogs;
 		bottomHBox.AddChild(clearButton);
 

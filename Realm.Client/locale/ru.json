@@ -2873,5 +2873,7 @@
   "MAP DETAILS: {0}": "О КАРТЕ: {0}",
   "FILE SIZE: {0}": "РАЗМЕР ФАЙЛА: {0}",
   "ENGINE VERSION: {0}": "ВЕРСИЯ ДВИЖКА: {0}",
-  "VERSION: {0}": "ВЕРСИЯ: {0}"
+  "VERSION: {0}": "ВЕРСИЯ: {0}",
+  "Construction complete!": "Строительство завершено!",
+  "Unit is already at full health!": "У юнита уже полное здоровье!"
 }

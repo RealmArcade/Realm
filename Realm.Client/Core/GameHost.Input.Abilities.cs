@@ -347,7 +347,7 @@ public partial class GameHost
 	{
 		if (GameContext.InputService.IsUnitAtFullHealth(unit.Entity))
 		{
-			GameContext.InGameHud?.ShowFeedbackText("Unit is already at full health!", new Color(0.8f, 0.8f, 0.8f));
+			GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Unit is already at full health!"), new Color(0.8f, 0.8f, 0.8f));
 			GameContext.UserInterface?.PlayWarningSound();
 		}
 	}

@@ -267,7 +267,7 @@ public partial class LobbyBrowser : Control
 		_searchBar.AddThemeColorOverride("caret_color", new Color(0.95f, 0.9f, 0.8f));
 		_searchBar.CustomMinimumSize = new Vector2(660, 100);
 		_searchBar.Alignment = HorizontalAlignment.Left;
-		_searchBar.PlaceholderText = "Search Lobbies...";
+		_searchBar.PlaceholderText = TranslationServer.Translate("Search Lobbies...");
 		_searchBar.RightIcon = null;
 	}
 

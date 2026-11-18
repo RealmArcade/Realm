@@ -227,7 +227,7 @@ public partial class GameHost
 			OnConstructionFinished?.Invoke((UnitId)buildingEntity.Id);
 		}
 
-		GameContext.InGameHud?.ShowFeedbackText("Construction complete!", new Color(0.3f, 0.9f, 0.4f));
+		GameContext.InGameHud?.ShowFeedbackText(TranslationServer.Translate("Construction complete!"), new Color(0.3f, 0.9f, 0.4f));
 		GameContext.InGameHud?.RefreshUI(SelectedUnits);
 	}
 

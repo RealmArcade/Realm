@@ -2873,5 +2873,7 @@
   "MAP DETAILS: {0}": "DÉTAILS DE LA CARTE : {0}",
   "FILE SIZE: {0}": "TAILLE DU FICHIER : {0}",
   "ENGINE VERSION: {0}": "VERSION DU MOTEUR : {0}",
-  "VERSION: {0}": "VERSION : {0}"
+  "VERSION: {0}": "VERSION : {0}",
+  "Construction complete!": "Construction terminée !",
+  "Unit is already at full health!": "L'unité a déjà toute sa santé !"
 }
