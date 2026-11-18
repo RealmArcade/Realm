@@ -54,8 +54,7 @@ public static partial class MapInfoHelper
 	private static bool IsValidJsonName(string name) =>
 		!name.StartsWith(".") &&
 		name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
-		!string.Equals(name, "pck_cache.json", StringComparison.OrdinalIgnoreCase) &&
-		!string.Equals(name, "servers.json", StringComparison.OrdinalIgnoreCase);
+		!string.Equals(name, "pck_cache.json", StringComparison.OrdinalIgnoreCase);
 
 	private static void ProcessMapDetails(MapBriefingDetails details, List<MapBriefingDetails> maps, HashSet<string> seen)
 	{

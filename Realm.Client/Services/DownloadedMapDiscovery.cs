@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -87,7 +87,6 @@ public static class DownloadedMapDiscovery
 	{
 		return fileName.StartsWith(".") ||
 		       string.Equals(fileName, "pck_cache.json", StringComparison.OrdinalIgnoreCase) ||
-		       string.Equals(fileName, "servers.json", StringComparison.OrdinalIgnoreCase) ||
 		       string.Equals(fileName, "asset_index.cache", StringComparison.OrdinalIgnoreCase) ||
 		       string.Equals(fileName, "settings.json", StringComparison.OrdinalIgnoreCase) ||
 		       string.Equals(fileName, "editor_settings.json", StringComparison.OrdinalIgnoreCase);
