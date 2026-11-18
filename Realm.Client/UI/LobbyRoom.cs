@@ -45,6 +45,8 @@ public partial class LobbyRoom : Control
 
 	private Button _backButton = null!;
 	private Button _invitePlayersButton = null!;
+
+	private Button _joinCodeButton = null!;
 	private Label _unlistedLobbyHint = null!;
 	private CheckBox _unlistedLobbyCheck = null!;
 
@@ -121,6 +123,7 @@ public partial class LobbyRoom : Control
 
 		_backButton = GetNode<Button>("BackButton");
 		_invitePlayersButton = GetNode<Button>("InvitePlayersButton");
+		_joinCodeButton = GetNode<Button>("JoinCodeButton");
 		_unlistedLobbyHint = GetNode<Label>("UnlistedLobbyHint");
 		_startButton = GetNode<Button>("StartButton");
 		_unlistedLobbyHint.Text = TranslationServer.Translate("Your lobby is not advertised publicly but direct invites are still available.");
@@ -320,6 +323,12 @@ public partial class LobbyRoom : Control
 		_invitePlayersButton.Visible = invitesPlayers;
 		_unlistedLobbyHint.Visible = invitesPlayers && Lobby.IsHost && Lobby.IsUnlisted;
 		_unlistedLobbyCheck.Visible = invitesPlayers && Lobby.IsHost;
+
+		// The code is set by the host and asked of the players arriving without one, so only a host of a lobby that seats
+		// other people has a use for the button. A joiner's field opens by itself when the lobby asks for a code.
+		_joinCodeButton.Visible = invitesPlayers && Lobby.IsHost;
+		if (!_joinCodeButton.Visible && _joinCodePanel is not null) _joinCodePanel.Visible = false;
+
 		UpdateUnlistedLobbyCheck();
 
 		// A disabled overlay is not a failure and does not hide the invitation: Steam still holds the lobby, the friends

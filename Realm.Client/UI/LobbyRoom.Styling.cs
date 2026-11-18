@@ -80,6 +80,7 @@ public partial class LobbyRoom
 
 		SetupLobbyButton(_backButton, TranslationServer.Translate(" LEAVE LOBBY"), ReturnFromLobby);
 		SetupLobbyButton(_invitePlayersButton, TranslationServer.Translate("INVITE PLAYERS"), OpenInvitePlayersDialog);
+		SetupLobbyButton(_joinCodeButton, TranslationServer.Translate("JOIN CODE"), ToggleJoinCodePanel);
 		SetupStartButton();
 
 		_mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);

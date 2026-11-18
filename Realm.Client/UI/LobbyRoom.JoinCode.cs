@@ -1,5 +1,6 @@
 using Godot;
 using Realm.Client.Network;
+using Realm.Client.Services;
 using Realm.Shared.Network;
 
 namespace Realm.Client.UI;
@@ -18,6 +19,12 @@ public partial class LobbyRoom
 	private Label _joinCodeMessage = null!;
 
 	private Label _title = null!;
+
+	/// <summary>
+	///     Whether the host has the code field open. The host decides the code, so the field waits behind the header button
+	///     instead of covering the seats of a lobby that may not gate anything.
+	/// </summary>
+	private bool _joinCodePanelRequested;
 
 	/// <summary>Builds the join code field, hidden until the lobby says its seats are gated.</summary>
 	private void CreateJoinCodeUI()
@@ -114,6 +121,16 @@ public partial class LobbyRoom
 	///     Shows the field when the lobby gates its seats and this screen does not hold one yet, and takes it away the
 	///     moment the seat is held, which is what a cleared code does without a reconnect.
 	/// </summary>
+	/// <summary>
+	///     Opens or closes the host's code field. It is the header button's action and nothing else opens it for a host.
+	/// </summary>
+	private void ToggleJoinCodePanel()
+	{
+		GameContext.UserInterface?.PlayClickSound();
+		_joinCodePanelRequested = !_joinCodePanelRequested;
+		UpdateJoinCodeVisibility();
+	}
+
 	private void UpdateJoinCodeVisibility()
 	{
 		if (_joinCodePanel == null) return;
@@ -128,8 +145,9 @@ public partial class LobbyRoom
 
 		if (Lobby.IsHost)
 		{
-			// The host writes the code rather than presenting it, so the field is always offered and says what it is for.
-			_joinCodePanel.Visible = true;
+			// The host writes the code rather than presenting it, so the field opens from the header button and says what it
+			// is for. A host who never opens it keeps the lobby open to everybody who can see it.
+			_joinCodePanel.Visible = _joinCodePanelRequested;
 			if (_title != null) _title.Text = TranslationServer.Translate("Set a join code so only players who know it can take a seat. Leave it empty to let anyone who can see the lobby join.");
 			return;
 		}
