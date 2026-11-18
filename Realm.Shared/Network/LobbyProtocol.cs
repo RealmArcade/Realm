@@ -1,7 +1,6 @@
 ﻿using System.Globalization;
 using System.Text;
 using MemoryPack;
-using Realm.Shared.Accounts;
 
 namespace Realm.Shared.Network;
 
@@ -400,10 +399,10 @@ public static class LobbyLimits
 {
 	/// <summary>
 	///     The seat's name ceiling in UTF-16 units. It is deliberately the name byte ceiling: a persona that already reads cleanly
-	///     never exceeds <see cref="DisplayNameRules.MaximumUtf8Bytes" /> UTF-8 bytes, and UTF-8 never uses fewer bytes than the
+	///     never exceeds <see cref="LobbyPlayerNameRules.MaximumUtf8Bytes" /> UTF-8 bytes, and UTF-8 never uses fewer bytes than the
 	///     UTF-16 units it encodes, so such a name is never truncated on its way into a seat.
 	/// </summary>
-	public const int MaximumPlayerNameLength = DisplayNameRules.MaximumUtf8Bytes;
+	public const int MaximumPlayerNameLength = LobbyPlayerNameRules.MaximumUtf8Bytes;
 	public const int MaximumFactionLength = 48;
 	public const int MaximumTeamNameLength = 48;
 	public const int MaximumChatMessageLength = 400;
@@ -470,7 +469,7 @@ public static class LobbyLimits
 			builder.Append(rune.ToString());
 		}
 
-		return DisplayNameRules.TruncateAtGraphemeBoundary(builder.ToString().Trim(), maximumLength);
+		return LobbyPlayerNameRules.TruncateAtGraphemeBoundary(builder.ToString().Trim(), maximumLength);
 	}
 
 	/// <summary>
@@ -480,7 +479,7 @@ public static class LobbyLimits
 	/// </summary>
 	public static string SanitizeDisplayName(string? value)
 	{
-		return DisplayNameRules.AdmitForLobby(value, MaximumPlayerNameLength);
+		return LobbyPlayerNameRules.AdmitForLobby(value, MaximumPlayerNameLength);
 	}
 
 	public static bool IsAcceptableTeamName(string? teamName)

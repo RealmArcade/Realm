@@ -276,6 +276,12 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   lookup and rename.
 - **Twenty-one client files imported that namespace without using it**, left from the deleted account client. Removed; the
   build is the proof, because a namespace that no longer supplied a type would have failed to resolve.
+- **The rejection codes and the namespace went with it.** `DisplayNameError` was still produced by the admission path and
+  read by nobody, so `TryCanonicalize` now answers the one question admission asks - whether a name can be carried as it
+  stands - and the enum is deleted. The type itself moved out of `Realm.Shared/Accounts` and is now
+  `Realm.Shared/Network/LobbyPlayerNameRules`, so no namespace named after the account system and no type named
+  `DisplayName` survives in the tree. Renaming a type is usually churn; here the name was the residue, and it was the last
+  thing in the repository that would tell a reader a player has a typed identity the game manages.
 - **`MainMenu.OnPlayPressed` documented a flow that does not exist** — "opens the lobby browser without an account", a
   "signed-out player" playing "under the unverified name", and a "verified review at the end of a match" ask for a sign-in.
   Play opens Steam's directory, which states its reason and offers nothing when there is no Steam client. `SteamService.UserName`

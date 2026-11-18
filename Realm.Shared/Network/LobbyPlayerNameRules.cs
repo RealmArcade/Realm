@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
-namespace Realm.Shared.Accounts;
+namespace Realm.Shared.Network;
 
 /// <summary>
 ///     Keeps the name a screen states for its own seat readable and inside the length a lobby message can carry. The name is
@@ -12,7 +12,7 @@ namespace Realm.Shared.Accounts;
 ///     needs - collapsing the whitespace a seat typed, refusing the control and format characters a player cannot see, and
 ///     cutting the result at a grapheme boundary so a surrogate pair, or a base plus its combining marks, is never split.
 /// </summary>
-public static class DisplayNameRules
+public static class LobbyPlayerNameRules
 {
 	private const int MinimumGraphemeClusters = 3;
 
@@ -27,25 +27,16 @@ public static class DisplayNameRules
 
 	private static readonly HashSet<int> AllowedPunctuationCodePoints = new() { '-', '_', '.', '\'' };
 
-	private static bool TryCanonicalize(string? candidate, out string canonical, out DisplayNameError error)
+	private static bool TryCanonicalize(string? candidate, out string canonical)
 	{
 		canonical = string.Empty;
-		error = DisplayNameError.None;
 
-		if (string.IsNullOrWhiteSpace(candidate))
-		{
-			error = DisplayNameError.Empty;
-			return false;
-		}
+		if (string.IsNullOrWhiteSpace(candidate)) return false;
 
 		string collapsed = CollapseWhitespace(candidate);
-		if (collapsed.Length == 0)
-		{
-			error = DisplayNameError.Empty;
-			return false;
-		}
+		if (collapsed.Length == 0) return false;
 
-		if (!RejectForbiddenCodePoints(collapsed, out error)) return false;
+		if (!HasNoForbiddenCodePoint(collapsed)) return false;
 
 		string normalised;
 		try
@@ -54,40 +45,16 @@ public static class DisplayNameRules
 		}
 		catch (ArgumentException)
 		{
-			error = DisplayNameError.DisallowedCharacter;
 			return false;
 		}
 
-		if (!HasCombiningMarksAttachedToBases(normalised))
-		{
-			error = DisplayNameError.CombiningMarkWithoutBase;
-			return false;
-		}
+		if (!HasCombiningMarksAttachedToBases(normalised)) return false;
 
 		int graphemeClusters = CountGraphemeClusters(normalised);
-		if (graphemeClusters < MinimumGraphemeClusters && !IsShortCjkName(normalised, graphemeClusters))
-		{
-			error = DisplayNameError.TooShort;
-			return false;
-		}
-
-		if (graphemeClusters > MaximumGraphemeClusters)
-		{
-			error = DisplayNameError.TooLong;
-			return false;
-		}
-
-		if (Encoding.UTF8.GetByteCount(normalised) > MaximumUtf8Bytes)
-		{
-			error = DisplayNameError.TooManyBytes;
-			return false;
-		}
-
-		if (!ContainsLetterOrDigit(normalised))
-		{
-			error = DisplayNameError.NoLettersOrDigits;
-			return false;
-		}
+		if (graphemeClusters < MinimumGraphemeClusters && !IsShortCjkName(normalised, graphemeClusters)) return false;
+		if (graphemeClusters > MaximumGraphemeClusters) return false;
+		if (Encoding.UTF8.GetByteCount(normalised) > MaximumUtf8Bytes) return false;
+		if (!ContainsLetterOrDigit(normalised)) return false;
 
 		canonical = normalised;
 		return true;
@@ -100,7 +67,7 @@ public static class DisplayNameRules
 	public static string AdmitForLobby(string? candidate, int maximumUtf16Units)
 	{
 		if (string.IsNullOrWhiteSpace(candidate)) return string.Empty;
-		if (TryCanonicalize(candidate, out string canonical, out _) && canonical.Length <= maximumUtf16Units) return canonical;
+		if (TryCanonicalize(candidate, out string canonical) && canonical.Length <= maximumUtf16Units) return canonical;
 
 		return TruncateAtGraphemeBoundary(StripDisallowedCodePoints(candidate.Trim()), maximumUtf16Units);
 	}
@@ -153,9 +120,8 @@ public static class DisplayNameRules
 		return builder.ToString().TrimEnd();
 	}
 
-	private static bool RejectForbiddenCodePoints(string value, out DisplayNameError error)
+	private static bool HasNoForbiddenCodePoint(string value)
 	{
-		error = DisplayNameError.None;
 		foreach (Rune rune in value.EnumerateRunes())
 		{
 			if (rune.Value == SpaceCharacter) continue;
@@ -175,7 +141,6 @@ public static class DisplayNameRules
 				case UnicodeCategory.EnclosingMark:
 					continue;
 				default:
-					error = DisplayNameError.DisallowedCharacter;
 					return false;
 			}
 		}
