@@ -441,6 +441,13 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   exist and were translated, but the value was written at construction and nothing re-asked the node for it, so a player
   whose language is not English met them in English until they switched language and back. Wrapping them where they are drawn
   is a one-line change per site and is the rule the style guide already states; no layout, wording or behaviour changed.
+- **What the same audit found clean.** All 182 `text`, `tooltip_text`, `placeholder_text` and `title` values written into the
+  scene files are catalog keys, so the scene surface cannot show English. Five places compare displayed text against a
+  literal: four in the noise texture dialog (`Cellular`, `ColorRamp`) and one in the UX smoke harness (`Worker`, `Gather`).
+  Those four are the dialog's list items, whose strings are also the identifiers written into the generated texture config,
+  so they are data that must stay English rather than prose that was missed; the harness compares a unit name and a card
+  tooltip that come from the map's own metadata. Comparing there is safe for the same reason translating them would be
+  wrong, so they were left alone rather than converted to ids.
 - **Two judgement calls inside the text.** "Steam", "Workshop", "SteamID64", `.rmap`, `terrain.json`, the
   `authorship_key_...rkey` filename and the Discord URL pattern were left untranslated in every language, because they are
   identifiers a player has to type or match, not words. And `BUILD  ` was left as `BUILD  ` in all ten, since it is drawn
