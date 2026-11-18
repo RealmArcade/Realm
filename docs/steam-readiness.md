@@ -68,8 +68,10 @@ each catalog already used - lobby, map, host, publish and invite keep the words 
 not something a compiler checks, so the first pass in each language is a review rather than a proof. [The translation
 kit](translation-kit/README.md) is how that review is handed over and how the next string gets added. The other half of
 this item is a string rendered through a path that does not register its key, which shows English even where a
-translation exists, and that is why the test plan's local group should be run in one non-English language as well as
-English.
+translation exists, or a comparison made against text a translator changed, which is how the object manager's type
+filter silently stopped matching anything outside English. [Test plan](steam-test-plan.md) group K is that half: one
+language played through the menu, the lobby, a match and the editor, with the four failure shapes it is looking for
+named, because none of them is visible from a catalog audit.
 
 ## The order to check it in
 

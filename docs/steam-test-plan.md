@@ -154,6 +154,61 @@ Repeat B and D with the two accounts on different networks (one on a phone hotsp
 assumption shows up: the host's authority must be reachable over Steam's own path, with no forwarded port and no relay
 of ours.
 
+## K. One non-English language, played through
+
+The catalogs are verified mechanically — `verify` proves every key is present with matching placeholders, `prune` proves
+no key outlived its call site — but nothing in this branch has been read by a native speaker or drawn on a screen in
+another language. This group is the cheapest way to find the class of defect that a compiler and a key audit both miss:
+**a string built at draw time that carries no key, and a comparison made against text a translator was allowed to
+change.**
+
+1. Settings → Video → Language, pick German (or Japanese, which is better at exposing truncation). Apply, then restart
+   the client: the language must persist (`GameSettings.Language` is saved on Apply). Applying settings closes the
+   dialog, so every check below is done after the switch rather than during it. Arabic is worth a run of its own for a
+   different reason: `LocalizationManager` flips `LayoutDirection` to RTL for it, so the question there is whether the
+   screens still lay out at all rather than whether the words are right.
+2. Menu → map library → a map's details → storage. Nothing may read in English: creator line, stat rows, version rows,
+   the tech info block, the download button while it is downloading (`Wird heruntergeladen... 42%`), and the
+   `1 Version` / `3 Versionen` count.
+3. Host a lobby alone (no second account): seats heading, settings rows, map card, start button, chat placeholder.
+4. Start a single-player match. Hover a command card, an upgrade card and an inventory item: `Kaufen: …`,
+   `Verbessern: …`, `Stufe 2`, `Bis zu 3 Mal.`, `Bei 2 Exemplaren.`, `Schwert (Bestand: 2)`. Press the grid overlay
+   toggle and read the feedback line (`Overlay-Modus: RASTER`); right-click a unit on the minimap and read
+   `Kamera → …`.
+5. Open a map in the editor and walk the surfaces this pass touched:
+   - **Object Manager**: choose `Einheiten` in the filter. The tree must list units and each heading must read
+     `Einheiten (12)`. An empty tree while `Alle Typen` shows everything is the exact defect that was just fixed, so it
+     is the single most important check in this group.
+   - **Animation preview**: the per-action count badge (`3 Anim.`).
+   - **Asset browser**: open the folder filter. Every downloaded map reads `📦 [Karte] <name> (<version> - Neueste)`,
+     and the newest version of each is marked `Neueste` once rather than on every row.
+   - **Feedback lines**: draw a coordinate (`Koordinate „x“ erstellt.`), run a utility
+     (`„<name>“ wurde abgeschlossen`), trigger a failed import or delete (`Fehler beim Importieren des Assets: …`).
+   - **Template manager**: delete-guard notes read translated (`Platzierte Instanzen im Kartengelände gefunden …`),
+     while a template's `Damage: 5 | Range: 2 | Type: pierce` description stays English on purpose — it is written into
+     `metadata.json` and read back as map content, so a translated one would put the editor's language into every
+     player's copy. Confirm it is still English, and confirm an author's own description in that field survives a save
+     unchanged.
+6. **What this group cannot test yet, and why.** The language changes only on Apply, and Settings is a screen of its own
+   reached from the main menu, so no editor or match surface is on screen when `LocalizationManager.UpdateLocale`
+   fires. Those labels are therefore checked as "correct when built", not as "healed in place": a control that was
+   assigned once instead of registered still reads right, because the dialog was rebuilt afterwards. The one place the
+   live path is observable is the Settings screen itself — change the language with that screen up and press Apply.
+   There, a label drawing a key is asked for again (`RetranslateCurrentScene` sweeps the live tree, so even a plain
+   `TranslationServer.Translate` assignment heals), a built string registered with `LocalizedText` is redrawn, and a
+   built string assigned directly keeps the language it was built in. If a later pass lets Settings open over a match
+   or the editor, that is where their registration gets its real test; until then, `LocalizedText` registration is a
+   claim this plan can only partly check.
+
+**A failure in this group looks like one of four things**, and each points at a different cause: an English word sitting
+beside translated furniture (a literal with no key, so the generator never saw it); a label that keeps the previous
+language after a switch (a built string assigned once instead of registered); an empty list or an unmatched filter where
+English shows entries (a comparison against translated text); or a literal `{0}` on screen (a translation whose
+placeholders drifted, which `verify` should already have caught — if it appears, `verify`'s check is the thing to fix).
+
+**Record** the language, the screen, the on-screen text and a screenshot. Wording that is merely clumsy is a note for
+the translation kit, not a defect: the first pass in each language is a review, and this group is how that review starts.
+
 ## Pivot candidates to settle during the test
 
 These are the decisions most likely to be wrong in a way that only playing reveals. Each is a single change, not a
