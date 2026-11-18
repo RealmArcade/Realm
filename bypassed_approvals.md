@@ -255,6 +255,15 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   definition. The paths are removed, and so is the property and the constructor parameter that carried them, rather than
   left in place for someone to wire a dead path into a bar later. The four attribute call sites now state only an id, a
   name and a description.
+- **The replicated component baseline was re-checked without running the suite.** `ReplicationContractTests` is the guard
+  for the append-only wire table and it is deliberately not run in this phase, so the same check was reproduced statically:
+  the canonical type list in `ComponentTypeRegistry` assigns ids by array position, and every one of the 67 components in
+  `ReplicationComponents.baseline.json` still resolves to the id it ships under, with no id reused for a different
+  component. The 67 codecs `ReplicatedComponents` registers are exactly those components. Two codecs I first read as
+  unregistered (`AttackNumbersCodec`, `ResistanceNumbersCodec`) are second codecs for `Attack` and `Resistances` that state
+  the same id, and `Register` drops the duplicate — not new components. The `ComponentIds` constants that map scripts read
+  are additionally enforced at startup by `VerifySharedComponentIds`, which refuses to boot a build whose canonical order
+  drifted from those constants.
 - **Checked and left alone:** `RegistryService`, `RegistryLookups`, `RegistryKeyMatching` and `GameHost.Registry.cs` are
   the placeable-template store, not a lobby registry; `AccountID_t` in `SteamWorkshopService` is Steamworks' own type;
   `RouteReachabilityEntry` and `CombatAndDamageService.Reach` are combat reach; the "punch", "star rating" and
