@@ -5,6 +5,7 @@ using Realm.Client.ReplaySystem;
 using Realm.Client.UI;
 using Realm.Client.Services.MapHistory;
 using Realm.Client.Services.ModelOptimization;
+using Realm.Client.Services.Playtest;
 using Realm.Ecs;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
@@ -76,8 +77,12 @@ namespace Realm.Client.Services
 		public static ReplayPlaybackManager ReplayPlayback => _replayPlayback ??= new ReplayPlaybackManager();
 
 		private static LocalAuthority? _localAuthority;
+		private static PlaytestLedgerService? _playtest;
 
 		public static LocalAuthority LocalAuthority => _localAuthority ??= new LocalAuthority();
+
+		/// <summary>The playtest ledger and the greenlight record this machine keeps for the maps it plays and publishes.</summary>
+		public static PlaytestLedgerService Playtest => _playtest ??= new PlaytestLedgerService();
 
 		[SupportedOSPlatform("windows")]
 		public static VSCodeManager VSCode => _vscode ??= new VSCodeManager();

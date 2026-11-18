@@ -75,6 +75,16 @@ public static class SteamWorkshopService
 	/// <summary>The tag that marks the editor's shared art-pack item.</summary>
 	public const string AssetPackTag = "asset-pack";
 
+	/// <summary>
+	///     The key-value tag a map carries once enough different people have played it for its author to publish it publicly.
+	///     It is self-declared, like everything else about a public release, so it is a hint for ordering and display and
+	///     never a trust or security signal: the Verified mark is the one a creator cannot write.
+	/// </summary>
+	public const string GreenlitTagKey = "greenlit";
+
+	/// <summary>The value the <see cref="GreenlitTagKey" /> tag carries.</summary>
+	public const string GreenlitTagValue = "1";
+
 	/// <summary>The most items one query page can return.</summary>
 	public const uint ResultsPerPage = 50;
 
@@ -108,7 +118,12 @@ public static class SteamWorkshopService
 	/// <param name="identity">What the item states about the map it carries.</param>
 	/// <param name="visibility">Who Steam shows the item to.</param>
 	/// <param name="existingPublishedFileId">The item to update, or zero to create one.</param>
-	/// <param name="changeNote">What changed, which Steam records against the update.</param>
+	/// <param name="changeNote">
+	///     What changed, which Steam records against the update. Steam's own Revert to this version is chosen by these notes,
+	///     so a note that says which build and which package the upload was made from is what makes a rollback possible
+	///     without any client code.
+	/// </param>
+	/// <param name="greenlit">Whether enough different people have played the map for this publish to be public.</param>
 	/// <param name="progressCallback">Where the upload has reached.</param>
 	/// <param name="cancellationToken">Gives up the upload.</param>
 	/// <returns>What the publish ended as.</returns>
@@ -121,6 +136,7 @@ public static class SteamWorkshopService
 		ERemoteStoragePublishedFileVisibility visibility,
 		ulong existingPublishedFileId,
 		string changeNote,
+		bool greenlit,
 		Action<WorkshopPublishProgress>? progressCallback,
 		CancellationToken cancellationToken)
 	{
@@ -167,6 +183,7 @@ public static class SteamWorkshopService
 		SteamUGC.SetItemTags(updateHandle, tags, false);
 		SteamUGC.AddItemKeyValueTag(updateHandle, MapNameTagKey, identity.MapName);
 		if (!string.IsNullOrEmpty(identity.GameBuildNumber)) SteamUGC.AddItemKeyValueTag(updateHandle, GameBuildTagKey, identity.GameBuildNumber);
+		if (greenlit) SteamUGC.AddItemKeyValueTag(updateHandle, GreenlitTagKey, GreenlitTagValue);
 
 		SubmitItemUpdateResult_t submitted = await SubmitItemUpdateAsync(updateHandle, changeNote, progressCallback, cancellationToken);
 		if (submitted.m_eResult != EResult.k_EResultOK)

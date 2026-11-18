@@ -81,6 +81,9 @@ public partial class ListenServerHost
 			case NetworkFrameKind.SteamCloudUpload:
 				HandleSteamCloudUpload(peerId, payload);
 				break;
+			case NetworkFrameKind.PlaytestVote:
+				HandlePlaytestVote(peerId, payload);
+				break;
 			case NetworkFrameKind.Shutdown:
 				_log.Write($"peer {peerId} asked the match to end");
 				Stop();
@@ -144,6 +147,11 @@ public partial class ListenServerHost
 			case NetworkFrameKind.SteamCloudUpload:
 				// The map script ran in a match, so an upload still on its way when the match ended arrives at a lobby that has
 				// nothing to hand it to. It is dropped rather than treated as a frame a lobby member may not send.
+				break;
+
+			case NetworkFrameKind.PlaytestVote:
+				// A vote belongs to a match that is being played, and this session has no match yet. It is dropped rather than
+				// treated as a frame a lobby member may not send, because a screen sending one has not done anything wrong.
 				break;
 
 			case NetworkFrameKind.LatencyProbe:

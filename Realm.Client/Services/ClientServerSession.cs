@@ -234,6 +234,12 @@ public class ClientServerSession : IDisposable
 
 	public event Action<MapTransferReply>? MapTransferReplied;
 
+	/// <summary>The authority's answer to a playtest vote this screen cast, carrying the code the tester copies.</summary>
+	public event Action<PlaytestVoteAnswerMessage>? PlaytestVoteAnswered;
+
+	/// <summary>One accepted playtest vote in this match, which the screen keeps in its own ledger.</summary>
+	public event Action<PlaytestVoteRecordMessage>? PlaytestVoteRecorded;
+
 	public ClientServerSession(ClientNetworkChannel channel)
 	{
 		_channel = channel;
@@ -571,6 +577,21 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	///     Casts this screen's playtest vote about the map the match is playing. The authority records it against the Steam
+	///     identity this connection was seated as, so the vote states no identity of its own.
+	/// </summary>
+	/// <param name="vote">The answer the player gave.</param>
+	/// <returns>Whether the vote was sent; false when there is no match to send it to.</returns>
+	public bool SendPlaytestVote(Realm.Shared.Steam.PlaytestVote vote)
+	{
+		if (!IsRunning) return false;
+
+		var message = new PlaytestVoteMessage { Vote = (int)vote };
+		_channel.Send(NetworkFrameKind.PlaytestVote, MemoryPackSerializer.Serialize(message));
+		return true;
+	}
+
 	public bool SubmitConsoleCommand(string command, int selectedUnitEntityId)
 	{
 		if (!IsRunning) return false;
@@ -866,6 +887,14 @@ public class ClientServerSession : IDisposable
 
 			case NetworkFrameKind.CommandOutcome:
 				CommandAnswered?.Invoke(MemoryPackSerializer.Deserialize<CommandOutcome>(payload));
+				break;
+
+			case NetworkFrameKind.PlaytestVoteAnswer:
+				PlaytestVoteAnswered?.Invoke(MemoryPackSerializer.Deserialize<PlaytestVoteAnswerMessage>(payload));
+				break;
+
+			case NetworkFrameKind.PlaytestVoteRecord:
+				PlaytestVoteRecorded?.Invoke(MemoryPackSerializer.Deserialize<PlaytestVoteRecordMessage>(payload));
 				break;
 
 			case NetworkFrameKind.LatencyProbeEcho:

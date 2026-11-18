@@ -473,6 +473,16 @@
           "minimum": 1,
           "maximum": 24
         },
+        "PlaytestTesterThreshold": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "title": "PlaytestTesterThreshold",
+          "description": "How many different people have to have played this map before its author may publish it publicly. Leave it empty for the default of 25; set it to 0 for a map that cannot seat a crowd, such as a single-player campaign or a duel board.",
+          "minimum": 0,
+          "maximum": 1000
+        },
         "ShowUnitHealthBar": {
           "type": [
             "boolean",
