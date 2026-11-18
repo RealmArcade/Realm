@@ -59,8 +59,6 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// <summary>The port a lobby's loopback socket asks for by name before the system is allowed to choose one.</summary>
 	public const int DefaultGamePort = 8999;
 
-	public int ENetPort { get; private set; } = DefaultGamePort;
-
 	/// <summary>
 	///     The player slots the lobby's map states in its metadata, which is the shape a match started from this screen is
 	///     seated with. The lobby itself is sized by the slots it leaves open, which its own rows show.
@@ -285,8 +283,6 @@ public partial class LobbyManager : BaseMapTransferNode
 	}
 
 	public int LocalPeerId => _lobbySession?.LocalPeerId ?? -1;
-
-	public int BoundPort => _lobbySession?.Port ?? ENetPort;
 
 	/// <summary>
 	///     Whether this screen is holding a lobby: seated in one, whether it administers it or joined it. A screen that gave

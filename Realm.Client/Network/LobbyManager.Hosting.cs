@@ -389,37 +389,14 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
-	///     Publishes the lobby <see cref="PrepareHostedLobbyAsync" /> opened: the port is opened in the local firewall and on
-	///     the router, a registry node is asked to reach it, and the lobby is registered only once that node answered. The
-	///     host may have changed any setting the lobby offers in between, and the match plays the settings the lobby holds
-	///     when it starts.
+	///     Publishes the lobby <see cref="PrepareHostedLobbyAsync" /> opened by creating the Steam lobby that stands for it.
+	///     Steam owns the directory, the membership and the invites, so there is no port to open, no router to ask, no public
+	///     node to reach the lobby first and no registry to register with: the lobby exists when Steam says it does, and a
+	///     failure takes it down rather than leaving it open to an address nobody was given.
 	/// </summary>
-	public Task<bool> PublishPreparedLobbyAsync() => PublishPreparedLobbyAsync(keepLobbyOnFailure: false);
-
-	/// <summary>
-	///     Publishes the prepared lobby without taking it away when it cannot be listed, which is what a host already sitting
-	///     in its room needs: the lobby is open and reachable by anybody who is given its address, so a registry that cannot
-	///     confirm it costs the host the listing rather than the lobby. The host is told in the room's own chat, because the
-	///     screen that asked for the lobby has already moved on to it.
-	/// </summary>
-	/// <returns>Whether the lobby is listed on a registry node. False means it is open to players holding its address.</returns>
-	public Task<bool> PublishPreparedLobbyDirectlyOnFailureAsync() => PublishPreparedLobbyAsync(keepLobbyOnFailure: true);
-
-	/// <summary>
-	///     Publishes the prepared lobby by creating the Steam lobby that stands for it. Steam owns the directory, the
-	///     membership and the invites, so there is no port to open, no router to ask, no public node to reach the lobby first
-	///     and no registry to register with: the lobby exists when Steam says it does, and it is found because Steam knows
-	///     about it.
-	/// </summary>
-	/// <param name="keepLobbyOnFailure">
-	///     Kept for the callers that used to keep a reachable-but-unlisted lobby open. Steam either created the lobby or it did
-	///     not, so a failure here always takes the lobby down and this flag no longer changes anything.
-	/// </param>
 	/// <returns>Whether Steam now holds a lobby for this match.</returns>
-	private async Task<bool> PublishPreparedLobbyAsync(bool keepLobbyOnFailure)
+	public async Task<bool> PublishPreparedLobbyAsync()
 	{
-		_ = keepLobbyOnFailure;
-
 		ClientServerSession? prepared = _lobbySession;
 		if (prepared == null || !prepared.IsRunning || !IsHost)
 		{

@@ -508,9 +508,9 @@ public partial class LobbyCreate : Control
 	}
 
 	/// <summary>
-	///     Publishes the lobby the host is already sitting in, without holding the screen it was started from. A failure
-	///     leaves the lobby open to players who are given its address and reports that in the room's chat, so the host is
-	///     never left in a room that silently nobody can find.
+	///     Publishes the lobby the host is already sitting in, without holding the screen it was started from. Steam either
+	///     created the lobby or it did not, so a failure takes it down and the host is told rather than left in a room nobody
+	///     can find.
 	/// </summary>
 	private async Task PublishListedLobbyAsync()
 	{
@@ -521,7 +521,7 @@ public partial class LobbyCreate : Control
 		bool listed;
 		try
 		{
-			listed = await lobby.PublishPreparedLobbyDirectlyOnFailureAsync();
+			listed = await lobby.PublishPreparedLobbyAsync();
 		}
 		catch (Exception exception)
 		{
