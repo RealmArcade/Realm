@@ -1,0 +1,266 @@
+# 00 — Steam-First Architecture and Task Order
+
+**Read this before running any task in this folder.**
+
+## The decision
+
+Realm becomes a Steam-first game. Steam is the platform for identity, networking, lobbies, map distribution, persistent stats, discovery, invites and moderation. Realm keeps only what a player experiences as Realm. Multiplayer has exactly one transport, Steam's; the host's own seat reaches its authority over loopback IPC, which is a process boundary rather than a network route.
+
+The test for every task:
+
+- If a player would not notice the feature, and Steam offers it, delete ours and use Steam's.
+- If a player would notice it and Steam cannot express it, keep the smallest layer on top of Steam that makes it work. Never build a parallel service with its own database, HTTP API, accounts or deployment.
+
+This is a migration, not a rewrite of the game. The simulation, map scripting, editor and match presentation stay exactly as they are.
+
+## The split: player identity vs hidden infrastructure
+
+**Realm keeps (player-visible identity):**
+
+- The RTS simulation, factions, units, combat, resources and match rules.
+- The map format, map metadata, terrain, assets and the map scripting/WASM pipeline.
+- The map editor, workspace, publish packaging, local map library and local/private map sharing.
+- The lobby room, seat selection, teams, ready state, match settings, countdown and start flow.
+- In-match HUD, scoreboard, chat, camera and visual style.
+- Map authorship as a credit shown to players, derived from the Steam Workshop item owner, with the creator's Steam profile, Workshop page and the optional Discord server invite the map itself declares.
+- Map validation, manifest verification and the WASM sandbox. Workshop is a distribution channel, not a security boundary.
+
+**Steam owns (generic hidden infrastructure):**
+
+- Player identity, sessions and display names.
+- NAT traversal, relay, encryption and connection quality.
+- The lobby directory, lobby browser, lobby metadata, invites and join-from-friends.
+- Public map storage, CDN, downloads, updates, subscriptions, Workshop search and voting.
+- Persistent player stats and leaderboards.
+- Workshop reporting and moderation.
+- Rich presence and the Steam overlay.
+- A future dedicated server, if Realm ships one, through Steam Game Server authentication and the same relay network. Do not build a custom relay or a separate server browser for it.
+
+**No second multiplayer path.** Multiplayer is Steam's and only Steam's: identity, transport, lobby directory and relay. There is no direct-IP join, no LAN-only mode, no port-forwarding instruction and no admitted peer whose identity Steam did not assert. An earlier version of this plan kept a manual ENet join so an offline LAN party or a Steam-less guest could play; it is dropped because a session Steam cannot identify is also a session Steam cannot moderate, offline play is already served by single-player and the editor, and every lane that keeps a second transport alive is a lane the rest of the game has to be written twice for. The host's own screen still reaches its authority over a loopback socket, but that is internal IPC and is never offered to a player as a way to connect.
+
+Ask of every feature: would a player describe this as part of Realm, or as "the game uses Steam for that"? If the latter, it is infrastructure; use Steam. If the former, keep the smallest layer that preserves it.
+
+## What this migration deliberately removes
+
+These are platform features that Steam expresses differently or not at all. None of them is the RTS identity. Removing them is a requirement change, not a regression:
+
+- Unique display names, passwords, account recovery and bearer sessions. Creator registration as an account feature is removed; there is no Realm creator profile. The creator's Steam profile and Workshop page are the profile (task 16), not a platform account.
+- Multi-maintainer map ownership and globally reserved map names; Workshop items belong to one Steam account and titles are not unique.
+- Lobby passwords as a general gate. A single optional per-lobby join code stays, because a community event lobby announced in Discord cannot be gated any other way (task 03); it is a thin authority-side check on top of Steam membership, not a password service. Regions, ping-to-registry, NAT types, relay status and the manual direct-IP join all go; there is one transport and one way to reach a lobby.
+- Verified written reviews, star ratings, a greenlight review threshold, awards, screenshot galleries and per-map playtime charts.
+- Public host map seeding, CDN selection and seeder status. Host transfer of a local map stays; it is not a CDN.
+- The custom admin portal, greenlight queue, cluster and account database, and the two projects that implement them: `Realm.AdminServer` and `Realm.Tools.Admin` are deleted outright (task 22), not trimmed or partially kept. After that task the project operates no service of any kind, and the release ships nothing that could be deployed. The Workshop archive tool (task 17) is a developer tool, not a game platform service.
+
+If one of these turns out to be essential, the relevant task states the only acceptable form: a thin, local enhancement on top of Steam (a curated Featured list, a per-lobby ban list, a server-verified result record). Rebuilding the service is not an option.
+
+## Hard assumptions
+
+1. **Steam-first distribution, with offline local play.** Realm ships on Steam and normally launches through Steam. There is no non-Steam storefront. Steam offline mode supports single-player, the editor, `.rmap` import and local maps. A machine with no usable Steam client can still start the game and use those local features, with Steam lobbies, Workshop, invites and stats stated as unavailable; multiplayer is not offered there at all, because every multiplayer session is a Steam lobby of Steam identities. Never enable Steam DRM or any wrapper that requires Steam at launch: offline single-player, the editor and `.rmap` import must always work without the Steam client.
+2. **Steam identity is the only identity.** A player is their SteamID64. The display name is the Steam persona name. There are no passwords, no unique display names, no custom sessions, no account database and no unverified guest: a peer that cannot present a verified Steam identity is not admitted to a match, so every seat in every lobby is an account Steam could moderate. Offline single-player needs no identity at all.
+3. **Steam networking is the only multiplayer transport.** Remote peers connect through Steam's peer-to-peer sockets and Steam Datagram Relay. There is no second transport, no direct-IP join, no punch, no STUN, no UPnP, no custom relay and no reachability service. The host's own screen reaches its authority over a loopback socket bound to the loopback address; that is internal IPC, and it is not a route anything on the network can reach.
+4. **The authority carries the host's Steam context.** The authority process initialises Steamworks as the host's Steam user and owns the Steam P2P listen socket, and it cannot host a Steam lobby without that identity. The host's own seat keeps its loopback connection to the authority; that link is internal IPC, never a supported multiplayer route or a UI option.
+5. **Steam lobbies are the only lobby directory.** A discovered lobby is a Steam lobby. There is no Realm lobby registry, no heartbeat, no GeoIP, no custom server list and no out-of-band address to share.
+6. **Workshop is the only public map distribution channel.** Public maps are published, downloaded, updated and discovered through Steam Workshop. A local or private map that was never published is shared host-to-host from the host's CAS; the game does not operate a CDN, seeder network or public mirror.
+7. **Steam stats are the only persistent player-facing stats.** The in-match scoreboard remains a game feature; persistent totals and leaderboards come from Steam. Server-authoritative results are kept only if the game genuinely needs verified rankings.
+8. **Steam moderation is the only moderation backend.** Workshop reports, blocking, banning and marking incompatible replace the custom review, greenlight, award and admin services. Only the item's owner or Valve can delete a Workshop item; the developer's tools hide or ban it.
+9. **No compatibility shims for deleted services.** Old registry URLs, old account sessions, old CDN manifests and old relay plans are deleted, not kept behind a flag. Old maps are the one sanctioned compatibility path and they are not an exception to this rule: their data is upgraded by `MapUpgradeService` on a private copy and their unchanged scripts run against an additive API (task 09A). That is a migration, not a fallback branch in a loader.
+10. **The game build locks peers; the map generation locks maps.** Two screens can only play together on the same game build, and Steam keeps them in step. A map no longer has to match that build: it declares an `EngineGeneration`, and a supported generation is upgraded onto a private copy (task 09A). Steam supplies the transport and the lobby, not the version contract.
+
+**One live AppID at a time.** Steam lobbies, Workshop items and stats are scoped to the AppID. The demo is the live AppID only until the official AppID is available, then it is unpublished; the game never supports both at once, and the migration targets the official AppID. Anything published under the demo AppID — Workshop items in particular — does not carry over and must be republished under the official AppID, so do not treat demo-era Workshop content as permanent.
+
+**Demo-era UGC is expected, not an accident.** The demo AppID is the only AppID available before the official one, and the project needs real Workshop items to exercise the publish and download paths before that, so publish on the demo AppID rather than deferring the feature. Plan the demo era around its two consequences instead of trying to avoid it:
+
+- **Demo-era items survive only if they were written into the official Workshop too.** Steam supports writing into another app's Workshop when that app grants `App Publish Permissions` to the calling app, so one publish under the demo writes the demo item players subscribe to now and a dormant official item the full game inherits at release (task 07). An item published only under the demo does not carry over, so the map library still re-checks a stored ID that no longer resolves at cutover and offers to publish to the full game rather than showing a dead map.
+- **Curated content fills the gap.** Until the official AppID exists, the reliable public surface is the curated `EmbeddedMaps` set plus maps a host imports and shares through the lobby's host-transfer path. That path is not a fallback for Workshop; it is the interim primary, and it is also what carries a map to a region or a machine where Workshop is unavailable.
+- **Anything published on the demo is reachable only by demo players.** Lobbies and Workshop are scoped to the AppID, so a demo-era lobby is not a place to recruit the wider player base. Say so where the player can see it when the demo era ends.
+- **Two Workshops, one author, one map.** A Workshop item belongs to exactly one AppID, so the demo era is two items per map with two IDs, both owned by the same author; the manifest holds both and the running AppID chooses between them (task 09). Consumption stays per AppID — a demo client cannot query or subscribe to the official Workshop, which is exactly why the demo item is still written — so never try to make one item serve both apps, and never treat an item belonging to the other AppID as missing.
+
+## Steam UGC decisions (read before tasks 06A, 07, 08, 09, 10, 13, 16, 17 and 18)
+
+These are the platform facts and the product decisions that follow from them. A task that contradicts them will produce a second source of truth or a feature Steam cannot support.
+
+**Hosting and ownership.** Workshop content is stored by Valve for this AppID, on Steam's CDN, and is associated with the item and the Steam account that owns it. It is not a Realm CDN and it is not transferred to the developer. The creator owns the item, can update it, and can delete it at any time; `DeleteItem` is owner-only, does not prompt and cannot be undone. The developer's controls are moderation, not ownership: an admin or officer can ban an item (visible only to its owner), mark it incompatible with the game hub (it stays on Steam but is disassociated from the game), edit its tags and read its reports. The developer cannot delete another user's item; Valve can. Do not design a flow that assumes the developer can take, transfer or permanently keep a creator's item.
+
+**Permanence.** If a map must remain available even if its creator deletes it, the only mechanism is the redistribution license in `Terms/RealmPlatform_UGC_License.txt`: mirror the map under that license as a Workshop item for this AppID, uploaded from a separate Steam account after a manual review. That mirror is a product decision, not a Workshop feature, and Realm hosts nothing itself: mirrors live on Steam Workshop and nowhere else. A map the developer has not mirrored can disappear without notice.
+
+**Ratings.** Steam Workshop has up/down votes, not 1-5 stars. `SetUserItemVote` is the only rating action; `SteamUGCDetails_t` exposes `m_unVotesUp`, `m_unVotesDown` and `m_flScore` (a Bayesian average between 0 and 1). There is no purchase-verified review, no written review body and no star distribution. Show a positive percentage and a vote count ("Positive 87% - 124 votes") with favorites/subscribers; do not fake a five-star widget from the score. Votes are as unverified as the current reviews, which is acceptable for a casual RTS.
+
+**Trusted maps.** "Trusted" is a presentation policy, not a platform primitive. It is `verified` OR (`votes >= minimumVotes` AND `score >= minimumScore`). The `verified` set is a developer-owned Steam Workshop collection, read with `GetQueryUGCChildren`, so it can be updated without shipping a build; a local configuration file is the fallback. The Verified collection is the manual override for high-quality maps that are too new to have votes. The threshold starts low (for example 10 votes and 70% positive) and is raised as the catalog grows; it is not a fixed 100. Do not build a review table or a voting service.
+
+The friction belongs on the join, not on discovery. The library and the lobby browser show everything and mark each map trusted or untrusted; a player who joins an untrusted lobby, or any lobby whose map is not a Workshop item with a score, gets one confirmation that names the risk (too new or poorly rated, possibly unmaintained) before the join continues. That keeps a new creator's first map visible and playable, gives a returning player a reason to look before entering a lobby nobody vouched for, and needs no second source of truth. Never default the library to hiding maps: an empty browser with no explanation is a worse failure than one weak map.
+
+**Publishing gate.** The in-game publish tool is the only author-facing path and it uses the Steamworks SDK (`ISteamUGC`), not SteamCMD. Do not embed SteamCMD in the game: it adds a login and Steam Guard dependency the player does not need. The tool gates a **public** publish on an objective checklist (valid Release build, valid manifest, preview image, description, a player start, no missing asset references, no placeholder title, size within limits). Private and Unlisted publishes skip the checklist so an author can test the Workshop flow. The gate is product policy in the author's tool, not a Steam-side approval, and it cannot stop an owner of the AppID from publishing through SteamCMD or changing visibility later on the Workshop page. That bypass is acceptable: someone who uses SteamCMD has already cleared the low-effort bar, and the trusted filter and after-the-fact moderation handle the rest. The build uploaded to the Steam beta branch is compiled with publishing disabled, because a map published from a preview surface can carry a newer generation than the public build understands and the public build is what players run; preview keeps playtesting and `.rmap` export. There is no CDN purge: Steam hosts the content; banning or marking incompatible removes it from the game's surface, and only the owner or Valve can delete the item. If a Realm mirror exists, prune the mirror on its own schedule.
+
+**Content model.** An `ISteamUGC` item is a folder of files downloaded as one unit. There is no API to request individual files or to deduplicate assets across items; SteamPipe may send only changed chunks when an item is updated, but that is not a per-asset contract and not something the game can rely on. The per-asset CAS is therefore the local format for local and private maps and for the editor, not a property of Workshop maps. The decision for this migration is (a): publish the full runtime folder and read it in place from `GetItemInstallInfo`, accepting per-item downloads. Do not build a Realm CDN and do not build (b). Only a complete map that can run a lobby is a Workshop item; do not support individual assets, a "sword" mod or an asset pack that patches another map. Shared assets travel inside a map package, and cross-map reuse is vendored when the map is authored - by copying an asset or a script, or by composition through `references.json`, which writes the referenced map's files and merged metadata into the parent folder on save - so a map declares no load-time dependency on another map and nothing resolves at install or join (task 09). Revisit per-asset deduplication only if cross-map duplication becomes a measured problem, and treat that as a new product decision, not a fallback.
+
+**Local and private maps.** A map with no Workshop item ID is not a public map. It can still be played: the host imports the `.rmap` into the local CAS and the lobby's existing host-transfer path sends the missing assets to joiners. This path is kept, not deleted. It is not a CDN fallback for Workshop maps: a Workshop map always resolves through Steam, and a local map always resolves through the host. If neither is available, the join is refused with a clear message. `.rmap` remains the external distribution format (website, Discord, direct file sharing); CAS remains the per-asset local store.
+
+**Old maps.** A map stays playable for as long as its declared `EngineGeneration` is supported and its data can be migrated, not only on the game build it was made with (task 09A). At lobby creation the map's data is upgraded onto a private session copy, and the map-script import surface stays additive so an unchanged `.wasm` keeps running against a newer host. One copy is retained after the match, the most recently used one, because players replay the same map while ignoring others; a different map, or a new package hash, replaces it. That is the entire compatibility mechanism: there is no old-build download, no version switcher, no per-generation runtime and no re-upload of another creator's item to pin a version. A change that cannot be expressed additively is a new generation, and the maps it affects need their author, or a reviewed mirror, to rebuild. Two operational answers surround that: a preview build runs on a Steam beta branch, with Workshop publishing disabled, so creators can report breakage before a release without leaving a map in the catalog that the release cannot run; and a wide break is answered by setting the previous build live again rather than by asking every creator to rebuild. Neither is a way to run an older engine for a player. Do not promise this for builds that already shipped; they cannot participate, and the release notes must say so.
+
+**Creator discovery.** Steam has no global creator directory API. A creator view is derived from Workshop items: group items by `m_ulSteamIDOwner`, query that owner's published items with `CreateQueryUserUGCRequest` **for the current AppID only**, and link to the creator's Steam profile and Workshop author page. The map details show the persona, avatar and a short list of the creator's other items for this AppID (task 16); never show items the creator published for another game. The only creator link the game shows beyond Steam is the optional Discord server invite in the map's own metadata, because Steam exposes no structured social-links field and the game must not scrape the profile page. Do not build a creator database, a registration system or a Realm-hosted profile page.
+
+**Monetization.** The game, every map and every mode stay free, and nothing purchasable may affect gameplay. The only sellable object is appearance, and the only products are the developer's own cosmetics for the official game: a supporter flair first, and a small fixed catalogue at most. Steam owns the entire commercial path - item definitions are created with `IGameInventory/UpdateItemDefs` under the developer's publisher credential, and the sale runs through the Steam Item Store or `ISteamMicroTxn` - and the game reads one boolean from the player's own inventory. Item definitions and purchases are scoped to one AppID, so nothing is sold under the demo AppID. No paid maps, no paid features, no paid DLC containing Workshop content, no asset-level SKUs, no loot boxes, no randomised or expiring cosmetics. Cosmetic assets ship inside the official game, so a player who owns nothing still sees what everyone else wears; only equipping is gated. The authority reads no remote inventory, so the seat's chosen flair travels like the persona name and is a cosmetic fact rather than a trust signal (task 21).
+
+**Creators are not paid through Steam.** A per-map product was considered and dropped. Steam's per-creator path needs an item definition per product that only the AppID owner can author, a `IWorkshopService/SetItemPaymentRules` split per product, a tax interview and banking details from every collaborator, and a payout threshold and hold period before anyone is paid - which makes the developer the seller of record for content they did not author, permanently, per product, for money that will usually sit under the threshold. Creators monetize on their own platforms instead. The game's part is one sanctioned channel and the guidance around it: the optional `DiscordServerInviteLink` in map metadata is the only creator link beyond Steam, a creator may talk about support inside the server they control, and the game renders no donation, payment, price or store surface for a map and never polices a map's content for links. The publish dialog states it plainly and in the player's own words: Steam bans maps that post links to external payment systems, so a creator puts donation links on their Discord server instead (task 21 holds the exact string). Keep the registers apart: the label states the conclusion in vocabulary a player uses - map, not Workshop item or UGC - and only the task's own notes carry the legal basis, because a hedged label reads as permission to a player and to a coding agent alike.
+
+**Terms.** The UGC license must cover distribution through Steam Workshop and any mirror, and it must grant every user the right to mirror, fork and maintain a map for use with the official game (task 06A). Publishing a Workshop item for the AppID, by any tool, is acceptance of that license; the editor also requires an explicit acceptance before the first publish and records the version. Steam's Subscriber Agreement and Workshop Legal Agreement govern the Workshop item itself; the Realm license governs the relationship between the creator and Realm. `Terms/Steam_Migration_Terms_Review.md` lists the clauses that no longer describe the product.
+
+## The authority Steam assumption
+
+The repository currently keeps the authority free of Steamworks and gives it a plain UDP socket. The migration changes that: the authority initialises Steamworks for its Steam P2P socket. The plain ENet socket survives only as the loopback IPC between the host's screen and its authority, bound to the loopback address so that it is not a route anything on the network can reach.
+
+**Verified platform behaviour, not a guess:** Steamworks is designed for several processes to connect to one logged-in Steam client as the same user. `SteamAPI_Init` creates or connects to the "global user", and its documented failure conditions are all environmental — Steam is not running, the AppID cannot be resolved, the process is under a different OS user or elevation, the account has no license, or the app is not configured for release. None of them is "a second process asked". Multiple instances of the same build under the same account initialise independently and work; the restriction is one initialisation per process, and each process must pump its own callbacks.
+
+**What this means for the design:**
+
+- The client and the authority each initialise Steamworks once, under the same AppID the client was launched with. The authority must never hard-code the demo or full-game id.
+- The client owns lobbies, Workshop, the overlay and invites.
+- The authority owns the Steam P2P listen socket for remote peers.
+- Both processes share one SteamID. Steam P2P identifies a peer by SteamID, so two local processes on the same account cannot be meaningful peers to each other. The host's own seat therefore stays on the existing loopback IPC and never opens a Steam P2P connection to its own authority. Remote players are different accounts and connect to the host's SteamID, which the authority is listening on.
+- The thing to validate is not initialisation. It is that an inbound P2P connection addressed to a SteamID shared by two local processes reaches the authority's listen socket. If it does not, use this pivot, in order:
+  1. The authority initialises as an anonymous game server and the host's client advertises that identity in the lobby metadata. Peers connect to the game server identity. The host's own client still uses loopback.
+  2. If anonymous game-server identities cannot use the relay for this app, the client becomes the Steam edge: it owns the Steam socket and forwards frames to the authority over loopback. The authority stays Steam-free.
+
+Never reintroduce a custom relay, punch or lobby registry as the fallback. The pivot must stay behind one transport factory so the rest of the game does not know which identity model is in use.
+
+**The demo is a temporary live AppID, not a second product.** Valve states that Steam does not support multiplayer matchmaking between a full game and its demo, and lobbies and P2P are scoped to the AppID. Because the demo is unpublished when the official AppID arrives, this is only a pre-release limitation: demo players play with demo players, and the official build starts a fresh pool. Do not bridge the pools, and do not keep the demo live alongside the official AppID.
+
+## Task order
+
+Run the tasks in the order below. Each task states its dependencies. A replacement task must land before the task that deletes the system it replaces.
+
+Tasks 01 to 14 are the Steam-first cutover, with 09A landing between the Workshop map library and the deletion of the distribution network. Tasks 16, 17 and 18 then add the creator, archive and attribution surfaces, and they must land **before** task 15: 15 is the final sweep, and a sweep that runs before them leaves the Discord field, the SteamID attribution and the archive tool undocumented. Task 22 deletes the two platform projects once the replacements have landed and before the sweep, task 19 updates `AGENTS.md` after 15, and task 20 decides what replaces the diagnostics the admin server used to provide.
+
+Tasks 02 and 03 are one networking cutover. Task 02 builds the Steam transport, records the comparison baseline and retires the remote ENet path, and task 03 wires the Steam lobby to it; online play may be unavailable between them, and that is expected. Do not stop after task 02 and keep the old registry join alive as a bridge.
+
+| # | Task | Depends on | Replaces |
+|---|------|------------|----------|
+| 01 | Steam runtime and identity baseline | — | Optional-Steam account behavior; keeps offline single-player and `.rmap` import |
+| 02 | Steam P2P transport, comparison baseline, retire the remote ENet path | 01 | Public ENet transport as the default and registry join |
+| 03 | Steam lobbies | 01, 02 | Custom lobby registry and browser |
+| 04 | Match lobby flow over Steam | 03 | Registry join, session tokens, host address sharing |
+| 05 | Remove the lobby registry and admin lobby service | 04 | `LobbyEndpoints`, `LobbyRegistry`, registry client |
+| 06 | Remove relay, NAT traversal, punch and reachability | 02, 05 | Automatic NAT, punch, UPnP, firewall and volunteer relay |
+| 06A | Update the Terms for Steam content and community mirroring | 01 | Old ToS and UGC license clauses; run before 07 |
+| 07 | Workshop publishing | 01, 06A | Custom publish handshake and portal upload |
+| 08 | Workshop consumption and map library | 07 | Custom map download, CDN client, seeders |
+| 09 | Map identity, versioning and deleting the unused `Dependencies` field (composition stays) | 08 | Custom map IDs, name reservation, dependency portal |
+| 09A | Keep old maps playable after engine updates | 09 | Exact-build map lock, `MapUpgradeService` invoked only in the editor |
+| 10 | Remove the map distribution network (keep local map sharing) | 09, 09A | Distribution server, CDN, seeders, cluster, portal |
+| 11 | Remove custom accounts and sessions | 04, 07 | Account service, bearer sessions, creator registration |
+| 12 | Steam stats and leaderboards | 11 | Account match stats and custom rankings |
+| 13 | Workshop discovery, ratings and moderation | 08, 11 | Reviews, greenlight, awards, admin portal; adds the trusted filter and creator view |
+| 14 | Overlay, invites and rich presence | 03 | Custom invite codes and address sharing |
+
+### Tasks that run after the cutover
+
+These add a surface or close the migration out. Run them in the order listed: 16, 17 and 18 belong before the sweep, and 15 owns that sweep.
+
+| # | Task | Depends on | Replaces |
+|---|------|------------|----------|
+| 16 | Steam creator identity and Workshop profiles | 01, 09 | Creator registration, portal pages and the external profile site |
+| 17 | Workshop archive and mirror tool | 07, 06A | No equivalent; manual backups |
+| 18 | Attribution keyed by SteamID | 01, 09 | Public-key attribution signatures |
+| 22 | Delete `Realm.AdminServer` and `Realm.Tools.Admin` | 05, 06, 10, 11, 12, 13, 16, 18 | The platform server, its account, cluster and moderation CLI, and the client callers they leave behind |
+| 15 | Final cleanup and documentation | 01-14, 16, 17, 18, 22 | Platform configs, stale docs and any instruction to run a service |
+| 19 | Update `AGENTS.md` for the Steam-first architecture | 15, 09A | Conflicting project instructions; adds guards against rebuilding the deleted platform and against eroding the map compatibility contract |
+| 20 | Replace the diagnostics the admin server provided | 15 | Admin-server metrics and logs; crash and error reporting |
+| 21 | Base-game cosmetics and creator support channels | 01, 06A, 07, 16, 22 | Nothing; adds the supporter flair, the local entitlement read and the publish-time guidance on what stays out of a Workshop item |
+
+## Migration rules
+
+- **The base is `origin/main`, and a deletion target is verified before it is deleted.** Cut every branch from `origin/main` after a fetch, never from a networking branch. `networking_p2p_volunteer_relay` (110 commits, 177 files, the unmerged volunteer relay) and `lobby_handover` (117 commits, host handover and a second reachability vantage) are not part of the base: branching from either hands the migration an unfinished transport plus roughly 20k lines that the deletion tasks then have to remove, and every later rebase conflicts across the sync stack. Nothing on `main` depends on them.
+- **A file this document names that is not on `main` is a documentation defect, not a work item.** Check it, record it as already absent, and continue; never recreate a component so it can be deleted, and never assume a feature exists because a task talks about it. The concrete list as of this writing: the volunteer relay (`RelayPool`, `/relays/*`, `RelayModels`, `Realm.Shared/Network/Relay/*`, `LobbyManager.Relays`, `PeerRelayVolunteer`, `RelayPeerDemux`, `RelayPoolMembershipTests`, `RelayWireContractTests`, `LobbyCreate.Reachability.cs`, `docs/Manual_Test_Volunteer_Relay.md`) exists only on the relay branch. Everything else the tasks delete or depend on is on `main`: `Realm.Shared/Reachability/*`, the punch relay and host signalling, the lobby registry, the account service, the CDN/seeder/cluster stack, the composition pipeline, the host map transfer, `MapUpgradeService`, `MapAttributionService`, `LocalAuthority` and `ServerControl`.
+- **Replace before delete.** A task that deletes a service must not land before the Steam replacement has been built and manually exercised.
+- **Measure the game, not the relay, before deleting the transport.** The comparison that decides this migration is gameplay feel on Steam against gameplay feel on the ENet path the game was tuned on, over an ordinary connection: a relay is a network shape, not a baseline, and the custom relay in this repository has never carried a match, so it cannot be the thing a migration is measured against. Task 02 records that baseline before it retires the remote ENet path, and nothing downstream proceeds on the strength of a build nobody compared. The relay question is answered separately and gates nothing: if a relayed Steam host is playable, hosting behind carrier-grade NAT becomes a capability the game can advertise, and if it is not, those hosts keep today's behaviour of joining but not hosting, which costs no capability they have ever had.
+- **One coherent cut per task.** Do not leave two Steam lobby paths, two Workshop map download paths, two identity paths or two live transports behind a feature flag. A remote ENet path exists only inside the task that is measuring against it, and that task deletes it once the measurement is accepted.
+- **One row of the branch table, one branch, one pull request.** The grouping at the end of this file is the merge unit, and a task split across branches leaves `main` broken in a way a note does not fix.
+- **No new custom service.** If a task seems to need a new database, HTTP endpoint, queue, retry loop or deployment, stop and re-read the Steam capability. Prefer changing the requirement to fit Steam over inventing infrastructure. There is no exception: Steam's own profile and Workshop pages are the only external creator surfaces, and the game only opens them. Nothing in the game may depend on a Realm-hosted profile to play, publish or join.
+- **Thin enhancements are allowed only for player-visible identity.** A curated Featured list, a per-lobby ban list or a server-verified result record is acceptable when it is small, local and clearly an enhancement on top of Steam. It must not become a second platform. A map-authored Discord server invite is data in the map, not a profile service.
+- **Preserve the familiar UX.** Keep the lobby browser layout, the lobby room, the map picker, the publish dialog, the map library and the in-match scoreboard recognizable. Remove fields that only described custom infrastructure from the primary flow, such as region, NAT type, relay status, ping-to-registry and custom account names. No screen keeps an address or a port for a player to type.
+- **Keep the simulation and map API untouched.** Steam replaces the platform around the game. Do not change the ECS, snapshot protocol, map script ABI or editor surface as part of a platform task unless the task explicitly says so.
+- **Follow `AGENTS.md`.** Compile after changes. Do not add permanent tests unless the task asks. Do not add compatibility fallbacks. Keep localization keys valid and update them when UI is removed.
+- **Report what could not be verified.** Steam partner-site configuration, two-account tests and real network tests may be unavailable in the development environment. State the blocker instead of claiming the feature works.
+
+## Branches and pull requests
+
+Each row below is one branch and one pull request, cut from `main` after its dependencies have merged. A row holding two tasks means those tasks cannot be separated without leaving `main` in a state that does not build, run or make sense — do not split a row, and do not run two rows that touch the same files at the same time. The order is the dependency order; rows marked parallel can start as soon as their own dependencies merge.
+
+| # | Branch | Tasks | Depends on | Merge when |
+|---|--------|-------|------------|------------|
+| 1 | `steam/identity-baseline` | 01 | — | Steam is the only identity, a machine without Steam reaches single-player, the editor and local maps, and the old direct path still works because row 3 has not removed it |
+| 2 | `steam/local-diagnostics` | 20 (requirements 1–5 and 7) | — | a player can export one zip and an unhandled exception is captured; land it before the transport swap, because that is when a log is most likely to be needed |
+| 3 | `steam/networking-cutover` | 02, 03, 04 | 1 | the comparison in 02 is accepted and no registry join or direct-IP join remains. The long pole: one branch, measured on branch builds with the Steamworks test configuration |
+| 4 | `steam/delete-traversal` | 05, 06 | 3 | nothing references reachability or relay, and no screen offers an address. 06 lands only after row 3's measurement is accepted |
+| 5 | `steam/terms` | 06A | 1 | the legal text describes Steam-only distribution and dual-AppID publishing. No code; must land before row 6 |
+| 6 | `steam/workshop-publish` | 07 | 1, 5 | a demo client publishes both items, or the fallback in requirement 21 is recorded and used. Validate `App Publish Permissions` and cloud quota before writing the flow |
+| 7 | `steam/workshop-library` | 08 | 6 | subscribing, downloading, installing and hosting a Workshop map works, and a local map still travels host-to-host |
+| 8 | `steam/map-generations` | 09, 09A | 7 | an older-generation map opens instead of being refused, and the build-number gate is gone |
+| 9 | `steam/delete-distribution` | 10 | 8 | no distribution server, CDN, seeder or portal code remains |
+| 10 | `steam/remove-accounts` | 11 | 3, 6 | no account, session, invitation-token or creator-registration code remains |
+| 11 | `steam/stats` | 12 | 10 | persistent totals and leaderboards come from Steam |
+| 12 | `steam/discovery-trust` | 13 | 7, 10 | Workshop discovery, trust marks, reporting and ban/incompatible replace the portal |
+| 13 | `steam/invites-presence` | 14 | 3 | invites and rich presence are Steam's; can run in parallel with rows 9–12 |
+| 14 | `steam/creator-identity` | 16 | 1, 8 | creator panels open Steam and no Realm profile exists; parallel with 15–16 |
+| 15 | `steam/attribution` | 18 | 1, 8 | attribution is SteamID-keyed and the public-key signature is gone |
+| 16 | `steam/workshop-archive` | 17 | 5, 6 | the tool lists and archives every item for both AppIDs, including demo-era items |
+| 17 | `steam/delete-platform-server` | 22 | 9, 10, 11, 12, 14, 15 | both projects are deleted, the release workflow builds no admin artifact, and no code path calls a Realm endpoint |
+| 18 | `steam/final-sweep` | 15 | every row above | the docs describe the shipped architecture and the repository contains no instruction to deploy or operate a service |
+| 19 | `steam/agent-guardrails` | 19 | 18 | `AGENTS.md` matches the architecture and carries the platform guards |
+| 20 | `steam/reporting-decision` | 20 (requirement 6) | 18 | a hosted error service is either adopted as its own task or explicitly declined |
+| 21 | `steam/monetization` | 21 | 16, 17, 19, 20 | the supporter flair is defined and worn through Steam's flow, a free player sees it, every map stays playable, and the publish dialog explains what to keep out of a Workshop item. Run it on the official AppID only, never on the demo |
+
+Rules for the sequence:
+
+- Each branch starts from `main` after its dependencies have merged. Do not stack a branch on another open branch; a review that has to hold two unfinished changes is not a review.
+- A branch that cannot merge green is abandoned rather than parked. Row 3 is the only row where abandoning is a real possibility, and question 1 in task 02 is what decides it.
+- Keep the Steamworks partner-site state (permission, cloud quota, tags, leaderboards) updated with each row rather than in one batch at the end, because a missing setting reads exactly like a code defect.
+- Rows 9, 11, 12 and 13 are where the deletions pile up; do them one at a time even though each is small, because each one removes the last caller of something.
+- Row 16 must run and be verified **before** the demo AppID is unpublished. That is a hard cutoff, not a schedule: an item missed in the final week is gone rather than late.
+
+## UX checkpoints before running a task
+
+Most tasks keep the familiar screen and only change where the data comes from. The tasks below change what the player sees or can do, and the agent will otherwise invent the product decision. Settle the question first, or add the answer as a short brief at the top of that task.
+
+| Task | What changes | Decide before running |
+|------|--------------|-----------------------|
+| 01 | Steam is the default identity; a startup choice appears when it is unavailable; without Steam only local actions work | Without Steam, single-player, the editor, `.rmap` import and local maps still work; multiplayer, Workshop, invites and stats are hidden with a reason. What does the startup choice say and offer, and does it make clear that multiplayer needs Steam? |
+| 03 | Browser columns lose IP/port/region/ping; the create flow changes; Steam returns a bounded list; an optional join code appears | Which visibility options are exposed: Public, Friends only, Private/invite only? What is the default filter, and what does an empty result say? Where does a host set a join code, and does a code-gated lobby still show in the browser? |
+| 07 | The publish dialog loses the account gate, greenlight/beta and the publish-panel full-export checkbox; a public publish shows a checklist | Keep the separate `.rmap` export for sharing outside Steam. First publish defaults to private or unlisted. |
+| 08 | The map library becomes subscribed Workshop items with download progress; every map is visible with a trusted or untrusted mark | What do the tabs mean now: Workshop browse, Subscribed, Installed, Local? The Verified collection is the manual override, not a default filter. What exactly does the untrusted-lobby confirmation say? The creator panel opens the Steam profile and Workshop page in the overlay or browser, and shows the creator's other items for this AppID. |
+| 11 | Login, sign-up, password reset and account settings disappear; the profile is the Steam profile | Where does the profile live? Is the SteamID shown? What happens to log out, switch account and delete account controls? |
+| 12 | Persistent totals and leaderboards come from Steam; custom rank/MMR disappears | Which three to five stats survive? Which leaderboards exist (global/friends, per mode)? What replaces MMR or a custom rank? |
+| 13 | Reviews, stars, awards, greenlight and the old creator portal disappear; Workshop provides discovery and the Steam creator pages remain | The card shows a positive percentage and a vote count, not stars. The Verified list is a Workshop collection that overrides a low vote count; it is not a default filter. The creator panel opens the Steam profile and Workshop page; the only in-game creator link beyond Steam is the map's Discord invite, and no donation links are shown. Do comments open the overlay or the Workshop page? |
+| 09A | A map made on an older build now opens instead of being refused; a map from a newer build is refused with an update action | Which generations are supported, and what does the "made for an earlier version" note say? Does the first upgrade of a large map need a loading line? |
+| 14 | Invites, Join Game and rich presence move to Steam | Is the custom friends dialog removed in favour of the overlay? What is shown when the overlay is disabled? |
+| 21 | A player's name can carry a supporter flair, and the publish dialog explains what to keep out of a Workshop item | Where does the flair appear: scoreboard only, or the lobby and map details as well? Is it visible to other players? What does the game say when Steam is offline or the inventory is unavailable? Does the publish guidance read as help rather than a warning that blocks an honest publish? |
+| 02, 04, 06 | The "Join Private Lobby via IP Address" button, the direct-IP host option and the guest seat are removed; every seat is a Steam account | Is anything removed that a returning player relied on? Does any screen still mention an address, a port, a NAT type or a guest? Is the create/join flow shorter than before? |
+
+Everything else — 05, 09, 10 and 15 — is a backend cutover or a field removal. Run those and correct the layout in manual testing.
+
+Rules that apply to every UX change:
+
+- Delete the control, not just the backend. A disabled button with no explanation is worse than no button.
+- Every new player-facing string is a `TranslationServer.Translate("literal")` call site; do not build text that the localization scan cannot see.
+- Every Steam-backed screen needs a loading, empty and error state: "searching", "no lobbies match these filters", "Steam is offline".
+- Do not expose Steam internals (AppID, item ID, lobby ID, relay, SDR) in primary UI. Put an ID in an advanced or copyable field only when a player genuinely needs it.
+- Keep the existing layout and visual style. Change the data source and remove infrastructure fields; do not redesign the screen.
+
+## Definition of done for the whole migration
+
+- Launching through Steam uses the Steam persona as the player name; launching without usable Steam still reaches single-player, the editor and local maps, and states that multiplayer is unavailable.
+- Two players on different networks can host and join through Steam, with no port forwarding and no Realm server.
+- Steam lobbies are created, browsed, joined and invited entirely through Steam, and every seat in one is a Steam account.
+- Public maps are published, downloaded and updated entirely through Steam Workshop; local maps are shared host-to-host.
+- There is no custom account login, no custom lobby registry, no custom CDN/seeder network and no custom relay.
+- Single-player, the editor and existing local maps still work, with Steam in offline mode where online calls are not needed. A machine without usable Steam can still start the game and use those local features, and is told why multiplayer is unavailable.
+- A local map with no Workshop item ID can be hosted and joined through the host-transfer path, without a Realm server or CDN.
+- A map published on any still-supported `EngineGeneration` is playable after an engine update, without switching game versions and without modifying its Workshop folder.
+- A host can gate a community event lobby with one optional join code, and every seated player can invite their own Steam friends.
+- No map library or lobby browser starts filtered. An untrusted map and a non-Workshop lobby are marked, and the player confirms once before entering.
+- The creator panel opens the creator's Steam profile and Workshop page, shows their other Workshop items for this AppID and the map's optional Discord invite, and the game displays no donation links or generic link list.
+- Steam DRM is not enabled, and the build starts and plays offline single-player and the editor with no Steam client.
+- The Workshop archive tool can enumerate and archive every item for the AppID, and attribution is keyed by SteamID.
+- The game is free, no map or mode is purchasable, and nothing purchasable affects gameplay. The only revenue path is the developer's own cosmetic items sold by Steam; no creator is paid through Steam, and the game shows no donation, price or support surface, with the map's Discord invite the single creator channel and the publish dialog the only place the creator is taught what to keep out of an item.
+- `Realm.AdminServer` and `Realm.Tools.Admin` are deleted, the release builds no server or service artifact, and the documentation describes the Steam-first architecture instead of the old hosting requirements.
+- `AGENTS.md` describes the Steam-first platform, contains no lobby-registry, relay, reachability or custom-account rule, and states the guards that keep the deleted platform from returning.
