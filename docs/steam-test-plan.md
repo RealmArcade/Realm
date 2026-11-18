@@ -26,9 +26,10 @@ Two rules for the whole plan:
 
 1. `dotnet build Realm.slnx`, then import and run `Realm.Client` in Godot 4.7 mono (the checkout's Godot path is in
    `AGENTS.md`).
-2. **Development AppID file.** A run that Steam did not start needs `steam_appid.txt` containing the demo AppID where the
-   process begins, which is one file in `Realm.Client` (a Godot run makes the project folder the working directory) or
-   beside the executable in an export folder. It is gitignored and must never appear in an export; step G checks that.
+2. **Development AppID file.** A run that Steam did not start needs `steam_appid.txt` containing the demo AppID, read from
+   the folder the launching executable sits in: beside `Godot_v4.7-stable_mono_win64.exe` for a run started from the
+   editor, and beside the executable in an export folder. A copy in `Realm.Client` or in the repository root is never read.
+   It is gitignored and must never appear in an export; step G checks that.
    The authority is a process of its own and needs no file of its own: the screen passes it the AppID Steam gave the
    screen, and the authority states that to Steamworks before it initialises (the authority log's first two lines are
    where to check it, `running as application <id>`).

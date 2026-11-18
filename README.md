@@ -28,7 +28,7 @@ The engine is server-authoritative and uses latency masking rather than predicti
 
 ## 🛠️ Realm Editor (UGC Tooling)
 
-The Editor is a pre-configured **Godot** editor with specific plugins to simplify the interface and support Realm-specific map editing.
+The Editor is a screen inside the game itself - `MapEditorHUD`, opened from the main menu - not the Godot editor and not a Godot plugin. It runs on the **standard Godot .NET (C#) build**, with no custom engine to install, and the map-authoring tools below are Realm's own UI drawn by the same client that will play the map.
 
 * **Map Package Output:** The editor outputs a map folder, and a `.rmap` package for sharing a map outside Steam, containing unit metadata (JSON), art assets, the compiled map script, and map configuration (like max units/players).
 * **Hard Limits:** To facillitate average internet capabilities, maps are currently limited to $\approx 1200$ total units (including AI waves), but will be increased over time as technology improves (fiber/etc). This could be overridden for private LAN events lobbies where all players are on ethernet with low ping fiber connections to the host (or possibly public internet events where users are okay with potential instability).
@@ -85,5 +85,7 @@ AI-generated "vibe" code is acceptable only if it has been thoroughly reviewed b
 ## ⚙️ Setting up the Project
 
 1.  **Clone this repository** recursively to include all submodules (including the required third-party packages).
-2.  **Follow the Godot build steps** specific to your platform (as we use a modded version).
-3.  **Run the editor** and accept the Asset License agreement to securely download the default asset bundle.
+2.  **Install the standard Godot .NET (C#) build** for your platform.
+3.  **Create a steam_appid.txt file next to the godot exe**
+    * `5537420` - the demo application (used as the current testing appId until after next fest. Replace with new appId after official release.)
+3.  **Open godot, import Realm.Client\project.godot and click Run**
