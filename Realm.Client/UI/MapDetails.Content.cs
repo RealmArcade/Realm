@@ -75,14 +75,6 @@ public partial class MapDetails
 
 	private void PopulateRatings()
 	{
-		foreach (Node child in _starsRow1.GetChildren()) child.QueueFree();
-		foreach (Node child in _starsRow2.GetChildren()) child.QueueFree();
-		foreach (Node child in _starsRow3.GetChildren()) child.QueueFree();
-
-		_starsRow1.Visible = false;
-		_starsRow2.Visible = false;
-		_starsRow3.Visible = false;
-
 		long totalVotes = _mapData.VotesUp + _mapData.VotesDown;
 
 		_votesRow1.Text = totalVotes > 0

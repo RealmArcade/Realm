@@ -68,13 +68,8 @@ public partial class MapDetails : Control
 	private Label _ratingTitle = null!;
 	private HBoxContainer _starsRow1 = null!;
 	private Label _votesRow1 = null!;
-	private HBoxContainer _starsRow2 = null!;
 	private Label _votesRow2 = null!;
-	private HBoxContainer _starsRow3 = null!;
 	private Label _votesRow3 = null!;
-
-	private Label _awardsTitle = null!;
-	private HBoxContainer _awardsContainer = null!;
 
 	private Label _gameplayTitle = null!;
 	private VBoxContainer _gameplayStatsContainer = null!;
@@ -143,15 +138,9 @@ public partial class MapDetails : Control
 		_statsScrollContainer = GetNodeOrNull<ScrollContainer>("StatsPanel/VBoxContainer/ScrollContainer");
 
 		_ratingTitle = GetNode<Label>("StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingTitle");
-		_starsRow1 = GetNode<HBoxContainer>("StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid/Row1Stars");
 		_votesRow1 = GetNode<Label>("StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid/Row1Votes");
-		_starsRow2 = GetNode<HBoxContainer>("StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid/Row2Stars");
 		_votesRow2 = GetNode<Label>("StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid/Row2Votes");
-		_starsRow3 = GetNode<HBoxContainer>("StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid/Row3Stars");
 		_votesRow3 = GetNode<Label>("StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid/Row3Votes");
-
-		_awardsTitle = GetNode<Label>("StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/AwardsTitle");
-		_awardsContainer = GetNode<HBoxContainer>("StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/AwardsContainer");
 
 		_gameplayTitle = GetNode<Label>("StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/GameplayTitle");
 		_gameplayStatsContainer = GetNode<VBoxContainer>("StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/GameplayStatsContainer");
@@ -514,11 +503,6 @@ public partial class MapDetails : Control
 		PopulateRatings();
 		PopulateGameplayStats();
 		PopulateTechInfo();
-
-		// There is no award system and no screenshot gallery any more: Steam carries one preview per item and the
-		// comments that used to live here, so those blocks are hidden rather than filled with invented content.
-		_awardsTitle.Visible = false;
-		_awardsContainer.Visible = false;
 
 		bool isDownloaded = MapProvisioningService.IsLocalCopyPresent(_mapData);
 
