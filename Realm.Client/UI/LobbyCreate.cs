@@ -37,6 +37,13 @@ public partial class LobbyCreate : Control
 	private OptionButton _visibilitySelect = null!;
 
 	/// <summary>
+	///     Whether this screen is creating a match for itself alone. It is the mode the previous screen stated, not a flag on
+	///     a lobby, so a single-player start cannot accidentally become a Steam lobby and an offered lobby cannot inherit a
+	///     single-player setting from a screen visited earlier.
+	/// </summary>
+	private static bool SinglePlayerMode => GameContext.SessionState.IsSinglePlayerLobbyMode;
+
+	/// <summary>
 	///     The optional code a community event is gated with. It is never published to Steam metadata, and leaving it empty
 	///     means anyone who can see the lobby may take a seat.
 	/// </summary>
@@ -159,9 +166,14 @@ public partial class LobbyCreate : Control
 		var textPanelWrapper = GetNode<PanelContainer>("CentralPanel/ContentContainer/BriefingPanel/TextPanelWrapper");
 		textPanelWrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBriefingTextPlate());
 
-		var accessRow = BuildLobbyAccessControls();
-		contentContainer.AddChild(accessRow);
-		contentContainer.MoveChild(accessRow, _briefingPanel.GetIndex() + 1);
+		// Who can join and the join code describe a Steam lobby this screen is offering to other players. A single-player
+		// match offers nothing to anybody, so the row is not built at all rather than shown disabled.
+		if (!SinglePlayerMode)
+		{
+			var accessRow = BuildLobbyAccessControls();
+			contentContainer.AddChild(accessRow);
+			contentContainer.MoveChild(accessRow, _briefingPanel.GetIndex() + 1);
+		}
 
 		var spacer = new Control { CustomMinimumSize = new Vector2(0, 16) };
 		_createButton.GetParent().AddChild(spacer);
@@ -285,7 +297,7 @@ public partial class LobbyCreate : Control
 		_centralPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		_briefingPanel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 
-		UIStyle.ApplyTitle(_titleLabel, GameContext.Lobby?.IsSinglePlayer == true ? TranslationServer.Translate("SINGLE PLAYER") : TranslationServer.Translate("CREATE CUSTOM MATCH"), 36);
+		UIStyle.ApplyTitle(_titleLabel, SinglePlayerMode ? TranslationServer.Translate("SINGLE PLAYER") : TranslationServer.Translate("CREATE CUSTOM MATCH"), 36);
 
 		_openMapLibraryButton.Flat = false;
 		_openMapLibraryButton.CustomMinimumSize = new Vector2(240, 46);
@@ -297,7 +309,7 @@ public partial class LobbyCreate : Control
 		UIStyle.ApplyCustomLobbyDropdown(_openMapLibraryButton);
 		_openMapLibraryButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 
-		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface?.TransitionTo(GameContext.Lobby?.IsSinglePlayer == true ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface?.TransitionTo(SinglePlayerMode ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
 		SetupCreateButton();
 
 		_versionLabel.Text = Tr("VERSION:");
@@ -321,7 +333,8 @@ public partial class LobbyCreate : Control
 	{
 		_createButton.Flat = false;
 		_createButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(_createButton, TranslationServer.Translate("CREATE LOBBY"), 18);
+		// A match this screen plays alone is started, not hosted for others, and the button says which one it will do.
+		UIStyle.ApplyButtonText(_createButton, SinglePlayerMode ? TranslationServer.Translate("START GAME") : TranslationServer.Translate("CREATE LOBBY"), 18);
 
 		UIStyle.ApplyCustomLobbyStartGameButton(_createButton);
 
@@ -453,13 +466,13 @@ public partial class LobbyCreate : Control
 		GameSettings.LastHostedMapVersion = selectedVersion;
 		GameSettings.Save();
 
-		// Visibility and the join code are what the Steam lobby is created with, so they are handed over before the lobby
-		// exists: Steam owns the directory and the authority owns the seating gate.
-		lobby.HostedVisibility = GetSelectedVisibility();
-		lobby.JoinCode = LobbyLimits.Sanitize(_joinCodeInput.Text, LobbyLimits.MaximumJoinCodeLength);
-
-		if (lobby.IsSinglePlayer)
+		if (SinglePlayerMode)
 		{
+			// A single-player match is this screen, the authority it launches and the AI seats the map asks for. No Steam
+			// lobby stands behind it, nothing about it is offered to another player and the screen has no visibility or
+			// join code to hand over.
+			lobby.IsSinglePlayer = true;
+
 			_createButton.Disabled = true;
 			bool hosted = await lobby.HostSinglePlayerLobbyAsync(pathName, selectedVersion);
 			_createButton.Disabled = false;
@@ -475,6 +488,11 @@ public partial class LobbyCreate : Control
 			ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to start the match."));
 			return;
 		}
+
+		// Visibility and the join code are what the Steam lobby is created with, so they are handed over before the lobby
+		// exists: Steam owns the directory and the authority owns the seating gate.
+		lobby.HostedVisibility = GetSelectedVisibility();
+		lobby.JoinCode = LobbyLimits.Sanitize(_joinCodeInput.Text, LobbyLimits.MaximumJoinCodeLength);
 
 		_createButton.Disabled = true;
 		ShowHostProgressOverlay();

@@ -2308,6 +2308,7 @@
   "The map picker could not be opened.": "The map picker could not be opened.",
   "The map script is not an optimized release build. Export aborted.": "The map script is not an optimized release build. Export aborted.",
   "The map's script runs in a sandbox either way; this is about how well the map is known, not about safety.": "The map's script runs in a sandbox either way; this is about how well the map is known, not about safety.",
+  "The match did not start in time.": "The match did not start in time.",
   "The new map folder was created at {0} but could not be opened: {1}": "The new map folder was created at {0} but could not be opened: {1}",
   "The region is a percentage of the model bounds, so it follows any model scale - adjust the edges and confirm the motion in the preview.": "The region is a percentage of the model bounds, so it follows any model scale - adjust the edges and confirm the motion in the preview.",
   "The restored files could not be recorded in the history: {0}": "The restored files could not be recorded in the history: {0}",

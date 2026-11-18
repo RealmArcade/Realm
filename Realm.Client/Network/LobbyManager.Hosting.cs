@@ -489,6 +489,11 @@ public partial class LobbyManager
 		InitializeHostState(mapPathName, explicitVersion);
 		LobbyPort = 0;
 
+		// Nothing about this lobby is on Steam: there is no lobby to advertise, no membership and no code to compare. Clearing
+		// the id keeps every later Steam-bound call a no-op rather than pointing it at the last lobby this screen hosted.
+		SteamLobbyId = 0;
+		ActiveLobbyId = string.Empty;
+
 		string? installedMapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
 		if (string.IsNullOrEmpty(installedMapDirectory))
 		{
@@ -545,7 +550,10 @@ public partial class LobbyManager
 			return false;
 		}
 
-		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
+		// The hello above is the confirmation: it came back over the loopback connection this screen opened to the authority
+		// it launched, which is the same seat check a hosted lobby makes before it is worth publishing. Asking a second time
+		// would wait on a hello that has already arrived and time out on a lobby that is already playable.
+		string? admissionFailure = await WaitForLobbyAdmissionAsync(session, Tr("The match did not start in time."));
 		if (admissionFailure != null)
 		{
 			LastHostError = admissionFailure;
@@ -564,12 +572,6 @@ public partial class LobbyManager
 
 		IsHost = true;
 		LobbyPort = session.Port;
-
-		if (!await VerifyLocalSeatBeforePublishingAsync(session))
-		{
-			TeardownHostedLobby(session);
-			return false;
-		}
 
 		PlayerListUpdated?.Invoke();
 		return true;

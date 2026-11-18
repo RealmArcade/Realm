@@ -235,6 +235,9 @@ public partial class MainMenu : Control
 			{
 				GameContext.SessionState.IsMapEditorMode = false;
 				GameContext.SessionState.IsTestMode = false;
+				// The mode is stated here, on state that exists whether or not a lobby does, so the create screen never has to
+				// infer it from the last lobby this session held.
+				GameContext.SessionState.IsSinglePlayerLobbyMode = true;
 				if (GameContext.Lobby != null) GameContext.Lobby.IsSinglePlayer = true;
 				NavigateTo(GameScreen.LobbyCreate);
 			}, "res://Assets/UI/menu_single_player_button.webp");
@@ -461,6 +464,7 @@ public partial class MainMenu : Control
 	{
 		GameContext.SessionState.IsMapEditorMode = false;
 		GameContext.SessionState.IsTestMode = false;
+		GameContext.SessionState.IsSinglePlayerLobbyMode = false;
 		if (GameContext.Lobby is { } lobby) lobby.IsSinglePlayer = false;
 
 		NavigateTo(GameScreen.LobbyBrowser);

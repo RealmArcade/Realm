@@ -173,9 +173,9 @@ public partial class LobbyManager
 		if (ReferenceEquals(_lobbySession, session)) _lobbySession = null;
 	}
 
-	private async Task<string?> WaitForLobbyAdmissionAsync(ClientServerSession session)
+	private async Task<string?> WaitForLobbyAdmissionAsync(ClientServerSession session, string? timeoutMessage = null)
 	{
-		var (failure, _) = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromSeconds(15));
+		var (failure, _) = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromSeconds(15), timeoutMessage);
 		return failure;
 	}
 
@@ -187,7 +187,7 @@ public partial class LobbyManager
 	/// <param name="session">The session waiting for its answer.</param>
 	/// <param name="budget">How long the authority has to answer before this attempt is given up.</param>
 	/// <returns>Why the join failed or null when the authority admitted it, and whether a hello arrived at all.</returns>
-	private async Task<(string? Failure, bool Answered)> WaitForLobbyAdmissionAsync(ClientServerSession session, TimeSpan budget)
+	private async Task<(string? Failure, bool Answered)> WaitForLobbyAdmissionAsync(ClientServerSession session, TimeSpan budget, string? timeoutMessage = null)
 	{
 		var decided = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_admissionTcs = decided;
@@ -207,7 +207,11 @@ public partial class LobbyManager
 		try
 		{
 			var completed = await Task.WhenAny(decided.Task, Task.Delay(budget));
-			string? failure = completed == decided.Task ? decided.Task.Result : Tr("Steam could not connect this screen to the host in time.");
+			// The budget expiring says nothing about Steam when no Steam connection was involved, so the caller names the
+			// transport it waited on and a single-player start never reports a Steam failure on a loopback socket.
+			string? failure = completed == decided.Task
+				? decided.Task.Result
+				: timeoutMessage ?? Tr("Steam could not connect this screen to the host in time.");
 			return (failure, helloAnswered);
 		}
 		finally

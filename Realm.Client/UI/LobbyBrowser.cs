@@ -283,6 +283,8 @@ public partial class LobbyBrowser : Control
 		_hostButton.Pressed += () =>
 		{
 			GameContext.UserInterface?.PlayClickSound();
+			// A lobby opened from the browser is offered to other players, whatever screen was visited before this one.
+			GameContext.SessionState.IsSinglePlayerLobbyMode = false;
 			GameContext.UserInterface?.TransitionTo(GameScreen.LobbyCreate);
 		};
 		_hostButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
