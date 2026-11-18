@@ -78,6 +78,7 @@ public partial class LobbyManager
 		if (session != null)
 		{
 			DetachLobbySession(session);
+			if (ReferenceEquals(GameContext.ServerSession, session)) GameContext.DetachServerSession();
 			session.Dispose();
 		}
 

@@ -233,6 +233,11 @@ public partial class LobbyManager
 		session.ConfigureLobbyIdentity(PlayerDisplayName, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
 
+		// The match scene reads this screen's seat from the session, so a lobby host is registered here exactly as a joiner
+		// and a direct single-player match already are. Without it the world build falls back to matching the transport's
+		// peer id against the lobby's seat list, and the two are not the same id.
+		GameContext.AttachServerSession(session);
+
 		// Steam's lobby is created before the authority is told to start, because it is what the authority admits peers
 		// against: a match that started without one would have to admit everybody or nobody.
 		if (!GameContext.Steam.IsAvailable)
@@ -528,6 +533,11 @@ public partial class LobbyManager
 		var session = new ClientServerSession(channel);
 		session.ConfigureLobbyIdentity(PlayerDisplayName, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
+
+		// The match scene reads this screen's seat from the session, so a lobby host is registered here exactly as a joiner
+		// and a direct single-player match already are. Without it the world build falls back to matching the transport's
+		// peer id against the lobby's seat list, and the two are not the same id.
+		GameContext.AttachServerSession(session);
 
 		var start = new ServerLobbyStart(
 			ProjectSettings.GlobalizePath(mapDirectory),

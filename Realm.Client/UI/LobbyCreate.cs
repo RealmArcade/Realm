@@ -333,8 +333,9 @@ public partial class LobbyCreate : Control
 	{
 		_createButton.Flat = false;
 		_createButton.AddThemeConstantOverride("icon_max_width", 0);
-		// A match this screen plays alone is started, not hosted for others, and the button says which one it will do.
-		UIStyle.ApplyButtonText(_createButton, SinglePlayerMode ? TranslationServer.Translate("START GAME") : TranslationServer.Translate("CREATE LOBBY"), 18);
+		// The button opens the lobby room, where the map's settings are read and the seats are filled, so a single-player
+		// match is continued into that room rather than "started" or "hosted" from here.
+		UIStyle.ApplyButtonText(_createButton, SinglePlayerMode ? TranslationServer.Translate("CONTINUE") : TranslationServer.Translate("CREATE LOBBY"), 18);
 
 		UIStyle.ApplyCustomLobbyStartGameButton(_createButton);
 
