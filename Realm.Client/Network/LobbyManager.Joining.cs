@@ -742,6 +742,7 @@ public partial class LobbyManager
 		session.LobbyMatchStartedEvent += OnLobbyMatchStarted;
 		session.LobbyKickedEvent += OnLobbyKicked;
 		session.LobbyStartWarningReceived += OnLobbyStartWarning;
+		session.JoinCodeAnswered += OnJoinCodeAnswered;
 		session.MapTransferReplied += OnMapTransferReplied;
 		session.ServerLost += OnLobbyAuthorityLost;
 	}
@@ -754,8 +755,49 @@ public partial class LobbyManager
 		session.LobbyMatchStartedEvent -= OnLobbyMatchStarted;
 		session.LobbyKickedEvent -= OnLobbyKicked;
 		session.LobbyStartWarningReceived -= OnLobbyStartWarning;
+		session.JoinCodeAnswered -= OnJoinCodeAnswered;
 		session.MapTransferReplied -= OnMapTransferReplied;
 		session.ServerLost -= OnLobbyAuthorityLost;
+	}
+
+	/// <summary>
+	///     Presents the join code a player typed. The authority compares it and answers with whether the seat is now held, so a
+	///     wrong code leaves the player in the room with the field still in front of them.
+	/// </summary>
+	/// <param name="code">The code the player typed.</param>
+	public void PresentJoinCode(string code)
+	{
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.PresentJoinCode,
+			Text = code ?? string.Empty
+		});
+	}
+
+	/// <summary>Sets the code this lobby gates its seats with, or clears it when the host empties the field.</summary>
+	/// <param name="code">The new code, or empty to open the seats to everybody in the room.</param>
+	public void SetJoinCode(string code)
+	{
+		if (!IsHost) return;
+
+		JoinCode = code ?? string.Empty;
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.SetJoinCode,
+			Text = JoinCode
+		});
+	}
+
+	private void OnJoinCodeAnswered(bool accepted)
+	{
+		JoinCodeSeatHeld = accepted;
+		if (!accepted)
+		{
+			JoinCodeRefused?.Invoke(TranslationServer.Translate("That join code does not match this lobby's."));
+			return;
+		}
+
+		JoinCodeRefused?.Invoke(string.Empty);
 	}
 
 	private void OnLobbyStartWarning(LobbyStartWarningMessage warning)
@@ -819,7 +861,14 @@ public partial class LobbyManager
 			if (!IsHost) _ = EnsureMapDownloadedAsync(ActiveMapName, ActiveMapVersion);
 		}
 
+		if (JoinCodeRequired != state.JoinCodeRequired)
+		{
+			JoinCodeRequired = state.JoinCodeRequired;
+			JoinCodeRequirementChanged?.Invoke(JoinCodeRequired);
+		}
+
 		ApplySeats(state.Seats);
+		RefreshHostedLobbyAdvertisement();
 		ApplyCountdown(state);
 		MakeSureThisSeatReportsItsMap();
 		StartMatchPreparationForCurrentMap();

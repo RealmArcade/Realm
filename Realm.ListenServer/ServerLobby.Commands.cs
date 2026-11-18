@@ -119,6 +119,10 @@ public partial class ServerLobby
 				}
 				AddSystemChat(command.Text ?? string.Empty);
 				break;
+			case LobbyCommandKind.SetJoinCode:
+				if (!RequireAdmin(peerId, isAdmin, out _, "change the join code")) return;
+				SetJoinCode(command.Text);
+				break;
 			case LobbyCommandKind.RequestChatHistory:
 				foreach (LobbyChatMessage line in _chatHistory)
 				{

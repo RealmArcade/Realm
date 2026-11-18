@@ -63,5 +63,11 @@ public enum NetworkFrameKind : byte
 	///     <see cref="PresentationKind.SteamCloudFilesRequested" />. The seat is the one the connection was seated in, so the
 	///     frame states no player of its own.
 	/// </summary>
-	SteamCloudUpload = 30
+	SteamCloudUpload = 30,
+
+	/// <summary>
+	///     The authority's answer to a join code a screen presented: accepted, which seats it, or refused, which leaves it in
+	///     the room free to try again.
+	/// </summary>
+	LobbyJoinCodeAnswer = 31
 }

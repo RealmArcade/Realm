@@ -12,6 +12,19 @@ namespace Realm.ListenServer;
 /// <summary>admitting a peer and the session checks that guard it.</summary>
 public partial class ServerLobby
 	{
+	/// <summary>
+	///     Admits a peer to the lobby. A lobby that gates its seats with a join code admits the member to the room without a
+	///     seat, which is what makes the code a seating gate rather than a door: the player sees the lobby and types the code
+	///     in it. Everything else is seated here and now.
+	/// </summary>
+	/// <param name="peerId">The connection the peer arrived on.</param>
+	/// <param name="name">The name the peer plays under.</param>
+	/// <param name="accountId">The account the peer plays as.</param>
+	/// <param name="sessionToken">The session identity the peer states, which a reconnect presents again.</param>
+	/// <param name="steamId">The Steam identity Steam asserted for the peer.</param>
+	/// <param name="proveAdmin">Whether the peer proved the ticket that administers this lobby.</param>
+	/// <param name="isAdmin">Whether the peer administers the lobby, which only the admitted peer can be.</param>
+	/// <returns>An empty string when the peer stands in the lobby, or the refusal it is answered with.</returns>
 	public string AdmitPeer(int peerId, string name, long accountId, string sessionToken, ulong steamId, bool proveAdmin, out bool isAdmin)
 	{
 		isAdmin = false;
@@ -23,12 +36,43 @@ public partial class ServerLobby
 			return LobbyLimits.KickedRejection;
 		}
 
+		// A removed player's Steam lobby membership outlives the kick, so the refusal has to be by the identity Steam
+		// asserted rather than by whatever session the screen states after it reconnects.
+		if (!proveAdmin && steamId != 0 && _refusedSteamIds.Contains(steamId))
+		{
+			_log.Write($"peer {peerId} asked to sit in a lobby that removed its Steam identity; the connection is refused");
+			return LobbyLimits.KickedRejection;
+		}
+
 		if (proveAdmin && _adminPeerId == 0)
 		{
 			_adminPeerId = peerId;
 			isAdmin = true;
 			_log.Write($"peer {peerId} administers the lobby: it proved the ticket this authority was started with");
 		}
+
+		if (WaitsForJoinCode(LobbyLimits.Sanitize(sessionToken, MaximumSessionTokenLength), proveAdmin))
+		{
+			WaitForJoinCode(peerId, name, accountId, sessionToken, steamId);
+			BroadcastState();
+			return string.Empty;
+		}
+
+		return SeatPeer(peerId, name, accountId, sessionToken, steamId, proveAdmin, out isAdmin);
+	}
+
+	/// <summary>Gives a peer the seat it asked for, and announces it to the room.</summary>
+	/// <param name="peerId">The connection the peer arrived on.</param>
+	/// <param name="name">The name the peer plays under.</param>
+	/// <param name="accountId">The account the peer plays as.</param>
+	/// <param name="sessionToken">The session identity the peer states, which a reconnect presents again.</param>
+	/// <param name="steamId">The Steam identity Steam asserted for the peer.</param>
+	/// <param name="proveAdmin">Whether the peer proved the ticket that administers this lobby.</param>
+	/// <param name="isAdmin">Whether the seat administers the lobby.</param>
+	/// <returns>An empty string when the seat was taken, or the refusal it is answered with.</returns>
+	private string SeatPeer(int peerId, string name, long accountId, string sessionToken, ulong steamId, bool proveAdmin, out bool isAdmin)
+	{
+		isAdmin = peerId == _adminPeerId;
 
 		LobbySeat seat = default;
 		bool restored = false;

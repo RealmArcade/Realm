@@ -10,6 +10,8 @@ using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.Services;
+using Realm.Shared.Network;
+using Steamworks;
 
 namespace Realm.Client.UI;
 
@@ -31,6 +33,17 @@ public partial class LobbyCreate : Control
 	private Button _createButton = null!;
 
 	private Button _openMapLibraryButton = null!;
+
+	/// <summary>Who may see and enter the lobby this host opens, which is Steam's own visibility.</summary>
+	private OptionButton _visibilitySelect = null!;
+
+	/// <summary>
+	///     The optional code a community event is gated with. It is never published to Steam metadata, and leaving it empty
+	///     means anyone who can see the lobby may take a seat.
+	/// </summary>
+	private LineEdit _joinCodeInput = null!;
+
+	private Label _joinCodeHint = null!;
 	private OptionButton _versionSelectButton = null!;
 	private HBoxContainer _versionContainer = null!;
 	private Label _versionLabel = null!;
@@ -146,6 +159,10 @@ public partial class LobbyCreate : Control
 
 		var textPanelWrapper = GetNode<PanelContainer>("CentralPanel/ContentContainer/BriefingPanel/TextPanelWrapper");
 		textPanelWrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBriefingTextPlate());
+
+		var accessRow = BuildLobbyAccessControls();
+		contentContainer.AddChild(accessRow);
+		contentContainer.MoveChild(accessRow, _briefingPanel.GetIndex() + 1);
 
 		var spacer = new Control { CustomMinimumSize = new Vector2(0, 16) };
 		_createButton.GetParent().AddChild(spacer);
@@ -314,6 +331,88 @@ public partial class LobbyCreate : Control
 	}
 
 
+	/// <summary>
+	///     Builds the row that decides who can join the lobby: Steam's visibility, which is what replaces the old listed and
+	///     direct distinction, and the one optional join code a community event is gated with.
+	/// </summary>
+	/// <returns>The row, ready to be added under the map briefing.</returns>
+	private Control BuildLobbyAccessControls()
+	{
+		var row = new VBoxContainer();
+		row.Name = "LobbyAccessRow";
+		row.AddThemeConstantOverride("separation", 10);
+		row.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+		row.CustomMinimumSize = new Vector2(420, 0);
+
+		var visibilityRow = new HBoxContainer();
+		visibilityRow.Name = "VisibilityRow";
+		visibilityRow.AddThemeConstantOverride("separation", 12);
+		visibilityRow.Alignment = BoxContainer.AlignmentMode.Center;
+
+		var visibilityLabel = new Label();
+		visibilityLabel.Name = "VisibilityLabel_Label";
+		visibilityLabel.Text = Tr("WHO CAN JOIN:");
+		visibilityLabel.VerticalAlignment = VerticalAlignment.Center;
+		visibilityRow.AddChild(visibilityLabel);
+
+		_visibilitySelect = new OptionButton();
+		_visibilitySelect.Name = "VisibilitySelect_OptionButton";
+		_visibilitySelect.CustomMinimumSize = new Vector2(200, 40);
+		_visibilitySelect.AddItem(Tr("Public"));
+		_visibilitySelect.AddItem(Tr("Friends only"));
+		_visibilitySelect.AddItem(Tr("Invite only"));
+		_visibilitySelect.AddItem(Tr("Hidden"));
+		_visibilitySelect.ItemSelected += _ => GameContext.UserInterface?.PlayClickSound();
+		visibilityRow.AddChild(_visibilitySelect);
+
+		row.AddChild(visibilityRow);
+
+		var joinCodeRow = new HBoxContainer();
+		joinCodeRow.Name = "JoinCodeRow";
+		joinCodeRow.AddThemeConstantOverride("separation", 12);
+		joinCodeRow.Alignment = BoxContainer.AlignmentMode.Center;
+
+		var joinCodeLabel = new Label();
+		joinCodeLabel.Name = "JoinCodeLabel_Label";
+		joinCodeLabel.Text = Tr("JOIN CODE:");
+		joinCodeLabel.VerticalAlignment = VerticalAlignment.Center;
+		joinCodeRow.AddChild(joinCodeLabel);
+
+		_joinCodeInput = new LineEdit();
+		_joinCodeInput.Name = "JoinCodeInput_LineEdit";
+		_joinCodeInput.CustomMinimumSize = new Vector2(200, 40);
+		_joinCodeInput.PlaceholderText = Tr("Optional");
+		_joinCodeInput.MaxLength = LobbyLimits.MaximumJoinCodeLength;
+		_joinCodeInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
+		_joinCodeInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
+		joinCodeRow.AddChild(_joinCodeInput);
+
+		row.AddChild(joinCodeRow);
+
+		_joinCodeHint = new Label();
+		_joinCodeHint.Name = "JoinCodeHint_Label";
+		_joinCodeHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_joinCodeHint.CustomMinimumSize = new Vector2(420, 0);
+		_joinCodeHint.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_joinCodeHint.HorizontalAlignment = HorizontalAlignment.Center;
+		_joinCodeHint.AddThemeFontSizeOverride("font_size", 13);
+		_joinCodeHint.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_joinCodeHint.Text = Tr("A join code is for a community event. Leave it empty and anyone who can see the lobby can join.");
+		row.AddChild(_joinCodeHint);
+
+		return row;
+	}
+
+	/// <summary>Reads the visibility the host chose, which is what Steam is asked to list the lobby as.</summary>
+	/// <returns>The Steam visibility the new lobby is created with.</returns>
+	private ELobbyType GetSelectedVisibility() => _visibilitySelect.Selected switch
+	{
+		1 => ELobbyType.k_ELobbyTypeFriendsOnly,
+		2 => ELobbyType.k_ELobbyTypePrivate,
+		3 => ELobbyType.k_ELobbyTypeInvisible,
+		_ => ELobbyType.k_ELobbyTypePublic
+	};
+
 	// Pressed is a Godot signal, so the handler keeps its void signature; the awaited work is in a Task-returning
 	// method and this wrapper logs what it throws. Without the catch a fault in ContinueHosting left the button
 	// silently unresponsive with nothing in the log.
@@ -354,6 +453,11 @@ public partial class LobbyCreate : Control
 		GameSettings.LastHostedMapName = pathName;
 		GameSettings.LastHostedMapVersion = selectedVersion;
 		GameSettings.Save();
+
+		// Visibility and the join code are what the Steam lobby is created with, so they are handed over before the lobby
+		// exists: Steam owns the directory and the authority owns the seating gate.
+		lobby.HostedVisibility = GetSelectedVisibility();
+		lobby.JoinCode = LobbyLimits.Sanitize(_joinCodeInput.Text, LobbyLimits.MaximumJoinCodeLength);
 
 		if (lobby.IsSinglePlayer)
 		{

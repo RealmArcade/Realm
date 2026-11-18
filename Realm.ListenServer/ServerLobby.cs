@@ -117,6 +117,8 @@ public partial class ServerLobby : ILobbySeatTable
 		// decided - there is no player count to set and no count to disagree with the rows on screen.
 		for (int slot = 1; slot < _openSlots.Length; slot++) _openSlots[slot] = true;
 		_openSlotCount = LobbyLimits.MaximumSeats;
+
+		ApplyJoinCode(arguments.JoinCode);
 	}
 
 	public bool MatchStarted => _matchStarted;

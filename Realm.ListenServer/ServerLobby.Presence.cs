@@ -15,6 +15,11 @@ public partial class ServerLobby
 	public void OnPeerDisconnected(int peerId)
 	{
 		if (_matchStarted) return;
+
+		// A member that was standing in the room waiting for the join code holds no seat, so there is nothing to hold for
+		// it: it is simply gone, and its next connection is asked for the code again.
+		if (_waitingJoins.Remove(peerId)) BroadcastState();
+
 		if (!TryGetSeat(peerId, out LobbySeat seat)) return;
 
 		if (peerId == _adminPeerId)

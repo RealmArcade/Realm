@@ -63,7 +63,21 @@ public enum LobbyCommandKind : byte
 	///     every seat reads the same line and the lobby's history keeps it. Sent by the lobby's administrator only, and the
 	///     authority stores it as a system line rather than as anything a remote peer said.
 	/// </summary>
-	ReportReachability = 22
+	ReportReachability = 22,
+
+	/// <summary>
+	///     Presents, in <see cref="LobbyCommand.Text" />, the join code the player typed. A lobby that set one seats nobody
+	///     until it matches, and a member who has not presented it stands in the room without a seat. It is compared on the
+	///     authority and never leaves it, and a wrong code is answered rather than punished.
+	/// </summary>
+	PresentJoinCode = 23,
+
+	/// <summary>
+	///     Sets the join code the lobby gates its seats with, in <see cref="LobbyCommand.Text" />, or clears it when the text is
+	///     empty. Sent by the lobby's administrator only. Clearing it releases every member who was waiting for it, which is
+	///     why the change is announced to the room as normal lobby state.
+	/// </summary>
+	SetJoinCode = 24
 }
 
 /// <summary>
@@ -229,6 +243,13 @@ public partial struct LobbyStateMessage
 	public int ShroudMode;
 
 	/// <summary>
+	///     Whether this lobby gates its seats with a join code, which every member reads to show the field the players who
+	///     arrived without it have to fill in. The code itself is never published: the authority holds it for the lobby's
+	///     lifetime and compares what a screen presents.
+	/// </summary>
+	public bool JoinCodeRequired;
+
+	/// <summary>
 	///     The colour each player index's units are drawn in, indexed by player index, packed as 0xRRGGBBAA, where zero
 	///     means the index keeps the colour its seat states. It carries the colours a map keeps for the player indexes
 	///     nobody holds - the players such a map drives itself - which a seat list has nowhere to name.
@@ -321,6 +342,17 @@ public partial struct LobbyCommand
 	public int Slot;
 }
 
+/// <summary>
+///     The answer to a presented join code. A refusal is a refused seat, not a disconnect: the screen stays in the room and
+///     the player may type the code again.
+/// </summary>
+[MemoryPackable]
+public partial struct LobbyJoinCodeAnswerMessage
+{
+	/// <summary>Whether the presented code matched the one the lobby gates its seats with.</summary>
+	public bool Accepted;
+}
+
 [MemoryPackable]
 public partial struct LobbyChatMessage
 {
@@ -400,6 +432,12 @@ public static class LobbyLimits
 
 	/// <summary>The ceiling on the warning a map may ask its lobby's host to read before the match starts.</summary>
 	public const int MaximumStartWarningLength = 300;
+
+	/// <summary>
+	///     The ceiling on the join code a lobby gates its seats with. It is short because it is read out loud and typed by
+	///     hand, and because it is a room's shared phrase rather than a credential.
+	/// </summary>
+	public const int MaximumJoinCodeLength = 32;
 
 	/// <summary>
 	///     How many player slots a lobby carries. It is the shared roster's own ceiling minus the neutral slot, so the

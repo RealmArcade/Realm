@@ -298,6 +298,7 @@ public partial class LobbyRoom : Control
 
 		SetupAttributionButton();
 		CreateMatchSettingsUI();
+		CreateJoinCodeUI();
 
 		UpdateSelectedMapUI();
 	}
@@ -510,6 +511,9 @@ public partial class LobbyRoom : Control
 			Lobby.LobbyPublicationRefused -= OnLobbyPublicationRefused;
 			Lobby.ActiveMapChanged -= OnActiveMapChanged;
 			Lobby.StartWarningReceived -= OnStartWarningReceived;
+			Lobby.JoinCodeRequirementChanged -= OnJoinCodeRequirementChanged;
+			Lobby.JoinCodeRefused -= OnJoinCodeRefused;
+			Lobby.PlayerListUpdated -= UpdateJoinCodeVisibility;
 		}
 
 		base._ExitTree();

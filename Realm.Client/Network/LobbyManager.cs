@@ -360,8 +360,32 @@ public partial class LobbyManager : BaseMapTransferNode
 	/// </summary>
 	public string JoinCode { get; set; } = string.Empty;
 
+	/// <summary>
+	///     Whether the lobby this screen is in gates its seats with a join code, which the room shows as a field for the
+	///     players who arrived without it.
+	/// </summary>
+	public bool JoinCodeRequired { get; private set; }
+
+	/// <summary>Whether this screen presented the lobby's join code and was given its seat.</summary>
+	public bool JoinCodeSeatHeld { get; private set; }
+
+	/// <summary>Raised when the lobby starts or stops asking for a join code, and with the value it now asks for.</summary>
+	public event Action<bool>? JoinCodeRequirementChanged;
+
+	/// <summary>
+	///     Raised with what the player should be told after presenting a code: the refusal when it did not match, or an empty
+	///     string when the seat was taken.
+	/// </summary>
+	public event Action<string>? JoinCodeRefused;
+
 	/// <summary>Who may see and enter the lobby the host opens: public, friends-only, private or invisible.</summary>
 	public ELobbyType HostedVisibility { get; set; } = ELobbyType.k_ELobbyTypePublic;
+
+	/// <summary>The map name the current advertisement states, so a state that changes nothing does not rewrite it.</summary>
+	private string _publishedAdvertisementMap = string.Empty;
+
+	/// <summary>The seat count the current advertisement states.</summary>
+	private int _publishedAdvertisementSeats = -1;
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
 	public int MatchSeed { get; private set; }

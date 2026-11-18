@@ -103,6 +103,23 @@ public partial class ListenServerHost
 			return;
 		}
 
+		// The join code is the one thing a member standing in the room without a seat may say, because presenting it is what
+		// gives that member its seat. Every other frame still needs a seat behind it.
+		if (kind == NetworkFrameKind.LobbyCommand && !lobby.TryGetSeat(peerId, out _))
+		{
+			if (!TryReadLobbyCommand(peerId, payload, out LobbyCommand waiting)) return;
+
+			if (waiting.Kind != LobbyCommandKind.PresentJoinCode || !lobby.IsWaitingForJoinCode(peerId))
+			{
+				_log.Write($"peer {peerId} sent a {waiting.Kind} lobby command before it was admitted to the lobby");
+				_transport.Disconnect(peerId);
+				return;
+			}
+
+			lobby.PresentJoinCode(peerId, waiting.Text);
+			return;
+		}
+
 		if (!lobby.TryGetSeat(peerId, out LobbySeat seat))
 		{
 			_log.Write($"peer {peerId} sent a {kind} frame before it was admitted to the lobby");
@@ -114,16 +131,7 @@ public partial class ListenServerHost
 		{
 			case NetworkFrameKind.LobbyCommand:
 			{
-				LobbyCommand command;
-				try
-				{
-					command = MemoryPackSerializer.Deserialize<LobbyCommand>(payload);
-				}
-				catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
-				{
-					_log.Write($"peer {peerId} sent a lobby command that could not be read: {exception.Message}");
-					return;
-				}
+				if (!TryReadLobbyCommand(peerId, payload, out LobbyCommand command)) return;
 
 				lobby.HandleCommand(peerId, command);
 				break;
@@ -160,6 +168,26 @@ public partial class ListenServerHost
 				_log.Write($"lobby seat {seat.Slot} ('{seat.Name}') sent a {kind} frame, which a lobby member may not send");
 				_transport.Disconnect(peerId);
 				break;
+		}
+	}
+
+	/// <summary>Reads one lobby command out of a frame, refusing the connection when the bytes cannot be read.</summary>
+	/// <param name="peerId">The connection the frame arrived on.</param>
+	/// <param name="payload">The serialized <see cref="LobbyCommand" />.</param>
+	/// <param name="command">The command, when it could be read.</param>
+	/// <returns>Whether a command was read.</returns>
+	private bool TryReadLobbyCommand(int peerId, ReadOnlySpan<byte> payload, out LobbyCommand command)
+	{
+		try
+		{
+			command = MemoryPackSerializer.Deserialize<LobbyCommand>(payload);
+			return true;
+		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+		{
+			command = default;
+			_log.Write($"peer {peerId} sent a lobby command that could not be read: {exception.Message}");
+			return false;
 		}
 	}
 

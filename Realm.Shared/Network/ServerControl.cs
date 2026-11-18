@@ -97,6 +97,20 @@ public record ServerControlCommand
 
 	public int MaxPlayers { get; init; }
 
+	/// <summary>
+	///     The Steam lobby this match belongs to. The authority holds no directory of its own, so this is the one record of
+	///     who may be seated: a remote peer is admitted only when Steam says it is a member of this lobby. It is zero for a
+	///     loopback match, which seats nobody but the host's own screen.
+	/// </summary>
+	public ulong SteamLobbyId { get; init; }
+
+	/// <summary>
+	///     The join code the lobby gates its seats with, or empty when anyone who can see the lobby may sit in it. It travels
+	///     here rather than on the authority's command line for the same reason the administrator's ticket does: it is what
+	///     the authority compares a screen's presentation against, and no other process on the machine should read it.
+	/// </summary>
+	public string JoinCode { get; init; } = string.Empty;
+
 	public string ToLine() => ServerControlProtocol.CommandLinePrefix + JsonSerializer.Serialize(this, ServerControlProtocol.Format);
 
 	public static bool TryParseLine(string? line, out ServerControlCommand? command)

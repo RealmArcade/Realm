@@ -15,7 +15,9 @@ public partial class ServerLobby
 	{
 	public void SendStateTo(int peerId)
 	{
-		if (!TryGetSeat(peerId, out _)) return;
+		// A member standing in the room without a seat still reads the room: that is what tells it the lobby gates its seats
+		// with a code and offers it the field to type it in.
+		if (!TryGetSeat(peerId, out _) && !_waitingJoins.ContainsKey(peerId)) return;
 
 		_send(peerId, NetworkFrameKind.LobbyState, SerializeStateFor(DescribeState(), peerId), FrameDelivery.Reliable);
 		foreach (LobbyChatMessage line in _chatHistory)
@@ -30,6 +32,12 @@ public partial class ServerLobby
 		foreach (var pair in _slotByPeer)
 		{
 			_send(pair.Key, NetworkFrameKind.LobbyState, SerializeStateFor(state, pair.Key), FrameDelivery.Reliable);
+		}
+
+		foreach (int waitingPeerId in _waitingJoins.Keys)
+		{
+			if (_slotByPeer.ContainsKey(waitingPeerId)) continue;
+			_send(waitingPeerId, NetworkFrameKind.LobbyState, SerializeStateFor(state, waitingPeerId), FrameDelivery.Reliable);
 		}
 	}
 
@@ -73,6 +81,7 @@ public partial class ServerLobby
 			SpectatorDelay = SpectatorDelay,
 			TeamsTogether = Roster?.TeamsTogether ?? false,
 			ShroudMode = (int)EffectiveShroudMode,
+			JoinCodeRequired = _joinCode.Length > 0,
 			HostStability = HostStability,
 			CountdownActive = _countdownActive,
 			CountdownRemainingSeconds = _countdownActive ? Math.Max(0, _lastCountdownSeconds) : 0,

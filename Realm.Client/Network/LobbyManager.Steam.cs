@@ -18,12 +18,28 @@ public partial class LobbyManager
 		SteamLobbyDirectory.MembershipChanged += OnSteamMembershipChanged;
 		SteamLobbyDirectory.ChatMessageReceived -= OnSteamChatMessage;
 		SteamLobbyDirectory.ChatMessageReceived += OnSteamChatMessage;
+		SteamLobbyDirectory.LobbyClosed -= OnSteamLobbyClosed;
+		SteamLobbyDirectory.LobbyClosed += OnSteamLobbyClosed;
 	}
 
 	private void DetachSteamLobbyEvents()
 	{
 		SteamLobbyDirectory.MembershipChanged -= OnSteamMembershipChanged;
 		SteamLobbyDirectory.ChatMessageReceived -= OnSteamChatMessage;
+		SteamLobbyDirectory.LobbyClosed -= OnSteamLobbyClosed;
+	}
+
+	/// <summary>
+	///     Answers a Steam lobby that closed under this screen: the host gave it up, so there is no authority left to play
+	///     against and the player is returned to the menus with a readable line rather than left in an empty room.
+	/// </summary>
+	private void OnSteamLobbyClosed()
+	{
+		if (SteamLobbyId == 0) return;
+
+		SteamLobbyId = 0;
+		Disconnect();
+		ConnectionFailed?.Invoke(TranslationServer.Translate("This lobby closed."));
 	}
 
 	/// <summary>

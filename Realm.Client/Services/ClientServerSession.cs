@@ -19,7 +19,7 @@ namespace Realm.Client.Services;
 
 public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null, bool LoopbackOnly = false, Realm.Ecs.MatchShroudMode ShroudMode = Realm.Ecs.MatchShroudMode.FromMap, LobbySettingSet? Settings = null);
 
-public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false, bool Cheats = false, bool LoopbackOnly = false);
+public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false, bool Cheats = false, bool LoopbackOnly = false, string JoinCode = "");
 
 public readonly record struct MatchStartResult(bool Started, string Failure, string LogPath, string ConsoleLogPath)
 {
@@ -229,6 +229,12 @@ public class ClientServerSession : IDisposable
 	/// </summary>
 	public event Action<LobbyStartWarningMessage>? LobbyStartWarningReceived;
 
+	/// <summary>
+	///     Raised with the authority's answer to a join code this screen presented. A refusal is a refused seat rather than a
+	///     disconnect, so the player stays in the room and may type the code again.
+	/// </summary>
+	public event Action<bool>? JoinCodeAnswered;
+
 	public event Action<MapTransferReply>? MapTransferReplied;
 
 	public ClientServerSession(ClientNetworkChannel channel)
@@ -385,7 +391,11 @@ public class ClientServerSession : IDisposable
 
 			// The Steam lobby is the authority's one record of who may be seated. A loopback lobby seats only this screen and
 			// states none.
-			SteamLobbyId = start.LoopbackOnly ? 0 : SteamLobbyId
+			SteamLobbyId = start.LoopbackOnly ? 0 : SteamLobbyId,
+
+			// The code is compared by the authority and never published, so it travels here rather than in Steam metadata or
+			// in the lobby state every seat reads.
+			JoinCode = start.JoinCode
 		};
 
 		return await StartOnLocalAuthorityAsync(target, command, start.LogDirectory, start.DataFolderPath, start.Language);
@@ -933,6 +943,10 @@ public class ClientServerSession : IDisposable
 
 			case NetworkFrameKind.LobbyStartWarning:
 				LobbyStartWarningReceived?.Invoke(MemoryPackSerializer.Deserialize<LobbyStartWarningMessage>(payload));
+				break;
+
+			case NetworkFrameKind.LobbyJoinCodeAnswer:
+				JoinCodeAnswered?.Invoke(MemoryPackSerializer.Deserialize<LobbyJoinCodeAnswerMessage>(payload).Accepted);
 				break;
 
 			case NetworkFrameKind.MapTransferReply:

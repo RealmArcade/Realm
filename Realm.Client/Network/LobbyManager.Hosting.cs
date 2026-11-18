@@ -268,7 +268,8 @@ public partial class LobbyManager
 			MaxPlayers,
 			Path.Combine(OS.GetUserDataDir(), "logs"),
 			OS.GetUserDataDir(),
-			LocalizationManager.GetCurrentLanguageCode());
+			LocalizationManager.GetCurrentLanguageCode(),
+			JoinCode: JoinCode);
 
 		ReportHostLobbyStage(HostLobbyStage.LoadingMap);
 
@@ -325,6 +326,42 @@ public partial class LobbyManager
 
 		PlayerListUpdated?.Invoke();
 		return true;
+	}
+
+	/// <summary>
+	///     Rewrites the advertisement when the map or the number of seats it states has changed, which is the only part of it
+	///     a host can change from the room. A lobby nobody has published yet has no advertisement to rewrite.
+	/// </summary>
+	private void RefreshHostedLobbyAdvertisement()
+	{
+		if (!IsHost || SteamLobbyId == 0) return;
+		if (string.Equals(_publishedAdvertisementMap, ActiveMapName, StringComparison.Ordinal) && _publishedAdvertisementSeats == MaxPlayers) return;
+
+		PublishHostedLobbyMetadata(_lobbySession?.MapHash ?? string.Empty, !string.IsNullOrEmpty(JoinCode));
+	}
+
+	/// <summary>
+	///     Rewrites the advertisement Steam holds for this lobby. It is written when the lobby is published and again whenever
+	///     the map or the number of seats changes, so the browser never offers a lobby whose stated map or size is not the one
+	///     the host is playing. Nothing that is match state belongs here: seats, teams and settings live in the lobby protocol.
+	/// </summary>
+	/// <param name="mapHash">The content hash of the map the host runs.</param>
+	/// <param name="requiresCode">Whether the lobby gates its seats with a join code, whose text is never published.</param>
+	private void PublishHostedLobbyMetadata(string mapHash, bool requiresCode)
+	{
+		_publishedAdvertisementMap = ActiveMapName;
+		_publishedAdvertisementSeats = MaxPlayers;
+		ulong steamLobbyId = SteamLobbyId;
+		if (steamLobbyId == 0) return;
+
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapKey, ActiveMapName);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapVersionKey, HostedMapVersion);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapHashKey, mapHash);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.EngineGenerationKey, RealmVersion.EngineGeneration.ToString(CultureInfo.InvariantCulture));
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.GameBuildKey, RealmVersion.GameBuildNumber);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.ModeKey, "Melee");
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.SeatsKey, MaxPlayers.ToString(CultureInfo.InvariantCulture));
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.RequiresCodeKey, requiresCode ? "1" : "0");
 	}
 
 	/// <summary>
@@ -393,15 +430,8 @@ public partial class LobbyManager
 		SteamLobbyDirectory.SetVisibility(steamLobbyId, HostedVisibility);
 
 		// Steam metadata is the advertisement, not the lobby state: seats, teams and settings stay in the lobby protocol.
-		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapKey, ActiveMapName);
-		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapVersionKey, HostedMapVersion);
-		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapHashKey, prepared.MapHash);
-		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.EngineGenerationKey, RealmVersion.EngineGeneration.ToString(CultureInfo.InvariantCulture));
-		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.GameBuildKey, RealmVersion.GameBuildNumber);
-		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.ModeKey, "Melee");
-		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.SeatsKey, MaxPlayers.ToString(CultureInfo.InvariantCulture));
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.HostSteamIdKey, GameContext.Steam.SteamId.ToString(CultureInfo.InvariantCulture));
-		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.RequiresCodeKey, requiresCode ? "1" : "0");
+		PublishHostedLobbyMetadata(prepared.MapHash, requiresCode);
 
 		LobbyPort = prepared.Port;
 
