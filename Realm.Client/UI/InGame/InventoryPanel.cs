@@ -357,13 +357,12 @@ public class InventoryPanel
 		}
 
 		string statBlock = TooltipStatBlock.ForItem(itemMeta, itemData.Total);
-		string rawTooltip = $"{name} (Have: {itemData.Total})\n{desc}";
+		string rawTooltip = string.Format(TranslationServer.Translate("{0} (Have: {1})\n{2}"), name, itemData.Total, desc);
 		if (statBlock.Length > 0) rawTooltip += "\n" + statBlock;
-		string transTooltip = TranslationServer.Translate(rawTooltip);
 
 		slot.ItemButton.Icon = !string.IsNullOrEmpty(iconPath) ? RtexIconLoader.Load(iconPath) : null;
 		slot.ItemButton.TooltipText = TooltipTemplate.Resolve(
-			string.IsNullOrEmpty(transTooltip) ? rawTooltip : transTooltip,
+			rawTooltip,
 			TooltipContext.ForUnit(_lastFocusedEntity));
 		slot.CountLabel.Text = itemData.Count > 1 ? itemData.Count.ToString() : string.Empty;
 	}

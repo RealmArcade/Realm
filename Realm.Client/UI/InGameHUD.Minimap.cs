@@ -129,7 +129,7 @@ public partial class InGameHUD
 		if (_camera3D != null && GodotObject.IsInstanceValid(_camera3D))
 		{
 			_camera3D.GlobalPosition = new Vector3(unit.GlobalPosition.X, _camera3D.GlobalPosition.Y, unit.GlobalPosition.Z + 25f);
-			ShowFeedbackText($"Camera → {unit.UnitId.ToUpper()}", new Color(0.9f, 0.8f, 0.5f));
+			ShowFeedbackText(string.Format(TranslationServer.Translate("Camera → {0}"), unit.UnitId.ToUpper()), new Color(0.9f, 0.8f, 0.5f));
 		}
 	}
 }

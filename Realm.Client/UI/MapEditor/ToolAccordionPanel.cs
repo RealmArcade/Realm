@@ -190,7 +190,7 @@ public sealed class ToolAccordionPanel
 			if (ok)
 			{
 				hooks.RefreshCoordinateList();
-				hooks.ShowFeedback($"Coordinate '{name}' created.");
+				hooks.ShowFeedback(string.Format(TranslationServer.Translate("Coordinate '{0}' created."), name));
 				CoordinateNameInput?.Text = "";
 			}
 		};

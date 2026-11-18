@@ -486,7 +486,7 @@ public partial class TemplateManagerDialog
 				string terrainJson = File.ReadAllText(terrainPath);
 				if (terrainJson.Contains(item.TemplateID, StringComparison.OrdinalIgnoreCase))
 				{
-					references.Add($"Placed instances found on map terrain (terrain.json)");
+					references.Add(TranslationServer.Translate("Placed instances found on map terrain (terrain.json)"));
 				}
 			}
 			catch

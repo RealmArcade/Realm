@@ -532,6 +532,6 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		CloseDialog();
 
 		Hud?.RefreshAllInspectors();
-		Hud?.ShowFeedback($"'{opName}' Operation Completed");
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("'{0}' Operation Completed"), opName));
 	}
 }
