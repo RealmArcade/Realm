@@ -485,14 +485,6 @@ public static partial class UIStyle
 		return btnWebAi;
 	}
 
-	/// <summary>One of the discovery screen's two tabs, drawn active or inactive.</summary>
-	public static void ApplyCreatorDiscoveryTabButton(Button button, bool isActive)
-	{
-		button.AddThemeStyleboxOverride("normal", CreateCreatorDiscoveryTabButtonStyle(isActive, false, false));
-		button.AddThemeStyleboxOverride("hover", CreateCreatorDiscoveryTabButtonStyle(isActive, true, false));
-		button.AddThemeStyleboxOverride("pressed", CreateCreatorDiscoveryTabButtonStyle(isActive, false, true));
-	}
-
 	/// <summary>
 	/// A button that draws no plate in any state because its artwork does the talking, such as a carousel arrow drawn as
 	/// a texture child.

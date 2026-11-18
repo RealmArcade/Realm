@@ -31,7 +31,6 @@ public partial class MainMenu : Control
 	private Button _playButton = null!;
 	private Button _singlePlayerButton = null!;
 	private Button _mapDiscoveryButton = null!;
-	private Button _creatorDiscoveryButton = null!;
 	private Button _mapEditorButton = null!;
 	private Button _replaysButton = null!;
 	private Button _storageButton = null!;
@@ -202,7 +201,6 @@ public partial class MainMenu : Control
 		_playButton = GetNode<Button>("CentralPanel/VBoxContainer/PlayButton");
 		_singlePlayerButton = GetNodeOrNull<Button>("CentralPanel/VBoxContainer/SinglePlayerButton");
 		_mapDiscoveryButton = GetNode<Button>("CentralPanel/VBoxContainer/MapDiscoveryButton");
-		_creatorDiscoveryButton = GetNodeOrNull<Button>("CentralPanel/VBoxContainer/CreatorDiscoveryButton");
 		_mapEditorButton = GetNode<Button>("CentralPanel/VBoxContainer/MapEditorButton");
 		_replaysButton = GetNodeOrNull<Button>("CentralPanel/VBoxContainer/ReplaysButton");
 		_storageButton = GetNodeOrNull<Button>("CentralPanel/VBoxContainer/StorageButton");
@@ -245,12 +243,6 @@ public partial class MainMenu : Control
 		}
 
 		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => NavigateTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.webp");
-		if (_creatorDiscoveryButton != null)
-		{
-			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => NavigateTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.webp");
-			_creatorDiscoveryButton.AddThemeConstantOverride("icon_max_width", 28);
-		}
-
 		SetupMenuButton(_mapEditorButton, "MAP EDITOR", () => OnMapEditorPressed(), "res://Assets/UI/menu_editor_button.webp");
 		if (_replaysButton != null)
 		{

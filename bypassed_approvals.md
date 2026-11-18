@@ -223,6 +223,14 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   The engine philosophy paragraph no longer offers "dedicated private servers with verified low-ping connection to all
   players" — hosting is a seat's own machine reached over Steam's peer-to-peer networking — and states the consequence
   plainly instead.
+- **The main menu still offered a creator directory that no longer exists.** `CREATOR DISCOVERY` navigated to
+  `GameScreen.CreatorDiscovery`, whose scene was deleted when the creator surface moved to Steam and into the map details
+  panel, so the button opened nothing. Task 16 puts a global creator directory explicitly out of scope, so the entry point
+  is removed rather than re-pointed: the enum member, the transition case, the music-screen clause, the menu button and
+  its node, the one helper and four plate styles only that screen used, the four discovery textures and the menu button's
+  icon, and the `CreatorInfo` struct — its `DonationLink` and `ContactInfo` fields were the creator-registry shape and
+  nothing read it. The creator's Steam profile, Workshop page and other items stay in the map details panel, which is
+  where task 16 puts them.
 - **Checked and left alone:** `RegistryService`, `RegistryLookups`, `RegistryKeyMatching` and `GameHost.Registry.cs` are
   the placeable-template store, not a lobby registry; `AccountID_t` in `SteamWorkshopService` is Steamworks' own type;
   `RouteReachabilityEntry` and `CombatAndDamageService.Reach` are combat reach; the "punch", "star rating" and
