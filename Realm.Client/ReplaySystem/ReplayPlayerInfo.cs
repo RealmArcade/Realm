@@ -8,10 +8,9 @@ public partial class ReplayPlayerInfo
 	public int PeerId { get; set; }
 
 	/// <summary>
-	///     The account the replay participant played as, or 0 for a guest or computer slot. A replay header records the
-	///     identity beside the name, because the name may have changed since the match was recorded.
+	///     The name this participant was shown under in the match as it was recorded. A replay header keeps the identity
+	///     beside the name, because a Steam persona may have changed since.
 	/// </summary>
-
 	public string Name { get; set; } = null!;
 	public string Faction { get; set; } = null!;
 	public float ColorR { get; set; }

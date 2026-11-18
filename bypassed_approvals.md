@@ -240,6 +240,14 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **The locale prune was re-checked with the repository's own tool.** `Realm.TranslationTool -- prune` reports "nothing to
   prune" for all ten catalogs, so the hand pass removed exactly the keys that tool removes and left no key English does
   not have.
+- **Four doc comments still described a guest seat.** `PlayerInfo.Name`, `PlayerInfo.SteamId`, `ReplayPlayerInfo.Name` and
+  the lobby seat's `SteamId` said "0 for a guest", and the first two were a copy of each other's text: the name was
+  documented as "the account the seat belongs to", which is not what a display name is. Every peer is a Steam identity, so
+  the zero case is now stated as what it actually is — a computer seat, a screen running without Steam, or a hello this
+  build cannot read — and the name is documented as the display value beside the identity rather than as the identity.
+- **`AdminToken` was kept although its name belongs to the deleted admin portal.** It is not an operator credential: the
+  host's own screen mints it, puts it in the start command, and proves it back over loopback, which is how the authority
+  recognises the peer that started the match as the host. Removing it would delete the host's own seat identity.
 - **Checked and left alone:** `RegistryService`, `RegistryLookups`, `RegistryKeyMatching` and `GameHost.Registry.cs` are
   the placeable-template store, not a lobby registry; `AccountID_t` in `SteamWorkshopService` is Steamworks' own type;
   `RouteReachabilityEntry` and `CombatAndDamageService.Reach` are combat reach; the "punch", "star rating" and
