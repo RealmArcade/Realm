@@ -26,11 +26,18 @@ Two rules for the whole plan:
 
 1. `dotnet build Realm.slnx`, then import and run `Realm.Client` in Godot 4.7 mono (the checkout's Godot path is in
    `AGENTS.md`).
-2. **Development AppID file.** Local runs need `steam_appid.txt` containing the demo AppID beside the executable that
-   starts (the export folder, or the Godot binary's working directory). It is gitignored and must never appear in an
-   export; step G checks that.
+2. **Development AppID file.** A run that Steam did not start needs `steam_appid.txt` containing the demo AppID where the
+   process begins, which is one file in `Realm.Client` (a Godot run makes the project folder the working directory) or
+   beside the executable in an export folder. It is gitignored and must never appear in an export; step G checks that.
+   The authority is a process of its own and needs no file of its own: the screen passes it the AppID Steam gave the
+   screen, and the authority states that to Steamworks before it initialises (the authority log's first two lines are
+   where to check it, `running as application <id>`).
 3. **Two accounts.** Steam networking cannot be exercised with one account, so a real multiplayer test needs two Steam
-   clients signed into two accounts, ideally on two networks. Everything in group A can be done alone first.
+   clients signed into two accounts, ideally on two networks. Steam runs one client per signed-in user session, so the
+   cheapest second identity on one machine is a second Windows user session signed into the second account; a laptop on a
+   phone hotspot is the honest test of the transport and is worth having anyway. Both screens must own the AppID the file
+   names, or `SteamAPI_Init` refuses for a licensing reason rather than a missing id. Everything in group A can be done
+   alone first.
 4. **A map to publish.** Any map folder that compiles; the editor's `btnPublish` is the publish path.
 
 ## A. Local only (one account, no network tests)

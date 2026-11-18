@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using Steamworks;
 
 namespace Realm.ListenServerHost;
@@ -16,6 +17,10 @@ namespace Realm.ListenServerHost;
 /// </summary>
 public sealed class SteamAuthorityContext : IDisposable
 {
+	private const string AppIdVariable = "SteamAppId";
+
+	private const string GameIdVariable = "SteamGameId";
+
 	private bool _initialized;
 
 	private bool _disposed;
@@ -36,10 +41,18 @@ public sealed class SteamAuthorityContext : IDisposable
 	///     Tries again to bring Steamworks up, which is what a hosting request does when the process came up before Steam was
 	///     ready. It is a no-op once Steamworks is running.
 	/// </summary>
+	/// <param name="appId">
+	///     The Steam application the screen that started this authority is running as, or <c>0</c> to let Steamworks find
+	///     out for itself. Steamworks looks for the application id in the directory this process was started from, which is
+	///     the authority's own folder and holds no app id file, so the screen states it: it is the id Steam already gave that
+	///     screen, and it is what keeps both processes of one match on one application.
+	/// </param>
 	/// <returns>Whether Steamworks is running after the attempt.</returns>
-	public bool TryStart()
+	public bool TryStart(uint appId = 0)
 	{
 		if (_initialized || _disposed) return _initialized;
+
+		ApplyAppId(appId);
 
 		try
 		{
@@ -66,6 +79,21 @@ public sealed class SteamAuthorityContext : IDisposable
 			Console.Error.WriteLine($"[authority][steam] Steamworks is not usable in this process: {exception.Message}");
 			return false;
 		}
+	}
+
+	/// <summary>
+	///     States the application id to the Steamworks library, which reads it from these two variables before it reads any
+	///     file. Setting them is the same thing the SDK's own app id file does, minus the file, so nothing has to be placed
+	///     beside the authority for a development run to find it.
+	/// </summary>
+	/// <param name="appId">The application the screen is running as, or <c>0</c> to leave the choice to Steamworks.</param>
+	private static void ApplyAppId(uint appId)
+	{
+		if (appId == 0) return;
+
+		string value = appId.ToString(CultureInfo.InvariantCulture);
+		Environment.SetEnvironmentVariable(AppIdVariable, value);
+		Environment.SetEnvironmentVariable(GameIdVariable, value);
 	}
 
 	/// <summary>

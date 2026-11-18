@@ -78,7 +78,13 @@ public class LocalAuthority : IDisposable
 				previous.Dispose();
 			}
 
-			var request = new ResidentAuthorityLaunchRequest(target, _logPath, _dataFolderPath);
+			var request = new ResidentAuthorityLaunchRequest(target, _logPath, _dataFolderPath)
+			{
+				// The authority is a process of its own, and Steamworks looks for the application id in the folder that
+				// process starts from, which is the authority's own and holds no app id file. It is handed the id Steam
+				// already gave this screen instead, so one development file in the screen's folder serves both processes.
+				SteamAppId = GameContext.Steam.AppId
+			};
 			ResidentAuthorityLaunchAttempt attempt = await ResidentAuthority.LaunchAsync(request).ConfigureAwait(false);
 			if (!attempt.Started || attempt.Authority == null)
 			{

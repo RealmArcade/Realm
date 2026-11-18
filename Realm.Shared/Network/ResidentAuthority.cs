@@ -23,6 +23,15 @@ public record ResidentAuthorityLaunchRequest(ServerLaunchTarget Target, string L
 {
 	public int ParentProcessId { get; init; } = Environment.ProcessId;
 
+	/// <summary>
+	///     The Steam application the screen is running as, or <c>0</c> when the screen has no Steam identity. The
+	///     authority is a process of its own, and the Steamworks SDK looks for the application id in the directory that
+	///     process starts from - which is the authority's own folder rather than the screen's. Stating the id here keeps both
+	///     processes on the one application Steam launched, instead of asking for a second app id file beside the authority
+	///     that could disagree with the screen's.
+	/// </summary>
+	public uint SteamAppId { get; init; }
+
 	public int ReadyTimeoutMilliseconds { get; init; } = 60000;
 
 	public int ShutdownTimeoutMilliseconds { get; init; } = 5000;
@@ -250,6 +259,12 @@ public class ResidentAuthority : IDisposable
 		{
 			startInfo.ArgumentList.Add(ServerControlProtocol.ParentProcessIdFlag);
 			startInfo.ArgumentList.Add(request.ParentProcessId.ToString(CultureInfo.InvariantCulture));
+		}
+
+		if (request.SteamAppId > 0)
+		{
+			startInfo.ArgumentList.Add(ServerControlProtocol.SteamAppIdFlag);
+			startInfo.ArgumentList.Add(request.SteamAppId.ToString(CultureInfo.InvariantCulture));
 		}
 
 		try

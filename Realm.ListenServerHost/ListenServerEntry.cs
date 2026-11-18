@@ -38,6 +38,7 @@ public partial class ListenServerEntry : Node
 	private string _logPath = string.Empty;
 	private string _dataFolderPath = string.Empty;
 	private int _parentProcessId;
+	private uint _steamAppId;
 	private double _matchStartedAtSeconds;
 	private bool _inputClosed;
 
@@ -57,7 +58,7 @@ public partial class ListenServerEntry : Node
 		_log = new ServerLog(_logPath);
 		_log.Write($"resident authority up pid={System.Environment.ProcessId} build={RealmVersion.GameBuildNumber}");
 
-		_steam.TryStart();
+		_steam.TryStart(_steamAppId);
 		_log.Write(_steam.Describe());
 
 		_channel = GetNode<ServerNetworkChannel>("/root/RealmNetwork");
@@ -225,7 +226,7 @@ public partial class ListenServerEntry : Node
 		// networked host is refused while Steamworks has no identity here. A loopback match needs no identity at all and is
 		// allowed through, which is what keeps single-player playable on a machine without a usable Steam client.
 		bool isNetworkedMatch = arguments.Lobby && !arguments.LoopbackOnly;
-		if (isNetworkedMatch && !_steam.TryStart())
+		if (isNetworkedMatch && !_steam.TryStart(_steamAppId))
 		{
 			log.Write($"a networked match was refused because this authority has no Steam identity: {_steam.InitializationMessage}");
 			Reply(command, accepted: false, $"this authority has no Steam identity, so it cannot host a networked match: {_steam.InitializationMessage}");
@@ -294,6 +295,7 @@ public partial class ListenServerEntry : Node
 		_logPath = string.Empty;
 		_dataFolderPath = AppContext.BaseDirectory;
 		_parentProcessId = 0;
+		_steamAppId = 0;
 
 		for (int index = 0; index < arguments.Length; index++)
 		{
@@ -308,6 +310,16 @@ public partial class ListenServerEntry : Node
 				case ServerControlProtocol.DataFlag:
 					if (!TryTakeValue(arguments, ref index, flag, out string? dataPath, out error)) return false;
 					_dataFolderPath = dataPath!;
+					break;
+
+				case ServerControlProtocol.SteamAppIdFlag:
+					if (!TryTakeValue(arguments, ref index, flag, out string? appIdText, out error)) return false;
+					if (!uint.TryParse(appIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out _steamAppId) || _steamAppId == 0)
+					{
+						error = $"{ServerControlProtocol.SteamAppIdFlag} expects a Steam application id above zero, not '{appIdText}'.";
+						return false;
+					}
+
 					break;
 
 				case ServerControlProtocol.ParentProcessIdFlag:

@@ -23,7 +23,9 @@ public static class ServerControlProtocol
 
 	public const string ParentProcessIdFlag = "--parent-pid";
 
-	public const string Usage = $"{LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{ParentProcessIdFlag} <process id of the screen that started the authority>]";
+	public const string SteamAppIdFlag = "--steam-app-id";
+
+	public const string Usage = $"{LogFlag} <log file> [{DataFlag} <folder a map's saved data belongs in>] [{ParentProcessIdFlag} <process id of the screen that started the authority>] [{SteamAppIdFlag} <Steam application the screen is running as>]";
 
 	public static readonly JsonSerializerOptions Format = new()
 	{
