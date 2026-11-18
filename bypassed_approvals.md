@@ -186,7 +186,46 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **Checked and left alone:** `CompositeServerTransport` (one peer set over loopback plus Steam, with ids that never
   recycle — correct and load-bearing), `ClientServerSession`'s loopback connect, the map-download retry loops (they cover
   a live transfer), and the announcements form (a deliberate third-party call the Terms disclose).
-- **Known-stale dev tooling, not removed:** `Realm.Client/Testing/` still launches Godot instances and joins them with
-  `TryJoin(hostAddress, port)`, a direct-address path the product no longer offers. It is not reachable from the game and
-  nothing outside that folder references it, so it is left for a dedicated decision — retarget it at a Steam lobby or
-  delete it — rather than removed in a sweep whose commit message says otherwise.
+- **`Realm.Client/Testing/` was kept and made honest instead of deleted.** The multi-process harness launches an authority
+  and screens on one machine and still joins with `TryJoin(hostAddress, port)`, which was a direct-address path when a
+  player could type a host. Two of its jobs — the lag profile and the frame-path verification — are only possible when
+  several processes share one clock and one output folder, so deleting the harness would have deleted the only way to
+  check replication under simulated link conditions. `JoinAuthority` now refuses anything but a loopback address and says
+  why: a screen reaches only its own authority over loopback, and other players arrive through Steam. The harness is
+  therefore a test of the internal IPC plus frame path, never a second multiplayer route, and its one launcher already
+  passes `127.0.0.1`.
+- **`Realm.Client/servers.template.json` outlived the note that claimed it was deleted.** Task 05 recorded it as removed,
+  but the file was still tracked (nothing read it — no `ServersConfig` type survives) and still advertised
+  `node1.realm-game.com`. It is deleted here, which is what the task file asks for when the surface has no consumer.
+
+## Residue sweep after the audits
+
+- **The translation files were the last place the removed features still spoke.** `locale/en.json` is pruned to its call
+  sites by the build, and none of the ten other languages is, so every one of them still carried the retired vocabulary:
+  UPnP status lines, a Direct Connect / IP-address join, forwarding a UDP port, the greenlight and Beta-Testing flow, star
+  reviews, a DONATE button, a creator-registration confirmation. 284 entries were dropped from each file, leaving every
+  key that English still has and nothing else. The lines were removed in place rather than re-serialised, so no surviving
+  translation, order or line ending changed, and each file was re-parsed and compared against the expected dictionary
+  before it was written. Translations English had lost some time ago were removed with the rest; a translation of a key no
+  call site asks for can only be wrong if it is ever rendered again.
+- **`Realm.Tools.Cli/JoinLobbyOptions.cs` was a diagnostic join nothing registered.** It still promised `--lobby` against
+  a registry node, `--registry`, and `--address host:port`, and `Program.cs` binds no verb that parses it. Deleted.
+- **`Realm.slnlaunch` had two launch profiles pointing at the deleted `Realm.AdminServer` project**, so Rider offered
+  developers a run configuration that cannot start. Both are deleted; the two client profiles stay, and no replacement
+  profile was invented because I could not verify a debug target name that does not already exist in the file.
+- **`keygen` still told the author to register the key with the admin server.** It ended by explaining how to graduate a
+  key pair to an "Admin Key" by editing `Realm.AdminServer/appsettings.json`. There is no admin server and no key an
+  operator installs, so the text now states what the key actually does: the `.rkey` signs every map the author publishes,
+  losing it means a later update cannot be shown as theirs, and the public key travels inside each signed map so anyone
+  can check it and it can never sign anything.
+- **`README.md` promised a dedicated private server and donated contributor links into map metadata.** `Contributors` is a
+  list of names written when a map is signed, with no link field of any kind, so the licensing paragraph now says that.
+  The engine philosophy paragraph no longer offers "dedicated private servers with verified low-ping connection to all
+  players" — hosting is a seat's own machine reached over Steam's peer-to-peer networking — and states the consequence
+  plainly instead.
+- **Checked and left alone:** `RegistryService`, `RegistryLookups`, `RegistryKeyMatching` and `GameHost.Registry.cs` are
+  the placeable-template store, not a lobby registry; `AccountID_t` in `SteamWorkshopService` is Steamworks' own type;
+  `RouteReachabilityEntry` and `CombatAndDamageService.Reach` are combat reach; the "punch", "star rating" and
+  "reachability" mentions left in client comments are sentences explaining that those things are absent; the editor
+  installers' `api.github.com` and `steam_appid.txt` references are a tool download the developer asks for and a
+  development file the release workflow refuses to ship.
