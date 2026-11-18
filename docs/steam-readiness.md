@@ -13,7 +13,7 @@ Each of these holds for the current head of `steam_rewrite` and was checked by t
 
 | Claim | How it was checked |
 | --- | --- |
-| The solution compiles | `dotnet build Realm.slnx -c Debug`: 0 errors. The 187 warnings are pre-existing, almost all of them nullability warnings in the editor dialogs. |
+| The solution compiles | `dotnet build Realm.slnx` with `-c Debug` and `-c Release`: 0 errors in both, and the same 187 warnings, which are pre-existing and almost all nullability warnings in the editor dialogs. Release matters because `btnPublish` and the CI upload compile it, so a Debug-only green would not have covered the bytes that ship. |
 | The map API surface has not changed | `Realm.WasmBindgen`'s `MapApiSurface.baseline.json` guard runs as part of the build and fails it on a changed surface, so a green build is a passing check. |
 | The replicated wire table is intact | Reproduced `ReplicationContractTests` from source: all 67 components in `ReplicationComponents.baseline.json` still resolve to the id they ship under through `ComponentTypeRegistry`'s ordered canonical list, no id is reused, and the 67 codecs `ReplicatedComponents` registers are exactly those components. No replicated type sits outside the canonical list, so no id depends on registration order. |
 | The component ids map scripts read are stable | `ComponentTypeRegistry.VerifySharedComponentIds` compares the canonical order with `ComponentIds` at startup and throws, naming the drifted type, so a reordering bug cannot boot. |
