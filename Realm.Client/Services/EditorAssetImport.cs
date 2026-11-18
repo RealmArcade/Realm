@@ -14,7 +14,6 @@ using Realm.Client.Network;
 using Realm.Shared.Distribution;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
-using HttpClient = System.Net.Http.HttpClient;
 using Key = NSec.Cryptography.Key;
 
 namespace Realm.Client.Services;

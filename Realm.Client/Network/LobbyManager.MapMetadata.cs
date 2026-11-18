@@ -26,7 +26,6 @@ using Realm.Shared.Network;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 public partial class LobbyManager
@@ -130,60 +129,4 @@ public partial class LobbyManager
 
 		return "";
 	}
-
-	private async Task<bool> HandleRegisterFailureAsync(HttpResponseMessage? response)
-	{
-		string errMsg = "Registry server registration failed.";
-
-		if (response != null)
-		{
-			errMsg = await ExtractErrorMessageAsync(response, errMsg);
-		}
-
-		LastHostError = errMsg;
-		GameLog.LogError($"[LobbyManager] {errMsg}");
-		return false;
-	}
-
-	private async Task<string> ExtractErrorMessageAsync(HttpResponseMessage response, string defaultError)
-	{
-		try
-		{
-			string body = await response.Content.ReadAsStringAsync();
-			using var errDoc = JsonDocument.Parse(body);
-
-			string parsedError = TryGetErrorMessage(errDoc.RootElement);
-			if (!string.IsNullOrEmpty(parsedError))
-			{
-				return parsedError;
-			}
-
-			if (!string.IsNullOrWhiteSpace(body))
-			{
-				return body;
-			}
-		}
-		catch
-		{
-		}
-
-		return defaultError;
-	}
-
-	private string TryGetErrorMessage(JsonElement root)
-	{
-		string[] errorProperties = { "message", "Message", "title", "detail" };
-
-		foreach (string propName in errorProperties)
-		{
-			if (root.TryGetProperty(propName, out var msgProp))
-			{
-				string? msg = msgProp.GetString();
-				if (msg != null) return msg;
-			}
-		}
-
-		return string.Empty;
-	}
-
 }

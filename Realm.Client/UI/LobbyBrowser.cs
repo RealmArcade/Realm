@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
-using HttpClient = System.Net.Http.HttpClient;
 using Timer = Godot.Timer;
 using static Godot.Control;
 using static Godot.CanvasItem;
@@ -57,7 +56,6 @@ public partial class LobbyBrowser : Control
 	private Timer _refreshTimer = null!;
 
 	private readonly string[] _runes = { "ᚠ", "ᚢ", "ᚦ", "ᚨ", "ᚱ", "ᚲ", "ᚷ", "ᚹ", "ᚺ", "ᚾ", "ᛁ", "ᛃ", "ᛇ", "ᛈ", "ᛉ", "ᛊ", "ᛏ", "ᛒ", "ᛖ", "ᛗ", "ᛚ", "ᛜ", "ᛞ", "ᛟ" };
-	private readonly HttpClient _httpClient = new HttpClient();
 
 	public override void _Ready()
 	{
@@ -401,7 +399,6 @@ public partial class LobbyBrowser : Control
 			_refreshTimer.Timeout -= TriggerRefresh;
 		}
 
-		_httpClient?.Dispose();
 		base._ExitTree();
 	}
 
@@ -458,8 +455,7 @@ public partial class LobbyBrowser : Control
 	{
 		if (disposing)
 		{
-			_httpClient?.Dispose();
-		}
+			}
 
 		base.Dispose(disposing);
 	}

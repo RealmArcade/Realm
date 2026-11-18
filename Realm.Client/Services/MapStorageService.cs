@@ -22,7 +22,6 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 using Key = NSec.Cryptography.Key;
 
 namespace Realm.Client.Services;

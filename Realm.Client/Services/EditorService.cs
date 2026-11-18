@@ -1,4 +1,4 @@
-using Realm.Shared.Maps;
+﻿using Realm.Shared.Maps;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -33,7 +33,6 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
 using Environment = System.Environment;
-using HttpClient = System.Net.Http.HttpClient;
 using Key = NSec.Cryptography.Key;
 using Timer = System.Threading.Timer;
 using Vector3 = System.Numerics.Vector3;

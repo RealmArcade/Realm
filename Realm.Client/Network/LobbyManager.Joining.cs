@@ -26,7 +26,6 @@ using Realm.Shared.Network;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 public partial class LobbyManager

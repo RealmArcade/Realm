@@ -24,7 +24,6 @@ using Realm.Shared.Simulation;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 
@@ -316,7 +315,6 @@ public partial class LobbyManager : BaseMapTransferNode
 
 	private bool _loadReadyReported;
 
-	private readonly HttpClient _httpClient = new();
 	private ClientServerSession? _lobbySession;
 	private bool _isConnectedToHost;
 
