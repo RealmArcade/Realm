@@ -151,3 +151,21 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **What was checked and left alone:** "Ping" in the match HUD (a real measured round trip), the KICK button (the host's
   own seat control), join-code and password wording in comments (Steam lobby guides use the same word), and
   `PrivateKeyEncryptionHelper`'s password (it encrypts an authorship key file, not an account).
+
+## Dead-control audit
+
+- **Two HttpClients were still constructed by the match screens.** `LobbyManager` and `LobbyBrowser` each held one that
+  no request used, left over from polling a lobby registry. They are deleted with their `Dispose` calls and the ten
+  `using HttpClient = ...` directives that existed only for the registry calls. The editor's own installers keep theirs,
+  because they really do download a tool the developer asked for.
+- **`NetworkService.CheckCreatorRegistrationAsync` was the last live call to a deleted service** — a GET to
+  `/api/creators/check/` on a seed URL, with no caller. Deleted rather than left to time out in three seconds if anyone
+  wired it up later.
+- **The HUD scene shipped four unit buttons that existed only to be destroyed.** `SelectionUnitStrip` clears the container
+  and builds twelve slots at startup, so the four `Unit1`–`Unit4` nodes were dead scene content. The container stays,
+  because the strip addresses it by path.
+- **A scene write added a BOM to `InGameHUD.tscn`**, which Godot does not expect on a scene file. It was stripped before
+  the commit; the other two scenes changed in the same pass already carried one.
+- **Checked and left alone:** every button and checkbox in every `.tscn` is referenced by name from code (the only
+  unreferenced ones were the placeholders above), no `Pressed` handler is empty, and no UI string promises a feature that
+  is gone.
