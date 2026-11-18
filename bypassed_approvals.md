@@ -513,3 +513,10 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   is already reading a tool whose compiler output, file paths and template ids are English. That makes the surface less
   urgent, not unimportant, and it is why it was batched rather than done in one pass where a five-placeholder summary
   sentence in nine languages would have been a guess with no way left to review it.
+- **The profile screen added five of its own children twice.** `BuildLayout` wrapped each helper in `AddChild(...)` while the
+  helper had already added its node to the column, so every run logged `Can't add child ... already has a parent` five
+  times. The helpers own the parenting, so the wrappers are gone and `CreateLeaderboardButton` now returns `void` like the
+  rest; no node moved, no wording changed.
+- **The leaderboard screen was parented into the card's inner margin.** It was added to the column's parent, a
+  `MarginContainer` inside the card, so its full-rect backdrop and body would have been laid out inside the card instead of
+  over the screen. It now hangs off the profile dialog itself, the same full-screen surface the profile is drawn on.

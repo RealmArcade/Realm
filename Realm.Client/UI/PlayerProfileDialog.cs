@@ -88,11 +88,11 @@ public partial class PlayerProfileDialog : Control
 		margin.AddChild(column);
 
 		column.AddChild(CreateTitleLabel());
-		column.AddChild(CreateIdentityBlock(column));
-		column.AddChild(CreateWarningLabel(column));
-		column.AddChild(CreateSteamProfileButton(column));
-		column.AddChild(CreateLeaderboardButton(column));
-		column.AddChild(CreateBackButton(column));
+		CreateIdentityBlock(column);
+		CreateWarningLabel(column);
+		CreateSteamProfileButton(column);
+		CreateLeaderboardButton(column);
+		CreateBackButton(column);
 	}
 
 	private Label CreateTitleLabel()
@@ -195,7 +195,7 @@ public partial class PlayerProfileDialog : Control
 		return _steamProfileButton;
 	}
 
-	private Button CreateLeaderboardButton(Node parent)
+	private void CreateLeaderboardButton(Node parent)
 	{
 		Button button = CreateActionButton(parent, "LEADERBOARDS");
 		button.Pressed += () =>
@@ -203,9 +203,8 @@ public partial class PlayerProfileDialog : Control
 			GameContext.UserInterface?.PlayClickSound();
 
 			var dialog = new SteamLeaderboardDialog { Name = "SteamLeaderboardDialog" };
-			parent.GetParent()?.AddChild(dialog);
+			AddChild(dialog);
 		};
-		return button;
 	}
 
 	private Button CreateBackButton(Node parent)
