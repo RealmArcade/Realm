@@ -287,6 +287,28 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   Play opens Steam's directory, which states its reason and offers nothing when there is no Steam client. `SteamService.UserName`
   and the lobby name ceiling carried the same vocabulary ("the name a sign-in claims", "a registered name") and now describe
   Steam's persona and a name that reads cleanly.
+## Identity of a seat
+
+- **The authority seated a peer under the SteamID the peer stated, not the one Steam authenticated.** `IServerTransport`
+  documents `TryGetPeerSteamId` as "the SteamID64 the transport authenticated this peer as … which is what keeps a seat from
+  existing without a verified identity", `SteamServerTransport` fills it from Steam's connection callback, and
+  `CompositeServerTransport` forwards it. Nothing read it. `HandleLobbyHello` passed `hello.SteamId` straight into
+  `ServerLobby.AdmitPeer`, and the match handshake used the same claimed number to choose the player slot.
+- **What that allowed, in order of severity.** A peer connecting to a match could state another player's SteamID64 and be
+  handed that player's slot through `_lobbySessionSlots`, taking over their army on reconnect. In a lobby, the claimed
+  number selected which disconnected seat a returning player was given, and decided whether the kick list refused them, so
+  a kicked player could rejoin by stating a number that was not on the list. The same number is what a map script sees
+  through the Steam surface and what the browser's add-friend action points at.
+- **The fix is one resolver and four call sites.** `ListenServerHost.ResolveSeatSteamId` prefers
+  `_transport.TryGetPeerSteamId` and falls back to the hello only when the transport asserts nothing, which is the host's
+  own screen on loopback and a match started without a lobby — cases where the machine running the authority is the one
+  stating the identity. A hello that disagrees with Steam is seated under Steam's number and logged, so a tampered or
+  confused client cannot take a seat and the authority says which connection tried. Both the lobby hello and the match
+  handshake now resolve the identity once and use it for the seat, the slot reclaim, `_steamIdSlots` and
+  `SetPeerSteamId`.
+- **The wire field stays.** `ClientHello.SteamId` is still the only statement of identity for the loopback host and for a
+  lobby-less match, and it is what a bare `dotnet run` authority seats its own screen with. Removing it would break the
+  single-machine case that has no transport identity to fall back on.
 - **Checked and left alone:** `RegistryService`, `RegistryLookups`, `RegistryKeyMatching` and `GameHost.Registry.cs` are
   the placeable-template store, not a lobby registry; `AccountID_t` in `SteamWorkshopService` is Steamworks' own type;
   `RouteReachabilityEntry` and `CombatAndDamageService.Reach` are combat reach; the "punch", "star rating" and

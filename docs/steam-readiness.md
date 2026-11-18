@@ -19,6 +19,7 @@ Each of these holds for the current head of `steam_rewrite` and was checked by t
 | The component ids map scripts read are stable | `ComponentTypeRegistry.VerifySharedComponentIds` compares the canonical order with `ComponentIds` at startup and throws, naming the drifted type, so a reordering bug cannot boot. |
 | The client cannot call the authority in process | `Realm.Client.csproj` carries only the `ReferenceOutputAssembly="false"` ordering reference; no `using Realm.ListenServer` exists in client source. |
 | Nothing references a deleted page or file | Every `GetNode`/`GetNodeOrNull` literal resolves against its scene apart from fallback chains and nodes inside instanced sub-scenes; every `res://` literal resolves against the Godot project that owns the referencing file apart from the optional `config/featured_workshop_items.json`, whose absence the trust policy treats as "features nothing"; no orphaned `.cs.uid` remains. |
+| A seat's SteamID is the identity Steam asserted | `ListenServerHost.ResolveSeatSteamId` takes `_transport.TryGetPeerSteamId` first and uses the hello's number only when the transport asserts none (the host's own screen on loopback, and a match started without a lobby). It is the identity used for the lobby seat, the slot reclaim, the kick list and `SetPeerSteamId`. |
 | The translation catalogs match their call sites | `Realm.TranslationTool -- prune` reports nothing to prune for all ten translated catalogs, and each catalog's key set is a subset of `en.json`. |
 | The authoring schemas are one vocabulary | `metadata`, `terrain` and `manifest` schemas are byte-identical between `Realm.MapEditorExtension` and the copy in `MapTemplate/.vscode`. |
 | The retired platform has no live path back | No tracked file outside `prompts/` imports or constructs the admin server, the lobby registry, the seeder network, `ServersConfig` or `servers.json`; `HttpClient` survives only in the announcements sign-up and the two editor installers that actually download a tool; no source states a `res://` icon path that does not exist. |
@@ -32,6 +33,10 @@ Grouped by what a failure would look like, worst first.
 the join code is compared on the authority and never travels in Steam metadata; the host's own seat arrives over loopback
 while every other seat arrives over Steam. This is the path most of the migration rewrote and the one a mistake would
 make unusable, and it has never run.
+
+**A peer that takes another player's seat.** The authority now believes Steam's assertion over the hello's number, but that path
+has only been compiled, never attacked: it needs a doctored client that states somebody else's SteamID64 to prove the seat,
+the slot reclaim and the kick list all ignore the claim.
 
 **A peer that cannot be seen or invited.** Steam friends invites from any seat, `+connect_lobby` landing a closed client
 in the right lobby, and rich presence naming the state and clearing on exit.
