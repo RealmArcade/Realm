@@ -106,12 +106,6 @@ public class CompositeServerTransport : IServerTransport
 		link.Transport.Disconnect(nativeId);
 	}
 
-	/// <summary>
-	///     Sends a bare datagram from the loopback socket. Only the reachability probe and the punch use this, and both are
-	///     deleted with the rest of the traversal code; a Steam peer has no address to send one to.
-	/// </summary>
-	public bool SendToAddress(string address, int port, ReadOnlySpan<byte> payload) => _loopback.SendToAddress(address, port, payload);
-
 	public bool TryReadPeerLink(int peerId, out PeerLinkStatistics statistics)
 	{
 		statistics = default;

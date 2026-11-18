@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
-using Realm.Shared.Reachability;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
@@ -473,12 +472,6 @@ public partial class LobbyCreate : Control
 
 			GameContext.UserInterface?.PlayWarningSound();
 
-			if (lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None })
-			{
-				RestrictiveNetworkDialog.Show();
-				return;
-			}
-
 			ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to start the match."));
 			return;
 		}
@@ -511,13 +504,7 @@ public partial class LobbyCreate : Control
 		GameContext.UserInterface?.PlayWarningSound();
 		GameLog.LogError("[LobbyCreate] Failed to host lobby.");
 
-		if (lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None })
-		{
-			RestrictiveNetworkDialog.Show();
-			return;
-		}
-
-		ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to host lobby on the registry server."));
+		ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to host lobby."));
 	}
 
 	/// <summary>
@@ -640,18 +627,10 @@ public partial class LobbyCreate : Control
 	{
 		switch (stage)
 		{
-			case HostLobbyStage.TestingNetwork:
-				return (TranslationServer.Translate("Testing your connection and NAT type..."), 6, 25);
 			case HostLobbyStage.LoadingMap:
-				return (TranslationServer.Translate("Loading the map into the match server..."), 25, 60);
+				return (TranslationServer.Translate("Loading the map into the match server..."), 10, 60);
 			case HostLobbyStage.AdmittingHost:
-				return (TranslationServer.Translate("Entering the lobby as host..."), 60, 74);
-			case HostLobbyStage.OpeningPort:
-				return (TranslationServer.Translate("Opening your port for other players..."), 74, 84);
-			case HostLobbyStage.VerifyingNetwork:
-				return (TranslationServer.Translate("Checking that other players can reach this computer..."), 84, 92);
-			case HostLobbyStage.RegisteringLobby:
-				return (TranslationServer.Translate("Registering the lobby on the server..."), 88, 99);
+				return (TranslationServer.Translate("Entering the lobby as host..."), 60, 90);
 			default:
 				return (string.Empty, 0, 0);
 		}

@@ -87,7 +87,6 @@ theme_override_font_sizes/font_size = 12
 autowrap_mode = 3
 vertical_alignment = 1
 
-[node name="LobbyFamiliesHint" type="Label" parent="."]
 custom_minimumSize = Vector2(600, 0)
 layout_mode = 0
 offset_left = 280.0

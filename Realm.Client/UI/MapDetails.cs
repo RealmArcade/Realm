@@ -1,15 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
-using Realm.Shared.Distribution;
 using FileAccess = Godot.FileAccess;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.Services;
+using Realm.Client.Services.Steam;
 
 namespace Realm.Client.UI;
 
@@ -416,15 +417,9 @@ public partial class MapDetails : Control
 		_downloadSubtitle.Text = $"0% ({_mapData.FileSize})";
 		_downloadSubtitle.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 
-		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby)
-			? GameContext.Lobby.RegistryServerUrl
-			: ServersConfigHelper.GetDefaultServerUrl();
-
-		var distClient = new MapDistributionClient();
 		int lastReportedPercent = 0;
-		bool success = await distClient.DownloadMapPackageFromRegistryAsync(
-			_mapData.MapId,
-			seedServerUrl,
+		bool success = await SteamWorkshopService.InstallAsync(
+			PublishedFileIdOf(_mapData),
 			progress =>
 			{
 				int currentPercent = (int)MathF.Round(progress * 100.0f);
@@ -435,7 +430,8 @@ public partial class MapDetails : Control
 					_downloadButton.Text = $"Downloading... {currentPercent}%";
 					_downloadSubtitle.Text = $"{currentPercent}% ({_mapData.FileSize})";
 				}
-			}
+			},
+			CancellationToken.None
 		);
 
 		_isDownloading = false;
@@ -461,5 +457,16 @@ public partial class MapDetails : Control
 
 			_downloadSubtitle.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
 		}
+	}
+
+	/// <summary>
+	///     The Workshop item a library entry came from. The library's id is the item id as text, because every screen that
+	///     hands a map around does so as a string.
+	/// </summary>
+	/// <param name="map">The map the details screen is showing.</param>
+	/// <returns>The item id, or zero when the entry did not come from the Workshop.</returns>
+	private static ulong PublishedFileIdOf(MapData map)
+	{
+		return ulong.TryParse(map.MapId, out ulong publishedFileId) ? publishedFileId : 0;
 	}
 }

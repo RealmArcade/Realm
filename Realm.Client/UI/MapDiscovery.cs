@@ -2,14 +2,15 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Godot;
 using Realm.Client.Network;
-using Realm.Shared.Distribution;
 
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.Services;
+using Realm.Client.Services.Steam;
 
 namespace Realm.Client.UI;
 
@@ -97,30 +98,26 @@ public partial class MapDiscovery : Control
 
 	private async void LoadDiscoveryMapsAsync()
 	{
-		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby)
-			? GameContext.Lobby.RegistryServerUrl
-			: ServersConfigHelper.GetDefaultServerUrl();
-
 		try
 		{
-			var distClient = new DistributionClient(seedServerUrl);
-			var discoveryDtos = await distClient.GetDiscoveryMapsAsync();
-			if (discoveryDtos != null && discoveryDtos.Count > 0)
+			IReadOnlyList<WorkshopMapEntry> items = await SteamWorkshopService.BrowseAsync(null, SteamWorkshopService.BrowsePageCount, CancellationToken.None);
+			if (items.Count > 0)
 			{
-				var liveMaps = discoveryDtos
-					.Select(dto => MapData.FromDto(dto, seedServerUrl))
+				var liveMaps = items
+					.Where(entry => !entry.IsBanned)
+					.Select(MapData.FromWorkshop)
 					.ToList();
 
 				var groupedMaps = liveMaps
-					.GroupBy(m => string.IsNullOrWhiteSpace(m.Title) ? m.MapId : m.Title.Trim(), StringComparer.OrdinalIgnoreCase)
+					.GroupBy(map => string.IsNullOrWhiteSpace(map.Title) ? map.MapId : map.Title.Trim(), StringComparer.OrdinalIgnoreCase)
 					.Select(group =>
 					{
-						var versions = group.OrderByDescending(v => MapInfoHelper.ParseVersion(v.Version)).ToList();
+						var versions = group.OrderByDescending(version => MapInfoHelper.ParseVersion(version.Version)).ToList();
 						var primary = versions[0];
 						primary.AvailableVersions = versions;
-						foreach (var v in versions)
+						foreach (var version in versions)
 						{
-							v.AvailableVersions = versions;
+							version.AvailableVersions = versions;
 						}
 
 						return primary;
@@ -132,9 +129,9 @@ public partial class MapDiscovery : Control
 				return;
 			}
 		}
-		catch (Exception ex)
+		catch (Exception exception)
 		{
-			GameLog.LogError($"[MapDiscovery] Failed to load maps from server: {ex.Message}");
+			GameLog.LogError($"[MapDiscovery] Reading the map Workshop failed: {exception.Message}");
 		}
 
 		RenderMapGrid();

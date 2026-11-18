@@ -235,7 +235,7 @@ public partial class ListenServerEntry : Node
 		// The host's own seat keeps the loopback socket it has always used, and remote peers arrive on Steam's listener. Both
 		// are one peer set to the simulated match, so single-player runs with no Steam client at all.
 		var loopbackTransport = new EnetServerTransport(channel, command.Port, command.WasmDebug);
-		SteamServerTransport? steamTransport = isNetworkedMatch ? new SteamServerTransport(log) : null;
+		SteamServerTransport? steamTransport = isNetworkedMatch ? new SteamServerTransport(log, arguments.SteamLobbyId) : null;
 		var transport = new CompositeServerTransport(loopbackTransport, steamTransport);
 		var host = new MatchHost(arguments, log, transport);
 

@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
-using Realm.Shared.Reachability;
 using HttpClient = System.Net.Http.HttpClient;
 using Timer = Godot.Timer;
 using static Godot.Control;
@@ -93,7 +92,6 @@ public partial class LobbyBrowser : Control
 
 
 		LobbyManager? lobby = GameContext.Lobby;
-		if (lobby != null) lobby.NatTestCompleted += UpdateHostButtonState;
 		UpdateHostButtonState();
 
 
@@ -423,11 +421,6 @@ public partial class LobbyBrowser : Control
 			_refreshTimer.Timeout -= TriggerRefresh;
 		}
 
-		if (GameContext.Lobby != null)
-		{
-			GameContext.Lobby.NatTestCompleted -= UpdateHostButtonState;
-		}
-
 		_httpClient?.Dispose();
 		base._ExitTree();
 	}
@@ -478,12 +471,6 @@ public partial class LobbyBrowser : Control
 	/// <param name="message">What the lobby said went wrong.</param>
 	private void ShowLobbyJoinErrorPopup(string message)
 	{
-		if (GameContext.Lobby is { } lobby && JoinPhases.IsKnown(lobby.LastJoinPhase))
-		{
-			RestrictiveNetworkDialog.Show();
-			return;
-		}
-
 		GameContext.UserInterface?.ShowPopupMessage(TranslationServer.Translate("CONNECTION FAILED"), message);
 	}
 
@@ -491,11 +478,6 @@ public partial class LobbyBrowser : Control
 	{
 		if (disposing)
 		{
-			if (GameContext.Lobby != null)
-			{
-				GameContext.Lobby.NatTestCompleted -= UpdateHostButtonState;
-			}
-
 			_httpClient?.Dispose();
 		}
 

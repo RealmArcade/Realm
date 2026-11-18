@@ -175,7 +175,6 @@ public partial class GameOver
 				playtimeMin = (DateTime.UtcNow - GameContext.Lobby.GameSessionStartTime.Value).TotalMinutes;
 			}
 
-			await ReportMetricsAsync(mapName, playtimeMin, selectedRating, true);
 		};
 		btnSubmit.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}

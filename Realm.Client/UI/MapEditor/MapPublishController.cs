@@ -1,15 +1,20 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Godot;
+using Steamworks;
 using NSec.Cryptography;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.Services.Publishing;
+using Realm.Client.Services.Steam;
 using Realm.Client.Utils;
+using Realm.Shared;
 using Realm.Shared.Distribution;
+using Realm.Shared.Steam;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
 using Key = NSec.Cryptography.Key;
@@ -46,8 +51,8 @@ public sealed record PublishHooks(
 	Action<string, string, int, int, double, bool> ShowGreenlight);
 
 /// <summary>
-/// The publish pipeline: validate the workspace, compile the map script, package and sign the assets, then drive the
-/// registry's initiate/upload/finalize handshake. It runs on the editor's node so the process-frame waits and the
+/// The publish pipeline: validate the workspace, compile the map script, package and sign the assets, then hand the
+/// package to Steam Workshop, which is the publication. It runs on the editor's node so the process-frame waits and the
 /// dialog child behave as they did inside the HUD, and reports every outcome through <see cref="PublishProgressView"/>.
 /// </summary>
 public sealed class MapPublishController
@@ -114,7 +119,6 @@ public sealed class MapPublishController
 		var statusLabel = publishDialog.StatusLabel;
 		var closeBtn = publishDialog.CloseButton;
 		var view = new PublishProgressView(progressBar, statusLabel, closeBtn);
-		var testVersionCheck = publishDialog.TestVersionCheck;
 
 		closeBtn.Pressed += () =>
 		{
@@ -131,27 +135,6 @@ public sealed class MapPublishController
 
 		try
 		{
-			view.Stage(5, TranslationServer.Translate("Checking publish eligibility..."));
-			await _hooks.Owner.ToSignal(_hooks.Owner.GetTree(), SceneTree.SignalName.ProcessFrame);
-
-			string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
-
-			var (greenlight, greenlightWarning) = await PublishGreenlightProbe.CheckAsync(seedServerUrl, mapTitle, mapVersion, publishAuthorshipKey);
-			if (greenlightWarning != null)
-			{
-				_hooks.AppendLog(greenlightWarning);
-			}
-			if (greenlight is { IsGreenlit: false } greenlightStatus)
-			{
-				if (GodotObject.IsInstanceValid(popup))
-				{
-					popup.QueueFree();
-				}
-
-				_hooks.ShowGreenlight(mapTitle, mapVersion, greenlightStatus.VerifiedGoodReviews, greenlightStatus.TotalReviews, greenlightStatus.AverageRating, false);
-				return;
-			}
-
 			await SavePublishWorkspaceStateAsync(workspace, tempTerrainPath, view);
 
 			view.Stage(15, TranslationServer.Translate("Verifying map assets..."));
@@ -223,104 +206,48 @@ public sealed class MapPublishController
 			string currentUsername = _hooks.AuthorName();
 			var publish = await PublishPackageBuilder.BuildAsync(
 				workspace, activeConfigPath, mapTitle, mapVersion, currentUsername, authorshipKey,
-				testVersionCheck.ButtonPressed,
+				isTestVersion: false,
 				() => _hooks.SignMetadata(workspace, mapTitle, mapVersion, currentUsername));
-			string manifestJsonContent = publish.ManifestJsonContent;
-			string manifestSigBase64 = publish.ManifestSigBase64;
-			string pubKeyBase64 = publish.PubKeyBase64;
-			var hashToRelativePath = publish.HashToRelativePath;
 
-			var distClient = new DistributionClient(seedServerUrl);
-
-			view.Stage(70, TranslationServer.Translate("Initiating publish session with registry..."));
+			view.Stage(70, TranslationServer.Translate("Preparing the Workshop upload..."));
 			await _hooks.Owner.ToSignal(_hooks.Owner.GetTree(), SceneTree.SignalName.ProcessFrame);
 
-			var initReq = new PublishMapInitiateRequest
+			string stagingRoot = ProjectSettings.GlobalizePath("user://workshop_publish");
+			string stagingFolder = Path.Combine(stagingRoot, SanitizeFolderName(mapTitle));
+			MapArchiveHelper.StageCanonicalCopy(workspace, stagingFolder);
+
+			var identity = new WorkshopMapMetadata
 			{
-				ManifestJson = manifestJsonContent,
-				MapTitle = mapTitle,
-				MapVersion = mapVersion,
-				PublicKey = pubKeyBase64,
-				Signature = manifestSigBase64,
-				ReferencedHashes = publish.ReferencedHashes,
-				IsTestVersion = testVersionCheck.ButtonPressed
+				MapName = mapTitle,
+				Version = mapVersion,
+				GameBuildNumber = RealmVersion.GameBuildNumber,
+				ContentHash = publish.ManifestJsonContent != null ? MapManifest.LoadFromJson(publish.ManifestJsonContent).ComputeManifestBlake3() : string.Empty,
+				AuthorSteamId = GameContext.Steam.SteamId
 			};
 
-			var initRes = await distClient.InitiatePublishAsync(initReq);
-			if (!initRes.Success)
-			{
-				string baseMsg = !string.IsNullOrEmpty(initRes.Message) ? initRes.Message : TranslationServer.Translate("Failed to initiate publish.");
-				string errorText = string.Format(TranslationServer.Translate("Failed to initiate publish: {0}"), baseMsg);
-				if (initRes.MissingHashes != null && initRes.MissingHashes.Count > 0)
+			WorkshopMapEntry? existingItem = await SteamWorkshopService.FindByMapNameAsync(mapTitle, CancellationToken.None);
+			ulong existingItemId = existingItem?.PublishedFileId ?? 0;
+
+			string? thumbnailPath = PrepareWorkshopPreview(workspace, stagingRoot);
+			var publishResult = await SteamWorkshopService.PublishAsync(
+				stagingFolder,
+				thumbnailPath,
+				mapTitle,
+				string.Format(TranslationServer.Translate("A Realm map, published from the map editor. Version {0}."), mapVersion),
+				identity,
+				ERemoteStoragePublishedFileVisibility.k_ERemoteStoragePublishedFileVisibilityPublic,
+				existingItemId,
+				string.Format(TranslationServer.Translate("Realm map editor published version {0}."), mapVersion),
+				progress =>
 				{
-					string firstMissingHash = initRes.MissingHashes[0];
-					string firstMissingName = hashToRelativePath.TryGetValue(firstMissingHash, out var rel) || hashToRelativePath.TryGetValue(ContentAddressableStorage.NormalizeBlake3Hash(firstMissingHash), out rel)
-						? rel
-						: firstMissingHash;
-					errorText += "\n" + string.Format(TranslationServer.Translate("Missing asset: {0}"), firstMissingName);
-				}
+					view.Stage(70 + progress.Fraction * 28, progress.Stage);
+				},
+				CancellationToken.None);
 
-				view.Fail(errorText);
-				_hooks.Feedback(errorText);
-				return;
-			}
-
-			if (initRes.MissingHashes.Count > 0)
+			if (publishResult.Success)
 			{
-				long lastProgressTicks = 0;
-				var (uploadSuccess, failedAsset, errorMsg) = await distClient.UploadMissingAssetsMultiThreadedAsync(
-					workspace,
-					initRes.MissingHashes,
-					hashToRelativePath,
-					currentUsername,
-					pubKeyBase64,
-					authorshipKey,
-					mapTitle,
-					mapVersion,
-					initRes.SessionId,
-					progressCallback: (done, total, fileName) =>
-					{
-						long now = Environment.TickCount64;
-						if (now - lastProgressTicks < 50 && done < total)
-						{
-							return;
-						}
-
-						lastProgressTicks = now;
-						Callable.From(() =>
-						{
-							float fraction = total > 0 ? (float)done / total : 1.0f;
-							view.Stage(70 + fraction * 25, string.Format(TranslationServer.Translate("Uploading asset {0}/{1}: {2}..."), done, total, fileName));
-						}).CallDeferred();
-					},
-					maximumConcurrency: 4
-				);
-
-				if (!uploadSuccess)
-				{
-					view.Fail(string.Format(TranslationServer.Translate("Failed to upload asset: {0}"), failedAsset));
-					_hooks.Feedback($"Failed to upload asset: {failedAsset} ({errorMsg})");
-					return;
-				}
-			}
-
-			view.Stage(95, TranslationServer.Translate("Finalizing map publish..."));
-			await _hooks.Owner.ToSignal(_hooks.Owner.GetTree(), SceneTree.SignalName.ProcessFrame);
-
-			var finalizeReq = new PublishMapFinalizeRequest
-			{
-				SessionId = initRes.SessionId,
-				MapTitle = mapTitle,
-				MapVersion = mapVersion,
-				PublicKey = pubKeyBase64,
-				Signature = manifestSigBase64,
-				IsTestVersion = testVersionCheck.ButtonPressed
-			};
-
-			var finalRes = await distClient.FinalizePublishAsync(finalizeReq);
-			if (finalRes.Success)
-			{
-				view.Succeed(TranslationServer.Translate("Map compiled & published successfully!"));
+				view.Stage(100, TranslationServer.Translate("Map published to the Steam Workshop."));
+				view.Succeed(TranslationServer.Translate("Map compiled & published to the Steam Workshop!"));
 				await _hooks.Owner.ToSignal(_hooks.Owner.GetTree().CreateTimer(0.6f), SceneTreeTimer.SignalName.Timeout);
 
 				if (GodotObject.IsInstanceValid(popup))
@@ -328,9 +255,9 @@ public sealed class MapPublishController
 					popup.QueueFree();
 				}
 
-				_hooks.Feedback(TranslationServer.Translate("Map compiled & published successfully!"));
+				_hooks.Feedback(TranslationServer.Translate("Map compiled & published to the Steam Workshop!"));
 				GameContext.UserInterface?.ShowConfirmationDialog(
-					TranslationServer.Translate("Map compiled & published successfully!"),
+					string.Format(TranslationServer.Translate("Map compiled & published to the Steam Workshop as item {0}."), publishResult.PublishedFileId),
 					() => { },
 					confirmText: TranslationServer.Translate("OK"),
 					showCancel: false
@@ -338,17 +265,7 @@ public sealed class MapPublishController
 			}
 			else
 			{
-				string baseMsg = !string.IsNullOrEmpty(finalRes.Message) ? finalRes.Message : TranslationServer.Translate("Failed to finalize publish.");
-				string errorText = string.Format(TranslationServer.Translate("Failed to finalize publish: {0}"), baseMsg);
-				if (finalRes.MissingHashes != null && finalRes.MissingHashes.Count > 0)
-				{
-					string firstMissingHash = finalRes.MissingHashes[0];
-					string firstMissingName = hashToRelativePath.TryGetValue(firstMissingHash, out var rel) || hashToRelativePath.TryGetValue(ContentAddressableStorage.NormalizeBlake3Hash(firstMissingHash), out rel)
-						? rel
-						: firstMissingHash;
-					errorText += "\n" + string.Format(TranslationServer.Translate("Missing asset: {0}"), firstMissingName);
-				}
-
+				string errorText = string.Format(TranslationServer.Translate("Publishing to the Workshop failed: {0}"), publishResult.FailureReason);
 				view.Fail(errorText);
 				_hooks.Feedback(errorText);
 			}
@@ -415,5 +332,50 @@ public sealed class MapPublishController
 			view.Stage(50 + fraction * 15, string.Format(TranslationServer.Translate("Converting texture {0}/{1}: {2}..."), current, total, fileName));
 			await _hooks.Owner.ToSignal(_hooks.Owner.GetTree(), SceneTree.SignalName.ProcessFrame);
 		});
+	}
+
+	/// <summary>
+	/// Turns the map's own thumbnail into the image Steam accepts as an item preview, because Steam reads PNG and JPEG
+	/// and the editor writes WebP. The preview sits beside the uploaded folder rather than inside it, so the map the
+	/// player downloads is not carrying the storefront's copy of its own picture.
+	/// </summary>
+	/// <param name="workspace">The map folder holding the thumbnail.</param>
+	/// <param name="stagingRoot">Where the upload is being staged.</param>
+	/// <returns>The preview image's path, or null when the map has no thumbnail.</returns>
+	private static string? PrepareWorkshopPreview(string workspace, string stagingRoot)
+	{
+		string thumbnailPath = Path.Combine(workspace, MapEditorMinimap.ThumbnailFileName);
+		if (!File.Exists(thumbnailPath)) return null;
+
+		try
+		{
+			using var bitmap = SkiaSharp.SKBitmap.Decode(thumbnailPath);
+			if (bitmap == null) return null;
+
+			Directory.CreateDirectory(stagingRoot);
+			string previewPath = Path.Combine(stagingRoot, "workshop_preview.png");
+			using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+			using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+			using var stream = File.Create(previewPath);
+			data.SaveTo(stream);
+			return previewPath;
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[MapPublishController] The Workshop preview image could not be prepared: {exception.Message}");
+			return null;
+		}
+	}
+
+	/// <summary>
+	/// Reduces a map's title to a folder name, so two maps whose titles differ only in characters a filesystem refuses
+	/// do not stage into the same place.
+	/// </summary>
+	/// <param name="title">The map's title.</param>
+	/// <returns>A name that is safe as one folder.</returns>
+	private static string SanitizeFolderName(string title)
+	{
+		string cleaned = string.Join("_", title.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+		return string.IsNullOrEmpty(cleaned) ? "map" : cleaned;
 	}
 }

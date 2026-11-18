@@ -26,6 +26,8 @@ public class SteamServerTransport : IServerTransport
 
 	private readonly ServerLog _log;
 
+	private readonly ulong _steamLobbyId;
+
 	private readonly Dictionary<int, HSteamNetConnection> _connectionByPeer = new();
 
 	private readonly Dictionary<int, ulong> _steamIdByPeer = new();
@@ -47,9 +49,11 @@ public class SteamServerTransport : IServerTransport
 	///     screen and no frame reads either of them.
 	/// </summary>
 	/// <param name="log">The authority log this match writes to.</param>
-	public SteamServerTransport(ServerLog log)
+	/// <param name="steamLobbyId">The Steam lobby this match belongs to, whose members are the only peers admitted.</param>
+	public SteamServerTransport(ServerLog log, ulong steamLobbyId)
 	{
 		_log = log;
+		_steamLobbyId = steamLobbyId;
 	}
 
 	/// <summary>
@@ -169,21 +173,8 @@ public class SteamServerTransport : IServerTransport
 
 	private void Accept(HSteamNetConnection connection)
 	{
-		try
-		{
-			if (SteamNetworkingSockets.AcceptConnection(connection) != EResult.k_EResultOK)
-			{
-				_log.Write("a Steam peer's connection was offered and could not be accepted");
-				SteamNetworkingSockets.CloseConnection(connection, 0, "realm refused the connection", false);
-				return;
-			}
-		}
-		catch (Exception exception)
-		{
-			_log.Write($"a Steam peer's connection could not be accepted: {exception.Message}");
-			return;
-		}
-
+		// The identity is read before the connection is accepted, because it is the admission decision. A peer that is not a
+		// member of this match's Steam lobby is not a seat this game can attribute, seat or moderate.
 		ulong steamId = 0;
 		string route = "steam";
 		try
@@ -197,6 +188,35 @@ public class SteamServerTransport : IServerTransport
 		catch (Exception exception)
 		{
 			_log.Write($"a Steam peer's connection details could not be read: {exception.Message}");
+		}
+
+		if (!IsMemberOfMatchLobby(steamId))
+		{
+			_log.Write($"refused Steam peer {steamId}: not a member of lobby {_steamLobbyId}");
+			try
+			{
+				SteamNetworkingSockets.CloseConnection(connection, 0, "this Steam identity is not in this match's lobby", false);
+			}
+			catch (Exception)
+			{
+			}
+
+			return;
+		}
+
+		try
+		{
+			if (SteamNetworkingSockets.AcceptConnection(connection) != EResult.k_EResultOK)
+			{
+				_log.Write("a Steam peer's connection was offered and could not be accepted");
+				SteamNetworkingSockets.CloseConnection(connection, 0, "realm refused the connection", false);
+				return;
+			}
+		}
+		catch (Exception exception)
+		{
+			_log.Write($"a Steam peer's connection could not be accepted: {exception.Message}");
+			return;
 		}
 
 		// An internal id is handed out from a counter that never repeats inside one match, so a departed peer's repair ring
@@ -248,6 +268,35 @@ public class SteamServerTransport : IServerTransport
 	private static string DescribeRoute(SteamNetConnectionInfo_t info)
 	{
 		return info.m_idPOPRelay.m_SteamNetworkingPOPID != 0 ? "Steam relay" : "Steam direct";
+	}
+
+	/// <summary>
+	///     Whether Steam lists this identity among the members of the match's lobby. The authority reads the same lobby the
+	///     host's screen created, so the membership test is Steam's answer rather than a list this process kept.
+	/// </summary>
+	/// <param name="steamId">The identity the connection presented.</param>
+	/// <returns>Whether that identity may be seated in this match.</returns>
+	private bool IsMemberOfMatchLobby(ulong steamId)
+	{
+		if (steamId == 0) return false;
+		if (_steamLobbyId == 0) return false;
+
+		try
+		{
+			var lobby = new CSteamID(_steamLobbyId);
+			int members = SteamMatchmaking.GetNumLobbyMembers(lobby);
+			for (int index = 0; index < members; index++)
+			{
+				if (SteamMatchmaking.GetLobbyMemberByIndex(lobby, index).m_SteamID == steamId) return true;
+			}
+
+			return false;
+		}
+		catch (Exception exception)
+		{
+			_log.Write($"the match lobby's membership could not be read, so this peer is refused: {exception.Message}");
+			return false;
+		}
 	}
 
 	private static string DescribeEnd(SteamNetConnectionInfo_t info)

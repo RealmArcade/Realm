@@ -54,7 +54,6 @@ public partial class SettingsMenu : Control
 	private CheckBox _displayPingChk = null!;
 	private CheckBox _unitOutlineChk = null!;
 	private CheckBox _recordReplaysChk = null!;
-	private CheckBox _seedMapFilesChk = null!;
 
 	private HSlider _masterSlider = null!;
 	private HSlider _musicSlider = null!;
@@ -146,7 +145,6 @@ public partial class SettingsMenu : Control
 		_displayPingChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/DisplayPingChk");
 		_unitOutlineChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/VideoPanel/VBox/UnitOutlineChk");
 		_recordReplaysChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/RecordReplaysChk");
-		_seedMapFilesChk = GetNode<CheckBox>("CenterContainer/MainFrame/VBoxContainer/OtherPanel/VBox/Grid/SeedMapFilesChk");
 
 		_scrollSpeedSlider = GetNode<HSlider>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/ScrollRow/ScrollSpeedSlider");
 		_mouseSensSlider = GetNode<HSlider>("CenterContainer/MainFrame/VBoxContainer/TopRowContainer/RightColumn/ControlsPanel/VBox/SensRow/MouseSensSlider");
@@ -258,7 +256,6 @@ public partial class SettingsMenu : Control
 
 		SetupWindowModeEvent();
 		SetupCheckboxEvents();
-		SetupNatTestEvent();
 	}
 
 	private void PopulateResolutionDropdown()
@@ -370,8 +367,6 @@ public partial class SettingsMenu : Control
 		_unitOutlineChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 		_recordReplaysChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
 		_recordReplaysChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-		_seedMapFilesChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
-		_seedMapFilesChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 
 		if (_dopplerChk != null)
 		{
@@ -383,35 +378,6 @@ public partial class SettingsMenu : Control
 		{
 			_distanceMuffleChk.Pressed += () => GameContext.UserInterface?.PlayClickSound();
 			_distanceMuffleChk.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
-		}
-	}
-
-	private void SetupNatTestEvent()
-	{
-		if (GameContext.Lobby == null)
-			return;
-
-		GameContext.Lobby.NatTestCompleted += OnNatTestCompleted;
-	}
-
-	private void OnNatTestCompleted()
-	{
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree() || _seedMapFilesChk == null || !GodotObject.IsInstanceValid(_seedMapFilesChk))
-		{
-			return;
-		}
-
-		bool canHost = GameContext.Lobby != null && GameContext.Lobby.LocalNatType != NatType.Symmetric;
-		if (!canHost)
-		{
-			_seedMapFilesChk.Disabled = true;
-			_seedMapFilesChk.ButtonPressed = false;
-			_seedMapFilesChk.TooltipText = TranslationServer.Translate("Seeding disabled: Machine cannot host due to STUN test failure or Symmetric NAT.");
-		}
-		else
-		{
-			_seedMapFilesChk.Disabled = false;
-			_seedMapFilesChk.ButtonPressed = GameSettings.SeedMapFiles;
 		}
 	}
 
@@ -630,19 +596,6 @@ public partial class SettingsMenu : Control
 		if (_dopplerChk != null) _dopplerChk.ButtonPressed = GameSettings.PositionalDoppler;
 		if (_distanceMuffleChk != null) _distanceMuffleChk.ButtonPressed = GameSettings.PositionalAttenuationFilter;
 
-		bool canHost = GameContext.Lobby != null && GameContext.Lobby.LocalNatType != NatType.Symmetric;
-		if (!canHost)
-		{
-			_seedMapFilesChk.Disabled = true;
-			_seedMapFilesChk.ButtonPressed = false;
-			_seedMapFilesChk.TooltipText = TranslationServer.Translate("Seeding disabled: Machine cannot host due to STUN test failure or Symmetric NAT.");
-		}
-		else
-		{
-			_seedMapFilesChk.Disabled = false;
-			_seedMapFilesChk.ButtonPressed = GameSettings.SeedMapFiles;
-		}
-
 		_healthBarsOpt.Select((int)GameSettings.ShowHealthBars);
 		_languageOpt.Select((int)GameSettings.Language);
 	}
@@ -752,7 +705,6 @@ public partial class SettingsMenu : Control
 		GameSettings.DisplayPing = _displayPingChk.ButtonPressed;
 		GameSettings.OccludedUnitOutlines = _unitOutlineChk.ButtonPressed;
 		GameSettings.RecordReplays = _recordReplaysChk.ButtonPressed;
-		GameSettings.SeedMapFiles = _seedMapFilesChk.ButtonPressed;
 		GameSettings.ShowHealthBars = (HealthBarMode)_healthBarsOpt.Selected;
 	}
 
@@ -805,11 +757,6 @@ public partial class SettingsMenu : Control
 	public override void _ExitTree()
 	{
 		GameContext.UnregisterSettings(this);
-
-		if (GameContext.Lobby != null)
-		{
-			GameContext.Lobby.NatTestCompleted -= OnNatTestCompleted;
-		}
 
 		base._ExitTree();
 	}

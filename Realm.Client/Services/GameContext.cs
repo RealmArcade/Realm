@@ -19,7 +19,6 @@ namespace Realm.Client.Services
 		private static ServiceScope? _screenScope;
 
 		private static ReplayPlaybackManager? _replayPlayback;
-		private static PeerSeederManager? _peerSeeder;
 		private static VSCodeManager? _vscode;
 		private static WasmConsoleWindow? _wasmConsole;
 
@@ -79,13 +78,10 @@ namespace Realm.Client.Services
 		public static SteamService Steam => _steam ??= new SteamService();
 
 		public static ReplayPlaybackManager ReplayPlayback => _replayPlayback ??= new ReplayPlaybackManager();
-		public static PeerSeederManager PeerSeeder => _peerSeeder ??= new PeerSeederManager();
 
 		private static LocalAuthority? _localAuthority;
 
 		public static LocalAuthority LocalAuthority => _localAuthority ??= new LocalAuthority();
-		public static UpnpService Upnp { get; } = new();
-		public static WindowsFirewallService WindowsFirewall { get; } = new();
 
 		[SupportedOSPlatform("windows")]
 		public static VSCodeManager VSCode => _vscode ??= new VSCodeManager();

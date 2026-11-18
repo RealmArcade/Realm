@@ -16,6 +16,7 @@ using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
 using Realm.Shared.Accounts;
+using Realm.Shared.Services;
 
 namespace Realm.Client.UI;
 
@@ -111,70 +112,85 @@ public partial class LobbyRoom
 		}
 	}
 
-	private async Task VerifyAuthorSignatureAsync(string mapJsonPath)
+	/// <summary>
+	///     Checks the signature the map states about itself against the key it states beside it. The map file is the whole
+	///     record here: there is no server holding a second copy of who published it, so the claim is either signed by the
+	///     key it names or it is not a claim this screen can show as verified.
+	/// </summary>
+	/// <param name="mapJsonPath">The map's metadata file.</param>
+	private Task VerifyAuthorSignatureAsync(string mapJsonPath)
 	{
 		byte[] fileBytes = File.ReadAllBytes(mapJsonPath);
-		string mapBlake3 = RealmMetadataHelper.ComputeBlake3(fileBytes, ".json");
-		string hash = $"{mapBlake3}.json";
-
 		var mapDoc = JsonNode.Parse(fileBytes);
 		bool claimsAuthorship = mapDoc?["signature"] != null || mapDoc?["author_key"] != null;
 
-		string adminServerUrl = Lobby.RegistryServerUrl;
-		if (string.IsNullOrWhiteSpace(adminServerUrl)) return;
+		string? author = ReadStatedAuthor(mapDoc, mapJsonPath);
+		string? signatureBase64 = mapDoc?["signature"]?.ToString();
+		string? publicKeyBase64 = mapDoc?["author_key"]?.ToString();
 
-		string assetAuthorJson;
+		if (string.IsNullOrWhiteSpace(signatureBase64) || string.IsNullOrWhiteSpace(publicKeyBase64))
+		{
+			if (claimsAuthorship && IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
+			return Task.CompletedTask;
+		}
+
+		bool isValid;
 		try
 		{
-			using var assetAuthorRes = await _sharedHttpClient.GetAsync(adminServerUrl + "/api/publish_map/asset_author/" + hash);
-			if (!assetAuthorRes.IsSuccessStatusCode)
-			{
-				if (claimsAuthorship && IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
-				return;
-			}
+			MapMetadata metadata = GameContext.MetadataService.LoadMetadata(mapJsonPath);
+			byte[] unsignedBytes = Encoding.UTF8.GetBytes(MapFileService.SaveUnsignedMetadataToJson(metadata));
+			string mapBlake3 = RealmMetadataHelper.ComputeBlake3(unsignedBytes, ".json");
 
-			assetAuthorJson = await assetAuthorRes.Content.ReadAsStringAsync();
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"could not fetch the asset author for this lobby, so attribution will be missing: {ex.GetType().Name}: {ex.Message}");
-			return;
-		}
+			byte[] signatureBytes = Convert.FromBase64String(signatureBase64);
+			byte[] publicKeyBytes = Convert.FromBase64String(publicKeyBase64);
+			byte[] hashBytes = Encoding.UTF8.GetBytes($"{mapBlake3}.json");
 
-		var assetMeta = JsonNode.Parse(assetAuthorJson);
-		if (assetMeta == null)
+			var publicKey = PublicKey.Import(SignatureAlgorithm.Ed25519, publicKeyBytes, KeyBlobFormat.RawPublicKey);
+			isValid = SignatureAlgorithm.Ed25519.Verify(publicKey, hashBytes, signatureBytes);
+		}
+		catch (Exception exception)
 		{
+			GameLog.LogError($"The authorship claim on '{mapJsonPath}' could not be checked: {exception.GetType().Name}: {exception.Message}");
 			if (IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
-			return;
+			return Task.CompletedTask;
 		}
 
-		string? author = assetMeta["AuthorUsername"]?.GetValue<string>();
-		string? signatureB64 = assetMeta["Signature"]?.GetValue<string>();
-		string? pubKeyB64 = assetMeta["PublicKey"]?.GetValue<string>();
-
-		if (string.IsNullOrEmpty(signatureB64) || string.IsNullOrEmpty(pubKeyB64))
-		{
-			if (IsCurrentAuthorshipMap(mapJsonPath)) _authorshipWarningLabel.Visible = true;
-			return;
-		}
-
-		byte[] signatureBytes = Convert.FromBase64String(signatureB64);
-		byte[] pubKeyBytes = Convert.FromBase64String(pubKeyB64);
-		byte[] hashBytes = Encoding.UTF8.GetBytes(hash);
-
-		var publicKey = PublicKey.Import(SignatureAlgorithm.Ed25519, pubKeyBytes, KeyBlobFormat.RawPublicKey);
-		bool isValid = SignatureAlgorithm.Ed25519.Verify(publicKey, hashBytes, signatureBytes);
-
-		if (!IsCurrentAuthorshipMap(mapJsonPath)) return;
+		if (!IsCurrentAuthorshipMap(mapJsonPath)) return Task.CompletedTask;
 
 		if (isValid)
 		{
 			_authorshipWarningLabel.Visible = false;
 			ShowStatedAuthor(string.IsNullOrWhiteSpace(author) ? null : author);
+			CollectStatedContributors(mapJsonPath);
 		}
 		else
 		{
 			_authorshipWarningLabel.Visible = true;
+		}
+
+		return Task.CompletedTask;
+	}
+
+	/// <summary>
+	///     Reads the people the map's own metadata credits beside its author, which the attribution popover lists. The map
+	///     states them when it was signed, and nothing else has to be asked for them.
+	/// </summary>
+	/// <param name="mapJsonPath">The map's metadata file.</param>
+	private void CollectStatedContributors(string mapJsonPath)
+	{
+		try
+		{
+			MapMetadata metadata = GameContext.MetadataService.LoadMetadata(mapJsonPath);
+			foreach (string contributor in metadata.Attributions ?? new List<string>())
+			{
+				if (string.IsNullOrWhiteSpace(contributor)) continue;
+				if (_otherAuthorsList.Contains(contributor)) continue;
+				_otherAuthorsList.Add(contributor);
+			}
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"The contributors stated by '{mapJsonPath}' could not be read: {exception.Message}");
 		}
 	}
 

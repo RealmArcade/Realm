@@ -11,7 +11,6 @@ using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
-using Realm.Shared.Reachability;
 using Realm.Shared.Simulation;
 
 namespace Realm.ListenServer;
@@ -154,35 +153,6 @@ public partial class ListenServerHost
 		return seats.ToMatchRosterSeats(roster).ToArray();
 	}
 
-	/// <summary>
-	///     Sends one datagram from the lobby's game port to an address. A punch that names a reachability check states it, so
-	///     the registry node can tell this lobby's punch from one a host sharing its public address sent at the same moment;
-	///     a punch that names none only opens a path for a joining player, who is not running a check.
-	/// </summary>
-	/// <param name="address">The address to send from the game port to.</param>
-	/// <param name="port">The port to send to.</param>
-	/// <param name="probeId">The reachability check the punch is for, or empty for a punch that only opens a path.</param>
-	private void PunchAddress(string address, int port, string probeId)
-	{
-		if (string.IsNullOrEmpty(probeId))
-		{
-			if (_transport.SendToAddress(address, port, ReachabilityPunch.Datagram)) _log.Write($"sent a punch from the game port to {address}:{port}");
-			else _log.Write($"a punch from the game port to {address}:{port} could not be sent: this lobby's transport holds no socket to send it from");
-
-			return;
-		}
-
-		Span<byte> datagram = stackalloc byte[ReachabilityPunch.MaximumDatagramBytes];
-		int written = ReachabilityPunch.TryWrite(datagram, probeId);
-		if (written <= 0)
-		{
-			_log.Write($"the punch for check '{probeId}' toward {address}:{port} could not be written, so nothing was sent");
-			return;
-		}
-
-		if (!_transport.SendToAddress(address, port, datagram[..written])) _log.Write($"the punch for check '{probeId}' toward {address}:{port} could not be sent: this lobby's transport holds no socket to send it from");
-	}
-
 	private void StartLobby()
 	{
 		if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, loopbackOnly: _arguments.LoopbackOnly, this, out string failure))
@@ -198,7 +168,6 @@ public partial class ListenServerHost
 			peerId => _transport.Disconnect(peerId),
 			StartMatchFromLobby,
 			Stop,
-			PunchAddress,
 			peerId => _transport.TryReadPeerLink(peerId, out PeerLinkStatistics statistics) ? statistics : null,
 			DescribeLobbyStartWarning);
 

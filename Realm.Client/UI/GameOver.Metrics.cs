@@ -1,5 +1,4 @@
-﻿// Post-match metrics: report playtime and stars, add local playtime, and resolve the manifest info
-// (version, author key, contributors) that the report needs before it can be sent.
+﻿// Post-match metrics: the playtime and stars this machine records for a map, kept locally.
 
 using System;
 using System.Collections.Generic;
@@ -23,37 +22,6 @@ namespace Realm.Client.UI;
 
 public partial class GameOver
 {
-	private async Task ReportMetricsAsync(string mapName, double playtimeMinutes, int stars, bool isComplete)
-	{
-		string mapTitle = CleanMapName(mapName);
-		string mapVersion = GameContext.Lobby?.ActiveMapVersion ?? "1.0.0";
-
-		ExtractManifestInfo(mapName, mapTitle, ref mapVersion, out string authorPubKey);
-
-		var payload = new
-		{
-			MapTitle = mapTitle,
-			MapVersion = mapVersion,
-			AuthorPublicKey = authorPubKey,
-			PlaytimeMinutes = playtimeMinutes,
-			Stars = stars,
-			IsCompleteGame = isComplete,
-			SessionToken = GameContext.Account.SessionToken
-		};
-
-		string seedServerUrl = GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
-		try
-		{
-			using var httpClient = new HttpClient();
-			var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-			await httpClient.PostAsync(seedServerUrl + "/api/maps/report_metrics", content);
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"[GameOver] Failed to report map metrics: {ex.Message}");
-		}
-	}
-
 	private void AddLocalPlaytime(string mapName, double playtimeMinutes)
 	{
 		try

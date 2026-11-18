@@ -1,16 +1,15 @@
-using Godot;
+﻿using Godot;
 
 namespace Realm.Client.UI.MapEditor;
 
 /// <summary>
-/// The publish modal: the card, the map name and version it announces, the test-version switch, the
-/// maintainer-key note, the progress bar with its status line, and the close button the publish flow
-/// reveals when it stops on an error. It owns every node it builds, so the editor only reads the
-/// controls it needs instead of constructing the dialog inline.
+/// The publish modal: the card, the map name and version it announces, the Workshop note, the progress
+/// bar with its status line, and the close button the publish flow reveals when it stops on an error.
+/// It owns every node it builds, so the editor only reads the controls it needs instead of
+/// constructing the dialog inline.
 /// </summary>
 public partial class MapPublishDialog : Control
 {
-	public CheckBox TestVersionCheck { get; private set; } = null!;
 	public ProgressBar Progress { get; private set; } = null!;
 	public Label StatusLabel { get; private set; } = null!;
 	public Button CloseButton { get; private set; } = null!;
@@ -30,8 +29,6 @@ public partial class MapPublishDialog : Control
 		var body = BuildFrame();
 
 		BuildHeader(body, mapTitle, mapVersion);
-
-		TestVersionCheck = BuildTestVersionRow(body);
 
 		BuildMaintainerInfo(body);
 
@@ -70,39 +67,19 @@ public partial class MapPublishDialog : Control
 		body.AddChild(descLabel);
 	}
 
-	private static CheckBox BuildTestVersionRow(VBoxContainer body)
-	{
-		var publishOptionsRow = new HBoxContainer();
-		publishOptionsRow.Name = "PublishOptions_HBoxContainer";
-		publishOptionsRow.AddThemeConstantOverride("separation", 12);
-		publishOptionsRow.Alignment = BoxContainer.AlignmentMode.Center;
-
-		var testVersionCheck = new CheckBox
-		{
-			Name = "TestVersionCheck_CheckBox",
-			Text = TranslationServer.Translate("Publish as test version"),
-			TooltipText = TranslationServer.Translate("Test versions are listed separately and never replace the official version players download.")
-		};
-		testVersionCheck.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
-		publishOptionsRow.AddChild(testVersionCheck);
-
-		body.AddChild(publishOptionsRow);
-		return testVersionCheck;
-	}
-
 	private static void BuildMaintainerInfo(VBoxContainer body)
 	{
-		var maintainerInfoLabel = new Label
+		var workshopInfoLabel = new Label
 		{
-			Name = "MaintainerInfo_Label",
-			Text = TranslationServer.Translate("Maintainer keys: every listed key can publish this map. Keys are added or revoked by an existing key holder through the registry maintainer endpoints; revocations take effect immediately."),
+			Name = "WorkshopInfo_Label",
+			Text = TranslationServer.Translate("This map is published to the Steam Workshop under your account, so Steam decides who can see it and players subscribe to it there."),
 			AutowrapMode = TextServer.AutowrapMode.Word,
 			CustomMinimumSize = new Vector2(520, 0),
 			SizeFlagsHorizontal = SizeFlags.ExpandFill
 		};
-		maintainerInfoLabel.AddThemeFontSizeOverride("font_size", 11);
-		maintainerInfoLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		body.AddChild(maintainerInfoLabel);
+		workshopInfoLabel.AddThemeFontSizeOverride("font_size", 11);
+		workshopInfoLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		body.AddChild(workshopInfoLabel);
 	}
 
 	private static (ProgressBar Progress, Label Status) BuildProgressSection(VBoxContainer body)

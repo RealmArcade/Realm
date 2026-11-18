@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Realm.Shared.Network;
 
@@ -76,8 +76,6 @@ public interface IServerTransport : IDisposable
 	void Send(int peerId, NetworkFrameKind kind, byte[] payload, FrameDelivery delivery = FrameDelivery.Reliable);
 
 	void Disconnect(int peerId);
-
-	bool SendToAddress(string address, int port, ReadOnlySpan<byte> payload);
 
 	/// <summary>
 	///     Reads the link quality of one connected peer, or answers false when this transport holds no measurement for it

@@ -137,7 +137,6 @@ public partial class GameOver : Control
 
 		AddLocalPlaytime(mapName, playtimeMinutes);
 
-		_ = ReportMetricsAsync(mapName, playtimeMinutes, stars: 0, isComplete: true);
 	}
 
 	public override void _Process(double delta)

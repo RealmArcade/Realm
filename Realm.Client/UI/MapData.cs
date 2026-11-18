@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Realm.Client.Network;
-using Realm.Shared.Distribution;
+using Realm.Client.Services.Steam;
+using Steamworks;
 
 namespace Realm.Client.UI;
 
@@ -43,99 +44,60 @@ public class MapData
 	public List<string> Attribution_SourceMap { get; set; } = new();
 
 
-	public static MapData FromDto(DiscoveryMapDto dto, string? serverBaseUrl = null)
+	/// <summary>
+	///     Builds the entry the map library shows from what Steam says about a Workshop item and what the item states
+	///     about itself. Ratings are Steam's own up and down votes, and the creator is the Steam account that owns it.
+	/// </summary>
+	/// <param name="entry">The Workshop item.</param>
+	/// <returns>The map the library, the details screen and the lobby list all read.</returns>
+	public static MapData FromWorkshop(WorkshopMapEntry entry)
 	{
-		float rating = GetCalculatedRating(dto);
-		var (v5, v3, v1) = CalculateVotes(dto.TotalReviews, rating);
-		string version = GetSafeVersion(dto);
+		string version = string.IsNullOrWhiteSpace(entry.Identity.Version) ? "1.0.0" : entry.Identity.Version.Trim();
+		string title = string.IsNullOrWhiteSpace(entry.Identity.MapName) ? entry.Title : entry.Identity.MapName;
+		float rating = GetWorkshopRating(entry);
+		int totalVotes = (int)(entry.VotesUp + entry.VotesDown);
+		var (v5, v3, v1) = CalculateVotes(totalVotes, rating);
 
 		var mapData = new MapData
 		{
-			MapId = GetMapId(dto, version),
-			Title = dto.Title,
+			MapId = entry.PublishedFileId.ToString(),
+			Title = title,
 			Version = version,
-			IsTestVersion = dto.IsTestVersion,
-			Creator = dto.Creator,
-			ThumbnailPath = GetThumbnailPath(dto),
-			Description = GetDescription(dto),
-			Screenshots = GetScreenshots(dto),
-			Features = GetFeatures(dto),
+			IsTestVersion = false,
+			Creator = SteamFriends.GetFriendPersonaName(new CSteamID(entry.AuthorSteamId)),
+			ThumbnailPath = entry.PreviewUrl ?? string.Empty,
+			Description = string.IsNullOrWhiteSpace(entry.Description) ? "A map published to the Steam Workshop." : entry.Description,
+			Screenshots = GetScreenshots(),
+			Features = GetFeatures(),
 			RatingStars = rating,
 			Votes5Star = $"{v5:N0} Votes",
 			Votes3Star = $"{v3:N0} Votes",
 			Votes1Star = $"{v1:N0} Votes",
 			AvgRating = $"{rating:F1} / 5.0",
-			AvgPlaytime = GetAvgPlaytime(dto),
-			PlayerCount = GetPlayerCount(dto),
-			CompletionRate = GetCompletionRate(dto),
-			FileSize = GetFileSize(dto),
-			EngineVersion = GetEngineVersion(dto),
-			MaxPlayers = GetMaxPlayersSafe(dto),
-			Genre = GetGenre(dto),
-			Awards = GetAwardsFallback(dto),
-			Attribution_SourceMap = dto.Attribution_SourceMap != null ? new List<string>(dto.Attribution_SourceMap) : new List<string>()
+			AvgPlaytime = "N/A",
+			PlayerCount = entry.VotesUp > 0 ? $"{entry.VotesUp:N0} Upvotes" : "New Release",
+			CompletionRate = "N/A",
+			FileSize = $"{entry.FileSizeBytes / (1024.0 * 1024.0):F1} MB",
+			EngineVersion = entry.Identity.GameBuildNumber,
+			MaxPlayers = "8 Players",
+			Genre = "Custom Map",
+			Awards = GetAwardsFallback(),
+			Attribution_SourceMap = new List<string>()
 		};
 
 		mapData.AvailableVersions = new List<MapData> { mapData };
 		return mapData;
 	}
 
-	private static float GetCalculatedRating(DiscoveryMapDto dto)
+	private static float GetWorkshopRating(WorkshopMapEntry entry)
 	{
-		if (dto.RatingStars > 0) return dto.RatingStars;
-		if (dto.AverageRating > 0) return (float)dto.AverageRating;
-		return 5.0f;
+		int totalVotes = (int)(entry.VotesUp + entry.VotesDown);
+		if (totalVotes <= 0) return 5.0f;
+		return Math.Clamp(5.0f * entry.VotesUp / totalVotes, 1.0f, 5.0f);
 	}
 
-	private static string GetSafeVersion(DiscoveryMapDto dto)
+	private static string[] GetAwardsFallback()
 	{
-		if (!string.IsNullOrWhiteSpace(dto.Version)) return dto.Version.Trim();
-		return "1.0.0";
-	}
-
-	private static string GetMapId(DiscoveryMapDto dto, string version)
-	{
-		if (!string.IsNullOrEmpty(dto.MapId)) return dto.MapId;
-		return $"{dto.Title}_{version}";
-	}
-
-	private static string GetDescription(DiscoveryMapDto dto)
-	{
-		if (!string.IsNullOrEmpty(dto.Description)) return dto.Description;
-		return "A custom map package published to the Realm network.";
-	}
-
-	private static string GetPlayerCount(DiscoveryMapDto dto)
-	{
-		if (dto.GamesPlayed > 0) return $"{dto.GamesPlayed:N0} Played";
-		return "New Release";
-	}
-
-	private static string GetCompletionRate(DiscoveryMapDto dto)
-	{
-		if (dto.GamesPlayed > 0) return "100%";
-		return "N/A";
-	}
-
-	private static string GetEngineVersion(DiscoveryMapDto dto)
-	{
-		if (!string.IsNullOrWhiteSpace(dto.EngineVersion)) return dto.EngineVersion;
-		return "Godot Realm Engine v1.0";
-	}
-
-	private static string GetMaxPlayersSafe(DiscoveryMapDto dto)
-	{
-		if (!string.IsNullOrWhiteSpace(dto.MaxPlayers)) return dto.MaxPlayers;
-		return "8 Players";
-	}
-
-	private static string[] GetAwardsFallback(DiscoveryMapDto dto)
-	{
-		if (dto.Awards != null)
-		{
-			if (dto.Awards.Count > 0) return dto.Awards.ToArray();
-		}
-
 		return new string[]
 		{
 			"res://Assets/UI/gold_coin.webp",
@@ -143,55 +105,19 @@ public class MapData
 		};
 	}
 
-	private static string GetThumbnailPath(DiscoveryMapDto dto)
+	private static string[] GetScreenshots()
 	{
-		if (!string.IsNullOrEmpty(dto.ThumbnailHash))
+		return new string[]
 		{
-			string? localCasPath = MapAssetManager.Storage.FindAssetFilePath(dto.ThumbnailHash);
-			if (localCasPath != null && File.Exists(localCasPath))
-			{
-				return localCasPath;
-			}
-		}
-
-		return !string.IsNullOrEmpty(dto.ThumbnailUrl) ? dto.ThumbnailUrl : "";
+			"res://Assets/UI/moonlit_castle.webp",
+			"res://Assets/UI/moonlit_forest.webp",
+			"res://Assets/UI/forest_path.webp"
+		};
 	}
 
-	private static string[] GetScreenshots(DiscoveryMapDto dto)
+	private static string[] GetFeatures()
 	{
-		var screenshots = new List<string>();
-
-		if (dto.Screenshots != null && dto.Screenshots.Count > 0)
-		{
-			foreach (var s in dto.Screenshots)
-			{
-				string? localCas = MapAssetManager.Storage.FindAssetFilePath(s);
-				if (localCas == null || !File.Exists(localCas))
-					continue;
-
-				screenshots.Add(localCas);
-			}
-		}
-
-		if (screenshots.Count == 0)
-		{
-			screenshots.Add("res://Assets/UI/moonlit_castle.webp");
-			screenshots.Add("res://Assets/UI/moonlit_forest.webp");
-			screenshots.Add("res://Assets/UI/forest_path.webp");
-		}
-
-		return screenshots.ToArray();
-	}
-
-	private static string[] GetFeatures(DiscoveryMapDto dto)
-	{
-		if (dto.Features != null && dto.Features.Count > 0)
-			return dto.Features.ToArray();
-
-		if (dto.Tags != null && dto.Tags.Count > 0)
-			return dto.Tags.ToArray();
-
-		return new string[] { "Custom Assets", "Verified Map", "Community Rated" };
+		return new string[] { "Steam Workshop", "Community Rated", "Custom Assets" };
 	}
 
 	private static (int v5, int v3, int v1) CalculateVotes(int totalVotes, float rating)
@@ -204,41 +130,5 @@ public class MapData
 		int v3 = totalVotes - v5 - v1;
 
 		return (v5, v3, v1);
-	}
-
-	private static string GetAvgPlaytime(DiscoveryMapDto dto)
-	{
-		if (dto.PlaytimeMinutes <= 0)
-			return "N/A";
-
-		if (dto.GamesPlayed > 0)
-		{
-			double avg = (double)dto.PlaytimeMinutes / dto.GamesPlayed;
-			return $"{(int)Math.Max(1, Math.Round(avg))} min";
-		}
-
-		return $"{dto.PlaytimeMinutes} min";
-	}
-
-	private static string GetFileSize(DiscoveryMapDto dto)
-	{
-		if (!string.IsNullOrWhiteSpace(dto.FileSizeFormatted))
-			return dto.FileSizeFormatted;
-
-		if (dto.TotalSizeBytes > 0)
-			return $"{dto.TotalSizeBytes / (1024.0 * 1024.0):F1} MB";
-
-		return "0 MB";
-	}
-
-	private static string GetGenre(DiscoveryMapDto dto)
-	{
-		if (!string.IsNullOrWhiteSpace(dto.Genre))
-			return dto.Genre;
-
-		if (dto.Tags != null && dto.Tags.Count > 0)
-			return dto.Tags[0];
-
-		return "Custom Map";
 	}
 }

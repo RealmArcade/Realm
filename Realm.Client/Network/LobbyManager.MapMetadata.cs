@@ -186,24 +186,4 @@ public partial class LobbyManager
 		return string.Empty;
 	}
 
-	private async Task ProcessSuccessfulRegistrationAsync(HttpResponseMessage response)
-	{
-		var respText = await response.Content.ReadAsStringAsync();
-		using var doc = JsonDocument.Parse(respText);
-		ActiveLobbyId = doc.RootElement.GetProperty("lobbyId").GetString();
-
-		if (doc.RootElement.TryGetProperty("hostToken", out var hostTokenProp))
-		{
-			_hostToken = hostTokenProp.GetString();
-		}
-
-		GameLog.LogToConsole($"[LobbyManager] Lobby registered on server. LobbyId: {ActiveLobbyId}");
-
-		if (!string.IsNullOrEmpty(ActiveLobbyId))
-		{
-			StartHostWebSocketSignaling(ActiveLobbyId);
-			StartHeartbeatLoop(ActiveLobbyId);
-		}
-	}
-
 }

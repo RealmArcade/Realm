@@ -1,8 +1,7 @@
-using System;
+﻿using System;
 using Godot;
 using Realm.Client.Services;
 using Realm.Shared.Network;
-using Realm.Shared.Reachability;
 
 namespace Realm.Client.Network;
 
@@ -190,28 +189,6 @@ public partial class ClientNetworkChannel : Node
 		if (authorityPeer == null) return false;
 
 		authorityPeer.SetTimeout(LongSilenceTimeoutLimit, LongSilenceTimeoutMilliseconds, LongSilenceTimeoutMilliseconds);
-		return true;
-	}
-
-	/// <summary>
-	///     Sends one datagram from the socket this client's ENet peer already holds, which is the port a host's answer has to
-	///     arrive at. A punch sent from anywhere else opens the router on the wrong port: the host's reply is then delivered
-	///     to a socket nothing is reading, which looks exactly like a host that never answered.
-	/// </summary>
-	/// <param name="address">The address to punch.</param>
-	/// <param name="port">The port to punch.</param>
-	/// <param name="payload">The datagram to send.</param>
-	/// <returns>Whether the peer had a socket to send it from.</returns>
-	public bool SendToAddress(string address, int port, ReadOnlySpan<byte> payload)
-	{
-		if (string.IsNullOrWhiteSpace(address) || port <= 0) return false;
-		if (Multiplayer.MultiplayerPeer is not ENetMultiplayerPeer peer) return false;
-
-		var host = peer.GetHost();
-		if (host == null) return false;
-
-		byte[] datagram = payload.ToArray();
-		for (int attempt = 0; attempt < ReachabilityPunch.DatagramSendCount; attempt++) host.SocketSend(address, port, datagram);
 		return true;
 	}
 

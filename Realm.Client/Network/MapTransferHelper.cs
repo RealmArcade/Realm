@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -228,16 +228,15 @@ public static class MapTransferHelper
 
 	public static bool HandleBeginMapTransfer(Godot.Node context, int senderId, string transferId, ref int activeEphemeralTransferPeerId)
 	{
-		if (GameContext.PeerSeeder != null && GameContext.PeerSeeder.IsSeeding)
+		// A lobby serves one map at a time, so the first peer that asks is the one it is serving. A second peer asking
+		// while that transfer is still running is refused rather than interleaved, because both would read the same chunks.
+		if (activeEphemeralTransferPeerId != 0 && activeEphemeralTransferPeerId != senderId)
 		{
-			if (activeEphemeralTransferPeerId != 0 && activeEphemeralTransferPeerId != senderId)
-			{
-				GameLog.LogToConsole($"[{context.GetType().Name}] Rejecting map transfer {transferId} from peer {senderId}: Seeder busy with peer {activeEphemeralTransferPeerId}.");
-				return false;
-			}
-
-			activeEphemeralTransferPeerId = senderId;
+			GameLog.LogToConsole($"[{context.GetType().Name}] Rejecting map transfer {transferId} from peer {senderId}: already serving peer {activeEphemeralTransferPeerId}.");
+			return false;
 		}
+
+		activeEphemeralTransferPeerId = senderId;
 		return true;
 	}
 

@@ -231,9 +231,6 @@ public partial class SettingsMenu
 		_unitOutlineChk.TooltipText = TranslationServer.Translate(_unitOutlineChk.TooltipText);
 		UIStyle.ApplyCheckboxStyle(_recordReplaysChk);
 		_recordReplaysChk.Text = LocalizationManager.Translate("Record replays");
-		UIStyle.ApplyCheckboxStyle(_seedMapFilesChk);
-		_seedMapFilesChk.Text = LocalizationManager.Translate("Seed map files to other players");
-		_seedMapFilesChk.TooltipText = LocalizationManager.Translate("Volunteers a tiny portion of your internet to help players download maps, reducing server costs. Uncheck this if you have a capped internet data plan or a very slow connection");
 
 		if (_dopplerChk != null)
 		{
