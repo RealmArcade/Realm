@@ -349,3 +349,18 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **The startup sweep now reads the record instead of the filename.** `FindMostRecentCompleteFolder` named completeness
   and checked only that a record file existed, so a folder whose build was interrupted could be kept over a good one. It
   now requires `Complete: true`, and `IsComplete` shares that record reader.
+## The poll that refused a peer while reading it
+
+- **`SteamServerTransport.Poll` walked its peer dictionary while delivering frames.** `OnFrameReceived` runs inside that
+  walk, and the authority disconnects a peer from it in several ordinary cases: a refused lobby hello (build, wire table,
+  map or token mismatch, a kick, a full roster), and the match handshake's own refusals. `Disconnect` removes the peer
+  from `_connectionByPeer`, so the next step of the iteration throws `InvalidOperationException`, which nothing in `Poll`
+  catches - it escapes into the authority's tick.
+- **So the first refused join would have taken the authority's tick with it.** The refusal itself is a routine answer, and
+  the peer it refuses is the one whose frame is being read at that moment, which is what makes this reachable on a
+  mismatched build rather than only on a hostile client.
+- **The peers are now listed before any frame is delivered.** A reusable id list is filled from the dictionary, and the
+  delivery loop looks each peer up as it reaches it, skipping one that was closed by an earlier frame in the same poll.
+- **The same loop allocated on every tick.** A 64-entry pointer array and a 64 KiB payload buffer were built per call, and
+  this runs once per simulation tick on the authority's match thread - about two megabytes a second of garbage for
+  nothing. Both are instance fields now, and the buffer only grows if a message is larger than the one before it.

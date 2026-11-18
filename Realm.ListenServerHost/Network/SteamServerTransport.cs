@@ -32,6 +32,12 @@ public class SteamServerTransport : IServerTransport
 
 	private readonly Dictionary<int, ulong> _steamIdByPeer = new();
 
+	private readonly IntPtr[] _messagePointers = new IntPtr[MaximumMessagesPerPoll];
+
+	private readonly List<int> _pollPeerIds = new();
+
+	private byte[] _payloadBuffer = new byte[64 * 1024];
+
 	private readonly Dictionary<int, Queue<int>> _recentRoundTripsByPeer = new();
 
 	private int _nextPeerId = 1;
@@ -107,41 +113,46 @@ public class SteamServerTransport : IServerTransport
 	{
 		if (_disposed || _listenSocket == HSteamListenSocket.Invalid) return;
 
-		var messagePointers = new IntPtr[MaximumMessagesPerPoll];
-		var payloadBuffer = new byte[64 * 1024];
+		// The peers are listed before any frame is delivered, because delivering one can refuse and close the peer it came
+		// from, and the viewer being walked is one of the dictionaries that closing rewrites.
+		_pollPeerIds.Clear();
+		foreach (KeyValuePair<int, HSteamNetConnection> peerEntry in _connectionByPeer) _pollPeerIds.Add(peerEntry.Key);
 
-		foreach (KeyValuePair<int, HSteamNetConnection> entry in _connectionByPeer)
+		for (int peerIndex = 0; peerIndex < _pollPeerIds.Count; peerIndex++)
 		{
+			int peerId = _pollPeerIds[peerIndex];
+			if (!_connectionByPeer.TryGetValue(peerId, out HSteamNetConnection connection)) continue;
+
 			int received;
 			try
 			{
-				received = SteamNetworkingSockets.ReceiveMessagesOnConnection(entry.Value, messagePointers, MaximumMessagesPerPoll);
+				received = SteamNetworkingSockets.ReceiveMessagesOnConnection(connection, _messagePointers, MaximumMessagesPerPoll);
 			}
 			catch (Exception exception)
 			{
-				_log.Write($"messages from peer {entry.Key} could not be read: {exception.Message}");
+				_log.Write($"messages from peer {peerId} could not be read: {exception.Message}");
 				continue;
 			}
 
 			for (int index = 0; index < received; index++)
 			{
-				IntPtr pointer = messagePointers[index];
+				IntPtr pointer = _messagePointers[index];
 				try
 				{
 					SteamNetworkingMessage_t message = SteamNetworkingMessage_t.FromIntPtr(pointer);
 					int size = message.m_cbSize;
 					if (size <= 0) continue;
 
-					if (payloadBuffer.Length < size) payloadBuffer = new byte[size];
-					Marshal.Copy(message.m_pData, payloadBuffer, 0, size);
+					if (_payloadBuffer.Length < size) _payloadBuffer = new byte[size];
+					Marshal.Copy(message.m_pData, _payloadBuffer, 0, size);
 
-					if (!SteamFrameCodec.TryRead(new ReadOnlySpan<byte>(payloadBuffer, 0, size), out NetworkFrameKind kind, out ReadOnlySpan<byte> payload)) continue;
+					if (!SteamFrameCodec.TryRead(new ReadOnlySpan<byte>(_payloadBuffer, 0, size), out NetworkFrameKind kind, out ReadOnlySpan<byte> payload)) continue;
 
-					_sink?.OnFrameReceived(entry.Key, kind, payload);
+					_sink?.OnFrameReceived(peerId, kind, payload);
 				}
 				catch (Exception exception)
 				{
-					_log.Write($"a frame from peer {entry.Key} could not be read: {exception.Message}");
+					_log.Write($"a frame from peer {peerId} could not be read: {exception.Message}");
 				}
 				finally
 				{
