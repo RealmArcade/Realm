@@ -448,3 +448,9 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   that does not exist today, with its own input and lifecycle questions - so it is left as a documented limit in
   [the test plan](docs/steam-test-plan.md) group K rather than invented here. Group K says plainly that registration is
   observable live only on the Settings screen until that changes.
+- **The other comparison sites were checked and are safe.** `NoiseTextureDialog` compares `GetItemText` against
+  `Cellular` and `ColorRamp`, but `AddOptionDropdown` adds those strings raw, so they are FastNoise parameter names rather
+  than translations; `SpawnAnchorDialog` reads back a coordinate's own author-given name; the palette labels
+  (`1 Red`, `0 Gaia (gaia)`) are display text whose selection is tracked by id. No place writes a translated string into
+  `metadata.json` or a settings file - the tab titles that are translated are Godot node names used as tab titles, not
+  data, and each is read by no `GetNode` literal.
