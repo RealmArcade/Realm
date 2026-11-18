@@ -63,8 +63,10 @@ keys this branch added (`Realm.TranslationTool -- verify` counts them per catalo
 exist before, so they read English until they are translated, which is ordinary: the migration replaced whole feature
 vocabularies rather than rewording individual messages, and comparing the branch point's catalogs against today's found
 only two messages whose old translation still said the same thing - `✂️ Copy` and `Matches played` - which are carried
-over. And a string rendered through a path that does not register its key shows English even where a translation
-exists, which is why the test plan's local group should be run in one non-English language as well as English.
+over. [The translation kit](translation-kit/README.md) hands the remaining strings over as work: a source file, one
+stub per language, the existing terminology read out of each catalog, and a merge script that refuses stale keys. And a
+string rendered through a path that does not register its key shows English even where a translation exists, which is
+why the test plan's local group should be run in one non-English language as well as English.
 
 ## The order to check it in
 
