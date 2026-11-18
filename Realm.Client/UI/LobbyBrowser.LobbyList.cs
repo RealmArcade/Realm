@@ -359,9 +359,12 @@ public partial class LobbyBrowser
 			{
 				GameContext.UserInterface?.PlayClickSound();
 
-				if (!string.IsNullOrEmpty(data.GameVersion) && data.GameVersion != RealmVersion.GameBinaryVersion)
+				// The lobby states the build it runs and Steam filters the list on that same value, so this is compared with the
+				// same field. The binary version names a release line and does not move between builds, so it can never tell two
+				// screens apart.
+				if (!string.IsNullOrEmpty(data.GameVersion) && data.GameVersion != RealmVersion.GameBuildNumber)
 				{
-					ShowDifferentBuildNotice(data.GameVersion, RealmVersion.GameBinaryVersion);
+					ShowDifferentBuildNotice(data.GameVersion, RealmVersion.GameBuildNumber);
 					return;
 				}
 
