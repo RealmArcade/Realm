@@ -55,6 +55,7 @@ Realm is a host-authoritative Steam game. Steam provides the identity, the lobby
 - [Steam platform](docs/steam-platform.md): the two AppIDs, the Steamworks partner-site configuration, Workshop tags, lobby limits, what a release build ships, and the two-account test a release is checked against.
 - [Map authoring](docs/map-authoring.md): the map format, the Workshop item as a map's identity, publishing, and how a map keeps playing across engine updates.
 - [Steam test plan](docs/steam-test-plan.md): the ordered checks a Steam-first build is played against, from a local session to two accounts on two networks, and the decisions a first real test is meant to settle.
+- [Steam branch readiness](docs/steam-readiness.md): what the Steam-first branch is verified against statically, what is still unproven, the order to check it in, and what is most likely to be wrong.
 
 ## 📦 Repository Structure
 
