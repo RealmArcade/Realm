@@ -136,7 +136,7 @@ public partial class MultiplayerSimulationHarness : Node
 
 			GameContext.NetworkService.DescribeAbilityMirrorFor(serverEntityId, out int mirroredSlots, out int mirroredNames);
 
-			GameLog.LogToConsole($"[ABILITY_DUMP] stage={stage} unit={entity.Id} server={serverEntityId} type={unit.UnitId} list={abilityState.Count} mirroredSlots={mirroredSlots} mirroredNames={mirroredNames} hidden={hiddenCount} visibleCount={visibleCount} visible={_abilityDumpLine} buildOptions={buildOptionTotal} buildVisible={buildOptionVisible} buildVisibleIds={_buildOptionDumpLine}");
+			GameLog.LogToConsole($"[ABILITY_DUMP] stage={stage} time={host.GameElapsedTime.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)} unit={entity.Id} server={serverEntityId} type={unit.UnitId} list={abilityState.Count} mirroredSlots={mirroredSlots} mirroredNames={mirroredNames} hidden={hiddenCount} visibleCount={visibleCount} visible={_abilityDumpLine} buildOptions={buildOptionTotal} buildVisible={buildOptionVisible} buildVisibleIds={_buildOptionDumpLine}");
 		}
 	}
 }
