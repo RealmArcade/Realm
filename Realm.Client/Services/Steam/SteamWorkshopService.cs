@@ -25,6 +25,12 @@ namespace Realm.Client.Services.Steam;
 /// <param name="TimeUpdated">When the item was last updated, in Unix seconds.</param>
 /// <param name="IsBanned">Whether Steam has removed the item from view.</param>
 /// <param name="PreviewUrl">Where Steam hosts the item's thumbnail, or an empty string when it has none.</param>
+/// <param name="Visibility">Who Steam lets see the item.</param>
+/// <param name="AcceptedForUse">
+///     Whether the developer marked the item accepted for this game on the partner site. It is the one verified mark a
+///     creator cannot write, because only the owning application can set it; the field arrives in every query result as
+///     <c>SteamUGCDetails_t.m_bAcceptedForUse</c>, so no second call is needed to read it.
+/// </param>
 public readonly record struct WorkshopMapEntry(
 	ulong PublishedFileId,
 	string Title,
@@ -38,7 +44,8 @@ public readonly record struct WorkshopMapEntry(
 	uint TimeUpdated,
 	bool IsBanned,
 	string PreviewUrl,
-	ERemoteStoragePublishedFileVisibility Visibility);
+	ERemoteStoragePublishedFileVisibility Visibility,
+	bool AcceptedForUse);
 
 /// <summary>
 ///     Where a publish has reached, so the editor can say what Steam is doing.
@@ -646,7 +653,8 @@ public static class SteamWorkshopService
 					details.m_rtimeUpdated,
 					details.m_bBanned,
 					SteamUGC.GetQueryUGCPreviewURL(handle, index, out string previewUrl, MaximumPreviewUrlBytes) ? previewUrl : string.Empty,
-					details.m_eVisibility));
+					details.m_eVisibility,
+					details.m_bAcceptedForUse));
 			}
 
 			return entries;

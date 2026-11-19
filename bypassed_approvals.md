@@ -571,6 +571,13 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   collection, no shipped build and no service. It is now the preferred source for trusted-ness, with a developer
   collection or a local list as alternatives. The two marks stay separate lines in the UI: greenlit means people played
   it, verified means the developer vouched for it.
-- **Not verified, and left to the implementer:** whether the accepted-for-use flag can be filtered server-side in the
-  target SDK. The published-file-details field is documented; the query side was not confirmed here, so task 13 says to
-  test which of the flag, a collection or a local list the SDK supports and to record the answer rather than assuming it.
+- **The accepted-for-use flag is readable in the pinned SDK, so it is the source that was implemented.** Checked
+  against Steamworks.NET 2024.8.0 rather than assumed: `m_bAcceptedForUse` is a field of `SteamUGCDetails_t` and is
+  returned by `SteamUGC.GetQueryUGCResult` for every result of the queries the library already sends, so the mark costs
+  no extra call; and `EUGCQuery.k_EUGCQuery_AcceptedForGameRankedByAcceptanceDate` is present in that build as the query
+  that ranks accepted items, which the game does not need because the field already arrives. Of the three candidate
+  sources, the flag is the one used: a Workshop collection works but only restates the flag and costs a second query, and
+  a shipped list cannot be the only source because it dates the build it ships in. The build reads the field off the item
+  it already has and keeps the local featured list only as the fallback for an item the partner site has not marked, so no
+  collection is needed. The mark stays a label: it is drawn on the card and explained in the details screen, and it
+  filters nothing; the only filtering anywhere is the "Trusted only" checkbox a player turns on themselves.

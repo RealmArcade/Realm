@@ -565,8 +565,11 @@ public partial class MapDiscovery : Control
 		{
 			var trustLabel = new Label { Name = "TrustLabel_Label" };
 			trustLabel.Text = trustBadge;
-			trustLabel.TooltipText = MapTrustPolicy.DescribeReason(map.Trust.Reason);
-			trustLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+			trustLabel.TooltipText = MapTrustPolicy.DescribeTooltip(map.Trust);
+
+			// The developer's mark is the one thing on a new map that is neither its votes nor its age, so it is drawn in
+			// the colour reserved for what the game itself vouches for rather than the muted gold of a missing vote.
+			trustLabel.AddThemeColorOverride("font_color", map.Trust.Level == MapTrustLevel.Verified ? UIStyle.ColorCyanGlow : UIStyle.ColorGoldDull);
 			trustLabel.AddThemeFontSizeOverride("font_size", 12);
 			headerBox.AddChild(trustLabel);
 		}

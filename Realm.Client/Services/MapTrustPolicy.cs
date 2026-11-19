@@ -11,7 +11,7 @@ namespace Realm.Client.Services;
 /// <summary>How much Steam vouches for a map, and therefore what a player is told before they join it.</summary>
 public enum MapTrustLevel
 {
-	/// <summary>The developer features this map, so it is trusted whatever its vote count is.</summary>
+	/// <summary>The developer vouched for this map, through Steam's accepted-for-use flag or the shipped list, so it is trusted whatever its vote count is.</summary>
 	Verified,
 
 	/// <summary>Steam's own votes and update time vouch for the map.</summary>
@@ -49,9 +49,11 @@ public readonly record struct MapTrustState(MapTrustLevel Level, MapTrustReason 
 
 /// <summary>
 ///     The one rule that decides whether a map carries a trust mark in this build. It reads only what Steam states about
-///     an item - its votes and when it was last updated - plus the developer's own featured list, which is a curation
-///     choice rather than a voting threshold. Nothing is hidden by default: a map that fails this rule is still listed and
-///     still playable, and what the rule buys is one confirmation that names the reason before a player enters its lobby.
+///     an item - the developer's accepted-for-use flag, its votes and when it was last updated - plus a list this build can
+///     ship, which is a curation choice rather than a voting threshold. Nothing is hidden by default: a map that fails this
+///     rule is still listed and still playable, and what the rule buys is one confirmation that names the reason before a
+///     player enters its lobby. The mark is a label on a card and a line in the details screen; it is never a filter, never a
+///     join gate and never a publish gate.
 /// </summary>
 public static class MapTrustPolicy
 {
@@ -65,10 +67,10 @@ public static class MapTrustPolicy
 	public static readonly TimeSpan UnmaintainedAfter = TimeSpan.FromDays(730);
 
 	/// <summary>
-	///     Where the developer's featured items are listed. It is the fallback for a Workshop collection: a collection is
-	///     still the preferred way to curate, but a build can always ship a list, and a map on it is trusted regardless of
-	///     how recently it was published or how many votes it has collected. The file is read once; a build without it
-	///     features nothing.
+	///     Where the developer's featured items are listed. Steam's accepted-for-use flag is the source this rule prefers,
+	///     because only the owning application can set it, but the flag needs a partner-site action per item and a build can
+	///     always ship a list instead, so a map on this one is verified regardless of how recently it was published or how many
+	///     votes it has collected. The file is read once; a build without it features nothing.
 	/// </summary>
 	public const string FeaturedItemListPath = "res://config/featured_workshop_items.json";
 
@@ -83,25 +85,24 @@ public static class MapTrustPolicy
 	}
 
 	/// <summary>
-	///     Judges one map from what Steam states about its item and whether this screen even has an item for it.
+	///     Judges one map from what Steam states about its item and whether this screen even has an item for it. The
+	///     developer's own mark is read first and settles the question on its own: a map the developer accepted for this game
+	///     is verified however new it is and whatever its votes say, and a map of theirs on the shipped list is the same mark by
+	///     another route. Only a map with neither is judged by votes and age.
 	/// </summary>
 	/// <param name="publishedFileId">The map's Workshop item for the running AppID, or zero when it has none.</param>
+	/// <param name="acceptedForUse">Whether Steam states the developer accepted the item for this game.</param>
 	/// <param name="votesUp">Up-votes Steam has recorded for that item.</param>
 	/// <param name="votesDown">Down-votes Steam has recorded for that item.</param>
 	/// <param name="timeUpdatedUnixSeconds">When Steam last saw the item change, in Unix seconds.</param>
 	/// <returns>The mark the browser, the details screen and the join all read.</returns>
-	public static MapTrustState Evaluate(ulong publishedFileId, uint votesUp, uint votesDown, uint timeUpdatedUnixSeconds)
+	public static MapTrustState Evaluate(ulong publishedFileId, bool acceptedForUse, uint votesUp, uint votesDown, uint timeUpdatedUnixSeconds)
 	{
 		if (publishedFileId == 0) return MapTrustState.Untrusted(MapTrustReason.NotPublished);
 
-		MapTrustState state = EvaluateVotesAndAge(votesUp, votesDown, timeUpdatedUnixSeconds);
+		if (acceptedForUse || IsFeatured(publishedFileId)) return new MapTrustState(MapTrustLevel.Verified, MapTrustReason.None);
 
-		if (state.Level == MapTrustLevel.Untrusted && IsFeatured(publishedFileId))
-		{
-			return new MapTrustState(MapTrustLevel.Verified, MapTrustReason.None);
-		}
-
-		return state;
+		return EvaluateVotesAndAge(votesUp, votesDown, timeUpdatedUnixSeconds);
 	}
 
 	/// <summary>
@@ -171,6 +172,23 @@ public static class MapTrustPolicy
 			MapTrustReason.Unmaintained => TranslationServer.Translate("This map has not been updated in a long time."),
 			_ => string.Empty
 		};
+	}
+
+	/// <summary>
+	///     The sentence a player reads when they hover the mark, which for a verified map says what the mark means rather than
+	///     why a map is untrusted. The verified mark says who vouched for the map, never that the map is safe: its script runs
+	///     in the sandbox either way, and a curation mark is not a security check.
+	/// </summary>
+	/// <param name="trust">The map's mark.</param>
+	/// <returns>The translated explanation, or an empty string for a map that is trusted by its votes.</returns>
+	public static string DescribeTooltip(MapTrustState trust)
+	{
+		if (trust.Level == MapTrustLevel.Verified)
+		{
+			return TranslationServer.Translate("Vouched for by the developer. It says the map is curated, not that its script is safe: the script runs in the sandbox either way.");
+		}
+
+		return DescribeReason(trust.Reason);
 	}
 
 	/// <summary>The short label a card or a lobby row draws beside the map's name.</summary>

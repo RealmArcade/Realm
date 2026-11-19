@@ -112,7 +112,7 @@ public class MapData
 			VotesDown = entry.VotesDown,
 			PositivePercent = totalVotes > 0 ? (int)(entry.VotesUp * 100 / totalVotes) : 0,
 			UpdatedOn = entry.TimeUpdated > 0 ? DateTimeOffset.FromUnixTimeSeconds(entry.TimeUpdated) : null,
-			Trust = MapTrustPolicy.Evaluate(entry.PublishedFileId, entry.VotesUp, entry.VotesDown, entry.TimeUpdated),
+			Trust = MapTrustPolicy.Evaluate(entry.PublishedFileId, entry.AcceptedForUse, entry.VotesUp, entry.VotesDown, entry.TimeUpdated),
 			IsLocalMap = false,
 			FileSize = $"{entry.FileSizeBytes / (1024.0 * 1024.0):F1} MB",
 			EngineVersion = entry.Identity.GameBuildNumber,

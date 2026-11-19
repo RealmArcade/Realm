@@ -89,7 +89,7 @@ public partial class MapDetails
 
 		string badge = MapTrustPolicy.DescribeBadge(_mapData.Trust);
 		_votesRow3.Text = badge.Length > 0
-			? $"{badge}: {MapTrustPolicy.DescribeReason(_mapData.Trust.Reason)}"
+			? $"{badge}: {MapTrustPolicy.DescribeTooltip(_mapData.Trust)}"
 			: TranslationServer.Translate("Trusted by the Steam Workshop");
 		_votesRow3.AddThemeColorOverride("font_color", _mapData.Trust.IsTrusted ? UIStyle.ColorGold : UIStyle.ColorGoldDull);
 		_votesRow3.AddThemeFontSizeOverride("font_size", 12);
