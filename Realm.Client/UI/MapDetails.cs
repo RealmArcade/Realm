@@ -252,8 +252,10 @@ public partial class MapDetails : Control
 	}
 
 	/// <summary>
-	///     Adds the two links Steam owns: the author's own profile and the Workshop page of the map, which is where its
-	///     description, screenshots, comments and report button live. Nothing about either is stored by the game.
+	///     Adds the links Steam owns: the author's own profile, the Workshop page of the map, which is where its description,
+	///     screenshots, comments and report button live, and the author's other work for this game. Each opens inside the
+	///     Steam overlay when the player has it on and in the system browser otherwise. Nothing about any of them is stored by
+	///     the game.
 	/// </summary>
 	private void SetupSteamLinks()
 	{
@@ -282,7 +284,7 @@ public partial class MapDetails : Control
 			if (_mapData?.CreatorSteamId is not > 0) return;
 
 			GameContext.UserInterface?.PlayClickSound();
-			OS.ShellOpen($"https://steamcommunity.com/profiles/{_mapData.CreatorSteamId}");
+			GameContext.Steam.OpenSteamPage(SteamCommunityLinks.Profile(_mapData.CreatorSteamId));
 		};
 
 		_workshopButton = CreateHeaderLink("WorkshopButton_Button", TranslationServer.Translate("OPEN ON STEAM WORKSHOP"));
@@ -291,7 +293,7 @@ public partial class MapDetails : Control
 			if (_mapData?.WorkshopId is not > 0) return;
 
 			GameContext.UserInterface?.PlayClickSound();
-			OS.ShellOpen($"https://steamcommunity.com/sharedfiles/filedetails/?id={_mapData.WorkshopId}");
+			GameContext.Steam.OpenSteamPage(SteamCommunityLinks.MapPage(_mapData.WorkshopId));
 		};
 
 		_otherMapsButton = CreateHeaderLink("OtherMapsButton_Button", TranslationServer.Translate("OTHER MAPS BY THIS CREATOR"));
@@ -300,7 +302,7 @@ public partial class MapDetails : Control
 			if (_mapData?.CreatorSteamId is not > 0) return;
 
 			GameContext.UserInterface?.PlayClickSound();
-			OS.ShellOpen($"https://steamcommunity.com/profiles/{_mapData.CreatorSteamId}/myworkshopfiles/?appid={GameContext.Steam.AppId.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+			GameContext.Steam.OpenSteamPage(SteamCommunityLinks.CreatorWorkshop(_mapData.CreatorSteamId, GameContext.Steam.AppId));
 		};
 
 		_discordButton = CreateHeaderLink("DiscordButton_Button", TranslationServer.Translate("JOIN THE CREATOR'S DISCORD"));
@@ -349,7 +351,7 @@ public partial class MapDetails : Control
 				itemButton.Pressed += () =>
 				{
 					GameContext.UserInterface?.PlayClickSound();
-					OS.ShellOpen($"https://steamcommunity.com/sharedfiles/filedetails/?id={publishedFileId}");
+					GameContext.Steam.OpenSteamPage(SteamCommunityLinks.MapPage(publishedFileId));
 				};
 				_otherMapsStrip.AddChild(itemButton);
 			}

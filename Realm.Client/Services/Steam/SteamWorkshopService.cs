@@ -37,7 +37,8 @@ public readonly record struct WorkshopMapEntry(
 	uint TimeCreated,
 	uint TimeUpdated,
 	bool IsBanned,
-	string PreviewUrl);
+	string PreviewUrl,
+	ERemoteStoragePublishedFileVisibility Visibility);
 
 /// <summary>
 ///     Where a publish has reached, so the editor can say what Steam is doing.
@@ -276,6 +277,49 @@ public static class SteamWorkshopService
 			.Where(entry => !entry.IsBanned)
 			.Take((int)Math.Max(1, maximumCount))
 			.ToList();
+	}
+
+	/// <summary>
+	///     Reads the items published by the creators this player follows, most voted first, which is what the browser's
+	///     "creators I follow" view lists. Steam answers this from the player's own follow list rather than from a list the game
+	///     keeps: <c>k_EUserUGCList_Followed</c> is the pinned SDK's name for the UGC list of items created by users the player
+	///     is following, and the query is aimed at this player's own account id because that is whose follow list is read.
+	///     Following a creator is done on Steam, so a player curates this list without the game being involved.
+	/// </summary>
+	/// <param name="pageCount">How many pages to read.</param>
+	/// <param name="cancellationToken">Gives up the query.</param>
+	/// <returns>
+	///     The followed creators' items for this game, most voted first; empty when there is no Steam identity to read a
+	///     follow list for.
+	/// </returns>
+	public static async Task<IReadOnlyList<WorkshopMapEntry>> BrowseFollowedCreatorsAsync(uint pageCount, CancellationToken cancellationToken)
+	{
+		if (!IsAvailable) return Array.Empty<WorkshopMapEntry>();
+
+		ulong ownSteamId = GameContext.Steam.SteamId;
+		if (ownSteamId == 0) return Array.Empty<WorkshopMapEntry>();
+
+		var entries = new List<WorkshopMapEntry>();
+		for (uint page = 1; page <= Math.Max(1, pageCount); page++)
+		{
+			UGCQueryHandle_t handle = SteamUGC.CreateQueryUserUGCRequest(
+				new AccountID_t((uint)(ownSteamId & 0xFFFFFFFF)),
+				EUserUGCList.k_EUserUGCList_Followed,
+				EUGCMatchingUGCType.k_EUGCMatchingUGCType_Items,
+				EUserUGCListSortOrder.k_EUserUGCListSortOrder_VoteScoreDesc,
+				ConsumerAppId,
+				ConsumerAppId,
+				page);
+
+			if (handle == UGCQueryHandle_t.Invalid) break;
+
+			var pageEntries = await RunQueryAsync(handle, cancellationToken);
+			entries.AddRange(pageEntries.Where(entry => !entry.IsBanned));
+
+			if (pageEntries.Count < ResultsPerPage) break;
+		}
+
+		return entries;
 	}
 
 	/// <summary>
@@ -601,7 +645,8 @@ public static class SteamWorkshopService
 					details.m_rtimeCreated,
 					details.m_rtimeUpdated,
 					details.m_bBanned,
-					SteamUGC.GetQueryUGCPreviewURL(handle, index, out string previewUrl, MaximumPreviewUrlBytes) ? previewUrl : string.Empty));
+					SteamUGC.GetQueryUGCPreviewURL(handle, index, out string previewUrl, MaximumPreviewUrlBytes) ? previewUrl : string.Empty,
+					details.m_eVisibility));
 			}
 
 			return entries;

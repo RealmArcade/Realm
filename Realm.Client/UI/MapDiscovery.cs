@@ -39,6 +39,18 @@ public partial class MapDiscovery : Control
 	private Button _btnTD = null!;
 	private Button _btnMelee = null!;
 	private Button _btnCampaign = null!;
+	private Button _btnCreators = null!;
+	private CheckBox _followedOnlyCheck = null!;
+	private Label _creatorStatusLabel = null!;
+
+	/// <summary>The category value that switches the grid from maps to the creators who published them.</summary>
+	private const string CreatorsCategory = "Creators";
+
+	/// <summary>The maps the creators this player follows published, loaded once when the followed filter is first used.</summary>
+	private MapData[] _followedMaps = [];
+
+	private bool _followedMapsLoaded;
+	private bool _followedMapsLoading;
 
 	private MapData[] _allMaps = null!;
 	private string _selectedCategory = "All";
@@ -91,6 +103,7 @@ public partial class MapDiscovery : Control
 
 		_allMaps = [];
 
+		CreateCreatorControls();
 		ApplyStyles();
 		RegisterEvents();
 		RenderMapGrid();
@@ -105,28 +118,7 @@ public partial class MapDiscovery : Control
 			IReadOnlyList<WorkshopMapEntry> items = await SteamWorkshopService.BrowseAsync(null, SteamWorkshopService.BrowsePageCount, CancellationToken.None);
 			if (items.Count > 0)
 			{
-				var liveMaps = items
-					.Where(entry => !entry.IsBanned)
-					.Select(MapData.FromWorkshop)
-					.ToList();
-
-				var groupedMaps = liveMaps
-					.GroupBy(map => string.IsNullOrWhiteSpace(map.Title) ? map.MapId : map.Title.Trim(), StringComparer.OrdinalIgnoreCase)
-					.Select(group =>
-					{
-						var versions = group.OrderByDescending(version => MapInfoHelper.ParseVersion(version.Version)).ToList();
-						var primary = versions[0];
-						primary.AvailableVersions = versions;
-						foreach (var version in versions)
-						{
-							version.AvailableVersions = versions;
-						}
-
-						return primary;
-					})
-					.ToArray();
-
-				_allMaps = groupedMaps;
+				_allMaps = GroupByMap(items.Where(entry => !entry.IsBanned).Select(MapData.FromWorkshop));
 				RenderMapGrid();
 				return;
 			}
@@ -137,6 +129,118 @@ public partial class MapDiscovery : Control
 		}
 
 		RenderMapGrid();
+	}
+
+	/// <summary>
+	///     Folds every version of one map into its newest entry, so a grid shows a map once and the details screen offers its
+	///     versions. The catalogue list and a creator's list both group this way.
+	/// </summary>
+	/// <param name="maps">The maps to fold.</param>
+	/// <returns>One entry per map, its newest version first.</returns>
+	private static MapData[] GroupByMap(IEnumerable<MapData> maps)
+	{
+		return maps
+			.GroupBy(map => string.IsNullOrWhiteSpace(map.Title) ? map.MapId : map.Title.Trim(), StringComparer.OrdinalIgnoreCase)
+			.Select(group =>
+			{
+				var versions = group.OrderByDescending(version => MapInfoHelper.ParseVersion(version.Version)).ToList();
+				var primary = versions[0];
+				primary.AvailableVersions = versions;
+				foreach (var version in versions)
+				{
+					version.AvailableVersions = versions;
+				}
+
+				return primary;
+			})
+			.ToArray();
+	}
+
+	/// <summary>
+	///     Reads the maps published by the creators this player follows, which Steam answers from the player's own follow
+	///     list. They are kept beside the browse list rather than merged into it: the catalogue is read page by page and a
+	///     creator the player follows may have published nothing inside those pages.
+	/// </summary>
+	private async void LoadFollowedCreatorMapsAsync()
+	{
+		if (_followedMapsLoading) return;
+		_followedMapsLoading = true;
+
+		LocalizedText.Set(_creatorStatusLabel, "Reading the creators you follow...");
+		_creatorStatusLabel.Visible = true;
+
+		try
+		{
+			if (!SteamWorkshopService.IsAvailable)
+			{
+				LocalizedText.Set(_creatorStatusLabel, "Following creators needs Steam.");
+				_followedOnlyCheck.SetPressedNoSignal(false);
+				return;
+			}
+
+			IReadOnlyList<WorkshopMapEntry> items = await SteamWorkshopService.BrowseFollowedCreatorsAsync(SteamWorkshopService.BrowsePageCount, CancellationToken.None);
+			if (!GodotObject.IsInstanceValid(this)) return;
+
+			_followedMaps = GroupByMap(items.Where(entry => !entry.IsBanned).Select(MapData.FromWorkshop));
+			_followedMapsLoaded = true;
+
+			if (_followedMaps.Length == 0) LocalizedText.Set(_creatorStatusLabel, "None of the creators you follow have a map here yet.");
+			else _creatorStatusLabel.Visible = false;
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[MapDiscovery] Reading the creators this player follows failed: {exception.Message}");
+			_followedOnlyCheck.SetPressedNoSignal(false);
+		}
+		finally
+		{
+			_followedMapsLoading = false;
+			if (GodotObject.IsInstanceValid(this)) RenderMapGrid();
+		}
+	}
+
+	/// <summary>
+	///     Adds the creators view beside the category filters: the view itself, the followed-creators filter that belongs to
+	///     it, and the line that states what that filter is doing.
+	/// </summary>
+	private void CreateCreatorControls()
+	{
+		var container = _filterPanel.GetNode<VBoxContainer>("VBoxContainer");
+
+		_btnCreators = new Button
+		{
+			Name = "CatCreators",
+			CustomMinimumSize = new Vector2(0, 45),
+			FocusMode = FocusModeEnum.None
+		};
+		container.AddChild(_btnCreators);
+		container.MoveChild(_btnCreators, _btnCampaign.GetIndex() + 1);
+
+		_followedOnlyCheck = new CheckBox
+		{
+			Name = "FollowedCreatorsCheck",
+			FocusMode = FocusModeEnum.None,
+			Visible = false
+		};
+		LocalizedText.Set(_followedOnlyCheck, "Creators I follow only");
+		LocalizedText.SetTooltip(_followedOnlyCheck, "Show only maps from creators you follow on Steam. Following a creator is done on their Steam profile page.");
+		_followedOnlyCheck.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_followedOnlyCheck.AddThemeFontSizeOverride("font_size", 12);
+		container.AddChild(_followedOnlyCheck);
+		container.MoveChild(_followedOnlyCheck, _btnCreators.GetIndex() + 1);
+
+		_creatorStatusLabel = new Label
+		{
+			Name = "CreatorStatus_Label",
+			Visible = false,
+			AutowrapMode = TextServer.AutowrapMode.WordSmart,
+			CustomMinimumSize = new Vector2(340, 0),
+			SizeFlagsHorizontal = SizeFlags.ExpandFill
+		};
+		_creatorStatusLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		_creatorStatusLabel.AddThemeFontSizeOverride("font_size", 12);
+		container.AddChild(_creatorStatusLabel);
+		container.MoveChild(_creatorStatusLabel, _followedOnlyCheck.GetIndex() + 1);
 	}
 
 	private void ApplyStyles()
@@ -152,6 +256,7 @@ public partial class MapDiscovery : Control
 		SetupCategoryButton(_btnTD, TranslationServer.Translate("TOWER DEFENSE"), "TD");
 		SetupCategoryButton(_btnMelee, TranslationServer.Translate("MELEE"), "Melee");
 		SetupCategoryButton(_btnCampaign, TranslationServer.Translate("CAMPAIGN"), "Campaign");
+		SetupCategoryButton(_btnCreators, TranslationServer.Translate("CREATORS"), CreatorsCategory);
 
 		UpdateButtonHighlight();
 	}
@@ -265,6 +370,8 @@ public partial class MapDiscovery : Control
 		HighlightButton(_btnTD, _selectedCategory == "TD");
 		HighlightButton(_btnMelee, _selectedCategory == "Melee");
 		HighlightButton(_btnCampaign, _selectedCategory == "Campaign");
+		HighlightButton(_btnCreators, _selectedCategory == CreatorsCategory);
+		_followedOnlyCheck.Visible = _selectedCategory == CreatorsCategory;
 	}
 
 	private void HighlightButton(Button button, bool highlight)
@@ -305,6 +412,18 @@ public partial class MapDiscovery : Control
 		};
 
 		_trustedOnlyCheck.Toggled += _ => RenderMapGrid();
+
+		_followedOnlyCheck.Toggled += pressed =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			if (pressed && !_followedMapsLoaded)
+			{
+				LoadFollowedCreatorMapsAsync();
+				return;
+			}
+
+			RenderMapGrid();
+		};
 	}
 
 	private void RenderMapGrid()
@@ -312,6 +431,12 @@ public partial class MapDiscovery : Control
 		foreach (Node child in _mapGrid.GetChildren())
 		{
 			child.QueueFree();
+		}
+
+		if (_selectedCategory == CreatorsCategory)
+		{
+			RenderCreatorCards();
+			return;
 		}
 
 		var filtered = _allMaps.AsEnumerable();
@@ -505,6 +630,265 @@ public partial class MapDiscovery : Control
 		footer.AddChild(btnDetails);
 
 		return card;
+	}
+
+	/// <summary>
+	///     Draws one card per creator, grouping the maps this grid already holds by the Steam account that owns them. The maps
+	///     inside a card are sorted by their votes and the cards follow that same order, so the creators whose maps the
+	///     catalogue actually plays come first. Nothing here is stored: a persona and an avatar are read from Steam each
+	///     session, and a private profile simply draws no picture.
+	/// </summary>
+	private void RenderCreatorCards()
+	{
+		IEnumerable<MapData> source = _followedOnlyCheck.ButtonPressed ? _followedMaps : _allMaps;
+		IEnumerable<MapData> filtered = MapCatalogFilter.BySearchQuery(source, _searchQuery);
+
+		// The trusted-only toggle means the same thing in this view: it hides a map whose creator Steam does not vouch for
+		// yet, and a creator left with no maps is not drawn.
+		if (_trustedOnlyCheck.ButtonPressed)
+		{
+			filtered = filtered.Where(map => map.Trust.IsTrusted);
+		}
+
+		List<CreatorGroup> creators = filtered
+			.GroupBy(map => map.CreatorSteamId)
+			.Select(group => new CreatorGroup(
+				group.Key,
+				DescribeCreator(group.Key, group),
+				group.OrderByDescending(map => map.VotesUp + map.VotesDown)
+					.ThenByDescending(map => map.VotesUp)
+					.ThenBy(map => map.Title, StringComparer.OrdinalIgnoreCase)
+					.ToList()))
+			.OrderByDescending(creator => creator.Maps[0].VotesUp + creator.Maps[0].VotesDown)
+			.ThenByDescending(creator => creator.Maps.Count)
+			.ThenBy(creator => creator.Name, StringComparer.OrdinalIgnoreCase)
+			.ToList();
+
+		if (creators.Count == 0)
+		{
+			var noCreatorsLabel = new Label { Name = "NoCreatorsLabel_Label" };
+			if (_followedOnlyCheck.ButtonPressed) LocalizedText.Set(noCreatorsLabel, "None of the creators you follow have a map here yet.");
+			else LocalizedText.Set(noCreatorsLabel, "No maps found matching criteria.");
+			noCreatorsLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.7f));
+			noCreatorsLabel.AddThemeFontSizeOverride("font_size", 16);
+			_mapGrid.AddChild(noCreatorsLabel);
+			return;
+		}
+
+		foreach (CreatorGroup creator in creators)
+		{
+			_mapGrid.AddChild(CreateCreatorCard(creator));
+		}
+	}
+
+	/// <summary>One creator as the creators view draws them: the account, the name to show and their maps, most voted first.</summary>
+	/// <param name="SteamId">The creator's SteamID64, or zero for a map that credits nobody.</param>
+	/// <param name="Name">The persona Steam states, or the name the map itself credits.</param>
+	/// <param name="Maps">Their maps for this game, most voted first.</param>
+	private record CreatorGroup(ulong SteamId, string Name, List<MapData> Maps);
+
+	/// <summary>
+	///     The name to put over a creator's maps: Steam's persona for the account, which is what the Workshop page shows,
+	///     falling back to the name the map's own metadata credits when Steam has nothing to say.
+	/// </summary>
+	/// <param name="creatorSteamId">The owner Steam states for the group.</param>
+	/// <param name="maps">The maps in the group, used only for the credited name.</param>
+	/// <returns>The creator's name, never empty.</returns>
+	private static string DescribeCreator(ulong creatorSteamId, IEnumerable<MapData> maps)
+	{
+		if (creatorSteamId != 0)
+		{
+			string personaName = GameContext.Steam.GetPersonaName(creatorSteamId);
+			if (personaName.Length > 0) return personaName;
+		}
+
+		foreach (MapData map in maps)
+		{
+			if (!string.IsNullOrWhiteSpace(map.Creator)) return map.Creator;
+		}
+
+		return TranslationServer.Translate("Unknown creator");
+	}
+
+	private Control CreateCreatorCard(CreatorGroup creator)
+	{
+		EnsureFontsLoaded();
+
+		var card = new PanelContainer();
+		card.Name = $"CreatorCard_{creator.SteamId}_PanelContainer";
+		card.CustomMinimumSize = new Vector2(560, 0);
+		card.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+		card.AddThemeStyleboxOverride("panel",
+			UIStyle.CreateArtworkPlate("res://Assets/UI/procedural_card_bg.webp", 32, 32, 38, 26));
+
+		var vBox = new VBoxContainer { Name = "CardVBox_VBoxContainer" };
+		vBox.AddThemeConstantOverride("separation", 8);
+		card.AddChild(vBox);
+
+		var header = new HBoxContainer { Name = "CreatorHeader_HBoxContainer" };
+		header.AddThemeConstantOverride("separation", 12);
+		vBox.AddChild(header);
+
+		var avatar = new TextureRect
+		{
+			Name = "CreatorAvatar_TextureRect",
+			CustomMinimumSize = new Vector2(64, 64),
+			ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+			StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered
+		};
+		avatar.Texture = creator.SteamId != 0 ? GameContext.Steam.GetAvatar(creator.SteamId) : null;
+		avatar.Visible = avatar.Texture != null;
+		header.AddChild(avatar);
+
+		var nameBox = new VBoxContainer { Name = "CreatorName_VBoxContainer", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		nameBox.AddThemeConstantOverride("separation", 2);
+		header.AddChild(nameBox);
+
+		var nameLabel = new Label { Name = "CreatorName_Label" };
+		if (_fontNorseBold != null) nameLabel.AddThemeFontOverride("font", _fontNorseBold);
+		nameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		nameLabel.AddThemeFontSizeOverride("font_size", 20);
+		nameLabel.AddThemeConstantOverride("outline_size", 4);
+		nameLabel.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.06f, 0.08f));
+		LocalizedText.Bind(nameLabel, () => creator.Name);
+		nameBox.AddChild(nameLabel);
+
+		var countLabel = new Label { Name = "CreatorMapCount_Label" };
+		countLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		countLabel.AddThemeFontSizeOverride("font_size", 12);
+		LocalizedText.Bind(countLabel, () => creator.Maps.Count == 1
+			? TranslationServer.Translate("1 map")
+			: string.Format(TranslationServer.Translate("{0} maps"), creator.Maps.Count));
+		nameBox.AddChild(countLabel);
+
+		if (creator.SteamId != 0)
+		{
+			var links = new HBoxContainer { Name = "CreatorLinks_HBoxContainer" };
+			links.Alignment = BoxContainer.AlignmentMode.End;
+			links.AddThemeConstantOverride("separation", 8);
+			vBox.AddChild(links);
+
+			links.AddChild(CreateCreatorLink(creator.SteamId, "Profile", "STEAM PROFILE",
+				"Open this creator's Steam profile", SteamCommunityLinks.Profile(creator.SteamId)));
+			links.AddChild(CreateCreatorLink(creator.SteamId, "Workshop", "WORKSHOP",
+				"Open everything this creator published for this game", SteamCommunityLinks.CreatorWorkshop(creator.SteamId, GameContext.Steam.AppId)));
+		}
+
+		foreach (MapData map in creator.Maps)
+		{
+			vBox.AddChild(CreateCreatorMapRow(map));
+		}
+
+		return card;
+	}
+
+	/// <summary>
+	///     One link on a creator card, opened in the Steam overlay when the player has it on and in the system browser
+	///     otherwise. The page is Steam's either way: the game keeps no copy of a profile or a Workshop listing.
+	/// </summary>
+	/// <param name="steamId">The creator the link belongs to, which keeps the node name unique on a busy grid.</param>
+	/// <param name="role">Which page of the creator this is, used only to name the button.</param>
+	/// <param name="textKey">The translation key the button shows.</param>
+	/// <param name="tooltipKey">The translation key the tooltip shows.</param>
+	/// <param name="url">The page to open.</param>
+	/// <returns>The button, ready to add to a card.</returns>
+	private static Button CreateCreatorLink(ulong steamId, string role, string textKey, string tooltipKey, string url)
+	{
+		var button = new Button
+		{
+			Name = $"Creator{role}_{steamId}_Button",
+			CustomMinimumSize = new Vector2(0, 28),
+			FocusMode = FocusModeEnum.None
+		};
+		button.Set("icon_max_width", 0);
+		LocalizedText.Set(button, textKey);
+		LocalizedText.SetTooltip(button, tooltipKey);
+		button.AddThemeFontSizeOverride("font_size", 12);
+		button.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		UIStyle.ApplyGoldHoverAndFocusColors(button);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
+
+		button.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.Steam.OpenSteamPage(url);
+		};
+		button.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		return button;
+	}
+
+	/// <summary>
+	///     One of a creator's maps, drawn as a row: the title opens the map's own details screen and the Steam button opens
+	///     its Workshop page, which is where the item's description, screenshots, comments and report button live.
+	/// </summary>
+	/// <param name="map">The map to draw.</param>
+	/// <returns>The row, ready to add to a creator card.</returns>
+	private static Control CreateCreatorMapRow(MapData map)
+	{
+		var row = new PanelContainer { Name = $"CreatorMap_{map.WorkshopId}_PanelContainer" };
+		row.AddThemeStyleboxOverride("panel", UIStyle.CreateCardPlate(
+			new Color(0.02f, 0.03f, 0.04f, 0.5f), new Color(0.45f, 0.38f, 0.25f, 0.35f), 1, 4, 10, 10, 6, 6));
+
+		var hBox = new HBoxContainer { Name = "MapRow_HBoxContainer" };
+		hBox.AddThemeConstantOverride("separation", 8);
+		row.AddChild(hBox);
+
+		var titleButton = new Button
+		{
+			Name = $"MapTitle_{map.WorkshopId}_Button",
+			SizeFlagsHorizontal = SizeFlags.ExpandFill,
+			Alignment = HorizontalAlignment.Left,
+			FocusMode = FocusModeEnum.None
+		};
+		titleButton.Set("icon_max_width", 0);
+		titleButton.AddThemeFontSizeOverride("font_size", 13);
+		titleButton.AddThemeColorOverride("font_color", new Color(0.92f, 0.94f, 0.98f));
+		UIStyle.ApplyGoldHoverAndFocusColors(titleButton);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(titleButton);
+		LocalizedText.Bind(titleButton, () => map.Title);
+		titleButton.Pressed += () =>
+		{
+			GameContext.UserInterface?.PlayClickSound();
+			GameContext.UserInterface?.TransitionToMapDetails(map);
+		};
+		titleButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+		hBox.AddChild(titleButton);
+
+		var votesLabel = new Label { Name = "MapVotes_Label", VerticalAlignment = VerticalAlignment.Center };
+		votesLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		votesLabel.AddThemeFontSizeOverride("font_size", 12);
+		uint totalVotes = map.VotesUp + map.VotesDown;
+		if (totalVotes > 0) LocalizedText.Set(votesLabel, "{0} votes", totalVotes);
+		else LocalizedText.Set(votesLabel, "No votes yet");
+		hBox.AddChild(votesLabel);
+
+		if (map.WorkshopId != 0)
+		{
+			var steamButton = new Button
+			{
+				Name = $"MapSteam_{map.WorkshopId}_Button",
+				CustomMinimumSize = new Vector2(80, 26),
+				FocusMode = FocusModeEnum.None
+			};
+			steamButton.Set("icon_max_width", 0);
+			LocalizedText.Set(steamButton, "STEAM");
+			LocalizedText.SetTooltip(steamButton, "Open this map's Steam Workshop page");
+			steamButton.AddThemeFontSizeOverride("font_size", 12);
+			steamButton.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+			UIStyle.ApplyGoldHoverAndFocusColors(steamButton);
+			UIStyle.ApplyButtonStyleBoxesClearingFocus(steamButton);
+
+			ulong publishedFileId = map.WorkshopId;
+			steamButton.Pressed += () =>
+			{
+				GameContext.UserInterface?.PlayClickSound();
+				GameContext.Steam.OpenSteamPage(SteamCommunityLinks.MapPage(publishedFileId));
+			};
+			steamButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
+			hBox.AddChild(steamButton);
+		}
+
+		return row;
 	}
 
 	private static Texture2D? LoadTextureSafe(string resPath)

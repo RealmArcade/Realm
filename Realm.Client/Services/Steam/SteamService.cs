@@ -624,4 +624,45 @@ public partial class SteamService
 			return false;
 		}
 	}
+
+	/// <summary>
+	///     Opens one Steam Community page where the player will actually see it: inside the Steam overlay when the overlay is
+	///     running, which keeps the page above the game and keeps the player signed in to Steam there, and in the system
+	///     browser otherwise. The overlay is the player's own setting and can be off, and a launch that never reached Steam has
+	///     no overlay at all, so the browser is the fallback rather than an error. Steam's own protocol handler opens the client
+	///     for a profile or Workshop address, so the page is still the page when it lands there.
+	/// </summary>
+	/// <param name="url">The page to open, as <see cref="SteamCommunityLinks" /> builds it.</param>
+	/// <returns>Whether a page was handed to Steam or to the system, which is false only for an empty address.</returns>
+	public bool OpenSteamPage(string? url)
+	{
+		if (string.IsNullOrWhiteSpace(url)) return false;
+
+		if (_initialized)
+		{
+			try
+			{
+				if (SteamUtils.IsOverlayEnabled())
+				{
+					SteamFriends.ActivateGameOverlayToWebPage(url, EActivateGameOverlayToWebPageMode.k_EActivateGameOverlayToWebPageMode_Default);
+					return true;
+				}
+			}
+			catch (Exception exception)
+			{
+				GameLog.LogError($"[Steam] the overlay could not open {url}, so the system browser is used instead: {exception.Message}");
+			}
+		}
+
+		try
+		{
+			OS.ShellOpen(url);
+			return true;
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[Steam] {url} could not be opened in the system browser: {exception.Message}");
+			return false;
+		}
+	}
 }
