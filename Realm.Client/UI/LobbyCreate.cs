@@ -470,8 +470,23 @@ public partial class LobbyCreate : Control
 			lobby.IsSinglePlayer = true;
 
 			_createButton.Disabled = true;
-			bool hosted = await lobby.HostSinglePlayerLobbyAsync(pathName, selectedVersion);
-			_createButton.Disabled = false;
+			ShowHostProgressOverlay(TranslationServer.Translate("OPENING THE LOBBY"));
+			lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
+
+			bool hosted;
+			try
+			{
+				// The panel was added in this frame, so a frame is waited for before the work that follows: the screen says what
+				// it is doing instead of standing still on a disabled button for however long the authority takes to open.
+				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+				hosted = await lobby.HostSinglePlayerLobbyAsync(pathName, selectedVersion);
+			}
+			finally
+			{
+				lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
+				HideHostProgressOverlay();
+				_createButton.Disabled = false;
+			}
 
 			if (hosted)
 			{
@@ -493,6 +508,10 @@ public partial class LobbyCreate : Control
 		_createButton.Disabled = true;
 		ShowHostProgressOverlay();
 		lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
+
+		// A hosted lobby prepares a private copy of the package, which reads and rewrites every file of it, so the frame
+		// that draws the panel is given up first: otherwise the panel only appears once that work has already finished.
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		bool prepared = await lobby.PrepareHostedLobbyAsync(pathName, displayName, selectedVersion);
 		lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
 		HideHostProgressOverlay();

@@ -135,6 +135,50 @@ public class MapSessionCopyService
 	}
 
 	/// <summary>
+	///     Answers the folder a match should play, preferring the folder the map already sits in when nothing about the map
+	///     has to change. A map whose data is already this build's needs no private copy: nothing will be written into it and
+	///     nothing has to be keyed, so a caller that advertises and transfers nothing - a single-player lobby - can read it
+	///     where it is instead of reading and rewriting every file of the package first. A hosted lobby states false and
+	///     always gets a copy, because the copy is the package it advertises.
+	/// </summary>
+	/// <param name="installedMapDirectory">The absolute folder of the installed or authored map.</param>
+	/// <param name="mayReadInPlace">Whether the caller can play the folder where it sits when it needs no migration.</param>
+	/// <returns>The folder to play from, or null when the map cannot be played, which <see cref="LastRefusal" /> explains.</returns>
+	public string? TryResolvePlayableDirectory(string installedMapDirectory, bool mayReadInPlace)
+	{
+		if (!mayReadInPlace) return TryPrepare(installedMapDirectory);
+		if (string.IsNullOrWhiteSpace(installedMapDirectory) || !Directory.Exists(installedMapDirectory)) return TryPrepare(installedMapDirectory);
+
+		string fullSource = Path.GetFullPath(installedMapDirectory);
+		string sessionRoot = ProjectSettings.GlobalizePath($"user://{SessionRootFolderName}");
+		if (!IsInside(sessionRoot, fullSource) && !IsCurrentBuildPackage(fullSource)) return TryPrepare(fullSource);
+
+		MapSessionIdentity identity = ReadIdentity(fullSource);
+		LastRefusal = string.Empty;
+		LastSessionDirectory = fullSource;
+		LastEngineGeneration = identity.EngineGeneration;
+		LastOriginalHash = ReadStatedPackageHash(fullSource);
+		GameLog.LogToConsole($"[MapSessionCopy] '{Path.GetFileName(fullSource)}' states build {identity.GameBuildNumber}, so it plays where it sits instead of being copied.");
+		return fullSource;
+	}
+
+	/// <summary>
+	///     Whether a map's own metadata states the build this game runs, which is what decides that its data needs no
+	///     migration and its folder can therefore be read as it stands. A map that states no build number, or one newer than
+	///     this build, answers false so that <see cref="TryPrepare" /> reads it and answers with the reason.
+	/// </summary>
+	/// <param name="mapDirectory">The map's folder.</param>
+	/// <returns>Whether the map is already the package this build plays unchanged.</returns>
+	private static bool IsCurrentBuildPackage(string mapDirectory)
+	{
+		MapSessionIdentity identity = ReadIdentity(mapDirectory);
+		if (identity.GameBuildNumber.Length == 0) return false;
+		if (identity.EngineGeneration > RealmVersion.EngineGeneration) return false;
+
+		return string.Equals(identity.GameBuildNumber, RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase);
+	}
+
+	/// <summary>
 	///     Deletes the copies a session cannot have made, which is what a run interrupted while building one would leave
 	///     behind. Called once at startup, before any map is opened.
 	/// </summary>

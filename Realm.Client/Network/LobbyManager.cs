@@ -59,6 +59,13 @@ public partial class LobbyManager : BaseMapTransferNode
 	public const int DefaultGamePort = 8999;
 
 	/// <summary>
+	///     The port a hosted lobby asks for by name, or null once this session has learned that the named port is taken.
+	///     A port held by another instance stays held for as long as that instance lives, so remembering the refusal is what
+	///     keeps every later lobby from spending a whole start on a bind that cannot succeed.
+	/// </summary>
+	private int? _preferredLobbyPort = DefaultGamePort;
+
+	/// <summary>
 	///     The player slots the lobby's map states in its metadata, which is the shape a match started from this screen is
 	///     seated with. The lobby itself is sized by the slots it leaves open, which its own rows show.
 	/// </summary>

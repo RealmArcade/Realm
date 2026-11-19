@@ -275,11 +275,16 @@ public partial class LobbyManager
 		// The port is asked for by name first, because a lobby on a port that never changes is the only kind a player can
 		// forward once and be reachable at forever. The system's choice is the fallback for the case that makes a fixed
 		// port impossible - another instance already holding it - and it is taken only after the named port was refused.
-		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start, DefaultGamePort);
-		if (!lobbyStarted.Started)
+		// A refusal that the fallback then survives is remembered for the rest of the session, so the next lobby does not
+		// pay for a whole start it already knows will fail before it gets to the one that works.
+		MatchStartResult lobbyStarted = _preferredLobbyPort is int preferredPort
+			? await session.TryStartLobbyAsync(start, preferredPort)
+			: await session.TryStartLobbyAsync(start);
+		if (!lobbyStarted.Started && _preferredLobbyPort is int refusedPort)
 		{
-			GameLog.LogToConsole($"[LobbyManager] UDP port {DefaultGamePort} could not be taken for this lobby ({lobbyStarted.Failure}), so the socket takes the port the system chooses.");
+			GameLog.LogToConsole($"[LobbyManager] UDP port {refusedPort} could not be taken for this lobby ({lobbyStarted.Failure}), so the socket takes the port the system chooses.");
 			lobbyStarted = await session.TryStartLobbyAsync(start);
+			if (lobbyStarted.Started) _preferredLobbyPort = null;
 		}
 		LastAuthorityLogPath = lobbyStarted.LogPath;
 		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
@@ -417,7 +422,7 @@ public partial class LobbyManager
 
 			WorkshopMapEntry published = item.Value;
 			_publishedMapWorkshopId = published.PublishedFileId;
-			return MapTrustPolicy.Evaluate(published.PublishedFileId, published.VotesUp, published.VotesDown, published.TimeUpdated);
+			return MapTrustPolicy.Evaluate(published.PublishedFileId, published.AcceptedForUse, published.VotesUp, published.VotesDown, published.TimeUpdated);
 		}
 		catch (Exception exception)
 		{
@@ -533,9 +538,11 @@ public partial class LobbyManager
 			return false;
 		}
 
-		// A single-player match reads the same private copy a hosted one does, so the map it plays is the one this build
-		// migrated rather than the folder its author or Steam owns.
-		string? mapDirectory = GameContext.MapSessionCopy.TryPrepare(installedMapDirectory);
+		// A single-player lobby advertises nothing and transfers nothing, so a map whose data this build does not migrate is
+		// read where it sits: opening the lobby then costs nothing proportional to the package, which is what the editor's
+		// own playtest has always done and why this path was slower than it. A map an older build left behind is still
+		// copied and migrated durably, so the author's folder is never written to.
+		string? mapDirectory = GameContext.MapSessionCopy.TryResolvePlayableDirectory(installedMapDirectory, mayReadInPlace: true);
 		if (string.IsNullOrEmpty(mapDirectory))
 		{
 			LastHostError = GameContext.MapSessionCopy.LastRefusal;
@@ -575,6 +582,7 @@ public partial class LobbyManager
 			Cheats: true,
 			LoopbackOnly: true);
 
+		ReportHostLobbyStage(HostLobbyStage.LoadingMap);
 		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start);
 		LastAuthorityLogPath = lobbyStarted.LogPath;
 		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
@@ -585,6 +593,8 @@ public partial class LobbyManager
 			TeardownHostedLobby(session);
 			return false;
 		}
+
+		ReportHostLobbyStage(HostLobbyStage.AdmittingHost);
 
 		// The hello above is the confirmation: it came back over the loopback connection this screen opened to the authority
 		// it launched, which is the same seat check a hosted lobby makes before it is worth publishing. Asking a second time
