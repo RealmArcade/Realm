@@ -5,7 +5,6 @@ using Realm.Client.Services;
 
 namespace Realm.Client.Testing;
 
-[GlobalClass]
 public partial class ReplicationHarnessRunner : SceneTree
 {
 	public override void _Initialize()
