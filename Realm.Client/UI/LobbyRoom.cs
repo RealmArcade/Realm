@@ -132,7 +132,6 @@ public partial class LobbyRoom : Control
 		_unlistedLobbyCheck.TooltipText = TranslationServer.Translate("Your lobby is not advertised publicly but direct invites are still available.");
 		_unlistedLobbyCheck.FocusMode = FocusModeEnum.None;
 		_unlistedLobbyCheck.Toggled += OnUnlistedLobbyToggled;
-		ApplyInviteVisibility();
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");
 		_lobbyRoomMaps = MapInfoHelper.GetAvailableMaps();
@@ -141,6 +140,7 @@ public partial class LobbyRoom : Control
 		_chatLog = GetNode<RichTextLabel>("ChatPanel/ChatContainer/ChatLog");
 		_playersContainer = GetNode<VBoxContainer>("PlayersPanel/VBoxContainer/ScrollContainer/PlayersContainer");
 		_inviteFeedback = GetNode<Label>("InviteFeedback");
+		ApplyInviteVisibility();
 
 
 		_lobbyTitle = GetNode<Label>("LobbyTitle");
