@@ -40,6 +40,11 @@ Companion documents: `RealmPlatform_ToS.txt`, `RealmPlatform_UGC_License.txt`, `
   Workshop content stated plainly.
 - **The acceptance path** (UGC §8): publishing is acceptance, and the editor requires explicit acceptance before the first
   publish and records the version and date locally.
+- **The canonical licence URL is the versioned page on the public site**
+  (`https://www.realm-game.com/RealmPlatform_UGC_License_v2.txt`). A versioned filename is what lets the URL a map embeds
+  keep resolving to the text that map was published under, which is the assumption UGC §13 rests on. `Terms/` stays the
+  source, the website's copy is refreshed from it whenever it changes, and the site's unversioned page serves the current
+  text for anyone navigating there by hand.
 - **Privacy** (ToS §10, UGC §12): SteamID64 in authorship metadata, attribution tags and the optional Discord invite, and
   nothing else. Diagnostics leave the machine only when the player exports them, with the SteamID opt-in.
 - **The reporting path** (ToS §9, UGC §9) is the GitHub issue tracker the game already links from the end-of-match screen,
@@ -47,36 +52,32 @@ Companion documents: `RealmPlatform_ToS.txt`, `RealmPlatform_UGC_License.txt`, `
 
 ## Questions for counsel
 
-1. **The licence URL.** `metadata.json` carries a URL for the UGC License, and it must resolve to the committed text. It
-   currently points at `realm-game.com` (v1). The rewrite points it at the file in the public GitHub repository so the text
-   and the URL cannot drift, but a repository URL is a weaker "canonical document" than a stable public page. Decide
-   whether a versioned page should serve it and keep the repository copy as the source.
-2. **A DMCA intake that is a GitHub issue.** Takedown notices arrive as public issues in a repository the developer owns.
+1. **A DMCA intake that is a GitHub issue.** Takedown notices arrive as public issues in a repository the developer owns.
    That is a public intake for a legal notice, and it also means the notice is visible to everyone. Is a dedicated private
    address needed before release, and does receiving notices in a public tracker create any obligation the current path
    does not meet?
-3. **No designated agent.** The Workshop item is hosted by Valve, so the developer is not a host of the content and has no
+2. **No designated agent.** The Workshop item is hosted by Valve, so the developer is not a host of the content and has no
    designated agent under 17 U.S.C. §512. Confirm that this holds for mirrors uploaded by the developer's own second
    account — the mirror is uploaded by the developer, hosted by Valve.
-4. **Share-alike and the Operator grant together.** UGC §4(c) requires a mirror to carry the same terms while §3 grants the
+3. **Share-alike and the Operator grant together.** UGC §4(c) requires a mirror to carry the same terms while §3 grants the
    Operator a broader, non-reciprocal licence. Confirm the intended interaction: the Operator is not bound by share-alike
    for its own hosting, and a mirror cannot use share-alike to claim rights in the Operator's game.
-5. **Mirror account separation.** UGC §10 and the operating rules state that a mirror comes from a dedicated account that
+4. **Mirror account separation.** UGC §10 and the operating rules state that a mirror comes from a dedicated account that
    owns the game, never the partner account, and that this separates exposure rather than granting immunity. Confirm that
    the wording does not misstate Valve's repeat-infringer process either way.
-6. **"Authored personally" and references.** UGC §5 treats a map's referenced content as someone else's work. Review
+5. **"Authored personally" and references.** UGC §5 treats a map's referenced content as someone else's work. Review
    whether a creator who authored the referenced map themselves is caught by it, and whether the editor's warning needs to
    distinguish that case.
-7. **Announcements sign-up.** The main menu offers an optional newsletter sign-up that posts the typed name and address to
+6. **Announcements sign-up.** The main menu offers an optional newsletter sign-up that posts the typed name and address to
    a third-party e-mail provider (`stats.sender.net`). It is not an account and the game stores nothing, but it is personal
    data leaving the machine on the player's action. Confirm the privacy disclosure in ToS §10 is enough, or whether a
    consent line and a link to that provider's privacy policy are needed next to the field.
-8. **Cosmetic entitlements and refunds.** ToS §7 states a refund revokes appearance only. Confirm the phrasing is
+7. **Cosmetic entitlements and refunds.** ToS §7 states a refund revokes appearance only. Confirm the phrasing is
    sufficient for a Steam inventory item, and that nothing in it reads as a warranty about availability.
-9. **The promises in ToS §3.** They are deliberately narrow (MIT source, `.rmap` export, offline single-player, no DRM,
+8. **The promises in ToS §3.** They are deliberately narrow (MIT source, `.rmap` export, offline single-player, no DRM,
    free). Confirm nothing there can be read as a promise about Valve's services or about the game's lifetime.
-10. **Versioning.** UGC §13 makes a material change effective on the next publish and keeps an earlier map on the terms it
-    was published under. Confirm that is enforceable alongside a Workshop page that always shows the current text.
+9. **Versioning.** UGC §13 makes a material change effective on the next publish and keeps an earlier map on the terms it
+   was published under. Confirm that is enforceable alongside a Workshop page that always shows the current text.
 
 ## Not changed here
 
