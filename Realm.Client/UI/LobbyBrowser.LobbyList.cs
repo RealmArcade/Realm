@@ -380,7 +380,7 @@ public partial class LobbyBrowser
 				if (!data.Trust.IsTrusted)
 				{
 					GameContext.UserInterface?.PlayWarningSound();
-					AddChild(new UntrustedMapConfirmDialog(data.Map, data.Trust, () => _ = JoinLobbyRowAsync(panel, data)));
+					AddChild(new UntrustedMapConfirmDialog(() => _ = JoinLobbyRowAsync(panel, data)));
 					return;
 				}
 

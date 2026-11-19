@@ -5,27 +5,22 @@ using Realm.Client.Services;
 namespace Realm.Client.UI;
 
 /// <summary>
-///     The one confirmation a player reads before entering a lobby whose map nothing on Steam vouches for. It names the
-///     reason rather than calling the map unsafe, because the map script is sandboxed either way and what the mark is about
-///     is quality and maintenance. Leaving is always allowed, and nothing is hidden before this point: the lobby was listed
-///     and the player chose it, so this is the last chance to say what they are walking into rather than a filter.
+///     The one confirmation a player reads before entering a lobby whose map Steam does not vouch for. It says what an
+///     unvouched map can mean - a map still being tested, a modified copy of an official one, or a host in a country where
+///     Steam Workshop is blocked - because the map script is sandboxed either way and the warning is about where the map
+///     came from, not about safety. Leaving is always allowed, and nothing is hidden before this point: the lobby was
+///     listed and the player chose it, so this is the last chance to say what they are walking into rather than a filter.
 /// </summary>
 [GlobalClass]
 public partial class UntrustedMapConfirmDialog : Control
 {
-	private string _mapTitle = string.Empty;
-	private MapTrustState _trust;
 	private Action? _onConfirmed;
 
 	/// <summary>Builds the dialog for one lobby's map. The caller adds it to the tree and it draws itself.</summary>
-	/// <param name="mapTitle">The map's title, so the reason names the map rather than "this map".</param>
-	/// <param name="trust">The mark the host stated for its map.</param>
 	/// <param name="onConfirmed">What to do when the player accepts the warning.</param>
-	public UntrustedMapConfirmDialog(string mapTitle, MapTrustState trust, Action onConfirmed)
+	public UntrustedMapConfirmDialog(Action onConfirmed)
 	{
 		Name = "UntrustedMapConfirmDialog";
-		_mapTitle = mapTitle;
-		_trust = trust;
 		_onConfirmed = onConfirmed;
 	}
 
@@ -65,26 +60,17 @@ public partial class UntrustedMapConfirmDialog : Control
 		title.HorizontalAlignment = HorizontalAlignment.Center;
 		column.AddChild(title);
 
-		var body = new Label { Name = "UntrustedMapBody" };
-		body.Text = string.Format(TranslationServer.Translate("{0} is not vouched for by Steam: {1}"),
-			_mapTitle, MapTrustPolicy.DescribeReason(_trust.Reason));
-		body.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		body.CustomMinimumSize = new Vector2(460, 0);
-		body.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		body.HorizontalAlignment = HorizontalAlignment.Center;
-		body.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		body.AddThemeFontSizeOverride("font_size", 13);
-		column.AddChild(body);
-
-		var note = new Label { Name = "UntrustedMapNote" };
-		note.Text = TranslationServer.Translate("The map's script runs in a sandbox either way; this is about how well the map is known, not about safety.");
-		note.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		note.CustomMinimumSize = new Vector2(460, 0);
-		note.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		note.HorizontalAlignment = HorizontalAlignment.Center;
-		note.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
-		note.AddThemeFontSizeOverride("font_size", 12);
-		column.AddChild(note);
+		var warning = new Label { Name = "UntrustedMapWarning" };
+		warning.Text = TranslationServer.Translate("Warning: This host chose a map file outside of Steam. Either this is an unfinished map requesting beta testers, or it is a modified version of an official map, or the host is in a country which blocks access to Steam.");
+		warning.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		warning.CustomMinimumSize = new Vector2(460, 0);
+		warning.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		warning.HorizontalAlignment = HorizontalAlignment.Center;
+		warning.AddThemeColorOverride("font_color", Colors.White);
+		warning.AddThemeColorOverride("font_outline_color", new Color(0.05f, 0.05f, 0.07f, 0.9f));
+		warning.AddThemeConstantOverride("outline_size", 4);
+		warning.AddThemeFontSizeOverride("font_size", 13);
+		column.AddChild(warning);
 
 		var row = new HBoxContainer { Name = "UntrustedMapButtons" };
 		row.Alignment = BoxContainer.AlignmentMode.Center;
