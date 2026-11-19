@@ -404,6 +404,13 @@ public partial class LobbyManager : BaseMapTransferNode
 			return;
 		}
 
+		// The authority is handed the Steam application this screen is running as, so Steam has to have answered before
+		// that value is read. This runs while the screen is still starting and the Steam autoload has not said anything
+		// yet, and the authority it would launch without an id is the one the whole session keeps: every host request
+		// would then be refused for want of an identity. Asking here makes the order explicit rather than a property of
+		// the autoload list, and Start states it is a no-op in a process Steam already answered in.
+		GameContext.Steam.Start();
+
 		GameContext.LocalAuthority.Configure(target, Path.Combine(OS.GetUserDataDir(), "logs"), OS.GetUserDataDir());
 		_ = GameContext.LocalAuthority.EnsureStartedAsync();
 	}
