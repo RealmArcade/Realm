@@ -375,9 +375,14 @@ public partial struct MapTransferRequest
 	public string TransferId;
 	public string MapName;
 
-	public string[] MissingHashes;
-
 	public int ChunkIndex;
+
+	/// <summary>
+	///     Which piece of that chunk's bundle to answer with. A bundle is larger than one frame a Steam peer connection
+	///     carries, so it travels as the pieces the lobby states in <see cref="MapTransferReply.PacketCount" /> and a joiner
+	///     asks for them in turn.
+	/// </summary>
+	public int PacketIndex;
 }
 
 [MemoryPackable]
@@ -395,10 +400,23 @@ public partial struct MapTransferReply
 	public byte[] ManifestBytes;
 
 	public string Refusal;
+
+	/// <summary>
+	///     The chunk this reply carries a piece of, counted from zero, and how many chunks the lobby split its map into.
+	///     The manifest reply states the total, so a joiner needs no list of hashes of its own to walk the map.
+	/// </summary>
 	public int ChunkIndex;
+
 	public int TotalChunks;
+
+	/// <summary>Which piece of that chunk's bundle this reply carries, and how many pieces make it whole.</summary>
+	public int PacketIndex;
+
+	public int PacketCount;
+
 	public long TotalBytes;
 
+	/// <summary>The piece itself, which is the whole bundle when the bundle fits one piece.</summary>
 	public byte[] Bundle;
 }
 
@@ -458,6 +476,12 @@ public static class LobbyLimits
 	public static bool IsRandomFaction(string? factionName) => string.Equals(factionName, RandomFactionName, StringComparison.Ordinal);
 
 	public const int MaximumMapBundleBytes = 384 * 1024;
+
+	/// <summary>
+	///     The largest frame this transfer may put on one message. A Steam peer connection refuses a message over 512 KB,
+	///     so a reply at or over that size would be dropped by the transport and answered with nothing at all.
+	/// </summary>
+	public const int MaximumMapTransferFrameBytes = 512 * 1024;
 
 	/// <summary>
 	///     The refusal a peer is answered with when it asks to be seated in a lobby that removed it.

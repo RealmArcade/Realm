@@ -13,7 +13,10 @@ public class ServerMapShares
 	private readonly byte[] _manifestBytes = Array.Empty<byte>();
 	private readonly Dictionary<string, string> _pathByHash = new(StringComparer.OrdinalIgnoreCase);
 
-	private const int MaximumRequestedHashes = 20000;
+	private readonly List<List<MapShareFile>> _chunks = new();
+
+	private int _builtChunkIndex = -1;
+	private byte[] _builtBundle = Array.Empty<byte>();
 
 	public ServerMapShares(string mapFolder, ServerLog log)
 	{
@@ -37,7 +40,8 @@ public class ServerMapShares
 				}
 			}
 
-			_log.Write($"the lobby serves its map from {_pathByHash.Count} file(s) listed in its manifest");
+			BuildChunkPlan();
+			_log.Write($"the lobby serves its map from {_pathByHash.Count} file(s) in {_chunks.Count} bundle(s), each carried as pieces of at most {MapTransferPackets.PieceBytes} bytes");
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
 		{
@@ -52,16 +56,9 @@ public class ServerMapShares
 		get
 		{
 			long total = 0;
-			foreach (string path in _pathByHash.Values)
+			foreach (List<MapShareFile> chunk in _chunks)
 			{
-				try
-				{
-					total += new FileInfo(path).Length;
-				}
-				catch (IOException ex)
-				{
-					_log.Write($"a map file could not be measured while summing the map size: {ex.GetType().Name}: {ex.Message}");
-				}
+				foreach (MapShareFile file in chunk) total += file.Size;
 			}
 
 			return total;
@@ -74,56 +71,32 @@ public class ServerMapShares
 
 		if (request.Kind == MapTransferRequestKind.Manifest)
 		{
+			if (ManifestBytes.Length > LobbyLimits.MaximumMapTransferFrameBytes)
+			{
+				return Refused(peerId, request, $"this map's manifest is {ManifestBytes.Length} bytes, larger than the {LobbyLimits.MaximumMapTransferFrameBytes} bytes one message carries");
+			}
+
 			return new MapTransferReply
 			{
 				Kind = MapTransferReplyKind.Manifest,
 				TransferId = request.TransferId,
 				MapName = request.MapName,
 				ManifestBytes = ManifestBytes,
+				TotalChunks = _chunks.Count,
 				TotalBytes = TotalBytes
 			};
 		}
 
-		string[] requested = request.MissingHashes ?? Array.Empty<string>();
-		if (requested.Length == 0 || requested.Length > MaximumRequestedHashes) return Refused(peerId, request, "the requested file list is not a map transfer");
+		if (_chunks.Count == 0) return Refused(peerId, request, "this lobby's map lists no files to serve");
+		if (request.ChunkIndex < 0 || request.ChunkIndex >= _chunks.Count) return Refused(peerId, request, "that bundle is not part of this transfer");
 
-		var missing = new List<(string Hash, string Path, long Size)>(requested.Length);
-		foreach (string hash in requested)
-		{
-			string normalized = ContentAddressableStorage.NormalizeBlake3Hash(hash);
-			if (!_pathByHash.TryGetValue(normalized, out string? path)) continue;
+		byte[] bundle = BundleForChunk(request.ChunkIndex);
+		int packetCount = MapTransferPackets.CountFor(bundle.Length);
+		if (packetCount == 0) return Refused(peerId, request, "that bundle holds no bytes");
+		if (request.PacketIndex < 0 || request.PacketIndex >= packetCount) return Refused(peerId, request, "that piece is not part of this bundle");
 
-			try
-			{
-				missing.Add((normalized, path, new FileInfo(path).Length));
-			}
-			catch (IOException ex)
-			{
-				_log.Write($"the map file {path} could not be measured, so it was left out of the transfer: {ex.GetType().Name}: {ex.Message}");
-			}
-		}
-
-		if (missing.Count == 0) return Refused(peerId, request, "none of the requested files belong to this lobby's map");
-		missing.Sort((left, right) => string.CompareOrdinal(left.Hash, right.Hash));
-
-		List<List<(string Hash, string Path, long Size)>> chunks = Partition(missing);
-		if (request.ChunkIndex < 0 || request.ChunkIndex >= chunks.Count) return Refused(peerId, request, "that bundle is not part of this transfer");
-
-		var assets = new List<(string AssetKey, byte[] Data, string? Metadata)>(chunks[request.ChunkIndex].Count);
-		foreach (var item in chunks[request.ChunkIndex])
-		{
-			try
-			{
-				assets.Add((item.Hash, File.ReadAllBytes(item.Path), null));
-			}
-			catch (IOException exception)
-			{
-				_log.Write($"the lobby could not read '{item.Path}' while serving it to peer {peerId}: {exception.Message}");
-			}
-		}
-
-		byte[] bundle = ZstdAssetBundleHelper.CreateBundleBytes(assets);
-		_log.Write($"peer {peerId} is served map bundle {request.ChunkIndex + 1}/{chunks.Count} ({bundle.Length} bytes, {assets.Count} file(s))");
+		byte[] piece = MapTransferPackets.Slice(bundle, request.PacketIndex);
+		_log.Write($"peer {peerId} is served map bundle {request.ChunkIndex + 1}/{_chunks.Count} piece {request.PacketIndex + 1}/{packetCount} ({piece.Length} of {bundle.Length} bytes, {_chunks[request.ChunkIndex].Count} file(s))");
 
 		return new MapTransferReply
 		{
@@ -131,25 +104,46 @@ public class ServerMapShares
 			TransferId = request.TransferId,
 			MapName = request.MapName,
 			ChunkIndex = request.ChunkIndex,
-			TotalChunks = chunks.Count,
+			TotalChunks = _chunks.Count,
+			PacketIndex = request.PacketIndex,
+			PacketCount = packetCount,
 			TotalBytes = TotalBytes,
-			Bundle = bundle
+			Bundle = piece
 		};
 	}
 
-	private static List<List<(string Hash, string Path, long Size)>> Partition(List<(string Hash, string Path, long Size)> files)
+	/// <summary>
+	///     Lays the map's files out into the bundles a joiner walks in order. The plan is made once, from the files the
+	///     lobby actually holds, so the bundle a chunk index names is the same bundle for every piece of it and for every
+	///     peer that asks: a plan rebuilt per request would hand out a different set once a file had been read or replaced.
+	/// </summary>
+	private void BuildChunkPlan()
 	{
-		var chunks = new List<List<(string Hash, string Path, long Size)>>();
-		var current = new List<(string Hash, string Path, long Size)>();
-		long currentBytes = 0;
+		var files = new List<MapShareFile>(_pathByHash.Count);
+		foreach (var pair in _pathByHash)
+		{
+			try
+			{
+				var info = new FileInfo(pair.Value);
+				if (info.Exists) files.Add(new MapShareFile(pair.Key, pair.Value, info.Length));
+			}
+			catch (IOException exception)
+			{
+				_log.Write($"the map file {pair.Value} could not be measured, so it is left out of the transfer: {exception.GetType().Name}: {exception.Message}");
+			}
+		}
 
-		foreach (var file in files)
+		files.Sort((left, right) => string.CompareOrdinal(left.Hash, right.Hash));
+
+		var current = new List<MapShareFile>();
+		long currentBytes = 0;
+		foreach (MapShareFile file in files)
 		{
 			long estimated = file.Size + file.Hash.Length * 2 + 16;
 			if (current.Count > 0 && currentBytes + estimated > LobbyLimits.MaximumMapBundleBytes)
 			{
-				chunks.Add(current);
-				current = new List<(string Hash, string Path, long Size)>();
+				_chunks.Add(current);
+				current = new List<MapShareFile>();
 				currentBytes = 0;
 			}
 
@@ -157,8 +151,36 @@ public class ServerMapShares
 			currentBytes += estimated;
 		}
 
-		if (current.Count > 0) chunks.Add(current);
-		return chunks;
+		if (current.Count > 0) _chunks.Add(current);
+	}
+
+	/// <summary>
+	///     Builds one bundle and keeps it until another chunk is asked for, so the pieces of a large file are not read
+	///     from disk and compressed again for every piece the joiner requests.
+	/// </summary>
+	/// <param name="chunkIndex">The chunk to build.</param>
+	/// <returns>The bundle's bytes.</returns>
+	private byte[] BundleForChunk(int chunkIndex)
+	{
+		if (chunkIndex == _builtChunkIndex) return _builtBundle;
+
+		List<MapShareFile> chunk = _chunks[chunkIndex];
+		var assets = new List<(string AssetKey, byte[] Data, string? Metadata)>(chunk.Count);
+		foreach (MapShareFile item in chunk)
+		{
+			try
+			{
+				assets.Add((item.Hash, File.ReadAllBytes(item.Path), null));
+			}
+			catch (IOException exception)
+			{
+				_log.Write($"the lobby could not read '{item.Path}' while serving bundle {chunkIndex + 1}: {exception.Message}");
+			}
+		}
+
+		_builtBundle = ZstdAssetBundleHelper.CreateBundleBytes(assets);
+		_builtChunkIndex = chunkIndex;
+		return _builtBundle;
 	}
 
 	private MapTransferReply Refused(int peerId, MapTransferRequest request, string reason)
@@ -173,4 +195,6 @@ public class ServerMapShares
 			Refusal = reason
 		};
 	}
+
+	private readonly record struct MapShareFile(string Hash, string Path, long Size);
 }

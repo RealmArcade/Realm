@@ -65,7 +65,6 @@ public partial class LobbyManager
 				Kind = MapTransferRequestKind.Manifest,
 				TransferId = Guid.NewGuid().ToString("N"),
 				MapName = targetMap,
-				MissingHashes = Array.Empty<string>(),
 				ChunkIndex = 0
 			});
 
@@ -89,9 +88,8 @@ public partial class LobbyManager
 			}
 
 			string transferId = Guid.NewGuid().ToString("N");
-			List<string> allHashes = manifest.Files.Values.ToList();
-			int totalAssets = allHashes.Count;
-			if (totalAssets == 0)
+			int totalChunks = servedManifest.TotalChunks;
+			if (totalChunks <= 0)
 			{
 				GameLog.LogError($"[LobbyManager] The lobby served a manifest for '{targetMap}' that lists no files.");
 				_downloadingMapName = null;
@@ -99,30 +97,36 @@ public partial class LobbyManager
 				return false;
 			}
 
-			List<string> missing = await Task.Run(() => MapAssetManager.GetMissingHashes(allHashes));
-
-			int chunkIndex = 0;
-			int totalChunks = 1;
-			while (missing.Count > 0 && chunkIndex < totalChunks)
+			for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
 			{
-				MapTransferReply? chunkReply = await RequestMapTransferAsync(new MapTransferRequest
+				var pieces = new List<byte[]>(2);
+				int packetIndex = 0;
+				int packetCount = 1;
+				while (packetIndex < packetCount)
 				{
-					Kind = MapTransferRequestKind.Chunk,
-					TransferId = transferId,
-					MapName = targetMap,
-					MissingHashes = missing.ToArray(),
-					ChunkIndex = chunkIndex
-				}, 60000);
+					MapTransferReply? pieceReply = await RequestMapTransferAsync(new MapTransferRequest
+					{
+						Kind = MapTransferRequestKind.Chunk,
+						TransferId = transferId,
+						MapName = targetMap,
+						ChunkIndex = chunkIndex,
+						PacketIndex = packetIndex
+					}, 60000);
 
-				if (chunkReply is not { Kind: MapTransferReplyKind.Chunk } servedChunk || servedChunk.Bundle == null)
-				{
-					GameLog.LogError($"[LobbyManager] The lobby stopped serving '{targetMap}' at bundle {chunkIndex}: {(chunkReply is { } answeredChunk ? answeredChunk.Refusal.Length > 0 ? answeredChunk.Refusal : $"the host answered {answeredChunk.Kind}" : "the host did not answer in time")}");
-					CallDeferred(nameof(EmitDownloadFailed));
-					return false;
+					if (pieceReply is not { Kind: MapTransferReplyKind.Chunk } servedPiece || servedPiece.Bundle is not { Length: > 0 } pieceBytes)
+					{
+						GameLog.LogError($"[LobbyManager] The lobby stopped serving '{targetMap}' at bundle {chunkIndex} piece {packetIndex}: {(pieceReply is { } answeredPiece ? answeredPiece.Refusal.Length > 0 ? answeredPiece.Refusal : $"the host answered {answeredPiece.Kind}" : "the host did not answer in time")}");
+						CallDeferred(nameof(EmitDownloadFailed));
+						return false;
+					}
+
+					packetCount = Math.Max(1, servedPiece.PacketCount);
+					pieces.Add(pieceBytes);
+					packetIndex++;
 				}
 
-				totalChunks = Math.Max(1, servedChunk.TotalChunks);
-				List<(string AssetKey, byte[] Data, string? Metadata)> assets = await Task.Run(() => ZstdAssetBundleHelper.ExtractBundleBytes(servedChunk.Bundle));
+				byte[] bundle = MapTransferPackets.Join(pieces);
+				List<(string AssetKey, byte[] Data, string? Metadata)> assets = await Task.Run(() => ZstdAssetBundleHelper.ExtractBundleBytes(bundle));
 				await Task.Run(() =>
 				{
 					foreach (var (assetKey, data, metadata) in assets)
@@ -131,10 +135,8 @@ public partial class LobbyManager
 					}
 				});
 
-				chunkIndex++;
-				float progress = totalChunks > 0 ? Math.Clamp((float)chunkIndex / totalChunks, 0.0f, 1.0f) : 0.0f;
+				float progress = Math.Clamp((float)(chunkIndex + 1) / totalChunks, 0.0f, 1.0f);
 				CallDeferred(nameof(EmitDownloadProgress), progress);
-				if (totalAssets > 0 && assets.Count == 0) break;
 			}
 
 			string targetDirectory = MapAssetManager.GetMapDirectory(targetMap, targetVersion);
