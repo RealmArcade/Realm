@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Godot;
+using Realm.Client.Services.Steam;
 using Realm.Shared;
 
 namespace Realm.Client.Services;
@@ -139,7 +140,9 @@ public class MapSessionCopyService
 	///     has to change. A map whose data is already this build's needs no private copy: nothing will be written into it and
 	///     nothing has to be keyed, so a caller that advertises and transfers nothing - a single-player lobby - can read it
 	///     where it is instead of reading and rewriting every file of the package first. A hosted lobby states false and
-	///     always gets a copy, because the copy is the package it advertises.
+	///     always gets a copy, because the copy is the package it advertises. A folder Steam owns is copied even when it needs
+	///     no migration, whatever the caller allows: Steam replaces that folder on the next Workshop update, and a match
+	///     already running would then be reading files nobody chose to change.
 	/// </summary>
 	/// <param name="installedMapDirectory">The absolute folder of the installed or authored map.</param>
 	/// <param name="mayReadInPlace">Whether the caller can play the folder where it sits when it needs no migration.</param>
@@ -153,6 +156,12 @@ public class MapSessionCopyService
 		string sessionRoot = ProjectSettings.GlobalizePath($"user://{SessionRootFolderName}");
 		if (!IsInside(sessionRoot, fullSource) && !IsCurrentBuildPackage(fullSource)) return TryPrepare(fullSource);
 
+		if (IsSteamOwnedFolder(fullSource))
+		{
+			GameLog.LogToConsole($"[MapSessionCopy] Steam installed '{Path.GetFileName(fullSource)}' as a Workshop item and replaces that folder on its next update, so this match plays a private copy.");
+			return TryPrepare(fullSource);
+		}
+
 		MapSessionIdentity identity = ReadIdentity(fullSource);
 		LastRefusal = string.Empty;
 		LastSessionDirectory = fullSource;
@@ -160,6 +169,27 @@ public class MapSessionCopyService
 		LastOriginalHash = ReadStatedPackageHash(fullSource);
 		GameLog.LogToConsole($"[MapSessionCopy] '{Path.GetFileName(fullSource)}' states build {identity.GameBuildNumber}, so it plays where it sits instead of being copied.");
 		return fullSource;
+	}
+
+	/// <summary>
+	///     Whether a map folder is one of the folders Steam installed a subscribed Workshop item into, which is the folder
+	///     Steam owns and rewrites whenever that item is updated. A map the player downloaded by hand or authored here
+	///     belongs to nobody but them, so only an installed item's own folder counts.
+	/// </summary>
+	/// <param name="mapDirectory">The absolute folder of the installed or authored map.</param>
+	/// <returns>Whether Steam put this map there as a Workshop subscription.</returns>
+	private static bool IsSteamOwnedFolder(string mapDirectory)
+	{
+		if (!SteamWorkshopService.IsAvailable) return false;
+
+		foreach (ulong itemId in SteamWorkshopService.GetSubscribedItemIds())
+		{
+			string? itemFolder = SteamWorkshopService.GetInstalledFolder(itemId);
+			if (string.IsNullOrEmpty(itemFolder)) continue;
+			if (IsInside(itemFolder, mapDirectory)) return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>

@@ -538,10 +538,11 @@ public partial class LobbyManager
 			return false;
 		}
 
-		// A single-player lobby advertises nothing and transfers nothing, so a map whose data this build does not migrate is
-		// read where it sits: opening the lobby then costs nothing proportional to the package, which is what the editor's
-		// own playtest has always done and why this path was slower than it. A map an older build left behind is still
-		// copied and migrated durably, so the author's folder is never written to.
+		// A single-player lobby advertises nothing and transfers nothing, so a map of the player's own whose data this build
+		// does not migrate is read where it sits: opening the lobby then costs nothing proportional to the package, which is
+		// what the editor's own playtest has always done and why this path was slower than it. Two folders are still copied:
+		// one an older build left behind, because it has to be migrated durably, and one Steam installed as a Workshop item,
+		// because Steam rewrites that folder on its next update underneath a match already running on it.
 		string? mapDirectory = GameContext.MapSessionCopy.TryResolvePlayableDirectory(installedMapDirectory, mayReadInPlace: true);
 		if (string.IsNullOrEmpty(mapDirectory))
 		{
