@@ -201,16 +201,35 @@ public partial class LobbyManager : BaseMapTransferNode
 	private MapTrustState _publishedMapTrust = MapTrustState.Trusted;
 
 	/// <summary>
-	///     The Workshop item the lobby's map is published as, as the advertisement states it, or zero when the map was never
-	///     published. A joiner compares it with the item it has, and an absence is what selects the host-transfer path.
+	///     The Workshop item the lobby's map is published as, as the lobby found it. It is what the advertisement names only
+	///     while the package Steam installed for it is the package this lobby plays; a joiner given an item is told to
+	///     subscribe to it, and an absence is what selects the host-transfer path.
 	/// </summary>
 	private ulong _publishedMapWorkshopId;
 
 	/// <summary>
 	///     The private copy of the active map this session plays from, which is the installed package migrated to this build.
-	///     Empty until a lobby is opened or joined.
+	///     Empty until a lobby is opened or joined, and left empty for a joiner whose map came over the lobby itself.
 	/// </summary>
 	public string ActiveMapSessionDirectory { get; set; } = string.Empty;
+
+	/// <summary>
+	///     Whether this screen holds the package the lobby plays, which is what ends the wait before a seat can say it is
+	///     ready. A map taken from a Workshop item is prepared into a private copy and never enters the download archive, so
+	///     a room that asked the archive alone would keep a joiner waiting for a download nobody was going to send.
+	/// </summary>
+	public bool HoldsActiveMapPackage
+	{
+		get
+		{
+			if (string.IsNullOrEmpty(ActiveMapName)) return false;
+
+			string sessionDirectory = ActiveMapSessionDirectory;
+			if (sessionDirectory.Length > 0 && Directory.Exists(sessionDirectory)) return true;
+
+			return MapAssetManager.IsMapDownloaded(ActiveMapName);
+		}
+	}
 	public bool IsGameStarted { get; set; }
 	public DateTime? GameSessionStartTime { get; private set; }
 	public int MatchSeed { get; private set; }

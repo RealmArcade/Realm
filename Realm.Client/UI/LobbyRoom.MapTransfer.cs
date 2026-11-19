@@ -47,7 +47,7 @@ public partial class LobbyRoom
 		_downloadProgress.AddThemeFontSizeOverride("font_size", 12);
 		AddChild(_downloadProgress);
 
-		bool isReady = !string.IsNullOrEmpty(Lobby.ActiveMapName) && MapAssetManager.IsMapDownloaded(Lobby.ActiveMapName);
+		bool isReady = Lobby.HoldsActiveMapPackage;
 		if (isReady)
 		{
 			_downloadProgress.Value = 100.0f;

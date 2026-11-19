@@ -380,23 +380,39 @@ public partial class LobbyManager
 	}
 
 	/// <summary>
-	///     The Workshop item Steam can hand this lobby's exact map from, or zero when Steam cannot. A map whose files were
-	///     imported from a package is a copy this machine holds even when its author published one, because the item Steam
-	///     would deliver is the folder it installs and not this copy; a joiner can then only be given what the host has,
-	///     and the advertisement says so by naming no item.
+	///     The Workshop item Steam can hand this lobby's exact map from, or zero when Steam cannot. The item is named only
+	///     while the package Steam installed for it is the package this lobby plays, so a joiner that subscribes is given the
+	///     bytes the host runs instead of something that merely calls itself the same map; every other lobby is settled the
+	///     other way round, by the host sending its own copy over the connection.
 	/// </summary>
-	/// <returns>The item whose installed folder the lobby plays from, or zero.</returns>
+	/// <remarks>
+	///     Two cases answer zero. An item that is not installed here cannot be checked at all - the host may play a folder it
+	///     authored, or a package it imported from a file - and an item whose folder states a different package is a version
+	///     this lobby does not play, which is what an author's own build looks like until Steam publishes it. The package a
+	///     folder states is its manifest, which either side reads in one file read, so nothing is walked to answer this.
+	/// </remarks>
+	/// <returns>The item whose installed package is the one this lobby plays, or zero.</returns>
 	private ulong DeliverableMapWorkshopId()
 	{
 		if (_publishedMapWorkshopId == 0) return 0;
 
-		string? mapDirectory = GameHost.ResolveMapDirectory(ActiveMapName, ActiveMapVersion);
+		string? playedDirectory = GameHost.ResolveMapDirectory(ActiveMapName, ActiveMapVersion);
 		string? itemFolder = SteamWorkshopService.GetInstalledFolder(_publishedMapWorkshopId);
-		if (string.IsNullOrEmpty(mapDirectory) || string.IsNullOrEmpty(itemFolder)) return 0;
+		if (string.IsNullOrEmpty(playedDirectory) || string.IsNullOrEmpty(itemFolder) || !Directory.Exists(itemFolder))
+		{
+			GameLog.LogToConsole($"[LobbyManager] Workshop item {_publishedMapWorkshopId} for '{ActiveMapName}' is not installed on this machine, so joiners are given this lobby's copy instead of being told to subscribe.");
+			return 0;
+		}
 
-		string relative = Path.GetRelativePath(Path.GetFullPath(itemFolder), Path.GetFullPath(mapDirectory));
-		bool insideTheItem = !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
-		return insideTheItem ? _publishedMapWorkshopId : 0;
+		string playedPackage = MapSessionCopyService.ReadStatedPackageHash(playedDirectory);
+		string itemPackage = MapSessionCopyService.ReadStatedPackageHash(itemFolder);
+		if (playedPackage.Length == 0 || !string.Equals(playedPackage, itemPackage, StringComparison.OrdinalIgnoreCase))
+		{
+			GameLog.LogToConsole($"[LobbyManager] Workshop item {_publishedMapWorkshopId} does not carry the package this lobby plays, so joiners are given this lobby's copy instead of being told to subscribe.");
+			return 0;
+		}
+
+		return _publishedMapWorkshopId;
 	}
 
 	/// <summary>
@@ -661,6 +677,8 @@ public partial class LobbyManager
 		PlayerList.Clear();
 		ActiveMapName = mapPathName;
 		ActiveMapVersion = !string.IsNullOrWhiteSpace(explicitVersion) ? explicitVersion : "1.0.0";
+		// A lobby states the item of the map it plays, never the item the last lobby happened to play.
+		_publishedMapWorkshopId = 0;
 	}
 
 	private static int ResolvePlayablePlayerSlots(string mapPathName, string? version)

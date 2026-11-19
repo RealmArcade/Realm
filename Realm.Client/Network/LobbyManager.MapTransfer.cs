@@ -251,14 +251,31 @@ public partial class LobbyManager
 	///     this screen does not have and has to be given. A lobby that states no package hash says nothing to compare with,
 	///     and whatever is installed is then what it plays.
 	/// </summary>
+	/// <remarks>
+	///     The copy a join prepared is asked about first, because a map taken from a Workshop item is read where Steam put it
+	///     and never enters the download archive. Asking the archive alone would have this screen wait for a download of the
+	///     package it is already holding.
+	/// </remarks>
 	/// <param name="mapName">The map's path name.</param>
 	/// <param name="mapVersion">The map's version, as the lobby states it.</param>
 	/// <returns>Whether the advertised package is the one on this machine.</returns>
 	private bool HoldsAdvertisedMapCopy(string mapName, string mapVersion)
 	{
+		string advertisedHash = SteamLobbyDirectory.GetData(SteamLobbyId, SteamLobbyDirectory.MapHashKey);
+
+		string sessionDirectory = ActiveMapSessionDirectory;
+		if (sessionDirectory.Length > 0 && Directory.Exists(sessionDirectory) &&
+		    string.Equals(mapName, ActiveMapName, StringComparison.OrdinalIgnoreCase))
+		{
+			string sessionHash = MapSessionCopyService.ReadStatedPackageHash(sessionDirectory);
+			if (advertisedHash.Length == 0 || sessionHash.Length == 0 || string.Equals(advertisedHash, sessionHash, StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+		}
+
 		if (!MapAssetManager.IsMapDownloaded(mapName, mapVersion)) return false;
 
-		string advertisedHash = SteamLobbyDirectory.GetData(SteamLobbyId, SteamLobbyDirectory.MapHashKey);
 		if (advertisedHash.Length == 0) return true;
 
 		string? localDirectory = GameHost.ResolveMapDirectory(mapName, mapVersion);

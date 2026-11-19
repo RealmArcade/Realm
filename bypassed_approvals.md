@@ -408,6 +408,23 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   their item is the one their copy came from and the one every joiner can be given. When the host is hosting a map
   somebody else published - the ordinary case for a downloaded Workshop map - there is no owned item, so the newest
   same-name item is still the answer, which is the only route available until a map records the item it came from.
+- **The advertisement states an item only while Steam's installed copy of it is the package the lobby plays.**
+  `DeliverableMapWorkshopId` compared folders - was the item's install directory inside the folder being played - and
+  once a hosted lobby started preparing a private copy that was never true, so no hosted lobby named an item at all and
+  every joiner took the host's transfer. It now compares the package each folder *states*, which is its manifest, and
+  names the item only when both are the same file, so what a joiner subscribes to is the bytes the host runs rather than
+  a package that only calls itself the same map. A host playing a folder it authored, or a package it imported from a
+  file, has no installed item to compare and still states none; the rule is a guarantee, not a claim that every Workshop
+  map can be advertised.
+- **A join settled by an item is settled by that item.** `LobbyMapCompatibilityService` reads the installed folder of the
+  item the lobby names, subscribes or updates it when Steam does not have it, and prepares the private copy from there -
+  never from whatever folder happens to carry the map's name, which may be another creator's map or an old import. When
+  Steam no longer serves the package the lobby states, which is what an update published under an open lobby looks like,
+  the join falls back to the host's copy instead of refusing a player who could have been seated.
+- **Left open deliberately: a subscribed map cannot be chosen to host.** `MapInfoHelper.GetAvailableMaps` scans
+  `user://maps` and `res://Maps`, so a Workshop item is downloadable but not selectable as a lobby's map. Closing that
+  means teaching the map picker to read installed items, which is its own change with its own name-collision question,
+  and nothing here depends on it: a lobby whose map has no installed item still sends its own copy, exactly as before.
 ## The translations no native speaker has read
 
 - **All ten catalogs were translated by the agent, not by a native speaker.** The branch added 202 strings with no

@@ -349,6 +349,9 @@ public partial class LobbyManager
 		{
 			ActiveMapName = state.MapName;
 			ActiveMapVersion = string.IsNullOrEmpty(state.MapVersion) ? "1.0.0" : state.MapVersion;
+			// The copy prepared for the map this lobby just stopped playing is not the one this map plays, so the room
+			// stops believing it holds a package until the new map has been prepared or arrives from the host.
+			ActiveMapSessionDirectory = string.Empty;
 			ActiveMapChanged?.Invoke(ActiveMapName);
 			if (!IsHost) _ = EnsureMapDownloadedAsync(ActiveMapName, ActiveMapVersion);
 		}

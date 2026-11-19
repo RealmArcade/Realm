@@ -295,7 +295,7 @@ public partial class LobbyRoom : Control
 		UpdateSelectedMapUI();
 		if (!Lobby.IsHost && _downloadProgress != null && _downloadLabel != null)
 		{
-			if (MapAssetManager.IsMapDownloaded(mapName))
+			if (Lobby.HoldsActiveMapPackage)
 			{
 				_downloadProgress.Value = 100.0f;
 				_downloadLabel.Text = Tr("Map package ready.");

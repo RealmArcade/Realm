@@ -99,8 +99,7 @@ public partial class LobbyRoom
 
 	private void ApplyClientStartButtonState()
 	{
-		string activeMap = Lobby.ActiveMapName ?? "";
-		bool isMapReady = !string.IsNullOrEmpty(activeMap) && MapAssetManager.IsMapDownloaded(activeMap);
+		bool isMapReady = Lobby.HoldsActiveMapPackage;
 		if (!isMapReady)
 		{
 			int downloadPercent = Math.Clamp(GetLocalPlayer()?.MapDownloadPercent ?? 0, 0, 100);
