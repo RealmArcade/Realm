@@ -92,7 +92,6 @@ public partial class LobbyManager
 			if (totalChunks <= 0)
 			{
 				GameLog.LogError($"[LobbyManager] The lobby served a manifest for '{targetMap}' that lists no files.");
-				_downloadingMapName = null;
 				CallDeferred(nameof(EmitDownloadFailed));
 				return false;
 			}
@@ -151,7 +150,6 @@ public partial class LobbyManager
 				MapReferenceResolver.SetReadOnlyRecursive(targetDirectory);
 			});
 
-		_downloadingMapName = null;
 		CallDeferred(nameof(EmitDownloadCompleted));
 		StartMatchPreparationForCurrentMap();
 		return true;
@@ -159,12 +157,12 @@ public partial class LobbyManager
 		catch (Exception ex)
 		{
 			GameLog.LogError($"[LobbyManager] Map download failed for '{targetMap}': {ex.Message}");
-			_downloadingMapName = null;
 			CallDeferred(nameof(EmitDownloadFailed));
 			return false;
 		}
 		finally
 		{
+			_downloadingMapName = null;
 			_mapDownloadLock.Release();
 		}
 	}
