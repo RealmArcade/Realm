@@ -99,28 +99,12 @@ public class SteamClientLink : IDisposable
 			var identity = new SteamNetworkingIdentity();
 			identity.SetSteamID64(hostSteamId);
 
-			// The joiner is the side a map's pieces arrive on, so its receive buffer is stated above one window of them, and its
-			// own sends are left for Steam to pace rather than clamped to a rate a map transfer would have to fight.
-			var connectionOptions = new[]
-			{
-				new SteamNetworkingConfigValue_t
-				{
-					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_RecvBufferSize,
-					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionReceiveBufferBytes }
-				},
-				new SteamNetworkingConfigValue_t
-				{
-					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMin,
-					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionSendRateMinimumBytesPerSecond }
-				},
-				new SteamNetworkingConfigValue_t
-				{
-					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMax,
-					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionSendRateMaximumBytesPerSecond }
-				}
-			};
+			// The joiner is the side a map's pieces arrive on, so its receive buffer and send rate are stated as this process's
+			// Steam defaults before the connection is opened: a setting Steam will not take is logged and left at Steam's own,
+			// because a value that cannot be applied must not be the reason a screen cannot join.
+			ApplyConnectionDefaults();
 
-			_connection = SteamNetworkingSockets.ConnectP2P(ref identity, 0, connectionOptions.Length, connectionOptions);
+			_connection = SteamNetworkingSockets.ConnectP2P(ref identity, 0, 0, Array.Empty<SteamNetworkingConfigValue_t>());
 			if (_connection == HSteamNetConnection.Invalid)
 			{
 				failure = "Steam could not start a connection to the host";
@@ -137,6 +121,66 @@ public class SteamClientLink : IDisposable
 		_state = ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_Connecting;
 		GameLog.LogToConsole($"[SteamNetwork] connecting to host {hostSteamId}");
 		return true;
+	}
+
+	/// <summary>
+	///     States the connection settings a map transfer needs as this process's Steam defaults, which the connection opened
+	///     afterwards inherits. Steam paces a peer connection by an estimate of the path and bounds that estimate with a clamp,
+	///     and it buffers far less than one window of pieces on the receiving side; both defaults suit a match's own traffic
+	///     rather than a map's assets, so a transfer would spend its time against them instead of the line.
+	/// </summary>
+	private void ApplyConnectionDefaults()
+	{
+		ApplyConnectionDefault(ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMin, LobbyLimits.ConnectionSendRateMinimumBytesPerSecond);
+		ApplyConnectionDefault(ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMax, LobbyLimits.ConnectionSendRateMaximumBytesPerSecond);
+		ApplyConnectionDefault(ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_RecvBufferSize, LobbyLimits.ConnectionReceiveBufferBytes);
+	}
+
+	/// <summary>
+	///     Sets one of those defaults, stating the value in the type Steam says it holds. A setting Steam refuses is written to
+	///     the log and left alone, because a transfer still works at Steam's own value and a join that cannot be started does
+	///     not.
+	/// </summary>
+	/// <param name="value">The setting to state.</param>
+	/// <param name="bytes">Its value, in bytes or bytes per second.</param>
+	private static void ApplyConnectionDefault(ESteamNetworkingConfigValue value, int bytes)
+	{
+		ESteamNetworkingConfigDataType dataType;
+		try
+		{
+			SteamNetworkingUtils.GetConfigValueInfo(value, out dataType, out _);
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[SteamNetwork] Steam would not say what type {value} holds, so it is left at Steam's own value: {exception.Message}");
+			return;
+		}
+
+		bool isInt32 = dataType == ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Int32;
+		bool isFloat = dataType == ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Float;
+		if (!isInt32 && !isFloat)
+		{
+			GameLog.LogError($"[SteamNetwork] Steam states {value} as {dataType}, which this screen cannot state, so it is left at Steam's own value");
+			return;
+		}
+
+		IntPtr stated = Marshal.AllocHGlobal(sizeof(int));
+		try
+		{
+			if (isInt32) Marshal.WriteInt32(stated, 0, bytes);
+			else Marshal.StructureToPtr((float)bytes, stated, false);
+
+			bool applied = SteamNetworkingUtils.SetConfigValue(value, ESteamNetworkingConfigScope.k_ESteamNetworkingConfig_Global, IntPtr.Zero, dataType, stated);
+			if (!applied) GameLog.LogError($"[SteamNetwork] Steam refused to state {value} as {bytes}, so the connection keeps its own value");
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[SteamNetwork] {value} could not be stated for this screen's connection: {exception.Message}");
+		}
+		finally
+		{
+			Marshal.FreeHGlobal(stated);
+		}
 	}
 
 	/// <summary>

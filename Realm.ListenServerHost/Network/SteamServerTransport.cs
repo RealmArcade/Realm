@@ -82,46 +82,29 @@ public class SteamServerTransport : IServerTransport
 		{
 			failure = "Steamworks is not running in this process, so it cannot listen for Steam peers";
 			return false;
-		}
-
-		try
-		{
-			_connectionStatusCallback ??= Callback<SteamNetConnectionStatusChangedCallback_t>.Create(OnConnectionStatusChanged);
-
-			// These are inherited by every connection accepted through the socket, which is what shapes the connection a map
-			// transfer travels on. Steam clamps a connection's send rate unless the application lifts the clamp, and the
-			// default is far below a map's size: the line would sit idle between round trips with the clamp as the ceiling.
-			var socketOptions = new[]
+		}			try
 			{
-				new SteamNetworkingConfigValue_t
+				_connectionStatusCallback ??= Callback<SteamNetConnectionStatusChangedCallback_t>.Create(OnConnectionStatusChanged);
+
+				// The tuning is stated twice on purpose: as this process's Steam defaults, and on the listener whose connections
+				// inherit it. A setting Steam will not take is logged and left at Steam's own value, because the tuning is an
+				// optimisation and a lobby that cannot exist is not.
+				ApplyConnectionDefaults();
+
+				SteamNetworkingConfigValue_t[] socketOptions = BuildConnectionOptions();
+				_listenSocket = SteamNetworkingSockets.CreateListenSocketP2P(0, socketOptions.Length, socketOptions);
+				if (_listenSocket == HSteamListenSocket.Invalid)
 				{
-					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendBufferSize,
-					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.MaximumMapTransferBytesInFlight }
-				},
-				new SteamNetworkingConfigValue_t
-				{
-					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMin,
-					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionSendRateMinimumBytesPerSecond }
-				},
-				new SteamNetworkingConfigValue_t
-				{
-					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMax,
-					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionSendRateMaximumBytesPerSecond }
-				},
-				new SteamNetworkingConfigValue_t
-				{
-					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_RecvBufferSize,
-					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionReceiveBufferBytes }
+					_log.Write("Steam refused the listener with this match's connection tuning stated on it, so it listens with Steam's own values");
+					_listenSocket = SteamNetworkingSockets.CreateListenSocketP2P(0, 0, Array.Empty<SteamNetworkingConfigValue_t>());
 				}
-			};
 
-			_listenSocket = SteamNetworkingSockets.CreateListenSocketP2P(0, socketOptions.Length, socketOptions);
-			if (_listenSocket == HSteamListenSocket.Invalid)
-			{
-				failure = "Steam refused to create a peer-to-peer listen socket for this host";
-				return false;
+				if (_listenSocket == HSteamListenSocket.Invalid)
+				{
+					failure = "Steam refused to create a peer-to-peer listen socket for this host";
+					return false;
+				}
 			}
-		}
 		catch (Exception exception)
 		{
 			failure = $"Steam's peer-to-peer listener could not be created: {exception.Message}";
@@ -130,6 +113,110 @@ public class SteamServerTransport : IServerTransport
 
 		_log.Write($"listening for Steam peers as {SteamUser.GetSteamID().m_SteamID}");
 		return true;
+	}
+
+	/// <summary>
+	///     The connection settings a map transfer needs, stated in the type Steam says each one holds. The type has to be
+	///     stated: Steam refuses a listener whose options leave it out, which is a lobby that never exists rather than a
+	///     transfer that runs slowly.
+	/// </summary>
+	/// <returns>The options, which a listener's connections inherit.</returns>
+	private SteamNetworkingConfigValue_t[] BuildConnectionOptions()
+	{
+		var options = new List<SteamNetworkingConfigValue_t>(4);
+		AddConnectionOption(options, ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendBufferSize, LobbyLimits.MaximumMapTransferBytesInFlight);
+		AddConnectionOption(options, ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMin, LobbyLimits.ConnectionSendRateMinimumBytesPerSecond);
+		AddConnectionOption(options, ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMax, LobbyLimits.ConnectionSendRateMaximumBytesPerSecond);
+		AddConnectionOption(options, ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_RecvBufferSize, LobbyLimits.ConnectionReceiveBufferBytes);
+		return options.ToArray();
+	}
+
+	/// <summary>
+	///     Adds one setting to a listener's options when Steam states a type this transport can express, so a value Steam
+	///     describes some other way is left out rather than stated wrong.
+	/// </summary>
+	/// <param name="options">The options being built.</param>
+	/// <param name="value">The setting to state.</param>
+	/// <param name="bytes">Its value, in bytes or bytes per second.</param>
+	private void AddConnectionOption(List<SteamNetworkingConfigValue_t> options, ESteamNetworkingConfigValue value, int bytes)
+	{
+		ESteamNetworkingConfigDataType dataType = DescribeConfigType(value);
+		switch (dataType)
+		{
+			case ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Int32:
+				options.Add(new SteamNetworkingConfigValue_t
+				{
+					m_eValue = value,
+					m_eDataType = dataType,
+					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = bytes }
+				});
+				break;
+
+			case ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Float:
+				options.Add(new SteamNetworkingConfigValue_t
+				{
+					m_eValue = value,
+					m_eDataType = dataType,
+					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_float = bytes }
+				});
+				break;
+		}
+	}
+
+	/// <summary>
+	///     States the same settings as this process's Steam defaults, which covers any connection whose listener did not carry
+	///     them. Steam paces a peer connection by an estimate of the path and bounds that estimate with a clamp that defaults
+	///     to 256 KB/s, and it buffers far less than one window of pieces on the receiving side; both defaults suit a match's
+	///     own traffic rather than a map's assets, so a transfer would spend its time against them instead of the line.
+	/// </summary>
+	private void ApplyConnectionDefaults()
+	{
+		ApplyConnectionDefault(ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMin, LobbyLimits.ConnectionSendRateMinimumBytesPerSecond);
+		ApplyConnectionDefault(ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMax, LobbyLimits.ConnectionSendRateMaximumBytesPerSecond);
+		ApplyConnectionDefault(ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_RecvBufferSize, LobbyLimits.ConnectionReceiveBufferBytes);
+	}
+
+	private void ApplyConnectionDefault(ESteamNetworkingConfigValue value, int bytes)
+	{
+		ESteamNetworkingConfigDataType dataType = DescribeConfigType(value);
+		if (dataType is not (ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Int32 or ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Float)) return;
+
+		IntPtr stated = Marshal.AllocHGlobal(sizeof(int));
+		try
+		{
+			if (dataType == ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Int32) Marshal.WriteInt32(stated, 0, bytes);
+			else Marshal.StructureToPtr((float)bytes, stated, false);
+
+			bool applied = SteamNetworkingUtils.SetConfigValue(value, ESteamNetworkingConfigScope.k_ESteamNetworkingConfig_Global, IntPtr.Zero, dataType, stated);
+			if (!applied) _log.Write($"Steam refused to state {value} as {bytes}, so this match's connections keep Steam's own value");
+		}
+		catch (Exception exception)
+		{
+			_log.Write($"{value} could not be stated for this match's connections: {exception.Message}");
+		}
+		finally
+		{
+			Marshal.FreeHGlobal(stated);
+		}
+	}
+
+	/// <summary>
+	///     The type Steam says one connection setting holds, or the invalid one when Steam cannot be asked.
+	/// </summary>
+	/// <param name="value">The setting to ask about.</param>
+	/// <returns>The setting's data type.</returns>
+	private ESteamNetworkingConfigDataType DescribeConfigType(ESteamNetworkingConfigValue value)
+	{
+		try
+		{
+			SteamNetworkingUtils.GetConfigValueInfo(value, out ESteamNetworkingConfigDataType dataType, out _);
+			return dataType;
+		}
+		catch (Exception exception)
+		{
+			_log.Write($"Steam would not say what type {value} holds, so this match leaves it at Steam's own value: {exception.Message}");
+			return (ESteamNetworkingConfigDataType)0;
+		}
 	}
 
 	/// <summary>

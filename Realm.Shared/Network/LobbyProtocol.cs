@@ -535,17 +535,17 @@ public static class LobbyLimits
 	public const int MaximumMapTransferBytesInFlight = MaximumPiecesPerRequest * MapTransferPackets.PieceBytes;
 
 	/// <summary>
-	///     The floor of the send rate a match connection may be paced down to, in bytes per second. It is Steam's own
-	///     default, so a connection that has to slow down to fit a weak path still can.
+	///     The floor of the send rate a match connection may be paced down to, in bytes per second. It is the value Steam
+	///     states for this itself, so a connection that has to slow down to fit a weak path still can.
 	/// </summary>
 	public const int ConnectionSendRateMinimumBytesPerSecond = 256 * 1024;
 
 	/// <summary>
-	///     The ceiling of the send rate a match connection may reach, in bytes per second. Steam's peer-to-peer
-	///     connections are paced by an estimate of the path, and that estimate is bounded by a clamp whose default is far
-	///     below what a home link carries: a map of a few megabytes then takes minutes however good the connection is, which
-	///     is the whole cost of a transfer that is paced rather than slow. This ceiling is stated well above the default so
-	///     the estimate can follow the path, and a slower path still gets the rate its own measurement asks for.
+	///     The ceiling of the send rate a match connection may reach, in bytes per second. Steam paces a peer connection by
+	///     an estimate of the path, and that estimate is bounded by a clamp which reads 256 KB/s on a running client: a map of
+	///     a few megabytes then takes minutes however good the connection is, so the clamp, not the line, is what a transfer
+	///     measures. This ceiling is stated well above it so the estimate can follow the path, and a slower path still gets
+	///     the rate its own measurement asks for.
 	/// </summary>
 	public const int ConnectionSendRateMaximumBytesPerSecond = 8 * 1024 * 1024;
 
