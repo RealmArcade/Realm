@@ -201,7 +201,7 @@ public static class PlaytestVoteCode
 	///     map from counting towards another.
 	/// </summary>
 	/// <param name="code">The code as it was pasted.</param>
-	/// <param name="mapKey">The map the author is publishing.</param>
+	/// <param name="mapKey">The key the map is named by, which is its title (<see cref="PlaytestStore.BuildNameKey" />).</param>
 	/// <param name="record">The vote, when the code opened and names this map.</param>
 	/// <param name="failure">Why the code was refused, empty on success.</param>
 	/// <returns>Whether the code counts for this map.</returns>

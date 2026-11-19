@@ -5,9 +5,13 @@ using System.Text;
 namespace Realm.Shared.Steam;
 
 /// <summary>
-///     Where a map's playtest ledger lives on the author's machine and how a map is keyed in it. The key is the map's own
-///     name, exactly the way <c>MapHistoryService</c> keys its store, so two folders of the same map share one ledger and
-///     moving, renaming or re-cloning a workspace does not reset a count that takes 25 testers to reach.
+///     Where a map's playtest ledger lives on the author's machine and how a map is keyed in it. There are two keys, and
+///     they answer two different questions. The ledger key is the map's name plus the author's SteamID64, so a count that
+///     takes 25 testers to reach follows the map across renames of the folder, new versions, a move from one AppID to
+///     another and a re-published item, while two different authors who each wrote a map called the same thing keep their
+///     own counts. The code key is the name alone, because the authority that mints a vote code knows the map it is running
+///     but not which of its players is the author, and a playtest hosted by somebody else still has to produce a code the
+///     author can paste into their ledger.
 /// </summary>
 public static class PlaytestStore
 {
@@ -32,18 +36,37 @@ public static class PlaytestStore
 	}
 
 	/// <summary>
-	///     A stable folder-safe key for one map, readable enough to recognise and hashed so two maps whose names differ only
-	///     in characters a filesystem refuses do not share a ledger.
+	///     The stable folder-safe key one author's ledger and greenlight record are filed under: the map's name and the
+	///     author's SteamID64, readable enough to recognise and hashed so two maps whose names differ only in characters a
+	///     filesystem refuses do not share a ledger.
 	/// </summary>
 	/// <param name="mapName">The map's name as its metadata states it.</param>
-	/// <returns>The key the map's records are stored under.</returns>
-	public static string BuildMapKey(string? mapName)
+	/// <param name="authorSteamId">The SteamID64 of the account that authored the map; zero when it is not known.</param>
+	/// <returns>The key the author's records for this map are stored under.</returns>
+	public static string BuildMapKey(string? mapName, ulong authorSteamId)
 	{
-		string exactName = string.IsNullOrWhiteSpace(mapName) ? "Untitled Map" : mapName.Trim();
+		string exactName = ExactName(mapName);
+		string readable = Sanitize(exactName);
+		string identity = exactName + "\n" + authorSteamId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+		string hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(identity)))[..KeyHashLength];
+		return readable + "-" + authorSteamId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + hash;
+	}
+
+	/// <summary>
+	///     The key a playtest vote code is minted and read with: the map's name alone, because the authority running the
+	///     match knows which map it is running and not who wrote it.
+	/// </summary>
+	/// <param name="mapName">The map's name as its metadata states it.</param>
+	/// <returns>The key a vote code names.</returns>
+	public static string BuildNameKey(string? mapName)
+	{
+		string exactName = ExactName(mapName);
 		string readable = Sanitize(exactName);
 		string hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(exactName)))[..KeyHashLength];
 		return readable + "-" + hash;
 	}
+
+	private static string ExactName(string? mapName) => string.IsNullOrWhiteSpace(mapName) ? "Untitled Map" : mapName.Trim();
 
 	private static string Sanitize(string name)
 	{
@@ -60,23 +83,14 @@ public static class PlaytestStore
 }
 
 /// <summary>
-///     How many different people have to have played a map before its author may publish it publicly. The default is stated
-///     here rather than in the editor, so a map that says nothing about it gets the same bar wherever it is opened, and a
-///     map that cannot seat a crowd - a single-player campaign, a duel board - states its own lower number or none.
+///     How many different people have to have played a map before its author may publish it. It is one number for every
+///     map, with no per-map override: the bar exists to keep an unfinished map out of the catalogue, and a map that seats
+///     two people or a single-player campaign is exactly the kind of map whose author most needs somebody else to have
+///     played it before it goes out. A creator whose map cannot gather that many testers can still share it as an
+///     `.rmap` or through a host's lobby, which needs no publication.
 /// </summary>
 public static class PlaytestGreenlightRules
 {
-	/// <summary>The number of distinct testers a map needs when it states no threshold of its own.</summary>
-	public const int DefaultTesterThreshold = 25;
-
-	/// <summary>
-	///     Reads the threshold a map stated for itself.
-	/// </summary>
-	/// <param name="statedThreshold">The number the map's metadata carries, or null when it carries none.</param>
-	/// <returns>How many distinct testers this map needs; zero means its author may publish it publicly at once.</returns>
-	public static int ResolveTesterThreshold(int? statedThreshold)
-	{
-		if (statedThreshold == null) return DefaultTesterThreshold;
-		return Math.Clamp(statedThreshold.Value, 0, 1000);
-	}
+	/// <summary>The number of distinct testers every map needs before it may be published.</summary>
+	public const int TesterThreshold = 25;
 }

@@ -39,8 +39,14 @@ public partial struct PlaytestVoteAnswerMessage
 [MemoryPackable]
 public partial struct PlaytestVoteRecordMessage
 {
-	/// <summary>The key of the map the vote is about.</summary>
+	/// <summary>The key of the map the vote is about, which is the map's name alone.</summary>
 	public string MapKey;
+
+	/// <summary>
+	///     The map's own name as its metadata states it. A screen that keeps the vote files it under the name and the
+	///     author's SteamID, so it needs the name itself and cannot read it back out of the key.
+	/// </summary>
+	public string MapTitle;
 
 	/// <summary>The vote, as <see cref="Realm.Shared.Steam.PlaytestVote" />.</summary>
 	public int Vote;

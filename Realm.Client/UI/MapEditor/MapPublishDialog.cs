@@ -10,10 +10,11 @@ namespace Realm.Client.UI.MapEditor;
 ///     have played it, how many it asks for, whether it has already been promoted, and how a tester's code is checked.
 /// </summary>
 /// <param name="Testers">How many distinct Steam identities have answered for this map.</param>
-/// <param name="Threshold">How many this map asks for before it may go public; zero means none.</param>
+/// <param name="Threshold">How many different people this map asks for before it may be published.</param>
 /// <param name="NotReady">How many testers asked for more work, shown to the author alone.</param>
-/// <param name="Greenlit">Whether this item was already promoted, which is what lets a later publish go public at once.</param>
+/// <param name="Greenlit">Whether this map has been played by enough different people to be published at all.</param>
 /// <param name="FirstPublish">Whether this publish creates the item rather than updating one.</param>
+/// <param name="DefaultDestination">Where this publish should go unless the author changes it.</param>
 /// <param name="AddTesterCode">Checks one pasted code and appends it to the ledger, reporting what happened.</param>
 public sealed record PublishAccessModel(
 	int Testers,
@@ -21,20 +22,22 @@ public sealed record PublishAccessModel(
 	int NotReady,
 	bool Greenlit,
 	bool FirstPublish,
+	MapPublishDialog.PublishDestination DefaultDestination,
 	Func<string, (bool Accepted, string Message)> AddTesterCode);
 
 /// <summary>
 ///     The publish modal: where the map goes and who can see it, how far its playtest has come, the field a tester's code
 ///     is pasted into, and the progress bar that takes over once the upload starts.
 ///     <para>
-///         A first publish is unlisted, so an accidental one is a link nobody has rather than a row in the catalogue. Public
-///         is offered only once enough different people have played the map, and even then the author has to choose it:
-///         reaching the threshold never promotes a map on its own.
+///         Nothing is uploaded until enough different people have played the map, so before it qualifies this dialog is the
+///         playtest's scoreboard: it shows the count, accepts tester codes and offers no publication at all. Once the map
+///         qualifies the author chooses the visibility, and that is when the item is created - which is also when the map's
+///         Workshop name is claimed, so an unfinished map never holds a name.
 ///     </para>
 /// </summary>
 public partial class MapPublishDialog : Control
 {
-	/// <summary>The destination the author picked, or Public when they chose to publish it publicly.</summary>
+	/// <summary>The destination the author picked, in the order the visibility list offers them.</summary>
 	public enum PublishDestination
 	{
 		Unlisted = 0,
@@ -48,12 +51,11 @@ public partial class MapPublishDialog : Control
 	public Button CloseButton { get; private set; } = null!;
 	public Button PublishButton { get; private set; } = null!;
 	public OptionButton VisibilitySelect { get; private set; } = null!;
-	public Button PublishPubliclyButton { get; private set; } = null!;
 	public Label GreenlightProgressLabel { get; private set; } = null!;
 	public Label TesterCodeMessageLabel { get; private set; } = null!;
 	public LineEdit TesterCodeInput { get; private set; } = null!;
 
-	private PublishAccessModel _access = new(0, 0, 0, false, true, _ => (false, string.Empty));
+	private PublishAccessModel _access = new(0, 0, 0, false, true, PublishDestination.Public, _ => (false, string.Empty));
 	private VBoxContainer _choiceSection = null!;
 
 	/// <summary>Raised when the author has chosen a destination and asked for the upload to start.</summary>
@@ -65,8 +67,7 @@ public partial class MapPublishDialog : Control
 	public MapPublishDialog() { }
 
 	/// <summary>The destination this publish was asked for.</summary>
-	public PublishDestination Destination =>
-		PublishPubliclyButton.ButtonPressed ? PublishDestination.Public : (PublishDestination)Math.Clamp(VisibilitySelect.Selected, 0, 2);
+	public PublishDestination Destination => (PublishDestination)Math.Clamp(VisibilitySelect.Selected, 0, 3);
 
 	/// <summary>The Steam visibility this publish is made with.</summary>
 	/// <returns>The visibility the chosen destination means.</returns>
@@ -173,7 +174,7 @@ public partial class MapPublishDialog : Control
 
 	private void BuildDestinationSection(VBoxContainer body)
 	{
-		var row = new HBoxContainer { Name = "DestinationRow" };
+		var row = new HBoxContainer { Name = "DestinationRow", Visible = _access.Greenlit };
 		row.AddThemeConstantOverride("separation", 12);
 		row.Alignment = BoxContainer.AlignmentMode.Center;
 		body.AddChild(row);
@@ -186,33 +187,15 @@ public partial class MapPublishDialog : Control
 		VisibilitySelect.AddItem(TranslationServer.Translate("Unlisted - only people with the link"));
 		VisibilitySelect.AddItem(TranslationServer.Translate("Friends only"));
 		VisibilitySelect.AddItem(TranslationServer.Translate("Private - only you"));
-		VisibilitySelect.Selected = 0;
+		VisibilitySelect.AddItem(TranslationServer.Translate("Public - listed in the Workshop"));
+		VisibilitySelect.Selected = (int)_access.DefaultDestination;
 		VisibilitySelect.ItemSelected += _ => GameContext.UserInterface?.PlayClickSound();
 		row.AddChild(VisibilitySelect);
-
-		PublishPubliclyButton = new Button
-		{
-			Name = "PublishPubliclyButton",
-			ToggleMode = true,
-			Disabled = !_access.Greenlit,
-			Text = TranslationServer.Translate("PUBLISH PUBLICLY"),
-			CustomMinimumSize = new Vector2(180, 40)
-		};
-		PublishPubliclyButton.Set("icon_max_width", 0);
-		UIStyle.ApplyButtonStyleBoxesClearingFocus(PublishPubliclyButton);
-		PublishPubliclyButton.Toggled += pressed =>
-		{
-			GameContext.UserInterface?.PlayClickSound();
-			VisibilitySelect.Disabled = pressed;
-		};
-		row.AddChild(PublishPubliclyButton);
 
 		var explanation = new Label
 		{
 			Name = "DestinationExplanation_Label",
-			Text = _access.FirstPublish
-				? TranslationServer.Translate("Published as unlisted — only people with the link can find it. Get it played to unlock a public release.")
-				: TranslationServer.Translate("An update stays where the item already is unless you publish it publicly."),
+			Text = DescribeDestination(),
 			AutowrapMode = TextServer.AutowrapMode.Word,
 			CustomMinimumSize = new Vector2(560, 0),
 			SizeFlagsHorizontal = SizeFlags.ExpandFill
@@ -220,6 +203,20 @@ public partial class MapPublishDialog : Control
 		explanation.AddThemeFontSizeOverride("font_size", 11);
 		explanation.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		body.AddChild(explanation);
+	}
+
+	private string DescribeDestination()
+	{
+		if (!_access.Greenlit)
+		{
+			return string.Format(
+				TranslationServer.Translate("Nothing is on the Workshop yet. Publishing unlocks once {0} different people have played this map, and until then you can only share it directly: host a match for testers, or send them the .rmap."),
+				_access.Threshold);
+		}
+
+		return _access.FirstPublish
+			? TranslationServer.Translate("Publishing creates your Workshop item now. Public lists it in the Workshop; every other choice keeps it off the catalogue.")
+			: TranslationServer.Translate("An update keeps the visibility you choose here.");
 	}
 
 	private void BuildPlaytestSection(VBoxContainer body)
@@ -246,8 +243,6 @@ public partial class MapPublishDialog : Control
 				? string.Format(TranslationServer.Translate("Playtested by {0} people."), _access.Testers)
 				: TranslationServer.Translate("Playtested.");
 		}
-
-		if (_access.Threshold <= 0) return TranslationServer.Translate("This map asks for no playtesters, so you may publish it publicly.");
 
 		string progress = string.Format(TranslationServer.Translate("{0} of {1} testers have played this."), _access.Testers, _access.Threshold);
 		if (_access.NotReady <= 0) return progress;
@@ -377,6 +372,7 @@ public partial class MapPublishDialog : Control
 		UIStyle.ApplyButtonStyleBoxesClearingFocus(PublishButton);
 		UIStyle.ApplyButtonText(PublishButton, TranslationServer.Translate("PUBLISH"), 14);
 		PublishButton.Pressed += () => PublishRequested?.Invoke();
+		PublishButton.Disabled = !_access.Greenlit;
 		buttonRow.AddChild(PublishButton);
 
 		CloseButton = new Button();

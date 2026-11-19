@@ -16,10 +16,10 @@ Two rules for the whole plan:
 
 | What | Where |
 | --- | --- |
-| Client session logs, crash files, exported zips | `user://logs` (`DiagnosticsService.LogDirectory`, printed by Settings → Diagnostics → Open log folder) |
+| Client session logs, crash files, exported zips | `user://logs` (`DiagnosticsService.LogDirectory`) |
 | Authority log for this screen's own matches | beside those logs, named `local_authority.listen_server.<pid>.log` (`LocalAuthority.LogFileName`) |
 | Authority PID and exported JIT ELF (debug playtest only) | printed by the authority at match start |
-| Diagnostics export | Settings → Diagnostics → Export diagnostics; writes a zip in the log folder and reveals it |
+| Diagnostics export | the crash offer on the main menu after an unexpected exit; writes a zip in the log folder and reveals it |
 | Crash offer | one line on the main menu after an unexpected exit, once per crash (`DiagnosticsService.UnacknowledgedCrashReport`) |
 
 ## Setup
@@ -50,7 +50,7 @@ Two rules for the whole plan:
 | Start a single-player match, play to a result, return to the menu | The match runs; `GameOver` writes a one-line match summary that a later diagnostics export carries |
 | Open a map in the editor, save, playtest with `btnTestMap` | The workspace compiles, the playtest attaches to the authority, and the authority prints its PID and workspace |
 | Map library: open it with no filter set | Every map is listed with a trust mark; nothing is hidden before the player asks for a filter. On a catalog with no votes yet every item reads untrusted ("too new"), which is the threshold's own behaviour and not a defect: the Verified collection that would vouch for a new map is not read by any build yet |
-| Settings → Diagnostics → Export diagnostics | One zip in the log folder, revealed in the file manager, containing the session logs and an environment summary; nothing is transmitted |
+| Crash offer → `EXPORT` | One zip in the log folder, revealed in the file manager, containing the session logs and an environment summary; nothing is transmitted, and the offer is recorded as seen so it does not return |
 | Create ten-plus sessions, then check the log folder size | The folder stays bounded by the documented caps (`DiagnosticsService` retains 10 sessions and 32 MB) |
 
 ## B. Hosting and joining (two accounts)
@@ -85,10 +85,11 @@ that only succeeds when both machines are on the same network is a finding, not 
 
 ## E. Workshop publish and subscribe
 
-1. Account A publishes a map from the editor. The first publish shows the licence and records the acceptance in
-   `user://ugc_license_acceptance.json`; the next publish must not ask again, and bumping `UgcLicenseVersion` must ask
-   again. The item is created (first publish) or updated in place, with a preview image converted from the map's
-   thumbnail.
+1. Account A opens a map that nothing has played and asks to publish. It is refused with "0 of 25 testers have played
+   this" and no item is created on the Workshop, so no name is claimed either. Play it with enough testers, then publish:
+   the licence is shown once and recorded in `user://ugc_license_acceptance.json`, and the next publish must not ask
+   again (bumping `UgcLicenseVersion` must ask again). The item is created by that first publish, with the visibility the
+   author picked and a preview image converted from the map's thumbnail; a later publish updates it in place.
 2. Inspect the uploaded folder in the Steam client: it should be the canonical copy only — no `bin/`, `obj/`, `.vscode/`,
    history or keys.
 3. Account B subscribes, downloads, and plays the map from a lobby that names the item.

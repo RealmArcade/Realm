@@ -129,6 +129,7 @@ public sealed class MapPublishController
 			context.Summary.NotReady,
 			context.Greenlit,
 			context.ItemId == 0,
+			context.DefaultDestination,
 			code => AddTesterCode(context, code));
 		publishDialog.Initialize(mapTitle, mapVersion, accessModel);
 		_hooks.Owner.AddChild(publishDialog);
@@ -139,9 +140,9 @@ public sealed class MapPublishController
 		var closeBtn = publishDialog.CloseButton;
 		var view = new PublishProgressView(progressBar, statusLabel, closeBtn);
 
-		// The author decides where the map goes before anything is uploaded, so a first publish can be unlisted and a map
-		// that has not been played cannot be made public by clicking through. Cancelling before the upload starts leaves the
-		// item exactly as it was.
+		// The author decides where the map goes before anything is uploaded. Nothing is uploaded at all until the map has
+		// been played by enough different people, which is the one rule that keeps unfinished maps off the Workshop instead
+		// of publishing them into it unlisted. Cancelling before the upload starts leaves the item exactly as it was.
 		var decision = new TaskCompletionSource<MapPublishDialog.PublishDestination?>(TaskCreationOptions.RunContinuationsAsynchronously);
 		publishDialog.PublishRequested += () => decision.TrySetResult(publishDialog.Destination);
 		publishDialog.Cancelled += () =>
@@ -159,6 +160,16 @@ public sealed class MapPublishController
 		{
 			MapPublishDialog.PublishDestination? destination = await decision.Task;
 			if (destination == null) return;
+
+			// The dialog disables publishing until the map qualifies, and this is the check behind it: an item is not created
+			// before the map has been played, so the Workshop never carries a map nobody but its author has seen.
+			if (!context.Greenlit)
+			{
+				string notPlaytested = string.Format(TranslationServer.Translate("This map cannot be published yet: {0} of {1} different testers have played it. Host a match with testers, or send them the .rmap, and publish once they have played."), context.Summary.Testers, context.Threshold);
+				view.Fail(notPlaytested);
+				_hooks.Feedback(notPlaytested);
+				return;
+			}
 
 			publishDialog.BeginUpload();
 
@@ -281,7 +292,9 @@ public sealed class MapPublishController
 
 			if (publishResult.Success)
 			{
-				if (publishPublicly) GameContext.Playtest.MarkGreenlit(publishResult.PublishedFileId, context.OwnerSteamId, context.MapKey);
+				// Kept by map name and author: the map has qualified, and this record means a later update - or the same map
+				// published as a fresh item - needs no new testers even if the ledger on this machine is lost.
+				GameContext.Playtest.MarkGreenlit(context.MapKey, context.OwnerSteamId, publishResult.PublishedFileId);
 
 				view.Stage(100, TranslationServer.Translate("Map published to the Steam Workshop."));
 				view.Succeed(TranslationServer.Translate("Map compiled & published to the Steam Workshop!"));
@@ -406,10 +419,22 @@ public sealed class MapPublishController
 
 	/// <summary>
 	///     What a publish needs to know about this map before the author chooses where it goes: the key its playtest ledger is
-	///     kept under, how many different people it asks for, whether it may go public, the item it updates, and one change
-	///     note's worth of what the package contains.
+	///     kept under, how many different people it asks for, whether it has qualified to be published at all, the item it
+	///     updates, where that item currently sits, and one change note's worth of what the package contains.
 	/// </summary>
-	private sealed record PublishContext(string MapKey, int Threshold, bool Greenlit, ulong ItemId, ulong OwnerSteamId, int ObjectCount, int PlayerCount, string Description, PlaytestLedgerSummary Summary);
+	/// <summary>What a publish needs to know before it starts, read once so the dialog and the upload agree.</summary>
+	/// <param name="MapKey">The key the map's ledger and greenlight record are filed under: its name and its author.</param>
+	/// <param name="CodeMapKey">The key the map's vote codes name, which is the map's name alone.</param>
+	/// <param name="Threshold">How many distinct testers this map asks for.</param>
+	/// <param name="Greenlit">Whether this map may be published publicly now.</param>
+	/// <param name="ItemId">The Workshop item it publishes to, or zero before the first publish.</param>
+	/// <param name="OwnerSteamId">The account publishing now.</param>
+	/// <param name="ObjectCount">How many templates the package carries.</param>
+	/// <param name="PlayerCount">How many seats the map starts with.</param>
+	/// <param name="Description">The description a public release requires.</param>
+	/// <param name="DefaultDestination">Where an update stays unless the author says otherwise.</param>
+	/// <param name="Summary">What the ledger says about the map.</param>
+	private sealed record PublishContext(string MapKey, string CodeMapKey, int Threshold, bool Greenlit, ulong ItemId, ulong OwnerSteamId, int ObjectCount, int PlayerCount, string Description, MapPublishDialog.PublishDestination DefaultDestination, PlaytestLedgerSummary Summary);
 
 	/// <summary>
 	///     Runs the checks that catch an accidental publish before anything is uploaded, and reads what the ledger says about
@@ -455,11 +480,13 @@ public sealed class MapPublishController
 			return null;
 		}
 
-		string mapKey = PlaytestStore.BuildMapKey(mapTitle);
-		int threshold = PlaytestGreenlightRules.ResolveTesterThreshold(metadata.MapProperties.PlaytestTesterThreshold);
-		PlaytestLedgerSummary summary = GameContext.Playtest.Read(mapKey);
+		string codeMapKey = PlaytestStore.BuildNameKey(mapTitle);
+		int threshold = PlaytestGreenlightRules.TesterThreshold;
 
 		ulong ownerSteamId = GameContext.Steam.SteamId;
+		string mapKey = PlaytestStore.BuildMapKey(mapTitle, ownerSteamId);
+		PlaytestLedgerSummary summary = GameContext.Playtest.Read(mapKey);
+
 		WorkshopMapEntry? existingItem = await SteamWorkshopService.FindOwnedByMapNameAsync(mapTitle, ownerSteamId, CancellationToken.None);
 		ulong itemId = existingItem?.PublishedFileId ?? 0;
 
@@ -472,13 +499,24 @@ public sealed class MapPublishController
 			}
 		}
 
-		bool greenlit = GameContext.Playtest.IsGreenlit(mapKey, itemId, ownerSteamId, threshold);
+		bool greenlit = GameContext.Playtest.IsGreenlit(mapKey, ownerSteamId, threshold);
+
+		// Where the item already sits is where an update should stay unless the author says otherwise, and a map that has
+		// no item yet is one the author chose to release publicly, because it only gets an item once it has qualified.
+		MapPublishDialog.PublishDestination defaultDestination = existingItem?.Visibility switch
+		{
+			ERemoteStoragePublishedFileVisibility.k_ERemoteStoragePublishedFileVisibilityFriendsOnly => MapPublishDialog.PublishDestination.FriendsOnly,
+			ERemoteStoragePublishedFileVisibility.k_ERemoteStoragePublishedFileVisibilityPrivate => MapPublishDialog.PublishDestination.Private,
+			ERemoteStoragePublishedFileVisibility.k_ERemoteStoragePublishedFileVisibilityUnlisted => MapPublishDialog.PublishDestination.Unlisted,
+			_ => MapPublishDialog.PublishDestination.Public
+		};
 
 		var templates = metadata.Templates;
 		int objectCount = (templates.Units?.Count ?? 0) + (templates.Buildings?.Count ?? 0) + (templates.Props?.Count ?? 0) + (templates.Resources?.Count ?? 0);
 
 		return new PublishContext(
 			mapKey,
+			codeMapKey,
 			threshold,
 			greenlit,
 			itemId,
@@ -486,6 +524,7 @@ public sealed class MapPublishController
 			objectCount,
 			playerCount,
 			GameContext.MetadataService.GetMapDescription(metadata) ?? string.Empty,
+			defaultDestination,
 			summary);
 	}
 
@@ -506,7 +545,7 @@ public sealed class MapPublishController
 	/// <returns>Whether the vote counted, and what the author is told.</returns>
 	private static (bool Accepted, string Message) AddTesterCode(PublishContext context, string code)
 	{
-		bool added = GameContext.Playtest.TryAppendCode(context.MapKey, code, replaceExistingAnswer: false, out string failure);
+		bool added = GameContext.Playtest.TryAppendCode(context.MapKey, context.CodeMapKey, code, replaceExistingAnswer: false, out string failure);
 		if (failure.Length > 0) return (false, failure);
 		if (!added) return (false, TranslationServer.Translate("That tester is already counted for this map."));
 

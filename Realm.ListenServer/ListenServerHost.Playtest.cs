@@ -33,6 +33,9 @@ public partial class ListenServerHost
 	/// </summary>
 	private readonly System.Collections.Generic.Dictionary<ulong, PlaytestVote> _playtestVotes = new();
 
+	/// <summary>The map's title, read once for this match because every vote names its map with it.</summary>
+	private string? _playtestMapTitle;
+
 	/// <summary>Reads one vote out of a frame and answers the screen that cast it.</summary>
 	/// <param name="peerId">The connection the vote arrived on.</param>
 	/// <param name="payload">The serialized <see cref="PlaytestVoteMessage" />.</param>
@@ -68,7 +71,8 @@ public partial class ListenServerHost
 			return;
 		}
 
-		string mapKey = PlaytestStore.BuildMapKey(_lobby?.MapName ?? _arguments.MapName);
+		string mapTitle = ResolvePlaytestMapTitle();
+		string mapKey = PlaytestStore.BuildNameKey(mapTitle);
 		var vote = (PlaytestVote)message.Vote;
 		string code = PlaytestVoteCode.Create(steamId, mapKey, vote, DateTimeOffset.UtcNow);
 
@@ -80,7 +84,33 @@ public partial class ListenServerHost
 			: $"seat {steamId} answered {vote} for '{mapKey}', which is vote {_playtestVotes.Count} of this match");
 
 		SendPlaytestAnswer(peerId, true, code, string.Empty);
-		BroadcastPlaytestRecord(mapKey, vote, code);
+		BroadcastPlaytestRecord(mapKey, mapTitle, vote, code);
+	}
+
+	/// <summary>
+	///     The map's own name, as its metadata states it, which is the name its author publishes it under. A vote code names
+	///     the map and a screen files the vote under the name and the author, so both have to be the title rather than the
+	///     folder the map happens to sit in: the folder changes when a map is renamed, moved or reseated under a different
+	///     Workshop item, and a count that takes 25 testers must not be reset by that.
+	/// </summary>
+	/// <returns>The map's title, or the name the lobby was started with when its metadata states none.</returns>
+	private string ResolvePlaytestMapTitle()
+	{
+		if (_playtestMapTitle != null) return _playtestMapTitle;
+
+		string fallback = _lobby?.MapName ?? _arguments.MapName;
+		try
+		{
+			string title = Realm.Shared.Services.MapFileService.LoadMetadata(_arguments.MapPath).MapProperties?.MapName ?? string.Empty;
+			_playtestMapTitle = string.IsNullOrWhiteSpace(title) ? fallback : title;
+		}
+		catch (Exception exception) when (exception is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+		{
+			_log.Write($"the map's title could not be read, so playtest votes name '{fallback}': {exception.Message}");
+			_playtestMapTitle = fallback;
+		}
+
+		return _playtestMapTitle;
 	}
 
 	/// <summary>
@@ -88,13 +118,15 @@ public partial class ListenServerHost
 	///     screen keeps what it receives in its own ledger; the authority keeps no copy beyond the match.
 	/// </summary>
 	/// <param name="mapKey">The map the vote is about.</param>
+	/// <param name="mapTitle">The map's own name, which a screen files the vote under.</param>
 	/// <param name="vote">The answer the tester gave.</param>
 	/// <param name="code">The opaque code that carries the vote.</param>
-	private void BroadcastPlaytestRecord(string mapKey, PlaytestVote vote, string code)
+	private void BroadcastPlaytestRecord(string mapKey, string mapTitle, PlaytestVote vote, string code)
 	{
 		var record = new PlaytestVoteRecordMessage
 		{
 			MapKey = mapKey,
+			MapTitle = mapTitle,
 			Vote = (int)vote,
 			Code = code
 		};

@@ -11,13 +11,12 @@ namespace Realm.Client.Services.Playtest;
 /// <summary>What a map's ledger says about the people who have played it.</summary>
 /// <param name="Testers">How many distinct Steam identities have answered for this map.</param>
 /// <param name="NotReady">How many of them asked for more work. Only the author is ever shown this.</param>
-public readonly record struct PlaytestLedgerSummary(int Testers, int NotReady);
-
-/// <summary>A promoted item as the greenlight record keeps it.</summary>
-/// <param name="OwnerSteamId">The account that owned the item when it was promoted, which is what a change of owner resets.</param>
-/// <param name="MapKey">The key of the map that reached its threshold.</param>
-/// <param name="GreenlitAt">When it happened, for the author's own eyes.</param>
-public sealed record PlaytestGreenlightRecord(ulong OwnerSteamId, string MapKey, DateTimeOffset GreenlitAt);
+public readonly record struct PlaytestLedgerSummary(int Testers, int NotReady);	/// <summary>A promoted map as the greenlight record keeps it.</summary>
+	/// <param name="OwnerSteamId">The account that owned the map when it was promoted, which is what a change of author resets.</param>
+	/// <param name="MapKey">The key of the map that reached its threshold.</param>
+	/// <param name="ItemId">The Workshop item it was promoted through, or zero when it was promoted outside the Workshop.</param>
+	/// <param name="GreenlitAt">When it happened, for the author's own eyes.</param>
+	public sealed record PlaytestGreenlightRecord(ulong OwnerSteamId, string MapKey, ulong ItemId, DateTimeOffset GreenlitAt);
 
 /// <summary>
 ///     The playtest ledger and the greenlight record, both kept on the machine that reads them.
@@ -43,16 +42,17 @@ public sealed class PlaytestLedgerService
 	///     pasting the same code twice append nothing; a vote the authority broadcast for a seat that changed its mind
 	///     replaces that seat's earlier answer.
 	/// </summary>
-	/// <param name="mapKey">The map the vote counts for.</param>
+	/// <param name="ledgerKey">The key the map's ledger and greenlight record are filed under: its name and its author.</param>
+	/// <param name="codeMapKey">The key the code itself names, which is the map's name alone.</param>
 	/// <param name="code">The code that carries the vote.</param>
 	/// <param name="replaceExistingAnswer">Whether this vote replaces an earlier answer from the same identity.</param>
 	/// <param name="failure">Why the code was refused, empty on success.</param>
 	/// <returns>Whether the ledger now holds a vote it did not hold before.</returns>
-	public bool TryAppendCode(string mapKey, string? code, bool replaceExistingAnswer, out string failure)
+	public bool TryAppendCode(string ledgerKey, string codeMapKey, string? code, bool replaceExistingAnswer, out string failure)
 	{
-		if (!PlaytestVoteCode.TryReadFor(code, mapKey, out PlaytestVoteRecord record, out failure)) return false;
+		if (!PlaytestVoteCode.TryReadFor(code, codeMapKey, out PlaytestVoteRecord record, out failure)) return false;
 
-		string path = GetLedgerPath(mapKey);
+		string path = GetLedgerPath(ledgerKey);
 		List<string> codes = ReadCodes(path);
 
 		int existingIndex = -1;
@@ -98,7 +98,7 @@ public sealed class PlaytestLedgerService
 	///     Reads what a map's ledger says: how many distinct Steam identities have answered and how many of them asked for
 	///     more work.
 	/// </summary>
-	/// <param name="mapKey">The map to read.</param>
+	/// <param name="mapKey">The key the map's ledger is filed under: its name and its author.</param>
 	/// <returns>The ledger's summary, empty when the map has no ledger.</returns>
 	public PlaytestLedgerSummary Read(string mapKey)
 	{
@@ -121,59 +121,57 @@ public sealed class PlaytestLedgerService
 	}
 
 	/// <summary>
-	///     Whether an item may be published publicly: the map reached its threshold, or the author has none to reach.
+	///     Whether a map may be published publicly: it reached its threshold, or the author has none to reach.
 	/// </summary>
-	/// <param name="mapKey">The map being published.</param>
-	/// <param name="itemId">The Workshop item the map publishes to, or zero before the first publish.</param>
+	/// <param name="mapKey">The key the map is filed under: its name and its author.</param>
 	/// <param name="ownerSteamId">The account publishing now.</param>
 	/// <param name="threshold">How many distinct testers this map asks for; zero means none.</param>
 	/// <returns>Whether a public publish is allowed.</returns>
-	public bool IsGreenlit(string mapKey, ulong itemId, ulong ownerSteamId, int threshold)
+	public bool IsGreenlit(string mapKey, ulong ownerSteamId, int threshold)
 	{
 		if (threshold <= 0) return true;
-		if (Read(itemId, ownerSteamId, mapKey) != null) return true;
+		if (ReadGreenlightRecord(mapKey, ownerSteamId) != null) return true;
 
 		return Read(mapKey).Testers >= threshold;
 	}
 
 	/// <summary>
-	///     Records that an item has been published publicly, so later publishes need no new votes and a crash fix does not
-	///     cost another 25 testers. The record is kept by Workshop item id, so it follows the item rather than the folder.
+	///     Records that a map has been published publicly, so later publishes need no new votes and a crash fix does not cost
+	///     another 25 testers. The record is kept by map name and author, not by Workshop item, so it survives a new item, a
+	///     move between AppIDs and every new version of the same map.
 	/// </summary>
-	/// <param name="itemId">The item that went public.</param>
+	/// <param name="mapKey">The key the map is filed under: its name and its author.</param>
 	/// <param name="ownerSteamId">The account that owns it.</param>
-	/// <param name="mapKey">The map it carries.</param>
-	public void MarkGreenlit(ulong itemId, ulong ownerSteamId, string mapKey)
+	/// <param name="itemId">The item it was published through, or zero when it was promoted outside the Workshop.</param>
+	public void MarkGreenlit(string mapKey, ulong ownerSteamId, ulong itemId)
 	{
-		if (itemId == 0) return;
+		if (string.IsNullOrEmpty(mapKey)) return;
 
 		Dictionary<string, PlaytestGreenlightRecord> records = ReadGreenlightRecords();
-		records[itemId.ToString(System.Globalization.CultureInfo.InvariantCulture)] = new PlaytestGreenlightRecord(ownerSteamId, mapKey, DateTimeOffset.UtcNow);
+		records[mapKey] = new PlaytestGreenlightRecord(ownerSteamId, mapKey, itemId, DateTimeOffset.UtcNow);
 		WriteGreenlightRecords(records);
 	}
 
 	/// <summary>
-	///     Whether this item was already promoted, and still belongs to the account that promoted it. A change of owner is
-	///     the one thing that resets a greenlight, because the new owner did not earn it.
+	///     Whether this map was already promoted, and still belongs to the account that promoted it. A change of author is
+	///     the one thing that resets a greenlight, because the new author did not earn it.
 	/// </summary>
-	/// <param name="itemId">The item to ask about.</param>
+	/// <param name="mapKey">The key the map is filed under: its name and its author.</param>
 	/// <param name="ownerSteamId">The account that owns it now.</param>
-	/// <param name="mapKey">The map it carries.</param>
-	/// <returns>The record when the item is still greenlit, otherwise null.</returns>
-	public PlaytestGreenlightRecord? Read(ulong itemId, ulong ownerSteamId, string mapKey)
+	/// <returns>The record when the map is still greenlit, otherwise null.</returns>
+	public PlaytestGreenlightRecord? ReadGreenlightRecord(string mapKey, ulong ownerSteamId)
 	{
-		if (itemId == 0) return null;
+		if (string.IsNullOrEmpty(mapKey)) return null;
 
 		Dictionary<string, PlaytestGreenlightRecord> records = ReadGreenlightRecords();
-		if (!records.TryGetValue(itemId.ToString(System.Globalization.CultureInfo.InvariantCulture), out PlaytestGreenlightRecord? record) || record == null) return null;
+		if (!records.TryGetValue(mapKey, out PlaytestGreenlightRecord? record) || record == null) return null;
 
 		if (record.OwnerSteamId != ownerSteamId) return null;
-		if (!string.Equals(record.MapKey, mapKey, StringComparison.Ordinal)) return null;
 		return record;
 	}
 
-	/// <summary>The file one map's ledger is kept in.</summary>
-	/// <param name="mapKey">The map's key.</param>
+	/// <summary>The file one author's ledger for one map is kept in.</summary>
+	/// <param name="mapKey">The map's key: its name and its author.</param>
 	/// <returns>The ledger's path.</returns>
 	public static string GetLedgerPath(string mapKey) => Path.Combine(PlaytestStore.GetRootDirectory(), mapKey + ".bin");
 

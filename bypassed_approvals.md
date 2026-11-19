@@ -113,11 +113,12 @@ Anything here is a candidate to revisit during the collaborative testing phase.
   registry", "community node hosting … participant relays", "registered Realm Platform users" and donations "within the
   Realm Platform". That is the largest gap the sweep found: the game no longer has any of it, so the documents now name
   Steam as the platform and the developer as the publisher of one free game.
-- **The canonical licence URL moved to the committed text.** It pointed at `realm-game.com/..._v1.txt`, a page on a site
-  that is not part of this repository and that nothing verified. It now points at
-  `Terms/RealmPlatform_UGC_License.txt` in the public repository, which is the file the build ships, so the URL and the
-  text cannot drift. A repository URL is a weaker canonical document than a versioned page; the counsel review document
-  asks whether a page should serve it again, and that is a one-line change.
+- **The canonical licence URL is the public site again.** The migration had pointed it at
+  `Terms/RealmPlatform_UGC_License.txt` in the repository, because a repository URL cannot drift from the shipped text. The
+  owner's decision is that `realm-game.com` remains the canonical document, so every reference now names
+  `https://www.realm-game.com/RealmPlatform_UGC_License_v2.txt`. The versioned filename is deliberate: a map embeds this
+  URL, and only a version-specific page keeps resolving to the terms that map was published under. `Terms/` stays the
+  source of the text and the site's copy is refreshed from it, which is the duty that replaces "the URL cannot drift".
 - **The licence is version 2.0 and the acceptance is recorded locally.** `MetadataService.UgcLicenseVersion` is what the
   editor compares against, `UgcLicenseAcceptance` writes `user://ugc_license_acceptance.json` with the version and date,
   and `UgcLicenseDialog` shows the summary, the full text and Valve's agreement before the first publish continues. A
@@ -520,20 +521,29 @@ Anything here is a candidate to revisit during the collaborative testing phase.
 - **The leaderboard screen was parented into the card's inner margin.** It was added to the column's parent, a
   `MarginContainer` inside the card, so its full-rect backdrop and body would have been laid out inside the card instead of
   over the screen. It now hangs off the profile dialog itself, the same full-screen surface the profile is drawn on.
-## The unlisted-first catalogue, and moving the greenlight to the author's machine
+## Publishing only after a playtest, and moving the greenlight to the author's machine
 
-- **A first publish is now Unlisted, not "private or unlisted".** `SetItemVisibility` takes `Unlisted`, which is
-  reachable by link and absent from Workshop browse and search, so the accidental case - a player pressing Publish the
-  moment the editor opens on a blank map - produces a URL nobody has rather than a row in the catalogue. The alternative
-  considered and rejected was publishing publicly and filtering afterwards, because hiding a published map is the
-  discovery filter the project forbids while never publishing it publicly is not a filter at all.
-- **The playtest bar became local, and it is the only thing that unlocks Public.** The old threshold was 100 verified
+- **Publishing was Unlisted-first, and the owner has since replaced that with no publication before the bar.** The
+  migration created every item `Unlisted` on its first publish, which kept an accident out of the catalogue but still put
+  an unfinished map on the Workshop and reserved its name. The rule now is that nothing is uploaded until the map has been
+  played by enough different people: a map has no item and no reserved name until it qualifies, and the first publish - which
+  is when the name is claimed - creates the item with the visibility the author chooses, Public by default. The rehearsal
+  that unlisted-first provided is gone with it: the first upload is the real one, and a mistake in it is corrected by
+  publishing again rather than by inspecting a place-holder. Hiding a published map is still the discovery filter the
+  project forbids; not publishing an unfinished one is not a filter at all.
+- **The playtest bar became local, and it is the only thing that unlocks publishing.** The old threshold was 100 verified
   reviews with a request and an admin queue, all inside the deleted server. The replacement is 25 distinct verified
   SteamIDs, collected by the authority during hosted matches and accumulated in `%LOCALAPPDATA%\Realm\playtest` on the
   author's machine. Votes are keyed by the identity the handshake established, never by a SteamID the client states, and
   a computer seat cannot vote - so an author cannot greenlight a map with bots and cannot forge a seat's vote.
-- **The ledger is keyed by map name, like `MapHistoryService`, and not by package hash.** A hash resets on every edit,
-  which would make 25 unreachable on an actively developed map; a path breaks when the workspace is moved or renamed.
+- **The ledger is keyed by the map's name and its author's SteamID64, and not by package hash or Workshop item.** A hash
+  resets on every edit, which would make 25 unreachable on an actively developed map; a path breaks when the workspace is
+  moved or renamed; an item id changes when a map is re-published from scratch or moves between the demo and official
+  AppIDs, which is exactly when the votes have to carry. Pairing the name with the author keeps two authors who chose the
+  same title from sharing one count. The vote code itself still names the map by its title alone, because the authority
+  that mints it knows the map it is running and is never told who wrote it: `BuildNameKey` is what the code carries and
+  `BuildMapKey(title, authorSteamId)` is the ledger it lands in, and the same split applies to the greenlight record so
+  one 25-tester bar is not spent again for a new item.
   The exchange format is a copyable code the voter pastes into chat and the author pastes back, and it is an authenticated
   envelope rather than readable text: `base64url(version | nonce | tag | ciphertext)` around a small JSON payload, sealed
   with `AesGcm` under a key derived from a constant compiled into `Realm.Shared`. Plain base64 of JSON was rejected for

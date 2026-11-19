@@ -134,10 +134,6 @@ public class MapInfoMetadata
 	[SchemaRange(1, 24)]
 	public int? PlayablePlayerSlots { get; set; }
 
-	[SchemaDescription("How many different people have to have played this map before its author may publish it publicly. Leave it empty for the default of 25; set it to 0 for a map that cannot seat a crowd, such as a single-player campaign or a duel board.")]
-	[SchemaRange(0, 1000)]
-	public int? PlaytestTesterThreshold { get; set; }
-
 	/// <summary>Whether units draw an overhead health bar. On unless the map says otherwise.</summary>
 	[SchemaDescription("Whether units draw a health bar above them.")]
 	public bool? ShowUnitHealthBar { get; set; }

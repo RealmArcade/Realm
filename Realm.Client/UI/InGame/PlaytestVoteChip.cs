@@ -214,7 +214,10 @@ public sealed class PlaytestVoteChip
 		// screen hosting the match keeps the ledger, which is the machine the author publishes from.
 		if (GameContext.Lobby is not { IsHost: true } && !GameContext.SessionState.IsSinglePlayerLobbyMode) return;
 
-		GameContext.Playtest.TryAppendCode(record.MapKey, record.Code, replaceExistingAnswer: true, out string failure);
+		// Filed under the map's name and this screen's Steam identity, which is the same key the editor publishes from, so
+		// the count survives a fresh folder, a new version and a move onto a different Workshop item.
+		string ledgerKey = PlaytestStore.BuildMapKey(record.MapTitle, GameContext.Steam.SteamId);
+		GameContext.Playtest.TryAppendCode(ledgerKey, record.MapKey, record.Code, replaceExistingAnswer: true, out string failure);
 		if (failure.Length > 0) GameLog.LogError($"[Playtest] {failure}");
 	}
 
