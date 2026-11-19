@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Threading.Tasks;
 using Godot;
 using Steamworks;
@@ -20,6 +22,16 @@ namespace Realm.Client.Services;
 public partial class SteamService
 {
 	private const string NativeLibraryName = "steam_api64";
+
+	/// <summary>
+	///     The app id file a development run keeps in this project. It is gitignored, it never ships, and a run Steam started
+	///     never reads it because that run already carries the id Steam gave it.
+	/// </summary>
+	private const string DevelopmentAppIdPath = "res://steam_appid.txt";
+
+	private const string SteamApplicationIdVariable = "SteamAppId";
+
+	private const string SteamGameIdVariable = "SteamGameId";
 
 	/// <summary>
 	///     The overlay dialog Steam opens for a user it should add as a friend. The name is Steamworks' own spelling of the
@@ -94,6 +106,8 @@ public partial class SteamService
 	{
 		if (_initialized || _stopped) return;
 
+		ApplyDevelopmentAppId();
+
 		try
 		{
 			ESteamAPIInitResult result = SteamAPI.InitEx(out string message);
@@ -155,6 +169,41 @@ public partial class SteamService
 	{
 		if (_initialized) return;
 		StartedWithoutSteam = true;
+	}
+
+	/// <summary>
+	///     States the application id a development run is meant to use, read from <c>steam_appid.txt</c> in this project. A run
+	///     started from the Godot editor is not launched by Steam, and the editor bootstraps the game from its own folder, so
+	///     the app id file Steamworks looks for beside the launching process is never the one in this repository. Reading it
+	///     here and stating it in the environment is the same thing the file does, placed where the run actually starts, and it
+	///     is the mechanism the authority already uses to avoid carrying a file of its own.
+	/// </summary>
+	private static void ApplyDevelopmentAppId()
+	{
+		if (OS.HasFeature("template")) return;
+		if (!string.IsNullOrEmpty(System.Environment.GetEnvironmentVariable(SteamApplicationIdVariable))) return;
+
+		string path = ProjectSettings.GlobalizePath(DevelopmentAppIdPath);
+
+		try
+		{
+			if (!File.Exists(path)) return;
+
+			if (!uint.TryParse(File.ReadAllText(path).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint appId) || appId == 0)
+			{
+				GameLog.LogError($"[Steam] {path} does not state a Steam application id, so this run leaves the choice to Steamworks");
+				return;
+			}
+
+			string value = appId.ToString(CultureInfo.InvariantCulture);
+			System.Environment.SetEnvironmentVariable(SteamApplicationIdVariable, value);
+			System.Environment.SetEnvironmentVariable(SteamGameIdVariable, value);
+			GameLog.LogToConsole($"[Steam] this development run is Steam application {value}, read from {path}");
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			GameLog.LogError($"[Steam] the development application id file could not be read: {exception.Message}");
+		}
 	}
 
 	/// <summary>

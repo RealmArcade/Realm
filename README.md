@@ -86,6 +86,9 @@ AI-generated "vibe" code is acceptable only if it has been thoroughly reviewed b
 
 1.  **Clone this repository** recursively to include all submodules (including the required third-party packages).
 2.  **Install the standard Godot .NET (C#) build** for your platform.
-3.  **Create a steam_appid.txt file next to the godot exe**
+3.  **Create a `steam_appid.txt` in `Realm.Client`** holding one id. The game reads it itself when it is started from Godot: Steamworks looks beside the launching executable, which is the Godot folder, so the client states the id from this file to it instead.
     * `5537420` - the demo application (used as the current testing appId until after next fest. Replace with new appId after official release.)
-3.  **Open godot, import Realm.Client\project.godot and click Run**
+    * `5372260` - the full game, for an account that already has access to it.
+
+    The file is gitignored and must never be committed or shipped in an export. With no file the game still starts, but Steam stays off: single player, the editor and local map play work, and multiplayer says no app id was found.
+4.  **Open Godot, import `Realm.Client\project.godot` and click Run**
