@@ -136,20 +136,22 @@ public class MapSessionCopyService
 	}
 
 	/// <summary>
-	///     Answers the folder a match should play, preferring the folder the map already sits in when nothing about the map
-	///     has to change. A map whose data is already this build's needs no private copy: nothing will be written into it and
-	///     nothing has to be keyed, so a caller that advertises and transfers nothing - a single-player lobby - can read it
-	///     where it is instead of reading and rewriting every file of the package first. A hosted lobby states false and
-	///     always gets a copy, because the copy is the package it advertises. A folder Steam owns is copied even when it needs
-	///     no migration, whatever the caller allows: Steam replaces that folder on the next Workshop update, and a match
-	///     already running would then be reading files nobody chose to change.
+	///     Answers the folder a match should play, which is the folder the map already sits in whenever nothing about the
+	///     package has to change. A map whose data is already this build's needs no private copy: nothing will be written
+	///     into it and nothing has to be keyed, so the match reads it where it is instead of reading and rewriting every file
+	///     of the package first. What a hosted lobby advertises is read from that folder's manifest, which is the same file a
+	///     copy would carry, so the lobby states the same package either way.
 	/// </summary>
+	/// <remarks>
+	///     Two folders are copied instead. A folder Steam installed a Workshop item into is Steam's: it rewrites that folder
+	///     on the item's next update, and a match already running would then be reading files nobody chose to change. And a
+	///     map an older build left behind is copied because the migration that makes it playable has to happen somewhere the
+	///     author's and Steam's own folder cannot see it.
+	/// </remarks>
 	/// <param name="installedMapDirectory">The absolute folder of the installed or authored map.</param>
-	/// <param name="mayReadInPlace">Whether the caller can play the folder where it sits when it needs no migration.</param>
 	/// <returns>The folder to play from, or null when the map cannot be played, which <see cref="LastRefusal" /> explains.</returns>
-	public string? TryResolvePlayableDirectory(string installedMapDirectory, bool mayReadInPlace)
+	public string? TryResolvePlayableDirectory(string installedMapDirectory)
 	{
-		if (!mayReadInPlace) return TryPrepare(installedMapDirectory);
 		if (string.IsNullOrWhiteSpace(installedMapDirectory) || !Directory.Exists(installedMapDirectory)) return TryPrepare(installedMapDirectory);
 
 		string fullSource = Path.GetFullPath(installedMapDirectory);

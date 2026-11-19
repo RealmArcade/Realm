@@ -207,9 +207,11 @@ public partial class LobbyManager
 			return false;
 		}
 
-		// The lobby plays a private copy of the installed package with the map's data migrated to this build, rather than
-		// the folder Steam owns and replaces, so what it advertises is a package every joiner already holds.
-		string? mapDirectory = GameContext.MapSessionCopy.TryPrepare(installedMapDirectory);
+		// The lobby plays the installed package itself when nothing about it has to change, rather than copying it first: what
+		// it advertises is read from the map's manifest, which the copy would carry unchanged, and every file a joiner asks
+		// for is served from the same folder either way. Two folders are still copied - one Steam owns, which it rewrites on
+		// an update under a match already running, and one an older build left behind, which has to be migrated durably.
+		string? mapDirectory = GameContext.MapSessionCopy.TryResolvePlayableDirectory(installedMapDirectory);
 		if (string.IsNullOrEmpty(mapDirectory))
 		{
 			LastHostError = GameContext.MapSessionCopy.LastRefusal;
@@ -543,7 +545,7 @@ public partial class LobbyManager
 		// what the editor's own playtest has always done and why this path was slower than it. Two folders are still copied:
 		// one an older build left behind, because it has to be migrated durably, and one Steam installed as a Workshop item,
 		// because Steam rewrites that folder on its next update underneath a match already running on it.
-		string? mapDirectory = GameContext.MapSessionCopy.TryResolvePlayableDirectory(installedMapDirectory, mayReadInPlace: true);
+		string? mapDirectory = GameContext.MapSessionCopy.TryResolvePlayableDirectory(installedMapDirectory);
 		if (string.IsNullOrEmpty(mapDirectory))
 		{
 			LastHostError = GameContext.MapSessionCopy.LastRefusal;
