@@ -630,7 +630,7 @@ public class ServerSimulation : IDisposable
 		abilities?.CompleteTick();
 	}
 
-	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline, int laneIndex, int peerSlot)
+	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline, int laneIndex, int peerSlot, bool restateStatements = false)
 	{
 		Entity viewer = TryGetPlayerEntity(peerId, out Entity playerEntity) ? playerEntity : Entity.Null;
 		List<AbilityStateDelta> preparedAbilityDeltas = (uint)peerSlot < (uint)_abilityDeltasByPeerSlot.Length
@@ -641,7 +641,7 @@ public class ServerSimulation : IDisposable
 		_snapshots.EnterPeerDescription(peerId);
 		try
 		{
-			builder.BuildInto(ref snapshot, peerId, sequence, new PlayerEntity(viewer), forceBaseline, preparedAbilityDeltas);
+			builder.BuildInto(ref snapshot, peerId, sequence, new PlayerEntity(viewer), forceBaseline, preparedAbilityDeltas, restateStatements);
 		}
 		finally
 		{

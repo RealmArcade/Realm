@@ -86,6 +86,7 @@ public partial class ListenServerHost : IServerTransportSink
 	private readonly byte[][] _publishedFrames = new byte[EcsWorld.MAX_PLAYERS][];
 	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly bool[] _pendingDescribeInFull = new bool[EcsWorld.MAX_PLAYERS];
+	private readonly bool[] _pendingStatementRefresh = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly bool[] _pendingSkippedPeers = new bool[EcsWorld.MAX_PLAYERS];
 	private PublishLaneWorkers? _publishLaneWorkers;
 	private readonly Dictionary<int, SnapshotFrameRing> _frameRings = new();

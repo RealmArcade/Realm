@@ -123,6 +123,23 @@ public partial class ListenServerHost
 		return _lastAcknowledgedProgressTickPerPeer.TryGetValue(peerId, out long lastProgressTick) && tick - lastProgressTick >= SnapshotRefreshStallTicks;
 	}
 
+	/// <summary>
+	///     Whether this peer is owed the statements a description makes only once. Every description repeats what changed,
+	///     so a value carries its own repairs; what a description says of a unit's definition, of the text the match names
+	///     things with and of the payloads a handle opens is said once and then never again. Steam drops unreliable
+	///     descriptions, so losing that one leaves a screen that cannot name what it draws for the rest of the match,
+	///     while a peer that keeps acknowledging looks perfectly healthy and never earns a repairing baseline. The set is
+	///     therefore stated again on a cadence rather than on evidence of a loss.
+	/// </summary>
+	private bool ClaimStatementRefresh(int peerId, long tick)
+	{
+		if (_lastStatementRefreshTickPerPeer.TryGetValue(peerId, out long lastRefreshTick) && tick - lastRefreshTick < StatementRefreshTicks) return false;
+
+		_lastStatementRefreshTickPerPeer[peerId] = tick;
+		LagProbe.Count(LagEvent.AuthorityStatementRefreshes);
+		return true;
+	}
+
 	private bool TryClaimBaselineRequest(int peerId, long tick)
 	{
 		if (_lastBaselineRequestTickPerPeer.TryGetValue(peerId, out long lastRequestTick) && tick - lastRequestTick < BaselineRequestCooldownTicks) return false;
@@ -170,6 +187,10 @@ public partial class ListenServerHost
 	private const int MaximumUnacknowledgedBeforeDisconnect = MatchTiming.SnapshotRateHz * 15;
 
 	private const long RepairCooldownTicks = MatchTiming.SnapshotRepairCooldownTicks;
+
+	private const long StatementRefreshTicks = MatchTiming.SnapshotStatementRefreshTicks;
+
+	private readonly Dictionary<int, long> _lastStatementRefreshTickPerPeer = new();
 
 	private readonly Dictionary<int, long> _lastRepairSentTickPerPeer = new();
 

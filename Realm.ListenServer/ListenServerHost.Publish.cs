@@ -62,8 +62,12 @@ public partial class ListenServerHost
 			bool refreshRequested = !resyncRequested
 				&& IsRefreshDue(seatedPeerId, simulation.TickCount)
 				&& TryClaimBaselineRequest(seatedPeerId, simulation.TickCount);
+			// A peer that keeps acknowledging is not a peer that has been told everything: the statements a description makes
+			// only once are lost with a description that never arrived, and nothing about the peer's acknowledgements says so.
+			bool statementRefreshRequested = ClaimStatementRefresh(seatedPeerId, simulation.TickCount);
+			_pendingStatementRefresh[index] = statementRefreshRequested;
 			_pendingBaselineRequests[index] = resyncRequested || refreshRequested;
-			_pendingDescribeInFull[index] = _pendingBaselineRequests[index] || repeatRequested;
+			_pendingDescribeInFull[index] = _pendingBaselineRequests[index] || repeatRequested || statementRefreshRequested;
 			_pendingBaselineReasons[index] = resyncRequested
 				? SnapshotBaselineReason.Resync
 				: refreshRequested ? SnapshotBaselineReason.Safety : SnapshotBaselineReason.None;
@@ -264,7 +268,7 @@ public partial class ListenServerHost
 		// The description is written into the slot this peer already has, so describing a room replaces nothing and
 		// empties what it held instead of allocating a set of lists per peer per tick.
 		long describeStarted = LagProbe.IsEnabled ? LagProbe.Timestamp() : 0L;
-		simulation.BuildSnapshotForPeerInto(ref _publishedSnapshots[index], peerId, _publishSequence, _pendingBaselineRequests[index], laneIndex, index);
+		simulation.BuildSnapshotForPeerInto(ref _publishedSnapshots[index], peerId, _publishSequence, _pendingBaselineRequests[index], laneIndex, index, _pendingStatementRefresh[index]);
 		if (describeStarted != 0L) LagProbe.Add(LagStage.AuthorityDescribeMilliseconds, LagProbe.ElapsedMilliseconds(describeStarted));
 		WorldSnapshot snapshot = _publishedSnapshots[index];
 
