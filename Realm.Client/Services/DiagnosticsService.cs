@@ -89,20 +89,6 @@ public static class DiagnosticsService
 		}
 	}
 
-	/// <summary>Opens the folder the logs are written to in the platform's file manager.</summary>
-	public static void OpenLogFolder()
-	{
-		try
-		{
-			Directory.CreateDirectory(LogDirectory);
-			OS.ShellOpen(LogDirectory);
-		}
-		catch (Exception exception)
-		{
-			GameLog.LogError($"[Diagnostics] the log folder could not be opened: {exception.Message}");
-		}
-	}
-
 	/// <summary>
 	///     Writes one archive holding the session's logs and a short environment summary, then reveals it. The summary
 	///     includes the SteamID only when the player asked for it.
