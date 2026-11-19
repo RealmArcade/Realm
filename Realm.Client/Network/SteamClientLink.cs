@@ -99,7 +99,28 @@ public class SteamClientLink : IDisposable
 			var identity = new SteamNetworkingIdentity();
 			identity.SetSteamID64(hostSteamId);
 
-			_connection = SteamNetworkingSockets.ConnectP2P(ref identity, 0, 0, Array.Empty<SteamNetworkingConfigValue_t>());
+			// The joiner is the side a map's pieces arrive on, so its receive buffer is stated above one window of them, and its
+			// own sends are left for Steam to pace rather than clamped to a rate a map transfer would have to fight.
+			var connectionOptions = new[]
+			{
+				new SteamNetworkingConfigValue_t
+				{
+					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_RecvBufferSize,
+					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionReceiveBufferBytes }
+				},
+				new SteamNetworkingConfigValue_t
+				{
+					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMin,
+					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionSendRateMinimumBytesPerSecond }
+				},
+				new SteamNetworkingConfigValue_t
+				{
+					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMax,
+					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionSendRateMaximumBytesPerSecond }
+				}
+			};
+
+			_connection = SteamNetworkingSockets.ConnectP2P(ref identity, 0, connectionOptions.Length, connectionOptions);
 			if (_connection == HSteamNetConnection.Invalid)
 			{
 				failure = "Steam could not start a connection to the host";

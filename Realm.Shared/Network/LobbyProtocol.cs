@@ -399,6 +399,13 @@ public partial struct MapTransferRequest
 	///     other kind of request.
 	/// </summary>
 	public string[] HeldHashes;
+
+	/// <summary>
+	///     How many pieces of the bundle to answer with, starting at <see cref="PacketIndex" />. The lobby sends as many as
+	///     the bundle has left up to this and the ceiling it states, so a joiner that asks for a window of pieces keeps the
+	///     line busy instead of waiting for one message at a time.
+	/// </summary>
+	public int PacketWindow;
 }
 
 [MemoryPackable]
@@ -494,7 +501,14 @@ public static class LobbyLimits
 	/// <returns>Whether the seat left its faction to the match.</returns>
 	public static bool IsRandomFaction(string? factionName) => string.Equals(factionName, RandomFactionName, StringComparison.Ordinal);
 
-	public const int MaximumMapBundleBytes = 384 * 1024;
+	/// <summary>
+	///     The file bytes one bundle carries, which is what a single request's whole window is sized for. A bundle smaller
+	///     than the window leaves the line idle in proportion to the round trip: the pieces of one bundle cannot overlap with
+	///     the request for the next, so a bundle of one or two pieces moves a few hundred kilobytes per round trip however
+	///     fast the link is. This is uncompressed file bytes, so the bundle a large map's textures make is a good deal
+	///     smaller on the wire than the number states.
+	/// </summary>
+	public const int MaximumMapBundleBytes = MaximumPiecesPerRequest * MapTransferPackets.PieceBytes;
 
 	/// <summary>
 	///     The largest frame this transfer may put on one message. A Steam peer connection refuses a message over 512 KB,
@@ -507,6 +521,40 @@ public static class LobbyLimits
 	///     joiner holding a large map only has to state its archive a few times.
 	/// </summary>
 	public const int MaximumHeldHashesPerAnnouncement = 512;
+
+	/// <summary>
+	///     The pieces one request may ask for. A transfer that asked for one piece at a time moved one message per round
+	///     trip, which leaves a fast line idle: asking for several keeps that many pieces travelling at once, and the
+	///     ceiling is what the lobby's send buffer is sized for.
+	/// </summary>
+	public const int MaximumPiecesPerRequest = 8;
+
+	/// <summary>
+	///     The bytes a transfer may have travelling at once, which is the answer to one request at its ceiling.
+	/// </summary>
+	public const int MaximumMapTransferBytesInFlight = MaximumPiecesPerRequest * MapTransferPackets.PieceBytes;
+
+	/// <summary>
+	///     The floor of the send rate a match connection may be paced down to, in bytes per second. It is Steam's own
+	///     default, so a connection that has to slow down to fit a weak path still can.
+	/// </summary>
+	public const int ConnectionSendRateMinimumBytesPerSecond = 256 * 1024;
+
+	/// <summary>
+	///     The ceiling of the send rate a match connection may reach, in bytes per second. Steam's peer-to-peer
+	///     connections are paced by an estimate of the path, and that estimate is bounded by a clamp whose default is far
+	///     below what a home link carries: a map of a few megabytes then takes minutes however good the connection is, which
+	///     is the whole cost of a transfer that is paced rather than slow. This ceiling is stated well above the default so
+	///     the estimate can follow the path, and a slower path still gets the rate its own measurement asks for.
+	/// </summary>
+	public const int ConnectionSendRateMaximumBytesPerSecond = 8 * 1024 * 1024;
+
+	/// <summary>
+	///     The bytes a connection buffers on the receiving side. Steam's default is 512 KB, which is less than one window of
+	///     pieces: a joiner receiving a window of them would have the host spend the rest of the flush waiting for the
+	///     buffer to drain. It is stated above one window so a whole window can sit there at once.
+	/// </summary>
+	public const int ConnectionReceiveBufferBytes = MaximumMapTransferBytesInFlight + MapTransferPackets.PieceBytes;
 
 	/// <summary>
 	///     The refusal a peer is answered with when it asks to be seated in a lobby that removed it.

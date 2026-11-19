@@ -58,7 +58,11 @@ public partial class LobbyManager
 		try
 		{
 			ReportLocalMapReadyState(false);
+			_unreadTransferReplies.Clear();
 			CallDeferred(nameof(EmitDownloadProgress), 0.0f);
+
+			var transferClock = Stopwatch.StartNew();
+			long transferredBytes = 0;
 
 			MapTransferReply? manifestReply = await RequestMapTransferAsync(new MapTransferRequest
 			{
@@ -100,53 +104,100 @@ public partial class LobbyManager
 
 			for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
 			{
-				var pieces = new List<byte[]>(2);
-				bool nothingNeeded = false;
-				int packetIndex = 0;
-				int packetCount = 1;
-				while (packetIndex < packetCount)
+				_unreadTransferReplies.Clear();
+
+				MapTransferReply? firstReply = await RequestMapTransferAsync(new MapTransferRequest
 				{
-					MapTransferReply? pieceReply = await RequestMapTransferAsync(new MapTransferRequest
-					{
-						Kind = MapTransferRequestKind.Chunk,
-						TransferId = transferId,
-						MapName = targetMap,
-						ChunkIndex = chunkIndex,
-						PacketIndex = packetIndex
-					}, 60000);
+					Kind = MapTransferRequestKind.Chunk,
+					TransferId = transferId,
+					MapName = targetMap,
+					ChunkIndex = chunkIndex,
+					PacketIndex = 0,
+					PacketWindow = LobbyLimits.MaximumPiecesPerRequest
+				}, 30000);
 
-					if (pieceReply is not { Kind: MapTransferReplyKind.Chunk } servedPiece)
-					{
-						GameLog.LogError($"[LobbyManager] The lobby stopped serving '{targetMap}' at bundle {chunkIndex} piece {packetIndex}: {(pieceReply is { } answeredPiece ? answeredPiece.Refusal.Length > 0 ? answeredPiece.Refusal : $"the host answered {answeredPiece.Kind}" : "the host did not answer in time")}");
-						CallDeferred(nameof(EmitDownloadFailed));
-						return false;
-					}
-
-					if (servedPiece.PacketCount <= 0)
-					{
-						nothingNeeded = true;
-						break;
-					}
-
-					if (servedPiece.Bundle is not { Length: > 0 } pieceBytes)
-					{
-						GameLog.LogError($"[LobbyManager] The lobby sent an empty piece of '{targetMap}' at bundle {chunkIndex} piece {packetIndex}.");
-						CallDeferred(nameof(EmitDownloadFailed));
-						return false;
-					}
-
-					packetCount = Math.Max(1, servedPiece.PacketCount);
-					pieces.Add(pieceBytes);
-					packetIndex++;
+				if (firstReply is not { Kind: MapTransferReplyKind.Chunk } firstPiece)
+				{
+					GameLog.LogError($"[LobbyManager] The lobby stopped serving '{targetMap}' at bundle {chunkIndex}: {DescribeTransferFailure(firstReply)}");
+					CallDeferred(nameof(EmitDownloadFailed));
+					return false;
 				}
 
-				if (nothingNeeded)
+				if (firstPiece.PacketCount <= 0)
 				{
 					CallDeferred(nameof(EmitDownloadProgress), Math.Clamp((float)(chunkIndex + 1) / totalChunks, 0.0f, 1.0f));
 					continue;
 				}
 
-				byte[] bundle = MapTransferPackets.Join(pieces);
+				int packetCount = firstPiece.PacketCount;
+				var pieces = new byte[packetCount][];
+				int receivedCount = 0;
+				int awaiting = Math.Min(LobbyLimits.MaximumPiecesPerRequest, packetCount);
+
+				if (firstPiece.Bundle is { Length: > 0 } firstBytes && firstPiece.PacketIndex >= 0 && firstPiece.PacketIndex < packetCount)
+				{
+					pieces[firstPiece.PacketIndex] = firstBytes;
+					receivedCount = 1;
+				}
+
+				awaiting--;
+				int attemptsWithoutProgress = 0;
+
+				while (receivedCount < packetCount)
+				{
+					if (awaiting <= 0)
+					{
+						int firstMissing = IndexOfFirstMissingPiece(pieces, packetCount);
+						if (firstMissing < 0) break;
+
+						int window = Math.Min(LobbyLimits.MaximumPiecesPerRequest, packetCount - firstMissing);
+						if (!SendMapTransferRequest(new MapTransferRequest
+						{
+							Kind = MapTransferRequestKind.Chunk,
+							TransferId = transferId,
+							MapName = targetMap,
+							ChunkIndex = chunkIndex,
+							PacketIndex = firstMissing,
+							PacketWindow = window
+						}))
+						{
+							GameLog.LogError($"[LobbyManager] This screen lost its lobby while '{targetMap}' was being sent.");
+							CallDeferred(nameof(EmitDownloadFailed));
+							return false;
+						}
+
+						awaiting = window;
+					}
+
+					MapTransferReply? pieceReply = await ReadMapTransferReplyAsync(20000);
+					awaiting = Math.Max(0, awaiting - 1);
+
+					if (pieceReply is not { Kind: MapTransferReplyKind.Chunk } arrivedPiece || arrivedPiece.Bundle is not { Length: > 0 } pieceBytes || arrivedPiece.ChunkIndex != chunkIndex)
+					{
+						if (++attemptsWithoutProgress > 3)
+						{
+							GameLog.LogError($"[LobbyManager] The lobby stopped serving '{targetMap}' at bundle {chunkIndex}: {DescribeTransferFailure(pieceReply)}");
+							CallDeferred(nameof(EmitDownloadFailed));
+							return false;
+						}
+
+						awaiting = 0;
+						continue;
+					}
+
+					if (arrivedPiece.PacketIndex < 0 || arrivedPiece.PacketIndex >= packetCount) continue;
+					if (pieces[arrivedPiece.PacketIndex] != null) continue;
+
+					pieces[arrivedPiece.PacketIndex] = pieceBytes;
+					receivedCount++;
+					attemptsWithoutProgress = 0;
+				}
+
+				var orderedPieces = new List<byte[]>(packetCount);
+				for (int pieceIndex = 0; pieceIndex < packetCount; pieceIndex++) orderedPieces.Add(pieces[pieceIndex]!);
+
+				byte[] bundle = MapTransferPackets.Join(orderedPieces);
+				transferredBytes += bundle.Length;
 				List<(string AssetKey, byte[] Data, string? Metadata)> assets = await Task.Run(() => ZstdAssetBundleHelper.ExtractBundleBytes(bundle));
 				await Task.Run(() =>
 				{
@@ -172,10 +223,15 @@ public partial class LobbyManager
 				MapReferenceResolver.SetReadOnlyRecursive(targetDirectory);
 			});
 
-		CallDeferred(nameof(EmitDownloadCompleted));
-		StartMatchPreparationForCurrentMap();
-		return true;
-	}
+			// The rate is what tells a host whether a slow download is the line or this screen: it is the compressed bytes
+			// that actually crossed the connection, over the wall clock the whole transfer took.
+			double seconds = Math.Max(transferClock.Elapsed.TotalSeconds, 0.001);
+			GameLog.LogToConsole($"[LobbyManager] '{targetMap}' arrived as {transferredBytes} byte(s) in {seconds:F1} s ({transferredBytes / seconds / 1024.0:F0} KB/s)");
+
+			CallDeferred(nameof(EmitDownloadCompleted));
+			StartMatchPreparationForCurrentMap();
+			return true;
+		}
 		catch (Exception ex)
 		{
 			GameLog.LogError($"[LobbyManager] Map download failed for '{targetMap}': {ex.Message}");
@@ -247,26 +303,62 @@ public partial class LobbyManager
 		return true;
 	}
 
-	private void OnMapTransferReplied(MapTransferReply reply) => _transferReplyTcs?.TrySetResult(reply);
+	private static int IndexOfFirstMissingPiece(byte[]?[] pieces, int packetCount)
+	{
+		for (int pieceIndex = 0; pieceIndex < packetCount; pieceIndex++)
+		{
+			if (pieces[pieceIndex] == null) return pieceIndex;
+		}
 
-	private async Task<MapTransferReply?> RequestMapTransferAsync(MapTransferRequest request, int timeoutMilliseconds = 20000)
+		return -1;
+	}
+
+	private static string DescribeTransferFailure(MapTransferReply? reply)
+	{
+		if (reply is not { } answered) return "the host did not answer in time";
+		if (answered.Refusal.Length > 0) return answered.Refusal;
+
+		return $"the host answered {answered.Kind} with nothing in it";
+	}
+
+	private void OnMapTransferReplied(MapTransferReply reply)
+	{
+		TaskCompletionSource<MapTransferReply>? waiting = _transferReplyTcs;
+		if (waiting != null && waiting.TrySetResult(reply)) return;
+
+		// One request can be answered with several pieces, and the screen is reading them one at a time, so a piece that
+		// arrives with nobody waiting for it is held for the next read rather than dropped.
+		_unreadTransferReplies.Enqueue(reply);
+	}
+
+	private bool SendMapTransferRequest(MapTransferRequest request)
 	{
 		ClientServerSession? session = _lobbySession;
-		if (session == null) return null;
+		return session != null && session.RequestMapTransfer(request);
+	}
+
+	private async Task<MapTransferReply?> ReadMapTransferReplyAsync(int timeoutMilliseconds)
+	{
+		if (_unreadTransferReplies.Count > 0) return _unreadTransferReplies.Dequeue();
 
 		var reply = new TaskCompletionSource<MapTransferReply>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_transferReplyTcs = reply;
 		try
 		{
-			if (!session.RequestMapTransfer(request)) return null;
-
-			var completed = await Task.WhenAny(reply.Task, Task.Delay(timeoutMilliseconds));
+			Task completed = await Task.WhenAny(reply.Task, Task.Delay(timeoutMilliseconds));
 			return completed == reply.Task ? reply.Task.Result : null;
 		}
 		finally
 		{
 			if (ReferenceEquals(_transferReplyTcs, reply)) _transferReplyTcs = null;
 		}
+	}
+
+	private async Task<MapTransferReply?> RequestMapTransferAsync(MapTransferRequest request, int timeoutMilliseconds = 20000)
+	{
+		if (!SendMapTransferRequest(request)) return null;
+
+		return await ReadMapTransferReplyAsync(timeoutMilliseconds);
 	}
 
 	private int _reportedMapProgressPercent = -1;

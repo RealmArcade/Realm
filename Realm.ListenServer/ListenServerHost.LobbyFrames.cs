@@ -273,15 +273,23 @@ public partial class ListenServerHost
 			return;
 		}
 
-		MapTransferReply reply = _mapShares?.Handle(peerId, request) ?? new MapTransferReply
+		// One request may be answered with several pieces of the same bundle, which is what lets a joiner keep the line busy
+		// instead of waiting a round trip for every message.
+		List<MapTransferReply> replies = _mapShares?.Handle(peerId, request) ?? new List<MapTransferReply>
 		{
-			Kind = MapTransferReplyKind.Refused,
-			TransferId = request.TransferId,
-			MapName = request.MapName,
-			Refusal = "this lobby has no map to serve"
+			new()
+			{
+				Kind = MapTransferReplyKind.Refused,
+				TransferId = request.TransferId,
+				MapName = request.MapName,
+				Refusal = "this lobby has no map to serve"
+			}
 		};
 
-		_transport.Send(peerId, NetworkFrameKind.MapTransferReply, MemoryPackSerializer.Serialize(reply));
+		foreach (MapTransferReply reply in replies)
+		{
+			_transport.Send(peerId, NetworkFrameKind.MapTransferReply, MemoryPackSerializer.Serialize(reply));
+		}
 	}
 
 	/// <summary>

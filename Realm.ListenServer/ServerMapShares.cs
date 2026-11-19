@@ -44,7 +44,7 @@ public class ServerMapShares
 			}
 
 			BuildChunkPlan();
-			_log.Write($"the lobby serves its map from {_pathByHash.Count} file(s) in {_chunks.Count} bundle(s), each carried as pieces of at most {MapTransferPackets.PieceBytes} bytes");
+			_log.Write($"the lobby serves its map from {_pathByHash.Count} file(s) in {_chunks.Count} bundle(s), carried as pieces of at most {MapTransferPackets.PieceBytes} bytes, {LobbyLimits.MaximumPiecesPerRequest} at a time");
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
 		{
@@ -68,11 +68,11 @@ public class ServerMapShares
 		}
 	}
 
-	public MapTransferReply Handle(int peerId, MapTransferRequest request)
+	public List<MapTransferReply> Handle(int peerId, MapTransferRequest request)
 	{
 		if (_manifest == null) return Refused(peerId, request, "this lobby cannot serve a map it could not read");
 
-		if (request.Kind == MapTransferRequestKind.Held) return RecordHeldFiles(peerId, request);
+		if (request.Kind == MapTransferRequestKind.Held) return Single(RecordHeldFiles(peerId, request));
 
 		if (request.Kind == MapTransferRequestKind.Manifest)
 		{
@@ -85,7 +85,7 @@ public class ServerMapShares
 				return Refused(peerId, request, $"this map's manifest is {ManifestBytes.Length} bytes, larger than the {LobbyLimits.MaximumMapTransferFrameBytes} bytes one message carries");
 			}
 
-			return new MapTransferReply
+			return Single(new MapTransferReply
 			{
 				Kind = MapTransferReplyKind.Manifest,
 				TransferId = request.TransferId,
@@ -93,7 +93,7 @@ public class ServerMapShares
 				ManifestBytes = ManifestBytes,
 				TotalChunks = _chunks.Count,
 				TotalBytes = TotalBytes
-			};
+			});
 		}
 
 		if (_chunks.Count == 0) return Refused(peerId, request, "this lobby's map lists no files to serve");
@@ -103,7 +103,8 @@ public class ServerMapShares
 		if (needed.Count == 0)
 		{
 			_log.Write($"peer {peerId} already holds every file in map bundle {request.ChunkIndex + 1}/{_chunks.Count}, so nothing of it is sent");
-			return new MapTransferReply
+
+			return Single(new MapTransferReply
 			{
 				Kind = MapTransferReplyKind.Chunk,
 				TransferId = request.TransferId,
@@ -112,7 +113,7 @@ public class ServerMapShares
 				TotalChunks = _chunks.Count,
 				TotalBytes = TotalBytes,
 				Bundle = Array.Empty<byte>()
-			};
+			});
 		}
 
 		byte[] bundle = BundleForChunk(peerId, request.ChunkIndex, needed);
@@ -120,21 +121,30 @@ public class ServerMapShares
 		if (packetCount == 0) return Refused(peerId, request, "that bundle holds no bytes");
 		if (request.PacketIndex < 0 || request.PacketIndex >= packetCount) return Refused(peerId, request, "that piece is not part of this bundle");
 
-		byte[] piece = MapTransferPackets.Slice(bundle, request.PacketIndex);
-		_log.Write($"peer {peerId} is served map bundle {request.ChunkIndex + 1}/{_chunks.Count} piece {request.PacketIndex + 1}/{packetCount} ({piece.Length} of {bundle.Length} bytes, {needed.Count} of {_chunks[request.ChunkIndex].Count} file(s))");
+		int window = Math.Clamp(request.PacketWindow < 1 ? 1 : request.PacketWindow, 1, LobbyLimits.MaximumPiecesPerRequest);
+		int lastPiece = Math.Min(packetCount, request.PacketIndex + window);
 
-		return new MapTransferReply
+		var replies = new List<MapTransferReply>(lastPiece - request.PacketIndex);
+		for (int packetIndex = request.PacketIndex; packetIndex < lastPiece; packetIndex++)
 		{
-			Kind = MapTransferReplyKind.Chunk,
-			TransferId = request.TransferId,
-			MapName = request.MapName,
-			ChunkIndex = request.ChunkIndex,
-			TotalChunks = _chunks.Count,
-			PacketIndex = request.PacketIndex,
-			PacketCount = packetCount,
-			TotalBytes = TotalBytes,
-			Bundle = piece
-		};
+			byte[] piece = MapTransferPackets.Slice(bundle, packetIndex);
+			replies.Add(new MapTransferReply
+			{
+				Kind = MapTransferReplyKind.Chunk,
+				TransferId = request.TransferId,
+				MapName = request.MapName,
+				ChunkIndex = request.ChunkIndex,
+				TotalChunks = _chunks.Count,
+				PacketIndex = packetIndex,
+				PacketCount = packetCount,
+				TotalBytes = TotalBytes,
+				Bundle = piece
+			});
+		}
+
+		_log.Write($"peer {peerId} is served map bundle {request.ChunkIndex + 1}/{_chunks.Count} pieces {request.PacketIndex + 1}-{lastPiece}/{packetCount} ({lastPiece - request.PacketIndex} of {LobbyLimits.MaximumPiecesPerRequest} at a time, {needed.Count} of {_chunks[request.ChunkIndex].Count} file(s))");
+
+		return replies;
 	}
 
 	/// <summary>
@@ -181,7 +191,7 @@ public class ServerMapShares
 
 	/// <summary>
 	///     Builds one bundle and keeps it until another chunk or another peer asks for one, so the pieces of a large file
-	///     are not read from disk and compressed again for every piece the joiner requests.
+	///     are not read from disk and compressed again for every window of pieces the joiner requests.
 	/// </summary>
 	/// <param name="peerId">The peer the bundle is built for, whose held files it leaves out.</param>
 	/// <param name="chunkIndex">The chunk to build.</param>
@@ -223,7 +233,7 @@ public class ServerMapShares
 		string[] announced = request.HeldHashes ?? Array.Empty<string>();
 		if (announced.Length > LobbyLimits.MaximumHeldHashesPerAnnouncement)
 		{
-			return Refused(peerId, request, $"that announcement names {announced.Length} files, more than the {LobbyLimits.MaximumHeldHashesPerAnnouncement} one may carry");
+			return RefusedSingle(peerId, request, $"that announcement names {announced.Length} files, more than the {LobbyLimits.MaximumHeldHashesPerAnnouncement} one may carry");
 		}
 
 		if (!_heldByPeer.TryGetValue(peerId, out HashSet<string>? held))
@@ -270,7 +280,11 @@ public class ServerMapShares
 		return needed;
 	}
 
-	private MapTransferReply Refused(int peerId, MapTransferRequest request, string reason)
+	private static List<MapTransferReply> Single(MapTransferReply reply) => new(1) { reply };
+
+	private List<MapTransferReply> Refused(int peerId, MapTransferRequest request, string reason) => Single(RefusedSingle(peerId, request, reason));
+
+	private MapTransferReply RefusedSingle(int peerId, MapTransferRequest request, string reason)
 	{
 		_log.Write($"peer {peerId} was refused a map transfer: {reason}");
 

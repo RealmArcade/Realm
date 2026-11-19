@@ -73,6 +73,27 @@ public class MapTransferFrameTests
 	}
 
 	[Test]
+	public void ABundleIsBigEnoughToFillOneRequestWindow()
+	{
+		int windowBytes = LobbyLimits.MaximumPiecesPerRequest * MapTransferPackets.PieceBytes;
+
+		Assert.That(
+			LobbyLimits.MaximumMapBundleBytes,
+			Is.GreaterThanOrEqualTo(windowBytes),
+			"a bundle smaller than one window leaves the line idle for every round trip, so a fast connection moves a few hundred kilobytes per trip however much bandwidth it has");
+
+		Assert.That(
+			LobbyLimits.ConnectionSendRateMaximumBytesPerSecond,
+			Is.GreaterThan(LobbyLimits.MaximumMapTransferBytesInFlight),
+			"the send-rate ceiling has to be able to carry a window of pieces within a second, or the clamp is what a transfer measures");
+
+		Assert.That(
+			LobbyLimits.ConnectionReceiveBufferBytes,
+			Is.GreaterThanOrEqualTo(LobbyLimits.MaximumMapTransferBytesInFlight),
+			"the receiving side has to be able to hold a whole window of pieces at once");
+	}
+
+	[Test]
 	public void APieceSizeLeavesRoomForTheFrameAroundIt()
 	{
 		Assert.That(MapTransferPackets.PieceBytes + 1024, Is.LessThanOrEqualTo(LobbyLimits.MaximumMapTransferFrameBytes), "a piece plus its frame has to stay inside one message");

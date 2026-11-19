@@ -339,6 +339,7 @@ public partial class LobbyManager : BaseMapTransferNode
 	private string? _countdownMapName;
 	private TaskCompletionSource<string?>? _admissionTcs;
 	private TaskCompletionSource<MapTransferReply>? _transferReplyTcs;
+	private readonly Queue<MapTransferReply> _unreadTransferReplies = new();
 	private string? _downloadingMapName;
 	private readonly SemaphoreSlim _mapDownloadLock = new(1, 1);
 

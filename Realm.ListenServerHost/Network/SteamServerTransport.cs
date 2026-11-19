@@ -88,7 +88,34 @@ public class SteamServerTransport : IServerTransport
 		{
 			_connectionStatusCallback ??= Callback<SteamNetConnectionStatusChangedCallback_t>.Create(OnConnectionStatusChanged);
 
-			_listenSocket = SteamNetworkingSockets.CreateListenSocketP2P(0, 0, Array.Empty<SteamNetworkingConfigValue_t>());
+			// These are inherited by every connection accepted through the socket, which is what shapes the connection a map
+			// transfer travels on. Steam clamps a connection's send rate unless the application lifts the clamp, and the
+			// default is far below a map's size: the line would sit idle between round trips with the clamp as the ceiling.
+			var socketOptions = new[]
+			{
+				new SteamNetworkingConfigValue_t
+				{
+					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendBufferSize,
+					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.MaximumMapTransferBytesInFlight }
+				},
+				new SteamNetworkingConfigValue_t
+				{
+					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMin,
+					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionSendRateMinimumBytesPerSecond }
+				},
+				new SteamNetworkingConfigValue_t
+				{
+					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMax,
+					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionSendRateMaximumBytesPerSecond }
+				},
+				new SteamNetworkingConfigValue_t
+				{
+					m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_RecvBufferSize,
+					m_val = new SteamNetworkingConfigValue_t.OptionValue { m_int32 = LobbyLimits.ConnectionReceiveBufferBytes }
+				}
+			};
+
+			_listenSocket = SteamNetworkingSockets.CreateListenSocketP2P(0, socketOptions.Length, socketOptions);
 			if (_listenSocket == HSteamListenSocket.Invalid)
 			{
 				failure = "Steam refused to create a peer-to-peer listen socket for this host";
