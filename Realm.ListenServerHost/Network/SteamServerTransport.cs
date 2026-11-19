@@ -340,7 +340,8 @@ public class SteamServerTransport : IServerTransport
 			GCHandle pinned = GCHandle.Alloc(buffer, GCHandleType.Pinned);
 			try
 			{
-				SteamNetworkingSockets.SendMessageToConnection(connection, pinned.AddrOfPinnedObject(), (uint)written, flags, out _);
+				EResult result = SteamNetworkingSockets.SendMessageToConnection(connection, pinned.AddrOfPinnedObject(), (uint)written, flags, out _);
+				if (result != EResult.k_EResultOK) _log.Write($"a {written}-byte {kind} frame could not be sent to Steam peer {peerId}: {result}");
 			}
 			finally
 			{

@@ -71,7 +71,12 @@ public partial class LobbyManager
 
 			if (manifestReply is not { Kind: MapTransferReplyKind.Manifest } servedManifest || servedManifest.ManifestBytes is not { Length: > 0 } servedManifestBytes)
 			{
-				GameLog.LogError($"[LobbyManager] The lobby did not serve a manifest for '{targetMap}': {manifestReply?.Refusal}");
+				string reason = manifestReply is { } answered
+					? answered.Refusal.Length > 0
+						? answered.Refusal
+						: $"the host answered {answered.Kind} with an empty manifest, so the folder it runs states none"
+					: "the host did not answer in time";
+				GameLog.LogError($"[LobbyManager] The lobby did not serve a manifest for '{targetMap}': {reason}");
 				CallDeferred(nameof(EmitDownloadFailed));
 				return false;
 			}
@@ -111,7 +116,7 @@ public partial class LobbyManager
 
 				if (chunkReply is not { Kind: MapTransferReplyKind.Chunk } servedChunk || servedChunk.Bundle == null)
 				{
-					GameLog.LogError($"[LobbyManager] The lobby stopped serving '{targetMap}' at bundle {chunkIndex}: {chunkReply?.Refusal}");
+					GameLog.LogError($"[LobbyManager] The lobby stopped serving '{targetMap}' at bundle {chunkIndex}: {(chunkReply is { } answeredChunk ? answeredChunk.Refusal.Length > 0 ? answeredChunk.Refusal : $"the host answered {answeredChunk.Kind}" : "the host did not answer in time")}");
 					CallDeferred(nameof(EmitDownloadFailed));
 					return false;
 				}

@@ -457,7 +457,7 @@ public static class LobbyLimits
 	/// <returns>Whether the seat left its faction to the match.</returns>
 	public static bool IsRandomFaction(string? factionName) => string.Equals(factionName, RandomFactionName, StringComparison.Ordinal);
 
-	public const int MaximumMapBundleBytes = 2 * 1024 * 1024;
+	public const int MaximumMapBundleBytes = 384 * 1024;
 
 	/// <summary>
 	///     The refusal a peer is answered with when it asks to be seated in a lobby that removed it.

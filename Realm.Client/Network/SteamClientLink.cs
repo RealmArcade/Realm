@@ -24,7 +24,7 @@ public class SteamClientLink : IDisposable
 
 	private readonly Callback<SteamNetConnectionStatusChangedCallback_t> _connectionStatusCallback;
 
-	private readonly byte[] _payloadBuffer = new byte[64 * 1024];
+	private byte[] _payloadBuffer = new byte[64 * 1024];
 
 	private readonly IntPtr[] _messagePointers = new IntPtr[MaximumMessagesPerPoll];
 
@@ -158,7 +158,7 @@ public class SteamClientLink : IDisposable
 				SteamNetworkingMessage_t message = SteamNetworkingMessage_t.FromIntPtr(pointer);
 				int size = message.m_cbSize;
 				if (size <= 0) continue;
-				if (_payloadBuffer.Length < size) continue;
+				if (_payloadBuffer.Length < size) _payloadBuffer = new byte[size];
 
 				Marshal.Copy(message.m_pData, _payloadBuffer, 0, size);
 
@@ -235,7 +235,8 @@ public class SteamClientLink : IDisposable
 			GCHandle pinned = GCHandle.Alloc(buffer, GCHandleType.Pinned);
 			try
 			{
-				SteamNetworkingSockets.SendMessageToConnection(_connection, pinned.AddrOfPinnedObject(), (uint)written, flags, out _);
+				EResult result = SteamNetworkingSockets.SendMessageToConnection(_connection, pinned.AddrOfPinnedObject(), (uint)written, flags, out _);
+				if (result != EResult.k_EResultOK) GameLog.LogError($"[SteamNetwork] a {written}-byte {kind} frame could not be sent to the host: {result}");
 			}
 			finally
 			{
