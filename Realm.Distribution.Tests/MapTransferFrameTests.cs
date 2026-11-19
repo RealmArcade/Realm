@@ -54,6 +54,25 @@ public class MapTransferFrameTests
 	}
 
 	[Test]
+	public void AnAnnouncementOfHeldFilesFitsOneSteamMessage()
+	{
+		var hashes = new string[LobbyLimits.MaximumHeldHashesPerAnnouncement];
+		for (int index = 0; index < hashes.Length; index++) hashes[index] = new string((char)('a' + index % 26), 64) + ".rtex";
+
+		var request = new MapTransferRequest
+		{
+			Kind = MapTransferRequestKind.Held,
+			TransferId = "transfer",
+			MapName = "map",
+			ChunkIndex = 0,
+			HeldHashes = hashes
+		};
+
+		int frameBytes = SteamFrameCodec.HeaderBytes + MemoryPackSerializer.Serialize(request).Length;
+		Assert.That(frameBytes, Is.LessThanOrEqualTo(LobbyLimits.MaximumMapTransferFrameBytes), $"an announcement of {hashes.Length} files would travel as {frameBytes} bytes");
+	}
+
+	[Test]
 	public void APieceSizeLeavesRoomForTheFrameAroundIt()
 	{
 		Assert.That(MapTransferPackets.PieceBytes + 1024, Is.LessThanOrEqualTo(LobbyLimits.MaximumMapTransferFrameBytes), "a piece plus its frame has to stay inside one message");

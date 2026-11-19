@@ -96,9 +96,12 @@ public partial class LobbyManager
 				return false;
 			}
 
+			if (!await AnnounceHeldFilesAsync(targetMap, transferId, manifest)) return false;
+
 			for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
 			{
 				var pieces = new List<byte[]>(2);
+				bool nothingNeeded = false;
 				int packetIndex = 0;
 				int packetCount = 1;
 				while (packetIndex < packetCount)
@@ -112,9 +115,22 @@ public partial class LobbyManager
 						PacketIndex = packetIndex
 					}, 60000);
 
-					if (pieceReply is not { Kind: MapTransferReplyKind.Chunk } servedPiece || servedPiece.Bundle is not { Length: > 0 } pieceBytes)
+					if (pieceReply is not { Kind: MapTransferReplyKind.Chunk } servedPiece)
 					{
 						GameLog.LogError($"[LobbyManager] The lobby stopped serving '{targetMap}' at bundle {chunkIndex} piece {packetIndex}: {(pieceReply is { } answeredPiece ? answeredPiece.Refusal.Length > 0 ? answeredPiece.Refusal : $"the host answered {answeredPiece.Kind}" : "the host did not answer in time")}");
+						CallDeferred(nameof(EmitDownloadFailed));
+						return false;
+					}
+
+					if (servedPiece.PacketCount <= 0)
+					{
+						nothingNeeded = true;
+						break;
+					}
+
+					if (servedPiece.Bundle is not { Length: > 0 } pieceBytes)
+					{
+						GameLog.LogError($"[LobbyManager] The lobby sent an empty piece of '{targetMap}' at bundle {chunkIndex} piece {packetIndex}.");
 						CallDeferred(nameof(EmitDownloadFailed));
 						return false;
 					}
@@ -122,6 +138,12 @@ public partial class LobbyManager
 					packetCount = Math.Max(1, servedPiece.PacketCount);
 					pieces.Add(pieceBytes);
 					packetIndex++;
+				}
+
+				if (nothingNeeded)
+				{
+					CallDeferred(nameof(EmitDownloadProgress), Math.Clamp((float)(chunkIndex + 1) / totalChunks, 0.0f, 1.0f));
+					continue;
 				}
 
 				byte[] bundle = MapTransferPackets.Join(pieces);
@@ -188,6 +210,41 @@ public partial class LobbyManager
 
 		string localHash = MapSessionCopyService.ReadStatedPackageHash(localDirectory);
 		return localHash.Length == 0 || string.Equals(advertisedHash, localHash, StringComparison.OrdinalIgnoreCase);
+	}
+
+	/// <summary>
+	///     Tells the lobby which files of the map this machine already holds, so its bundles carry only what is missing.
+	/// </summary>
+	/// <param name="targetMap">The map being transferred.</param>
+	/// <param name="transferId">The transfer the announcement belongs to.</param>
+	/// <param name="manifest">The manifest the lobby served.</param>
+	/// <returns>Whether the lobby recorded the announcement.</returns>
+	private async Task<bool> AnnounceHeldFilesAsync(string targetMap, string transferId, MapManifest manifest)
+	{
+		List<string> missing = await Task.Run(() => MapAssetManager.GetMissingHashes(manifest.Files.Values));
+		List<string> held = MapTransferSelection.Held(manifest.Files.Values, missing);
+		if (held.Count == 0) return true;
+
+		for (int offset = 0; offset < held.Count; offset += LobbyLimits.MaximumHeldHashesPerAnnouncement)
+		{
+			int count = Math.Min(LobbyLimits.MaximumHeldHashesPerAnnouncement, held.Count - offset);
+			MapTransferReply? reply = await RequestMapTransferAsync(new MapTransferRequest
+			{
+				Kind = MapTransferRequestKind.Held,
+				TransferId = transferId,
+				MapName = targetMap,
+				ChunkIndex = 0,
+				HeldHashes = held.GetRange(offset, count).ToArray()
+			});
+
+			if (reply is { Kind: MapTransferReplyKind.Held }) continue;
+
+			GameLog.LogError($"[LobbyManager] The lobby did not record the files '{targetMap}' already holds: {(reply is { } answered ? answered.Refusal.Length > 0 ? answered.Refusal : $"the host answered {answered.Kind}" : "the host did not answer in time")}");
+			CallDeferred(nameof(EmitDownloadFailed));
+			return false;
+		}
+
+		return true;
 	}
 
 	private void OnMapTransferReplied(MapTransferReply reply) => _transferReplyTcs?.TrySetResult(reply);

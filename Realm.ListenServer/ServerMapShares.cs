@@ -15,7 +15,10 @@ public class ServerMapShares
 
 	private readonly List<List<MapShareFile>> _chunks = new();
 
+	private readonly Dictionary<int, HashSet<string>> _heldByPeer = new();
+
 	private int _builtChunkIndex = -1;
+	private int _builtBundlePeerId;
 	private byte[] _builtBundle = Array.Empty<byte>();
 
 	public ServerMapShares(string mapFolder, ServerLog log)
@@ -69,8 +72,14 @@ public class ServerMapShares
 	{
 		if (_manifest == null) return Refused(peerId, request, "this lobby cannot serve a map it could not read");
 
+		if (request.Kind == MapTransferRequestKind.Held) return RecordHeldFiles(peerId, request);
+
 		if (request.Kind == MapTransferRequestKind.Manifest)
 		{
+			// A manifest states the transfer a joiner is about to start, so what an earlier attempt said it held is given up
+			// here: the archive it states next belongs to this transfer.
+			_heldByPeer.Remove(peerId);
+
 			if (ManifestBytes.Length > LobbyLimits.MaximumMapTransferFrameBytes)
 			{
 				return Refused(peerId, request, $"this map's manifest is {ManifestBytes.Length} bytes, larger than the {LobbyLimits.MaximumMapTransferFrameBytes} bytes one message carries");
@@ -90,13 +99,29 @@ public class ServerMapShares
 		if (_chunks.Count == 0) return Refused(peerId, request, "this lobby's map lists no files to serve");
 		if (request.ChunkIndex < 0 || request.ChunkIndex >= _chunks.Count) return Refused(peerId, request, "that bundle is not part of this transfer");
 
-		byte[] bundle = BundleForChunk(request.ChunkIndex);
+		List<MapShareFile> needed = FilesStillNeededBy(peerId, request.ChunkIndex);
+		if (needed.Count == 0)
+		{
+			_log.Write($"peer {peerId} already holds every file in map bundle {request.ChunkIndex + 1}/{_chunks.Count}, so nothing of it is sent");
+			return new MapTransferReply
+			{
+				Kind = MapTransferReplyKind.Chunk,
+				TransferId = request.TransferId,
+				MapName = request.MapName,
+				ChunkIndex = request.ChunkIndex,
+				TotalChunks = _chunks.Count,
+				TotalBytes = TotalBytes,
+				Bundle = Array.Empty<byte>()
+			};
+		}
+
+		byte[] bundle = BundleForChunk(peerId, request.ChunkIndex, needed);
 		int packetCount = MapTransferPackets.CountFor(bundle.Length);
 		if (packetCount == 0) return Refused(peerId, request, "that bundle holds no bytes");
 		if (request.PacketIndex < 0 || request.PacketIndex >= packetCount) return Refused(peerId, request, "that piece is not part of this bundle");
 
 		byte[] piece = MapTransferPackets.Slice(bundle, request.PacketIndex);
-		_log.Write($"peer {peerId} is served map bundle {request.ChunkIndex + 1}/{_chunks.Count} piece {request.PacketIndex + 1}/{packetCount} ({piece.Length} of {bundle.Length} bytes, {_chunks[request.ChunkIndex].Count} file(s))");
+		_log.Write($"peer {peerId} is served map bundle {request.ChunkIndex + 1}/{_chunks.Count} piece {request.PacketIndex + 1}/{packetCount} ({piece.Length} of {bundle.Length} bytes, {needed.Count} of {_chunks[request.ChunkIndex].Count} file(s))");
 
 		return new MapTransferReply
 		{
@@ -155,18 +180,19 @@ public class ServerMapShares
 	}
 
 	/// <summary>
-	///     Builds one bundle and keeps it until another chunk is asked for, so the pieces of a large file are not read
-	///     from disk and compressed again for every piece the joiner requests.
+	///     Builds one bundle and keeps it until another chunk or another peer asks for one, so the pieces of a large file
+	///     are not read from disk and compressed again for every piece the joiner requests.
 	/// </summary>
+	/// <param name="peerId">The peer the bundle is built for, whose held files it leaves out.</param>
 	/// <param name="chunkIndex">The chunk to build.</param>
+	/// <param name="needed">The files of that chunk this peer does not hold.</param>
 	/// <returns>The bundle's bytes.</returns>
-	private byte[] BundleForChunk(int chunkIndex)
+	private byte[] BundleForChunk(int peerId, int chunkIndex, List<MapShareFile> needed)
 	{
-		if (chunkIndex == _builtChunkIndex) return _builtBundle;
+		if (chunkIndex == _builtChunkIndex && peerId == _builtBundlePeerId) return _builtBundle;
 
-		List<MapShareFile> chunk = _chunks[chunkIndex];
-		var assets = new List<(string AssetKey, byte[] Data, string? Metadata)>(chunk.Count);
-		foreach (MapShareFile item in chunk)
+		var assets = new List<(string AssetKey, byte[] Data, string? Metadata)>(needed.Count);
+		foreach (MapShareFile item in needed)
 		{
 			try
 			{
@@ -180,7 +206,68 @@ public class ServerMapShares
 
 		_builtBundle = ZstdAssetBundleHelper.CreateBundleBytes(assets);
 		_builtChunkIndex = chunkIndex;
+		_builtBundlePeerId = peerId;
 		return _builtBundle;
+	}
+
+	/// <summary>
+	///     Records the files a joiner states it already holds, which are the ones no bundle has to carry for it. A file is
+	///     named by the asset key the map's manifest states, and matched by the hash that key begins with, so a joiner whose
+	///     keys carry a different extension still matches.
+	/// </summary>
+	/// <param name="peerId">The connection that announced them.</param>
+	/// <param name="request">The announcement.</param>
+	/// <returns>The answer that records them.</returns>
+	private MapTransferReply RecordHeldFiles(int peerId, MapTransferRequest request)
+	{
+		string[] announced = request.HeldHashes ?? Array.Empty<string>();
+		if (announced.Length > LobbyLimits.MaximumHeldHashesPerAnnouncement)
+		{
+			return Refused(peerId, request, $"that announcement names {announced.Length} files, more than the {LobbyLimits.MaximumHeldHashesPerAnnouncement} one may carry");
+		}
+
+		if (!_heldByPeer.TryGetValue(peerId, out HashSet<string>? held))
+		{
+			held = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			_heldByPeer[peerId] = held;
+		}
+
+		foreach (string hash in announced)
+		{
+			string normalized = ContentAddressableStorage.NormalizeBlake3Hash(hash);
+			if (normalized.Length > 0) held.Add(normalized);
+		}
+
+		_log.Write($"peer {peerId} holds {held.Count} file(s) of this map already, so they are left out of what it is served");
+
+		return new MapTransferReply
+		{
+			Kind = MapTransferReplyKind.Held,
+			TransferId = request.TransferId,
+			MapName = request.MapName,
+			TotalChunks = _chunks.Count,
+			TotalBytes = TotalBytes
+		};
+	}
+
+	/// <summary>
+	///     The files of one chunk this peer does not hold, which is what its bundle is built from.
+	/// </summary>
+	/// <param name="peerId">The connection asking.</param>
+	/// <param name="chunkIndex">The chunk it is asking for.</param>
+	/// <returns>The files still to send.</returns>
+	private List<MapShareFile> FilesStillNeededBy(int peerId, int chunkIndex)
+	{
+		List<MapShareFile> chunk = _chunks[chunkIndex];
+		if (!_heldByPeer.TryGetValue(peerId, out HashSet<string>? held) || held.Count == 0) return chunk;
+
+		var needed = new List<MapShareFile>(chunk.Count);
+		foreach (MapShareFile file in chunk)
+		{
+			if (!held.Contains(file.Hash)) needed.Add(file);
+		}
+
+		return needed;
 	}
 
 	private MapTransferReply Refused(int peerId, MapTransferRequest request, string reason)

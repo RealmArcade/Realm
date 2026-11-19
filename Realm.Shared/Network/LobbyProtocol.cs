@@ -119,14 +119,24 @@ public static class LobbyBotDifficultyRules
 public enum MapTransferRequestKind : byte
 {
 	Manifest = 1,
-	Chunk = 2
+	Chunk = 2,
+
+	/// <summary>
+	///     Names files the joiner already holds in its own archive, so the lobby leaves them out of the bundles it builds.
+	///     It travels in batches because the list is a map's own file count, and it is sent once per transfer rather than
+	///     with every request, which is what lets the lobby plan its bundles before it learns what to skip.
+	/// </summary>
+	Held = 3
 }
 
 public enum MapTransferReplyKind : byte
 {
 	Manifest = 1,
 	Chunk = 2,
-	Refused = 3
+	Refused = 3,
+
+	/// <summary>Answers an announcement of files the joiner holds, which the lobby has recorded for this transfer.</summary>
+	Held = 4
 }
 
 [MemoryPackable]
@@ -383,6 +393,12 @@ public partial struct MapTransferRequest
 	///     asks for them in turn.
 	/// </summary>
 	public int PacketIndex;
+
+	/// <summary>
+	///     The files this joiner already holds, as manifest asset keys, when the request announces them. Empty for every
+	///     other kind of request.
+	/// </summary>
+	public string[] HeldHashes;
 }
 
 [MemoryPackable]
@@ -416,7 +432,10 @@ public partial struct MapTransferReply
 
 	public long TotalBytes;
 
-	/// <summary>The piece itself, which is the whole bundle when the bundle fits one piece.</summary>
+	/// <summary>
+	///     The piece itself, which is the whole bundle when the bundle fits one piece. It is empty, and the piece count
+	///     zero, when the joiner holds every file the chunk carries: nothing of that chunk needs to travel.
+	/// </summary>
 	public byte[] Bundle;
 }
 
@@ -482,6 +501,12 @@ public static class LobbyLimits
 	///     so a reply at or over that size would be dropped by the transport and answered with nothing at all.
 	/// </summary>
 	public const int MaximumMapTransferFrameBytes = 512 * 1024;
+
+	/// <summary>
+	///     The files one announcement of already-held files may name, which keeps that frame well inside a message while a
+	///     joiner holding a large map only has to state its archive a few times.
+	/// </summary>
+	public const int MaximumHeldHashesPerAnnouncement = 512;
 
 	/// <summary>
 	///     The refusal a peer is answered with when it asks to be seated in a lobby that removed it.
