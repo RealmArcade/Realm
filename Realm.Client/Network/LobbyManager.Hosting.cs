@@ -330,7 +330,7 @@ public partial class LobbyManager
 		if (!IsHost || SteamLobbyId == 0) return;
 		if (string.Equals(_publishedAdvertisementMap, ActiveMapName, StringComparison.Ordinal) && _publishedAdvertisementSeats == MaxPlayers) return;
 
-		PublishHostedLobbyMetadata(_lobbySession?.MapHash ?? string.Empty, !string.IsNullOrEmpty(JoinCode));
+		PublishHostedLobbyMetadata(!string.IsNullOrEmpty(JoinCode));
 	}
 
 	/// <summary>
@@ -338,9 +338,8 @@ public partial class LobbyManager
 	///     the map or the number of seats changes, so the browser never offers a lobby whose stated map or size is not the one
 	///     the host is playing. Nothing that is match state belongs here: seats, teams and settings live in the lobby protocol.
 	/// </summary>
-	/// <param name="mapHash">The content hash of the map the host runs.</param>
 	/// <param name="requiresCode">Whether the lobby gates its seats with a join code, whose text is never published.</param>
-	private void PublishHostedLobbyMetadata(string mapHash, bool requiresCode)
+	private void PublishHostedLobbyMetadata(bool requiresCode)
 	{
 		_publishedAdvertisementMap = ActiveMapName;
 		_publishedAdvertisementSeats = MaxPlayers;
@@ -349,8 +348,8 @@ public partial class LobbyManager
 
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapKey, ActiveMapName);
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapVersionKey, HostedMapVersion);
-		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapWorkshopIdKey, _publishedMapWorkshopId.ToString(CultureInfo.InvariantCulture));
-		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapHashKey, mapHash);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapWorkshopIdKey, DeliverableMapWorkshopId().ToString(CultureInfo.InvariantCulture));
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapHashKey, AdvertisedMapHash());
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.EngineGenerationKey, RealmVersion.EngineGeneration.ToString(CultureInfo.InvariantCulture));
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.GameBuildKey, RealmVersion.GameBuildNumber);
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.ModeKey, "Melee");
@@ -358,6 +357,39 @@ public partial class LobbyManager
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.RequiresCodeKey, requiresCode ? "1" : "0");
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapTrustKey, _publishedMapTrust.IsTrusted ? "1" : "0");
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapTrustReasonKey, ((int)_publishedMapTrust.Reason).ToString(CultureInfo.InvariantCulture));
+	}
+
+	/// <summary>
+	///     The package hash this lobby advertises, which is the hash of the manifest the host will play from. A joiner holds
+	///     the same package only when its manifest is the same file, and reading that costs one file read on either side,
+	///     so the join can decide whether it needs the host's copy before it connects. A folder with no manifest states
+	///     nothing, and the join is then settled by what is installed.
+	/// </summary>
+	/// <returns>The package hash, or an empty string when the map states none.</returns>
+	private string AdvertisedMapHash()
+	{
+		string? mapDirectory = GameHost.ResolveMapDirectory(ActiveMapName, ActiveMapVersion);
+		return string.IsNullOrEmpty(mapDirectory) ? string.Empty : MapSessionCopyService.ReadStatedPackageHash(mapDirectory);
+	}
+
+	/// <summary>
+	///     The Workshop item Steam can hand this lobby's exact map from, or zero when Steam cannot. A map whose files were
+	///     imported from a package is a copy this machine holds even when its author published one, because the item Steam
+	///     would deliver is the folder it installs and not this copy; a joiner can then only be given what the host has,
+	///     and the advertisement says so by naming no item.
+	/// </summary>
+	/// <returns>The item whose installed folder the lobby plays from, or zero.</returns>
+	private ulong DeliverableMapWorkshopId()
+	{
+		if (_publishedMapWorkshopId == 0) return 0;
+
+		string? mapDirectory = GameHost.ResolveMapDirectory(ActiveMapName, ActiveMapVersion);
+		string? itemFolder = SteamWorkshopService.GetInstalledFolder(_publishedMapWorkshopId);
+		if (string.IsNullOrEmpty(mapDirectory) || string.IsNullOrEmpty(itemFolder)) return 0;
+
+		string relative = Path.GetRelativePath(Path.GetFullPath(itemFolder), Path.GetFullPath(mapDirectory));
+		bool insideTheItem = !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
+		return insideTheItem ? _publishedMapWorkshopId : 0;
 	}
 
 	/// <summary>
@@ -438,7 +470,7 @@ public partial class LobbyManager
 		// Steam metadata is the advertisement, not the lobby state: seats, teams and settings stay in the lobby protocol.
 		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.HostSteamIdKey, GameContext.Steam.SteamId.ToString(CultureInfo.InvariantCulture));
 		_publishedMapTrust = await ResolveHostedMapTrustAsync();
-		PublishHostedLobbyMetadata(prepared.MapHash, requiresCode);
+		PublishHostedLobbyMetadata(requiresCode);
 
 		LobbyPort = prepared.Port;
 

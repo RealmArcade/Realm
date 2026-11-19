@@ -386,7 +386,14 @@ public partial struct MapTransferReply
 	public MapTransferReplyKind Kind;
 	public string TransferId;
 	public string MapName;
-	public string ManifestJson;
+
+	/// <summary>
+	///     The host's own <c>manifest.json</c>, byte for byte, because that file is the package's identity: a joiner
+	///     writes these bytes rather than a re-serialization of them, so the copy it ends up holding is the package the
+	///     lobby advertises and not a look-alike that hashes differently.
+	/// </summary>
+	public byte[] ManifestBytes;
+
 	public string Refusal;
 	public int ChunkIndex;
 	public int TotalChunks;

@@ -156,6 +156,9 @@ public partial class LobbyManager
 		LastLobbyWarning = null;
 		LastHostError = null;
 		_downloadingMapName = null;
+		// A copy prepared for the lobby this screen was in a moment ago belongs to that lobby's package and to nothing
+		// else, so it is dropped here rather than resolved for a map of the same name in this one.
+		ActiveMapSessionDirectory = string.Empty;
 		PlayerList.Clear();
 	}
 
@@ -461,7 +464,7 @@ public partial class LobbyManager
 		}
 		else
 		{
-			holdsMap = MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion);
+			holdsMap = HoldsAdvertisedMapCopy(ActiveMapName, ActiveMapVersion);
 		}
 
 		if (!holdsMap) return;
@@ -498,7 +501,7 @@ public partial class LobbyManager
 		if (me == null || me.IsMapReady) return;
 		if (string.IsNullOrWhiteSpace(ActiveMapName)) return;
 
-		if (MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion))
+		if (HoldsAdvertisedMapCopy(ActiveMapName, ActiveMapVersion))
 		{
 			ReportLocalMapReadyState(true);
 			return;

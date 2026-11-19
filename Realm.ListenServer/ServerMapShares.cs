@@ -10,6 +10,7 @@ public class ServerMapShares
 {
 	private readonly ServerLog _log;
 	private readonly MapManifest? _manifest;
+	private readonly byte[] _manifestBytes = Array.Empty<byte>();
 	private readonly Dictionary<string, string> _pathByHash = new(StringComparer.OrdinalIgnoreCase);
 
 	private const int MaximumRequestedHashes = 20000;
@@ -20,6 +21,11 @@ public class ServerMapShares
 		try
 		{
 			_manifest = MapFileService.LoadManifest(mapFolder);
+			// The manifest is served as the file it is, not as a re-serialization of it, so the copy a joiner writes is
+			// the package this lobby advertises rather than one that reads the same and hashes differently.
+			string manifestPath = Path.Combine(mapFolder, "manifest.json");
+			if (File.Exists(manifestPath)) _manifestBytes = File.ReadAllBytes(manifestPath);
+
 			if (_manifest.Files.Count > 0)
 			{
 				foreach (var pair in _manifest.Files)
@@ -39,7 +45,7 @@ public class ServerMapShares
 		}
 	}
 
-	public string ManifestJson => _manifest == null ? string.Empty : JsonSerializer.Serialize(_manifest);
+	public byte[] ManifestBytes => _manifest == null ? Array.Empty<byte>() : _manifestBytes;
 
 	public long TotalBytes
 	{
@@ -73,7 +79,7 @@ public class ServerMapShares
 				Kind = MapTransferReplyKind.Manifest,
 				TransferId = request.TransferId,
 				MapName = request.MapName,
-				ManifestJson = ManifestJson,
+				ManifestBytes = ManifestBytes,
 				TotalBytes = TotalBytes
 			};
 		}

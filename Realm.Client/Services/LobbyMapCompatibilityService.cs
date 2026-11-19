@@ -42,9 +42,16 @@ public static class LobbyMapCompatibilityService
 
 		if (string.IsNullOrEmpty(installedDirectory))
 		{
-			return advertisedWorkshopId != 0
-				? TranslationServer.Translate("This lobby's map is not on this machine yet. Subscribe to it on Steam Workshop, then join again.")
-				: TranslationServer.Translate("This map is not on this machine, and the host's copy cannot be downloaded from Steam Workshop.");
+			// A map Steam does not carry is the host's to send, and the lobby connection is the only way to be given it, so
+			// the join goes ahead and the map arrives once this screen is admitted. Nothing is prepared here: there is
+			// nothing on this machine to prepare, and the copy the host sends is what gets prepared afterwards.
+			if (advertisedWorkshopId == 0)
+			{
+				GameLog.LogToConsole($"[LobbyMapCompatibility] '{mapName}' is not on this machine and the lobby states no Workshop item, so the host will send its copy.");
+				return string.Empty;
+			}
+
+			return TranslationServer.Translate("This lobby's map is not on this machine yet. Subscribe to it on Steam Workshop, then join again.");
 		}
 
 		MapSessionCopyService.MapSessionIdentity identity = MapSessionCopyService.ReadIdentity(installedDirectory);
@@ -53,9 +60,19 @@ public static class LobbyMapCompatibilityService
 			return TranslationServer.Translate("This map needs a newer version of Realm. Update the game and try again.");
 		}
 
+		// A package hash is the hash of the map's own manifest, which every machine holding the same package reads the same,
+		// so two values that differ are genuinely two different packages rather than two ways of describing one. A lobby
+		// published on the Workshop can only hand out the item Steam delivers, and a host running something else has to
+		// publish it; a lobby running a local copy has no other distributor and sends it over the lobby itself.
 		string localHash = MapSessionCopyService.ReadStatedPackageHash(installedDirectory);
 		if (advertisedHash.Length > 0 && localHash.Length > 0 && !string.Equals(advertisedHash, localHash, StringComparison.OrdinalIgnoreCase))
 		{
+			if (advertisedWorkshopId == 0)
+			{
+				GameLog.LogToConsole($"[LobbyMapCompatibility] this machine holds a different package of '{mapName}' than the lobby runs, and the lobby states no Workshop item, so the host's copy will replace it.");
+				return string.Empty;
+			}
+
 			return TranslationServer.Translate("The host has a different version of this map installed. The host needs to update it on Steam Workshop and open the lobby again.");
 		}
 

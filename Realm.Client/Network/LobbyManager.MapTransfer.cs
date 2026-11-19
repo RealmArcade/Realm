@@ -39,7 +39,7 @@ public partial class LobbyManager
 			return true;
 		}
 
-		if (MapAssetManager.IsMapDownloaded(targetMap, targetVersion))
+		if (HoldsAdvertisedMapCopy(targetMap, targetVersion))
 		{
 		_downloadingMapName = null;
 		CallDeferred(nameof(EmitDownloadCompleted));
@@ -69,14 +69,14 @@ public partial class LobbyManager
 				ChunkIndex = 0
 			});
 
-			if (manifestReply is not { Kind: MapTransferReplyKind.Manifest } servedManifest || string.IsNullOrEmpty(servedManifest.ManifestJson))
+			if (manifestReply is not { Kind: MapTransferReplyKind.Manifest } servedManifest || servedManifest.ManifestBytes is not { Length: > 0 } servedManifestBytes)
 			{
 				GameLog.LogError($"[LobbyManager] The lobby did not serve a manifest for '{targetMap}': {manifestReply?.Refusal}");
 				CallDeferred(nameof(EmitDownloadFailed));
 				return false;
 			}
 
-			MapManifest? manifest = MapManifest.LoadFromJson(servedManifest.ManifestJson);
+			MapManifest? manifest = MapManifest.LoadFromJson(Encoding.UTF8.GetString(servedManifestBytes));
 			if (manifest == null)
 			{
 				CallDeferred(nameof(EmitDownloadFailed));
@@ -137,6 +137,9 @@ public partial class LobbyManager
 			{
 				MapReferenceResolver.ClearReadOnlyRecursive(targetDirectory);
 				MapAssetManager.ExtractManifestFiles(manifest, targetDirectory);
+				// The host's manifest replaces whatever manifest was there, byte for byte, because that file is what makes
+				// this copy the advertised package rather than one that only reads the same.
+				File.WriteAllBytes(Path.Combine(targetDirectory, "manifest.json"), servedManifestBytes);
 				GameContext.AssetIndexService.RegisterManifest(manifest, Path.Combine(targetDirectory, "manifest.json"));
 				MapReferenceResolver.SetReadOnlyRecursive(targetDirectory);
 			});
@@ -157,6 +160,29 @@ public partial class LobbyManager
 		{
 			_mapDownloadLock.Release();
 		}
+	}
+
+	/// <summary>
+	///     Whether this machine already holds the package the lobby advertises, which is what makes taking the host's copy
+	///     unnecessary. A package is the map's own manifest, so holding a different version of the same map is a package
+	///     this screen does not have and has to be given. A lobby that states no package hash says nothing to compare with,
+	///     and whatever is installed is then what it plays.
+	/// </summary>
+	/// <param name="mapName">The map's path name.</param>
+	/// <param name="mapVersion">The map's version, as the lobby states it.</param>
+	/// <returns>Whether the advertised package is the one on this machine.</returns>
+	private bool HoldsAdvertisedMapCopy(string mapName, string mapVersion)
+	{
+		if (!MapAssetManager.IsMapDownloaded(mapName, mapVersion)) return false;
+
+		string advertisedHash = SteamLobbyDirectory.GetData(SteamLobbyId, SteamLobbyDirectory.MapHashKey);
+		if (advertisedHash.Length == 0) return true;
+
+		string? localDirectory = GameHost.ResolveMapDirectory(mapName, mapVersion);
+		if (string.IsNullOrEmpty(localDirectory)) return false;
+
+		string localHash = MapSessionCopyService.ReadStatedPackageHash(localDirectory);
+		return localHash.Length == 0 || string.Equals(advertisedHash, localHash, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private void OnMapTransferReplied(MapTransferReply reply) => _transferReplyTcs?.TrySetResult(reply);

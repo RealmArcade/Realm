@@ -23,12 +23,17 @@ public static class SteamLobbyDirectory
 	/// <summary>The map's version string.</summary>
 	public const string MapVersionKey = "mapVersion";
 
-	/// <summary>The hash of the map content the host will run.</summary>
+	/// <summary>
+	///     The package hash of the map the host will run, which is the hash of the manifest that package carries. Two
+	///     machines holding the same package read the same value from it, and reading it costs one file read, so a joiner
+	///     can tell before it connects whether this screen already holds the map the lobby plays or has to be sent it.
+	/// </summary>
 	public const string MapHashKey = "mapHash";
 
 	/// <summary>
-	///     The Workshop item the lobby's map is published as, or zero when it was never published. A joiner compares it
-	///     with the item it holds, and an absence is what tells it the host cannot send the map through Steam.
+	///     The Workshop item Steam can hand the lobby's exact map from, or zero when Steam cannot: the map was never
+	///     published, or the host is playing a copy it imported rather than the folder Steam installs. It is what a joiner
+	///     subscribes to when it does not hold the map, and an absence is what tells it the host has to send the map itself.
 	/// </summary>
 	public const string MapWorkshopIdKey = "mapWorkshopId";
 
