@@ -59,6 +59,11 @@ static List<string> ReadCorpusDirectory(string directory)
 
 if (options.Train)
 {
+	if (options.TrainPublish)
+	{
+		return PublishPipeline.Run(options);
+	}
+
 	TrainingRunResult result = MatchTrainer.Train(options);
 	BotProfile profile = result.Profile;
 	string profilePath = options.TrainOutputPath ?? Path.Combine(options.MapPath, $"{profile.MapName}_bot.json");
@@ -138,7 +143,7 @@ static void PlaySeeds(IReadOnlyList<int> seeds, MatchRunOptions options, string 
 		string partPath = partsDirectory.Length == 0 ? directOutputPath : Path.Combine(partsDirectory, $"{seed}.jsonl");
 		try
 		{
-			var outcome = MatchPlayer.Run(options, seed);
+			var outcome = MatchPlayer.Run(options, seed, null, options.AuthorityLogPath);
 			File.WriteAllText(partPath, outcome.ToJsonLine(), new UTF8Encoding(false));
 			Console.WriteLine($"seed {seed}: finished with {outcome.EndReason}, winner {outcome.WinnerSeat}");
 		}

@@ -9,7 +9,12 @@ namespace Realm.Tools.MatchRunner;
 
 public static class MatchPlayer
 {
-	public static MatchOutcome Run(MatchRunOptions options, int seed, float[]? seatOneWeights = null)
+	public static MatchOutcome Run(
+		MatchRunOptions options,
+		int seed,
+		float[]? seatOneWeights = null,
+		string? authorityLogPath = null,
+		Action<ServerBots>? botsObserver = null)
 	{
 		MatchRosterSeat[] roster = BuildRoster(options.Seats);
 		string workDirectory = Path.Combine(Path.GetTempPath(), "realm-match-runner", $"{Environment.ProcessId}-{seed}");
@@ -17,7 +22,7 @@ public static class MatchPlayer
 
 		try
 		{
-			MatchOutcome outcome = Play(options, seed, seatOneWeights, roster, workDirectory);
+			MatchOutcome outcome = Play(options, seed, seatOneWeights, roster, workDirectory, authorityLogPath, botsObserver);
 			DeleteWorkDirectory(workDirectory);
 			return outcome;
 		}
@@ -41,10 +46,17 @@ public static class MatchPlayer
 		}
 	}
 
-	private static MatchOutcome Play(MatchRunOptions options, int seed, float[]? seatOneWeights, MatchRosterSeat[] roster, string workDirectory)
+	private static MatchOutcome Play(
+		MatchRunOptions options,
+		int seed,
+		float[]? seatOneWeights,
+		MatchRosterSeat[] roster,
+		string workDirectory,
+		string? authorityLogPath,
+		Action<ServerBots>? botsObserver)
 	{
 		LoadedMap map = MapWorldLoader.Load(options.MapPath, roster);
-		using var log = new ServerLog(Path.Combine(workDirectory, "authority.log"));
+		string logPath = Path.Combine(workDirectory, "authority.log");
 		var paths = ServerMatchPaths.ForMap(map, options.MapPath, Path.Combine(workDirectory, "data"), workDirectory);
 
 		if (!string.IsNullOrWhiteSpace(options.DataProfilePath))
@@ -53,7 +65,9 @@ public static class MatchPlayer
 			File.Copy(options.DataProfilePath, Path.Combine(paths.DataDirectory, $"{paths.MapName}_bot.json"), overwrite: true);
 		}
 
-		using var simulation = new ServerSimulation(
+		MatchOutcome outcome;
+		using (var log = new ServerLog(logPath))
+		using (var simulation = new ServerSimulation(
 			map,
 			paths,
 			log,
@@ -64,27 +78,38 @@ public static class MatchPlayer
 			roster: roster,
 			hostPlayerSlot: 0,
 			preparedScriptHost: null,
-			scriptPathOverride: options.WasmPath);
-
-		ApplyPolicies(simulation, options, seatOneWeights);
-
-		long maximumTicks = (long)Math.Ceiling(options.MaxSeconds * MatchTiming.SimulationTickRateHz);
-		long ticks = 0;
-		while (!simulation.IsGameOver && ticks < maximumTicks)
+			scriptPathOverride: options.WasmPath))
 		{
-			simulation.Step();
-			ticks++;
+			ApplyPolicies(simulation, options, seatOneWeights);
+
+			long maximumTicks = (long)Math.Ceiling(options.MaxSeconds * MatchTiming.SimulationTickRateHz);
+			long ticks = 0;
+			while (!simulation.IsGameOver && ticks < maximumTicks)
+			{
+				simulation.Step();
+				ticks++;
+			}
+
+			botsObserver?.Invoke(simulation.ScriptApi.Bots);
+			string endReason = simulation.IsGameOver ? "victory" : "max-seconds";
+			outcome = simulation.Metrics.BuildOutcome(
+				paths.MapName,
+				seed,
+				options.MaxSeconds,
+				simulation.IsGameOver,
+				endReason,
+				(float)simulation.MatchSeconds,
+				options.Seats);
 		}
 
-		string endReason = simulation.IsGameOver ? "victory" : "max-seconds";
-		return simulation.Metrics.BuildOutcome(
-			paths.MapName,
-			seed,
-			options.MaxSeconds,
-			simulation.IsGameOver,
-			endReason,
-			(float)simulation.MatchSeconds,
-			options.Seats);
+		if (!string.IsNullOrWhiteSpace(authorityLogPath))
+		{
+			string destination = Path.GetFullPath(authorityLogPath);
+			Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? Directory.GetCurrentDirectory());
+			File.Copy(logPath, destination, overwrite: true);
+		}
+
+		return outcome;
 	}
 
 	private static MatchRosterSeat[] BuildRoster(int seats)

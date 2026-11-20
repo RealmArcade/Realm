@@ -16,6 +16,7 @@ public class ServerBots
 {
 	public const string DefaultGenreName = "rts";
 	public const string CustomGenreName = "custom";
+	public const string MapCandidateWeightsMismatchMarker = "map candidate weight mismatch";
 
 	private readonly SimulationContext _context;
 	private readonly string _mapName;
@@ -25,6 +26,8 @@ public class ServerBots
 	private readonly Dictionary<int, List<GenericAffordance>> _customDecisionsPerPlayer = new();
 	private readonly HashSet<int> _injectedPolicyPlayers = new();
 	private readonly Dictionary<int, float> _mistakeChanceByPlayer = new();
+	private readonly Dictionary<int, int> _mapCandidateFeatureCountByPlayer = new();
+	private readonly HashSet<(int Player, int ProfileWeights, int Registered)> _reportedMapCandidateMismatch = new();
 
 	public ServerBots(SimulationContext context, string mapName, string dataDirectory, ServerLog log)
 	{
@@ -48,6 +51,7 @@ public class ServerBots
 				_controllers[playerIndex] = bot;
 			}
 
+			ReportMapCandidateWeightsMismatch(playerIndex, bot);
 			bot.Tick(_context.World, playerIndex, deltaSeconds);
 		}
 	}
@@ -179,6 +183,13 @@ public class ServerBots
 		}
 
 		decisions.Add(new GenericAffordance(Entity.Null, commandIntent, Entity.Null, position, actionId, payload, featureVector));
+		_mapCandidateFeatureCountByPlayer[playerIndex] = featureVector?.Length ?? 0;
+		ReportMapCandidateWeightsMismatch(playerIndex);
+	}
+
+	public int MapCandidateFeatureCount(int playerIndex)
+	{
+		return _mapCandidateFeatureCountByPlayer.TryGetValue(playerIndex, out int count) ? count : 0;
 	}
 
 	public void ClearCustomDecisions(int playerIndex)
@@ -190,6 +201,20 @@ public class ServerBots
 	{
 		_controllers.Remove(playerIndex);
 		_customDecisionsPerPlayer.Remove(playerIndex);
+		_mapCandidateFeatureCountByPlayer.Remove(playerIndex);
+		_reportedMapCandidateMismatch.RemoveWhere(reported => reported.Player == playerIndex);
+	}
+
+	private void ReportMapCandidateWeightsMismatch(int playerIndex, BotController? bot = null)
+	{
+		if (!_mapCandidateFeatureCountByPlayer.TryGetValue(playerIndex, out int registeredFeatures)) return;
+		if (bot == null && !_controllers.TryGetValue(playerIndex, out bot)) return;
+
+		int profileWeights = bot.MapCandidateWeights.Length;
+		if (profileWeights == 0 || profileWeights == registeredFeatures) return;
+		if (!_reportedMapCandidateMismatch.Add((playerIndex, profileWeights, registeredFeatures))) return;
+
+		_log.Write($"{MapCandidateWeightsMismatchMarker}: player {playerIndex} carries {profileWeights} map candidate weight(s) but the map registered {registeredFeatures} feature(s) per candidate; the bot is scoring them with equal weights instead of the trained ones");
 	}
 
 	public static string Train(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre, int seed = 0)

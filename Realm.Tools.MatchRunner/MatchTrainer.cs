@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -182,13 +181,13 @@ public class TrainingMatchEvaluator
 		string outcomePath = Path.Combine(
 			_workspaceDirectory,
 			$"outcome-{seed}-{candidateSeat}-{Interlocked.Increment(ref _evaluationCounter)}.jsonl");
-		ClearOutcomeFiles(outcomePath);
+		MatchProcessRunner.ClearOutcomeFiles(outcomePath);
 		Interlocked.Increment(ref _playedMatches);
 
 		try
 		{
-			RunMatchProcess(profilePath, seed, candidateSeat, outcomePath);
-			return ReadScore(outcomePath, candidateSeat);
+			MatchProcessRunner.Run(_options, profilePath, seed, candidateSeat, outcomePath);
+			return MatchProcessRunner.ReadScore(outcomePath, candidateSeat);
 		}
 		catch (InvalidOperationException exception)
 		{
@@ -204,79 +203,8 @@ public class TrainingMatchEvaluator
 		}
 		finally
 		{
-			ClearOutcomeFiles(outcomePath);
+			MatchProcessRunner.ClearOutcomeFiles(outcomePath);
 		}
-	}
-
-	private void RunMatchProcess(string profilePath, int seed, int candidateSeat, string outcomePath)
-	{
-		string processPath = Environment.ProcessPath ?? "dotnet";
-		bool runsThroughDotnet = string.Equals(Path.GetFileNameWithoutExtension(processPath), "dotnet", StringComparison.OrdinalIgnoreCase);
-		string assemblyPath = typeof(MatchRunOptions).Assembly.Location;
-
-		var start = new ProcessStartInfo(processPath)
-		{
-			UseShellExecute = false,
-			RedirectStandardOutput = true,
-			RedirectStandardError = true,
-			Environment = { ["REALM_MATCH_RUNNER_CHILD"] = "1" }
-		};
-
-		if (runsThroughDotnet) start.ArgumentList.Add(assemblyPath);
-		AddArgument(start, "--map", _options.MapPath);
-		if (!string.IsNullOrWhiteSpace(_options.WasmPath)) AddArgument(start, "--wasm", _options.WasmPath);
-		if (!string.IsNullOrWhiteSpace(_options.DataProfilePath)) AddArgument(start, "--data-profile", _options.DataProfilePath);
-		AddArgument(start, "--seed-range", string.Create(CultureInfo.InvariantCulture, $"{seed}-{seed}"));
-		AddArgument(start, "--seats", _options.Seats.ToString(CultureInfo.InvariantCulture));
-		AddArgument(start, "--max-seconds", _options.MaxSeconds.ToString("0.###", CultureInfo.InvariantCulture));
-		AddArgument(start, "--policy", _options.Policy);
-		AddArgument(start, "--seat-policy", $"{candidateSeat}=profile:{profilePath}");
-		AddArgument(start, "--output", outcomePath);
-
-		using Process process = Process.Start(start)
-			?? throw new InvalidOperationException($"could not start the runner for seed {seed}");
-
-		Task<string> standardOutput = process.StandardOutput.ReadToEndAsync();
-		Task<string> standardError = process.StandardError.ReadToEndAsync();
-		bool finished = process.WaitForExit(EvaluationTimeoutMilliseconds);
-		string errorText = standardError.GetAwaiter().GetResult();
-		standardOutput.GetAwaiter().GetResult();
-
-		if (!finished)
-		{
-			process.Kill(entireProcessTree: true);
-			throw new InvalidOperationException($"the match for seed {seed} did not finish within {EvaluationTimeoutMilliseconds} ms");
-		}
-
-		if (process.ExitCode != 0 || File.Exists(outcomePath) == false)
-		{
-			throw new InvalidOperationException(
-				$"the match for seed {seed} with the candidate at seat {candidateSeat} ended with exit code {process.ExitCode}: {DescribeText(errorText)}");
-		}
-	}
-
-	private int EvaluationTimeoutMilliseconds
-	{
-		get
-		{
-			double milliseconds = (_options.MaxSeconds + 600.0) * 1000.0;
-			return (int)Math.Min(int.MaxValue, milliseconds);
-		}
-	}
-
-	private static void AddArgument(ProcessStartInfo start, string name, string? value)
-	{
-		if (string.IsNullOrWhiteSpace(value)) return;
-		start.ArgumentList.Add(name);
-		start.ArgumentList.Add(value);
-	}
-
-	private static string DescribeText(string text)
-	{
-		string trimmedText = text.Trim();
-		if (trimmedText.Length == 0) return "no message";
-		const int maximumReportedLength = 400;
-		return trimmedText.Length <= maximumReportedLength ? trimmedText : trimmedText[^maximumReportedLength..];
 	}
 
 	private string WriteCandidateProfile(float[] weights)
@@ -318,40 +246,4 @@ public class TrainingMatchEvaluator
 		return hash.ToString("x8", CultureInfo.InvariantCulture);
 	}
 
-	private static float ReadScore(string outcomePath, int candidateSeat)
-	{
-		if (!File.Exists(outcomePath))
-		{
-			throw new InvalidOperationException($"the match with the candidate at seat {candidateSeat} wrote no outcome");
-		}
-
-		foreach (string line in File.ReadLines(outcomePath))
-		{
-			if (line.Length == 0) continue;
-
-			using JsonDocument document = JsonDocument.Parse(line);
-			JsonElement root = document.RootElement;
-			if (root.TryGetProperty("error", out JsonElement error))
-			{
-				throw new InvalidOperationException(error.GetString() ?? "the match failed without a message");
-			}
-
-			if (!root.TryGetProperty("winnerSeat", out JsonElement winner))
-			{
-				throw new InvalidOperationException("the match outcome carries no winner seat");
-			}
-
-			int winnerSeat = winner.GetInt32();
-			return winnerSeat == candidateSeat ? 1.0f : winnerSeat <= 0 ? 0.5f : 0.0f;
-		}
-
-		throw new InvalidOperationException("the match outcome file is empty");
-	}
-
-	private static void ClearOutcomeFiles(string outcomePath)
-	{
-		if (File.Exists(outcomePath)) File.Delete(outcomePath);
-		string summaryPath = outcomePath + ".summary.json";
-		if (File.Exists(summaryPath)) File.Delete(summaryPath);
-	}
 }

@@ -8,12 +8,13 @@ public class MatchRunOptions
 
 	public string MapPath { get; private set; } = string.Empty;
 	public string? WasmPath { get; private set; }
-	public string? DataProfilePath { get; private set; }
+	public string? DataProfilePath { get; set; }
+	public string? AuthorityLogPath { get; private set; }
 	public int SeedStart { get; private set; } = 1;
 	public int SeedEnd { get; private set; } = 1;
 	public int Seats { get; private set; } = 2;
 	public float MaxSeconds { get; private set; } = 1800f;
-	public string Policy { get; private set; } = DefaultPolicy;
+	public string Policy { get; set; } = DefaultPolicy;
 	public Dictionary<int, string> SeatPolicies { get; } = new();
 	public string OutputPath { get; private set; } = "match-outcomes.jsonl";
 	public int Parallel { get; private set; } = 1;
@@ -29,11 +30,17 @@ public class MatchRunOptions
 	public float[]? TrainInitialWeights { get; private set; }
 	public int TrainMapCandidateFeatures { get; private set; }
 	public int TrainParallel { get; private set; } = Math.Max(1, Environment.ProcessorCount - 2);
+	public bool TrainPublish { get; private set; }
+	public int PublishSeedStart { get; private set; }
+	public int PublishSeedEnd { get; private set; }
+	public int PublishSmokeSeeds { get; private set; } = 4;
 	public bool Balance { get; private set; }
 	public string? BalanceReportPath { get; private set; }
 	public string? BalanceInputPath { get; private set; }
 
 	public int SeedCount => SeedEnd - SeedStart + 1;
+
+	public int PublishSeedCount => PublishSeedEnd - PublishSeedStart + 1;
 
 	public static string Usage =>
 		"""
@@ -42,6 +49,7 @@ public class MatchRunOptions
 		  --map <path>            map folder to play (required)
 		  --wasm <path>           exact map script to run instead of the one found in the map folder
 		  --data-profile <path>   seed a saved bot profile into the match data directory
+		  --authority-log <path>  keep the authority log of a single-match run instead of discarding it
 		  --seed-range <a-b>      seeds to play, inclusive (default 1-1)
 		  --seats <n>             computer seats to seat on slots 1..n (default 2)
 		  --max-seconds <value>   stop a match after this many simulated seconds (default 1800)
@@ -59,6 +67,9 @@ public class MatchRunOptions
 		  --train-initial-weights <a,b,...> start the population around this weight vector instead of pure noise
 		  --train-map-features <n> trailing genome slots the map's own candidates own (default 0)
 		  --train-parallel <n>    candidate evaluations played at the same time (default cores minus two)
+		  --train-publish         train, duel the champion on new seeds, write the profile and gate publication on that duel
+		  --publish-seeds <a-b>   seeds of the out-of-sample duel, never played by the training (required by --train-publish)
+		  --publish-smoke-seeds <n> leading publish seeds replayed with the written profile to catch weight mismatches (default 4)
 		  --balance               write the balance report of the played batch beside the outcomes
 		  --balance-report <path> markdown report to write (default <output>.balance.md)
 		  --balance-input <path>  analyse an already played jsonl (or a directory of chunk jsonl) instead of playing
@@ -87,8 +98,11 @@ public class MatchRunOptions
 				case "--data-profile":
 					options.DataProfilePath = ReadValue(args, ref index, argument);
 					break;
+				case "--authority-log":
+					options.AuthorityLogPath = ReadValue(args, ref index, argument);
+					break;
 				case "--seed-range":
-					ReadSeedRange(options, ReadValue(args, ref index, argument));
+					(options.SeedStart, options.SeedEnd) = ReadSeedRange(args, ref index, argument);
 					break;
 				case "--seats":
 					options.Seats = ReadInt(args, ref index, argument, minimum: 1);
@@ -141,6 +155,15 @@ public class MatchRunOptions
 				case "--train-map-features":
 					options.TrainMapCandidateFeatures = ReadNonNegativeInt(args, ref index, argument);
 					break;
+				case "--train-publish":
+					options.TrainPublish = true;
+					break;
+				case "--publish-seeds":
+					(options.PublishSeedStart, options.PublishSeedEnd) = ReadSeedRange(args, ref index, argument);
+					break;
+				case "--publish-smoke-seeds":
+					options.PublishSmokeSeeds = ReadInt(args, ref index, argument, minimum: 1);
+					break;
 				case "--balance":
 					options.Balance = true;
 					break;
@@ -163,6 +186,20 @@ public class MatchRunOptions
 		if (!options.ShowHelp && options.Seats > 24)
 		{
 			throw new ArgumentException("--seats cannot exceed 24, because slot zero is the neutral seat");
+		}
+
+		if (!options.ShowHelp && options.TrainPublish)
+		{
+			options.Train = true;
+			if (options.PublishSeedStart < 1 || options.PublishSeedEnd < options.PublishSeedStart)
+			{
+				throw new ArgumentException("--train-publish needs --publish-seeds <first>-<last> with seeds the training never played");
+			}
+
+			if (options.Seats != 2)
+			{
+				throw new ArgumentException("--train-publish duels the champion against the factory profile, so it needs exactly 2 seats");
+			}
 		}
 
 		return options;
@@ -229,27 +266,27 @@ public class MatchRunOptions
 		return value;
 	}
 
-	private static void ReadSeedRange(MatchRunOptions options, string text)
+	private static (int Start, int End) ReadSeedRange(string[] args, ref int index, string argument)
 	{
+		string text = ReadValue(args, ref index, argument);
 		int separator = text.IndexOf('-');
 		if (separator <= 0 || separator == text.Length - 1)
 		{
-			throw new ArgumentException($"--seed-range expects '<first>-<last>', not '{text}'");
+			throw new ArgumentException($"{argument} expects '<first>-<last>', not '{text}'");
 		}
 
 		if (!int.TryParse(text.AsSpan(0, separator), NumberStyles.Integer, CultureInfo.InvariantCulture, out int start)
 			|| !int.TryParse(text.AsSpan(separator + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out int end))
 		{
-			throw new ArgumentException($"--seed-range expects two whole numbers, not '{text}'");
+			throw new ArgumentException($"{argument} expects two whole numbers, not '{text}'");
 		}
 
 		if (start < 1 || end < start)
 		{
-			throw new ArgumentException($"--seed-range must start at one or more and end after it starts, not '{text}'");
+			throw new ArgumentException($"{argument} must start at one or more and end after it starts, not '{text}'");
 		}
 
-		options.SeedStart = start;
-		options.SeedEnd = end;
+		return (start, end);
 	}
 
 	private static void ReadSeatPolicy(MatchRunOptions options, string text)
