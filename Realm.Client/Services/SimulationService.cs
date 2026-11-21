@@ -359,7 +359,7 @@ public class SimulationService
 		_abilities = new UnitAbilityCommands(unit => TryGetEntity(unit, out var e) ? e : Entity.Null, GetUnitWrapper);
 		_units = new UnitLookup(UnitWrapperCache);
 		_presentation = new PresentationTransform();
-		_bots = new PlayerBotDirector((pIdx, actionId, intent, pos) => OnBotCustomActionExecuted?.Invoke(pIdx, actionId, intent, pos, string.Empty));
+		_bots = new PlayerBotDirector((pIdx, actionId, intent, pos, payload) => OnBotCustomActionExecuted?.Invoke(pIdx, actionId, intent, pos, payload));
 		_destruction = new UnitDestruction(UnitWrapperCache);
 		_buildQueue = new BuildQueueProcessor(PendingQueuedCommands);
 		_relationships = new PlayerRelationshipTable(GetPlayerTeam, () => ActiveWorldEntity);

@@ -1,0 +1,252 @@
+using System.Globalization;
+using System.Text;
+using System.Text.Json;
+using Realm.Ecs.AI.Genres;
+using Realm.Ecs.AI.Policy;
+using Realm.Ecs.AI.Simulation;
+using Realm.Ecs.AI.Training;
+using Realm.Shared;
+
+namespace Realm.Tools.MatchRunner;
+
+public class TrainingRunResult
+{
+	public BotProfile Profile { get; init; } = new();
+	public IReadOnlyList<float> GenerationBestFitness { get; init; } = Array.Empty<float>();
+	public float ValidationFitness { get; init; }
+	public int ChampionGeneration { get; init; }
+	public int PlayedEvaluations { get; init; }
+	public int FailedEvaluations { get; init; }
+	public IReadOnlyCollection<int> PlayedSeeds { get; init; } = Array.Empty<int>();
+}
+
+public static class MatchTrainer
+{
+	public static TrainingRunResult Train(MatchRunOptions options)
+	{
+		IAiGenreProvider provider = AiGenreRegistry.Get(options.TrainGenre);
+		string mapName = ReadMapName(options.MapPath);
+		string workspaceDirectory = Path.Combine(Path.GetTempPath(), "realm-match-runner", $"training-{Environment.ProcessId}");
+		Directory.CreateDirectory(workspaceDirectory);
+
+		try
+		{
+			var evaluator = new TrainingMatchEvaluator(options, workspaceDirectory);
+			var trainer = new SelfPlayTrainer();
+			BotProfile profile = trainer.TrainAgainstEvaluator(
+				mapName,
+				options.TrainGenerations,
+				options.TrainPopulation,
+				options.TrainEvaluations,
+				provider.FeatureCount,
+				options.TrainMapCandidateFeatures,
+				provider.GenreName,
+				evaluator.Evaluate,
+				options.TrainSeed,
+				RealmVersion.GameBuildNumber,
+				options.TrainInitialWeights,
+				ReportGeneration,
+				options.TrainParallel);
+
+			return new TrainingRunResult
+			{
+				Profile = profile,
+				GenerationBestFitness = trainer.GenerationBestFitness.ToArray(),
+				ValidationFitness = trainer.ValidationFitness,
+				ChampionGeneration = trainer.ChampionGeneration,
+				PlayedEvaluations = evaluator.PlayedMatches,
+				FailedEvaluations = evaluator.FailedMatches,
+				PlayedSeeds = trainer.PlayedSeeds
+			};
+		}
+		finally
+		{
+			TryDeleteDirectory(workspaceDirectory);
+		}
+	}
+
+	public static string BuildManifest(MatchRunOptions options, TrainingRunResult result, string profilePath)
+	{
+		IAiGenreProvider provider = AiGenreRegistry.Get(options.TrainGenre);
+		var manifest = new
+		{
+			schemaVersion = "1.0.0",
+			mapName = result.Profile.MapName,
+			mapPath = Path.GetFullPath(options.MapPath),
+			gameBuildNumber = result.Profile.GameBuildNumber,
+			genre = provider.GenreName,
+			featureCount = provider.FeatureCount,
+			mapCandidateFeatures = options.TrainMapCandidateFeatures,
+			mapCandidateWeights = result.Profile.MapCandidateWeights,
+			generations = options.TrainGenerations,
+			populationSize = options.TrainPopulation,
+			evaluationsPerCandidate = options.TrainEvaluations,
+			trainingMatches = result.PlayedEvaluations,
+			trainingSeeds = result.PlayedSeeds.Count,
+			failedMatches = result.FailedEvaluations,
+			baseSeed = options.TrainSeed,
+			initialWeights = options.TrainInitialWeights,
+			pairedEvaluationSeeds = true,
+			matchedSeatOrientationsPerSeed = true,
+			fitness = "wins only, played from both seats against the factory profile",
+			maximumSecondsPerMatch = options.MaxSeconds,
+			seats = options.Seats,
+			opponentPolicy = options.Policy,
+			validation = new
+			{
+				seedSalt = SelfPlayTrainer.ValidationSeedSalt,
+				candidates = Math.Max(options.TrainEvaluations, SelfPlayTrainer.MinimumValidationCandidates),
+				championSelection = "highest win rate against the factory profile across every generation champion",
+				championGeneration = result.ChampionGeneration,
+				winRateAgainstFactoryProfile = result.ValidationFitness
+			},
+			evaluationsInParallel = options.TrainParallel,
+			profilePath = Path.GetFullPath(profilePath),
+			fitnessScore = result.Profile.FitnessScore,
+			generationBestFitness = result.GenerationBestFitness,
+			createdUtc = DateTime.UtcNow.ToString("O")
+		};
+
+		return JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
+	}
+
+	private static void ReportGeneration(int generation, float bestFitness)
+	{
+		Console.WriteLine($"  generation {generation + 1} best fitness {bestFitness:F3}");
+		Console.Out.Flush();
+	}
+
+	private static void TryDeleteDirectory(string directory)
+	{
+		try
+		{
+			if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+		}
+		catch (IOException)
+		{
+		}
+		catch (UnauthorizedAccessException)
+		{
+		}
+	}
+
+	private static string ReadMapName(string mapPath)
+	{
+		string trimmedPath = mapPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		string metadataPath = Path.Combine(trimmedPath, "metadata.json");
+		if (!File.Exists(metadataPath))
+		{
+			return Path.GetFileName(trimmedPath);
+		}
+
+		using JsonDocument document = JsonDocument.Parse(File.ReadAllText(metadataPath));
+		if (document.RootElement.TryGetProperty("MapProperties", out JsonElement properties)
+			&& properties.TryGetProperty("MapName", out JsonElement mapName)
+			&& mapName.ValueKind == JsonValueKind.String)
+		{
+			return mapName.GetString() ?? "Map";
+		}
+
+		return "Map";
+	}
+}
+
+public class TrainingMatchEvaluator
+{
+	private const float DrawFitness = 0.5f;
+
+	private readonly MatchRunOptions _options;
+	private readonly string _workspaceDirectory;
+	private int _playedMatches;
+	private int _failedMatches;
+	private int _evaluationCounter;
+
+	public TrainingMatchEvaluator(MatchRunOptions options, string workspaceDirectory)
+	{
+		_options = options;
+		_workspaceDirectory = workspaceDirectory;
+	}
+
+	public int PlayedMatches => Volatile.Read(ref _playedMatches);
+
+	public int FailedMatches => Volatile.Read(ref _failedMatches);
+
+	public float Evaluate(float[] weights, int seed)
+	{
+		float candidateAsSeatOne = PlayOrientation(weights, seed, candidateSeat: 1);
+		float candidateAsSeatTwo = PlayOrientation(weights, seed, candidateSeat: 2);
+		return 0.5f * (candidateAsSeatOne + candidateAsSeatTwo);
+	}
+
+	private float PlayOrientation(float[] weights, int seed, int candidateSeat)
+	{
+		string profilePath = WriteCandidateProfile(weights);
+		string outcomePath = Path.Combine(
+			_workspaceDirectory,
+			$"outcome-{seed}-{candidateSeat}-{Interlocked.Increment(ref _evaluationCounter)}.jsonl");
+		MatchProcessRunner.ClearOutcomeFiles(outcomePath);
+		Interlocked.Increment(ref _playedMatches);
+
+		try
+		{
+			MatchProcessRunner.Run(_options, profilePath, seed, candidateSeat, outcomePath);
+			return MatchProcessRunner.ReadScore(outcomePath, candidateSeat);
+		}
+		catch (InvalidOperationException exception)
+		{
+			int failedMatches = Interlocked.Increment(ref _failedMatches);
+			if (failedMatches * 2 > Volatile.Read(ref _playedMatches))
+			{
+				throw new InvalidOperationException(
+					$"the training stopped after {failedMatches} of {Volatile.Read(ref _playedMatches)} evaluation matches failed to run: {exception.Message}",
+					exception);
+			}
+
+			return DrawFitness;
+		}
+		finally
+		{
+			MatchProcessRunner.ClearOutcomeFiles(outcomePath);
+		}
+	}
+
+	private string WriteCandidateProfile(float[] weights)
+	{
+		string profilePath = Path.Combine(_workspaceDirectory, $"candidate-{HashWeights(weights)}.json");
+		if (File.Exists(profilePath)) return profilePath;
+
+		int mapCandidateFeatures = Math.Clamp(_options.TrainMapCandidateFeatures, 0, weights.Length);
+		int genreFeatureCount = weights.Length - mapCandidateFeatures;
+
+		var profile = new BotProfile
+		{
+			Genre = _options.TrainGenre,
+			MapName = "Training",
+			ProfileId = "TrainingCandidate",
+			Weights = weights[..genreFeatureCount],
+			MapCandidateWeights = mapCandidateFeatures > 0 ? weights[genreFeatureCount..] : Array.Empty<float>()
+		};
+
+		string temporaryPath = $"{profilePath}.{Environment.ProcessId}.{Interlocked.Increment(ref _evaluationCounter)}.tmp";
+		File.WriteAllText(temporaryPath, profile.ToJson(), new UTF8Encoding(false));
+		File.Move(temporaryPath, profilePath, overwrite: true);
+		return profilePath;
+	}
+
+	private static string HashWeights(float[] weights)
+	{
+		uint hash = 2166136261u;
+		for (int index = 0; index < weights.Length; index++)
+		{
+			byte[] weightBytes = BitConverter.GetBytes(weights[index]);
+			for (int byteIndex = 0; byteIndex < weightBytes.Length; byteIndex++)
+			{
+				hash ^= weightBytes[byteIndex];
+				hash *= 16777619u;
+			}
+		}
+
+		return hash.ToString("x8", CultureInfo.InvariantCulture);
+	}
+
+}

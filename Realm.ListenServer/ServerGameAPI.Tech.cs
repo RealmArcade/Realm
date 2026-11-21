@@ -21,6 +21,10 @@ public partial class ServerGameAPI
 
 		TechLevels.Add(playerIndex, techId, delta);
 		PublishTechLevels();
+		if (delta > 0)
+		{
+			Metrics?.RecordUpgradeBought(playerIndex);
+		}
 	}
 
 	private void PublishTechLevels()

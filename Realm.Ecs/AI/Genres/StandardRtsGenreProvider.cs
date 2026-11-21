@@ -285,11 +285,11 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string, string>? customActionCallback = null)
 	{
 		if (aff.Intent == CommandIntent.Interact || aff.Intent == CommandIntent.Transact)
 		{
-			customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, aff.Intent.ToString());
+			customActionCallback?.Invoke(playerIndex, aff.ActionId, aff.TargetPosition, aff.Intent.ToString(), aff.PayloadId);
 			return;
 		}
 
@@ -314,7 +314,7 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 				break;
 
 			default:
-				customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, aff.Intent.ToString());
+				customActionCallback?.Invoke(playerIndex, aff.ActionId, aff.TargetPosition, aff.Intent.ToString(), aff.PayloadId);
 				break;
 		}
 	}
@@ -338,15 +338,15 @@ public class StandardRtsGenreProvider : IAiGenreProvider
 		}
 	}
 
-	private static void ExecuteCast(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback)
+	private static void ExecuteCast(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string, string>? customActionCallback)
 	{
-		if (!string.IsNullOrEmpty(aff.PayloadId) && world.Has<SpellCooldowns>(aff.SourceEntity))
+		if (!string.IsNullOrEmpty(aff.ActionId) && world.Has<SpellCooldowns>(aff.SourceEntity))
 		{
 			ref var cooldowns = ref world.Get<SpellCooldowns>(aff.SourceEntity);
-			cooldowns.Set(aff.PayloadId, 5.0f, 5.0f);
+			cooldowns.Set(aff.ActionId, 5.0f, 5.0f);
 		}
 
-		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, "Cast");
+		customActionCallback?.Invoke(playerIndex, aff.ActionId, aff.TargetPosition, "Cast", aff.PayloadId);
 	}
 
 	private static float[] CreateFeatureVector(float costToBank, float targetThreat, float rangeFactor, float healthRatio, float tempoEfficiency, float cooldownReady, float retreatUrgency, float synergyTag)

@@ -8,6 +8,7 @@ using Realm.Ecs.AI.Policy;
 using Realm.Ecs.AI.Training;
 using Realm.Ecs.Components.Core;
 using Realm.Ecs.Services;
+using Realm.Shared;
 
 namespace Realm.ListenServer;
 
@@ -15,6 +16,7 @@ public class ServerBots
 {
 	public const string DefaultGenreName = "rts";
 	public const string CustomGenreName = "custom";
+	public const string MapCandidateWeightsMismatchMarker = "map candidate weight mismatch";
 
 	private readonly SimulationContext _context;
 	private readonly string _mapName;
@@ -24,6 +26,8 @@ public class ServerBots
 	private readonly Dictionary<int, List<GenericAffordance>> _customDecisionsPerPlayer = new();
 	private readonly HashSet<int> _injectedPolicyPlayers = new();
 	private readonly Dictionary<int, float> _mistakeChanceByPlayer = new();
+	private readonly Dictionary<int, int> _mapCandidateFeatureCountByPlayer = new();
+	private readonly HashSet<(int Player, int ProfileWeights, int Registered)> _reportedMapCandidateMismatch = new();
 
 	public ServerBots(SimulationContext context, string mapName, string dataDirectory, ServerLog log)
 	{
@@ -47,14 +51,13 @@ public class ServerBots
 				_controllers[playerIndex] = bot;
 			}
 
+			ReportMapCandidateWeightsMismatch(playerIndex, bot);
 			bot.Tick(_context.World, playerIndex, deltaSeconds);
 		}
 	}
 
 	public bool IsComputerControlled(int playerIndex)
 	{
-		if (playerIndex == 0) return true;
-
 		Entity worldEntity = _context.WorldEntity;
 		if (worldEntity == Entity.Null || !_context.World.IsAlive(worldEntity)) return false;
 		if (!_context.World.Has<ScriptPlayersState>(worldEntity)) return false;
@@ -78,10 +81,21 @@ public class ServerBots
 			return;
 		}
 
+		int expectedWeights = AiGenreRegistry.Get(profile.Genre).FeatureCount;
+		if (profile.Weights == null || profile.Weights.Length != expectedWeights)
+		{
+			_log.Write($"player {playerIndex} handed a profile with {profile.Weights?.Length ?? 0} weights, but the '{profile.Genre}' genre scores {expectedWeights}; the profile was rejected");
+			return;
+		}
+
 		BotController bot = GetOrCreateController(playerIndex, profile);
 		bot.LoadProfile(profile);
+		if (!_injectedPolicyPlayers.Contains(playerIndex))
+		{
+			bot.DecisionPolicy = new LinearUtilityDecisionPolicy();
+		}
+
 		ApplyHandicap(playerIndex, bot);
-		ConfigureCustomScanner(bot.GenreProvider, playerIndex);
 		_log.Write($"player {playerIndex} now plays the profile the map handed it");
 	}
 
@@ -118,7 +132,6 @@ public class ServerBots
 
 		IAiGenreProvider genre = AiGenreRegistry.Get(genreName);
 		ConfigureGenre(genre, configJson, playerIndex);
-		ConfigureCustomScanner(genre, playerIndex);
 
 		if (_controllers.TryGetValue(playerIndex, out BotController? bot))
 		{
@@ -126,6 +139,8 @@ public class ServerBots
 			bot.LoadProfile(genre.CreateDefaultProfile(_mapName));
 			ApplyHandicap(playerIndex, bot);
 			ApplyGenreDefaultPolicy(playerIndex, genreName, bot);
+			LoadSavedProfile(playerIndex, bot);
+			AttachMapCandidates(playerIndex, bot);
 			_log.Write($"player {playerIndex} now plays the '{genreName}' genre");
 			return;
 		}
@@ -133,7 +148,9 @@ public class ServerBots
 		var created = new BotController(playerIndex, genre.CreateDefaultProfile(_mapName), genre);
 		created.CustomActionCallback = AnnounceCustomAction;
 		ApplyGenreDefaultPolicy(playerIndex, genreName, created);
+		LoadSavedProfile(playerIndex, created);
 		ApplyHandicap(playerIndex, created);
+		AttachMapCandidates(playerIndex, created);
 		_controllers[playerIndex] = created;
 		_log.Write($"player {playerIndex} seated with the '{genreName}' genre");
 	}
@@ -165,7 +182,14 @@ public class ServerBots
 			return;
 		}
 
-		decisions.Add(new GenericAffordance(Entity.Null, commandIntent, Entity.Null, position, actionId, featureVector));
+		decisions.Add(new GenericAffordance(Entity.Null, commandIntent, Entity.Null, position, actionId, payload, featureVector));
+		_mapCandidateFeatureCountByPlayer[playerIndex] = featureVector?.Length ?? 0;
+		ReportMapCandidateWeightsMismatch(playerIndex);
+	}
+
+	public int MapCandidateFeatureCount(int playerIndex)
+	{
+		return _mapCandidateFeatureCountByPlayer.TryGetValue(playerIndex, out int count) ? count : 0;
 	}
 
 	public void ClearCustomDecisions(int playerIndex)
@@ -177,29 +201,54 @@ public class ServerBots
 	{
 		_controllers.Remove(playerIndex);
 		_customDecisionsPerPlayer.Remove(playerIndex);
+		_mapCandidateFeatureCountByPlayer.Remove(playerIndex);
+		_reportedMapCandidateMismatch.RemoveWhere(reported => reported.Player == playerIndex);
 	}
 
-	public static string Train(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre)
+	private void ReportMapCandidateWeightsMismatch(int playerIndex, BotController? bot = null)
+	{
+		if (!_mapCandidateFeatureCountByPlayer.TryGetValue(playerIndex, out int registeredFeatures)) return;
+		if (bot == null && !_controllers.TryGetValue(playerIndex, out bot)) return;
+
+		int profileWeights = bot.MapCandidateWeights.Length;
+		if (profileWeights == 0 || profileWeights == registeredFeatures) return;
+		if (!_reportedMapCandidateMismatch.Add((playerIndex, profileWeights, registeredFeatures))) return;
+
+		_log.Write($"{MapCandidateWeightsMismatchMarker}: player {playerIndex} carries {profileWeights} map candidate weight(s) but the map registered {registeredFeatures} feature(s) per candidate; the bot is scoring them with equal weights instead of the trained ones");
+	}
+
+	public static string Train(string mapName, int generations, int populationSize, int matchesPerEvaluation, string genre, int seed = 0)
 	{
 		IAiGenreProvider provider = AiGenreRegistry.Get(genre);
 		var trainer = new SelfPlayTrainer();
-		return trainer.TrainSelfPlay(mapName, generations, populationSize, matchesPerEvaluation, genreProvider: provider).ToJson();
+		return trainer.TrainSelfPlay(mapName, generations, populationSize, matchesPerEvaluation, genreProvider: provider, seed: seed, gameBuildNumber: RealmVersion.GameBuildNumber).ToJson();
 	}
 
-	public void LoadSavedProfile(int playerIndex, BotController bot)
+	public bool LoadSavedProfile(int playerIndex, BotController bot)
 	{
 		string path = Path.Combine(_dataDirectory, $"{_mapName}_bot.json");
-		if (!File.Exists(path)) return;
+		if (!File.Exists(path)) return false;
 
 		try
 		{
-			bot.LoadProfile(BotProfile.FromJson(File.ReadAllText(path)));
+			BotProfile profile = BotProfile.FromJson(File.ReadAllText(path));
+			int expectedWeights = AiGenreRegistry.Get(profile.Genre).FeatureCount;
+			if (profile.Weights == null || profile.Weights.Length != expectedWeights)
+			{
+				_log.Write($"the saved profile '{path}' carries {profile.Weights?.Length ?? 0} weights, but the '{profile.Genre}' genre scores {expectedWeights}; the profile was rejected");
+				return false;
+			}
+
+			bot.LoadProfile(profile);
+			bot.DecisionPolicy = new LinearUtilityDecisionPolicy();
 			ApplyHandicap(playerIndex, bot);
 			_log.Write($"player {playerIndex} plays the profile saved as '{path}'");
+			return true;
 		}
 		catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
 		{
 			_log.Write($"could not read the saved bot profile '{path}': {exception.Message}");
+			return false;
 		}
 	}
 
@@ -209,6 +258,7 @@ public class ServerBots
 		bot.CustomActionCallback = AnnounceCustomAction;
 		LoadSavedProfile(playerIndex, bot);
 		ApplyHandicap(playerIndex, bot);
+		AttachMapCandidates(playerIndex, bot);
 		return bot;
 	}
 
@@ -220,12 +270,23 @@ public class ServerBots
 		created.CustomActionCallback = AnnounceCustomAction;
 		_controllers[playerIndex] = created;
 		ApplyHandicap(playerIndex, created);
+		AttachMapCandidates(playerIndex, created);
 		return created;
 	}
 
-	private void AnnounceCustomAction(int playerIndex, string actionId, Vector3 position, string intent)
+	private void AttachMapCandidates(int playerIndex, BotController bot)
 	{
-		CustomActionExecuted?.Invoke(playerIndex, actionId, intent, position, string.Empty);
+		bot.MapCandidateSource = () => GetCustomDecisions(playerIndex);
+	}
+
+	private List<GenericAffordance>? GetCustomDecisions(int playerIndex)
+	{
+		return _customDecisionsPerPlayer.TryGetValue(playerIndex, out List<GenericAffordance>? decisions) ? decisions : null;
+	}
+
+	private void AnnounceCustomAction(int playerIndex, string actionId, Vector3 position, string intent, string payload)
+	{
+		CustomActionExecuted?.Invoke(playerIndex, actionId, intent, position, payload);
 		ClearCustomDecisions(playerIndex);
 	}
 
@@ -244,16 +305,4 @@ public class ServerBots
 		}
 	}
 
-	private void ConfigureCustomScanner(IAiGenreProvider genre, int playerIndex)
-	{
-		if (genre is not CustomGenreProvider customGenre) return;
-
-		customGenre.CustomScanner = (world, scanningPlayerIndex, destination, scannerContext) =>
-		{
-			if (!_customDecisionsPerPlayer.TryGetValue(playerIndex, out List<GenericAffordance>? decisions) || decisions == null) return;
-			if (scanningPlayerIndex != playerIndex) return;
-
-			destination.AddRange(decisions);
-		};
-	}
 }
