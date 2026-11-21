@@ -10,6 +10,7 @@ public class PublishVerdict
 	public double IntervalLow { get; init; }
 	public double IntervalHigh { get; init; }
 	public double PValue { get; init; }
+	public int OverlappingTrainingSeeds { get; init; }
 }
 
 public static class PublishGate
@@ -19,9 +20,15 @@ public static class PublishGate
 
 	private const double Z95 = 1.959963985;
 
-	public static PublishVerdict Judge(PublishDuelResult duel, PublishSmokeResult smoke, int mapCandidateFeatures)
+	public static PublishVerdict Judge(PublishDuelResult duel, PublishSmokeResult smoke, int mapCandidateFeatures, IReadOnlyCollection<int> trainingSeeds)
 	{
 		var blockers = new List<string>();
+
+		IReadOnlyList<int> overlappingSeeds = OverlappingSeeds(duel.SeedFirst, duel.SeedLast, trainingSeeds);
+		if (overlappingSeeds.Count > 0)
+		{
+			blockers.Add($"la ventana del duelo {duel.SeedFirst}-{duel.SeedLast} repite {overlappingSeeds.Count} semilla(s) que el entrenamiento ya jugó (la primera, {overlappingSeeds[0]}), y la compuerta sólo puede medir un duelo sobre una ventana disjunta de este entrenamiento");
+		}
 
 		if (duel.Failures > 0) blockers.Add($"{duel.Failures} partida(s) del duelo no se pudieron jugar");
 		if (duel.Matches == 0) blockers.Add("el duelo no jugó ninguna partida");
@@ -45,14 +52,17 @@ public static class PublishGate
 		if (smoke.Matches == 0) blockers.Add("el humo no jugó ninguna partida");
 		if (smoke.WarningFound) blockers.Add("el humo emitió el aviso de desajuste de pesos de candidato");
 
-		if (mapCandidateFeatures > 0 && smoke.RegisteredFeatures != mapCandidateFeatures)
+		if (smoke.Matches > 0)
 		{
-			blockers.Add($"el mapa registró {smoke.RegisteredFeatures} rasgo(s) de candidato y el perfil lleva {mapCandidateFeatures}");
-		}
+			if (mapCandidateFeatures > 0 && smoke.RegisteredFeatures != mapCandidateFeatures)
+			{
+				blockers.Add($"el mapa registró {smoke.RegisteredFeatures} rasgo(s) de candidato y el perfil lleva {mapCandidateFeatures}");
+			}
 
-		if (smoke.ProfileMapWeights != mapCandidateFeatures)
-		{
-			blockers.Add($"el perfil lleva {smoke.ProfileMapWeights} peso(s) de candidato en vez de {mapCandidateFeatures}");
+			if (smoke.ProfileMapWeights != mapCandidateFeatures)
+			{
+				blockers.Add($"el perfil lleva {smoke.ProfileMapWeights} peso(s) de candidato en vez de {mapCandidateFeatures}");
+			}
 		}
 
 		return new PublishVerdict
@@ -62,8 +72,23 @@ public static class PublishGate
 			WinRate = winRate,
 			IntervalLow = low,
 			IntervalHigh = high,
-			PValue = pValue
+			PValue = pValue,
+			OverlappingTrainingSeeds = overlappingSeeds.Count
 		};
+	}
+
+	public static IReadOnlyList<int> OverlappingSeeds(int firstSeed, int lastSeed, IReadOnlyCollection<int> trainingSeeds)
+	{
+		var overlapping = new List<int>();
+		if (trainingSeeds.Count == 0 || lastSeed < firstSeed) return overlapping;
+
+		foreach (int seed in trainingSeeds)
+		{
+			if (seed >= firstSeed && seed <= lastSeed) overlapping.Add(seed);
+		}
+
+		overlapping.Sort();
+		return overlapping;
 	}
 
 	public static (double Low, double High) Wilson(double successes, int trials)

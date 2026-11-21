@@ -27,25 +27,48 @@ public static class PublishPipeline
 			string manifestPath = Path.ChangeExtension(profilePath, ".run.json");
 			File.WriteAllText(manifestPath, MatchTrainer.BuildManifest(options, training, profilePath), new UTF8Encoding(false));
 
-			PublishDuelResult duel = PublishDuel.Run(options, stagingPath, profileDirectory, baseName, workspace);
-			string smokeLogPath = Path.ChangeExtension(profilePath, ".publish-smoke.log");
-			PublishSmokeResult smoke = PublishSmoke.Run(options, stagingPath, profile, workspace, smokeLogPath);
-			PublishVerdict verdict = PublishGate.Judge(duel, smoke, options.TrainMapCandidateFeatures);
+			PublishDuelResult duel;
+			PublishSmokeResult smoke;
+			IReadOnlyList<int> overlappingSeeds = PublishGate.OverlappingSeeds(options.PublishSeedStart, options.PublishSeedEnd, training.PlayedSeeds);
+			if (overlappingSeeds.Count > 0)
+			{
+				Console.WriteLine($"publish window {options.PublishSeedStart}-{options.PublishSeedEnd} repeats {overlappingSeeds.Count} seed(s) the training already played (the first, {overlappingSeeds[0]})");
+				Console.WriteLine("nothing was duelled: the gate only measures on a window disjoint from the seeds this training run recorded");
+				duel = new PublishDuelResult { SeedFirst = options.PublishSeedStart, SeedLast = options.PublishSeedEnd };
+				smoke = new PublishSmokeResult();
+			}
+			else
+			{
+				duel = PublishDuel.Run(options, stagingPath, profileDirectory, baseName, workspace);
+				string smokeLogPath = Path.ChangeExtension(profilePath, ".publish-smoke.log");
+				smoke = PublishSmoke.Run(options, stagingPath, profile, workspace, smokeLogPath);
+			}
+
+			PublishVerdict verdict = PublishGate.Judge(duel, smoke, options.TrainMapCandidateFeatures, training.PlayedSeeds);
 
 			string reportPath = Path.ChangeExtension(profilePath, ".publish.md");
 			int validationCandidates = Math.Max(options.TrainEvaluations, SelfPlayTrainer.MinimumValidationCandidates);
 			PublishReport.Write(reportPath, options, training, duel, smoke, verdict, profilePath, manifestPath, validationCandidates);
 
-			Console.WriteLine($"out-of-sample duel: {PublishGate.FormatPercent(verdict.WinRate)} [{PublishGate.FormatPercent(verdict.IntervalLow)}-{PublishGate.FormatPercent(verdict.IntervalHigh)}] p {PublishGate.FormatPValue(verdict.PValue)} on {duel.Matches} match(es), seeds {duel.SeedFirst}-{duel.SeedLast}");
-			for (int seat = 1; seat <= 2; seat++)
+			if (duel.Matches > 0)
 			{
-				int matches = duel.SeatMatches[seat - 1];
-				double rate = matches > 0 ? (duel.SeatWins[seat - 1] + 0.5 * duel.SeatDraws[seat - 1]) / matches : 0.0;
-				Console.WriteLine($"  seat {seat}: {PublishGate.FormatPercent(rate)} on {matches} match(es), {duel.SeatDraws[seat - 1]} draw(s)");
+				Console.WriteLine($"out-of-sample duel: {PublishGate.FormatPercent(verdict.WinRate)} [{PublishGate.FormatPercent(verdict.IntervalLow)}-{PublishGate.FormatPercent(verdict.IntervalHigh)}] p {PublishGate.FormatPValue(verdict.PValue)} on {duel.Matches} match(es), seeds {duel.SeedFirst}-{duel.SeedLast}");
+				for (int seat = 1; seat <= 2; seat++)
+				{
+					int matches = duel.SeatMatches[seat - 1];
+					double rate = matches > 0 ? (duel.SeatWins[seat - 1] + 0.5 * duel.SeatDraws[seat - 1]) / matches : 0.0;
+					Console.WriteLine($"  seat {seat}: {PublishGate.FormatPercent(rate)} on {matches} match(es), {duel.SeatDraws[seat - 1]} draw(s)");
+				}
+			}
+			else
+			{
+				Console.WriteLine($"out-of-sample duel: not measured on seeds {duel.SeedFirst}-{duel.SeedLast}");
 			}
 
 			Console.WriteLine($"internal selection (not the published figure): {PublishGate.FormatPercent(training.ValidationFitness)} over {validationCandidates} validation seeds per generation champion");
-			Console.WriteLine($"smoke: {smoke.Matches} match(es), {smoke.RegisteredFeatures} map candidate feature(s), weight warning: {(smoke.WarningFound ? "yes" : "no")}");
+			Console.WriteLine(smoke.Matches > 0
+				? $"smoke: {smoke.Matches} match(es), {smoke.RegisteredFeatures} map candidate feature(s), weight warning: {(smoke.WarningFound ? "yes" : "no")}"
+				: "smoke: not played");
 
 			if (verdict.Publish)
 			{

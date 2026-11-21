@@ -9,7 +9,11 @@ public class SelfPlayTrainer
 	public const int ValidationSeedSalt = 900001;
 	public const int MinimumValidationCandidates = 48;
 
+	private readonly HashSet<int> _playedSeeds = new();
+
 	public List<float> GenerationBestFitness { get; } = new();
+
+	public IReadOnlyCollection<int> PlayedSeeds => _playedSeeds;
 
 	public float ValidationFitness { get; private set; }
 
@@ -79,6 +83,7 @@ public class SelfPlayTrainer
 		GenerationBestFitness.Clear();
 		ValidationFitness = 0.0f;
 		ChampionGeneration = -1;
+		_playedSeeds.Clear();
 		var population = InitializePopulation(populationSize, featureCount + mapCandidateFeatureCount, RandomStreams.Derive(baseSeed, 0), initialWeights);
 		var generationChampions = new List<float[]>();
 
@@ -88,6 +93,7 @@ public class SelfPlayTrainer
 		{
 			var fitnessScores = new float[population.Count];
 			int[] evaluationSeeds = DeriveEvaluationSeeds(baseSeed, generation, matchesPerEvaluation);
+			foreach (int evaluationSeed in evaluationSeeds) _playedSeeds.Add(evaluationSeed);
 			Parallel.For(
 				0,
 				population.Count,
@@ -111,11 +117,12 @@ public class SelfPlayTrainer
 			population = CreateNextGeneration(populationSize, population, champion, RandomStreams.Derive(baseSeed, generation + 100000));
 		}
 
+		int[] validationSeeds = DeriveValidationSeeds(baseSeed, Math.Max(matchesPerEvaluation, MinimumValidationCandidates));
+		foreach (int validationSeed in validationSeeds) _playedSeeds.Add(validationSeed);
 		champion = SelectHistoricalChampion(
 			generationChampions,
 			evaluateCandidate,
-			baseSeed,
-			matchesPerEvaluation,
+			validationSeeds,
 			maxParallelEvaluations);
 		return CreateBotProfile(mapName, genreName, champion, ValidationFitness, generations, gameBuildNumber, featureCount);
 	}
@@ -123,8 +130,7 @@ public class SelfPlayTrainer
 	private float[] SelectHistoricalChampion(
 		List<float[]> generationChampions,
 		Func<float[], int, float> evaluateChampion,
-		int baseSeed,
-		int matchesPerEvaluation,
+		int[] validationSeeds,
 		int maxParallelEvaluations)
 	{
 		var validationFitness = new float[generationChampions.Count];
@@ -133,7 +139,7 @@ public class SelfPlayTrainer
 			generationChampions.Count,
 			new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, maxParallelEvaluations) },
 			championIndex => validationFitness[championIndex] = ValidateChampion(
-				generationChampions[championIndex], evaluateChampion, baseSeed, matchesPerEvaluation));
+				generationChampions[championIndex], evaluateChampion, validationSeeds));
 
 		int bestIndex = IndexOfBestCandidate(validationFitness);
 		ValidationFitness = validationFitness[bestIndex];
@@ -141,10 +147,8 @@ public class SelfPlayTrainer
 		return (float[])generationChampions[bestIndex].Clone();
 	}
 
-	private static float ValidateChampion(float[] champion, Func<float[], int, float> evaluateChampion, int baseSeed, int matchesPerEvaluation)
+	private static float ValidateChampion(float[] champion, Func<float[], int, float> evaluateChampion, int[] validationSeeds)
 	{
-		int candidateCount = Math.Max(matchesPerEvaluation, MinimumValidationCandidates);
-		int[] validationSeeds = DeriveValidationSeeds(baseSeed, candidateCount);
 		float totalScore = 0.0f;
 		for (int candidateIndex = 0; candidateIndex < validationSeeds.Length; candidateIndex++)
 		{

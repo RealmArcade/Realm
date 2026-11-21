@@ -68,7 +68,7 @@ public class MatchRunOptions
 		  --train-map-features <n> trailing genome slots the map's own candidates own (default 0)
 		  --train-parallel <n>    candidate evaluations played at the same time (default cores minus two)
 		  --train-publish         train, duel the champion on new seeds, write the profile and gate publication on that duel
-		  --publish-seeds <a-b>   seeds of the out-of-sample duel, never played by the training (required by --train-publish)
+		  --publish-seeds <a-b>   seeds of the out-of-sample duel; the gate refuses a window that repeats a seed this run trained on (required by --train-publish)
 		  --publish-smoke-seeds <n> leading publish seeds replayed with the written profile to catch weight mismatches (default 4)
 		  --balance               write the balance report of the played batch beside the outcomes
 		  --balance-report <path> markdown report to write (default <output>.balance.md)

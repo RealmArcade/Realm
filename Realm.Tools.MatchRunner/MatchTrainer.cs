@@ -17,6 +17,7 @@ public class TrainingRunResult
 	public int ChampionGeneration { get; init; }
 	public int PlayedEvaluations { get; init; }
 	public int FailedEvaluations { get; init; }
+	public IReadOnlyCollection<int> PlayedSeeds { get; init; } = Array.Empty<int>();
 }
 
 public static class MatchTrainer
@@ -54,7 +55,8 @@ public static class MatchTrainer
 				ValidationFitness = trainer.ValidationFitness,
 				ChampionGeneration = trainer.ChampionGeneration,
 				PlayedEvaluations = evaluator.PlayedMatches,
-				FailedEvaluations = evaluator.FailedMatches
+				FailedEvaluations = evaluator.FailedMatches,
+				PlayedSeeds = trainer.PlayedSeeds
 			};
 		}
 		finally
@@ -80,6 +82,7 @@ public static class MatchTrainer
 			populationSize = options.TrainPopulation,
 			evaluationsPerCandidate = options.TrainEvaluations,
 			trainingMatches = result.PlayedEvaluations,
+			trainingSeeds = result.PlayedSeeds.Count,
 			failedMatches = result.FailedEvaluations,
 			baseSeed = options.TrainSeed,
 			initialWeights = options.TrainInitialWeights,

@@ -24,7 +24,7 @@ public static class PublishReport
 		builder.AppendLine();
 		builder.Append("Criterio: duelo fuera de muestra ≥ ").Append(PublishGate.FormatPercent(PublishGate.MinimumWinRate))
 			.Append(" con p < ").Append(PublishGate.MaximumPValue.ToString("0.00", CultureInfo.InvariantCulture))
-			.Append(", 0 partidas fallidas y sin aviso de desajuste de pesos.").AppendLine();
+			.Append(", 0 partidas fallidas y sin aviso de desajuste de pesos, sobre una ventana disjunta de este entrenamiento.").AppendLine();
 
 		if (!verdict.Publish)
 		{
@@ -37,32 +37,45 @@ public static class PublishReport
 		builder.AppendLine();
 		builder.AppendLine("## Titular — duelo fuera de muestra");
 		builder.AppendLine();
-		builder.Append("- semillas ").Append(duel.SeedFirst).Append('-').Append(duel.SeedLast)
-			.Append(" · 2 asientos espejados · n = ").Append(duel.Matches).Append(" partidas (")
-			.Append(duel.SeatMatches[0]).Append(" + ").Append(duel.SeatMatches[1]).AppendLine(")");
-		builder.Append("- campeón: ").Append(duel.Wins).Append(" victoria(s) · ").Append(duel.Losses).Append(" derrota(s) · ")
-			.Append(duel.Draws).Append(" tabla(s) → ").Append(PublishGate.FormatPercent(verdict.WinRate))
-			.Append(" IC95 [").Append(PublishGate.FormatPercent(verdict.IntervalLow)).Append("–").Append(PublishGate.FormatPercent(verdict.IntervalHigh))
-			.Append("] · p = ").Append(PublishGate.FormatPValue(verdict.PValue)).AppendLine(" (una cola, H0 = 50%)");
-
-		for (int seat = 1; seat <= 2; seat++)
+		if (duel.Matches == 0)
 		{
-			int matches = duel.SeatMatches[seat - 1];
-			double rate = matches > 0 ? (duel.SeatWins[seat - 1] + 0.5 * duel.SeatDraws[seat - 1]) / matches : 0.0;
-			(double low, double high) = PublishGate.Wilson(duel.SeatWins[seat - 1] + 0.5 * duel.SeatDraws[seat - 1], matches);
-			builder.Append("- asiento ").Append(seat).Append(": ").Append(PublishGate.FormatPercent(rate))
-				.Append(" IC95 [").Append(PublishGate.FormatPercent(low)).Append("–").Append(PublishGate.FormatPercent(high))
-				.Append("] · n = ").Append(matches).AppendLine();
+			builder.AppendLine(duel.Failures > 0 ? "- duelo: ninguna partida se pudo medir" : "- duelo: no jugado");
+		}
+		else
+		{
+			builder.Append("- semillas ").Append(duel.SeedFirst).Append('-').Append(duel.SeedLast)
+				.Append(" · 2 asientos espejados · n = ").Append(duel.Matches).Append(" partidas (")
+				.Append(duel.SeatMatches[0]).Append(" + ").Append(duel.SeatMatches[1]).AppendLine(")");
+			int overlappingSeeds = verdict.OverlappingTrainingSeeds;
+			builder.Append("- ventana disjunta de este entrenamiento: ").Append(overlappingSeeds == 0 ? "sí" : "no")
+				.Append(" · este entrenamiento registró ").Append(training.PlayedSeeds.Count).Append(" semilla(s) jugada(s) y ")
+				.Append(overlappingSeeds).AppendLine(" de ellas caen en la ventana del duelo");
+			builder.AppendLine("- alcance de esa comprobación: sólo las semillas que esta corrida registró; la compuerta no conoce otros entrenamientos ni comprueba independencia frente a ellos");
+			builder.Append("- campeón: ").Append(duel.Wins).Append(" victoria(s) · ").Append(duel.Losses).Append(" derrota(s) · ")
+				.Append(duel.Draws).Append(" tabla(s) → ").Append(PublishGate.FormatPercent(verdict.WinRate))
+				.Append(" IC95 [").Append(PublishGate.FormatPercent(verdict.IntervalLow)).Append("–").Append(PublishGate.FormatPercent(verdict.IntervalHigh))
+				.Append("] · p = ").Append(PublishGate.FormatPValue(verdict.PValue)).AppendLine(" (una cola, H0 = 50%)");
+
+			for (int seat = 1; seat <= 2; seat++)
+			{
+				int matches = duel.SeatMatches[seat - 1];
+				double rate = matches > 0 ? (duel.SeatWins[seat - 1] + 0.5 * duel.SeatDraws[seat - 1]) / matches : 0.0;
+				(double low, double high) = PublishGate.Wilson(duel.SeatWins[seat - 1] + 0.5 * duel.SeatDraws[seat - 1], matches);
+				builder.Append("- asiento ").Append(seat).Append(": ").Append(PublishGate.FormatPercent(rate))
+					.Append(" IC95 [").Append(PublishGate.FormatPercent(low)).Append("–").Append(PublishGate.FormatPercent(high))
+					.Append("] · n = ").Append(matches).AppendLine();
+			}
+
+			builder.Append("- datos: `").Append(duel.SeatOnePath).Append("` (n=").Append(duel.SeatMatches[0]).Append(") · `")
+				.Append(duel.SeatTwoPath).Append("` (n=").Append(duel.SeatMatches[1]).AppendLine(")");
 		}
 
-		builder.Append("- datos: `").Append(duel.SeatOnePath).Append("` (n=").Append(duel.SeatMatches[0]).Append(") · `")
-			.Append(duel.SeatTwoPath).Append("` (n=").Append(duel.SeatMatches[1]).AppendLine(")");
 		if (duel.Failures > 0)
 		{
 			builder.Append("- partidas fallidas: ").AppendLine(duel.Failures.ToString(CultureInfo.InvariantCulture));
 			foreach (string failure in duel.FailureDetails) builder.Append("  - ").AppendLine(failure);
 		}
-		else
+		else if (duel.Matches > 0)
 		{
 			builder.AppendLine("- partidas fallidas: 0");
 		}
@@ -86,12 +99,19 @@ public static class PublishReport
 		builder.AppendLine();
 		builder.AppendLine("## Humo del perfil candidato");
 		builder.AppendLine();
-		builder.Append("- ").Append(smoke.Matches).Append(smoke.Matches == 1 ? " partida" : " partidas")
-			.Append(" con el perfil cargado desde el directorio de datos del mapa, ").Append(smoke.Failures)
-			.AppendLine(smoke.Failures == 1 ? " fallida" : " fallidas");
-		builder.Append("- rasgos de candidato registrados por el mapa: ").Append(smoke.RegisteredFeatures)
-			.Append(" · pesos de mapa del perfil: ").AppendLine(smoke.ProfileMapWeights.ToString(CultureInfo.InvariantCulture));
-		builder.Append("- aviso de desajuste de pesos: ").AppendLine(smoke.WarningFound ? "sí" : "ninguno");
+		if (smoke.Matches == 0)
+		{
+			builder.AppendLine("- humo: no jugado");
+		}
+		else
+		{
+			builder.Append("- ").Append(smoke.Matches).Append(smoke.Matches == 1 ? " partida" : " partidas")
+				.Append(" con el perfil cargado desde el directorio de datos del mapa, ").Append(smoke.Failures)
+				.AppendLine(smoke.Failures == 1 ? " fallida" : " fallidas");
+			builder.Append("- rasgos de candidato registrados por el mapa: ").Append(smoke.RegisteredFeatures)
+				.Append(" · pesos de mapa del perfil: ").AppendLine(smoke.ProfileMapWeights.ToString(CultureInfo.InvariantCulture));
+			builder.Append("- aviso de desajuste de pesos: ").AppendLine(smoke.WarningFound ? "sí" : "ninguno");
+		}
 		foreach (string detail in smoke.Details) builder.Append("  - ").AppendLine(detail);
 		if (smoke.LogPath.Length > 0) builder.Append("- log: `").Append(smoke.LogPath).AppendLine("`");
 

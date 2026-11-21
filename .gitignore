@@ -44,3 +44,5 @@ Realm.ListenServerHost/Realm.ListenServerHost
 Realm.Client/Assets/MLModels/toxic-xlm-roberta/*.onnx
 # MSBuild binary logs written by /bl.
 *.binlog
+# Scratch output of the match runner (publish-gate, self-play and ablation checks).
+.artifacts-check/
