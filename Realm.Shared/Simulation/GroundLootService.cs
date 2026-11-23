@@ -174,6 +174,7 @@ public class GroundLootService
 		StepPickupOrders();
 
 		_expired.Clear();
+		_collectedCount = 0;
 		World.Query(in AllLootQuery, _collectAll);
 		if (_collectedCount == 0) return;
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -163,7 +163,7 @@ public partial class GameHost
 
 		string filename = Path.GetFileName(decalId);
 		string baseKey = Path.GetFileNameWithoutExtension(decalId);
-		string wsPath = GameContext.EditorService._editingDirectory;
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 
 		var meta = GameContext.EditorService.Decals.ParseMetadata(decalId, filename, baseKey, wsPath);
 		var loaded = TryLoadDecalFromCandidates(decalId, meta.cols, meta.rows, meta.explicitPath, wsPath, cacheKey);
@@ -224,7 +224,7 @@ public partial class GameHost
 		if (string.IsNullOrEmpty(decalId)) decalId = "logo";
 		if (decalId.StartsWith("res://")) return decalId;
 
-		string wsPath = GameContext.EditorService._editingDirectory;
+		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string targetKey = GameContext.EditorService.Decals.ResolveKeyFromMetadata(decalId, wsPath);
 
 		return GameContext.EditorService.Decals.FindFile(targetKey, wsPath);

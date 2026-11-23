@@ -83,6 +83,8 @@ public partial interface IGameAPI
 	/// </summary>
 	/// <param name="unit">The unit to animate.</param>
 	/// <param name="animationName">The animation name (e.g., "Idle", "Labor", "Attack").</param>
+	/// <remarks>Prefix a clip name with <c>Loop:</c> to keep playing it across automatic action changes.
+	/// Sending a regular clip name releases the loop and resumes automatic selection.</remarks>
 	void SetUnitAnimation(UnitId unit, string animationName);
 
 	/// <summary>
