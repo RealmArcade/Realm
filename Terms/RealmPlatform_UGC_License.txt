@@ -1,179 +1,30 @@
-REALM
+REALM ON STEAM (Live Services & UGC Content)
 USER-GENERATED CONTENT (UGC) LICENSE
 
-Version 2.0, effective from the first release of the Steam build.
-
-This license covers the maps, scripts, art, sound and other content published for Realm. It is separate from, and
-supplementary to, Valve's Steam Subscriber Agreement and Steam Workshop Legal Agreement, which also apply to anything you
-publish through the Workshop. It does not cover the Realm engine source, which is licensed under the MIT License.
-
-DEFINITIONS
-
-- "Operator" means Devin Garner, who publishes the official game under the Steam AppIDs named below.
-- "official game" means the Realm client distributed by the Operator under a Steam AppID the Operator publishes: the demo
-  AppID (5537420) while the full game is unreleased and the full game's AppID (5372260) afterwards, together with its
-  editor and local tools.
-- "UGC" means maps, map scripts, art, audio, text and other content created for the official game and published for it.
-- "publish" means uploading UGC to the Steam Workshop under an AppID the Operator publishes, by any tool, including the
-  game's editor, SteamCMD or a third-party uploader.
-
-Every right granted in clauses 3 and 4 is limited to the official game. Nothing in this license grants a right to use UGC
-in any other application.
-
 1. OWNERSHIP
+Creators retain all underlying ownership, copyright, and intellectual property
+rights to original maps, scripts, balance data, art, and assets ("UGC") they create.
 
-You own the UGC you create. Publishing it does not transfer ownership to the Operator or to Valve. This license grants
-rights to use your UGC; it does not take it from you.
+2. CREATOR PERMISSIONS & THIRD-PARTY RIGHTS
+By publishing UGC, you represent and warrant that:
+a. You have all necessary rights to upload the UGC and to grant the licenses set forth in this agreement.
+b. The UGC does not infringe, misappropriate, or violate the intellectual property, copyright, trademark, privacy, or proprietary rights of any third party (including, without limitation, recognizable commercial characters, brands, music, or ripped game assets).
+c. The UGC does not contain sexually explicit content.
 
-2. WHAT YOU REPRESENT WHEN YOU PUBLISH
+3. LICENSE TO THE REALM MAINTAINERS
+By publishing, uploading, or synchronizing UGC via the Steam Workshop,
+creators grant the Realm maintainers (Devin Garner) a perpetual, worldwide,
+non-exclusive, royalty-free, sublicensable license to host, cache, route,
+distribute, mirror, reproduce, display, and format the UGC in any current or future
+official Realm release.
 
-By publishing, you represent and warrant that:
+4. LICENSE TO OTHER PLAYERS & REMIX PERMISSIONS
+Creators grant other Realm players a personal, non-exclusive license to play, 
+stream, and adapt/remix the UGC for use exclusively within the official Realm game. 
+If a creator elects to export or adapt their UGC into an external, standalone game, 
+they may only export assets they authored personally. No imported or derivative 
+works authored by third-party Realm creators may be bundled into external standalone 
+projects without separate written authorization from those respective creators.
 
-a. you have the rights needed to publish the UGC and to grant the licenses in this document;
-b. the UGC does not infringe anyone's copyright, trademark, privacy or other rights — including recognizable commercial
-   characters, brands, music and assets taken from other games;
-c. the UGC complies with Valve's agreements and the Steam Online Conduct Rules;
-d. the UGC contains no malware, and no code that runs outside the sandbox the official game gives it;
-e. the UGC contains no sexually explicit content.
-
-3. LICENSE TO THE OPERATOR
-
-By publishing, you grant the Operator a perpetual, worldwide, non-exclusive, royalty-free, sublicensable license to host,
-cache, store, mirror, archive, reproduce, distribute, display, format and create derivative works of the UGC for
-compatibility, moderation, preservation and in-game display.
-
-That license runs through the Steam Workshop, any mirror or archive the Operator maintains, and any future official
-channel, and it covers distribution of the UGC as part of the official game. It survives your deleting or privatizing the
-Workshop item: copies already distributed stay distributed, and the Operator may keep hosting them.
-
-The license is not limited to non-commercial use. The Operator's own monetization of the base game — including cosmetic
-items sold under clause 7 of the Terms of Use — is exactly what this grant covers, and does not create a claim for a
-creator whose UGC is merely present in the game.
-
-4. LICENSE TO EVERY PLAYER: MIRROR, FORK AND MAINTAIN
-
-By publishing, you also grant every person who lawfully possesses the UGC a perpetual, worldwide, non-exclusive,
-royalty-free, sublicensable license, irrevocable for copies already distributed, to:
-
-a. store, mirror, archive and redistribute the UGC in whole or in part, in its original form or as a `.rmap` file, for use
-   with the official game;
-b. create, publish, distribute and maintain derivative works — forks, fixes, updates, ports, and maintenance of a map its
-   creator has abandoned — for use with the official game;
-c. let the people who receive it from them do the same.
-
-The conditions of that license are:
-
-a. credit the original creator and link the original Workshop item where one exists;
-b. do not state or imply that a mirror or derivative is the original, or is endorsed by the original creator;
-c. license the mirror or derivative under these same terms, so it stays as free as the work it came from;
-d. do not distribute the UGC as a standalone product outside the official game, except for assets the mirror author
-   authored personally (clause 5);
-e. a mirror or derivative of a composed map carries the referenced creator's content as well as the parent's: credit both,
-   and rely on the referenced creator's own publication of that content rather than on the parent's grant;
-f. a creator may ask the Operator to remove a low-effort mirror that adds no fixes or derivatives. The Operator may honor
-   that as a policy; the license for copies already distributed survives it.
-
-If a dispute arises about a use this clause permits, the parties should treat this clause as a covenant not to assert
-claims over that use.
-
-5. EXPORTING YOUR OWN WORK, AND STANDALONE PRODUCTS
-
-You may export and publish, as a standalone product on Steam or anywhere else, any map whose every asset and every line of
-script you authored personally. That product is yours, it needs nobody's permission, and it may be built on the
-MIT-licensed engine, including the maps the engine embeds. It must use its own Steam AppID and its own Steamworks account.
-It has no right to the Realm name or logo (Terms/TRADEMARK.md), and no right to Realm's Workshop items, curation or UGC.
-
-Assets imported from another creator may not be carried into it without that creator's separate written permission, and
-the editor warns when an export contains them.
-
-"Authored personally" is defined against the mechanism that brings other people's work in: a map built from another map's
-references — the `references.json` it declares, and the `composed/` sources and assets resolved from it — contains that
-map's content, so it is not a map of your own authorship. The editor's export warning names those referenced maps the same
-way it names imported assets.
-
-6. NOBODY ELSE'S APPLICATION MAY DISTRIBUTE THIS APPID'S UGC
-
-No third party may operate a Steam product that distributes UGC taken from an AppID the Operator publishes, whether by
-mirroring Workshop items, by harvesting `.rmap` files, or by republishing a map under their own item. Every grant in
-clauses 3 and 4 is limited to the official game; your Steam grant runs to Valve and to the users of the AppID the item was
-published under, and neither the Operator nor you have licensed that content to any other application.
-
-This is a bound on permission and a policy the Operator acts on by reporting to Valve. It is not a technical control:
-nothing prevents a determined party from copying files, and this document does not claim otherwise.
-
-7. VALVE
-
-You grant Valve the license required by the Steam Subscriber Agreement and the Steam Workshop Legal Agreement. Valve's
-terms govern the Workshop item, its visibility and its removal. This license is separate and supplementary to them.
-
-8. ACCEPTANCE
-
-Publishing a Workshop item for any AppID the Operator publishes is acceptance of this license. That includes the
-demo-era item and the item written into the full game's Workshop by the same publish action. The editor shows this license
-and requires you to accept it explicitly before your first publish; the acceptance is recorded locally with the license
-version and date. This license is also stated on the game's Workshop page, so a creator who publishes through SteamCMD is
-covered by the same terms.
-
-9. MODERATION AND REMOVAL
-
-The Operator may hide, ban, mark incompatible or remove a mirror of UGC in the game's own surfaces, and may report an item
-to Valve. You may delete or privatize your Workshop item at any time. Neither of those ends the license for copies already
-distributed.
-
-Reports, including copyright complaints, go through the project's GitHub issue tracker, which is linked from the game's
-end-of-match screen and main menu.
-
-10. MIRRORS ARE DISCRETIONARY, AND THEY LIVE ON STEAM
-
-This license permits a mirror; it never obliges the Operator to make one. Only content the Operator has actually mirrored
-survives your deleting the item, and the Operator may decline a mirror request.
-
-A mirror is uploaded from a dedicated Steam account that owns the game, never from the Steamworks partner account, and only
-after a manual review. The Operator keeps a record of each mirror: the source item, your SteamID64, the license version and
-clause relied on, the reviewer, the date, the account used and the review note. That separation limits which account
-receives an account-level notice. It does not put the app beyond Valve's reach: a mirror is still a Workshop item under
-this AppID, and Valve can still act on the app.
-
-Mirrors are Steam Workshop items and nothing else. There is no mirror site, mirror storage, mirror download page or public
-mirror API, and no mirror is published as a `.rmap` outside the Workshop.
-
-11. DONATIONS, LINKS AND FAIR PLAY
-
-The Operator does not host a creator profile and does not process payments. The game displays no donation, payment, store
-or advertising link, and no price, purchase control or support request for a map or for a creator.
-
-The only creator link the game shows beyond Steam is the optional Discord server invite a map declares in its metadata. It
-is your responsibility, and it must comply with Valve's rules. A Steam-managed purchase control for the Operator's own
-cosmetic items is not a payment link and is not connected to any map.
-
-Valve's rules prohibit commercial activity in Workshop content, including soliciting payment. A donation or payment
-solicitation belongs in the community you run, not in a Workshop item and not in the game.
-
-Nothing in a map may sell gameplay: no map, mode, feature, seat, unit, building or match option may be purchasable, and
-nothing purchasable may change gameplay, reach, information, matchmaking or randomness.
-
-12. PRIVACY
-
-The Operator stores only what a published map needs: your SteamID64 in its authorship metadata, the attribution tags and
-the optional Discord invite. There is no biography, link list, e-mail or profile copy, and no password or e-mail is
-required to publish.
-
-Steam's privacy settings govern what your profile and Workshop pages show. You can hide or delete your Steam content
-through Steam.
-
-13. VERSIONING
-
-This license is versioned and the version you accepted is recorded. Material changes take effect on your next publish; a
-map published under an earlier version keeps the terms it was published under. Every published map carries the license URL
-in its metadata, and that URL resolves to the text committed with the game.
-
-14. NO CREATOR REVENUE SHARE
-
-This license provides for no revenue share, split, payee list or per-map commercial grant, because the product sells
-nothing a creator could be paid for. If that ever changes, it changes with a new version of this license and its own
-agreement.
-
----
-
-Questions about this license, and permission requests that go beyond it, belong on the project's issue tracker. This
-document is not legal advice to you; it is the license you accept by publishing.
+5. STANDALONE BUILDS & FORKS
+"Realm Engine" and "Realm on Steam" are legally and operationally distinct. Deploying, distributing, or modifying a standalone application built with the Realm Engine under its MIT License does not constitute being the official Realm game on Steam and does not receive any license over UGC published to the Steam Workshop associated with the official Steam Realm AppId.

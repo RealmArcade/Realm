@@ -1,11 +1,11 @@
 All source code in this repository is 100% open source under the MIT License.
-Separate terms apply to the official hosted infrastructure, UGC, & Trademarks.
+Separate terms apply to Realm's Steam Workshop, UGC, & Trademarks.
 
 REALM ENGINE (Code)
 	Terms\RealmEngine_License.txt (MIT)
 
-REALM PLATFORM (Live Services & Content)
-	Hosted Servers:
+REALM ON STEAM (Live Services & UGC Content)
+	Live Services:
 		Terms\RealmPlatform_ToS.txt
 	UGC:
 		Terms\RealmPlatform_UGC_License.txt
