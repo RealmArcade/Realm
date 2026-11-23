@@ -118,7 +118,7 @@ public partial class ServerLobby
 		var line = new LobbyChatMessage
 		{
 			SenderPeerId = sender.PeerId,
-			SenderAccountId = sender.AccountId,
+			SenderSteamId = sender.SteamId,
 			SenderName = sender.Name,
 			Message = text,
 			TimestampUtcTicks = DateTime.UtcNow.Ticks
@@ -137,6 +137,7 @@ public partial class ServerLobby
 	private void AddSystemChat(string message)
 	{
 		if (string.IsNullOrWhiteSpace(message)) return;
+		_log.Write($"system chat: {LobbyLimits.Sanitize(message, LobbyLimits.MaximumChatMessageLength)}");
 
 		var line = new LobbyChatMessage
 		{

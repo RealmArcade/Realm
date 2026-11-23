@@ -18,7 +18,6 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
-using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
@@ -26,7 +25,6 @@ using Realm.Shared.Network;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 public partial class LobbyManager
@@ -174,69 +172,6 @@ public partial class LobbyManager
 		return false;
 	}
 
-	public async Task<bool> DownloadMapEphemerallyAsync(string targetIp, int targetPort, string mapName, Action<float>? progressCallback = null, CancellationToken cancellationToken = default)
-	{
-		if (string.IsNullOrWhiteSpace(mapName) || string.IsNullOrWhiteSpace(targetIp) || targetPort <= 0) return false;
-		if (_lobbySession != null) return false;
-
-		if (MapAssetManager.IsMapDownloaded(mapName))
-		{
-			EmitMapDownloadComplete(progressCallback);
-			return true;
-		}
-
-		bool wasSeeding = StopSeedingIfActive();
-		Action<float>? progressHandler = SetupProgressHandler(progressCallback);
-
-		try
-		{
-			var peer = await EstablishEphemeralConnectionAsync(targetIp, targetPort, cancellationToken);
-			if (peer == null) return false;
-
-			_isConnectedToHost = true;
-			bool downloadResult = await EnsureMapDownloadedAsync(mapName);
-
-			CleanupEphemeralConnection(peer);
-			return downloadResult;
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogError($"[LobbyManager] Ephemeral map download error: {ex.Message}");
-			return false;
-		}
-		finally
-		{
-			TeardownEphemeralState(progressHandler, wasSeeding);
-		}
-	}
-
-	private void EmitMapDownloadComplete(Action<float>? progressCallback)
-	{
-		progressCallback?.Invoke(1.0f);
-		MapDownloadProgressChanged?.Invoke(1.0f);
-		MapDownloadCompleted?.Invoke();
-	}
-
-	/// <summary>
-	///     Gives the multiplayer peer slot back before a lobby or a match claims it, so a seeder that is winding down can never
-	///     leave the registry advertising an address whose socket has already been replaced.
-	/// </summary>
-	private static void ReleaseSeedingSlot()
-	{
-		GameContext.PeerSeeder?.Stop();
-	}
-
-	private bool StopSeedingIfActive()
-	{
-		bool wasSeeding = GameContext.PeerSeeder != null && GameContext.PeerSeeder.IsSeeding;
-		if (wasSeeding)
-		{
-			GameContext.PeerSeeder!.Stop();
-		}
-
-		return wasSeeding;
-	}
-
 	private Action<float>? SetupProgressHandler(Action<float>? progressCallback)
 	{
 		if (progressCallback == null) return null;
@@ -245,98 +180,17 @@ public partial class LobbyManager
 		return handler;
 	}
 
-	private async Task<ENetMultiplayerPeer?> EstablishEphemeralConnectionAsync(string targetIp, int targetPort, CancellationToken cancellationToken)
-	{
-		bool isLocal = targetIp == "127.0.0.1" || targetIp == "localhost" || targetIp == PublicIP;
-		int clientPort = ENetPort + 16;
-		if (!isLocal) await UdpHolePuncher.PunchHoleAsync(targetIp, targetPort, clientPort);
-
-		var peer = new ENetMultiplayerPeer();
-		int localPortToUse = isLocal ? 0 : clientPort;
-		var err = peer.CreateClient(targetIp, targetPort, localPort: localPortToUse);
-		if (err != Error.Ok && localPortToUse != 0)
-		{
-			err = peer.CreateClient(targetIp, targetPort, localPort: 0);
-		}
-
-		if (err != Error.Ok)
-		{
-			GameLog.LogError($"[LobbyManager] Failed to create ephemeral ENet client: {err}");
-			return null;
-		}
-
-		var packetPeer = peer.GetPeer(1);
-		if (packetPeer != null) packetPeer.SetTimeout(32, 5000, 15000);
-
-		_isConnectedToHost = false;
-		Multiplayer.MultiplayerPeer = peer;
-
-		if (!await WaitForEphemeralConnectionAsync(cancellationToken))
-		{
-			GameLog.LogError($"[LobbyManager] Ephemeral connection to {targetIp}:{targetPort} timed out or failed.");
-			CleanupEphemeralConnection(peer);
-			return null;
-		}
-
-		return peer;
-	}
-
-	private async Task<bool> WaitForEphemeralConnectionAsync(CancellationToken cancellationToken)
-	{
-		var connectedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		void OnConnected() => connectedTcs.TrySetResult(true);
-		void OnFailed() => connectedTcs.TrySetResult(false);
-
-		Multiplayer.ConnectedToServer += OnConnected;
-		Multiplayer.ConnectionFailed += OnFailed;
-
-		var connectTask = await Task.WhenAny(connectedTcs.Task, Task.Delay(8000, cancellationToken));
-
-		Multiplayer.ConnectedToServer -= OnConnected;
-		Multiplayer.ConnectionFailed -= OnFailed;
-
-		return connectTask == connectedTcs.Task && connectedTcs.Task.Result;
-	}
-
-	private void CleanupEphemeralConnection(ENetMultiplayerPeer peer)
+	private static int FindFreeUdpPort()
 	{
 		try
 		{
-			peer.Close();
+			using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+			socket.Bind(new IPEndPoint(IPAddress.Any, 0));
+			return ((IPEndPoint)socket.LocalEndPoint!).Port;
 		}
-		catch
+		catch (SocketException)
 		{
-		}
-
-		Multiplayer.MultiplayerPeer = null;
-		_isConnectedToHost = false;
-	}
-
-	private void TeardownEphemeralState(Action<float>? progressHandler, bool wasSeeding)
-	{
-		if (progressHandler != null)
-		{
-			MapDownloadProgressChanged -= progressHandler;
-		}
-
-		if (Multiplayer.MultiplayerPeer != null)
-		{
-			try
-			{
-				Multiplayer.MultiplayerPeer.Close();
-			}
-			catch
-			{
-			}
-
-			Multiplayer.MultiplayerPeer = null;
-		}
-
-		_isConnectedToHost = false;
-
-		if (wasSeeding)
-		{
-			GameContext.PeerSeeder?.CheckIdleAndSeedStatus();
+			return 0;
 		}
 	}
 

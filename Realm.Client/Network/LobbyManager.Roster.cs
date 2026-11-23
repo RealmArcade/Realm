@@ -18,7 +18,6 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
-using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
@@ -26,7 +25,6 @@ using Realm.Shared.Network;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 public partial class LobbyManager
@@ -43,7 +41,7 @@ public partial class LobbyManager
 			int difficulty = isComputer
 				? (int)LobbyBotDifficultyRules.Clamp((int)player.Difficulty)
 				: (int)LobbyBotDifficultyRules.Default;
-			seats.Add(new MatchRosterSeat(player.Slot, player.AccountId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer, difficulty, player.Faction));
+			seats.Add(new MatchRosterSeat(player.Slot, player.SteamId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer, difficulty, player.Faction));
 		}
 
 		seats.Sort((left, right) => left.Slot.CompareTo(right.Slot));
@@ -65,28 +63,8 @@ public partial class LobbyManager
 		return slot;
 	}
 
-	public async Task<int> MeasurePingToRegistryAsync()
-	{
-		var stopwatch = Stopwatch.StartNew();
-		try
-		{
-			var response = await _httpClient.GetAsync($"{RegistryServerUrl}/lobbies");
-			stopwatch.Stop();
-			if (response.IsSuccessStatusCode)
-			{
-				return (int)stopwatch.ElapsedMilliseconds;
-			}
-		}
-		catch
-		{
-		}
-
-		return 100;
-	}
-
 	public override void _ExitTree()
 	{
-		GameContext.Account.Changed -= OnAccountChanged;
 		GameContext.UnregisterLobby(this);
 	}
 
@@ -123,29 +101,6 @@ public partial class LobbyManager
 		}
 
 		return "127.0.0.1";
-	}
-
-	private static bool IsPrivateIp(string ip)
-	{
-		if (ip == "127.0.0.1") return true;
-		if (ip == "localhost") return true;
-		if (!IPAddress.TryParse(ip, out var address)) return false;
-
-		byte[] bytes = address.GetAddressBytes();
-		if (bytes.Length != 4) return false;
-
-		if (bytes[0] == 10) return true;
-		if (bytes[0] == 192 && bytes[1] == 168) return true;
-		if (bytes[0] == 172 && IsInRange(bytes[1], 16, 31)) return true;
-		if (bytes[0] == 100 && IsInRange(bytes[1], 64, 127)) return true;
-		if (bytes[0] == 26) return true;
-
-		return false;
-	}
-
-	private static bool IsInRange(byte value, byte min, byte max)
-	{
-		return value >= min && value <= max;
 	}
 
 }

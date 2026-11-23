@@ -23,6 +23,11 @@ public partial class MultiplayerSimulationHarness : Node
 {
 	private ClientServerSession JoinAuthority()
 	{
+		if (!System.Net.IPAddress.TryParse(_hostAddress, out System.Net.IPAddress? hostAddress) || !System.Net.IPAddress.IsLoopback(hostAddress))
+		{
+			throw new InvalidOperationException($"'{_hostAddress}' is not a loopback address. A screen reaches only its own authority, which listens on the loopback address; other players arrive through Steam, so a run across two machines is a lobby, not a harness argument.");
+		}
+
 		ClientNetworkChannel channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork") ?? throw new InvalidOperationException("This build has no channel to an authority.");
 		GameContext.ServerSession?.Dispose();
 

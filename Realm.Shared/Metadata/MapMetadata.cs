@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Realm.Shared.Serialization;
 
@@ -11,20 +11,21 @@ public class MapMetadata
 	[JsonPropertyName("license")]
 	[SchemaDescription("The licence the map's content is published under, stored as an exact URL so the same licence text is agreed to by everybody who downloads the map.")]
 	[SchemaSensitive]
-	public string License { get; set; } = "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt";
+	public string License { get; set; } = "https://www.realm-game.com/RealmPlatform_UGC_License_v2.txt";
 
 	[JsonPropertyName("GameBuildNumber")]
 	[SchemaDescription("The Realm build the map was authored and published against. A lobby only offers the map to a build that matches it exactly.")]
 	[SchemaSensitive]
 	public string? GameBuildNumber { get; set; }
 
+	[JsonPropertyName("EngineGeneration")]
+	[SchemaDescription("The workflow generation this map's data was authored against. A game reads maps of its own generation and upgrades older ones on a private copy, while a newer generation needs a newer game.")]
+	[SchemaSensitive]
+	public int? EngineGeneration { get; set; }
+
 	[JsonPropertyName("MapProperties")]
 	[SchemaDescription("Everything the map says about itself to a player: its name, its author, its size, its lighting and the slots it offers.")]
 	public MapInfoMetadata MapProperties { get; set; } = new();
-
-	[JsonPropertyName("Dependencies")]
-	[SchemaDescription("Other published maps this map builds on. Their content is merged into this one before the map's own templates are resolved.")]
-	public List<MapDependencyMetadata> Dependencies { get; set; } = new();
 
 	[JsonPropertyName("Templates")]
 	[SchemaDescription("Every unit, building, prop, resource, ability, weapon, upgrade, item, consumable, attachment and visual effect the map defines.")]
@@ -100,7 +101,7 @@ public class MapMetadata
 	public List<string>? Attributions { get; set; }
 
 	[JsonPropertyName("EngineVersion")]
-	[SchemaDescription("The engine binary that published this map, which the registry reports beside the map. It is written when the map is signed.")]
+	[SchemaDescription("The engine binary that published this map, so a reader can tell which build produced the shipped files. It is written when the map is signed.")]
 	[SchemaDerived("publish")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public string? EngineVersion { get; set; }

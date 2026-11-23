@@ -7,6 +7,12 @@ public class SessionState
 	public bool IsMapEditorMode { get; set; }
 	public bool PendingNewMapOnEditorOpen { get; set; } = false;
 	public bool IsTestMode { get; set; } = false;
+
+	/// <summary>
+	///     Whether the create screen was opened to play this screen alone. It is the intent the menu stated, not the state of
+	///     a lobby, so it is known before any lobby exists and cannot be left behind by a previous screen.
+	/// </summary>
+	public bool IsSinglePlayerLobbyMode { get; set; } = false;
 	public bool ReturningFromTest { get; set; } = false;
 	public bool EditorSessionResumedAfterTest { get; set; } = false;
 

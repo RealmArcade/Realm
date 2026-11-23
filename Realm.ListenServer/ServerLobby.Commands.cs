@@ -6,7 +6,6 @@ using Realm.Shared.Maps;
 using Realm.Shared.Network;
 using Realm.Ecs;
 using Realm.Shared.Players;
-using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Realm.Shared.Simulation;
 
@@ -93,11 +92,6 @@ public partial class ServerLobby
 			case LobbyCommandKind.ReportHostStability:
 				if (!isAdmin) return;
 				ReportHostStability(command.Text);
-				break;
-			case LobbyCommandKind.PunchAddress:
-				if (!isAdmin) return;
-				if (string.IsNullOrWhiteSpace(command.Address) || command.Port <= 0 || command.Port > 65535) return;
-				_punchAddress(LobbyLimits.Sanitize(command.Address, 64), command.Port, LobbyLimits.Sanitize(command.Text, ReachabilityPunch.MaximumProbeIdBytes));
 				break;
 			case LobbyCommandKind.RequestChatHistory:
 				foreach (LobbyChatMessage line in _chatHistory)

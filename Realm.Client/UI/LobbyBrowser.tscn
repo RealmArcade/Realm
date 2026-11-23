@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3]
+﻿[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://UI/LobbyBrowser.cs" id="1_script"]
 
@@ -121,15 +121,10 @@ layout_mode = 2
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="BetaTestingMapsCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
+[node name="TrustedOnlyCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
 layout_mode = 2
 focus_mode = 0
-text = "Show beta-testing maps"
-
-[node name="VersionMismatchCheck" type="CheckBox" parent="FilterPanel/VBoxContainer"]
-layout_mode = 2
-focus_mode = 0
-text = "Show mismatched game version"
+text = "Trusted maps only"
 
 [node name="LobbyPanel" type="PanelContainer" parent="."]
 layout_mode = 0
@@ -155,7 +150,7 @@ vertical_alignment = 2
 [node name="SizeCol" type="Label" parent="LobbyPanel/VBoxContainer/TableHeader"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "SIZE"
+text = "CODE"
 vertical_alignment = 2
 
 [node name="ModeCol" type="Label" parent="LobbyPanel/VBoxContainer/TableHeader"]
@@ -170,10 +165,10 @@ size_flags_horizontal = 3
 text = "PLAYERS"
 vertical_alignment = 2
 
-[node name="PingCol" type="Label" parent="LobbyPanel/VBoxContainer/TableHeader"]
+[node name="BuildCol" type="Label" parent="LobbyPanel/VBoxContainer/TableHeader"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "PING  "
+text = "BUILD  "
 horizontal_alignment = 2
 vertical_alignment = 2
 

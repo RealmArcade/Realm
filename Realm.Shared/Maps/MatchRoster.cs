@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -11,7 +11,7 @@ using Realm.Shared.Simulation;
 
 namespace Realm.Shared.Maps;
 
-public readonly record struct MatchRosterSeat(int Slot, long AccountId, string Name, int Team, string TeamName, bool IsComputer, int Difficulty = (int)LobbyBotDifficulty.Hard, string Faction = "");
+public readonly record struct MatchRosterSeat(int Slot, ulong SteamId, string Name, int Team, string TeamName, bool IsComputer, int Difficulty = (int)LobbyBotDifficulty.Hard, string Faction = "");
 
 public static class MatchRoster
 {
@@ -126,7 +126,7 @@ public static class MatchRosterFile
 		{
 			MatchRosterSeat seat = seats[index];
 			builder.Append(seat.Slot.ToString(CultureInfo.InvariantCulture)).Append(Separator);
-			builder.Append(seat.AccountId.ToString(CultureInfo.InvariantCulture)).Append(Separator);
+			builder.Append(seat.SteamId.ToString(CultureInfo.InvariantCulture)).Append(Separator);
 			builder.Append(Sanitize(seat.Name)).Append(Separator);
 			builder.Append(seat.Team.ToString(CultureInfo.InvariantCulture)).Append(Separator);
 			builder.Append(Sanitize(seat.TeamName)).Append(Separator);
@@ -216,7 +216,7 @@ public static class MatchRosterFile
 			}
 
 			if (!int.TryParse(columns[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int slot)
-				|| !long.TryParse(columns[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out long accountId)
+				|| !ulong.TryParse(columns[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong steamId)
 				|| !int.TryParse(columns[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out int team))
 			{
 				error = $"the match roster line {index + 1} of '{path}' does not name a slot and a team.";
@@ -237,7 +237,7 @@ public static class MatchRosterFile
 				return false;
 			}
 
-			parsed.Add(new MatchRosterSeat(slot, accountId, columns[2], team, columns[4], columns[5][0] == '1', difficulty, columns[7]));
+			parsed.Add(new MatchRosterSeat(slot, steamId, columns[2], team, columns[4], columns[5][0] == '1', difficulty, columns[7]));
 		}
 
 		seats = parsed.ToArray();

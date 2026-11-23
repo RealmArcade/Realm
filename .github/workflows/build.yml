@@ -1,4 +1,4 @@
-name: Build
+﻿name: Build
 
 on:
   push:
@@ -19,6 +19,18 @@ on:
         default: ''
 
 jobs:
+  check-large-files:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: ${{ github.event_name == 'pull_request' && 0 || 2 }}
+
+      - name: Warn on Large Files
+        run: ./scripts/check-large-files.ps1 -Base ${{ github.event.pull_request.base.sha || 'HEAD~1' }} -Head HEAD
+
   build:
     runs-on: windows-latest
 
@@ -56,21 +68,6 @@ jobs:
       - name: Create Publish Directory
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
         run: New-Item -ItemType Directory -Force -Path publish
-
-      - name: Inject Variable servers.json
-        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
-        env:
-          SERVERS_JSON: ${{ vars.SERVERS_JSON }}
-        run: |
-          if ($env:SERVERS_JSON -and $env:SERVERS_JSON.Trim() -ne "") {
-            Set-Content -Path "Realm.Client\servers.json" -Value $env:SERVERS_JSON -Encoding utf8
-            Write-Host "Successfully injected SERVERS_JSON variable into Realm.Client\servers.json"
-          } else {
-            Write-Host "SERVERS_JSON variable not set; falling back to Realm.Client\servers.template.json."
-            if (Test-Path "Realm.Client\servers.template.json") {
-              Copy-Item -Path "Realm.Client\servers.template.json" -Destination "Realm.Client\servers.json" -Force
-            }
-          }
 
       - name: Import Godot Assets
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
@@ -171,15 +168,6 @@ jobs:
           # without running it.
           Copy-Item -Path "version.txt" -Destination "$PWD\publish\version.txt" -Force
 
-      - name: Copy servers.json to Publish Directory
-        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
-        run: |
-          if (Test-Path "Realm.Client\servers.json") {
-            Copy-Item -Path "Realm.Client\servers.json" -Destination "$PWD\publish\servers.json" -Force
-          } elseif (Test-Path "Realm.Client\servers.template.json") {
-            Copy-Item -Path "Realm.Client\servers.template.json" -Destination "$PWD\publish\servers.json" -Force
-          }
-
       - name: Ship the Steam Native Library
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
         run: |
@@ -212,36 +200,6 @@ jobs:
           echo "ARCHIVE_NAME=$archiveName" >> $env:GITHUB_ENV
           echo "archive_name=$archiveName" >> $env:GITHUB_OUTPUT
 
-      - name: Publish Realm.AdminServer
-        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
-        run: |
-          New-Item -ItemType Directory -Force -Path publish-adminserver
-          dotnet publish Realm.AdminServer\Realm.AdminServer.csproj --configuration Release --output "$PWD\publish-adminserver"
-          if (Test-Path "Terms") {
-            Copy-Item -Path "Terms" -Destination "$PWD\publish-adminserver\Terms" -Recurse -Force
-          }
-          if (Test-Path "LICENSE") {
-            Copy-Item -Path "LICENSE" -Destination "$PWD\publish-adminserver\LICENSE" -Force
-          }
-          Copy-Item -Path "version.txt" -Destination "$PWD\publish-adminserver\version.txt" -Force
-
-      - name: Create 7z Ultra Archive (AdminServer)
-        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
-        id: create_adminserver_archive
-        run: |
-          $osPlatform = "Windows"
-          $systemArchitecture = "x64"
-          $version = if ($env:VERSION_NUMBER -and $env:VERSION_NUMBER.Trim() -ne "") {
-            $env:VERSION_NUMBER.Trim()
-          } else {
-            "0.0.1_Pre-Alpha"
-          }
-          $version = $version.Split('+')[0].Trim()
-          $adminArchiveName = "Realm-AdminServer-${osPlatform}-${systemArchitecture}_${version}.7z"
-          7z a -t7z -m0=lzma2 -mx=9 $adminArchiveName .\publish-adminserver\*
-          echo "ADMIN_ARCHIVE_NAME=$adminArchiveName" >> $env:GITHUB_ENV
-          echo "admin_archive_name=$adminArchiveName" >> $env:GITHUB_OUTPUT
-
       - name: Upload Published Client Artifact
         if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
         uses: actions/upload-artifact@v6
@@ -249,9 +207,3 @@ jobs:
           name: ${{ env.ARCHIVE_NAME || 'Realm-Windows-x64' }}
           path: ${{ env.ARCHIVE_NAME || 'Realm-Windows-x64*.7z' }}
 
-      - name: Upload Published AdminServer Artifact
-        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.publish == true || github.event.inputs.publish == 'true') }}
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.ADMIN_ARCHIVE_NAME || 'Realm-AdminServer-Windows-x64' }}
-          path: ${{ env.ADMIN_ARCHIVE_NAME || 'Realm-AdminServer-Windows-x64*.7z' }}

@@ -61,9 +61,6 @@ public static partial class MapAssetManager
 
 	private static string StripPrefixes(string name)
 	{
-		if (name.StartsWith("[Beta-Testing]", StringComparison.OrdinalIgnoreCase))
-			name = name.Substring("[Beta-Testing]".Length).Trim();
-
 		if (name.StartsWith("Realm_", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Realm ", StringComparison.OrdinalIgnoreCase))
 			name = name.Substring(6).Trim();
 

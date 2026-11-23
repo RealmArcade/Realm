@@ -1,4 +1,4 @@
-using CommandLine;
+﻿using CommandLine;
 using Realm.Shared;
 
 namespace Realm.Tools.Cli;

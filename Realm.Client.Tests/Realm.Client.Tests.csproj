@@ -1,4 +1,4 @@
-<Project Sdk="Godot.NET.Sdk/4.7.0">
+﻿<Project Sdk="Godot.NET.Sdk/4.7.0">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
@@ -24,6 +24,11 @@
     <ProjectReference Include="..\Realm.Shared\Realm.Shared.csproj" />
     <ProjectReference Include="..\Realm.MapAPI\Realm.MapAPI.csproj" />
     <ProjectReference Include="..\Realm.EditorAPI\Realm.EditorAPI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The append-only guard compares the replicated component table with what shipped, so the baseline travels with the test. -->
+    <None Include="..\ReplicationComponents.baseline.json" Link="ReplicationComponents.baseline.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

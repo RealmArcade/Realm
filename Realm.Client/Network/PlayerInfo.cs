@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text.Json.Serialization;
 using Godot;
 using Realm.Shared.Network;
@@ -14,16 +14,15 @@ public class PlayerInfo
 	public int Slot { get; set; }
 
 	/// <summary>
-	///     The account the seat belongs to, or 0 for a guest or computer seat. The name is only ever a display value; this is
-	///     the identity.
+	///     The name the seat is shown under, as that seat's own client stated it. It is a display value and nothing more:
+	///     <see cref="SteamId" /> is the identity, and a player may change their Steam persona between matches.
 	/// </summary>
-	public long AccountId { get; set; }
 	public string Name { get; set; } = "";
 
 	/// <summary>
-	///     The SteamID64 this seat's player plays as, or 0 for a computer seat, a guest who is not running inside Steam, or a
-	///     player who has not stated one. The seat's own client states it, exactly like the name, and the only thing it is used
-	///     for is pointing Steam's add-friend dialog at the person behind the seat.
+	///     The SteamID64 this seat's player plays as, or 0 for a computer seat, a screen running without Steam, or a player
+	///     who has not stated one. The seat's own client states it, exactly like the name, and the only thing it is used for
+	///     is pointing Steam's add-friend dialog at the person behind the seat.
 	/// </summary>
 	public ulong SteamId { get; set; }
 	public string Faction { get; set; } = string.Empty;
@@ -74,6 +73,5 @@ public class PlayerInfo
 	public bool IsLoadReady { get; set; }
 
 	[JsonIgnore]
-	public string SessionToken { get; set; } = Guid.NewGuid().ToString();
 	public bool IsDisconnected { get; set; } = false;
 }

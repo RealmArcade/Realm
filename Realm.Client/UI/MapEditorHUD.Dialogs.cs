@@ -29,7 +29,6 @@ using Realm.Shared.ModelOptimization;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
 using Environment = System.Environment;
-using HttpClient = System.Net.Http.HttpClient;
 using Key = Godot.Key;
 using MirrorMode = Realm.Ecs.Components.Core.MirrorMode;
 using TerrainCell = Realm.Ecs.Components.Terrain.TerrainCell;
@@ -284,8 +283,8 @@ namespace Realm.Client.UI
 				if (!world.IsAlive(unit.Entity)) continue;
 				if (!world.TryGet<UnitOwnerPlayer>(unit.Entity, out UnitOwnerPlayer owner)) continue;
 
-				// Gaia is the palette's own default owner, so a board an author never gave a seat to is a board they consider
-				// populated: warning there would call their scenery unplaced.
+				// The neutral entry is the palette's own default owner, so a board an author never gave a seat to is a board
+				// they consider populated: warning there would call their scenery unplaced.
 				if (owner.PlayerIndex == PlayerColorConfig.NEUTRAL_PLAYER_INDEX) return true;
 				if (MapTestSeating.CouldSeatLocalPlayer(owner.PlayerIndex, in seating, playableSlots)) return true;
 			}

@@ -107,7 +107,7 @@ public partial class AssetManagerDialog
 		};
 
 		string? requiredType = _selectedAssetType == "All" ? null : _selectedAssetType;
-		Hud?.OpenAssetBrowser($"Import Asset ({_selectedAssetType})", extensions, (IReadOnlyList<AssetBrowserSelection> selections) => OnImportFilesSelected(selections), requireRealmMetadata: true, requiredAssetType: requiredType);
+		Hud?.OpenAssetBrowser(string.Format(TranslationServer.Translate("Import Asset ({0})"), _selectedAssetType), extensions, (IReadOnlyList<AssetBrowserSelection> selections) => OnImportFilesSelected(selections), requireRealmMetadata: true, requiredAssetType: requiredType);
 	}
 
 	private enum AssetImportOutcome
@@ -226,7 +226,7 @@ public partial class AssetManagerDialog
 			GameLog.LogError($"[AssetManagerDialog] OnImportFileSelected error: {ex.Message}");
 			if (showFeedback)
 			{
-				Hud?.ShowFeedback($"Error importing asset: {ex.Message}");
+				Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Error importing asset: {0}"), ex.Message));
 			}
 
 			return AssetImportOutcome.Failed;

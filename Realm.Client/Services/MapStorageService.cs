@@ -17,11 +17,11 @@ using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Utils;
 using Realm.Shared;
+using Realm.Client.Services.Steam;
 using Realm.Shared.Distribution;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 using Key = NSec.Cryptography.Key;
 
 namespace Realm.Client.Services;
@@ -221,78 +221,53 @@ public class MapStorageService
 		}
 	}
 
+	/// <summary>
+	///     Asks the Workshop whether the newest published item for a map is newer than the copies on this machine.
+	/// </summary>
+	/// <param name="mapTitle">The map's folder name.</param>
+	/// <param name="localVersions">The versions already on this machine.</param>
+	/// <param name="cancellationToken">Gives up the query.</param>
+	/// <returns>Whether a newer version exists, which version it is, and the item it is published as.</returns>
 	public async Task<(bool HasNewer, string? NewerVersion, string? MapId)> CheckForNewerVersionAsync(
 		string mapTitle,
 		List<string> localVersions,
-		string? registryServerUrl = null,
 		CancellationToken cancellationToken = default)
 	{
 		if (string.IsNullOrWhiteSpace(mapTitle)) return (false, null, null);
 
-		string serverUrl = GetRegistryServerUrl(registryServerUrl);
-		var distClient = new DistributionClient(serverUrl);
-
 		try
 		{
-			var discoveryResult = await CheckDiscoveryMapsAsync(distClient, mapTitle, localVersions, cancellationToken);
-			if (discoveryResult.MapId != null) return discoveryResult;
+			WorkshopMapEntry? published = await SteamWorkshopService.FindByMapNameAsync(mapTitle, cancellationToken);
+			if (published is not { } item) return (false, null, null);
 
-			return await CheckManifestAsync(distClient, mapTitle, localVersions, cancellationToken);
+			string publishedVersion = item.Identity.Version;
+			if (string.IsNullOrWhiteSpace(publishedVersion)) return (false, null, item.PublishedFileId.ToString());
+
+			bool isNewer = IsVersionNewer(publishedVersion, localVersions);
+			return (isNewer, isNewer ? publishedVersion : null, item.PublishedFileId.ToString());
 		}
-		catch
+		catch (Exception exception)
 		{
+			MapAssetManager.LogErr($"[MapStorageService] Reading the Workshop for '{mapTitle}' failed: {exception.Message}");
 			return (false, null, null);
 		}
 	}
 
-	private string GetRegistryServerUrl(string? registryServerUrl)
-	{
-		return !string.IsNullOrWhiteSpace(registryServerUrl)
-			? registryServerUrl
-			: (GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl());
-	}
-
-	private async Task<(bool HasNewer, string? NewerVersion, string? MapId)> CheckDiscoveryMapsAsync(DistributionClient distClient, string mapTitle, List<string> localVersions, CancellationToken cancellationToken)
-	{
-		var discoveryMaps = await distClient.GetDiscoveryMapsAsync(cancellationToken);
-		var matchingDto = discoveryMaps.FirstOrDefault(m =>
-			string.Equals(m.Title, mapTitle, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(m.MapId, mapTitle, StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(m.Title.Replace('_', ' '), mapTitle.Replace('_', ' '), StringComparison.OrdinalIgnoreCase));
-
-		if (matchingDto != null && !string.IsNullOrWhiteSpace(matchingDto.Version))
-		{
-			bool isNewer = IsVersionNewer(matchingDto.Version, localVersions);
-			return (isNewer, isNewer ? matchingDto.Version : null, matchingDto.MapId);
-		}
-
-		return (false, null, null);
-	}
-
-	private async Task<(bool HasNewer, string? NewerVersion, string? MapId)> CheckManifestAsync(DistributionClient distClient, string mapTitle, List<string> localVersions, CancellationToken cancellationToken)
-	{
-		var manifest = await distClient.GetManifestAsync(mapTitle, cancellationToken);
-		if (manifest != null && !string.IsNullOrWhiteSpace(manifest.Version))
-		{
-			bool isNewer = IsVersionNewer(manifest.Version, localVersions);
-			return (isNewer, isNewer ? manifest.Version : null, mapTitle);
-		}
-
-		return (false, null, null);
-	}
-
+	/// <summary>
+	///     Subscribes to the Workshop item a newer version is published as and waits for Steam to install it.
+	/// </summary>
+	/// <param name="mapId">The Workshop item id, as the version check reported it.</param>
+	/// <param name="progressCallback">How much of the download Steam has taken.</param>
+	/// <param name="cancellationToken">Gives up waiting.</param>
+	/// <returns>True when the newer version is on this machine afterwards.</returns>
 	public async Task<bool> DownloadUpdatedVersionAsync(
 		string mapId,
-		string? registryServerUrl = null,
 		Action<float>? progressCallback = null,
 		CancellationToken cancellationToken = default)
 	{
-		string serverUrl = !string.IsNullOrWhiteSpace(registryServerUrl)
-			? registryServerUrl
-			: (GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl());
+		if (!ulong.TryParse(mapId, out ulong publishedFileId) || publishedFileId == 0) return false;
 
-		var distClient = new MapDistributionClient();
-		return await distClient.DownloadMapPackageFromRegistryAsync(mapId, serverUrl, progressCallback, cancellationToken);
+		return await SteamWorkshopService.InstallAsync(publishedFileId, progressCallback, cancellationToken);
 	}
 
 	public async Task<bool> ExportMapAsync(string sourceDirectory, string destinationRmapPath, Action<float, string>? progressCallback = null, int compressionLevel = 1)
@@ -700,7 +675,7 @@ public class MapStorageService
 		}
 	}
 
-	public async Task<bool> SignMapMetadataAsync(string workspace, string mapTitle, string mapVersion, string authorName, Key authorshipKey, string publicKeyBase64, string seedServerUrl)
+	public async Task<bool> SignMapMetadataAsync(string workspace, string mapTitle, string mapVersion, string authorName, Key authorshipKey, string publicKeyBase64)
 	{
 		string metadataJsonPath = Path.Combine(workspace, "metadata.json");
 		if (!File.Exists(metadataJsonPath)) return false;
@@ -712,7 +687,7 @@ public class MapStorageService
 				var contributorsList = ExtractExistingContributors(metadata);
 				if (!string.IsNullOrWhiteSpace(authorName)) contributorsList.Add(authorName);
 
-				var authorCounts = await CollectWorkspaceAssetAuthorsAsync(workspace, mapTitle, mapVersion, authorName, seedServerUrl, contributorsList);
+				var authorCounts = CollectWorkspaceAssetAuthors(workspace, mapTitle, mapVersion, authorName, contributorsList);
 
 				ApplyContributorsAndAttributions(metadata, contributorsList, authorCounts, publicKeyBase64);
 
@@ -730,10 +705,20 @@ public class MapStorageService
 		}
 	}
 
-	private async Task<Dictionary<string, int>> CollectWorkspaceAssetAuthorsAsync(string workspace, string mapTitle, string mapVersion, string authorName, string seedServerUrl, HashSet<string> contributorsList)
+	/// <summary>
+	///     Counts who made the assets a map ships, so the credit a published map states names the people whose work is in
+	///     it. Each asset carries its own author in its metadata, which is read here instead of being asked of a server:
+	///     the file itself is the record.
+	/// </summary>
+	/// <param name="workspace">The map folder being signed.</param>
+	/// <param name="mapTitle">The map's title.</param>
+	/// <param name="mapVersion">The map's version.</param>
+	/// <param name="authorName">The map's own author.</param>
+	/// <param name="contributorsList">Everyone already credited, which is extended with the asset authors found.</param>
+	/// <returns>How many of the map's assets each author contributed.</returns>
+	private static Dictionary<string, int> CollectWorkspaceAssetAuthors(string workspace, string mapTitle, string mapVersion, string authorName, HashSet<string> contributorsList)
 	{
 		var authorCounts = new Dictionary<string, int>();
-		if (string.IsNullOrWhiteSpace(seedServerUrl)) return authorCounts;
 
 		List<string> referencedHashes;
 		try
@@ -746,8 +731,19 @@ public class MapStorageService
 			return authorCounts;
 		}
 
-		using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-		return await CollectAssetAuthorsAsync(referencedHashes, seedServerUrl, httpClient, contributorsList);
+		foreach (string hash in referencedHashes)
+		{
+			string? assetPath = MapAssetManager.Storage.FindAssetFilePath(hash);
+			if (assetPath == null || !File.Exists(assetPath)) continue;
+
+			string? author = RealmMetadataHelper.ExtractAuthor(assetPath);
+			if (string.IsNullOrWhiteSpace(author)) continue;
+
+			contributorsList.Add(author);
+			authorCounts[author] = authorCounts.TryGetValue(author, out int count) ? count + 1 : 1;
+		}
+
+		return authorCounts;
 	}
 
 	public HashSet<string> ExtractExistingContributors(MapMetadata metadata)
@@ -761,39 +757,6 @@ public class MapStorageService
 		}
 
 		return contributorsList;
-	}
-
-	public async Task<Dictionary<string, int>> CollectAssetAuthorsAsync(List<string> referencedHashes, string seedServerUrl, HttpClient httpClient, HashSet<string> contributorsList)
-	{
-		var authorCounts = new Dictionary<string, int>();
-		foreach (var hash in referencedHashes)
-		{
-			await ProcessAssetAuthorAsync(hash, seedServerUrl, httpClient, contributorsList, authorCounts);
-		}
-
-		return authorCounts;
-	}
-
-	public async Task ProcessAssetAuthorAsync(string hash, string seedServerUrl, HttpClient httpClient, HashSet<string> contributorsList, Dictionary<string, int> authorCounts)
-	{
-		try
-		{
-			var assetAuthorRes = await httpClient.GetAsync(seedServerUrl + "/api/publish_map/asset_author/" + hash);
-			if (!assetAuthorRes.IsSuccessStatusCode) return;
-
-			var assetAuthorJson = await assetAuthorRes.Content.ReadAsStringAsync();
-			var assetMeta = JsonNode.Parse(assetAuthorJson);
-			string? author = assetMeta?["AuthorUsername"]?.GetValue<string>();
-
-			if (string.IsNullOrEmpty(author)) return;
-
-			contributorsList.Add(author);
-			if (!authorCounts.ContainsKey(author)) authorCounts[author] = 0;
-			authorCounts[author]++;
-		}
-		catch
-		{
-		}
 	}
 
 	public void ApplyContributorsAndAttributions(MapMetadata metadata, HashSet<string> contributorsList, Dictionary<string, int> authorCounts, string pubKeyStr)

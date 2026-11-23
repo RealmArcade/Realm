@@ -11,7 +11,6 @@ using Realm.Shared.Diagnostics;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
-using Realm.Shared.Reachability;
 using Realm.Shared.Simulation;
 
 namespace Realm.ListenServer;
@@ -154,27 +153,6 @@ public partial class ListenServerHost
 		return seats.ToMatchRosterSeats(roster).ToArray();
 	}
 
-	/// <summary>
-	///     Sends one datagram from the lobby's game port to an address. A punch that names a reachability check states it, so
-	///     the registry node can tell this lobby's punch from one a host sharing its public address sent at the same moment;
-	///     a punch that names none only opens a path for a joining player, who is not running a check.
-	/// </summary>
-	/// <param name="address">The address to send from the game port to.</param>
-	/// <param name="port">The port to send to.</param>
-	/// <param name="probeId">The reachability check the punch is for, or empty for a punch that only opens a path.</param>
-	private void PunchAddress(string address, int port, string probeId)
-	{
-		if (string.IsNullOrEmpty(probeId))
-		{
-			_transport.SendToAddress(address, port, ReachabilityPunch.Datagram);
-			return;
-		}
-
-		Span<byte> datagram = stackalloc byte[ReachabilityPunch.MaximumDatagramBytes];
-		int written = ReachabilityPunch.TryWrite(datagram, probeId);
-		if (written > 0) _transport.SendToAddress(address, port, datagram[..written]);
-	}
-
 	private void StartLobby()
 	{
 		if (!_transport.TryStart(EcsWorld.MAX_PLAYERS, loopbackOnly: _arguments.LoopbackOnly, this, out string failure))
@@ -190,7 +168,6 @@ public partial class ListenServerHost
 			peerId => _transport.Disconnect(peerId),
 			StartMatchFromLobby,
 			Stop,
-			PunchAddress,
 			peerId => _transport.TryReadPeerLink(peerId, out PeerLinkStatistics statistics) ? statistics : null,
 			DescribeLobbyStartWarning);
 
@@ -201,6 +178,7 @@ public partial class ListenServerHost
 		_mapHash = MapContentHash.Compute(_arguments.MapPath, _arguments.LogPath);
 		MarkStartStage("lobby listening");
 		_log.Write($"lobby opened for map '{_lobby.MapName}' version {_lobby.MapVersion} with {_lobby.OpenSlotCount} open player slot(s)");
+		if (_transport.IsListeningOnAnotherPort) _log.Write($"port {_transport.RequestedPort} was already held on this machine, so the lobby listens on port {_transport.Port} instead; every address this lobby publishes states that port");
 		if (_arguments.LoopbackOnly) _log.Write("this lobby listens on the loopback address only: nothing outside this screen can reach it");
 		AnnounceReady();
 	}

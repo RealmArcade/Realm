@@ -56,6 +56,9 @@ public partial class UIManager : Control
 	/// </summary>
 	public bool HasVisibleScreen => _currentScreen != null && GodotObject.IsInstanceValid(_currentScreen);
 
+	/// <summary>The screen this manager is showing, which is what a status or an invitation is written against.</summary>
+	public GameScreen CurrentScreen => _targetScreen;
+
 	public void TransitionToMapDetails(MapData mapData)
 	{
 		_selectedMapData = mapData;
@@ -141,6 +144,8 @@ public partial class UIManager : Control
 
 		GetTree().AutoAcceptQuit = false;
 
+		await EnsureSteamResolvedAsync();
+
 		if (GameContext.Lobby != null && GameContext.Lobby.IsGameStarted)
 		{
 			TransitionTo(GameScreen.InGameHUD);
@@ -149,6 +154,27 @@ public partial class UIManager : Control
 		{
 			TransitionTo(GameScreen.MainMenu);
 		}
+	}
+
+	/// <summary>
+	///     Holds the first screen until the player has either a working Steam identity or an explicit decision to play
+	///     without one. A launch that reaches Steam returns immediately; a launch that does not gets the choice, because
+	///     continuing into a menu with every Steam-backed action missing looks like a broken build rather than a local one.
+	/// </summary>
+	private async Task EnsureSteamResolvedAsync()
+	{
+		if (GameContext.Steam.IsAvailable || GameContext.Steam.StartedWithoutSteam) return;
+
+		var gate = new SteamStartupGate();
+		var resolved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		gate.Resolved += () => resolved.TrySetResult(true);
+		gate.QuitRequested += () => resolved.TrySetResult(false);
+		AddChild(gate);
+
+		bool continueIntoGame = await resolved.Task;
+
+		if (GodotObject.IsInstanceValid(gate)) gate.QueueFree();
+		if (!continueIntoGame) GetTree().Quit();
 	}
 
 	public override void _Notification(int what)
@@ -369,7 +395,7 @@ public partial class UIManager : Control
 		ShowConfirmationDialog(message, onOkPressed, confirmText: TranslationServer.Translate("OK"), showCancel: false, titleOverride: title);
 	}
 
-	public void ShowConfirmationDialog(string message, Action? onConfirm, string confirmText = "YES", string cancelText = "NO", Action? onCancel = null, bool showCancel = true, string? titleOverride = null)
+	public void ShowConfirmationDialog(string message, Action? onConfirm, string confirmText = "YES", string cancelText = "NO", Action? onCancel = null, bool showCancel = true, string? titleOverride = null, bool destructiveConfirm = false)
 	{
 		var overlay = new ColorRect();
 		overlay.Name = "ConfirmationOverlay";
@@ -421,7 +447,7 @@ public partial class UIManager : Control
 		btnConfirm.Set("icon_max_width", 0);
 		UIStyle.ApplyButtonText(btnConfirm, TranslationServer.Translate(confirmText), 13);
 		UIStyle.ApplyButtonStyleBoxes(btnConfirm);
-		btnConfirm.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		btnConfirm.AddThemeColorOverride("font_color", destructiveConfirm ? new Color(0.9f, 0.3f, 0.3f) : UIStyle.ColorCyanGlow);
 		btnConfirm.Pressed += () =>
 		{
 			overlay.QueueFree();
@@ -434,7 +460,7 @@ public partial class UIManager : Control
 			var btnCancel = UIStyle.CreateBareButton("BtnCancel_Button");
 			UIStyle.ApplyButtonText(btnCancel, TranslationServer.Translate(cancelText), 13);
 			UIStyle.ApplyButtonStyleBoxes(btnCancel);
-			btnCancel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
+			btnCancel.AddThemeColorOverride("font_color", destructiveConfirm ? UIStyle.ColorCyanGlow : new Color(0.9f, 0.3f, 0.3f));
 			Action cancelAction = () =>
 			{
 				overlay.QueueFree();

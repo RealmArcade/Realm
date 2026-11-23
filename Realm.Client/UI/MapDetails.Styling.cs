@@ -143,7 +143,6 @@ public partial class MapDetails
 		ApplyTitleStyle(_featuresTitle, "MAP FEATURES", 16);
 		ApplyTitleStyle(_statsTitle, "MAP INFO & STATS", 20);
 		ApplyTitleStyle(_ratingTitle, "RATINGS & COMMUNITY", 13);
-		ApplyTitleStyle(_awardsTitle, "AWARDS", 13);
 		ApplyTitleStyle(_gameplayTitle, "GAMEPLAY STATS", 13);
 		ApplyTitleStyle(_techTitle, "TECHNICAL INFO", 13);
 
@@ -152,7 +151,6 @@ public partial class MapDetails
 		{
 			HideSeparators(contentVBox);
 			WrapSectionInCard(contentVBox, _ratingTitle, contentVBox.GetNodeOrNull<GridContainer>("RatingGrid"), isAccentCard: true);
-			WrapSectionInCard(contentVBox, _awardsTitle, _awardsContainer);
 			WrapSectionInCard(contentVBox, _gameplayTitle, _gameplayStatsContainer);
 			WrapSectionInCard(contentVBox, _techTitle, _techInfoContainer);
 			contentVBox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 24) });

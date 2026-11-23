@@ -18,7 +18,6 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
-using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
@@ -26,123 +25,183 @@ using Realm.Shared.Network;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 public partial class LobbyManager
 {
+	/// <summary>
+	///     Joins somebody else's match. The id is a Steam lobby: entering it is Steam's decision, the host it names is a
+	///     SteamID, and the connection is Steam's peer-to-peer socket. Nothing here asks a registry, punches a router or reads
+	///     an address, because Steam owns the directory and the routing.
+	/// </summary>
+	/// <param name="lobbyId">The Steam lobby id, as the browser listed it.</param>
+	/// <returns>Whether this screen is standing in the lobby and admitted to it.</returns>
 	public async Task<bool> JoinLobbyAsync(string lobbyId)
 	{
 		InitializeClientState(lobbyId);
-		await EnsureNatTypeMeasuredAsync();
+		SteamLobbyId = 0;
 
-		string clientPublicIp = _hostPublicIp ?? "127.0.0.1";
-		int clientPublicPort = _hostPublicPort > 0 ? _hostPublicPort : ENetPort;
+		if (!SteamLobbyDirectory.IsAvailable)
+		{
+			LobbyJoinError = GameContext.Steam.UnavailableExplanation;
+			ConnectionFailed?.Invoke(LobbyJoinError);
+			return false;
+		}
+
+		if (!ulong.TryParse(lobbyId, NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong steamLobbyId) || steamLobbyId == 0)
+		{
+			LobbyJoinError = TranslationServer.Translate("This lobby no longer exists.");
+			ConnectionFailed?.Invoke(LobbyJoinError);
+			return false;
+		}
 
 		try
 		{
-			var response = await SendJoinRequestAsync(lobbyId, clientPublicIp, clientPublicPort);
-			if (response == null || !response.IsSuccessStatusCode)
+			string enterFailure = await SteamLobbyDirectory.JoinAsync(steamLobbyId);
+			if (enterFailure.Length > 0)
 			{
-				var errorText = response != null ? await response.Content.ReadAsStringAsync() : "All registry nodes offline";
-				GameLog.LogError($"[LobbyManager] Failed to join lobby: {errorText}");
-				ConnectionFailed?.Invoke("Failed to coordinate join.");
+				LobbyJoinError = enterFailure;
+				ConnectionFailed?.Invoke(enterFailure);
 				return false;
 			}
 
-			var (connectIp, connectPort) = await ResolveHostConnectionInfoAsync(response, clientPublicIp);
-			_connectedHostIp = connectIp;
-			return await EstablishLobbyConnectionAsync(connectIp, connectPort, IsPrivateIp(connectIp));
+			SteamLobbyId = steamLobbyId;
+			AttachSteamLobbyEvents();
+
+			string hostSteamIdText = SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.HostSteamIdKey);
+			if (!ulong.TryParse(hostSteamIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong hostSteamId) || hostSteamId == 0)
+			{
+				SteamLobbyDirectory.Leave(steamLobbyId);
+				LobbyJoinError = TranslationServer.Translate("This lobby does not name a host this screen can reach.");
+				ConnectionFailed?.Invoke(LobbyJoinError);
+				return false;
+			}
+
+			string mapName = SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.MapKey);
+			if (!string.IsNullOrEmpty(mapName))
+			{
+				ActiveMapName = mapName;
+				ActiveMapVersion = SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.MapVersionKey);
+			}
+
+			// The map is checked before the connection is asked for, because a screen that cannot play the map would only
+			// take a seat in the room and be refused, or worse, be admitted to a match it cannot draw.
+			ulong.TryParse(SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.MapWorkshopIdKey), NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong advertisedWorkshopId);
+			string mapFailure = await LobbyMapCompatibilityService.EvaluateAsync(
+				mapName,
+				advertisedWorkshopId,
+				SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.MapHashKey),
+				SteamLobbyDirectory.GetData(steamLobbyId, SteamLobbyDirectory.EngineGenerationKey));
+			if (mapFailure.Length > 0)
+			{
+				SteamLobbyDirectory.Leave(steamLobbyId);
+				LobbyJoinError = mapFailure;
+				ConnectionFailed?.Invoke(mapFailure);
+				return false;
+			}
+
+			var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
+			if (channel == null)
+			{
+				LobbyJoinError = "This build has no channel to an authority.";
+				ConnectionFailed?.Invoke(LobbyJoinError);
+				return false;
+			}
+
+			GameContext.ServerSession?.Dispose();
+			GameContext.DetachServerSession();
+
+			var session = new ClientServerSession(channel);
+			session.ConfigureLobbyIdentity(PlayerDisplayName, GameContext.Steam.SteamId);
+			AttachLobbySession(session);
+
+			if (!session.TryJoinSteamLobby(hostSteamId, LocalizationManager.GetCurrentLanguageCode(), out string joinFailure))
+			{
+				DropLobbySession(session);
+				SteamLobbyDirectory.Leave(steamLobbyId);
+				LobbyJoinError = joinFailure;
+				ConnectionFailed?.Invoke(joinFailure);
+				return false;
+			}
+
+			_isConnectedToHost = true;
+
+			var admission = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromMilliseconds(JoinAttemptTimeoutMilliseconds));
+			if (admission.Failure != null)
+			{
+				DropLobbySession(session);
+				SteamLobbyDirectory.Leave(steamLobbyId);
+				LobbyJoinError = admission.Failure;
+				ConnectionFailed?.Invoke(admission.Failure);
+				return false;
+			}
+
+			IsHost = session.IsAdmin;
+			return true;
 		}
-		catch (Exception ex)
+		catch (Exception exception)
 		{
-			GameLog.LogError($"[LobbyManager] Join error: {ex.Message}");
-			ConnectionFailed?.Invoke(ex.Message);
+			GameLog.LogError($"[LobbyManager] Join error: {exception.Message}");
+			LobbyJoinError = exception.Message;
+			ConnectionFailed?.Invoke(exception.Message);
 			return false;
 		}
 	}
 
-	public async Task<bool> JoinByIpAsync(string targetIp, int targetPort = DefaultGamePort)
-	{
-		string directLobbyId = $"direct-{Guid.NewGuid():N}";
-		InitializeClientState(directLobbyId);
-		_connectedHostIp = targetIp;
-		bool joined = await EstablishLobbyConnectionAsync(targetIp, targetPort, IsPrivateIp(targetIp));
-
-		// Only an address that seated this player is worth going back to: a typo, or a lobby that never answered, is not
-		// somewhere to send them a second time.
-		if (joined) DirectConnectHistory.Remember(targetIp, targetPort);
-		return joined;
-	}
-
 	private void InitializeClientState(string lobbyId)
 	{
-		ReleaseSeedingSlot();
-
 		IsHost = false;
 		IsGameStarted = false;
 		ActiveLobbyId = lobbyId;
 		LastLobbyWarning = null;
 		LastHostError = null;
 		_downloadingMapName = null;
+		// A copy prepared for the lobby this screen was in a moment ago belongs to that lobby's package and to nothing
+		// else, so it is dropped here rather than resolved for a map of the same name in this one.
+		ActiveMapSessionDirectory = string.Empty;
 		PlayerList.Clear();
 	}
 
-	private async Task<bool> EstablishLobbyConnectionAsync(string connectIp, int connectPort, bool isLocalConnection)
+	/// <summary>
+	///     How long one join attempt waits for the lobby's authority to admit this screen. A Steam connection on a slow link
+	///     legitimately takes seconds to come up, so the budget is spent on one attempt instead of being divided between
+	///     several: a retry is for silence, and a refusal is an answer that a second attempt would only repeat.
+	/// </summary>
+	private const int JoinAttemptTimeoutMilliseconds = 15000;
+
+	private void DropLobbySession(ClientServerSession session)
 	{
-		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
-		if (channel == null)
-		{
-			LastHostError = "This build has no channel to an authority.";
-			ConnectionFailed?.Invoke(LastHostError);
-			return false;
-		}
-
-		if (!isLocalConnection)
-		{
-			await UdpHolePuncher.PunchHoleAsync(connectIp, connectPort, ENetPort);
-		}
-
-		GameContext.ServerSession?.Dispose();
-		GameContext.DetachServerSession();
-
-		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
-		AttachLobbySession(session);
-
-		if (!session.TryJoinLobby(connectIp, connectPort, LocalizationManager.GetCurrentLanguageCode(), isLocalConnection ? 0 : ENetPort, out string failure))
-		{
-			LastHostError = failure;
-			GameLog.LogError($"[LobbyManager] {failure}");
-			Disconnect();
-			ConnectionFailed?.Invoke(failure);
-			return false;
-		}
-
-		_isConnectedToHost = true;
-
-		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
-		if (admissionFailure != null)
-		{
-			LobbyJoinError = string.Equals(admissionFailure, LobbyLimits.KickedRejection, StringComparison.Ordinal)
-				? "You were removed from this lobby."
-				: admissionFailure;
-			GameLog.LogError($"[LobbyManager] {admissionFailure}");
-			Disconnect();
-			ConnectionFailed?.Invoke("Direct connection handshake failed.");
-			return false;
-		}
-
-		IsHost = session.IsAdmin;
-		return true;
+		DetachLobbySession(session);
+		session.Dispose();
+		if (ReferenceEquals(_lobbySession, session)) _lobbySession = null;
 	}
 
-	private async Task<string?> WaitForLobbyAdmissionAsync(ClientServerSession session)
+	private async Task<string?> WaitForLobbyAdmissionAsync(ClientServerSession session, string? timeoutMessage = null)
+	{
+		var (failure, _) = await WaitForLobbyAdmissionAsync(session, TimeSpan.FromSeconds(15), timeoutMessage);
+		return failure;
+	}
+
+	/// <summary>
+	///     Waits for the authority to admit this screen. The second member separates a lobby that refused this join from one
+	///     that never heard it: only the second is worth asking again, because a refusal is a decision the authority already
+	///     made and a retry would put the same question to it.
+	/// </summary>
+	/// <param name="session">The session waiting for its answer.</param>
+	/// <param name="budget">How long the authority has to answer before this attempt is given up.</param>
+	/// <returns>Why the join failed or null when the authority admitted it, and whether a hello arrived at all.</returns>
+	private async Task<(string? Failure, bool Answered)> WaitForLobbyAdmissionAsync(ClientServerSession session, TimeSpan budget, string? timeoutMessage = null)
 	{
 		var decided = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_admissionTcs = decided;
+		bool helloAnswered = false;
 
-		void OnHello(ServerHello hello) => decided.TrySetResult(hello.Accepted ? null : hello.Rejection);
+		void OnHello(ServerHello hello)
+		{
+			helloAnswered = true;
+			decided.TrySetResult(hello.Accepted ? null : hello.Rejection);
+		}
+
 		void OnLost(string reason) => decided.TrySetResult(reason);
 
 		session.HelloAnswered += OnHello;
@@ -150,8 +209,13 @@ public partial class LobbyManager
 
 		try
 		{
-			var completed = await Task.WhenAny(decided.Task, Task.Delay(TimeSpan.FromSeconds(15)));
-			return completed == decided.Task ? decided.Task.Result : "The lobby's authority did not answer in time.";
+			var completed = await Task.WhenAny(decided.Task, Task.Delay(budget));
+			// The budget expiring says nothing about Steam when no Steam connection was involved, so the caller names the
+			// transport it waited on and a single-player start never reports a Steam failure on a loopback socket.
+			string? failure = completed == decided.Task
+				? decided.Task.Result
+				: timeoutMessage ?? Tr("Steam could not connect this screen to the host in time.");
+			return (failure, helloAnswered);
 		}
 		finally
 		{
@@ -170,6 +234,7 @@ public partial class LobbyManager
 		session.LobbyMatchStartedEvent += OnLobbyMatchStarted;
 		session.LobbyKickedEvent += OnLobbyKicked;
 		session.LobbyStartWarningReceived += OnLobbyStartWarning;
+		session.JoinCodeAnswered += OnJoinCodeAnswered;
 		session.MapTransferReplied += OnMapTransferReplied;
 		session.ServerLost += OnLobbyAuthorityLost;
 	}
@@ -182,8 +247,49 @@ public partial class LobbyManager
 		session.LobbyMatchStartedEvent -= OnLobbyMatchStarted;
 		session.LobbyKickedEvent -= OnLobbyKicked;
 		session.LobbyStartWarningReceived -= OnLobbyStartWarning;
+		session.JoinCodeAnswered -= OnJoinCodeAnswered;
 		session.MapTransferReplied -= OnMapTransferReplied;
 		session.ServerLost -= OnLobbyAuthorityLost;
+	}
+
+	/// <summary>
+	///     Presents the join code a player typed. The authority compares it and answers with whether the seat is now held, so a
+	///     wrong code leaves the player in the room with the field still in front of them.
+	/// </summary>
+	/// <param name="code">The code the player typed.</param>
+	public void PresentJoinCode(string code)
+	{
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.PresentJoinCode,
+			Text = code ?? string.Empty
+		});
+	}
+
+	/// <summary>Sets the code this lobby gates its seats with, or clears it when the host empties the field.</summary>
+	/// <param name="code">The new code, or empty to open the seats to everybody in the room.</param>
+	public void SetJoinCode(string code)
+	{
+		if (!IsHost) return;
+
+		JoinCode = code ?? string.Empty;
+		_lobbySession?.SendLobbyCommand(new LobbyCommand
+		{
+			Kind = LobbyCommandKind.SetJoinCode,
+			Text = JoinCode
+		});
+	}
+
+	private void OnJoinCodeAnswered(bool accepted)
+	{
+		JoinCodeSeatHeld = accepted;
+		if (!accepted)
+		{
+			JoinCodeRefused?.Invoke(TranslationServer.Translate("That join code does not match this lobby's."));
+			return;
+		}
+
+		JoinCodeRefused?.Invoke(string.Empty);
 	}
 
 	private void OnLobbyStartWarning(LobbyStartWarningMessage warning)
@@ -243,11 +349,21 @@ public partial class LobbyManager
 		{
 			ActiveMapName = state.MapName;
 			ActiveMapVersion = string.IsNullOrEmpty(state.MapVersion) ? "1.0.0" : state.MapVersion;
+			// The copy prepared for the map this lobby just stopped playing is not the one this map plays, so the room
+			// stops believing it holds a package until the new map has been prepared or arrives from the host.
+			ActiveMapSessionDirectory = string.Empty;
 			ActiveMapChanged?.Invoke(ActiveMapName);
 			if (!IsHost) _ = EnsureMapDownloadedAsync(ActiveMapName, ActiveMapVersion);
 		}
 
+		if (JoinCodeRequired != state.JoinCodeRequired)
+		{
+			JoinCodeRequired = state.JoinCodeRequired;
+			JoinCodeRequirementChanged?.Invoke(JoinCodeRequired);
+		}
+
 		ApplySeats(state.Seats);
+		RefreshHostedLobbyAdvertisement();
 		ApplyCountdown(state);
 		MakeSureThisSeatReportsItsMap();
 		StartMatchPreparationForCurrentMap();
@@ -351,7 +467,7 @@ public partial class LobbyManager
 		}
 		else
 		{
-			holdsMap = MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion);
+			holdsMap = HoldsAdvertisedMapCopy(ActiveMapName, ActiveMapVersion);
 		}
 
 		if (!holdsMap) return;
@@ -388,7 +504,7 @@ public partial class LobbyManager
 		if (me == null || me.IsMapReady) return;
 		if (string.IsNullOrWhiteSpace(ActiveMapName)) return;
 
-		if (MapAssetManager.IsMapDownloaded(ActiveMapName, ActiveMapVersion))
+		if (HoldsAdvertisedMapCopy(ActiveMapName, ActiveMapVersion))
 		{
 			ReportLocalMapReadyState(true);
 			return;
@@ -409,7 +525,6 @@ public partial class LobbyManager
 			{
 				PeerId = seat.PeerId,
 				Slot = seat.Slot,
-				AccountId = seat.AccountId,
 				SteamId = seat.SteamId,
 				Name = seat.Name ?? string.Empty,
 				Faction = seat.Faction ?? string.Empty,
@@ -427,7 +542,6 @@ public partial class LobbyManager
 				Jitter = FormatLinkMilliseconds(seat.JitterMilliseconds),
 				PacketLoss = FormatLinkPercent(seat.PacketLossPercent),
 				BinaryVersion = RealmVersion.GameBinaryVersion,
-				SessionToken = seat.SessionToken ?? string.Empty
 			});
 		}
 	}
@@ -512,7 +626,6 @@ public partial class LobbyManager
 	private void OnLobbyChat(LobbyChatMessage line)
 	{
 		string sender = string.IsNullOrEmpty(line.SenderName) ? "System" : line.SenderName;
-		if (line.SenderPeerId > 0 && line.SenderAccountId == 0) sender = UnverifiedNameMark.Apply(sender);
 
 		int senderSlot = PlayerList.Find(p => p.PeerId == line.SenderPeerId)?.Slot ?? 0;
 		if (line.SenderPeerId > 0) ServerChatCommandReceived?.Invoke(senderSlot, line.Message);
@@ -540,7 +653,6 @@ public partial class LobbyManager
 	private void OnLobbyAuthorityLost(string reason)
 	{
 		if (_matchStarted) return;
-
 		// A kicked connection drops before its reason has been read, and the reconnect that follows is refused by
 		// name. That refusal is the kick arriving late rather than a lobby that failed.
 		bool kicked = reason.Contains(LobbyLimits.KickedRejection, StringComparison.Ordinal);
@@ -553,7 +665,6 @@ public partial class LobbyManager
 		}
 
 		var session = _lobbySession;
-		int hostedPort = session?.Port ?? ENetPort;
 		if (session != null)
 		{
 			DetachLobbySession(session);
@@ -561,7 +672,6 @@ public partial class LobbyManager
 			_lobbySession = null;
 		}
 
-		ReleaseHostedEndpoint(hostedPort);
 		ResetLobbyState();
 
 		if (kicked)
@@ -581,8 +691,6 @@ public partial class LobbyManager
 		IsGameStarted = true;
 		_countdownActive = false;
 		CountdownFinished?.Invoke();
-
-		if (IsHost) UnregisterActiveLobbyFromRegistry();
 
 		ClientServerSession? session = _lobbySession;
 		if (session == null) return;

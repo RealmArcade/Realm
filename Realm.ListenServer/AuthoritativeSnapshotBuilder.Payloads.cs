@@ -15,11 +15,11 @@ namespace Realm.ListenServer;
 /// <summary>appending content payloads to a snapshot.</summary>
 public partial class AuthoritativeSnapshotBuilder
 	{
-	private void AppendContentPayloads(SnapshotPeerState state, WorldSnapshot snapshot)
+	private void AppendContentPayloads(SnapshotPeerState state, WorldSnapshot snapshot, bool statesEverything)
 	{
 		if (_world.IsAlive(_worldEntity) && _world.TryGet<ScriptZonesState>(_worldEntity, out ScriptZonesState zones))
 		{
-			AppendContentPayload(state, snapshot, (byte)ReplicatedScope.World, 0, ColdPayloadRole.ZoneList, zones.Handle);
+			AppendContentPayload(state, snapshot, (byte)ReplicatedScope.World, 0, ColdPayloadRole.ZoneList, zones.Handle, statesEverything);
 		}
 
 		for (int index = 0; index < _describedUnits.Count; index++)
@@ -28,22 +28,24 @@ public partial class AuthoritativeSnapshotBuilder
 
 			if (_world.TryGet<ProductionQueue>(unitEntity, out ProductionQueue queue) && queue.Count > 0)
 			{
-				AppendContentPayload(state, snapshot, (byte)ReplicatedScope.Unit, unitEntity.Id, ColdPayloadRole.ProductionQueue, queue.Handle);
+				AppendContentPayload(state, snapshot, (byte)ReplicatedScope.Unit, unitEntity.Id, ColdPayloadRole.ProductionQueue, queue.Handle, statesEverything);
 			}
 
 			if (_world.TryGet<AbilityState>(unitEntity, out AbilityState abilityState) && abilityState.Count > 0)
 			{
-				AppendContentPayload(state, snapshot, (byte)ReplicatedScope.Unit, unitEntity.Id, ColdPayloadRole.AbilityList, abilityState.Handle);
+				AppendContentPayload(state, snapshot, (byte)ReplicatedScope.Unit, unitEntity.Id, ColdPayloadRole.AbilityList, abilityState.Handle, statesEverything);
 			}
 		}
 	}
 
-	private void AppendContentPayload(SnapshotPeerState state, WorldSnapshot snapshot, byte scope, int key, ColdPayloadRole role, int handle)
+	private void AppendContentPayload(SnapshotPeerState state, WorldSnapshot snapshot, byte scope, int key, ColdPayloadRole role, int handle, bool statesEverything)
 	{
 		if (handle == 0 || !state.SentContentIds.Add(handle)) return;
 		if (!ContentIdStore.TryGetPayload(handle, out byte contentKind, out ReadOnlySpan<byte> payload)) return;
 
-		AppendTextBehindPayload(snapshot, handle);
+		// A description that states the whole text table has already named everything this payload names, so the text is
+		// not appended a second time behind it.
+		if (!statesEverything) AppendTextBehindPayload(snapshot, handle);
 
 		snapshot.ColdPayloads.Add(new ColdPayloadDelta
 		{

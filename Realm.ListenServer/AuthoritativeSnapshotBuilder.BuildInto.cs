@@ -20,7 +20,7 @@ public partial class AuthoritativeSnapshotBuilder
 	///     one scratch table per process and could not be entered by two lanes at once: the tick collects them for every
 	///     peer before the lanes are forked, and a single-threaded caller collects them for itself.
 	/// </summary>
-	public void BuildInto(ref WorldSnapshot snapshot, int peerId, int sequence, PlayerEntity viewer, bool forceBaseline, List<AbilityStateDelta> preparedAbilityDeltas)
+	public void BuildInto(ref WorldSnapshot snapshot, int peerId, int sequence, PlayerEntity viewer, bool forceBaseline, List<AbilityStateDelta> preparedAbilityDeltas, bool restateStatements = false)
 	{
 		SnapshotPeerState state = _peerStates.Get(peerId);
 		bool isBaseline = forceBaseline || state.LastBaselineSequence < 0;
@@ -29,6 +29,15 @@ public partial class AuthoritativeSnapshotBuilder
 			state.LastBaselineSequence = sequence;
 			state.ResetForDescription();
 		}
+		else if (restateStatements)
+		{
+			ForgetOnceOnlyStatements(state);
+		}
+
+		// A baseline states the world whole and is answered on the reliable stream, so it is already the repair for both
+		// kinds of statement. A peer that keeps acknowledging never earns one, which is why the statements below can also
+		// be stated again by an ordinary description.
+		bool statesEverything = isBaseline || restateStatements;
 
 		CollectDescribedUnits(viewer.Value, sequence);
 		_describedUnitStates.Clear();
@@ -71,8 +80,10 @@ public partial class AuthoritativeSnapshotBuilder
 
 			// A unit exactly where this peer was last told it is carries no information - a building, a unit holding position
 			// or one standing where its order ended all stay on the peer's screen as they are - so it is left out and its
-			// record kept, and the tick it moves it is described again. A baseline always states every unit.
-			if (!isBaseline && MatchesIn(in described, in held.SentRecord)) continue;
+			// record kept, and the tick it moves it is described again. A description that states everything describes
+			// every unit, because the payloads a handle opens are stated once per identifier and are only reached through a
+			// unit that is described: a unit left out is a payload this peer may never be told.
+			if (!statesEverything && MatchesIn(in described, in held.SentRecord)) continue;
 
 			held.SentRecord = described;
 
@@ -84,7 +95,7 @@ public partial class AuthoritativeSnapshotBuilder
 			// drafted circle frees its identifier and the hero and the circle that replace it take the freed ones - is another
 			// such moment: the screen compares the record with what it holds, throws its copy away and builds the unit again,
 			// and a description that left the definition out would leave that unit standing nowhere on its screen for good.
-			if (!isBaseline && sameUnitAsSent && held.ToldDefinition != null && string.Equals(held.ToldDefinition, described.UnitId, StringComparison.Ordinal))
+			if (!statesEverything && sameUnitAsSent && held.ToldDefinition != null && string.Equals(held.ToldDefinition, described.UnitId, StringComparison.Ordinal))
 			{
 				described.UnitId = string.Empty;
 			}
@@ -96,14 +107,31 @@ public partial class AuthoritativeSnapshotBuilder
 			snapshot.Units.Add(described);
 		}
 
-		if (isBaseline) AppendRuleEntries(snapshot.Catalog);
-		AppendTextEntries(state, snapshot.Catalog);
-		AppendLoot(state, ref snapshot, isBaseline);
-		AppendContentPayloads(state, snapshot);
+		if (statesEverything) AppendRuleEntries(snapshot.Catalog);
+		AppendTextEntries(state, snapshot.Catalog, statesEverything);
+		AppendLoot(state, ref snapshot, statesEverything);
+		AppendContentPayloads(state, snapshot, statesEverything);
 		if (preparedAbilityDeltas.Count > 0) snapshot.AbilityStates.AddRange(preparedAbilityDeltas);
 
+		// Component values are stated again whenever they differ from what the peer holds and a removal is stated over
+		// several descriptions, so those carry their own repair; they are left to the baseline rather than restated on the
+		// cadence, which would make every refresh as wide as a baseline.
 		AppendComponentDeltas(state, snapshot, sequence, isBaseline);
 		ForgetUntrackedUnitComponents(state, ref snapshot, isBaseline);
+	}
+
+	/// <summary>
+	///     Forgets the statements a description makes once, so the description being written states them again. What a
+	///     unit is built from, what the match names things with and which payloads this peer holds a handle to are all
+	///     said when they are first needed and never repeated by a later description, because a later description only
+	///     states what changed. Everything those statements are derived from is still the authority's, so stating them
+	///     again costs a handful of small records and heals a description the peer never received.
+	/// </summary>
+	private static void ForgetOnceOnlyStatements(SnapshotPeerState state)
+	{
+		state.StringTableCursor = 0;
+		state.SentContentIds.Clear();
+		foreach (UnitDescriptionState held in state.SentUnits.Values) held.ToldDefinition = null;
 	}
 
 	private static bool IsSameUnitAsSent(in UnitSnapshot described, in UnitSnapshot sent)

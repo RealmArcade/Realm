@@ -8,15 +8,12 @@
     <BuildType Solution="Release|*" Project="ExportDebug" />
   </Project>
   <Project Path="Realm.Distribution.Tests/Realm.Distribution.Tests.csproj" />
-  <Project Path="Realm.Network.Tests/Realm.Network.Tests.csproj" />
   <Project Path="Realm.Ecs/Realm.Ecs.csproj" />
   <Project Path="Realm.ListenServer/Realm.ListenServer.csproj" />
   <Project Path="Realm.ListenServerHost/Realm.ListenServerHost.csproj" />
   <Project Path="Realm.EditorAPI/Realm.EditorAPI.csproj" />
-  <Project Path="Realm.AdminServer/Realm.AdminServer.csproj" />
   <Project Path="Realm.MapAPI/Realm.MapAPI.csproj" />
   <Project Path="Realm.MapEditorExtension/Realm.MapEditorExtension.csproj" />
-  <Project Path="Realm.Tools.Admin/Realm.Tools.Admin.csproj" />
   <Project Path="Realm.ReplicationVerifier/Realm.ReplicationVerifier.csproj" />
   <Project Path="Realm.Tools.MatchRunner/Realm.Tools.MatchRunner.csproj" />
   <Project Path="Realm.Tools.Cli/Realm.Tools.Cli.csproj" />

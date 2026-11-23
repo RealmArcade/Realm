@@ -35,6 +35,18 @@ public static class MatchTiming
 	/// </summary>
 	public const int SnapshotHistoryDepth = 48;
 
+	/// <summary>
+	///     How long a peer may go without hearing a statement that a description makes only once. Steam has no ordered
+	///     unreliable mode, so a description can be dropped outright, and what a description states exactly once - what a
+	///     unit is built from, the text that names things, the payloads a handle opens - has no later description to
+	///     repeat it. The match states the set again on this cadence, which turns a lost statement into a delay rather
+	///     than a screen that is wrong for the rest of the match. It is long enough to cost a few kilobytes a minute per
+	///     peer and short enough that a player never watches a missing name for a noticeable time.
+	/// </summary>
+	public const int SnapshotStatementRefreshSeconds = 10;
+
+	public const int SnapshotStatementRefreshTicks = SimulationTickRateHz * SnapshotStatementRefreshSeconds;
+
 	public static float TicksToSeconds(int ticks) => (float)(ticks * FixedTickSeconds);
 
 	public static int SecondsToTicks(float seconds) => (int)(seconds / FixedTickSeconds);

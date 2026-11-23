@@ -81,6 +81,9 @@ public partial class ListenServerHost
 			case NetworkFrameKind.SteamCloudUpload:
 				HandleSteamCloudUpload(peerId, payload);
 				break;
+			case NetworkFrameKind.PlaytestVote:
+				HandlePlaytestVote(peerId, payload);
+				break;
 			case NetworkFrameKind.Shutdown:
 				_log.Write($"peer {peerId} asked the match to end");
 				Stop();
@@ -103,6 +106,23 @@ public partial class ListenServerHost
 			return;
 		}
 
+		// The join code is the one thing a member standing in the room without a seat may say, because presenting it is what
+		// gives that member its seat. Every other frame still needs a seat behind it.
+		if (kind == NetworkFrameKind.LobbyCommand && !lobby.TryGetSeat(peerId, out _))
+		{
+			if (!TryReadLobbyCommand(peerId, payload, out LobbyCommand waiting)) return;
+
+			if (waiting.Kind != LobbyCommandKind.PresentJoinCode || !lobby.IsWaitingForJoinCode(peerId))
+			{
+				_log.Write($"peer {peerId} sent a {waiting.Kind} lobby command before it was admitted to the lobby");
+				_transport.Disconnect(peerId);
+				return;
+			}
+
+			lobby.PresentJoinCode(peerId, waiting.Text);
+			return;
+		}
+
 		if (!lobby.TryGetSeat(peerId, out LobbySeat seat))
 		{
 			_log.Write($"peer {peerId} sent a {kind} frame before it was admitted to the lobby");
@@ -114,16 +134,7 @@ public partial class ListenServerHost
 		{
 			case NetworkFrameKind.LobbyCommand:
 			{
-				LobbyCommand command;
-				try
-				{
-					command = MemoryPackSerializer.Deserialize<LobbyCommand>(payload);
-				}
-				catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
-				{
-					_log.Write($"peer {peerId} sent a lobby command that could not be read: {exception.Message}");
-					return;
-				}
+				if (!TryReadLobbyCommand(peerId, payload, out LobbyCommand command)) return;
 
 				lobby.HandleCommand(peerId, command);
 				break;
@@ -136,6 +147,11 @@ public partial class ListenServerHost
 			case NetworkFrameKind.SteamCloudUpload:
 				// The map script ran in a match, so an upload still on its way when the match ended arrives at a lobby that has
 				// nothing to hand it to. It is dropped rather than treated as a frame a lobby member may not send.
+				break;
+
+			case NetworkFrameKind.PlaytestVote:
+				// A vote belongs to a match that is being played, and this session has no match yet. It is dropped rather than
+				// treated as a frame a lobby member may not send, because a screen sending one has not done anything wrong.
 				break;
 
 			case NetworkFrameKind.LatencyProbe:
@@ -160,6 +176,26 @@ public partial class ListenServerHost
 				_log.Write($"lobby seat {seat.Slot} ('{seat.Name}') sent a {kind} frame, which a lobby member may not send");
 				_transport.Disconnect(peerId);
 				break;
+		}
+	}
+
+	/// <summary>Reads one lobby command out of a frame, refusing the connection when the bytes cannot be read.</summary>
+	/// <param name="peerId">The connection the frame arrived on.</param>
+	/// <param name="payload">The serialized <see cref="LobbyCommand" />.</param>
+	/// <param name="command">The command, when it could be read.</param>
+	/// <returns>Whether a command was read.</returns>
+	private bool TryReadLobbyCommand(int peerId, ReadOnlySpan<byte> payload, out LobbyCommand command)
+	{
+		try
+		{
+			command = MemoryPackSerializer.Deserialize<LobbyCommand>(payload);
+			return true;
+		}
+		catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+		{
+			command = default;
+			_log.Write($"peer {peerId} sent a lobby command that could not be read: {exception.Message}");
+			return false;
 		}
 	}
 
@@ -190,7 +226,7 @@ public partial class ListenServerHost
 		}
 
 		bool proveAdmin = ProvesAdmin(peerId, hello.AdminProof);
-		string admitted = lobby.AdmitPeer(peerId, hello.PlayerName, hello.AccountId, hello.SessionToken, hello.SteamId, proveAdmin, out bool isAdmin);
+		string admitted = lobby.AdmitPeer(peerId, hello.PlayerName, ResolveSeatSteamId(peerId, hello.SteamId), proveAdmin, out bool isAdmin);
 		if (admitted.Length > 0)
 		{
 			_log.Write($"peer {peerId} refused by the lobby: {admitted}");
@@ -237,15 +273,23 @@ public partial class ListenServerHost
 			return;
 		}
 
-		MapTransferReply reply = _mapShares?.Handle(peerId, request) ?? new MapTransferReply
+		// One request may be answered with several pieces of the same bundle, which is what lets a joiner keep the line busy
+		// instead of waiting a round trip for every message.
+		List<MapTransferReply> replies = _mapShares?.Handle(peerId, request) ?? new List<MapTransferReply>
 		{
-			Kind = MapTransferReplyKind.Refused,
-			TransferId = request.TransferId,
-			MapName = request.MapName,
-			Refusal = "this lobby has no map to serve"
+			new()
+			{
+				Kind = MapTransferReplyKind.Refused,
+				TransferId = request.TransferId,
+				MapName = request.MapName,
+				Refusal = "this lobby has no map to serve"
+			}
 		};
 
-		_transport.Send(peerId, NetworkFrameKind.MapTransferReply, MemoryPackSerializer.Serialize(reply));
+		foreach (MapTransferReply reply in replies)
+		{
+			_transport.Send(peerId, NetworkFrameKind.MapTransferReply, MemoryPackSerializer.Serialize(reply));
+		}
 	}
 
 	/// <summary>

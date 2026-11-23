@@ -1,4 +1,4 @@
-namespace Realm.Client.UI;
+﻿namespace Realm.Client.UI;
 
 public class SettingsData
 {
@@ -22,7 +22,6 @@ public class SettingsData
 	public bool DisplayFps { get; set; } = false;
 	public bool DisplayPing { get; set; } = false;
 	public bool RecordReplays { get; set; } = false;
-	public bool SeedMapFiles { get; set; } = false;
 	public bool DisableShadows { get; set; } = false;
 	public bool DisableDayNightLighting { get; set; } = false;
 	public bool DisableWeatherEffects { get; set; } = false;

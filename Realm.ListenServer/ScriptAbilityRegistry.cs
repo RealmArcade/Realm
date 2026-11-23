@@ -318,7 +318,10 @@ public class ScriptAbilityRegistry
 		// stated again in full. What every peer was told about those units by name is kept, because a name is not a slot
 		// and a list moving cannot change what it means - and it is the only record of which exceptions a screen holds, so
 		// dropping it lost the change that makes an ability visible again, since a state the map stopped withholding is
-		// stated by the delta that clears it and by nothing else.
+		// stated by the delta that clears it and by nothing else. It is kept, but the unit owes those names again too: a
+		// screen that a replaced list makes forget a unit's exceptions cannot tell the renumbered ones from the rest, so
+		// it drops the exceptions the list never touched, and a withheld build option the map declared by name stayed
+		// withheld on the screen that kept them and was offered again on the screen that lost them.
 		if (abilityListsChanged)
 		{
 			for (int index = 0; index < _changedAbilityListUnitIds.Count; index++)
@@ -426,8 +429,12 @@ public class ScriptAbilityRegistry
 
 		foreach (var entry in _currentIdFlags)
 		{
+			// A unit whose ability list moved is restated by name as well as by slot, because a screen throws away what it
+			// holds for a unit whose list was replaced: it cannot tell which of those exceptions the list renumbered and
+			// which it did not, so it drops both, and a name-only exception it drops is one no slot restatement brings back.
+			bool restatedForUnit = !restateEverything && _unitsOwedAbilityRestatement.Contains(entry.Key.UnitId);
 			bool alreadyStatedOnce = told.TryGetValue(entry.Key, out byte toldFlags) && toldFlags == entry.Value;
-			if (!restateEverything && alreadyStatedOnce && !IsOwedAnotherStatement(restatements, entry.Key)) continue;
+			if (!restateEverything && !restatedForUnit && alreadyStatedOnce && !IsOwedAnotherStatement(restatements, entry.Key)) continue;
 
 			deltas.Add(new AbilityStateDelta
 			{
@@ -438,7 +445,7 @@ public class ScriptAbilityRegistry
 			});
 
 			told[entry.Key] = entry.Value;
-			if (restateEverything || !alreadyStatedOnce) restatements[entry.Key] = RestatedDescriptionCount;
+			if (restateEverything || restatedForUnit || !alreadyStatedOnce) restatements[entry.Key] = RestatedDescriptionCount;
 		}
 
 		_clearedNamedKeys.Clear();

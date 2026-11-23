@@ -1,4 +1,4 @@
-.cloud-attachments/
+﻿.cloud-attachments/
 .freebuff/
 .vs/
 .llmPrompts/
@@ -20,21 +20,24 @@ wasi_sdk_embedded/
 vscode_extensions_dist/
 GeneratedFiles/
 *.trx
-Realm.AdminServer/.data/
 *.key
 *.privatekey
 *.admin_key
 admin_private.key
-servers.json
-Realm.Clientservers.json
 steam_appid.txt
 # The build stamp scripts/sync-version.ps1 writes for the build that is currently checked out.
 version.txt
 Realm.Client/steam_api64.dll
-Realm.AdminServer/appsettings.json
+Realm.ListenServerHost/steam_api64.dll
 .godot/
 /android/
 .codegraph/
 Realm.MapEditorExtension/dist/
 *.jit.elf
 godot_test_output.txt
+# The Linux launcher tools/rig/realm-rig.sh wrapper installs beside the authority project.
+Realm.ListenServerHost/Realm.ListenServerHost
+# Fetched by scripts/fetch-ml-model.ps1 and shipped by the build that needs it.
+Realm.Client/Assets/MLModels/toxic-xlm-roberta/*.onnx
+# MSBuild binary logs written by /bl.
+*.binlog

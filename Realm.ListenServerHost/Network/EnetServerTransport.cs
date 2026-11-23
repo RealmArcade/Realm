@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Godot;
 using Realm.Shared.Network;
 
@@ -32,11 +32,26 @@ public class EnetServerTransport : IServerTransport
 	public int Port { get; private set; }
 
 	/// <summary>
-	///     Binds are retried at all because a port a previous match let go of is not free the instant its process ends. They
-	///     are retried for a second and no longer: this runs on the authority's main thread before it can announce itself
-	///     ready, and a port held by something else is not going to be released because the match waited six seconds for it.
+	///     The port this transport asked for, which is the one a lobby is meant to be found on. It is stated separately from
+	///     <see cref="Port" /> because the two differ when the requested port was already held by something else on this
+	///     machine, which is what hosting a second lobby from one computer looks like.
 	/// </summary>
-	private const int BindAttempts = 10;
+	public int RequestedPort => _requestedPort;
+
+	/// <summary>
+	///     Whether this transport is listening somewhere other than the port it asked for, so that the lobby can say so
+	///     rather than leaving a host to compare two numbers on their own.
+	/// </summary>
+	public bool IsListeningOnAnotherPort => _requestedPort != 0 && Port != _requestedPort;
+
+	/// <summary>
+	///     How many times the requested port is tried before the operating system is asked for one instead. A retry is for the
+	///     window where the last match's socket has been released and the next bind has not happened yet; a port another
+	///     program holds is not going to be released because this waited, so the second attempt is the last one and the
+	///     fallback answers that case. This runs on the authority's main thread before it can announce itself ready, so the
+	///     whole budget is a tenth of a second.
+	/// </summary>
+	private const int BindAttempts = 2;
 
 	private const int BindRetryMilliseconds = 100;
 
@@ -56,6 +71,17 @@ public class EnetServerTransport : IServerTransport
 			peer = new ENetMultiplayerPeer();
 			if (loopbackOnly) peer.SetBindIP(LoopbackAddress);
 			error = peer.CreateServer(_requestedPort, maximumPeers);
+		}
+
+		// A port this machine already holds is not going to be released by waiting, and two lobbies on one computer is a
+		// normal thing to do, so the port the lobby asked for is given up for one the operating system picks. What the lobby
+		// is listening on is what it publishes, so a lobby that moved is still found.
+		if (error != Error.Ok && _requestedPort != 0)
+		{
+			peer.Dispose();
+			peer = new ENetMultiplayerPeer();
+			if (loopbackOnly) peer.SetBindIP(LoopbackAddress);
+			error = peer.CreateServer(0, maximumPeers);
 		}
 
 		if (error != Error.Ok)
@@ -115,17 +141,6 @@ public class EnetServerTransport : IServerTransport
 			Math.Clamp(roundTripMilliseconds, 0, int.MaxValue),
 			Math.Clamp(jitterMilliseconds, 0, int.MaxValue),
 			Math.Clamp(packetLossPercent, 0f, 100f));
-		return true;
-	}
-
-	public bool SendToAddress(string address, int port, ReadOnlySpan<byte> payload)
-	{
-		if (_peer == null || string.IsNullOrWhiteSpace(address) || port <= 0) return false;
-
-		var host = _peer.GetHost();
-		if (host == null) return false;
-
-		host.SocketSend(address, port, payload.ToArray());
 		return true;
 	}
 

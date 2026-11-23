@@ -9,13 +9,11 @@ using NSec.Cryptography;
 using Realm.Client.Network;
 using Realm.Shared;
 using Realm.Shared.Network;
-using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
-using Realm.Shared.Accounts;
 using Realm.Shared.Simulation;
 
 namespace Realm.Client.UI;
@@ -46,10 +44,12 @@ public partial class LobbyRoom : Control
 	private PanelContainer _chatPanel = null!;
 
 	private Button _backButton = null!;
-	private Button _steamInviteButton = null!;
-	private Button _shareAddressButton = null!;
-	private Label _privateLobbyHint = null!;
-	private SteamFriendsDialog? _friendsDialog;
+	private Button _invitePlayersButton = null!;
+
+	private Button _joinCodeButton = null!;
+	private Label _unlistedLobbyHint = null!;
+	private CheckBox _unlistedLobbyCheck = null!;
+
 	private Button _startButton = null!;
 	private Label _mapNameLabel = null!;
 	private LineEdit _chatInput = null!;
@@ -83,7 +83,6 @@ public partial class LobbyRoom : Control
 	private List<string> _otherAuthorsList = new List<string>();
 
 
-	private static readonly HttpClient _sharedHttpClient = new HttpClient();
 	public const int NEUTRAL_PLAYER_INDEX = PlayerColorConfig.NEUTRAL_PLAYER_INDEX;
 	public static Color GetPlayerColor(int playerIndex) => PlayerColorConfig.GetColor(playerIndex);
 	public static string GetPlayerColorName(int playerIndex) => PlayerColorConfig.GetName(playerIndex);
@@ -123,13 +122,16 @@ public partial class LobbyRoom : Control
 
 
 		_backButton = GetNode<Button>("BackButton");
-		_steamInviteButton = GetNode<Button>("SteamInviteButton");
-		_shareAddressButton = GetNode<Button>("ShareAddressButton");
-		_privateLobbyHint = GetNode<Label>("PrivateLobbyHint");
+		_invitePlayersButton = GetNode<Button>("InvitePlayersButton");
+		_joinCodeButton = GetNode<Button>("JoinCodeButton");
+		_unlistedLobbyHint = GetNode<Label>("UnlistedLobbyHint");
 		_startButton = GetNode<Button>("StartButton");
-		_privateLobbyHint.Text = TranslationServer.Translate("Private Lobby: Send your IP address to players so they can join.");
-		ApplyInviteVisibility();
-
+		_unlistedLobbyHint.Text = TranslationServer.Translate("Your lobby is not advertised publicly but direct invites are still available.");
+		_unlistedLobbyCheck = GetNode<CheckBox>("UnlistedLobbyCheck");
+		_unlistedLobbyCheck.Text = TranslationServer.Translate("Private");
+		_unlistedLobbyCheck.TooltipText = TranslationServer.Translate("Your lobby is not advertised publicly but direct invites are still available.");
+		_unlistedLobbyCheck.FocusMode = FocusModeEnum.None;
+		_unlistedLobbyCheck.Toggled += OnUnlistedLobbyToggled;
 
 		_mapNameLabel = GetNode<Label>("MapNameLabel");
 		_lobbyRoomMaps = MapInfoHelper.GetAvailableMaps();
@@ -138,6 +140,7 @@ public partial class LobbyRoom : Control
 		_chatLog = GetNode<RichTextLabel>("ChatPanel/ChatContainer/ChatLog");
 		_playersContainer = GetNode<VBoxContainer>("PlayersPanel/VBoxContainer/ScrollContainer/PlayersContainer");
 		_inviteFeedback = GetNode<Label>("InviteFeedback");
+		ApplyInviteVisibility();
 
 
 		_lobbyTitle = GetNode<Label>("LobbyTitle");
@@ -183,24 +186,6 @@ public partial class LobbyRoom : Control
 			UpdateHostStabilityLabel(Lobby.HostStability);
 			Lobby.HostStabilityUpdated += UpdateHostStabilityLabel;
 		}
-		else if (Lobby.IsRestrictedHost)
-		{
-			var restrictedWarning = new Label();
-			restrictedWarning.Name = "RestrictedWarningLabel";
-			restrictedWarning.HorizontalAlignment = HorizontalAlignment.Center;
-			restrictedWarning.VerticalAlignment = VerticalAlignment.Center;
-			restrictedWarning.Text = Tr("⚠️ UPnP inactive. External players may need Direct Connect (IP:Port) or port forwarding.");
-			restrictedWarning.AddThemeColorOverride("font_color", new Color(0.95f, 0.7f, 0.2f));
-			restrictedWarning.AddThemeFontSizeOverride("font_size", 13);
-			AddChild(restrictedWarning);
-			restrictedWarning.SetAnchorsPreset(LayoutPreset.CenterTop);
-			restrictedWarning.GrowHorizontal = GrowDirection.Both;
-			restrictedWarning.OffsetLeft = -500;
-			restrictedWarning.OffsetRight = 500;
-			restrictedWarning.OffsetTop = 85;
-			restrictedWarning.OffsetBottom = 110;
-		}
-
 
 		ApplyThemeStyles();
 
@@ -239,6 +224,9 @@ public partial class LobbyRoom : Control
 
 		_chatLog.Text = $"[color=#ffd700]{Tr("System: Connected to Lobby.")}[/color]\n";
 		_chatInput.TextSubmitted += OnChatSubmitted;
+
+		// A lobby whose network has already refused it opens the notice the moment its host arrives, so the restriction is
+		// explained before the host starts setting up a match players cannot reach.
 
 
 		var mapImage = new TextureRect();
@@ -279,6 +267,7 @@ public partial class LobbyRoom : Control
 
 		SetupAttributionButton();
 		CreateMatchSettingsUI();
+		CreateJoinCodeUI();
 
 		UpdateSelectedMapUI();
 	}
@@ -306,7 +295,7 @@ public partial class LobbyRoom : Control
 		UpdateSelectedMapUI();
 		if (!Lobby.IsHost && _downloadProgress != null && _downloadLabel != null)
 		{
-			if (MapAssetManager.IsMapDownloaded(mapName))
+			if (Lobby.HoldsActiveMapPackage)
 			{
 				_downloadProgress.Value = 100.0f;
 				_downloadLabel.Text = Tr("Map package ready.");
@@ -325,50 +314,69 @@ public partial class LobbyRoom : Control
 
 
 
-	/// <summary>
-	///     Whether this lobby is played at an address its host sends around instead of being listed for the lobby browser
-	///     to find. The staging id the authority opens a direct lobby under states the same thing as the flag, and a screen
-	///     that joined by address reads it from there.
-	/// </summary>
-	private static bool IsDirectConnectLobby =>
-		Lobby.IsDirectLobby ||
-		(Lobby.ActiveLobbyId is { Length: > 0 } activeLobbyId && activeLobbyId.StartsWith("direct-", StringComparison.Ordinal));
-
-	/// <summary>
-	///     Shows the one invite button this lobby can use. A Steam invite needs a lobby the lobby browser lists, because that
-	///     list is what a friend's client finds and joins; a lobby that is not listed hands out the address its host reads
-	///     from the dialog instead. The note beside that button is the host's, since an address a joining player passes on is
-	///     the host's and not their own.
-	/// </summary>
 	private void ApplyInviteVisibility()
 	{
 		bool invitesPlayers = !Lobby.IsSinglePlayer;
-		bool directLobby = IsDirectConnectLobby;
 
-		_steamInviteButton.Visible = invitesPlayers && !directLobby;
-		_shareAddressButton.Visible = invitesPlayers && directLobby;
-		_privateLobbyHint.Visible = invitesPlayers && directLobby && Lobby.IsHost;
+		// One door for inviting a player: Steam's own invitation window, which is also where the friends list lives. A
+		// lobby's listing is a separate choice, so nothing about it hides the invitation.
+		_invitePlayersButton.Visible = invitesPlayers;
+		_unlistedLobbyHint.Visible = invitesPlayers && Lobby.IsHost && Lobby.IsUnlisted;
+		_unlistedLobbyCheck.Visible = invitesPlayers && Lobby.IsHost;
+
+		// The code is set by the host and asked of the players arriving without one, so only a host of a lobby that seats
+		// other people has a use for the button. A joiner's field opens by itself when the lobby asks for a code.
+		_joinCodeButton.Visible = invitesPlayers && Lobby.IsHost;
+		if (!_joinCodeButton.Visible && _joinCodePanel is not null) _joinCodePanel.Visible = false;
+
+		UpdateUnlistedLobbyCheck();
+
+		// A disabled overlay is not a failure and does not hide the invitation: Steam still holds the lobby, the friends
+		// list and the invitation, and the game simply says so instead of pretending the window opened.
+		if (invitesPlayers && GameContext.Steam.IsAvailable && !GameContext.Steam.IsOverlayEnabled)
+		{
+			ShowInviteFeedback(Tr("The Steam overlay is off, so invitations and your friends list open in the Steam client itself."));
+		}
 	}
 
-	private void OpenInviteFriendsDialog()
+	private void UpdateUnlistedLobbyCheck()
 	{
-		if (Lobby.ActiveLobbyId is not { Length: > 0 } lobbyId)
-		{
-			GameContext.UserInterface?.ShowPopupMessage(
-				Tr("LOBBY INVITES"),
-				Tr("Invites need a lobby the server lists. Share the lobby's direct connect address instead."));
-			return;
-		}
+		if (!GodotObject.IsInstanceValid(_unlistedLobbyCheck)) return;
 
-		if (_friendsDialog == null || !GodotObject.IsInstanceValid(_friendsDialog))
-		{
-			_friendsDialog = new SteamFriendsDialog();
-			AddChild(_friendsDialog);
-			_friendsDialog.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-			_friendsDialog.InvitesSent += OnFriendInvitesSent;
-		}
+		bool unlisted = Lobby.IsUnlisted;
+		if (_unlistedLobbyCheck.ButtonPressed == unlisted) return;
+		_unlistedLobbyCheck.SetPressedNoSignal(unlisted);
+	}
 
-		_friendsDialog.ShowFor(lobbyId, Lobby.MaxPlayers);
+	private async void OnUnlistedLobbyToggled(bool unlisted)
+	{
+		GameContext.UserInterface?.PlayClickSound();
+
+		bool applied = await Lobby.SetLobbyUnlistedAsync(unlisted);
+		UpdateUnlistedLobbyCheck();
+		ApplyInviteVisibility();
+
+		if (!applied)
+		{
+			GameContext.UserInterface?.PlayWarningSound();
+			UpdateUnlistedLobbyCheck();
+		}
+	}
+
+	/// <summary>
+	///     Opens Steam's own invitation window for this lobby. Any member may invite, not only the host: a friends-only
+	///     Steam lobby admits friends of whoever invited them, so a player who brought their own friend does not have to
+	///     route the invitation through the host.
+	/// </summary>
+	private void OpenInvitePlayersDialog()
+	{
+		if (Lobby.SteamLobbyId == 0) return;
+
+		if (!SteamLobbyDirectory.OpenInviteDialog(Lobby.SteamLobbyId))
+		{
+			GameContext.UserInterface?.PlayWarningSound();
+			ShowInviteFeedback(Tr("Steam's invitation window could not be opened."));
+		}
 	}
 
 	private void OnFriendInvitesSent(int sentCount)
@@ -394,8 +402,6 @@ public partial class LobbyRoom : Control
 
 	public override void _ExitTree()
 	{
-		GameContext.Steam.CloseInviteLobby();
-
 		if (GameContext.Lobby != null)
 		{
 			Lobby.PlayerListUpdated -= PopulatePlayersList;
@@ -419,6 +425,9 @@ public partial class LobbyRoom : Control
 			Lobby.HostStabilityUpdated -= UpdateHostStabilityLabel;
 			Lobby.ActiveMapChanged -= OnActiveMapChanged;
 			Lobby.StartWarningReceived -= OnStartWarningReceived;
+			Lobby.JoinCodeRequirementChanged -= OnJoinCodeRequirementChanged;
+			Lobby.JoinCodeRefused -= OnJoinCodeRefused;
+			Lobby.PlayerListUpdated -= UpdateJoinCodeVisibility;
 		}
 
 		base._ExitTree();
@@ -521,10 +530,6 @@ public partial class LobbyRoom : Control
 			_countdownTextLabel = null;
 		}
 
-		if (GameContext.Lobby != null && Lobby.IsHost)
-		{
-			Lobby.UnregisterActiveLobbyFromRegistry();
-		}
 	}
 
 	private void PopulatePlayersList()
@@ -564,11 +569,14 @@ public partial class LobbyRoom : Control
 
 		UpdatePlayersHeading();
 		SetupStartButton();
+		ApplyInviteVisibility();
 	}
 
 	private void UpdatePlayersHeading()
 	{
-		_playersTitle.Text = $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({Lobby.PlayingPlayerCount}/{Lobby.OpenSlotCount})";
+		LocalizedText.Bind(_playersTitle, () => Lobby == null
+			? null
+			: $"{TranslationServer.Translate("TEAMS & PLAYERS")} ({Lobby.PlayingPlayerCount}/{Lobby.OpenSlotCount})");
 	}
 
 	private bool CheckHostVersionMismatch()
@@ -660,6 +668,9 @@ public partial class LobbyRoom : Control
 		string color = senderName == "System" ? "#ffd700" : (senderName == myName ? "#5cd6ff" : "#d4a0a0");
 		string timestamp = ChatPanel.FormatTimestamp(timestampUtcTicks);
 		_chatLog.Text += $"[color=#a0a0a0][{timestamp}][/color] [color={color}]{senderName}[/color]: {message}\n";
+
+		// A player's failed join reaches this host as a chat line, and it is the one report that can say a lobby needs the
+		// notice: it disproves a lobby the lobby server measured as reachable.
 	}
 
 	private void OnLobbyConnectionFailed(string reason)
@@ -672,16 +683,8 @@ public partial class LobbyRoom : Control
 
 	private void ShowConnectionFailedPopup(string reason)
 	{
-		string displayReason = reason;
-		if (reason == "Direct connection handshake failed.")
-		{
-			displayReason = $"{Tr("Direct connection handshake failed.")}\n\n{Tr("The host's router may be blocking incoming UDP traffic on port 8999. Ensure UPnP is enabled on the host's router, configure UDP port 8999 forwarding, or connect via a Virtual LAN (Tailscale / Radmin).")}";
-		}
-
-		GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), $"{Tr("Failed to connect to host.")}\n\n{string.Format(Tr("Reason: {0}"), displayReason)}", () =>
-		{
-			ReturnFromLobby();
-		});
+		string explanation = string.IsNullOrWhiteSpace(reason) ? Tr("Steam could not connect to the host.") : reason;
+		GameContext.UserInterface?.ShowPopupMessage(Tr("CONNECTION FAILED"), string.Format(Tr("Failed to connect to host.\n\nReason: {0}"), explanation), ReturnFromLobby);
 	}
 
 	private void OnLobbyKickReceived(string reason)

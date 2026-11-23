@@ -1,7 +1,6 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using MemoryPack;
-using Realm.Shared.Accounts;
 
 namespace Realm.Shared.Network;
 
@@ -29,8 +28,6 @@ public enum LobbyCommandKind : byte
 
 	ReportHostStability = 11,
 
-	PunchAddress = 12,
-
 	RequestChatHistory = 13,
 
 	ReportLoadReady = 14,
@@ -49,7 +46,22 @@ public enum LobbyCommandKind : byte
 	SetSlotOpen = 19,
 
 	/// <summary>Chooses the shroud mode the match plays, in <see cref="LobbyCommand.Progress" />.</summary>
-	SetShroudMode = 20
+	SetShroudMode = 20,
+
+
+	/// <summary>
+	///     Presents, in <see cref="LobbyCommand.Text" />, the join code the player typed. A lobby that set one seats nobody
+	///     until it matches, and a member who has not presented it stands in the room without a seat. It is compared on the
+	///     authority and never leaves it, and a wrong code is answered rather than punished.
+	/// </summary>
+	PresentJoinCode = 23,
+
+	/// <summary>
+	///     Sets the join code the lobby gates its seats with, in <see cref="LobbyCommand.Text" />, or clears it when the text is
+	///     empty. Sent by the lobby's administrator only. Clearing it releases every member who was waiting for it, which is
+	///     why the change is announced to the room as normal lobby state.
+	/// </summary>
+	SetJoinCode = 24
 }
 
 /// <summary>
@@ -107,14 +119,24 @@ public static class LobbyBotDifficultyRules
 public enum MapTransferRequestKind : byte
 {
 	Manifest = 1,
-	Chunk = 2
+	Chunk = 2,
+
+	/// <summary>
+	///     Names files the joiner already holds in its own archive, so the lobby leaves them out of the bundles it builds.
+	///     It travels in batches because the list is a map's own file count, and it is sent once per transfer rather than
+	///     with every request, which is what lets the lobby plan its bundles before it learns what to skip.
+	/// </summary>
+	Held = 3
 }
 
 public enum MapTransferReplyKind : byte
 {
 	Manifest = 1,
 	Chunk = 2,
-	Refused = 3
+	Refused = 3,
+
+	/// <summary>Answers an announcement of files the joiner holds, which the lobby has recorded for this transfer.</summary>
+	Held = 4
 }
 
 [MemoryPackable]
@@ -123,8 +145,6 @@ public partial struct LobbySeat
 	public int PeerId;
 
 	public int Slot;
-
-	public long AccountId;
 
 	public string Name;
 	public string Faction;
@@ -147,8 +167,6 @@ public partial struct LobbySeat
 
 	public bool IsDisconnected;
 
-	public string SessionToken;
-
 	public int LatencyMilliseconds;
 
 	public int JitterMilliseconds;
@@ -163,7 +181,7 @@ public partial struct LobbySeat
 	public int Difficulty;
 
 	/// <summary>
-	///     The SteamID64 the seat's own client plays as, or 0 for a computer seat, a guest who is not running inside Steam, or
+	///     The SteamID64 the seat's own client plays as, or 0 for a computer seat, for a screen running without Steam, or for
 	///     a seat whose player has not sent a hello this build can read. It is stated by that client, exactly like the name it
 	///     plays under, and it is only used to point Steam's add-friend dialog at the right person.
 	/// </summary>
@@ -213,6 +231,13 @@ public partial struct LobbyStateMessage
 	///     fields a peer already reads keep their wire position.
 	/// </summary>
 	public int ShroudMode;
+
+	/// <summary>
+	///     Whether this lobby gates its seats with a join code, which every member reads to show the field the players who
+	///     arrived without it have to fill in. The code itself is never published: the authority holds it for the lobby's
+	///     lifetime and compares what a screen presents.
+	/// </summary>
+	public bool JoinCodeRequired;
 
 	/// <summary>
 	///     The colour each player index's units are drawn in, indexed by player index, packed as 0xRRGGBBAA, where zero
@@ -292,9 +317,6 @@ public partial struct LobbyCommand
 	/// </summary>
 	public bool AcknowledgeStartWarning;
 
-	public string Address;
-	public int Port;
-
 	public int Progress;
 
 	/// <summary>The identifier a <see cref="LobbyCommandKind.SetLobbySetting" /> sets, as the map declared it.</summary>
@@ -307,15 +329,26 @@ public partial struct LobbyCommand
 	public int Slot;
 }
 
+/// <summary>
+///     The answer to a presented join code. A refusal is a refused seat, not a disconnect: the screen stays in the room and
+///     the player may type the code again.
+/// </summary>
+[MemoryPackable]
+public partial struct LobbyJoinCodeAnswerMessage
+{
+	/// <summary>Whether the presented code matched the one the lobby gates its seats with.</summary>
+	public bool Accepted;
+}
+
 [MemoryPackable]
 public partial struct LobbyChatMessage
 {
 	public int SenderPeerId;
 
 	/// <summary>
-	///     The account whose seat spoke, filled by the authority from the seat rather than from anything the sender typed.
+	///     The SteamID64 whose seat spoke, filled by the authority from the seat rather than from anything the sender typed.
 	/// </summary>
-	public long SenderAccountId;
+	public ulong SenderSteamId;
 
 	public string SenderName;
 	public string Message;
@@ -352,9 +385,27 @@ public partial struct MapTransferRequest
 	public string TransferId;
 	public string MapName;
 
-	public string[] MissingHashes;
-
 	public int ChunkIndex;
+
+	/// <summary>
+	///     Which piece of that chunk's bundle to answer with. A bundle is larger than one frame a Steam peer connection
+	///     carries, so it travels as the pieces the lobby states in <see cref="MapTransferReply.PacketCount" /> and a joiner
+	///     asks for them in turn.
+	/// </summary>
+	public int PacketIndex;
+
+	/// <summary>
+	///     The files this joiner already holds, as manifest asset keys, when the request announces them. Empty for every
+	///     other kind of request.
+	/// </summary>
+	public string[] HeldHashes;
+
+	/// <summary>
+	///     How many pieces of the bundle to answer with, starting at <see cref="PacketIndex" />. The lobby sends as many as
+	///     the bundle has left up to this and the ceiling it states, so a joiner that asks for a window of pieces keeps the
+	///     line busy instead of waiting for one message at a time.
+	/// </summary>
+	public int PacketWindow;
 }
 
 [MemoryPackable]
@@ -363,29 +414,58 @@ public partial struct MapTransferReply
 	public MapTransferReplyKind Kind;
 	public string TransferId;
 	public string MapName;
-	public string ManifestJson;
+
+	/// <summary>
+	///     The host's own <c>manifest.json</c>, byte for byte, because that file is the package's identity: a joiner
+	///     writes these bytes rather than a re-serialization of them, so the copy it ends up holding is the package the
+	///     lobby advertises and not a look-alike that hashes differently.
+	/// </summary>
+	public byte[] ManifestBytes;
+
 	public string Refusal;
+
+	/// <summary>
+	///     The chunk this reply carries a piece of, counted from zero, and how many chunks the lobby split its map into.
+	///     The manifest reply states the total, so a joiner needs no list of hashes of its own to walk the map.
+	/// </summary>
 	public int ChunkIndex;
+
 	public int TotalChunks;
+
+	/// <summary>Which piece of that chunk's bundle this reply carries, and how many pieces make it whole.</summary>
+	public int PacketIndex;
+
+	public int PacketCount;
+
 	public long TotalBytes;
 
+	/// <summary>
+	///     The piece itself, which is the whole bundle when the bundle fits one piece. It is empty, and the piece count
+	///     zero, when the joiner holds every file the chunk carries: nothing of that chunk needs to travel.
+	/// </summary>
 	public byte[] Bundle;
 }
 
 public static class LobbyLimits
 {
 	/// <summary>
-	///     The seat's name ceiling in UTF-16 units. It is deliberately the DisplayName byte ceiling: a legal DisplayName never
-	///     exceeds <see cref="DisplayNameRules.MaximumUtf8Bytes" /> UTF-8 bytes, and UTF-8 never uses fewer bytes than the UTF-16
-	///     units it encodes, so a registered name can never be truncated on its way into a seat.
+	///     The seat's name ceiling in UTF-16 units. It is deliberately the name byte ceiling: a persona that already reads cleanly
+	///     never exceeds <see cref="LobbyPlayerNameRules.MaximumUtf8Bytes" /> UTF-8 bytes, and UTF-8 never uses fewer bytes than the
+	///     UTF-16 units it encodes, so such a name is never truncated on its way into a seat.
 	/// </summary>
-	public const int MaximumPlayerNameLength = DisplayNameRules.MaximumUtf8Bytes;
+	public const int MaximumPlayerNameLength = LobbyPlayerNameRules.MaximumUtf8Bytes;
 	public const int MaximumFactionLength = 48;
 	public const int MaximumTeamNameLength = 48;
 	public const int MaximumChatMessageLength = 400;
 
 	/// <summary>The ceiling on the warning a map may ask its lobby's host to read before the match starts.</summary>
 	public const int MaximumStartWarningLength = 300;
+
+	/// <summary>
+	///     The ceiling on the join code a lobby gates its seats with. It is short because it is read out loud and typed by
+	///     hand, and because it is a room's shared phrase rather than a credential.
+	/// </summary>
+	public const int MaximumJoinCodeLength = 32;
 
 	/// <summary>
 	///     How many player slots a lobby carries. It is the shared roster's own ceiling minus the neutral slot, so the
@@ -421,7 +501,60 @@ public static class LobbyLimits
 	/// <returns>Whether the seat left its faction to the match.</returns>
 	public static bool IsRandomFaction(string? factionName) => string.Equals(factionName, RandomFactionName, StringComparison.Ordinal);
 
-	public const int MaximumMapBundleBytes = 2 * 1024 * 1024;
+	/// <summary>
+	///     The file bytes one bundle carries, which is what a single request's whole window is sized for. A bundle smaller
+	///     than the window leaves the line idle in proportion to the round trip: the pieces of one bundle cannot overlap with
+	///     the request for the next, so a bundle of one or two pieces moves a few hundred kilobytes per round trip however
+	///     fast the link is. This is uncompressed file bytes, so the bundle a large map's textures make is a good deal
+	///     smaller on the wire than the number states.
+	/// </summary>
+	public const int MaximumMapBundleBytes = MaximumPiecesPerRequest * MapTransferPackets.PieceBytes;
+
+	/// <summary>
+	///     The largest frame this transfer may put on one message. A Steam peer connection refuses a message over 512 KB,
+	///     so a reply at or over that size would be dropped by the transport and answered with nothing at all.
+	/// </summary>
+	public const int MaximumMapTransferFrameBytes = 512 * 1024;
+
+	/// <summary>
+	///     The files one announcement of already-held files may name, which keeps that frame well inside a message while a
+	///     joiner holding a large map only has to state its archive a few times.
+	/// </summary>
+	public const int MaximumHeldHashesPerAnnouncement = 512;
+
+	/// <summary>
+	///     The pieces one request may ask for. A transfer that asked for one piece at a time moved one message per round
+	///     trip, which leaves a fast line idle: asking for several keeps that many pieces travelling at once, and the
+	///     ceiling is what the lobby's send buffer is sized for.
+	/// </summary>
+	public const int MaximumPiecesPerRequest = 8;
+
+	/// <summary>
+	///     The bytes a transfer may have travelling at once, which is the answer to one request at its ceiling.
+	/// </summary>
+	public const int MaximumMapTransferBytesInFlight = MaximumPiecesPerRequest * MapTransferPackets.PieceBytes;
+
+	/// <summary>
+	///     The floor of the send rate a match connection may be paced down to, in bytes per second. It is the value Steam
+	///     states for this itself, so a connection that has to slow down to fit a weak path still can.
+	/// </summary>
+	public const int ConnectionSendRateMinimumBytesPerSecond = 256 * 1024;
+
+	/// <summary>
+	///     The ceiling of the send rate a match connection may reach, in bytes per second. Steam paces a peer connection by
+	///     an estimate of the path, and that estimate is bounded by a clamp which reads 256 KB/s on a running client: a map of
+	///     a few megabytes then takes minutes however good the connection is, so the clamp, not the line, is what a transfer
+	///     measures. This ceiling is stated well above it so the estimate can follow the path, and a slower path still gets
+	///     the rate its own measurement asks for.
+	/// </summary>
+	public const int ConnectionSendRateMaximumBytesPerSecond = 8 * 1024 * 1024;
+
+	/// <summary>
+	///     The bytes a connection buffers on the receiving side. Steam's default is 512 KB, which is less than one window of
+	///     pieces: a joiner receiving a window of them would have the host spend the rest of the flush waiting for the
+	///     buffer to drain. It is stated above one window so a whole window can sit there at once.
+	/// </summary>
+	public const int ConnectionReceiveBufferBytes = MaximumMapTransferBytesInFlight + MapTransferPackets.PieceBytes;
 
 	/// <summary>
 	///     The refusal a peer is answered with when it asks to be seated in a lobby that removed it.
@@ -440,18 +573,17 @@ public static class LobbyLimits
 			builder.Append(rune.ToString());
 		}
 
-		return DisplayNameRules.TruncateAtGraphemeBoundary(builder.ToString().Trim(), maximumLength);
+		return LobbyPlayerNameRules.TruncateAtGraphemeBoundary(builder.ToString().Trim(), maximumLength);
 	}
 
 	/// <summary>
-	///     The name a lobby carries for a peer. A legal DisplayName is passed through untouched; anything else is reduced to a
-	///     control-free, grapheme-safe rendering so a seat can never hold a name the account authority would refuse or a string
-	///     cut in the middle of a surrogate pair. The unverified mark is stripped, because whether a name is marked is what the
-	///     screen knows about the seat, never something the seat declares about itself.
+	///     The name a lobby carries for a peer. A persona that already reads cleanly is passed through untouched; anything else
+	///     is reduced to a control-free, grapheme-safe rendering, so a seat can never hold a name that is unreadable or a string
+	///     cut in the middle of a surrogate pair. Steam owns the name itself, so this only makes it safe to draw.
 	/// </summary>
 	public static string SanitizeDisplayName(string? value)
 	{
-		return UnverifiedNameMark.Remove(DisplayNameRules.AdmitForLobby(value, MaximumPlayerNameLength));
+		return LobbyPlayerNameRules.AdmitForLobby(value, MaximumPlayerNameLength);
 	}
 
 	public static bool IsAcceptableTeamName(string? teamName)

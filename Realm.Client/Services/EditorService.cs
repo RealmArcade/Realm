@@ -1,4 +1,4 @@
-using Realm.Shared.Maps;
+﻿using Realm.Shared.Maps;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -33,7 +33,6 @@ using Realm.Shared.Distribution;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
 using Environment = System.Environment;
-using HttpClient = System.Net.Http.HttpClient;
 using Key = NSec.Cryptography.Key;
 using Timer = System.Threading.Timer;
 using Vector3 = System.Numerics.Vector3;
@@ -83,16 +82,6 @@ public partial class EditorService : IEditorAPI
 	public byte[]? GetRtexWebpBytes(string localRtex)
 	{
 		return EditorAssetImport.GetRtexWebpBytes(localRtex);
-	}
-
-	public async Task<string?> ProcessCreatorRegistrationAsync(string username, string pubKeyStr, Key key)
-	{
-		return await EditorAssetImport.ProcessCreatorRegistrationAsync(username, pubKeyStr, key);
-	}
-
-	public async Task<string?> RegisterCreatorAsync(string username, string pubKeyStr, Key key)
-	{
-		return await EditorAssetImport.RegisterCreatorAsync(username, pubKeyStr, key);
 	}
 
 	public bool IsTargetUnit(string unitId, string? targetId)
@@ -1013,6 +1002,9 @@ public partial class EditorService : IEditorAPI
 		}
 
 		ref var ts = ref World.Get<Realm.Ecs.Components.Terrain.TerrainState>(GameContext.Simulation.WorldEntity);
+
+		ts.Width = defaultWidth;
+		ts.Depth = defaultDepth;
 		ts.SetHeights(defaultHeights);
 		ts.PathingCodes = defaultPathing;
 		World.Set(GameContext.Simulation.WorldEntity, ts);

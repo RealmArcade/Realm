@@ -64,19 +64,6 @@ public static partial class UIStyle
 		return CreateBgGradient();
 	}
 
-	public static StyleBox CreateCreatorDiscoveryBg()
-	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/creator_discovery_bg.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-			return style;
-		}
-
-		return CreateBgGradient();
-	}
-
 	public static StyleBox CreateGameOverBg()
 	{
 		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/GameOver_Background.webp");
@@ -113,97 +100,6 @@ public static partial class UIStyle
 			return style;
 		}
 		return CreateStonePanel();
-	}
-
-	public static StyleBox CreateCreatorDiscoveryPanelStyle()
-	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/creator_discovery_panel.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-
-			style.TextureMarginLeft = 4;
-			style.TextureMarginRight = 4;
-			style.TextureMarginTop = 4;
-			style.TextureMarginBottom = 4;
-
-			style.ContentMarginLeft = 65;
-			style.ContentMarginRight = 65;
-			style.ContentMarginTop = 50;
-			style.ContentMarginBottom = 50;
-
-			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
-			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
-
-			return style;
-		}
-
-		return CreateBackdropPanel();
-	}
-
-	public static StyleBox CreateCreatorDiscoveryTabButtonStyle(bool isActive, bool isHover = false, bool isPressed = false)
-	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/creator_discovery_button_option.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-
-			style.TextureMarginLeft = 0;
-			style.TextureMarginRight = 0;
-			style.TextureMarginTop = 0;
-			style.TextureMarginBottom = 0;
-
-			style.ContentMarginLeft = 20;
-			style.ContentMarginRight = 20;
-			style.ContentMarginTop = 10;
-			style.ContentMarginBottom = 10;
-
-			if (isActive)
-			{
-				style.ModulateColor = isPressed
-					? new Color(0.85f, 0.85f, 0.9f)
-					: (isHover ? new Color(1.18f, 1.18f, 1.25f) : Colors.White);
-			}
-			else
-			{
-				style.ModulateColor = isHover
-					? new Color(0.85f, 0.85f, 0.88f, 0.9f)
-					: new Color(0.6f, 0.6f, 0.65f, 0.75f);
-			}
-
-			return style;
-		}
-
-		return isPressed ? CreateButtonPressed() : (isHover ? CreateButtonHover() : CreateButtonNormal());
-	}
-
-	public static StyleBox CreateCreatorDiscoveryMapFrameStyle()
-	{
-		var tex = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/creator_discovery_map.webp");
-		if (tex != null)
-		{
-			var style = new StyleBoxTexture();
-			style.Texture = tex;
-
-			style.TextureMarginLeft = 24;
-			style.TextureMarginRight = 24;
-			style.TextureMarginTop = 8;
-			style.TextureMarginBottom = 8;
-
-			style.ContentMarginLeft = 20;
-			style.ContentMarginRight = 20;
-			style.ContentMarginTop = 14;
-			style.ContentMarginBottom = 14;
-
-			style.AxisStretchHorizontal = StyleBoxTexture.AxisStretchMode.Stretch;
-			style.AxisStretchVertical = StyleBoxTexture.AxisStretchMode.Stretch;
-
-			return style;
-		}
-
-		return CreateStonePanel(true);
 	}
 
 	public static StyleBox CreateAgreementPanel()

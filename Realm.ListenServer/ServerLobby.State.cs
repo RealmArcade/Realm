@@ -15,7 +15,9 @@ public partial class ServerLobby
 	{
 	public void SendStateTo(int peerId)
 	{
-		if (!TryGetSeat(peerId, out _)) return;
+		// A member standing in the room without a seat still reads the room: that is what tells it the lobby gates its seats
+		// with a code and offers it the field to type it in.
+		if (!TryGetSeat(peerId, out _) && !_waitingJoins.ContainsKey(peerId)) return;
 
 		_send(peerId, NetworkFrameKind.LobbyState, SerializeStateFor(DescribeState(), peerId), FrameDelivery.Reliable);
 		foreach (LobbyChatMessage line in _chatHistory)
@@ -31,17 +33,21 @@ public partial class ServerLobby
 		{
 			_send(pair.Key, NetworkFrameKind.LobbyState, SerializeStateFor(state, pair.Key), FrameDelivery.Reliable);
 		}
+
+		foreach (int waitingPeerId in _waitingJoins.Keys)
+		{
+			if (_slotByPeer.ContainsKey(waitingPeerId)) continue;
+			_send(waitingPeerId, NetworkFrameKind.LobbyState, SerializeStateFor(state, waitingPeerId), FrameDelivery.Reliable);
+		}
 	}
 
 	private byte[] SerializeStateFor(LobbyStateMessage state, int peerId)
 	{
 		LobbySeat[] seats = state.Seats;
-		for (int index = 0; index < seats.Length; index++) seats[index].SessionToken = string.Empty;
 
 		for (int index = 0; index < seats.Length; index++)
 		{
 			if (seats[index].PeerId != peerId) continue;
-			if (_seats.TryGetValue(seats[index].Slot, out LobbySeat seat)) seats[index].SessionToken = seat.SessionToken;
 			break;
 		}
 
@@ -55,7 +61,6 @@ public partial class ServerLobby
 		foreach (LobbySeat seat in _seats.Values)
 		{
 			LobbySeat published = seat;
-			published.SessionToken = string.Empty;
 			seats[index++] = published;
 		}
 
@@ -73,6 +78,7 @@ public partial class ServerLobby
 			SpectatorDelay = SpectatorDelay,
 			TeamsTogether = Roster?.TeamsTogether ?? false,
 			ShroudMode = (int)EffectiveShroudMode,
+			JoinCodeRequired = _joinCode.Length > 0,
 			HostStability = HostStability,
 			CountdownActive = _countdownActive,
 			CountdownRemainingSeconds = _countdownActive ? Math.Max(0, _lastCountdownSeconds) : 0,

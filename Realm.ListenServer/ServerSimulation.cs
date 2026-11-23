@@ -484,7 +484,10 @@ public class ServerSimulation : IDisposable
 	///     a seat is a person inside Steam rather than a computer or a screen without it.
 	/// </summary>
 	/// <param name="peerId">The connection that stated it.</param>
-	/// <param name="steamId">The SteamID64 the hello named, or zero when that screen is not running Steam.</param>
+	/// <param name="steamId">
+	///     The SteamID64 the authority seated this peer under, which is the one Steam asserted when the transport asserted
+	///     one, or zero when that screen is not running Steam.
+	/// </param>
 	public void SetPeerSteamId(int peerId, ulong steamId)
 	{
 		if (peerId <= 0) return;
@@ -627,7 +630,7 @@ public class ServerSimulation : IDisposable
 		abilities?.CompleteTick();
 	}
 
-	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline, int laneIndex, int peerSlot)
+	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline, int laneIndex, int peerSlot, bool restateStatements = false)
 	{
 		Entity viewer = TryGetPlayerEntity(peerId, out Entity playerEntity) ? playerEntity : Entity.Null;
 		List<AbilityStateDelta> preparedAbilityDeltas = (uint)peerSlot < (uint)_abilityDeltasByPeerSlot.Length
@@ -638,7 +641,7 @@ public class ServerSimulation : IDisposable
 		_snapshots.EnterPeerDescription(peerId);
 		try
 		{
-			builder.BuildInto(ref snapshot, peerId, sequence, new PlayerEntity(viewer), forceBaseline, preparedAbilityDeltas);
+			builder.BuildInto(ref snapshot, peerId, sequence, new PlayerEntity(viewer), forceBaseline, preparedAbilityDeltas, restateStatements);
 		}
 		finally
 		{

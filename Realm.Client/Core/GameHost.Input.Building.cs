@@ -108,7 +108,7 @@ public partial class GameHost
 
 		if (GameContext.InGameHud != null)
 		{
-			Hud.ShowFeedbackText("Building Placement Cancelled", new Color(0.8f, 0.8f, 0.8f));
+			Hud.ShowFeedbackText(TranslationServer.Translate("Building Placement Cancelled"), new Color(0.8f, 0.8f, 0.8f));
 		}
 
 		Input.SetDefaultCursorShape(Input.CursorShape.Arrow);

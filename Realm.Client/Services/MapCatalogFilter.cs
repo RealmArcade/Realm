@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Realm.Client.UI;
@@ -13,7 +13,7 @@ public static class MapCatalogFilter
 {
 	private const string AllCategory = "All";
 	private const string FeaturedCategory = "Featured";
-	private const float FeaturedMinimumRating = 4.5f;
+	private const int FeaturedMinimumVotes = 10;
 
 	public static IEnumerable<MapData> ByCategory(IEnumerable<MapData> maps, string selectedCategory)
 	{
@@ -21,10 +21,10 @@ public static class MapCatalogFilter
 
 		if (selectedCategory == FeaturedCategory)
 		{
-			return maps.Where(m => m.RatingStars >= FeaturedMinimumRating);
+			return maps.Where(m => m.Trust.Level == MapTrustLevel.Verified || m.VotesUp + m.VotesDown >= FeaturedMinimumVotes);
 		}
 
-		return maps.Where(m => m.Genre.Contains(selectedCategory) || m.Features.Contains(selectedCategory) || m.MapId.Contains(selectedCategory));
+		return maps.Where(m => m.Genre.Contains(selectedCategory) || m.MapId.Contains(selectedCategory));
 	}
 
 	public static IEnumerable<MapData> BySearchQuery(IEnumerable<MapData> maps, string? searchQuery)

@@ -28,6 +28,7 @@ public partial class ListenServerEntry : Node
 	private readonly ConcurrentQueue<string?> _incomingControlLines = new();
 	private readonly BlockingCollection<string> _pendingReplies = new(new ConcurrentQueue<string>(), 64);
 
+	private readonly SteamAuthorityContext _steam = new();
 	private ServerLog? _log;
 	private ServerNetworkChannel? _channel;
 	private ParentProcessWatchdog? _parentWatchdog;
@@ -37,6 +38,7 @@ public partial class ListenServerEntry : Node
 	private string _logPath = string.Empty;
 	private string _dataFolderPath = string.Empty;
 	private int _parentProcessId;
+	private uint _steamAppId;
 	private double _matchStartedAtSeconds;
 	private bool _inputClosed;
 
@@ -51,8 +53,13 @@ public partial class ListenServerEntry : Node
 			return;
 		}
 
+		AuthorityCrashCapture.Install(_logPath);
+
 		_log = new ServerLog(_logPath);
 		_log.Write($"resident authority up pid={System.Environment.ProcessId} build={RealmVersion.GameBuildNumber}");
+
+		_steam.TryStart(_steamAppId);
+		_log.Write(_steam.Describe());
 
 		_channel = GetNode<ServerNetworkChannel>("/root/RealmNetwork");
 
@@ -69,6 +76,8 @@ public partial class ListenServerEntry : Node
 	public override void _PhysicsProcess(double delta)
 	{
 		if (_log == null) return;
+
+		_steam.Pump();
 
 		DrainControlCommands();
 
@@ -211,10 +220,24 @@ public partial class ListenServerEntry : Node
 
 		// One authority holds one match. Whatever it was holding is given up before the next one asks for the port it
 		// wants, because the match it holds is still sitting on its socket.
-		EndMatch("a new match was put on this authority");
+		EndMatch("a new match was put on this authority");		ServerArguments arguments = ServerArguments.From(command, _logPath, _dataFolderPath);
 
-		ServerArguments arguments = ServerArguments.From(command, _logPath, _dataFolderPath);
-		var transport = new EnetServerTransport(channel, command.Port, command.WasmDebug);
+		// Every seat in a networked match is a Steam identity and every remote peer reaches this process over Steam P2P, so a
+		// networked host is refused while Steamworks has no identity here. A loopback match needs no identity at all and is
+		// allowed through, which is what keeps single-player playable on a machine without a usable Steam client.
+		bool isNetworkedMatch = arguments.Lobby && !arguments.LoopbackOnly;
+		if (isNetworkedMatch && !_steam.TryStart(_steamAppId))
+		{
+			log.Write($"a networked match was refused because this authority has no Steam identity: {_steam.InitializationMessage}");
+			Reply(command, accepted: false, $"this authority has no Steam identity, so it cannot host a networked match: {_steam.InitializationMessage}");
+			return;
+		}
+
+		// The host's own seat keeps the loopback socket it has always used, and remote peers arrive on Steam's listener. Both
+		// are one peer set to the simulated match, so single-player runs with no Steam client at all.
+		var loopbackTransport = new EnetServerTransport(channel, command.Port, command.WasmDebug);
+		SteamServerTransport? steamTransport = isNetworkedMatch ? new SteamServerTransport(log, arguments.SteamLobbyId) : null;
+		var transport = new CompositeServerTransport(loopbackTransport, steamTransport);
 		var host = new MatchHost(arguments, log, transport);
 
 		try
@@ -272,6 +295,7 @@ public partial class ListenServerEntry : Node
 		_logPath = string.Empty;
 		_dataFolderPath = AppContext.BaseDirectory;
 		_parentProcessId = 0;
+		_steamAppId = 0;
 
 		for (int index = 0; index < arguments.Length; index++)
 		{
@@ -286,6 +310,16 @@ public partial class ListenServerEntry : Node
 				case ServerControlProtocol.DataFlag:
 					if (!TryTakeValue(arguments, ref index, flag, out string? dataPath, out error)) return false;
 					_dataFolderPath = dataPath!;
+					break;
+
+				case ServerControlProtocol.SteamAppIdFlag:
+					if (!TryTakeValue(arguments, ref index, flag, out string? appIdText, out error)) return false;
+					if (!uint.TryParse(appIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out _steamAppId) || _steamAppId == 0)
+					{
+						error = $"{ServerControlProtocol.SteamAppIdFlag} expects a Steam application id above zero, not '{appIdText}'.";
+						return false;
+					}
+
 					break;
 
 				case ServerControlProtocol.ParentProcessIdFlag:
@@ -341,6 +375,8 @@ public partial class ListenServerEntry : Node
 		_log?.Write("stopped");
 		_log?.Dispose();
 		_log = null;
+
+		_steam.Dispose();
 
 		_parentWatchdog?.Dispose();
 		_parentWatchdog = null;

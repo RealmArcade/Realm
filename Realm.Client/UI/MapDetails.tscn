@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3]
+﻿[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://UI/MapDetails.cs" id="1_script"]
 
@@ -211,20 +211,11 @@ theme_override_constants/h_separation = 12
 theme_override_constants/v_separation = 6
 columns = 2
 
-[node name="Row1Stars" type="HBoxContainer" parent="StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid"]
-layout_mode = 2
-
 [node name="Row1Votes" type="Label" parent="StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="Row2Stars" type="HBoxContainer" parent="StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid"]
-layout_mode = 2
-
 [node name="Row2Votes" type="Label" parent="StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid"]
-layout_mode = 2
-
-[node name="Row3Stars" type="HBoxContainer" parent="StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid"]
 layout_mode = 2
 
 [node name="Row3Votes" type="Label" parent="StatsPanel/VBoxContainer/ScrollContainer/ContentVBox/RatingGrid"]
@@ -232,13 +223,6 @@ layout_mode = 2
 
 [node name="HSeparator1" type="HSeparator" parent="StatsPanel/VBoxContainer/ScrollContainer/ContentVBox"]
 layout_mode = 2
-
-[node name="AwardsTitle" type="Label" parent="StatsPanel/VBoxContainer/ScrollContainer/ContentVBox"]
-layout_mode = 2
-
-[node name="AwardsContainer" type="HBoxContainer" parent="StatsPanel/VBoxContainer/ScrollContainer/ContentVBox"]
-layout_mode = 2
-theme_override_constants/separation = 8
 
 [node name="HSeparator2" type="HSeparator" parent="StatsPanel/VBoxContainer/ScrollContainer/ContentVBox"]
 layout_mode = 2

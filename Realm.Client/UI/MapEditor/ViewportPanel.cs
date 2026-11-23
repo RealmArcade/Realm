@@ -169,13 +169,13 @@ public sealed class ViewportPanel
 				hooks.UpdateGridOverlay(newMode);
 				string modeName = newMode switch
 				{
-					GridOverlayMode.Off => "OFF",
-					GridOverlayMode.Grid => "GRID",
-					GridOverlayMode.Polar => "POLAR",
-					GridOverlayMode.Both => "GRID + POLAR",
-					_ => "OFF"
+					GridOverlayMode.Off => TranslationServer.Translate("OFF"),
+					GridOverlayMode.Grid => TranslationServer.Translate("GRID"),
+					GridOverlayMode.Polar => TranslationServer.Translate("POLAR"),
+					GridOverlayMode.Both => TranslationServer.Translate("GRID + POLAR"),
+					_ => TranslationServer.Translate("OFF")
 				};
-				hooks.ShowFeedback($"Overlay Mode: {modeName}");
+				hooks.ShowFeedback(string.Format(TranslationServer.Translate("Overlay Mode: {0}"), modeName));
 			}
 			else if (id == 2)
 			{

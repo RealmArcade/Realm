@@ -20,16 +20,21 @@ public class Diagnostics
 
 	private static CancellationTokenSource? _serverCts;
 
-	public static void StartHostListener(int diagPort)
+	/// <summary>
+	///     Opens this screen's diagnostic listener on a port the operating system picks. Nothing derives a port from the
+	///     lobby's any more: a lobby that took a system port because the preferred one was held would hand its neighbour to
+	///     this listener, which is a collision waiting for a second instance. The port is logged so a run can be read.
+	/// </summary>
+	public static void StartHostListener()
 	{
 		StopHostListener();
 		_serverCts = new CancellationTokenSource();
 		var token = _serverCts.Token;
 
-		Task.Run(async () => await RunHostListenerAsync(diagPort, token), token);
+		Task.Run(async () => await RunHostListenerAsync(token), token);
 	}
 
-	private static async Task RunHostListenerAsync(int diagPort, CancellationToken token)
+	private static async Task RunHostListenerAsync(CancellationToken token)
 	{
 		using var udp = new UdpClient();
 		udp.ExclusiveAddressUse = false;
@@ -37,8 +42,8 @@ public class Diagnostics
 
 		try
 		{
-			udp.Client.Bind(new IPEndPoint(IPAddress.Any, diagPort));
-			GameLog.LogToConsole($"[Diagnostics] Host listening on UDP port {diagPort}");
+			udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+			GameLog.LogToConsole($"[Diagnostics] Host listening on UDP port {((IPEndPoint)udp.Client.LocalEndPoint!).Port}");
 
 			while (!token.IsCancellationRequested)
 			{

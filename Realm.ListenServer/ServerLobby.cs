@@ -17,15 +17,9 @@ public partial class ServerLobby : ILobbySeatTable
 
 	private readonly Action<int> _disconnect;
 
-	private readonly Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> _startMatch;
+	private readonly Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<ulong, int>, int, string?> _startMatch;
 
 	private readonly Action _lobbyAbandoned;
-
-	/// <summary>
-	///     Sends one datagram from the lobby's game port to an address. The third argument names the reachability check the
-	///     punch is for, or is empty when the punch only opens a path for a joining player.
-	/// </summary>
-	private readonly Action<string, int, string> _punchAddress;
 
 	private readonly Func<int, PeerLinkStatistics?> _readPeerLink;
 
@@ -77,7 +71,6 @@ public partial class ServerLobby : ILobbySeatTable
 	///     come back, so a kicked client reconnects before it has read the reason; that reconnect is answered with the
 	///     refusal instead of a fresh seat.
 	/// </summary>
-	private readonly HashSet<string> _refusedSessionTokens = new(StringComparer.Ordinal);
 
 	private const int MaximumChatHistory = 200;
 
@@ -86,7 +79,6 @@ public partial class ServerLobby : ILobbySeatTable
 
 	private double _linkStatisticsTimer;
 
-	private const int MaximumSessionTokenLength = 64;
 
 	private int _adminPeerId;
 	private long _revision;
@@ -97,7 +89,7 @@ public partial class ServerLobby : ILobbySeatTable
 	private bool _matchStarted;
 
 	public ServerLobby(ServerArguments arguments, ServerLog log, Action<int, NetworkFrameKind, byte[], FrameDelivery> send, Action<int> disconnect,
-		Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<string, int>, int, string?> startMatch, Action lobbyAbandoned, Action<string, int, string> punchAddress,
+		Func<IReadOnlyList<MatchRosterSeat>, IReadOnlyList<(int PeerId, int Slot)>, IReadOnlyDictionary<ulong, int>, int, string?> startMatch, Action lobbyAbandoned,
 		Func<int, PeerLinkStatistics?> readPeerLink, Func<string?> readStartWarning)
 	{
 		_log = log;
@@ -105,7 +97,6 @@ public partial class ServerLobby : ILobbySeatTable
 		_disconnect = disconnect;
 		_startMatch = startMatch;
 		_lobbyAbandoned = lobbyAbandoned;
-		_punchAddress = punchAddress;
 		_readPeerLink = readPeerLink;
 		_readStartWarning = readStartWarning;
 		_mapFolder = arguments.MapPath;
@@ -117,6 +108,8 @@ public partial class ServerLobby : ILobbySeatTable
 		// decided - there is no player count to set and no count to disagree with the rows on screen.
 		for (int slot = 1; slot < _openSlots.Length; slot++) _openSlots[slot] = true;
 		_openSlotCount = LobbyLimits.MaximumSeats;
+
+		ApplyJoinCode(arguments.JoinCode);
 	}
 
 	public bool MatchStarted => _matchStarted;

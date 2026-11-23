@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using Godot;
@@ -17,7 +18,7 @@ namespace Realm.Client.Services;
 
 public record ServerMatchStart(string MapFolderPath, string MapName, int Seed, string LogDirectory, string DataFolderPath, string Language, bool Cheats = false, bool OpenToOthers = false, bool WasmDebug = false, IReadOnlyList<MatchRosterSeat>? Roster = null, string? AuthorityRecordDirectory = null, bool LoopbackOnly = false, Realm.Ecs.MatchShroudMode ShroudMode = Realm.Ecs.MatchShroudMode.FromMap, LobbySettingSet? Settings = null);
 
-public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false, bool Cheats = false, bool LoopbackOnly = false);
+public record ServerLobbyStart(string MapFolderPath, string MapName, int MaxPlayers, string LogDirectory, string DataFolderPath, string Language, bool WasmDebug = false, bool Cheats = false, bool LoopbackOnly = false, string JoinCode = "");
 
 public readonly record struct MatchStartResult(bool Started, string Failure, string LogPath, string ConsoleLogPath)
 {
@@ -69,9 +70,7 @@ public class ClientServerSession : IDisposable
 
 	private string _playerName = string.Empty;
 
-	private long _accountId;
 
-	private string _sessionToken = string.Empty;
 
 	private ulong _steamId;
 
@@ -82,17 +81,27 @@ public class ClientServerSession : IDisposable
 	private string _challenge = string.Empty;
 	private bool _joined;
 	private int _joinedPort;
+	private int _joinedLocalPort;
 	private string _address = string.Empty;
 	private int _port;
 	private bool _connectedBefore;
 	private int _reconnectAttempts;
 	private long _lastReconnectAttemptMilliseconds;
+	private long _reconnectStartedMilliseconds;
 	private bool _disposed;
 
 	public string? TerminationReport { get; private set; }
 
-	private const int ReconnectIntervalMilliseconds = 250;
+	private const int ReconnectIntervalMilliseconds = 1500;
 	private const int MaximumReconnectAttempts = 240;
+
+	/// <summary>
+	///     How long a connection that had worked is given to come back before the match is stated as lost. The authority
+	///     takes a returning peer back into the seat its session token names, so a link that drops and returns resumes the
+	///     match, and a screen whose connection never returns stops waiting inside a time a player will sit through. Either
+	///     this or the attempt count ends the reconnection, whichever is reached first.
+	/// </summary>
+	private const int ReconnectWindowMilliseconds = 15_000;
 
 	/// <summary>
 	///     How long a debug match may go without hearing from its authority before this screen treats the silence as a
@@ -163,6 +172,18 @@ public class ClientServerSession : IDisposable
 
 	public string WireTableHash => _local ? _localWireTableHash : string.Empty;
 
+	/// <summary>
+	///     The hash of the map content this session prepared, which the Steam lobby advertises so a joiner can tell whether
+	///     it will be running the same map the host is.
+	/// </summary>
+	public string MapHash => _mapHash;
+
+	/// <summary>
+	///     The Steam lobby this session's match belongs to, which travels to the authority so it can admit exactly the
+	///     identities Steam lists as members. It is zero for a loopback lobby, which seats only the host's own screen.
+	/// </summary>
+	public ulong SteamLobbyId { get; set; }
+
 	public event Action<PeerRosterAssignment>? Seated;
 
 	public event Action<WorldSnapshot>? SnapshotReceived;
@@ -205,12 +226,47 @@ public class ClientServerSession : IDisposable
 	/// </summary>
 	public event Action<LobbyStartWarningMessage>? LobbyStartWarningReceived;
 
+	/// <summary>
+	///     Raised with the authority's answer to a join code this screen presented. A refusal is a refused seat rather than a
+	///     disconnect, so the player stays in the room and may type the code again.
+	/// </summary>
+	public event Action<bool>? JoinCodeAnswered;
+
 	public event Action<MapTransferReply>? MapTransferReplied;
+
+	/// <summary>The authority's answer to a playtest vote this screen cast, carrying the code the tester copies.</summary>
+	public event Action<PlaytestVoteAnswerMessage>? PlaytestVoteAnswered;
+
+	/// <summary>One accepted playtest vote in this match, which the screen keeps in its own ledger.</summary>
+	public event Action<PlaytestVoteRecordMessage>? PlaytestVoteRecorded;
 
 	public ClientServerSession(ClientNetworkChannel channel)
 	{
 		_channel = channel;
 		_channel.FrameArrived += Enqueue;
+		_channel.ConnectionFailed += OnChannelConnectionFailed;
+		_channel.ServerDisconnected += OnChannelServerDisconnected;
+	}
+
+	/// <summary>
+	///     A connect that never got anywhere ends the attempt, because there is nothing to get back to: a first connection
+	///     that failed has no peer, no seat and no world to resume. One that fails while this screen is putting a connection
+	///     that had worked back together is a different thing, and the reconnection the pump is already running decides that.
+	/// </summary>
+	private void OnChannelConnectionFailed()
+	{
+		if (!_connectedBefore) ReportLost("ENet connection failed: host unreachable or connection refused");
+	}
+
+	/// <summary>
+	///     A server disconnect is what the end of a match looks like and also what a lost link looks like, and the two are
+	///     told apart by whether the connection comes back. The pump is left to find out, and the window it runs for is what
+	///     reports a connection that never returns; ending the session here would end every match a brief outage touched.
+	/// </summary>
+	private void OnChannelServerDisconnected()
+	{
+		_helloSent = false;
+		_challenge = string.Empty;
 	}
 
 	private const int FailedLaunchDetailLineCount = 8;
@@ -284,6 +340,7 @@ public class ClientServerSession : IDisposable
 		_joined = true;
 		_started = true;
 		_joinedPort = port;
+		_joinedLocalPort = 0;
 		_address = address;
 		_port = port;
 		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
@@ -291,15 +348,12 @@ public class ClientServerSession : IDisposable
 	}
 
 	/// <summary>
-	///     States who this screen is to the lobby it is about to hold or join. The Steam id travels with the rest because the
-	///     lobby publishes the seats to each other, and the end-of-match table is where a player can act on the people they
-	///     just played with.
+	///     States who this screen is to the lobby it is about to hold or join. The Steam id is the whole identity: it is
+	///     what the seat, a reconnect and the end-of-match table are keyed by, and Steam asserts it on the socket.
 	/// </summary>
-	public void ConfigureLobbyIdentity(string playerName, string sessionToken, long accountId, ulong steamId)
+	public void ConfigureLobbyIdentity(string playerName, ulong steamId)
 	{
 		_playerName = playerName ?? string.Empty;
-		_sessionToken = sessionToken ?? string.Empty;
-		_accountId = accountId;
 		_steamId = steamId;
 	}
 
@@ -333,7 +387,15 @@ public class ClientServerSession : IDisposable
 			LoopbackOnly = start.LoopbackOnly,
 			AdminToken = _adminToken,
 			MapName = start.MapName,
-			MaxPlayers = start.MaxPlayers
+			MaxPlayers = start.MaxPlayers,
+
+			// The Steam lobby is the authority's one record of who may be seated. A loopback lobby seats only this screen and
+			// states none.
+			SteamLobbyId = start.LoopbackOnly ? 0 : SteamLobbyId,
+
+			// The code is compared by the authority and never published, so it travels here rather than in Steam metadata or
+			// in the lobby state every seat reads.
+			JoinCode = start.JoinCode
 		};
 
 		return await StartOnLocalAuthorityAsync(target, command, start.LogDirectory, start.DataFolderPath, start.Language);
@@ -384,8 +446,36 @@ public class ClientServerSession : IDisposable
 		_joined = true;
 		_started = true;
 		_joinedPort = port;
+		_joinedLocalPort = localPort;
 		_address = address;
 		_port = port;
+		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
+		return true;
+	}
+
+	/// <summary>
+	///     Joins a host over Steam. The host is a SteamID and nothing else: Steam authenticated both ends, chose the route
+	///     and will relay it if a direct path is not available, so there is no address, port or punch ticket here.
+	/// </summary>
+	/// <param name="hostSteamId">The host's SteamID64, as the Steam lobby states it.</param>
+	/// <param name="language">The language this screen asks the authority to answer in.</param>
+	/// <param name="failure">Why the connection could not be started.</param>
+	/// <returns>Whether the connection is open and the lobby handshake can begin.</returns>
+	public bool TryJoinSteamLobby(ulong hostSteamId, string language, out string failure)
+	{
+		failure = string.Empty;
+		IsDebugSession = false;
+
+		_mapHash = string.Empty;
+		if (!_channel.TryConnectToSteamHost(hostSteamId, out failure)) return false;
+
+		_language = language;
+		_joined = true;
+		_started = true;
+		_joinedPort = 0;
+		_joinedLocalPort = 0;
+		_address = hostSteamId.ToString(CultureInfo.InvariantCulture);
+		_port = 0;
 		_lastAuthorityFrameMilliseconds = System.Environment.TickCount64;
 		return true;
 	}
@@ -487,6 +577,21 @@ public class ClientServerSession : IDisposable
 		return true;
 	}
 
+	/// <summary>
+	///     Casts this screen's playtest vote about the map the match is playing. The authority records it against the Steam
+	///     identity this connection was seated as, so the vote states no identity of its own.
+	/// </summary>
+	/// <param name="vote">The answer the player gave.</param>
+	/// <returns>Whether the vote was sent; false when there is no match to send it to.</returns>
+	public bool SendPlaytestVote(Realm.Shared.Steam.PlaytestVote vote)
+	{
+		if (!IsRunning) return false;
+
+		var message = new PlaytestVoteMessage { Vote = (int)vote };
+		_channel.Send(NetworkFrameKind.PlaytestVote, MemoryPackSerializer.Serialize(message));
+		return true;
+	}
+
 	public bool SubmitConsoleCommand(string command, int selectedUnitEntityId)
 	{
 		if (!IsRunning) return false;
@@ -577,9 +682,10 @@ public class ClientServerSession : IDisposable
 				_helloSent = true;
 				_connectedBefore = true;
 				_reconnectAttempts = 0;
+				_reconnectStartedMilliseconds = 0;
 			}
 		}
-		else if (!_helloSent && !TryReconnect())
+		else if (!_helloSent && _connectedBefore && !_channel.IsConnecting && !TryReconnect())
 		{
 			return false;
 		}
@@ -656,19 +762,21 @@ public class ClientServerSession : IDisposable
 	private bool TryReconnect()
 	{
 		if (_address.Length == 0 || _port <= 0) return true;
+		if (_channel.IsConnecting) return true;
 
 		long now = System.Environment.TickCount64;
 		if (_lastReconnectAttemptMilliseconds != 0 && now - _lastReconnectAttemptMilliseconds < ReconnectIntervalMilliseconds) return true;
 
 		_lastReconnectAttemptMilliseconds = now;
 		_reconnectAttempts++;
-		if (_reconnectAttempts > MaximumReconnectAttempts)
+		if (_reconnectAttempts == 1) _reconnectStartedMilliseconds = now;
+		if (_reconnectAttempts > MaximumReconnectAttempts || now - _reconnectStartedMilliseconds >= ReconnectWindowMilliseconds)
 		{
 			ReportLost("the connection to the match could not be re-established");
 			return false;
 		}
 
-		_channel.TryConnect(_address, _port, IsDebugSession, out _);
+		_channel.TryConnect(_address, _port, _joinedLocalPort, IsDebugSession, out _);
 		_longSilenceAllowed = false;
 		return true;
 	}
@@ -696,8 +804,6 @@ public class ClientServerSession : IDisposable
 			MapHash = _mapHash,
 			Language = _language,
 			PlayerName = _playerName,
-			AccountId = _accountId,
-			SessionToken = _sessionToken,
 			SteamId = _steamId
 		};
 
@@ -783,6 +889,14 @@ public class ClientServerSession : IDisposable
 				CommandAnswered?.Invoke(MemoryPackSerializer.Deserialize<CommandOutcome>(payload));
 				break;
 
+			case NetworkFrameKind.PlaytestVoteAnswer:
+				PlaytestVoteAnswered?.Invoke(MemoryPackSerializer.Deserialize<PlaytestVoteAnswerMessage>(payload));
+				break;
+
+			case NetworkFrameKind.PlaytestVoteRecord:
+				PlaytestVoteRecorded?.Invoke(MemoryPackSerializer.Deserialize<PlaytestVoteRecordMessage>(payload));
+				break;
+
 			case NetworkFrameKind.LatencyProbeEcho:
 				LatencyProbeAnswered?.Invoke(MemoryPackSerializer.Deserialize<LatencyProbe>(payload).Sequence, arrivalMilliseconds);
 				break;
@@ -837,6 +951,10 @@ public class ClientServerSession : IDisposable
 
 			case NetworkFrameKind.LobbyStartWarning:
 				LobbyStartWarningReceived?.Invoke(MemoryPackSerializer.Deserialize<LobbyStartWarningMessage>(payload));
+				break;
+
+			case NetworkFrameKind.LobbyJoinCodeAnswer:
+				JoinCodeAnswered?.Invoke(MemoryPackSerializer.Deserialize<LobbyJoinCodeAnswerMessage>(payload).Accepted);
 				break;
 
 			case NetworkFrameKind.MapTransferReply:
@@ -934,11 +1052,14 @@ public class ClientServerSession : IDisposable
 		_local = false;
 		_joined = false;
 		_localPort = 0;
+		_joinedLocalPort = 0;
 		_localWireTableHash = string.Empty;
 		_mapHash = string.Empty;
 		_address = string.Empty;
 		_port = 0;
 		_channel.FrameArrived -= Enqueue;
+		_channel.ConnectionFailed -= OnChannelConnectionFailed;
+		_channel.ServerDisconnected -= OnChannelServerDisconnected;
 
 		_frames.Clear();
 		IsAuthorityHeldForDebug = false;

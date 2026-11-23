@@ -54,8 +54,7 @@ public static partial class MapInfoHelper
 	private static bool IsValidJsonName(string name) =>
 		!name.StartsWith(".") &&
 		name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
-		!string.Equals(name, "pck_cache.json", StringComparison.OrdinalIgnoreCase) &&
-		!string.Equals(name, "servers.json", StringComparison.OrdinalIgnoreCase);
+		!string.Equals(name, "pck_cache.json", StringComparison.OrdinalIgnoreCase);
 
 	private static void ProcessMapDetails(MapBriefingDetails details, List<MapBriefingDetails> maps, HashSet<string> seen)
 	{
@@ -147,6 +146,7 @@ public static partial class MapInfoHelper
 			HowToPlayObjective = "",
 			Tags = new List<string>(),
 			GameBuildNumber = "v0.0.0",
+			EngineGeneration = 1,
 			Version = "1.0.0",
 			ManifestHash = "",
 			ThumbnailPath = FindThumbnailForMap(mapFolder),
@@ -270,6 +270,7 @@ public static partial class MapInfoHelper
 				HowToPlayObjective = metadata.MapProperties?.HowToPlayObjective ?? string.Empty,
 				Tags = ResolveMapTags(manifest, metadata),
 				GameBuildNumber = gameBuildNumber,
+				EngineGeneration = metadata.EngineGeneration ?? 1,
 				Version = version,
 				ManifestHash = manifestHash,
 				MapType = metadata.MapProperties?.MapType ?? string.Empty,

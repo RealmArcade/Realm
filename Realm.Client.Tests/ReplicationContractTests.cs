@@ -1,7 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using GdUnit4;
 using Realm.Client;
 using Realm.Ecs;
@@ -174,6 +176,60 @@ public partial class ReplicationContractTests
 		}
 
 		Assertions.AssertThat(problems).OverrideFailureMessage($"RPC channel field coverage is incomplete: {string.Join("; ", problems)}").IsEmpty();
+	}
+
+	/// <summary>
+	///     The wire component ids are a contract with every peer and with every map that already shipped: a joiner reads a
+	///     description by id, and a map's compiled script reads a component by id. So the table may only grow. This compares
+	///     the running table with the committed baseline instead of a git tag, because the release workflow checks out at
+	///     depth 1, where tags are absent and every comparison would pass vacuously.
+	/// </summary>
+	[TestCase]
+	public void ReplicatedComponentTableIsAppendOnly()
+	{
+		string baselinePath = Path.Combine(AppContext.BaseDirectory, "ReplicationComponents.baseline.json");
+		if (!File.Exists(baselinePath))
+		{
+			throw new FileNotFoundException($"The replicated component baseline was not copied beside the test: {baselinePath}");
+		}
+
+		using JsonDocument baseline = JsonDocument.Parse(File.ReadAllText(baselinePath));
+		var shipped = new Dictionary<int, string>();
+		foreach (JsonElement entry in baseline.RootElement.GetProperty("components").EnumerateArray())
+		{
+			shipped[entry.GetProperty("id").GetInt32()] = entry.GetProperty("name").GetString() ?? string.Empty;
+		}
+
+		var running = ReplicatedComponents.All.ToDictionary(codec => codec.ComponentTypeId, codec => codec.ComponentName);
+		var problems = new List<string>();
+
+		foreach (var (componentTypeId, componentName) in shipped)
+		{
+			if (!running.TryGetValue(componentTypeId, out string? currentName))
+			{
+				problems.Add($"id {componentTypeId} ({componentName}) was removed, which breaks every description already on the wire");
+				continue;
+			}
+
+			if (!string.Equals(currentName, componentName, StringComparison.Ordinal))
+			{
+				problems.Add($"id {componentTypeId} now means {currentName} instead of {componentName}, so the id was reused for a different component");
+			}
+		}
+
+		var reusedNames = running
+			.Where(current => shipped.ContainsValue(current.Value) &&
+			                  shipped.Any(pair => string.Equals(pair.Value, current.Value, StringComparison.Ordinal) && pair.Key != current.Key))
+			.Select(current => $"{current.Value} (id {current.Key})")
+			.ToList();
+
+		Assertions.AssertThat(problems.Concat(reusedNames).ToList())
+			.OverrideFailureMessage($"The replicated component table is not append-only: {string.Join("; ", problems.Concat(reusedNames))}")
+			.IsEmpty();
+
+		Assertions.AssertThat(running.Count)
+			.OverrideFailureMessage($"The running table holds {running.Count} components, fewer than the {shipped.Count} that shipped.")
+			.IsGreaterEqual(shipped.Count);
 	}
 
 	[TestCase]

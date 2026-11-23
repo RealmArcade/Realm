@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -102,7 +102,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 	{
 		public string Name => "Normalize References";
 		public string Title => TranslationServer.Translate("Normalize References");
-		public string Description => TranslationServer.Translate("Finds greenlit maps that contain identical assets and points this map at those shared references instead of keeping duplicate copies, shrinking .rmap export size.");
+		public string Description => TranslationServer.Translate("Finds other maps that contain identical assets and points this map at those shared copies instead of keeping duplicates, shrinking the .rmap export.");
 		public string Icon => UnicodeIcons.LINK;
 
 		private readonly List<(CheckBox CheckBox, GreenlitReferenceSuggestion Suggestion)> _checkboxes = new();
@@ -130,8 +130,8 @@ public partial class UtilitiesDialog : FloatingDialogBase
 				var lblNoSuggestions = new Label();
 				lblNoSuggestions.Name = "LblNoSuggestions_Label";
 				lblNoSuggestions.Text = currentReferenceCount == 0
-					? TranslationServer.Translate("No shared greenlit assets found. All assets are unique to this map.")
-					: string.Format(TranslationServer.Translate("All shared greenlit assets are already normalized ({0} references active)."), currentReferenceCount);
+					? TranslationServer.Translate("No shared assets found. Every asset in this map is unique to it.")
+					: string.Format(TranslationServer.Translate("All shared assets are already referenced ({0} references active)."), currentReferenceCount);
 				lblNoSuggestions.AddThemeFontSizeOverride("font_size", 11);
 				lblNoSuggestions.AutowrapMode = TextServer.AutowrapMode.Word;
 				lblNoSuggestions.CustomMinimumSize = new Vector2(400, 0);
@@ -142,7 +142,7 @@ public partial class UtilitiesDialog : FloatingDialogBase
 
 			var lblSelectHeader = new Label();
 			lblSelectHeader.Name = "LblSelectHeader_Label";
-			lblSelectHeader.Text = TranslationServer.Translate("Select the greenlit maps to reference:");
+			lblSelectHeader.Text = TranslationServer.Translate("Select the maps to share assets with:");
 			lblSelectHeader.AddThemeFontSizeOverride("font_size", 11);
 			container.AddChild(lblSelectHeader);
 
@@ -200,14 +200,14 @@ public partial class UtilitiesDialog : FloatingDialogBase
 			var selectedTitles = _checkboxes.Where(entry => entry.CheckBox.ButtonPressed).Select(entry => entry.Suggestion.MapTitle).ToList();
 			if (selectedTitles.Count == 0)
 			{
-				progress?.Report((100.0, TranslationServer.Translate("No greenlit references selected.")));
+				progress?.Report((100.0, TranslationServer.Translate("No shared references selected.")));
 				return Task.CompletedTask;
 			}
 
 			long savedBytes = _checkboxes.Where(entry => entry.CheckBox.ButtonPressed).Sum(entry => entry.Suggestion.SavedBytes);
 			MapNormalizationHelper.ApplyGreenlitReferences(GetWorkspacePath(), selectedTitles);
 
-			progress?.Report((100.0, string.Format(TranslationServer.Translate("Applied {0} greenlit reference(s). {1} saved in .rmap exports!"), selectedTitles.Count, MapStorageService.FormatBytes(savedBytes))));
+			progress?.Report((100.0, string.Format(TranslationServer.Translate("Added {0} shared reference(s). {1} saved in the .rmap export."), selectedTitles.Count, MapStorageService.FormatBytes(savedBytes))));
 			return Task.CompletedTask;
 		}
 	}
@@ -532,6 +532,6 @@ public partial class UtilitiesDialog : FloatingDialogBase
 		CloseDialog();
 
 		Hud?.RefreshAllInspectors();
-		Hud?.ShowFeedback($"'{opName}' Operation Completed");
+		Hud?.ShowFeedback(string.Format(TranslationServer.Translate("'{0}' Operation Completed"), opName));
 	}
 }

@@ -61,13 +61,23 @@ public partial class ListenServerHost
 		ResumeMatch("the player who paused the match left, so the match resumes");
 	}
 
-	private bool TryReclaimSessionSlot(ServerSimulation simulation, int peerId, string sessionToken, out int playerSlot, out int team)
+	/// <summary>
+	///     Hands a reconnect the player slot the same Steam identity held before it dropped, so a player who loses their
+	///     connection comes back to their own army instead of being given a new one.
+	/// </summary>
+	/// <param name="simulation">The world the peer is being seated in.</param>
+	/// <param name="peerId">The connection that just arrived.</param>
+	/// <param name="steamId">The Steam identity Steam asserted for that connection.</param>
+	/// <param name="playerSlot">The slot the identity held.</param>
+	/// <param name="team">The team that slot plays on.</param>
+	/// <returns>Whether the slot was taken back.</returns>
+	private bool TryReclaimSteamIdSlot(ServerSimulation simulation, int peerId, ulong steamId, out int playerSlot, out int team)
 	{
 		playerSlot = 0;
 		team = 0;
 
-		if (string.IsNullOrEmpty(sessionToken)) return false;
-		if (!_sessionTokenSlots.TryGetValue(sessionToken, out playerSlot)) return false;
+		if (steamId == 0) return false;
+		if (!_steamIdSlots.TryGetValue(steamId, out playerSlot)) return false;
 
 		if (!simulation.SeatPeerAtSlot(peerId, playerSlot))
 		{
@@ -76,7 +86,7 @@ public partial class ListenServerHost
 		}
 
 		team = simulation.ReadTeam(playerSlot);
-		_log.Write($"peer {peerId} took back player slot {playerSlot} with the session it was seated with");
+		_log.Write($"peer {peerId} took back player slot {playerSlot} with the Steam identity it was seated with");
 		return true;
 	}
 

@@ -333,11 +333,11 @@ public partial class CommandPanel
 			}
 
 			string itemName = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Name) ? MapText.TranslateName(itemMeta.Name) : itemId;
-			string itemDesc = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Description) ? MapText.Translate(itemMeta.Description) : $"Buy {itemName} for a nearby combat unit";
+			string itemDesc = itemMeta != null && !string.IsNullOrEmpty(itemMeta.Description) ? MapText.Translate(itemMeta.Description) : string.Format(TranslationServer.Translate("Buy {0} for a nearby combat unit"), itemName);
 			float costGold = itemMeta?.CostGold ?? 0f;
 			string iconPath = itemMeta != null && !string.IsNullOrEmpty(itemMeta.IconPath) ? itemMeta.IconPath : "res://Assets/UI/alliance_flag.webp";
 
-			string header = $"Buy {UIHelper.BuildHeader(itemName, costGold, 0f, 0f)}";
+			string header = string.Format(TranslationServer.Translate("Buy {0}"), UIHelper.BuildHeader(itemName, costGold, 0f, 0f));
 			string statBlock = TooltipStatBlock.ForItem(itemMeta);
 			string tooltip = string.IsNullOrEmpty(itemDesc) ? header : $"{header}\n{itemDesc}";
 			if (statBlock.Length > 0) tooltip += "\n" + statBlock;
@@ -403,7 +403,7 @@ public partial class CommandPanel
 
 			string hotkeyPrefix = !hotkey.IsNone ? $"[{hotkey}] " : "";
 			string statBlock = TooltipStatBlock.ForUpgrade(upgMeta);
-			string header = $"{hotkeyPrefix}Upgrade {UIHelper.BuildHeader(name, gold, wood, stone)}";
+			string header = hotkeyPrefix + string.Format(TranslationServer.Translate("Upgrade {0}"), UIHelper.BuildHeader(name, gold, wood, stone));
 			string tooltip = string.IsNullOrEmpty(desc) ? header : $"{header}\n{desc}";
 			if (statBlock.Length > 0) tooltip += "\n" + statBlock;
 
@@ -427,7 +427,7 @@ public partial class CommandPanel
 				{
 					lvl = GameContext.Host?.GetPlayerTechLevel(localViewingIndex, upgradeId) ?? 0;
 				}
-				if (lvl > 0 && maxLevel > 1) return $"Lvl {lvl}";
+				if (lvl > 0 && maxLevel > 1) return string.Format(TranslationServer.Translate("Lvl {0}"), lvl);
 				return "";
 			};
 
