@@ -18,12 +18,14 @@ interface game-api {
     advance-unit-construction: func(unit-id: s32, seconds: f32);
     are-players-allied: func(player-index: s32, other-player-index: s32) -> bool;
     attach-persistent-aura: func(unit-id: s32, aura-vfx-id: string, scale: f32);
+    bind-player-key-to-ability: func(player-index: s32, unit-id: s32, key: string, press-ability-id: string, release-ability-id: string);
     broadcast-message: func(message: string);
     cancel-timer: func(timer-handle: s32);
     cast-ability: func(unit-id: s32, ability-id: string, target-position-x: f32, target-position-y: f32, target-position-z: f32);
     clear-custom-bot-decisions: func(player-index: s32);
     clear-leaderboard: func();
     clear-leaderboard-board: func(board-id: string);
+    clear-player-key-bindings: func(player-index: s32);
     clear-player-selection: func(player-index: s32);
     clear-summary-table: func();
     collect-loot-item: func(loot-item-id: s32, unit-id: s32) -> bool;

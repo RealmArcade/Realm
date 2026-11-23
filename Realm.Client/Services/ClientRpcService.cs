@@ -113,6 +113,22 @@ public class ClientRpcService
 		host.ResetCameraInternal();
 	}
 
+	public void BindPlayerKeyToAbility(int playerIndex, int serverUnitId, string keyName, string pressAbilityId, string releaseAbilityId)
+	{
+		if (!TryResolveLocalPlayer(playerIndex, out var host))
+			return;
+
+		host.BindScriptKeyToAbilityInternal(serverUnitId, keyName, pressAbilityId, releaseAbilityId);
+	}
+
+	public void ClearPlayerKeyBindings(int playerIndex)
+	{
+		if (!TryResolveLocalPlayer(playerIndex, out var host))
+			return;
+
+		host.ClearScriptKeyBindingsInternal();
+	}
+
 	public void SetPlayerHudElementVisible(int playerIndex, HudElement element, bool visible)
 	{
 		var host = GameContext.Host;

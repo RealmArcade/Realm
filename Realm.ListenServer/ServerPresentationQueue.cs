@@ -150,6 +150,7 @@ public class ServerPresentationQueue
 				or PresentationKind.DayNightCycleSet or PresentationKind.EnvironmentPresetSet or PresentationKind.WeatherSet
 				or PresentationKind.HudElementVisible or PresentationKind.CameraBoundsSet or PresentationKind.CameraPanned
 				or PresentationKind.CameraFollowUnitSet or PresentationKind.CameraViewSet or PresentationKind.CameraReset
+				or PresentationKind.PlayerKeyBindingSet or PresentationKind.PlayerKeyBindingsCleared
 				or PresentationKind.SelectionChanged or PresentationKind.InstructionsSectionAdded
 
 				// A map declares its instructions and the card its standings share once, as the match starts, and never

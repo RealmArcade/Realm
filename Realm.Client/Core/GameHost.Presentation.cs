@@ -254,6 +254,16 @@ public partial class GameHost
 		}).CallDeferred();
 	}
 
+	public void BindScriptKeyToAbilityInternal(int serverUnitId, string keyName, string pressAbilityId, string releaseAbilityId)
+	{
+		Callable.From(() => BindScriptKeyToAbility(serverUnitId, keyName, pressAbilityId, releaseAbilityId)).CallDeferred();
+	}
+
+	public void ClearScriptKeyBindingsInternal()
+	{
+		Callable.From(ClearScriptKeyBindings).CallDeferred();
+	}
+
 	public void RecordPlayerCameraBoundsOverride(int playerIndex, float minX, float minZ, float maxX, float maxZ)
 	{
 		_playerCameraBoundsOverrides[playerIndex] = (minX, minZ, maxX, maxZ);

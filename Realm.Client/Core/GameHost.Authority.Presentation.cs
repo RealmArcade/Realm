@@ -207,6 +207,14 @@ public partial class GameHost
 				clientRpc.ResetPlayerCamera(message.PlayerIndex);
 				break;
 
+			case PresentationKind.PlayerKeyBindingSet:
+				clientRpc.BindPlayerKeyToAbility(message.PlayerIndex, message.Handle, message.Key, message.Text, message.Text2);
+				break;
+
+			case PresentationKind.PlayerKeyBindingsCleared:
+				clientRpc.ClearPlayerKeyBindings(message.PlayerIndex);
+				break;
+
 			case PresentationKind.HudElementVisible:
 				clientRpc.SetPlayerHudElementVisible(message.PlayerIndex, (HudElement)message.Count, message.Flag);
 				break;

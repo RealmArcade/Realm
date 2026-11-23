@@ -187,13 +187,94 @@ public partial class GameHost
 		}
 	}
 
-	public void CastScriptVehicleAbility(string abilityId)
+	private readonly List<ScriptKeyBinding> _scriptKeyBindings = new();
+
+	/// <summary>
+	///     Binds one key this screen reads to the pair of abilities a map named, replacing whatever that key was bound to
+	///     before. The key is a name a player would read, such as A, D or Space, and a name this screen does not know is
+	///     refused rather than guessed at, so a map's control never lands on a key the player did not expect.
+	/// </summary>
+	/// <param name="serverUnitId">The unit the bound abilities are cast on.</param>
+	/// <param name="keyName">The key by the name printed on it.</param>
+	/// <param name="pressAbilityId">The ability cast while the key goes down.</param>
+	/// <param name="releaseAbilityId">The ability cast when the key comes back up.</param>
+	public void BindScriptKeyToAbility(int serverUnitId, string keyName, string pressAbilityId, string releaseAbilityId)
 	{
-		if (MainCamera?.FollowTarget is not Unit3D unit || !World.IsAlive(unit.Entity)) return;
+		if (string.IsNullOrWhiteSpace(keyName)) return;
+
+		if (!Enum.TryParse(keyName.Trim(), ignoreCase: true, out Key boundKey))
+		{
+			GameLog.LogError($"[GameHost] A map bound '{keyName}', which is not a key name this screen knows.");
+			return;
+		}
+
+		for (int index = _scriptKeyBindings.Count - 1; index >= 0; index--)
+		{
+			if (_scriptKeyBindings[index].BoundKey == boundKey) _scriptKeyBindings.RemoveAt(index);
+		}
+
+		_scriptKeyBindings.Add(new ScriptKeyBinding(serverUnitId, boundKey, pressAbilityId ?? string.Empty, releaseAbilityId ?? string.Empty));
+	}
+
+	/// <summary>Gives the player's own commands back every key a map bound on this screen.</summary>
+	public void ClearScriptKeyBindings()
+	{
+		_scriptKeyBindings.Clear();
+	}
+
+	/// <summary>
+	///     Casts the abilities a map bound to a key, if this screen holds that key. It answers whether the key belongs to a
+	///     binding, and it is read before the player's own commands, because a key a map bound is a control that map asked
+	///     for; a combination beginning with Ctrl or Alt is left to those commands.
+	/// </summary>
+	/// <param name="keyEvent">The key event being handled.</param>
+	/// <returns>True when the event belongs to a binding and the caller should stop handling it.</returns>
+	private bool TryHandleScriptKeyBinding(InputEventKey keyEvent)
+	{
+		if (_scriptKeyBindings.Count == 0) return false;
+		if (GameContext.PerspectiveFilter.IsSpectating) return false;
+		if (Input.IsKeyPressed(Key.Ctrl) || Input.IsKeyPressed(Key.Alt)) return false;
+		if (GetViewport()?.GuiGetFocusOwner() is LineEdit or TextEdit) return false;
+		if (GameContext.InGameHud != null && GameContext.InGameHud.IsChatActive) return false;
+
+		for (int index = 0; index < _scriptKeyBindings.Count; index++)
+		{
+			ScriptKeyBinding binding = _scriptKeyBindings[index];
+			if (binding.BoundKey != keyEvent.Keycode) continue;
+
+			string abilityId = keyEvent.Pressed ? binding.PressAbilityId : binding.ReleaseAbilityId;
+			if (!string.IsNullOrWhiteSpace(abilityId)) CastScriptBoundAbility(binding.ServerUnitId, abilityId);
+
+			return true;
+		}
+
+		return false;
+	}
+
+	private void CastScriptBoundAbility(int serverUnitId, string abilityId)
+	{
+		if (!TryGetUnit3DByServerId(serverUnitId, out Unit3D? unit)) return;
+		if (!World.IsAlive(unit.Entity)) return;
 		if (!GameContext.PerspectiveFilter.CanControl(unit.Player)) return;
 
 		var targetIds = new List<int> { GetServerEntityId(unit.Entity) };
 		SubmitRemoteCommand("spell", targetIds, unit.GlobalPosition, 0, abilityId);
+	}
+
+	private readonly struct ScriptKeyBinding
+	{
+		public ScriptKeyBinding(int serverUnitId, Key boundKey, string pressAbilityId, string releaseAbilityId)
+		{
+			ServerUnitId = serverUnitId;
+			BoundKey = boundKey;
+			PressAbilityId = pressAbilityId;
+			ReleaseAbilityId = releaseAbilityId;
+		}
+
+		public int ServerUnitId { get; }
+		public Key BoundKey { get; }
+		public string PressAbilityId { get; }
+		public string ReleaseAbilityId { get; }
 	}
 
 	/// <summary>
