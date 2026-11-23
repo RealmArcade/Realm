@@ -202,7 +202,7 @@ public partial class GameHost
 	{
 		if (string.IsNullOrWhiteSpace(keyName)) return;
 
-		if (!Enum.TryParse(keyName.Trim(), ignoreCase: true, out Key boundKey))
+		if (!TryResolveBoundKey(keyName.Trim(), out Key boundKey))
 		{
 			GameLog.LogError($"[GameHost] A map bound '{keyName}', which is not a key name this screen knows.");
 			return;
@@ -214,6 +214,46 @@ public partial class GameHost
 		}
 
 		_scriptKeyBindings.Add(new ScriptKeyBinding(serverUnitId, boundKey, pressAbilityId ?? string.Empty, releaseAbilityId ?? string.Empty));
+	}
+
+	/// <summary>
+	///     Reads a key name as the key it names. A single digit is the key printed with that digit rather than the
+	///     character code the enum happens to hold, a longer number is not a key name at all, and a name the enum does not
+	///     define is refused rather than read as a raw keycode.
+	/// </summary>
+	/// <param name="keyName">The trimmed name a map bound.</param>
+	/// <param name="key">The key the name reads as, or <see cref="Key.None" />.</param>
+	/// <returns>True when the name is a key this screen knows.</returns>
+	private static bool TryResolveBoundKey(string keyName, out Key key)
+	{
+		key = Key.None;
+		if (keyName.Length == 0) return false;
+
+		if (keyName.Length == 1 && char.IsAsciiDigit(keyName[0]))
+		{
+			key = keyName[0] switch
+			{
+				'0' => Key.Key0,
+				'1' => Key.Key1,
+				'2' => Key.Key2,
+				'3' => Key.Key3,
+				'4' => Key.Key4,
+				'5' => Key.Key5,
+				'6' => Key.Key6,
+				'7' => Key.Key7,
+				'8' => Key.Key8,
+				'9' => Key.Key9,
+				_ => Key.None
+			};
+
+			return key != Key.None;
+		}
+
+		if (char.IsAsciiDigit(keyName[0])) return false;
+		if (!Enum.TryParse(keyName, ignoreCase: true, out key)) return false;
+		if (key == Key.None || !Enum.IsDefined(key)) return false;
+
+		return true;
 	}
 
 	/// <summary>Gives the player's own commands back every key a map bound on this screen.</summary>

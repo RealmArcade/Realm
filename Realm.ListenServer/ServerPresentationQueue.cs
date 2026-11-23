@@ -177,6 +177,14 @@ public class ServerPresentationQueue
 	{
 		if (!IsDurable(request.Kind)) return;
 
+		// A clear is the absence of the bindings it clears, so what a later peer is replayed is their absence rather than
+		// an event ordered after bindings the map has stated since. Retaining it would let it arrive last and unbind them.
+		if (request.Kind == PresentationKind.PlayerKeyBindingsCleared)
+		{
+			ForgetKeyBindingsFor(request.PlayerIndex);
+			return;
+		}
+
 		string subject = SubjectOf(in request);
 		if (!_durable.ContainsKey(subject))
 		{
@@ -186,6 +194,20 @@ public class ServerPresentationQueue
 		}
 
 		_durable[subject] = request;
+	}
+
+	private void ForgetKeyBindingsFor(int playerIndex)
+	{
+		for (int index = _durableOrder.Count - 1; index >= 0; index--)
+		{
+			string subject = _durableOrder[index];
+			if (!_durable.TryGetValue(subject, out ServerPresentationEvent retained)) continue;
+			if (retained.Kind != PresentationKind.PlayerKeyBindingSet) continue;
+			if (retained.PlayerIndex != playerIndex && playerIndex != ServerPresentationEvent.Everyone) continue;
+
+			_durable.Remove(subject);
+			_durableOrder.RemoveAt(index);
+		}
 	}
 
 	private void ForgetOldest()
