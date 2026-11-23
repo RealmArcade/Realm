@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
 using System.Text.Json.Nodes;
@@ -571,10 +571,7 @@ namespace Realm.Client.UI
 			GameContext.UserInterface?.ShowPopupMessage("MAP REQUIRES NEWER GAME VERSION", msg);
 		}
 
-		private void ShowGreenlightStatusDialog(string mapTitle, string mapVersion, int verifiedGoodReviews, int totalReviews, double averageRating, bool isGreenlit)
-		{
-			GreenlightStatusDialog.Show(this, mapTitle, mapVersion, verifiedGoodReviews, totalReviews, averageRating, isGreenlit);
-		}
+
 
 
 
@@ -630,15 +627,6 @@ namespace Realm.Client.UI
 			new HelpPanelHooks(this, (button, text, onClick, fontSize) => SetupButton(button, text, onClick, fontSize)));
 
 		public void ToggleHelpPanelExternal() => HelpPanel.Toggle();
-
-		private CreatorRegistrationDialog? _creatorRegistrationDialog;
-
-		private CreatorRegistrationDialog CreatorRegistration => _creatorRegistrationDialog ??= new CreatorRegistrationDialog(
-			new CreatorRegistrationHooks(this,
-				(button, text, onClick, fontSize, tooltip) => SetupOptionButton(button, text, onClick, fontSize, tooltip),
-				ShowFeedback));
-
-		private void CheckCreatorRegistrationAndPrompt(Key key) => CreatorRegistration.CheckAsync(key);
 
 		public void UpdateMirrorButtonText() => UpdateMirrorDropdowns();
 

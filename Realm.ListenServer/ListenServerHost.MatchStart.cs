@@ -17,7 +17,7 @@ namespace Realm.ListenServer;
 /// <summary>turning a lobby roster into a running match.</summary>
 public partial class ListenServerHost
 	{
-	private string? StartMatchFromLobby(IReadOnlyList<MatchRosterSeat> roster, IReadOnlyList<(int PeerId, int Slot)> assignments, IReadOnlyDictionary<string, int> sessionSlots, int seed)
+	private string? StartMatchFromLobby(IReadOnlyList<MatchRosterSeat> roster, IReadOnlyList<(int PeerId, int Slot)> assignments, IReadOnlyDictionary<ulong, int> sessionSlots, int seed)
 	{
 		if (_simulation != null) return "This lobby has already started its match.";
 
@@ -59,7 +59,10 @@ public partial class ListenServerHost
 				_scriptLogSink = null;
 			}
 
-			return "The match could not start; the authority's log explains why.";
+			// The lobby reads this line to every member, so it names the map and the half that failed instead of sending
+			// players to a log file most of them cannot open. The authority's log still holds the line that failed.
+			string failingMap = string.IsNullOrEmpty(_lobby?.MapName) ? "the map" : $"'{_lobby?.MapName}'";
+			return $"The map {failingMap} could not start: its world or its script failed to load. The host's log names the failure.";
 		}
 
 		ResetPauseAllowances();
@@ -68,7 +71,7 @@ public partial class ListenServerHost
 		foreach (var pair in sessionSlots)
 		{
 			_lobbySessionSlots[pair.Key] = pair.Value;
-			_sessionTokenSlots[pair.Key] = pair.Value;
+			_steamIdSlots[pair.Key] = pair.Value;
 		}
 
 		for (int index = 0; index < assignments.Count; index++)

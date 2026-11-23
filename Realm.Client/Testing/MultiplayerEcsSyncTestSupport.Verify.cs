@@ -322,6 +322,7 @@ public static partial class MultiplayerEcsSyncTestSupport
 
 		AppendConvergenceReport(report, settings, lastPairedSequence, pairedSnapshots, lostSequenceCount, missingBaselineSequences.Count, clientOutputDirectory);
 		ComparePresentationRecords(clientOutputDirectory, hostRecords, report, settings);
+		CompareAbilityGridRecords(outputDirectory, clientOutputDirectory, report);
 		return report;
 	}
 

@@ -106,45 +106,52 @@ public static class MultiplayerHardeningChecks
 	private static void RunSessionIdentityChecks(LobbyManager lobby, List<string> failures, List<string> notes)
 	{
 		int failuresBefore = failures.Count;
-		int disclosedForeignTokens = 0;
+		int unidentifiedSeats = 0;
+		int duplicatedIdentities = 0;
 		PlayerInfo? ownSeat = null;
+
+		var seenSteamIds = new Dictionary<ulong, int>();
 
 		foreach (PlayerInfo player in lobby.PlayerList)
 		{
-			if (lobby.IsLocalPlayer(player))
+			if (player.SteamId == 0)
 			{
-				ownSeat = player;
+				unidentifiedSeats++;
 				continue;
 			}
 
-			if (!string.IsNullOrEmpty(player.SessionToken)) disclosedForeignTokens++;
+			if (seenSteamIds.ContainsKey(player.SteamId)) duplicatedIdentities++;
+			else seenSteamIds[player.SteamId] = player.Slot;
+
+			if (lobby.IsLocalPlayer(player)) ownSeat = player;
 		}
 
-		if (disclosedForeignTokens > 0)
+		if (unidentifiedSeats > 0)
 		{
-			failures.Add($"{disclosedForeignTokens} seat(s) published a session token this client does not own, so a lobby member could take over another player's seat after a disconnect.");
+			failures.Add($"{unidentifiedSeats} seat(s) published no Steam identity, so a reconnect would be seated twice or refused.");
+		}
+
+		if (duplicatedIdentities > 0)
+		{
+			failures.Add($"{duplicatedIdentities} Steam identity name(s) hold more than one seat, so a reconnect would be indistinguishable from a second player.");
 		}
 
 		if (ownSeat == null)
 		{
-			notes.Add("this client holds no lobby seat, so its reconnect identity was not verified");
+			notes.Add("this client holds no identified lobby seat, so its reconnect identity was not verified");
 			return;
 		}
 
-		if (!lobby.HasRegisteredSessionToken(ownSeat.PeerId))
+		if (!lobby.TryGetReconnectOwnerForHarness(ownSeat.SteamId, out int ownerSlot))
 		{
-			failures.Add($"this client's seat {ownSeat.Slot} registered no session token, so its reconnect would be refused as a session no player in the match owns.");
-		}
-		else if (!lobby.TryGetReconnectOwnerForHarness(ownSeat.SessionToken, out int ownerSlot))
-		{
-			failures.Add("the session token this client registered resolves to no player, so its reconnect would be refused.");
+			failures.Add("the Steam identity this client holds resolves to no player, so its reconnect would be refused.");
 		}
 		else if (ownerSlot != ownSeat.Slot)
 		{
-			failures.Add($"the session token this client registered resolves to slot {ownerSlot} instead of its own slot {ownSeat.Slot}.");
+			failures.Add($"the Steam identity this client holds resolves to slot {ownerSlot} instead of its own slot {ownSeat.Slot}.");
 		}
 
-		if (failures.Count == failuresBefore) notes.Add($"this client's seat {ownSeat.Slot} registered a session token that resolves back to it, and no other seat published one");
+		if (failures.Count == failuresBefore) notes.Add($"this client's seat {ownSeat.Slot} holds a Steam identity that resolves back to it, and every seat published one");
 	}
 
 	private static void RunPayloadChecks(List<string> failures, List<string> notes)

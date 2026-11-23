@@ -54,7 +54,7 @@ public sealed class PauseOverlayPanel
 
 		_titleLabel = new Label();
 		_titleLabel.Name = "PauseTitleLabel_Label";
-		_titleLabel.Text = "Game Paused";
+		_titleLabel.Text = TranslationServer.Translate("Game Paused");
 		_titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		_titleLabel.AddThemeFontSizeOverride("font_size", 24);
 		mainVBox.AddChild(_titleLabel);

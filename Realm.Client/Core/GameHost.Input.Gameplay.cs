@@ -88,7 +88,7 @@ public partial class GameHost
 				Input.SetCustomMouseCursor(null);
 				Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
 				if (GameContext.InGameHud != null)
-					Hud.ShowFeedbackText("Targeting Cancelled", new Color(0.8f, 0.8f, 0.8f));
+					Hud.ShowFeedbackText(TranslationServer.Translate("Targeting Cancelled"), new Color(0.8f, 0.8f, 0.8f));
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -104,7 +104,7 @@ public partial class GameHost
 			{
 				ActivePingMode = false;
 				if (GameContext.InGameHud != null)
-					Hud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
+					Hud.ShowFeedbackText(TranslationServer.Translate("Ping Mode Cancelled"), new Color(0.8f, 0.8f, 0.8f));
 				GetViewport().SetInputAsHandled();
 				return;
 			}
@@ -198,9 +198,9 @@ public partial class GameHost
 				if (GameContext.InGameHud != null)
 				{
 					if (ActivePingMode)
-						Hud.ShowFeedbackText("Ping Mode: Click Minimap or Ground to ping", new Color(1.0f, 0.1f, 0.2f));
+						Hud.ShowFeedbackText(TranslationServer.Translate("Ping Mode: Click Minimap or Ground to ping"), new Color(1.0f, 0.1f, 0.2f));
 					else
-						Hud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
+						Hud.ShowFeedbackText(TranslationServer.Translate("Ping Mode Cancelled"), new Color(0.8f, 0.8f, 0.8f));
 				}
 
 				GetViewport().SetInputAsHandled();
@@ -541,7 +541,7 @@ public partial class GameHost
 				{
 					ActivePingMode = false;
 					if (GameContext.InGameHud != null)
-						Hud.ShowFeedbackText("Ping Mode Cancelled", new Color(0.8f, 0.8f, 0.8f));
+						Hud.ShowFeedbackText(TranslationServer.Translate("Ping Mode Cancelled"), new Color(0.8f, 0.8f, 0.8f));
 					GetViewport().SetInputAsHandled();
 					return;
 				}
@@ -553,7 +553,7 @@ public partial class GameHost
 					Input.SetCustomMouseCursor(null);
 					Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
 					if (GameContext.InGameHud != null)
-						Hud.ShowFeedbackText("Targeting Cancelled", new Color(0.8f, 0.8f, 0.8f));
+						Hud.ShowFeedbackText(TranslationServer.Translate("Targeting Cancelled"), new Color(0.8f, 0.8f, 0.8f));
 					return;
 				}
 

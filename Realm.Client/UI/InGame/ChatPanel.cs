@@ -1,10 +1,9 @@
-using System;
+﻿using System;
 using System.Globalization;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Network;
 using Realm.Client.Services;
-using Realm.Shared.Accounts;
 
 namespace Realm.Client.UI.InGame;
 
@@ -234,8 +233,7 @@ public class ChatPanel
 
 	private void DispatchChatMessage(string trimmedText)
 	{
-		string sender = GameContext.Lobby?.PlayerDisplayName ?? GameContext.Account.EffectiveUserName;
-		if (GameContext.Lobby == null && !GameContext.Account.IsSignedIn) sender = UnverifiedNameMark.Apply(sender);
+		string sender = GameContext.Lobby?.PlayerDisplayName ?? GameContext.Steam.UserName;
 
 		bool alliesOnly = _currentMode == ChatMode.Allies;
 

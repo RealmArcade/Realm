@@ -58,13 +58,17 @@ public partial class AssetBrowserDialog
 			foreach (var pkg in sortedVersions)
 			{
 				string ver = pkg.MapVersion;
-				string label = isFirst
-					? $"📦 [Map] {mapName} ({ver} - {TranslationServer.Translate("Latest")})"
-					: $"📦 [Map] {mapName} ({ver})";
+				bool isLatest = isFirst;
+				string label = isLatest
+					? string.Format(TranslationServer.Translate("📦 [Map] {0} ({1} - {2})"), mapName, ver, TranslationServer.Translate("Latest"))
+					: string.Format(TranslationServer.Translate("📦 [Map] {0} ({1})"), mapName, ver);
 				string metaKey = $"map:{mapName}|{ver}";
 
 				_optDirectoryFilter.AddItem(label, currentItemIndex);
 				_optDirectoryFilter.SetItemMetadata(currentItemIndex, metaKey);
+				LocalizedText.BindOptionItem(_optDirectoryFilter, currentItemIndex, () => isLatest
+					? string.Format(TranslationServer.Translate("📦 [Map] {0} ({1} - {2})"), mapName, ver, TranslationServer.Translate("Latest"))
+					: string.Format(TranslationServer.Translate("📦 [Map] {0} ({1})"), mapName, ver));
 
 				if (IsMapFilterSelected(mapName, ver, isFirst))
 				{

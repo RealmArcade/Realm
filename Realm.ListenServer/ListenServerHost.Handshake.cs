@@ -94,11 +94,13 @@ public partial class ListenServerHost
 			return;
 		}
 
+		ulong seatSteamId = ResolveSeatSteamId(peerId, hello.SteamId);
+
 		int playerSlot;
 		int team;
 		if (_lobbySessionSlots.Count > 0)
 		{
-			if (string.IsNullOrEmpty(hello.SessionToken) || !_lobbySessionSlots.TryGetValue(hello.SessionToken, out playerSlot))
+			if (seatSteamId == 0 || !_lobbySessionSlots.TryGetValue(seatSteamId, out playerSlot))
 			{
 				_log.Write($"peer {peerId} refused: this match's roster was arranged by a lobby, and this connection is not one of its seats");
 				SendHello(peerId, LobbyRosterClosedRejection);
@@ -116,7 +118,7 @@ public partial class ListenServerHost
 
 			team = simulation.ReadTeam(playerSlot);
 		}
-		else if (!TryReclaimSessionSlot(simulation, peerId, hello.SessionToken, out playerSlot, out team)
+		else if (!TryReclaimSteamIdSlot(simulation, peerId, seatSteamId, out playerSlot, out team)
 		         && !simulation.TryAssignPlayerSlot(peerId, out playerSlot, out team))
 		{
 			const string noSlot = "server_rejected_no_free_slot";
@@ -126,10 +128,10 @@ public partial class ListenServerHost
 			return;
 		}
 
-		if (!string.IsNullOrEmpty(hello.SessionToken)) _sessionTokenSlots[hello.SessionToken] = playerSlot;
+		if (seatSteamId != 0) _steamIdSlots[seatSteamId] = playerSlot;
 		BeginSeatedPeerBookkeeping(peerId, playerSlot, simulation.TickCount);
 		simulation.SetPlayerLanguage(playerSlot, hello.Language);
-		simulation.SetPeerSteamId(peerId, hello.SteamId);
+		simulation.SetPeerSteamId(peerId, seatSteamId);
 		SendHello(peerId, string.Empty);
 
 		var assignment = new PeerRosterAssignment
@@ -170,6 +172,28 @@ public partial class ListenServerHost
 	private const string LobbyRosterClosedRejection = "server_rejected_lobby_roster_is_closed";
 
 	private const string LobbySeatTakenRejection = "server_rejected_lobby_seat_is_taken";
+
+	/// <summary>
+	///     The identity a seat is admitted under. Steam asserts the peer's SteamID64 on the connection itself, and that assertion
+	///     is the identity: a SteamID decides which lobby seat a returning player is given, which slot it may reclaim in a match,
+	///     which kicked players are refused and who a map's Steam calls are addressed to, so a hello stating another number is not
+	///     believed. The host's own screen reaches its authority over loopback, where nothing asserts an identity, so its hello is
+	///     the only statement of who it is.
+	/// </summary>
+	/// <param name="peerId">The connection the hello arrived on.</param>
+	/// <param name="statedSteamId">The SteamID64 the hello claims, or zero when the screen states none.</param>
+	/// <returns>The SteamID64 the seat belongs to.</returns>
+	private ulong ResolveSeatSteamId(int peerId, ulong statedSteamId)
+	{
+		if (!_transport.TryGetPeerSteamId(peerId, out ulong authenticatedSteamId) || authenticatedSteamId == 0) return statedSteamId;
+
+		if (statedSteamId != 0 && statedSteamId != authenticatedSteamId)
+		{
+			_log.Write($"peer {peerId} stated SteamID {statedSteamId} in its hello, but Steam authenticated it as {authenticatedSteamId}; the authenticated identity is the one seated");
+		}
+
+		return authenticatedSteamId;
+	}
 
 	private string DescribeHandshakeRejection(int peerId, in ClientHello hello)
 	{

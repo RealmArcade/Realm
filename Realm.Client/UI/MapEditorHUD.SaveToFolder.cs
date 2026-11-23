@@ -17,7 +17,6 @@ using Realm.Client.UI.MapEditor;
 using Realm.Ecs.Services;
 using Realm.Shared.Distribution;
 using Environment = System.Environment;
-using HttpClient = System.Net.Http.HttpClient;
 using Key = NSec.Cryptography.Key;
 using static Godot.Control;
 using Realm.Client.Utils;

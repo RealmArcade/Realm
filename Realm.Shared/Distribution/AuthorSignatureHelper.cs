@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using NSec.Cryptography;
@@ -106,7 +106,6 @@ public static class AuthorSignatureHelper
 				existing.GameBuildNumber = incoming.GameBuildNumber;
 			}
 
-			MergeDependencies(existing, incoming);
 
 			return MapFileService.SaveMetadataToJson(existing);
 		}
@@ -128,23 +127,6 @@ public static class AuthorSignatureHelper
 		if (!string.IsNullOrEmpty(incoming.MapProperties.MapDescription)) existing.MapProperties.MapDescription = incoming.MapProperties.MapDescription;
 		if (!string.IsNullOrEmpty(incoming.MapProperties.Author)) existing.MapProperties.Author = incoming.MapProperties.Author;
 		if (!string.IsNullOrEmpty(incoming.MapProperties.Version)) existing.MapProperties.Version = incoming.MapProperties.Version;
-	}
-
-	private static void MergeDependencies(MapMetadata existing, MapMetadata incoming)
-	{
-		if (incoming.Dependencies == null)
-		{
-			return;
-		}
-
-		existing.Dependencies ??= new List<MapDependencyMetadata>();
-		foreach (var dep in incoming.Dependencies)
-		{
-			if (!existing.Dependencies.Any(d => string.Equals(d.Id, dep.Id, StringComparison.OrdinalIgnoreCase)))
-			{
-				existing.Dependencies.Add(dep);
-			}
-		}
 	}
 
 	public static string CanonicalizeJson(string? json)

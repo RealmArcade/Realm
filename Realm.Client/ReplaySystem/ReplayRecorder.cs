@@ -43,7 +43,6 @@ namespace Realm.Client.ReplaySystem
 					_players.Add(new ReplayPlayerInfo
 					{
 						PeerId = p.PeerId,
-						AccountId = p.AccountId,
 						Name = p.Name,
 						Faction = p.Faction,
 						ColorR = p.Color.R,
@@ -57,8 +56,7 @@ namespace Realm.Client.ReplaySystem
 				_players.Add(new ReplayPlayerInfo
 				{
 					PeerId = 1,
-					AccountId = Realm.Client.Services.GameContext.Account.AccountId,
-					Name = Realm.Client.Services.GameContext.Account.IsSignedIn ? Realm.Client.Services.GameContext.Account.DisplayName : TranslationServer.Translate("Guest"),
+					Name = Realm.Client.Services.GameContext.Steam.UserName,
 					Faction = "HUMAN",
 					ColorR = 0.1f,
 					ColorG = 0.9f,

@@ -29,7 +29,6 @@ using Realm.Shared.Services;
 using Realm.Shared.Textures;
 using Environment = System.Environment;
 using FileAccess = Godot.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 using Vector3 = System.Numerics.Vector3;
 
 namespace Realm.Client;

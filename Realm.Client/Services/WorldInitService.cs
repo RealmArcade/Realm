@@ -60,7 +60,7 @@ public class WorldInitService
 			string playerName = i == 0
 				? "Neutral"
 				: i == 1
-					? GameContext.Lobby?.PlayerDisplayName ?? Godot.TranslationServer.Translate("Guest")
+					? GameContext.Lobby?.PlayerDisplayName ?? Godot.TranslationServer.Translate("Player")
 					: $"Player {i}";
 			world.Add(playerEntity, new Name(playerName));
 			var resourcesDict = new Dictionary<ResourceId, int>

@@ -5,11 +5,12 @@ using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
-using Realm.Shared.Reachability;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.Services;
+using Realm.Shared.Network;
+using Steamworks;
 
 namespace Realm.Client.UI;
 
@@ -31,6 +32,23 @@ public partial class LobbyCreate : Control
 	private Button _createButton = null!;
 
 	private Button _openMapLibraryButton = null!;
+
+	/// <summary>Who may see and enter the lobby this host opens, which is Steam's own visibility.</summary>
+	private OptionButton _visibilitySelect = null!;
+
+	/// <summary>
+	///     Whether this screen is creating a match for itself alone. It is the mode the previous screen stated, not a flag on
+	///     a lobby, so a single-player start cannot accidentally become a Steam lobby and an offered lobby cannot inherit a
+	///     single-player setting from a screen visited earlier.
+	/// </summary>
+	private static bool SinglePlayerMode => GameContext.SessionState.IsSinglePlayerLobbyMode;
+
+	/// <summary>
+	///     The optional code a community event is gated with. It is never published to Steam metadata, and leaving it empty
+	///     means anyone who can see the lobby may take a seat.
+	/// </summary>
+	private LineEdit _joinCodeInput = null!;
+
 	private OptionButton _versionSelectButton = null!;
 	private HBoxContainer _versionContainer = null!;
 	private Label _versionLabel = null!;
@@ -147,6 +165,15 @@ public partial class LobbyCreate : Control
 		var textPanelWrapper = GetNode<PanelContainer>("CentralPanel/ContentContainer/BriefingPanel/TextPanelWrapper");
 		textPanelWrapper.AddThemeStyleboxOverride("panel", UIStyle.CreateBriefingTextPlate());
 
+		// Who can join and the join code describe a Steam lobby this screen is offering to other players. A single-player
+		// match offers nothing to anybody, so the row is not built at all rather than shown disabled.
+		if (!SinglePlayerMode)
+		{
+			var accessRow = BuildLobbyAccessControls();
+			contentContainer.AddChild(accessRow);
+			contentContainer.MoveChild(accessRow, _briefingPanel.GetIndex() + 1);
+		}
+
 		var spacer = new Control { CustomMinimumSize = new Vector2(0, 16) };
 		_createButton.GetParent().AddChild(spacer);
 		_createButton.GetParent().MoveChild(spacer, _createButton.GetIndex());
@@ -234,7 +261,6 @@ public partial class LobbyCreate : Control
 		_openMapLibraryButton.TooltipText = TranslationServer.Translate("Open the map library to choose the map you want to host");
 		RefreshAvailableMaps();
 		SetProcess(false);
-		EnsureFestivalFeaturedMapInstalledAsync();
 	}
 
 	public override void _ExitTree()
@@ -270,7 +296,7 @@ public partial class LobbyCreate : Control
 		_centralPanel.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 		_briefingPanel.AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
 
-		UIStyle.ApplyTitle(_titleLabel, GameContext.Lobby?.IsSinglePlayer == true ? TranslationServer.Translate("SINGLE PLAYER") : TranslationServer.Translate("CREATE CUSTOM MATCH"), 36);
+		UIStyle.ApplyTitle(_titleLabel, SinglePlayerMode ? TranslationServer.Translate("SINGLE PLAYER") : TranslationServer.Translate("CREATE CUSTOM MATCH"), 36);
 
 		_openMapLibraryButton.Flat = false;
 		_openMapLibraryButton.CustomMinimumSize = new Vector2(240, 46);
@@ -282,7 +308,7 @@ public partial class LobbyCreate : Control
 		UIStyle.ApplyCustomLobbyDropdown(_openMapLibraryButton);
 		_openMapLibraryButton.AddThemeColorOverride("font_pressed_color", UIStyle.ColorCyanGlow);
 
-		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface?.TransitionTo(GameContext.Lobby?.IsSinglePlayer == true ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
+		UIStyle.ApplyBackButton(_backButton, () => GameContext.UserInterface?.TransitionTo(SinglePlayerMode ? GameScreen.MainMenu : GameScreen.LobbyBrowser));
 		SetupCreateButton();
 
 		_versionLabel.Text = Tr("VERSION:");
@@ -306,7 +332,9 @@ public partial class LobbyCreate : Control
 	{
 		_createButton.Flat = false;
 		_createButton.AddThemeConstantOverride("icon_max_width", 0);
-		UIStyle.ApplyButtonText(_createButton, TranslationServer.Translate("CREATE LOBBY"), 18);
+		// The button opens the lobby room, where the map's settings are read and the seats are filled, so a single-player
+		// match is continued into that room rather than "started" or "hosted" from here.
+		UIStyle.ApplyButtonText(_createButton, SinglePlayerMode ? TranslationServer.Translate("CONTINUE") : TranslationServer.Translate("CREATE LOBBY"), 18);
 
 		UIStyle.ApplyCustomLobbyStartGameButton(_createButton);
 
@@ -314,6 +342,84 @@ public partial class LobbyCreate : Control
 		_createButton.MouseEntered += () => GameContext.UserInterface?.PlayHoverSound();
 	}
 
+
+	/// <summary>
+	///     Builds the row that decides who can join the lobby: Steam's visibility, which is what replaces the old listed and
+	///     direct distinction, and the one optional join code a community event is gated with. Both choices sit on one
+	///     horizontal row, and what the code is for is the join code group's tooltip rather than a line of its own beneath the
+	///     fields.
+	/// </summary>
+	/// <returns>The row, ready to be added under the map briefing.</returns>
+	private Control BuildLobbyAccessControls()
+	{
+		var row = new HBoxContainer();
+		row.Name = "LobbyAccessRow";
+		row.AddThemeConstantOverride("separation", 28);
+		row.Alignment = BoxContainer.AlignmentMode.Center;
+		row.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
+
+		var visibilityRow = new HBoxContainer();
+		visibilityRow.Name = "VisibilityRow";
+		visibilityRow.AddThemeConstantOverride("separation", 12);
+		visibilityRow.Alignment = BoxContainer.AlignmentMode.Center;
+
+		var visibilityLabel = new Label();
+		visibilityLabel.Name = "VisibilityLabel_Label";
+		visibilityLabel.Text = Tr("WHO CAN JOIN:");
+		visibilityLabel.VerticalAlignment = VerticalAlignment.Center;
+		visibilityRow.AddChild(visibilityLabel);
+
+		_visibilitySelect = new OptionButton();
+		_visibilitySelect.Name = "VisibilitySelect_OptionButton";
+		_visibilitySelect.CustomMinimumSize = new Vector2(200, 40);
+		_visibilitySelect.AddItem(Tr("Public"));
+		_visibilitySelect.AddItem(Tr("Friends only"));
+		_visibilitySelect.AddItem(Tr("Invite only"));
+		_visibilitySelect.AddItem(Tr("Hidden"));
+		_visibilitySelect.ItemSelected += _ => GameContext.UserInterface?.PlayClickSound();
+		visibilityRow.AddChild(_visibilitySelect);
+
+		row.AddChild(visibilityRow);
+
+		var joinCodeRow = new HBoxContainer();
+		joinCodeRow.Name = "JoinCodeRow";
+		joinCodeRow.AddThemeConstantOverride("separation", 12);
+		joinCodeRow.Alignment = BoxContainer.AlignmentMode.Center;
+
+		var joinCodeLabel = new Label();
+		joinCodeLabel.Name = "JoinCodeLabel_Label";
+		joinCodeLabel.Text = Tr("JOIN CODE:");
+		joinCodeLabel.VerticalAlignment = VerticalAlignment.Center;
+		joinCodeRow.AddChild(joinCodeLabel);
+
+		_joinCodeInput = new LineEdit();
+		_joinCodeInput.Name = "JoinCodeInput_LineEdit";
+		_joinCodeInput.CustomMinimumSize = new Vector2(200, 40);
+		_joinCodeInput.PlaceholderText = Tr("Optional");
+		_joinCodeInput.MaxLength = LobbyLimits.MaximumJoinCodeLength;
+		_joinCodeInput.AddThemeStyleboxOverride("normal", UIStyle.CreateTextInput(false));
+		_joinCodeInput.AddThemeStyleboxOverride("focus", UIStyle.CreateTextInput(true));
+		joinCodeRow.AddChild(_joinCodeInput);
+
+		string joinCodeExplanation = Tr("A join code is for a community event. Leave it empty and anyone who can see the lobby can join.");
+		joinCodeRow.TooltipText = joinCodeExplanation;
+		joinCodeLabel.TooltipText = joinCodeExplanation;
+		_joinCodeInput.TooltipText = joinCodeExplanation;
+
+		row.AddChild(joinCodeRow);
+
+		return row;
+	}
+
+	/// <summary>Reads the visibility the host chose, which is what Steam is asked to list the lobby as.</summary>
+	/// <returns>The Steam visibility the new lobby is created with.</returns>
+	private ELobbyType GetSelectedVisibility() => _visibilitySelect.Selected switch
+	{
+		1 => ELobbyType.k_ELobbyTypeFriendsOnly,
+		2 => ELobbyType.k_ELobbyTypePrivate,
+		3 => ELobbyType.k_ELobbyTypeInvisible,
+		_ => ELobbyType.k_ELobbyTypePublic
+	};
 
 	// Pressed is a Godot signal, so the handler keeps its void signature; the awaited work is in a Task-returning
 	// method and this wrapper logs what it throws. Without the catch a fault in ContinueHosting left the button
@@ -337,10 +443,10 @@ public partial class LobbyCreate : Control
 		string selectedVersion = GetSelectedVersion();
 		var mapInfo = GetSelectedMapInfo();
 
-		if (MapSelectionService.IsBuildMismatch(mapInfo.BuildNumber))
+		if (MapSelectionService.IsEngineGenerationUnsupported(mapInfo.EngineGeneration))
 		{
 			GameContext.UserInterface?.PlayWarningSound();
-			ShowMapBuildMismatchModal(mapInfo.PathName, mapInfo.DisplayName, mapInfo.BuildNumber, RealmVersion.GameBuildNumber);
+			GameContext.UserInterface?.ShowPopupMessage(Tr("THIS MAP NEEDS A NEWER VERSION OF REALM"), Tr("This map needs a newer version of Realm. Update the game and try again."));
 			return;
 		}
 
@@ -356,11 +462,31 @@ public partial class LobbyCreate : Control
 		GameSettings.LastHostedMapVersion = selectedVersion;
 		GameSettings.Save();
 
-		if (lobby.IsSinglePlayer)
+		if (SinglePlayerMode)
 		{
+			// A single-player match is this screen, the authority it launches and the AI seats the map asks for. No Steam
+			// lobby stands behind it, nothing about it is offered to another player and the screen has no visibility or
+			// join code to hand over.
+			lobby.IsSinglePlayer = true;
+
 			_createButton.Disabled = true;
-			bool hosted = await lobby.HostSinglePlayerLobbyAsync(pathName, selectedVersion);
-			_createButton.Disabled = false;
+			ShowHostProgressOverlay(TranslationServer.Translate("OPENING THE LOBBY"));
+			lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
+
+			bool hosted;
+			try
+			{
+				// The panel was added in this frame, so a frame is waited for before the work that follows: the screen says what
+				// it is doing instead of standing still on a disabled button for however long the authority takes to open.
+				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+				hosted = await lobby.HostSinglePlayerLobbyAsync(pathName, selectedVersion);
+			}
+			finally
+			{
+				lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
+				HideHostProgressOverlay();
+				_createButton.Disabled = false;
+			}
 
 			if (hosted)
 			{
@@ -370,19 +496,22 @@ public partial class LobbyCreate : Control
 
 			GameContext.UserInterface?.PlayWarningSound();
 
-			if (lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None })
-			{
-				RestrictiveNetworkDialog.Show();
-				return;
-			}
-
 			ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to start the match."));
 			return;
 		}
 
+		// Visibility and the join code are what the Steam lobby is created with, so they are handed over before the lobby
+		// exists: Steam owns the directory and the authority owns the seating gate.
+		lobby.HostedVisibility = GetSelectedVisibility();
+		lobby.JoinCode = LobbyLimits.Sanitize(_joinCodeInput.Text, LobbyLimits.MaximumJoinCodeLength);
+
 		_createButton.Disabled = true;
 		ShowHostProgressOverlay();
 		lobby.HostLobbyStageChanged += OnHostLobbyStageChanged;
+
+		// A hosted lobby prepares a private copy of the package, which reads and rewrites every file of it, so the frame
+		// that draws the panel is given up first: otherwise the panel only appears once that work has already finished.
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		bool prepared = await lobby.PrepareHostedLobbyAsync(pathName, displayName, selectedVersion);
 		lobby.HostLobbyStageChanged -= OnHostLobbyStageChanged;
 		HideHostProgressOverlay();
@@ -395,10 +524,10 @@ public partial class LobbyCreate : Control
 		}
 
 		// The lobby is open and nobody can see it yet. The host goes into its room first, because that is where the map's
-		// settings are read and edited, and publishing a listed lobby means waiting on a registry node: making a host sit
-		// through that before they can touch a single setting is the wait this flow exists to remove. The room's chat says
-		// what is happening, and says so again if the lobby could not be listed. A lobby that could not be listed stays open
-		// to the players its address is handed to, and its host can offer it in the browser again from the room.
+		// settings are read and edited, and publishing a listed lobby means waiting on Steam: making a host sit through that
+		// before they can touch a single setting is the wait this flow exists to remove. The room's chat says what is
+		// happening, and says so again if the lobby could not be published, which takes it down rather than leaving the host
+		// in a room nobody can find.
 		GameContext.UserInterface?.TransitionTo(GameScreen.LobbyRoom);
 		_ = PublishListedLobbyAsync();
 	}
@@ -408,19 +537,13 @@ public partial class LobbyCreate : Control
 		GameContext.UserInterface?.PlayWarningSound();
 		GameLog.LogError("[LobbyCreate] Failed to host lobby.");
 
-		if (lobby.LastHostFailure is { Failure: not HostReachabilityFailure.None })
-		{
-			RestrictiveNetworkDialog.Show();
-			return;
-		}
-
-		ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to host lobby on the registry server."));
+		ShowHostErrorModal(lobby.LastHostError ?? Tr("Failed to host lobby."));
 	}
 
 	/// <summary>
-	///     Publishes the lobby the host is already sitting in, without holding the screen it was started from. A failure
-	///     leaves the lobby open to players who are given its address and reports that in the room's chat, so the host is
-	///     never left in a room that silently nobody can find.
+	///     Publishes the lobby the host is already sitting in, without holding the screen it was started from. Steam either
+	///     created the lobby or it did not, so a failure takes it down and the host is told rather than left in a room nobody
+	///     can find.
 	/// </summary>
 	private async Task PublishListedLobbyAsync()
 	{
@@ -431,7 +554,7 @@ public partial class LobbyCreate : Control
 		bool listed;
 		try
 		{
-			listed = await lobby.PublishPreparedLobbyDirectlyOnFailureAsync();
+			listed = await lobby.PublishPreparedLobbyAsync();
 		}
 		catch (Exception exception)
 		{
@@ -444,66 +567,6 @@ public partial class LobbyCreate : Control
 		}
 
 		if (!listed) GameContext.UserInterface?.PlayWarningSound();
-	}
-
-	private async void EnsureFestivalFeaturedMapInstalledAsync()
-	{
-		try
-		{
-			await InstallFestivalFeaturedMapAsync();
-		}
-		catch (Exception exception)
-		{
-			GameLog.LogError($"[LobbyCreate] Installing the festival featured map failed: {exception}");
-		}
-	}
-
-	private async Task InstallFestivalFeaturedMapAsync()
-	{
-		if (!BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE) return;
-		if (MapProvisioningService.IsInstalled(BuildFlags.FESTIVAL_FEATURED_MAP_NAME)) return;
-
-		_createButton.Disabled = true;
-		ShowHostProgressOverlay(
-			TranslationServer.Translate("PREPARING MAP"),
-			TranslationServer.Translate("Looking for the newest version of `Chaos Arena` map..."));
-
-		bool installed = await MapProvisioningService.DownloadLatestAsync(BuildFlags.FESTIVAL_FEATURED_MAP_NAME, ReportFestivalMapDownloadProgress);
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
-
-		HideHostProgressOverlay();
-		_createButton.Disabled = false;
-
-		if (installed)
-		{
-			RefreshAvailableMaps();
-			return;
-		}
-
-		ShowFestivalMapUnavailableModal();
-	}
-
-	private void ReportFestivalMapDownloadProgress(float progress)
-	{
-		Callable.From(() => UpdateFestivalMapDownloadProgress(progress)).CallDeferred();
-	}
-
-	private void UpdateFestivalMapDownloadProgress(float progress)
-	{
-		if (_hostProgressBar == null || _hostProgressStatusLabel == null) return;
-		if (!GodotObject.IsInstanceValid(_hostProgressBar) || !GodotObject.IsInstanceValid(_hostProgressStatusLabel)) return;
-
-		double percent = Math.Clamp(progress * 100.0, 0, 100);
-		_hostProgressStatusLabel.Text = string.Format(TranslationServer.Translate("Downloading map... {0}%"), (int)percent);
-		_hostProgressBar.Value = Math.Max(_hostProgressBar.Value, percent);
-		_hostProgressCeiling = _hostProgressBar.Value;
-	}
-
-	private void ShowFestivalMapUnavailableModal()
-	{
-		GameContext.UserInterface?.ShowPopupMessage(
-			TranslationServer.Translate("MAP UNAVAILABLE"),
-			TranslationServer.Translate("The map (Chaos Arena) could not be downloaded. Check your internet connection, then open this screen again."));
 	}
 
 	private void ShowHostProgressOverlay(string? titleText = null, string? initialStatus = null)
@@ -597,18 +660,10 @@ public partial class LobbyCreate : Control
 	{
 		switch (stage)
 		{
-			case HostLobbyStage.TestingNetwork:
-				return (TranslationServer.Translate("Testing your connection and NAT type..."), 6, 25);
 			case HostLobbyStage.LoadingMap:
-				return (TranslationServer.Translate("Loading the map into the match server..."), 25, 60);
+				return (TranslationServer.Translate("Loading the map into the match server..."), 10, 60);
 			case HostLobbyStage.AdmittingHost:
-				return (TranslationServer.Translate("Entering the lobby as host..."), 60, 74);
-			case HostLobbyStage.OpeningPort:
-				return (TranslationServer.Translate("Opening your port for other players..."), 74, 84);
-			case HostLobbyStage.VerifyingNetwork:
-				return (TranslationServer.Translate("Checking that other players can reach this computer..."), 84, 92);
-			case HostLobbyStage.RegisteringLobby:
-				return (TranslationServer.Translate("Registering the lobby on the server..."), 88, 99);
+				return (TranslationServer.Translate("Entering the lobby as host..."), 60, 90);
 			default:
 				return (string.Empty, 0, 0);
 		}
@@ -624,34 +679,15 @@ public partial class LobbyCreate : Control
 		return "1.0.0";
 	}
 
-	private (string PathName, string DisplayName, string BuildNumber) GetSelectedMapInfo()
+	private (string PathName, string DisplayName, int EngineGeneration) GetSelectedMapInfo()
 	{
 		if (_selectedMapIndex >= 0 && _selectedMapIndex < _availableMaps.Count)
 		{
 			var map = _availableMaps[_selectedMapIndex];
-			return (map.PathName, map.DisplayName, map.GameBuildNumber);
+			return (map.PathName, map.DisplayName, map.EngineGeneration);
 		}
 
-		return ("melee", "Melee Battlefield", RealmVersion.GameBuildNumber);
-	}
-
-	private void ShowMapBuildMismatchModal(string mapPath, string mapDisplayName, string mapBuildNumber, string currentBuildNumber)
-	{
-		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(mapBuildNumber));
-
-		string promptText = Tr("This map is out of date. To host this match, download the matching game build or open the map in the Map Editor to upgrade it.");
-		string message = $"{string.Format(Tr("Map: {0}"), mapDisplayName)}\n{string.Format(Tr("Map Build: {0}"), mapBuildNumber)} | {string.Format(Tr("Current Build: {0}"), currentBuildNumber)}\n\n{promptText}";
-
-		GameContext.UserInterface?.ShowConfirmationDialog(message, () =>
-		{
-			if (versionExistsLocally)
-			{
-				string exePath = LobbyManager.GetVersionExecutablePath(mapBuildNumber);
-				OS.CreateProcess(exePath, Array.Empty<string>());
-				GetTree().Quit();
-			}
-			}, confirmText: versionExistsLocally ? string.Format(Tr("LAUNCH {0}"), mapBuildNumber) : string.Format(Tr("DOWNLOAD {0}"), mapBuildNumber),
-			cancelText: TranslationServer.Translate("CANCEL"), titleOverride: "MAP BUILD MISMATCH");
+		return ("melee", "Melee Battlefield", RealmVersion.EngineGeneration);
 	}
 
 	private void ShowHostErrorModal(string errorMessage)

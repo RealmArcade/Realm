@@ -244,10 +244,39 @@ public partial class InGameHUD : Control
 		ApplySpectatorAndReplayOverrides();
 		ApplySavedHudVisibilityOverrides();
 		SubscribeToLobbyCountdown();
+		SetupPlaytestVoteChip();
 
 		// The match may have been running before this screen was built - a map tested from the editor starts its
 		// authority first - so what it declared about its rules and its standings is replayed now that there is a HUD.
 		GameContext.Host?.OnInGameHudReady();
+	}
+
+	private PlaytestVoteChip? _playtestVoteChip;
+
+	/// <summary>
+	///     Offers the people playing a hosted map the one control this feature adds: whether the map held up. It is built for a
+	///     lobby match only, because a test run from the editor, a replay and a screen watching somebody else's match have no
+	///     author waiting for the answer.
+	/// </summary>
+	private void SetupPlaytestVoteChip()
+	{
+		if (!ShouldOfferPlaytestVote()) return;
+
+		_playtestVoteChip = PlaytestVoteChip.Create();
+		AddChild(_playtestVoteChip.Root);
+	}
+
+	private static bool ShouldOfferPlaytestVote()
+	{
+		if (GameContext.SessionState.IsTestMode) return false;
+		if (GameContext.ReplayPlayback.IsPlayingReplay) return false;
+
+		ClientServerSession? session = GameContext.ServerSession;
+		if (session is not { IsRunning: true }) return false;
+
+		if (session.IsDebugSession) return false;
+
+		return GameContext.Lobby is { HasLobbyState: true } || GameContext.SessionState.IsSinglePlayerLobbyMode;
 	}
 
 	private void SubscribeToLobbyCountdown()
@@ -505,6 +534,8 @@ public partial class InGameHUD : Control
 
 	public override void _ExitTree()
 	{
+		_playtestVoteChip?.Dispose();
+		_playtestVoteChip = null;
 		UnsubscribeFromLobbyCountdown();
 		GameContext.UnregisterInGameHud(this);
 		if (GameContext.Lobby != null)
@@ -623,6 +654,7 @@ public partial class InGameHUD : Control
 	{
 		float dt = (float)delta;
 
+		_playtestVoteChip?.Update(GameContext.Host?.GameElapsedTime ?? 0f);
 		_unitHealthBarOverlay?.Refresh(_camera3D ?? GetViewport()?.GetCamera3D());
 		_minimapPanelController?.UpdateMinimapIndicator();
 		if (_connectionWarningLabel != null)

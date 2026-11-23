@@ -567,7 +567,7 @@ public partial class AnimationPreviewDialog : FloatingPreview3DDialogBase
 		int count = animList?.Count ?? 0;
 		var countBadge = new Label();
 		countBadge.Name = "CountBadge_Label";
-		countBadge.Text = count == 1 ? "1 anim" : $"{count} anims";
+		LocalizedText.Set(countBadge, count == 1 ? "1 anim" : "{0} anims", count);
 		countBadge.AddThemeColorOverride("font_color", count > 0 ? UIStyle.ColorCyanGlow : UIStyle.ColorGoldDull);
 		countBadge.AddThemeFontSizeOverride("font_size", 10);
 		headerRow.AddChild(countBadge);

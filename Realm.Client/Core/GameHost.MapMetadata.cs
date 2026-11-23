@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -149,6 +149,16 @@ public partial class GameHost
 		string norm = mapNameOrPath.Replace('\\', '/').Trim();
 		string? explicitPath = TryResolveExplicitPath(norm);
 		if (explicitPath != null) return explicitPath;
+
+		// A lobby plays the private copy it prepared, not the installed package it was made from, so everything the client
+		// reads for the active map - metadata, terrain, presentation assets - comes from the copy the authority was given.
+		string sessionDirectory = GameContext.Lobby?.ActiveMapSessionDirectory ?? string.Empty;
+		if (sessionDirectory.Length > 0 &&
+		    string.Equals(norm, GameContext.Lobby?.ActiveMapName, StringComparison.OrdinalIgnoreCase) &&
+		    Directory.Exists(sessionDirectory))
+		{
+			return sessionDirectory;
+		}
 
 		string? targetVersion = !string.IsNullOrWhiteSpace(version) ? version : GameContext.Lobby?.ActiveMapVersion;
 		string? manifestPath = MapAssetManager.FindManifestPath(norm, targetVersion) ?? MapAssetManager.FindManifestPath(norm, null);

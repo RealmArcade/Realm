@@ -1,7 +1,6 @@
-using System;
+﻿using System;
 using Godot;
 using Realm.Shared.Network;
-using Realm.Shared.Reachability;
 
 namespace Realm.ListenServerHost.Network;
 
@@ -142,22 +141,6 @@ public class EnetServerTransport : IServerTransport
 			Math.Clamp(roundTripMilliseconds, 0, int.MaxValue),
 			Math.Clamp(jitterMilliseconds, 0, int.MaxValue),
 			Math.Clamp(packetLossPercent, 0f, 100f));
-		return true;
-	}
-
-	public bool SendToAddress(string address, int port, ReadOnlySpan<byte> payload)
-	{
-		if (_peer == null || string.IsNullOrWhiteSpace(address) || port <= 0) return false;
-
-		var host = _peer.GetHost();
-		if (host == null) return false;
-
-		byte[] packet = payload.ToArray();
-		for (int attempt = 0; attempt < ReachabilityPunch.DatagramSendCount; attempt++)
-		{
-			host.SocketSend(address, port, packet);
-		}
-
 		return true;
 	}
 

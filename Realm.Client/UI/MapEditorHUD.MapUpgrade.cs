@@ -27,7 +27,6 @@ using Realm.Shared.ModelOptimization;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
 using Environment = System.Environment;
-using HttpClient = System.Net.Http.HttpClient;
 using Key = Godot.Key;
 using MirrorMode = Realm.Ecs.Components.Core.MirrorMode;
 using TerrainCell = Realm.Ecs.Components.Terrain.TerrainCell;
@@ -183,6 +182,20 @@ namespace Realm.Client.UI
 		/// </summary>
 		private void PublishMapActionView(bool fullExport = false)
 		{
+			if (!UgcLicenseAcceptance.IsAccepted(MetadataService.UgcLicenseVersion))
+			{
+				var licenseDialog = new UgcLicenseDialog();
+				licenseDialog.Initialize(accepted =>
+				{
+					if (!accepted) return;
+
+					UgcLicenseAcceptance.RecordAcceptance(MetadataService.UgcLicenseVersion);
+					PublishMapActionView(fullExport);
+				});
+				AddChild(licenseDialog);
+				return;
+			}
+
 			_publishController ??= new MapPublishController(new PublishHooks(
 				this, ShowFeedback, AppendWasmConsoleLog, () => _wasmHasErrors, hasErrors => _wasmHasErrors = hasErrors,
 				SetWasmConsoleStatus, EnsureSignedInForPublishing,
@@ -190,8 +203,7 @@ namespace Realm.Client.UI
 				CheckScriptIsOptimized, CheckAssetSizeValidation, () => GetMapNameFromMetadata(), () => GetMapVersionFromMetadata(),
 				SignMapMetadataAsync, GetPublishAuthorName, path => CompileWorkspaceScriptAsync(path),
 				_minimapController == null ? null : path => _minimapController.GenerateAndSaveMinimapThumbnailAsync(path),
-				InvalidateMetadataCache,
-				ShowGreenlightStatusDialog));
+				InvalidateMetadataCache));
 			_publishController.RunAsync(fullExport);
 		}
 

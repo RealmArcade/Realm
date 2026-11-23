@@ -98,7 +98,8 @@ public enum LagEvent
 	ClientRenderFramesOverBudget,
 	ClientPhysicsTicksOverBudget,
 	LinkFramesDelivered,
-	LinkFramesDropped
+	LinkFramesDropped,
+	AuthorityStatementRefreshes
 }
 
 public enum LagGauge

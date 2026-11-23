@@ -12,13 +12,11 @@ using NSec.Cryptography;
 using Realm.Client.Network;
 using Realm.Shared;
 using Realm.Shared.Network;
-using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
-using Realm.Shared.Accounts;
 
 
 namespace Realm.Client.UI;
@@ -82,6 +80,7 @@ public partial class LobbyRoom
 
 		SetupLobbyButton(_backButton, TranslationServer.Translate(" LEAVE LOBBY"), ReturnFromLobby);
 		SetupLobbyButton(_invitePlayersButton, TranslationServer.Translate("INVITE PLAYERS"), OpenInvitePlayersDialog);
+		SetupLobbyButton(_joinCodeButton, TranslationServer.Translate("JOIN CODE"), ToggleJoinCodePanel);
 		SetupStartButton();
 
 		_mapNameLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);

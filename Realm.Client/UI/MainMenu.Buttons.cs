@@ -10,12 +10,10 @@ using Godot;
 using Realm.Client.Network;
 using Realm.Shared;
 using Realm.Shared.Network;
-using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Services;
 using Realm.Client.Utils;
-using Realm.Shared.Accounts;
 
 
 namespace Realm.Client.UI;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -6,6 +6,7 @@ using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
 using Realm.Client.UI;
+using Realm.Shared.Metadata;
 using Realm.Shared.Services;
 
 namespace Realm.Client.UI.MapEditor;
@@ -17,6 +18,8 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 	private LineEdit _txtMapName = null!;
 	private LineEdit _txtMapVersion = null!;
+	private LineEdit _txtDiscordInvite = null!;
+	private Label _discordInviteStatus = null!;
 	private OptionButton _optMapType = null!;
 	private GridContainer _tagsGrid = null!;
 	private readonly List<CheckBox> _activeTagCheckboxes = new();
@@ -59,6 +62,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 		BuildNamePanel(contentVBox);
 		BuildVersionPanel(contentVBox);
+		BuildDiscordInvitePanel(contentVBox);
 		BuildMapTypePanel(contentVBox);
 		BuildTagsPanel(contentVBox);
 		BuildSkyboxPanel(contentVBox);
@@ -111,6 +115,42 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		_txtMapVersion.PlaceholderText = "1.0.0";
 		_txtMapVersion.TextChanged += (_) => { SaveMapProperties(); };
 		versionPanel.AddChild(_txtMapVersion);
+	}
+
+	/// <summary>
+	///     The one creator link the game shows beyond Steam. The invite is the creator's to make permanent, so the panel
+	///     says how to make one rather than generating it, and the link is only stored once it is a Discord invite.
+	/// </summary>
+	/// <param name="contentVBox">The dialog's column.</param>
+	private void BuildDiscordInvitePanel(VBoxContainer contentVBox)
+	{
+		var discordPanel = CreateSectionBox(contentVBox, TranslationServer.Translate("Discord server invite"));
+
+		_txtDiscordInvite = new LineEdit();
+		_txtDiscordInvite.Name = "TxtDiscordInvite_LineEdit";
+		_txtDiscordInvite.PlaceholderText = "https://discord.gg/<code>";
+		_txtDiscordInvite.TextChanged += (_) => SaveMapProperties();
+		_txtDiscordInvite.FocusExited += () => SaveMapProperties();
+		discordPanel.AddChild(_txtDiscordInvite);
+
+		var helper = new Label();
+		helper.Name = "DiscordInviteHelper_Label";
+		helper.Text = TranslationServer.Translate("In Discord, open Server Settings → Invites → Create Invite, set Expire After to Never and Max Uses to No Limit, then paste the invite link here. Do not use a temporary or single-use invite.");
+		helper.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		helper.CustomMinimumSize = new Vector2(360, 0);
+		helper.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		helper.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		helper.AddThemeFontSizeOverride("font_size", 11);
+		discordPanel.AddChild(helper);
+
+		_discordInviteStatus = new Label();
+		_discordInviteStatus.Name = "DiscordInviteStatus_Label";
+		_discordInviteStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_discordInviteStatus.CustomMinimumSize = new Vector2(360, 0);
+		_discordInviteStatus.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		_discordInviteStatus.AddThemeFontSizeOverride("font_size", 11);
+		_discordInviteStatus.Visible = false;
+		discordPanel.AddChild(_discordInviteStatus);
 	}
 
 	private void BuildMapTypePanel(VBoxContainer contentVBox)
@@ -434,6 +474,7 @@ public partial class MapSettingsDialog : FloatingDialogBase
 
 		UpdateMapNameProperty(metadata, manifest);
 		UpdateMapVersionProperty(metadata, manifest);
+		UpdateDiscordInviteProperty(metadata);
 	}
 
 	private void UpdateMapNameProperty(MapMetadata metadata, MapManifest manifest)
@@ -447,6 +488,32 @@ public partial class MapSettingsDialog : FloatingDialogBase
 		if (string.IsNullOrEmpty(name)) return;
 
 		_txtMapName.Text = name.Trim();
+	}
+
+	private void UpdateDiscordInviteProperty(MapMetadata metadata)
+	{
+		if (_txtDiscordInvite == null) return;
+
+		_txtDiscordInvite.Text = metadata.MapProperties?.DiscordServerInviteLink ?? string.Empty;
+		ShowDiscordInviteStatus(_txtDiscordInvite.Text);
+	}
+
+	private void ShowDiscordInviteStatus(string candidate)
+	{
+		if (_discordInviteStatus == null) return;
+
+		if (string.IsNullOrWhiteSpace(candidate))
+		{
+			_discordInviteStatus.Visible = false;
+			return;
+		}
+
+		bool accepted = DiscordInvite.TryNormalize(candidate, out string normalized);
+		_discordInviteStatus.Visible = true;
+		_discordInviteStatus.Text = accepted
+			? string.Format(TranslationServer.Translate("Saved as {0}"), normalized)
+			: TranslationServer.Translate("That is not a Discord invite. Paste an https discord.gg, discord.com/invite or discordapp.com/invite link.");
+		_discordInviteStatus.AddThemeColorOverride("font_color", accepted ? UIStyle.ColorCyanGlow : new Color(0.9f, 0.45f, 0.4f));
 	}
 
 	private void UpdateMapVersionProperty(MapMetadata metadata, MapManifest manifest)
@@ -513,6 +580,12 @@ public partial class MapSettingsDialog : FloatingDialogBase
 			}
 
 			meta.MapProperties.Version = cleanVersion;
+
+			// Only a link this game may open is stored; typing something else leaves the field alone and says why beside it.
+			DiscordInvite.TryNormalize(_txtDiscordInvite?.Text, out string normalizedInvite);
+			string? statedInvite = string.IsNullOrWhiteSpace(_txtDiscordInvite?.Text) ? null : normalizedInvite;
+			if (statedInvite != null || string.IsNullOrWhiteSpace(_txtDiscordInvite?.Text)) meta.MapProperties.DiscordServerInviteLink = statedInvite;
+			ShowDiscordInviteStatus(_txtDiscordInvite?.Text ?? string.Empty);
 
 			UpdateMetadataTerrainProperties(meta);
 			UpdateMetadataCameraProperties(meta);

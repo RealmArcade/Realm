@@ -31,7 +31,6 @@ using Realm.Shared.ModelOptimization;
 using Realm.Shared.Services;
 using Realm.Shared.Textures;
 using Environment = System.Environment;
-using HttpClient = System.Net.Http.HttpClient;
 using Key = Godot.Key;
 using MirrorMode = Realm.Ecs.Components.Core.MirrorMode;
 using TerrainCell = Realm.Ecs.Components.Terrain.TerrainCell;

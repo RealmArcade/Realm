@@ -48,7 +48,7 @@ public partial class AuthorSignatureDialog : FloatingDialogBase
 
 		var descLabel = new Label();
 		descLabel.Name = "DescLabel_Label";
-		descLabel.Text = TranslationServer.Translate("Your map publishing key is stored in authorship_key_DO-NOT-SHARE_<username>.rkey. It is used to sign all your maps and assets to verify your ownership so others can't overwrite your published files. Keep this key safely backed up in a secure location. NEVER share your private key or .rkey file. To collaborate on maps, share only your Public Key with team maintainers so they can authorize you to publish.");
+		descLabel.Text = TranslationServer.Translate("Your authorship key is stored in authorship_key_DO-NOT-SHARE_<username>.rkey. It signs your maps and assets, so anyone holding your public key can check that a file came from you. Keep it safely backed up: an update signed with a lost key cannot be shown as yours. NEVER share your private key or .rkey file. Your public key is the part you may hand out, because it can verify your work and cannot sign anything.");
 		descLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		descLabel.CustomMinimumSize = new Vector2(390, 0);
 		descLabel.HorizontalAlignment = HorizontalAlignment.Center;

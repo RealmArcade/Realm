@@ -18,16 +18,13 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
-using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
-using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 public partial class LobbyManager
@@ -44,7 +41,7 @@ public partial class LobbyManager
 			int difficulty = isComputer
 				? (int)LobbyBotDifficultyRules.Clamp((int)player.Difficulty)
 				: (int)LobbyBotDifficultyRules.Default;
-			seats.Add(new MatchRosterSeat(player.Slot, player.AccountId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer, difficulty, player.Faction));
+			seats.Add(new MatchRosterSeat(player.Slot, player.SteamId, player.Name, ResolveSeatTeam(player.Team, player.Slot), player.Team, isComputer, difficulty, player.Faction));
 		}
 
 		seats.Sort((left, right) => left.Slot.CompareTo(right.Slot));
@@ -66,28 +63,8 @@ public partial class LobbyManager
 		return slot;
 	}
 
-	public async Task<int> MeasurePingToRegistryAsync()
-	{
-		var stopwatch = Stopwatch.StartNew();
-		try
-		{
-			var response = await _httpClient.GetAsync($"{RegistryServerUrl}/lobbies");
-			stopwatch.Stop();
-			if (response.IsSuccessStatusCode)
-			{
-				return (int)stopwatch.ElapsedMilliseconds;
-			}
-		}
-		catch
-		{
-		}
-
-		return 100;
-	}
-
 	public override void _ExitTree()
 	{
-		GameContext.Account.Changed -= OnAccountChanged;
 		GameContext.UnregisterLobby(this);
 	}
 
@@ -125,14 +102,5 @@ public partial class LobbyManager
 
 		return "127.0.0.1";
 	}
-
-	/// <summary>
-	///     Whether a lobby at this address is reached without a hole punch. An address on this machine, a private IPv4
-	///     address, and every IPv6 address are dialled directly: a router that drops unsolicited traffic is something the
-	///     IPv4 path meets, and an IPv6 endpoint has no router mapping in front of it at all.
-	/// </summary>
-	/// <param name="address">The address a lobby is going to be dialled at.</param>
-	/// <returns>Whether no punch is needed.</returns>
-	private static bool IsDialledDirectly(string address) => !ReachabilityAddresses.IsPubliclyRoutable(address) || !LobbyAddresses.NeedsHolePunch(LobbyAddresses.FamilyOf(address));
 
 }

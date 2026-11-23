@@ -56,7 +56,6 @@ public static class GameSettings
 	public static bool DisplayFps { get; set; } = false;
 	public static bool DisplayPing { get; set; } = false;
 	public static bool RecordReplays { get; set; } = false;
-	public static bool SeedMapFiles { get; set; } = false;
 
 	/// <summary>
 	///     The name this machine plays under before an account is signed in. It is empty by default, which means the Steam
@@ -147,7 +146,6 @@ public static class GameSettings
 		DisplayFps = false;
 		DisplayPing = false;
 		RecordReplays = false;
-		SeedMapFiles = false;
 	}
 
 	public static void InitializeResolutions()
@@ -271,7 +269,6 @@ public static class GameSettings
 		DisplayFps = data.DisplayFps;
 		DisplayPing = data.DisplayPing;
 		RecordReplays = data.RecordReplays;
-		SeedMapFiles = data.SeedMapFiles;
 		PlayerName = data.PlayerName ?? string.Empty;
 		DisableShadows = data.DisableShadows;
 		DisableDayNightLighting = data.DisableDayNightLighting;
@@ -330,7 +327,6 @@ public static class GameSettings
 			DisplayFps = DisplayFps,
 			DisplayPing = DisplayPing,
 			RecordReplays = RecordReplays,
-			SeedMapFiles = SeedMapFiles,
 			PlayerName = PlayerName,
 			DisableShadows = DisableShadows,
 			DisableDayNightLighting = DisableDayNightLighting,

@@ -1,4 +1,4 @@
-using MemoryPack;
+﻿using MemoryPack;
 
 namespace Realm.Shared.Network;
 
@@ -17,16 +17,11 @@ public partial struct ClientHello
 
 	public string PlayerName;
 
-	public long AccountId;
-
-	public string SessionToken;
-
 	public string AdminProof;
 
 	/// <summary>
-	///     The SteamID64 this screen plays as, or 0 when it is not running inside Steam. It is last so every field a peer
-	///     already sent keeps its wire position, and it travels with the hello because the lobby publishes it to the other
-	///     seats, which is what lets a player at the end of a match ask Steam to add somebody they just played with.
+	///     The SteamID64 this screen plays as, or 0 when it is not running inside Steam. Steam asserts it on the socket the
+	///     hello arrived on, so it is the identity the seat, its reconnect and its chat line are all keyed by.
 	/// </summary>
 	public ulong SteamId;
 }

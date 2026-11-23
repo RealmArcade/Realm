@@ -1,19 +1,6 @@
-{
+﻿{
   "version": "0.2.0",
   "configurations": [
-    {
-      "name": "Run AdminServer (Web)",
-      "type": "coreclr",
-      "request": "launch",
-      "projectPath": "${workspaceFolder}/Realm.AdminServer/Realm.AdminServer.csproj",
-      "args": [
-        "--urls",
-        "http://0.0.0.0:5000"
-      ],
-      "env": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
-    },
     {
       "name": "Run Simulation Tests",
       "type": "coreclr",

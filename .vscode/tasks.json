@@ -1,19 +1,6 @@
-{
+﻿{
   "version": "2.0.0",
   "tasks": [
-    {
-      "label": "Run AdminServer (Web)",
-      "type": "shell",
-      "command": "dotnet",
-      "args": [
-        "run",
-        "--project",
-        "${workspaceFolder}/Realm.AdminServer/Realm.AdminServer.csproj",
-        "--urls",
-        "http://0.0.0.0:5000"
-      ],
-      "problemMatcher": []
-    },
     {
       "label": "Build Client and Authority",
       "type": "shell",

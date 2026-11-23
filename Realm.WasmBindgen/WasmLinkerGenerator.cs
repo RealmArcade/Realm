@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
@@ -52,6 +52,7 @@ public partial class WasmLinkerGenerator : IIncrementalGenerator
 		WriteWitContent(mapApiWitPath, witContent);
 
 		string? repoRoot = FindRepoRoot(compilation);
+		MapApiSurfaceGuard.Enforce(context, repoRoot ?? string.Empty, witContent, options);
 		string ecsComponents = !string.IsNullOrEmpty(repoRoot) ? WasmEcsComponentEmitter.GenerateEcsComponents(repoRoot) : "";
 		Compilation lldbCompilation = compilation;
 		if (!string.IsNullOrEmpty(ecsComponents))

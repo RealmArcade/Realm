@@ -42,7 +42,7 @@ public class DefinitionManager
 						(TDefinition)(object)new TagDefinition(tagAttr.Id, tagAttr.DisplayName, tagAttr.Description);
 				else if (attribute is ResourceDefinitionAttribute resourceAttr)
 					definition = (TDefinition)(object)new ResourceDefinition(resourceAttr.Id, resourceAttr.DisplayName,
-						resourceAttr.Description, resourceAttr.IconPath);
+						resourceAttr.Description);
 				else if (attribute is StatDefinitionAttribute statAttr)
 					definition =
 						(TDefinition)(object)new StatDefinition(statAttr.Id, statAttr.DisplayName,

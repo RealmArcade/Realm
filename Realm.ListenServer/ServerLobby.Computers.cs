@@ -89,7 +89,9 @@ public partial class ServerLobby
 		}
 
 		_log.Write($"peer {targetPeerId} ('{target.Name}') was removed from the lobby by its administrator");
-		if (!string.IsNullOrEmpty(target.SessionToken)) _refusedSessionTokens.Add(target.SessionToken);
+		// Steam membership survives a kick, so the refusal that a reconnect meets is the Steam identity the removed player
+		// plays as. It is the one name both the connection and its replacement pass through.
+		if (target.SteamId != 0) _refusedSteamIds.Add(target.SteamId);
 		bool stillConnected = _slotByPeer.ContainsKey(target.PeerId);
 		RemoveSeat(target.PeerId, $"{target.Name} was removed from the lobby.");
 

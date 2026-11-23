@@ -42,7 +42,7 @@ public static class PlayerColorConfig
 
 		var entry = Palette[playerIndex];
 		return playerIndex == NEUTRAL_PLAYER_INDEX
-			? $"{entry.Index} {entry.Name} (gaia)"
+			? $"{entry.Index} {TranslationServer.Translate("Neutral")}"
 			: $"{entry.Index} {entry.Name}";
 	}
 
