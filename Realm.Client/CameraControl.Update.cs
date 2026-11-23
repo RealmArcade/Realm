@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -14,10 +14,39 @@ public partial class CameraControl : Camera3D
 	{
 		if (!IsFreeCamera)
 		{
-			float minAllowedTargetHeight = terrainHeight + state.MinZoom;
-			if (state.TargetHeight < minAllowedTargetHeight)
+			if (FollowTarget != null && GodotObject.IsInstanceValid(FollowTarget))
 			{
-				state.TargetHeight = minAllowedTargetHeight;
+				if (_attachedFollowConfigured)
+				{
+					UpdateAttachedFollowCamera(ref state, fDelta);
+					return;
+				}
+
+				float followMinHeight = terrainHeight + state.MinZoom;
+				if (state.TargetHeight < followMinHeight)
+				{
+					state.TargetHeight = followMinHeight;
+				}
+
+				float followZoomRate = state.ZoomSpeed > 0.01f ? (state.ZoomSpeed * 0.55f) : 5.5f;
+				float followSmoothY = Mathf.Lerp(Position.Y, state.TargetHeight, followZoomRate * fDelta);
+				if (Mathf.Abs(followSmoothY - state.TargetHeight) < 0.015f)
+				{
+					followSmoothY = state.TargetHeight;
+				}
+
+				state.CurrentHeight = followSmoothY;
+				Position = new Vector3(FollowTarget.Position.X, followSmoothY, FollowTarget.Position.Z + 25.0f);
+				return;
+			}
+
+			if (!_attachedViewActive)
+			{
+				float minAllowedTargetHeight = terrainHeight + state.MinZoom;
+				if (state.TargetHeight < minAllowedTargetHeight)
+				{
+					state.TargetHeight = minAllowedTargetHeight;
+				}
 			}
 
 			float zoomRate = state.ZoomSpeed > 0.01f ? (state.ZoomSpeed * 0.55f) : 5.5f;
@@ -28,15 +57,7 @@ public partial class CameraControl : Camera3D
 			}
 
 			state.CurrentHeight = smoothY;
-
-			if (FollowTarget != null && GodotObject.IsInstanceValid(FollowTarget))
-			{
-				Position = new Vector3(FollowTarget.Position.X, smoothY, FollowTarget.Position.Z + 25.0f);
-			}
-			else
-			{
-				Position = new Vector3(Position.X, smoothY, Position.Z);
-			}
+			Position = new Vector3(Position.X, smoothY, Position.Z);
 		}
 		else
 		{
@@ -48,6 +69,69 @@ public partial class CameraControl : Camera3D
 			state.CurrentHeight = Position.Y;
 			state.TargetHeight = Position.Y;
 		}
+	}
+
+	private void UpdateAttachedFollowCamera(ref CameraState state, float fDelta)
+	{
+		if (FollowTarget == null || !GodotObject.IsInstanceValid(FollowTarget)) return;
+
+		float desiredYawDeg = _attachedFollowYawOffsetDegrees;
+		if (_attachedFollowAlignToUnitFacing)
+		{
+			float unitYawRad = FollowTarget is Unit3D unit3D ? unit3D.CachedRotationY : FollowTarget.Rotation.Y;
+			desiredYawDeg = Mathf.RadToDeg(unitYawRad) + 180.0f + _attachedFollowYawOffsetDegrees;
+		}
+
+		state.TargetYaw = desiredYawDeg;
+		state.TargetPitch = _attachedFollowPitchDegrees;
+
+		if (_attachedFollowNeedsSnap || _attachedFollowSmoothing <= 0f)
+		{
+			state.CurrentYaw = state.TargetYaw;
+			state.CurrentPitch = state.TargetPitch;
+			_attachedFollowNeedsSnap = false;
+
+			float snapYawRad = Mathf.DegToRad(state.CurrentYaw);
+			Vector3 snapForwardXZ = new Vector3(-Mathf.Sin(snapYawRad), 0f, -Mathf.Cos(snapYawRad));
+			Vector3 snapPos = FollowTarget.Position - snapForwardXZ * _attachedFollowDistance + new Vector3(0f, _attachedFollowHeightOffset, 0f);
+			if (GameContext.Host?.GroundTerrain != null)
+			{
+				GameContext.Host.GroundTerrain.GetHeightAndNormal(snapPos.X, snapPos.Z, out float groundY, out _);
+				if (snapPos.Y < groundY + 1.5f) snapPos.Y = groundY + 1.5f;
+			}
+			Position = snapPos;
+			state.CurrentHeight = Position.Y;
+			state.TargetHeight = Position.Y;
+			return;
+		}
+
+		float rotSmoothing = _attachedFollowSmoothing > 0f ? _attachedFollowSmoothing : 3.5f;
+		float rotAlpha = 1.0f - Mathf.Exp(-rotSmoothing * fDelta);
+
+		float curYawRad = Mathf.DegToRad(state.CurrentYaw);
+		float tgtYawRad = Mathf.DegToRad(state.TargetYaw);
+		float yawDiffRad = Mathf.AngleDifference(curYawRad, tgtYawRad);
+
+		float maxYawStepRad = Mathf.DegToRad(360.0f) * fDelta;
+		float yawStepRad = Mathf.Clamp(yawDiffRad * rotAlpha, -maxYawStepRad, maxYawStepRad);
+
+		state.CurrentYaw = Mathf.RadToDeg(curYawRad + yawStepRad);
+		state.CurrentPitch = Mathf.Lerp(state.CurrentPitch, state.TargetPitch, rotAlpha);
+
+		float camYawRad = Mathf.DegToRad(state.CurrentYaw);
+		Vector3 forwardXZ = new Vector3(-Mathf.Sin(camYawRad), 0f, -Mathf.Cos(camYawRad));
+		Vector3 desiredPos = FollowTarget.Position - forwardXZ * _attachedFollowDistance + new Vector3(0f, _attachedFollowHeightOffset, 0f);
+
+		if (GameContext.Host?.GroundTerrain != null)
+		{
+			GameContext.Host.GroundTerrain.GetHeightAndNormal(desiredPos.X, desiredPos.Z, out float camGroundY, out _);
+			if (desiredPos.Y < camGroundY + 1.5f) desiredPos.Y = camGroundY + 1.5f;
+		}
+
+		Position = desiredPos;
+
+		state.CurrentHeight = Position.Y;
+		state.TargetHeight = Position.Y;
 	}
 
 	private void UpdateCameraRotation(ref CameraState state, float fDelta, bool isEditor)
@@ -98,8 +182,15 @@ public partial class CameraControl : Camera3D
 
 	private void ApplyCameraRotation(ref CameraState state, float fDelta)
 	{
-		state.CurrentYaw = Mathf.RadToDeg(Mathf.LerpAngle(Mathf.DegToRad(state.CurrentYaw), Mathf.DegToRad(state.TargetYaw), 10.0f * fDelta));
-		state.CurrentPitch = Mathf.Lerp(state.CurrentPitch, state.TargetPitch, 10.0f * fDelta);
+		if (_attachedFollowConfigured)
+		{
+			RotationDegrees = new Vector3(state.CurrentPitch + state.PitchSwing, state.CurrentYaw + state.YawSwing, 0.0f);
+			return;
+		}
+
+		float rate = 10.0f;
+		state.CurrentYaw = Mathf.RadToDeg(Mathf.LerpAngle(Mathf.DegToRad(state.CurrentYaw), Mathf.DegToRad(state.TargetYaw), rate * fDelta));
+		state.CurrentPitch = Mathf.Lerp(state.CurrentPitch, state.TargetPitch, rate * fDelta);
 		RotationDegrees = new Vector3(state.CurrentPitch + state.PitchSwing, state.CurrentYaw + state.YawSwing, 0.0f);
 	}
 
@@ -206,6 +297,8 @@ public partial class CameraControl : Camera3D
 	private void ApplyCameraVelocity(ref CameraState state, Vector3 velocity, float fDelta, bool isEditor)
 	{
 		FollowTarget = null;
+		_pendingAttachedFollowUnitServerId = 0;
+		_attachedFollowConfigured = false;
 		float speedMult = Input.IsKeyPressed(Key.Shift) ? 2.5f : (Input.IsKeyPressed(Key.Ctrl) ? 0.35f : 1.0f);
 		velocity = velocity.Normalized() * state.MoveSpeed * speedMult * fDelta;
 

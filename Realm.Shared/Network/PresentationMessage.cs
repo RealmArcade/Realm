@@ -44,6 +44,9 @@ public enum PresentationKind : byte
 	CameraShaken,
 	CameraBoundsSet,
 	CameraBoundsReset,
+	CameraFollowUnitSet,
+	CameraViewSet,
+	CameraReset,
 	HudElementVisible,
 	SelectionChanged,
 	WarningSound,
@@ -139,7 +142,16 @@ public enum PresentationKind : byte
 	CinematicSubtitle,
 
 	/// <summary>States a full-screen fade: how opaque it is and how long it takes to get there.</summary>
-	ScreenFadeSet
+	ScreenFadeSet,
+
+	/// <summary>
+	///     States that one key on one player's screen casts an ability on a unit while it is held, and another ability when
+	///     it is let go, which is a control the map binds for itself rather than one the engine assumes about the map.
+	/// </summary>
+	PlayerKeyBindingSet,
+
+	/// <summary>States that the keys a map bound for one player's screen are no longer bound.</summary>
+	PlayerKeyBindingsCleared
 }
 
 [MemoryPackable]

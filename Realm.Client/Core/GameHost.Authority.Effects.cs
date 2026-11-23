@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Godot;
@@ -162,7 +162,7 @@ public partial class GameHost
 
 		string animationName = message.Key;
 		float holdSeconds = message.Duration;
-		Callable.From(() => unit3D.PlayAnimationHeld(animationName, holdSeconds)).CallDeferred();
+		Callable.From(() => unit3D.PlayScriptAnimation(animationName, holdSeconds)).CallDeferred();
 	}
 
 	private void PresentUnitHandAttachment(PresentationMessage message)

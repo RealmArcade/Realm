@@ -665,7 +665,7 @@ public class SnapshotTimeline
 				}
 			}
 
-			position = ReleaseBackwards(entityId, position);
+			position = ReleaseBackwards(entityId, position, velocity);
 			return true;
 		}
 
@@ -687,7 +687,7 @@ public class SnapshotTimeline
 			rotationY = InterpolateAngle(_rotations[olderIndex], _rotations[newerIndex], fraction);
 			velocity = ResolveVelocity(_positions[olderIndex], _positions[newerIndex], span);
 
-			position = ReleaseBackwards(entityId, position);
+			position = ReleaseBackwards(entityId, position, velocity);
 			return true;
 		}
 
@@ -696,7 +696,7 @@ public class SnapshotTimeline
 		position = _positions[oldestIndex];
 		rotationY = _rotations[oldestIndex];
 		velocity = ResolveVelocity(_positions[oldestIndex], _positions[baseIndex + (oldestOffset + 1) % SamplesPerUnit], _sequences[baseIndex + (oldestOffset + 1) % SamplesPerUnit] - _sequences[oldestIndex]);
-		position = ReleaseBackwards(entityId, position);
+		position = ReleaseBackwards(entityId, position, velocity);
 		return true;
 	}
 
@@ -729,7 +729,7 @@ public class SnapshotTimeline
 	///     with nothing added. Only a description that genuinely places a unit behind its last drawn sample is eased, and
 	///     only for as long as that distance takes at <see cref="MaximumReleaseMetersPerSecond" />.
 	/// </remarks>
-	private Vector3 ReleaseBackwards(int entityId, Vector3 sampled)
+	private Vector3 ReleaseBackwards(int entityId, Vector3 sampled, Vector3 velocity)
 	{
 		if (!_hasDrawnPosition[entityId])
 		{
@@ -749,7 +749,7 @@ public class SnapshotTimeline
 
 		// Nothing but the last drawn position is compared, so a unit that is reset - which forgets it - is drawn wherever
 		// its new descriptions put it rather than crawling there from wherever it used to be.
-		if (backwardsMeters > allowedMeters && backwardsMeters > 0.0001f)
+		if (backwardsMeters > allowedMeters && backwardsMeters > 0.0001f && Vector3.Dot(step, velocity) <= 0f)
 		{
 			LagProbe.RecordWorst(LagEvent.ClientReleaseBackwardsSamples, backwardsMeters);
 			sampled = drawn - backwards * (allowedMeters / backwardsMeters);

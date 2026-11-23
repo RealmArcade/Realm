@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -104,6 +104,23 @@ public partial class Unit3D
 	///     swing instead of a jump to a frame in the middle of one. A pose <see cref="PlayAnimationHeld" /> is holding is left
 	///     alone until it has been drawn, apart from walking, which always wins.
 	/// </summary>
+	public string? ScriptAnimationLoop { get; private set; }
+
+	public void PlayScriptAnimation(string request, float holdSeconds = 0f)
+	{
+		const string loopPrefix = "Loop:";
+		ScriptAnimationLoop = request.StartsWith(loopPrefix, StringComparison.Ordinal) && request.Length > loopPrefix.Length
+			? request[loopPrefix.Length..] : null;
+		if (ScriptAnimationLoop != null)
+		{
+			PlayAnimation(ScriptAnimationLoop);
+		}
+		else
+		{
+			PlayAnimationHeld(request, holdSeconds);
+		}
+	}
+
 	public void PlayAnimation(string animName)
 	{
 		if (AnimationsFrozen) return;

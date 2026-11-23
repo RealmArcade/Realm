@@ -187,6 +187,136 @@ public partial class GameHost
 		}
 	}
 
+	private readonly List<ScriptKeyBinding> _scriptKeyBindings = new();
+
+	/// <summary>
+	///     Binds one key this screen reads to the pair of abilities a map named, replacing whatever that key was bound to
+	///     before. The key is a name a player would read, such as A, D or Space, and a name this screen does not know is
+	///     refused rather than guessed at, so a map's control never lands on a key the player did not expect.
+	/// </summary>
+	/// <param name="serverUnitId">The unit the bound abilities are cast on.</param>
+	/// <param name="keyName">The key by the name printed on it.</param>
+	/// <param name="pressAbilityId">The ability cast while the key goes down.</param>
+	/// <param name="releaseAbilityId">The ability cast when the key comes back up.</param>
+	public void BindScriptKeyToAbility(int serverUnitId, string keyName, string pressAbilityId, string releaseAbilityId)
+	{
+		if (string.IsNullOrWhiteSpace(keyName)) return;
+
+		if (!TryResolveBoundKey(keyName.Trim(), out Key boundKey))
+		{
+			GameLog.LogError($"[GameHost] A map bound '{keyName}', which is not a key name this screen knows.");
+			return;
+		}
+
+		for (int index = _scriptKeyBindings.Count - 1; index >= 0; index--)
+		{
+			if (_scriptKeyBindings[index].BoundKey == boundKey) _scriptKeyBindings.RemoveAt(index);
+		}
+
+		_scriptKeyBindings.Add(new ScriptKeyBinding(serverUnitId, boundKey, pressAbilityId ?? string.Empty, releaseAbilityId ?? string.Empty));
+	}
+
+	/// <summary>
+	///     Reads a key name as the key it names. A single digit is the key printed with that digit rather than the
+	///     character code the enum happens to hold, a longer number is not a key name at all, and a name the enum does not
+	///     define is refused rather than read as a raw keycode.
+	/// </summary>
+	/// <param name="keyName">The trimmed name a map bound.</param>
+	/// <param name="key">The key the name reads as, or <see cref="Key.None" />.</param>
+	/// <returns>True when the name is a key this screen knows.</returns>
+	private static bool TryResolveBoundKey(string keyName, out Key key)
+	{
+		key = Key.None;
+		if (keyName.Length == 0) return false;
+
+		if (keyName.Length == 1 && char.IsAsciiDigit(keyName[0]))
+		{
+			key = keyName[0] switch
+			{
+				'0' => Key.Key0,
+				'1' => Key.Key1,
+				'2' => Key.Key2,
+				'3' => Key.Key3,
+				'4' => Key.Key4,
+				'5' => Key.Key5,
+				'6' => Key.Key6,
+				'7' => Key.Key7,
+				'8' => Key.Key8,
+				'9' => Key.Key9,
+				_ => Key.None
+			};
+
+			return key != Key.None;
+		}
+
+		if (char.IsAsciiDigit(keyName[0])) return false;
+		if (!Enum.TryParse(keyName, ignoreCase: true, out key)) return false;
+		if (key == Key.None || !Enum.IsDefined(key)) return false;
+
+		return true;
+	}
+
+	/// <summary>Gives the player's own commands back every key a map bound on this screen.</summary>
+	public void ClearScriptKeyBindings()
+	{
+		_scriptKeyBindings.Clear();
+	}
+
+	/// <summary>
+	///     Casts the abilities a map bound to a key, if this screen holds that key. It answers whether the key belongs to a
+	///     binding, and it is read before the player's own commands, because a key a map bound is a control that map asked
+	///     for; a combination beginning with Ctrl or Alt is left to those commands.
+	/// </summary>
+	/// <param name="keyEvent">The key event being handled.</param>
+	/// <returns>True when the event belongs to a binding and the caller should stop handling it.</returns>
+	private bool TryHandleScriptKeyBinding(InputEventKey keyEvent)
+	{
+		if (_scriptKeyBindings.Count == 0) return false;
+		if (GameContext.PerspectiveFilter.IsSpectating) return false;
+		if (Input.IsKeyPressed(Key.Ctrl) || Input.IsKeyPressed(Key.Alt)) return false;
+		if (GetViewport()?.GuiGetFocusOwner() is LineEdit or TextEdit) return false;
+		if (GameContext.InGameHud != null && GameContext.InGameHud.IsChatActive) return false;
+
+		for (int index = 0; index < _scriptKeyBindings.Count; index++)
+		{
+			ScriptKeyBinding binding = _scriptKeyBindings[index];
+			if (binding.BoundKey != keyEvent.Keycode) continue;
+
+			string abilityId = keyEvent.Pressed ? binding.PressAbilityId : binding.ReleaseAbilityId;
+			if (!string.IsNullOrWhiteSpace(abilityId)) CastScriptBoundAbility(binding.ServerUnitId, abilityId);
+
+			return true;
+		}
+
+		return false;
+	}
+
+	private void CastScriptBoundAbility(int serverUnitId, string abilityId)
+	{
+		if (!TryGetUnit3DByServerId(serverUnitId, out Unit3D? unit)) return;
+		if (!World.IsAlive(unit.Entity)) return;
+		if (!GameContext.PerspectiveFilter.CanControl(unit.Player)) return;
+
+		var targetIds = new List<int> { GetServerEntityId(unit.Entity) };
+		SubmitRemoteCommand("spell", targetIds, unit.GlobalPosition, 0, abilityId);
+	}
+
+	private readonly struct ScriptKeyBinding
+	{
+		public ScriptKeyBinding(int serverUnitId, Key boundKey, string pressAbilityId, string releaseAbilityId)
+		{
+			ServerUnitId = serverUnitId;
+			BoundKey = boundKey;
+			PressAbilityId = pressAbilityId;
+			ReleaseAbilityId = releaseAbilityId;
+		}
+
+		public int ServerUnitId { get; }
+		public Key BoundKey { get; }
+		public string PressAbilityId { get; }
+		public string ReleaseAbilityId { get; }
+	}
+
 	/// <summary>
 	///     Turns one ability's auto-cast on or off for every selected unit that carries it. The authority owns the state,
 	///     so this is an order like any other: a match running in another process hears it as a command and the card's

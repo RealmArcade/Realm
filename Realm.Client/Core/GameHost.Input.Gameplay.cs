@@ -147,6 +147,12 @@ public partial class GameHost
 			}
 		}
 
+		if (@event is InputEventKey mapBoundKeyEvent && !mapBoundKeyEvent.Echo && TryHandleScriptKeyBinding(mapBoundKeyEvent))
+		{
+			GetViewport().SetInputAsHandled();
+			return;
+		}
+
 		if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo)
 		{
 			if (keyEvent.Keycode >= Key.Key0 && keyEvent.Keycode <= Key.Key9)

@@ -149,6 +149,8 @@ public class ServerPresentationQueue
 				or PresentationKind.UnitAnimationSet or PresentationKind.UnitHandAttachmentSet or PresentationKind.TimeOfDaySet
 				or PresentationKind.DayNightCycleSet or PresentationKind.EnvironmentPresetSet or PresentationKind.WeatherSet
 				or PresentationKind.HudElementVisible or PresentationKind.CameraBoundsSet or PresentationKind.CameraPanned
+				or PresentationKind.CameraFollowUnitSet or PresentationKind.CameraViewSet or PresentationKind.CameraReset
+				or PresentationKind.PlayerKeyBindingSet or PresentationKind.PlayerKeyBindingsCleared
 				or PresentationKind.SelectionChanged or PresentationKind.InstructionsSectionAdded
 
 				// A map declares its instructions and the card its standings share once, as the match starts, and never
@@ -166,6 +168,7 @@ public class ServerPresentationQueue
 			PresentationKind.TooltipNumberSet or PresentationKind.TooltipTextSet => $"{(byte)request.Kind}|{request.PlayerIndex}|{request.Key}|{request.Text}|{request.Text2}",
 			PresentationKind.UnitHandAttachmentSet => $"{(byte)request.Kind}|{request.PlayerIndex}|{request.Handle}|{request.Key}",
 			PresentationKind.HudElementVisible => $"{(byte)request.Kind}|{request.PlayerIndex}|{request.Key}",
+			PresentationKind.CameraFollowUnitSet or PresentationKind.CameraViewSet or PresentationKind.CameraReset => $"camera_view|{request.PlayerIndex}",
 			_ => $"{(byte)request.Kind}|{request.PlayerIndex}|{request.Key}"
 		};
 	}
@@ -173,6 +176,14 @@ public class ServerPresentationQueue
 	private void Retain(in ServerPresentationEvent request)
 	{
 		if (!IsDurable(request.Kind)) return;
+
+		// A clear is the absence of the bindings it clears, so what a later peer is replayed is their absence rather than
+		// an event ordered after bindings the map has stated since. Retaining it would let it arrive last and unbind them.
+		if (request.Kind == PresentationKind.PlayerKeyBindingsCleared)
+		{
+			ForgetKeyBindingsFor(request.PlayerIndex);
+			return;
+		}
 
 		string subject = SubjectOf(in request);
 		if (!_durable.ContainsKey(subject))
@@ -183,6 +194,20 @@ public class ServerPresentationQueue
 		}
 
 		_durable[subject] = request;
+	}
+
+	private void ForgetKeyBindingsFor(int playerIndex)
+	{
+		for (int index = _durableOrder.Count - 1; index >= 0; index--)
+		{
+			string subject = _durableOrder[index];
+			if (!_durable.TryGetValue(subject, out ServerPresentationEvent retained)) continue;
+			if (retained.Kind != PresentationKind.PlayerKeyBindingSet) continue;
+			if (retained.PlayerIndex != playerIndex && playerIndex != ServerPresentationEvent.Everyone) continue;
+
+			_durable.Remove(subject);
+			_durableOrder.RemoveAt(index);
+		}
 	}
 
 	private void ForgetOldest()
