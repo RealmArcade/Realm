@@ -162,13 +162,19 @@ public sealed class PlaytestVoteChip
 		var button = new Button
 		{
 			Name = name,
-			Text = glyph,				TooltipText = tooltip,
+			Text = glyph,
+			TooltipText = tooltip,
 			CustomMinimumSize = new Vector2(38, 30)
 		};
 
 		button.Set("icon_max_width", 0);
 		button.FocusMode = Control.FocusModeEnum.None;
+		if (UIStyle.FontAwesome != null) button.AddThemeFontOverride("font", UIStyle.FontAwesome);
 		button.AddThemeFontSizeOverride("font_size", 13);
+		button.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		button.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		button.AddThemeColorOverride("font_pressed_color", UIStyle.ColorGold);
+		button.AddThemeColorOverride("font_disabled_color", UIStyle.ColorGoldDull);
 		UIStyle.ApplyButtonStyleBoxesClearingFocus(button);
 		return button;
 	}

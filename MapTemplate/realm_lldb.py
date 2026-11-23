@@ -48,14 +48,14 @@ COMPONENT_OFFSETS = {
     "ModelScale": 1649664,
     "MovementStats": 1387520,
     "PlayerDamageEffectiveness": 1784320,
-    "PlayerPopulation": 1749284,
+    "PlayerPopulation": 1750116,
     "PlayerResources": 1747968,
     "Position": 273408,
     "PreviousPosition": 371712,
     "PreviousRotationY": 1715200,
     "Resistances": 1321984,
     "RotationY": 1682432,
-    "ScriptPlayer": 1748384,
+    "ScriptPlayer": 1749216,
     "UnitOwnerPlayer": 1551360,
 }
 
@@ -70,7 +70,7 @@ COMPONENT_SIZES = {
     "MovementStats": 20,
     "PlayerDamageEffectiveness": 100,
     "PlayerPopulation": 8,
-    "PlayerResources": 16,
+    "PlayerResources": 48,
     "Position": 12,
     "PreviousPosition": 12,
     "PreviousRotationY": 4,
@@ -262,7 +262,7 @@ HOST_TYPES = {
 
 # Generated debugger script metadata
 REALM_LLDB_SCRIPT_VERSION = "1"
-REALM_LLDB_SCRIPT_HASH = "8d9a72ca2e717fbc31249f37165038070c98d6a72361f423d243f752f1328894"
+REALM_LLDB_SCRIPT_HASH = "9f1594e9592b15151644ff9803ed70e8aa19fa3697e3b47d85ddaf6af687a0a4"
 REALM_LLDB_SOURCE_COMMIT = "unknown"
 
 INSPECTION_REQUIRES_THREADS = "Inspection requires threads to execute. Copy value to local variable to inspect"

@@ -270,7 +270,11 @@ public partial class InGameHUD : Control
 	{
 		if (GameContext.SessionState.IsTestMode) return false;
 		if (GameContext.ReplayPlayback.IsPlayingReplay) return false;
-		if (GameContext.ServerSession is not { IsRunning: true }) return false;
+
+		ClientServerSession? session = GameContext.ServerSession;
+		if (session is not { IsRunning: true }) return false;
+
+		if (session.IsDebugSession) return false;
 
 		return GameContext.Lobby is { HasLobbyState: true } || GameContext.SessionState.IsSinglePlayerLobbyMode;
 	}
