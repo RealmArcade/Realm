@@ -61,7 +61,9 @@ public readonly record struct WorkshopPublishProgress(float Fraction, string Sta
 /// <param name="Success">Whether the item now carries the uploaded content.</param>
 /// <param name="PublishedFileId">The item the content was published to, or zero when nothing was created.</param>
 /// <param name="FailureReason">Why the publish did not finish, empty on success.</param>
-/// <param name="NeedsLegalAgreement">Whether Steam requires the creator to accept the Workshop agreement first.</param>
+/// <param name="NeedsLegalAgreement">
+///     Whether Steam holds the item hidden until the creator accepts the Workshop legal agreement.
+/// </param>
 public readonly record struct WorkshopPublishResult(bool Success, ulong PublishedFileId, string FailureReason, bool NeedsLegalAgreement);
 
 /// <summary>
@@ -152,6 +154,7 @@ public static class SteamWorkshopService
 		if (!Directory.Exists(contentFolder)) return Failed($"The folder to publish does not exist: {contentFolder}");
 
 		ulong publishedFileId = existingPublishedFileId;
+		bool needsLegalAgreement = false;
 		if (publishedFileId == 0)
 		{
 			progressCallback?.Invoke(new WorkshopPublishProgress(0f, "Creating the Workshop item..."));
@@ -161,13 +164,13 @@ public static class SteamWorkshopService
 				return new WorkshopPublishResult(false, 0, DescribeResult(created.m_eResult), created.m_bUserNeedsToAcceptWorkshopLegalAgreement);
 			}
 
-			if (created.m_bUserNeedsToAcceptWorkshopLegalAgreement)
-			{
-				SteamUGC.ShowWorkshopEULA();
-				return new WorkshopPublishResult(false, created.m_nPublishedFileId.m_PublishedFileId, "Steam requires you to accept the Workshop legal agreement before this map can be published.", true);
-			}
-
+			// Creating the item and filling it are two acts, and Steam has already made the item by the time it asks for
+			// the agreement. The upload therefore goes ahead under the id Steam handed back and the item stays hidden
+			// until the creator accepts, where stopping here would leave an empty item behind on every attempt that the
+			// next attempt could not find, because an item that never carried content states no map name.
 			publishedFileId = created.m_nPublishedFileId.m_PublishedFileId;
+			needsLegalAgreement = created.m_bUserNeedsToAcceptWorkshopLegalAgreement;
+			if (needsLegalAgreement) SteamUGC.ShowWorkshopEULA();
 		}
 
 		UGCUpdateHandle_t updateHandle = SteamUGC.StartItemUpdate(ConsumerAppId, new PublishedFileId_t(publishedFileId));
@@ -194,9 +197,17 @@ public static class SteamWorkshopService
 		if (greenlit) SteamUGC.AddItemKeyValueTag(updateHandle, GreenlitTagKey, GreenlitTagValue);
 
 		SubmitItemUpdateResult_t submitted = await SubmitItemUpdateAsync(updateHandle, changeNote, progressCallback, cancellationToken);
+		bool agreementStillUnaccepted = needsLegalAgreement || submitted.m_bUserNeedsToAcceptWorkshopLegalAgreement;
 		if (submitted.m_eResult != EResult.k_EResultOK)
 		{
-			return new WorkshopPublishResult(false, publishedFileId, DescribeResult(submitted.m_eResult), submitted.m_bUserNeedsToAcceptWorkshopLegalAgreement);
+			if (submitted.m_bUserNeedsToAcceptWorkshopLegalAgreement) SteamUGC.ShowWorkshopEULA();
+			return new WorkshopPublishResult(false, publishedFileId, DescribeResult(submitted.m_eResult), agreementStillUnaccepted);
+		}
+
+		if (agreementStillUnaccepted)
+		{
+			SteamUGC.ShowWorkshopEULA();
+			return new WorkshopPublishResult(false, publishedFileId, "Steam has the map and keeps it hidden until you accept the Workshop legal agreement.", true);
 		}
 
 		return new WorkshopPublishResult(true, publishedFileId, string.Empty, false);
@@ -355,6 +366,12 @@ public static class SteamWorkshopService
 	///     not reserved by Steam: two creators can publish maps whose names match, and an update can only be aimed at an
 	///     item the caller owns, so the search is limited to that account's own items.
 	/// </summary>
+	/// <remarks>
+	///     The account's own published list is read rather than a Workshop search, because a search offers what Steam shows
+	///     the public and an author re-publishes the item they have often not made public yet: an unlisted, friends-only or
+	///     private item is missing from a search, and the publish after it would create a second item instead of updating
+	///     that one.
+	/// </remarks>
 	/// <param name="mapName">The map's folder name.</param>
 	/// <param name="authorSteamId">The SteamID64 that must own the item, or zero when this screen has no Steam identity.</param>
 	/// <param name="cancellationToken">Gives up the query.</param>
@@ -364,7 +381,7 @@ public static class SteamWorkshopService
 		if (!IsAvailable || authorSteamId == 0 || string.IsNullOrWhiteSpace(mapName)) return null;
 
 		string normalizedName = NormalizeMapName(mapName);
-		var entries = await BrowseAsync(mapName, BrowsePageCount, cancellationToken);
+		IReadOnlyList<WorkshopMapEntry> entries = await ReadPublishedByAccountAsync(authorSteamId, BrowsePageCount, cancellationToken);
 
 		return entries
 			.Where(entry => !entry.IsBanned)
@@ -372,6 +389,39 @@ public static class SteamWorkshopService
 			.Where(entry => MatchesMapName(entry, normalizedName))
 			.OrderByDescending(entry => entry.TimeUpdated)
 			.FirstOrDefault();
+	}
+
+	/// <summary>
+	///     Reads the items one account published for this game, whatever visibility it set on each of them, which is the
+	///     list that holds the item an author's next publish updates.
+	/// </summary>
+	/// <param name="accountSteamId">The SteamID64 whose published items are read.</param>
+	/// <param name="pageCount">How many pages to read.</param>
+	/// <param name="cancellationToken">Gives up the query.</param>
+	/// <returns>The account's items for this game, in the order Steam returned them.</returns>
+	private static async Task<IReadOnlyList<WorkshopMapEntry>> ReadPublishedByAccountAsync(ulong accountSteamId, uint pageCount, CancellationToken cancellationToken)
+	{
+		var entries = new List<WorkshopMapEntry>();
+		for (uint page = 1; page <= Math.Max(1, pageCount); page++)
+		{
+			UGCQueryHandle_t handle = SteamUGC.CreateQueryUserUGCRequest(
+				new AccountID_t((uint)(accountSteamId & 0xFFFFFFFF)),
+				EUserUGCList.k_EUserUGCList_Published,
+				EUGCMatchingUGCType.k_EUGCMatchingUGCType_Items,
+				EUserUGCListSortOrder.k_EUserUGCListSortOrder_CreationOrderDesc,
+				ConsumerAppId,
+				ConsumerAppId,
+				page);
+
+			if (handle == UGCQueryHandle_t.Invalid) break;
+
+			var pageEntries = await RunQueryAsync(handle, cancellationToken);
+			entries.AddRange(pageEntries);
+
+			if (pageEntries.Count < ResultsPerPage) break;
+		}
+
+		return entries;
 	}
 
 	/// <summary>

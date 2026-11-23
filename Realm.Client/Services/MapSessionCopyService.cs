@@ -178,16 +178,22 @@ public class MapSessionCopyService
 	///     Steam owns and rewrites whenever that item is updated. A map the player downloaded by hand or authored here
 	///     belongs to nobody but them, so only an installed item's own folder counts.
 	/// </summary>
+	/// <remarks>
+	///     An item is one map folder uploaded whole, so the folder Steam installed it into is the map's own folder rather
+	///     than a folder holding it. That folder is Steam's exactly as a folder any deeper inside the item is.
+	/// </remarks>
 	/// <param name="mapDirectory">The absolute folder of the installed or authored map.</param>
 	/// <returns>Whether Steam put this map there as a Workshop subscription.</returns>
 	private static bool IsSteamOwnedFolder(string mapDirectory)
 	{
 		if (!SteamWorkshopService.IsAvailable) return false;
 
+		string normalizedMapDirectory = Path.GetFullPath(mapDirectory).TrimEnd(Path.DirectorySeparatorChar);
 		foreach (ulong itemId in SteamWorkshopService.GetSubscribedItemIds())
 		{
 			string? itemFolder = SteamWorkshopService.GetInstalledFolder(itemId);
 			if (string.IsNullOrEmpty(itemFolder)) continue;
+			if (string.Equals(Path.GetFullPath(itemFolder).TrimEnd(Path.DirectorySeparatorChar), normalizedMapDirectory, StringComparison.OrdinalIgnoreCase)) return true;
 			if (IsInside(itemFolder, mapDirectory)) return true;
 		}
 

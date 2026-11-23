@@ -468,18 +468,21 @@ public class SteamServerTransport : IServerTransport
 		}
 	}
 
+	/// <summary>
+	///     Ends one peer's connection and forgets it, which is what a refused command, a kick or a failed admission asks for.
+	/// </summary>
+	/// <remarks>
+	///     A connection this transport closes itself is closed without a status callback, so Steam never reports the close
+	///     and the peer has to be forgotten here. Leaving it in the tables would keep a dead connection listed: the poll
+	///     would keep reading it, every send would keep aiming at it, and the lobby or the match would never learn its peer
+	///     is gone, so its seat and peer state would stay held.
+	/// </remarks>
+	/// <param name="peerId">The peer to close, which is forgotten whether or not Steam still holds the connection.</param>
 	public void Disconnect(int peerId)
 	{
 		if (!_connectionByPeer.TryGetValue(peerId, out HSteamNetConnection connection)) return;
 
-		try
-		{
-			SteamNetworkingSockets.CloseConnection(connection, 0, "realm closed the connection", false);
-		}
-		catch (Exception exception)
-		{
-			_log.Write($"Steam peer {peerId} could not be disconnected: {exception.Message}");
-		}
+		CloseAndForget(connection, "realm closed the connection");
 	}
 
 	/// <summary>
