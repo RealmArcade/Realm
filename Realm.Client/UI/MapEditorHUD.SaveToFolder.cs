@@ -54,11 +54,6 @@ namespace Realm.Client.UI
 			}
 
 			Parallel.ForEach(filesToCopy, pair => { PathUtils.CopyFileClearingReadOnlyIfChanged(pair.Source, pair.Target); });
-
-			if (OperatingSystem.IsWindows())
-			{
-				GameContext.VSCode.SaveRecentMapDir(targetFolder);
-			}
 		}
 
 		private void AdoptMapFolderAsEditingDirectory(string targetFolder)
@@ -122,6 +117,7 @@ namespace Realm.Client.UI
 					GameContext.EditorService.SetActiveMapDirectory(Path.GetFullPath(targetFolder));
 					GameContext.EditorService.SetCurrentSourceFolder(Path.GetFullPath(targetFolder));
 					EditorWorkspaceWatcher.Start(Path.GetFullPath(targetFolder));
+					defaultLoadFolder = Path.GetFullPath(targetFolder);
 				}
 
 				WorkspaceMetadataBootstrapper.EnsureLicenseFile(targetFolder);

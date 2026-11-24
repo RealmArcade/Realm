@@ -179,31 +179,13 @@ public partial class VSCodeManager
 
 
 
-	public void SaveRecentMapDir(string dirPath)
-	{
-		try
-		{
-			string recentPathFile = ProjectSettings.GlobalizePath("user://recent_map_dir.txt");
-			string? directory = Path.GetDirectoryName(recentPathFile);
-			if (directory != null && !Directory.Exists(directory))
-			{
-				Directory.CreateDirectory(directory);
-			}
-
-			File.WriteAllText(recentPathFile, dirPath);
-		}
-		catch
-		{
-		}
-	}
-
 	private string GetMapFolderToOpen(string projectRoot)
 	{
 		if (TryGetEditingDirectoryPath(out string tempPath))
 			return tempPath;
 
-		if (TryGetRecentMapPath(out string recentPath))
-			return recentPath;
+		if (TryGetLastOpenedFolderPath(out string lastOpenedPath))
+			return lastOpenedPath;
 
 		if (TryGetBlankMapPath(out string blankPath))
 			return blankPath;
@@ -228,27 +210,14 @@ public partial class VSCodeManager
 		return false;
 	}
 
-	private bool TryGetRecentMapPath(out string path)
+	private static bool TryGetLastOpenedFolderPath(out string path)
 	{
 		path = string.Empty;
-		try
-		{
-			string recentPathFile = ProjectSettings.GlobalizePath("user://recent_map_dir.txt");
-			if (File.Exists(recentPathFile))
-			{
-				string recentMapDir = File.ReadAllText(recentPathFile).Trim();
-				if (!string.IsNullOrEmpty(recentMapDir) && Directory.Exists(recentMapDir))
-				{
-					path = recentMapDir.Replace("\\", "/");
-					return true;
-				}
-			}
-		}
-		catch
-		{
-		}
+		string lastOpenedFolder = GameSettings.LastOpenedFolder;
+		if (string.IsNullOrWhiteSpace(lastOpenedFolder) || !Directory.Exists(lastOpenedFolder)) return false;
 
-		return false;
+		path = lastOpenedFolder.Replace("\\", "/");
+		return true;
 	}
 
 	private bool TryGetBlankMapPath(out string path)

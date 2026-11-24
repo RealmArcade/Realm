@@ -161,7 +161,6 @@ namespace Realm.Client.UI
 		{
 			if (OperatingSystem.IsWindows())
 			{
-				GameContext.VSCode.SaveRecentMapDir(selectedFolder);
 				GameContext.VSCode.QueueWorkspaceMetadataReload();
 			}
 
@@ -285,7 +284,6 @@ namespace Realm.Client.UI
 			{
 				if (OperatingSystem.IsWindows())
 				{
-					GameContext.VSCode.SaveRecentMapDir(selectedFolder);
 					GameContext.VSCode.QueueWorkspaceMetadataReload();
 				}
 
