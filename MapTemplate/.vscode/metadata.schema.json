@@ -329,19 +329,6 @@
                 "title": "Faction",
                 "description": "The faction the slot plays, which decides which templates it may train."
               },
-              "Controller": {
-                "type": "string",
-                "title": "Controller",
-                "description": "Whether the slot is taken by a person or played by the computer."
-              },
-              "AiType": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "title": "AiType",
-                "description": "Which computer player personality fills the slot when it is played by the computer."
-              },
               "StartLocation": {
                 "type": [
                   "string",
