@@ -5,7 +5,7 @@
 **Build final medido:** motor `d7da7594`, mapa `181d618`, `v0.0.6`
 **Wasm publicado:** `8988ee15075380845d647879db42aba8a23a7dc508e3121862cccf3cca96c167`
 **Perfil publicado:** `5373d9c2b5314e5b3d740a87082c940a3da47c88f1e94e20f08dde3276304e26`
-**Plan:** `chaos-arena-plan-tarea-jefe-v2.md`, sha256 `543bf58dd362c52f7fcff193e06ddf0682ae4d8c346b0f018bc1f3b87aebb3d3`
+**Plan:** `chaos-arena-plan-tarea-jefe-v2.md`, sha256 `209d2ef764740bf935b3541f3aec58176ba5f4dbaba89fd6390f60d71f8d2d80`
 
 Este informe sustituye al borrador del 10/11/2026 (`.artifacts-check/p3-draft/boss-report.md`), que
 decía 51,0 % y ya no es cierto.
@@ -14,7 +14,7 @@ decía 51,0 % y ya no es cierto.
 
 | Encargo | Veredicto | Cifra que lo sostiene |
 |---|---|---|
-| **1. Ninguna decisión aleatoria inclina la partida** | **Cumplido en lo demostrable.** C1 y C2 se sostienen; el azar por diseño no se promete erradicado. | Asiento 1: **51,5 %** [49,3–53,7] en 2010 partidas y **51,1 %** [48,0–54,2] en 1000. Cuatro asientos: 25,6 / 23,4 / 27,6 / 23,2 %, χ² p 0,460. Dos pasadas del mismo build: **200 / 200** semillas idénticas. Los 9 sorteos sembrados están documentados y el sitio 6 se replicó en ventana virgen (Δ **+0,90** [−3,36; +5,16], p 0,679). |
+| **1. Ninguna decisión aleatoria inclina la partida** | **Cumplido en lo demostrable.** C1 y C2 se sostienen; el azar por diseño no se promete erradicado. | Asiento 1: **51,5 %** [49,3–53,7] en 2010 partidas y **51,1 %** [48,0–54,2] en 1000. Cuatro asientos: 25,6 / 23,4 / 27,6 / 23,2 %, χ² p 0,460. Dos pasadas del mismo build: **200 / 200** semillas idénticas. Los 9 sorteos sembrados están documentados, el sitio 6 se replicó en ventana virgen (Δ **+0,90** [−3,36; +5,16], p 0,679) y el sitio 7 se midió con autocast encendido (Δ **+2,40** [−1,88; +6,68], p 0,2928). |
 | **2. Enseñar a la IA a ganar** | **Ventaja pequeña, por debajo del criterio (C3b).** Gana más de la mitad, pero no el 55 % que el pre-registro exigía. | **52,58 %** [50,36–54,73] en 2000 partidas (1051 victorias, 1 tabla), p unilateral **0,0113**, ventana virgen 82001–83000. |
 | **3. Perfeccionar el sistema automático** | **Cumplido.** Un comando entrena, mide contra fábrica, escribe perfil e informe y emite veredicto; la compuerta ya rechaza ventanas solapadas con el entrenamiento. | Corrida real del 20/11: **PUBLICAR**, 55,35 % [52,25–58,40], p 0,0004, perfil escrito con **4 pesos para 4 rasgos**, sin aviso de desajuste. |
 
@@ -43,6 +43,10 @@ Dos commits posteriores a las primeras mediciones no tocan la simulación:
 - La semilla 81001 jugada con el wasm anterior (`2137d798…`) y con el publicado (`8988ee15…`) produce
   una salida idéntica hasta el último campo (`.artifacts-check/p5-four-seat/build-pre-p5-81001.jsonl`
   frente a `build-published-81001.jsonl`, comparados con `cmp`: idénticos).
+- El A/B del sitio 7 (§2.4) corre sobre una **copia scratch** del mapa `181d618` con `AutoCast`
+  habilitado en `ability/soul_siphon`; el wasm publicado no se tocó (`8988ee15…`) y el brazo de control
+  es un scratch con la constante de ejecución a 0 (`fde18bf8…`). Es un control de medición, no un
+  diseño propuesto, igual que el centro fijo del sitio 6.
 
 Por eso las cifras de C1 y del duelo interno se pueden leer junto a las del build final. El informe lo
 declara en vez de fingir que todas salieron del mismo binario.
@@ -50,12 +54,14 @@ declara en vez de fingir que todas salieron del mismo binario.
 ### Pre-registro y su huella
 
 Las afirmaciones de §A se congelaron el 18/11/2026. El sha256 del plan **en el momento de escribir este
-informe** es `543bf58d…`. Ese valor **no** es el que tenía el documento al congelar §A: el plan se
+informe** es `209d2ef7…`. Ese valor **no** es el que tenía el documento al congelar §A: el plan se
 corrigió después del cierre de las mediciones (21–23/11) para sustituir el 56,00 % por C3b, añadir la
 réplica del sitio 6, reescribir la conclusión de §0, corregir la errata del IC del test nulo (decía
 46,9–53,1; el Wilson de 511/1000 es 48,0–54,2) y marcar los pasos completados. La última edición
 (23/11) cierra el Paso 6 en el runbook y su commit (`91187772`), deja escrita la decisión del perfil
-y anota el archivo de la ronda. Los cambios son de
+y anota el archivo de la ronda; la segunda edición del 23/11 registra el A/B del sitio 7 con autocast y el
+cierre de los defectos de plataforma, y deja abiertos solo los PRs y la decisión del balanceo del pool.
+Los cambios son de
 estado, redacción y criterio declarado; **las condiciones de aceptación de §A no se tocaron**. Aun así, el informe declara
 que la huella actual no es la de un pre-registro intacto y no la presenta como tal.
 
@@ -96,7 +102,7 @@ Inventario verificado sobre el árbol del mapa, no sobre el plan:
 | 4 | `MapScript.cs:1147` | reroll de elemento | Ídem. |
 | 5 | `MapScript.cs:1474` | reroll de héroe | Ídem. |
 | 6 | `MapScript.cs:1716-1720` | posición en el centro de la arena para unidades desocupadas | Medido dos veces; réplica en ventana virgen (2.3). |
-| 7 | `MapScript.AvatarAbilities.cs:73` | ejecución instantánea probabilística de Soul Siphon | A/B 0,25 vs 0 (2.4). |
+| 7 | `MapScript.AvatarAbilities.cs:73` | ejecución instantánea probabilística de Soul Siphon | A/B 0,25 vs 0 con autocast: 47,8 % de las unidades cambian de resultado, Δ +2,40 pts, p 0,2928 (2.4). |
 | 8 | `MapScript.cs:1761` | `_api.Shuffle(spawnSlotOrder)`: casilla de aparición por jugador | Documentado + tanda a 4 asientos. |
 | 9 | `MapScript.Match.cs:201-217` | baraja el roster y asigna qué rival ataca la oleada de cada jugador | Documentado + tanda a 4 asientos; degenerado con 2 asientos. |
 
@@ -163,23 +169,33 @@ pueda mover la tasa en ese orden.
 
 ### 2.4 Sitio 7 — Soul Siphon (C2b)
 
-A/B del ejecutable probabilístico, 0,25 vs 0, sobre 500 semillas espejadas por brazo:
+El sorteo de `MapScript.AvatarAbilities.cs:73` solo se alcanza cuando la habilidad se lanza, y el mapa
+publicado la declara con `"AutoCast": null`: ningún bot la castea y el dado no se tira nunca. La
+medición anterior de este informe (0 discordantes de 1000, Δ 0,00) era un cero **por construcción**, no
+una propiedad del sorteo. Para medirlo se habilitó el autocast en una copia scratch del mapa
+(`"AutoCast": {"Enabled": true, "ManaReserve": 0, "MinManaPercent": 0}` en `ability/soul_siphon`) y se
+compararon dos builds sobre esa misma copia: el publicado (`8988ee15…`,
+`SoulSiphonMaximumExecuteChance = 0.25`) y un scratch con la constante a 0 (`fde18bf8…`,
+`.artifacts-check/p5-sites/soulsiphon-0.wasm`). Ventana **virgen 97601–98100**, no usada por ninguna
+tanda anterior, 500 semillas espejadas por brazo (1000 partidas por brazo).
 
 | Brazo | Agrupado | IC95 | Asiento 1 | Asiento 2 |
 |---|---|---|---|---|
-| 0,25 (control `8988ee15…`) | **53,00 %** (530/1000) | 49,90–56,08 | 52,40 % (262/500) | 53,60 % (268/500) |
-| 0 (scratch `fde18bf8…`) | **53,00 %** (530/1000) | 49,90–56,08 | 52,40 % (262/500) | 53,60 % (268/500) |
+| 0,25 (`8988ee15…`) | **55,70 %** (557/1000) | 52,61–58,75 | 55,00 % (275/500) [50,62–59,31] | 56,40 % (282/500) [52,02–60,68] |
+| 0 (`fde18bf8…`) | **53,30 %** (533/1000) | 50,20–56,37 | 53,80 % (269/500) [49,42–58,12] | 52,80 % (264/500) [48,42–57,14] |
 
-Δ pareado: **0,00 pts [0,00; 0,00]**; 530 ganan en los dos brazos, 470 pierden en los dos,
-**0 discordantes de 1000**; McNemar p 1,000. Las dos salidas son idénticas partida a partida.
-Artefactos: `.artifacts-check/p5-sites/soul-siphon-025-seat{1,2}.jsonl` y `soul-siphon-000-seat{1,2}.jsonl`.
+Δ pareado (0,25 − 0, 1000 unidades semilla × asiento): **+2,40 pts [−1,88; +6,68]**, McNemar exacto
+bilateral **p 0,2928**. Discordantes **478 de 1000 (47,8 %)**: 251 los gana solo el brazo de 0,25, 227
+solo el de 0; 306 los ganan los dos y 216 los pierden los dos. Ningún brazo produce tablas.
+Artefactos: `.artifacts-check/p6-soulsiphon/025-seat{1,2}.jsonl`, `000b-seat{1,2}.jsonl` y
+`analysis.txt`; el analizador es `.artifacts-check/p6-soulsiphon/analyze-soulsiphon.mjs`.
 
-**Por qué el 0,00 no significa «la habilidad vale cero»:** no se alcanza en partidas bot contra bot.
-`metadata.json` declara `"AutoCast": null` para `ability/soul_siphon`; `StepAutoCast` solo lanza
-definiciones con `AutoCastEnabled`; el mapa nunca llama a `CastAbility` para esta habilidad y
-`ServerBots` no emite acciones de habilidad. Un partido con log de autoridad no registra ni una línea
-de Soul Siphon. C2 se cumple (el sorteo no puede inclinar un asiento en este arnés por construcción),
-pero **no se puede presentar como palanca de diseño medida**.
+**Lectura.** El dado del sitio 7 **mueve partidas y no inclina la balanza**: casi la mitad de la ventana
+cambia de resultado entre brazos, así que la habilidad no es inerte, pero el efecto neto no se separa de
+cero (el IC95 del Δ contiene el 0). C2b se cumple con cifra — el sorteo no se puede presentar como
+palanca que dé ventaja a un asiento. Queda un dato de diseño para quien decida el mapa: en el mapa
+**publicado** la habilidad sigue con `AutoCast: null` y ningún bot la lanza, así que este Δ mide la
+palanca disponible, no el comportamiento actual (§6.5).
 
 ### 2.5 La frase obligatoria
 
@@ -324,6 +340,7 @@ En las dos, el perfil publicado (`5373d9c2…`) quedó intacto y no se escribió
 | Sitio 7, Soul Siphon (93001–93500) | 1000 por brazo, 4 brazos | 3185–3193 s por brazo, 4 brazos concurrentes |
 | Sitio 6, ventana 1 (94001–94500) | 1000 por brazo, 4 brazos | 3130–3132 s por brazo |
 | Sitio 6, réplica (96001–96500) | 1000 por brazo, 4 brazos | 3060–3075 s por brazo; 3075 s de reloj de la tanda |
+| Sitio 7, Soul Siphon con autocast (97601–98100) | 1000 por brazo, 4 brazos concurrentes | 3480 s de reloj de la tanda (19:38–20:36); el brazo 0 falló al arrancar (`Console.SetOutputEncoding`) y se relanzó entero, con las 500 semillas jugadas una sola vez |
 | Corrida real de publicación | 144 + 96 + 1000 + 4 | ≈ 35 min |
 
 ## 6. Limitaciones
@@ -338,8 +355,10 @@ En las dos, el perfil publicado (`5373d9c2…`) quedó intacto y no se escribió
 4. **El brazo fijo es un control, no un diseño propuesto**, y el sitio 6 se midió con el campeón contra
    fábrica, así que la asimetría por asiento incluye la del campeón. La comparación entre brazos sí está
    pareada por semilla y asiento.
-5. **Soul Siphon no se puede medir con bots.** El A/B demuestra que el sorteo no inclina un asiento en
-   este arnés; no mide cuánto vale la habilidad como palanca.
+5. **Soul Siphon se midió con autocast encendido, no en el mapa publicado.** El A/B de §2.4 usa una
+   copia scratch del mapa con `AutoCast` habilitado; en el mapa publicado la habilidad sigue con
+   `AutoCast: null` y ningún bot la lanza. El Δ mide la palanca disponible si se encendiera, no el
+   comportamiento actual del mapa.
 6. **C3b es una sola réplica.** El 52,58 % no se ha vuelto a medir en una tercera ventana virgen. El IC
    [50,36–54,73] es el que hay.
 7. **La causa de la diferencia 56,00 % → 52,58 % no está establecida.** El solape con el entrenamiento
@@ -350,6 +369,15 @@ En las dos, el perfil publicado (`5373d9c2…`) quedó intacto y no se escribió
    Δ del sitio 6 sí es homogéneo entre sus dos ventanas (Q 0,00, I² 0 %).
 10. **La huella del plan cambió después del pre-registro**, como se declara en la sección 1. Las
     condiciones de §A no se tocaron, pero el documento no es un pre-registro intacto.
+11. **`IsPlayerComputer` cambia de comportamiento para el asiento 0.** Antes devolvía `true` sin
+    consultar nada cuando el índice era 0; ahora responde con lo que publica el mapa
+    (`ScriptPlayersState`) o, en su defecto, con el lobby (`PeerId < 0`). Afecta a
+    `ClientRpcService.TryResolveLocalPlayer`, que descarta los RPC de mapa cuando el índice es de un
+    ordenador: con el código anterior, todo RPC de mapa dirigido al asiento 0 se descartaba siempre.
+    Compila con 0 errores, pero no se jugó una partida con el cliente Godot para verlo en vivo.
+12. **`Realm.Godot/.vscode/map_schema.json` es manual.** El build solo regenera
+    `Realm.MapEditorExtension/metadata.schema.json` y su copia en `MapTemplate/.vscode/`, así que el
+    borrado de `Controller`/`AiType` se aplicó a mano en ese fichero (no está trackeado por git).
 
 ## 7. Trazabilidad — cada cifra con su fichero, n, IC y p
 
@@ -378,7 +406,7 @@ contra el 50 % no es el test del sitio.
 | Sitio 6, réplica Δ | +0,90 pts | los cuatro | 1000 unidades | −3,36 a +5,16 | 0,679 bilateral; McNemar 0,713 |
 | Sitio 6, Δ agrupado | +2,57 pts | las dos ventanas (ocho ficheros) | 2000 unidades | −0,46 a +5,61 | 0,096; Q 0,00, p 0,973, I² 0 % |
 | Sitio 6, interacción de asiento | −2,45 pts | las dos ventanas | 1000 unidades | −8,51 a +3,61 | 0,428 |
-| Sitio 7, A/B Soul Siphon | 53,00 % en los dos brazos | `.artifacts-check/p5-sites/soul-siphon-025-seat{1,2}.jsonl`, `soul-siphon-000-seat{1,2}.jsonl` | 1000 por brazo | 49,90–56,08 en los dos | Δ 0,00 [0,00; 0,00]; McNemar 1,000 |
+| Sitio 7, A/B Soul Siphon con autocast | 55,70 % (557) vs 53,30 % (533) | `.artifacts-check/p6-soulsiphon/025-seat{1,2}.jsonl`, `000b-seat{1,2}.jsonl` | 1000 por brazo (500 semillas × 2 asientos) | 52,61–58,75 / 50,20–56,37 | Δ **+2,40** [−1,88; +6,68]; McNemar exacto **0,2928**; 478 discordantes |
 | Determinismo, dos pasadas | 200 / 200 idénticas | `.artifacts-check/probe-tiebreak/passA-90001-90200.jsonl`, `passB-90001-90200.jsonl` | 200 | — | 0 diferencias |
 | Determinismo, 4 asientos | 3 / 3 idénticas | `.artifacts-check/p5-four-seat/determinism-replay.jsonl` | 3 | — | — |
 | Compuerta, corrida real | 55,35 % (553 + 1 tabla) | `.artifacts-check/p4-publish/Chaos Arena_bot.publish-seat{1,2}.jsonl` | 1000 | 52,25–58,40 | 0,0004 unilateral |
@@ -401,6 +429,13 @@ contra el 50 % no es el test del sitio.
   borrado está en el commit `91187772`, que toca esos dos ficheros y ningún otro.
 - **Decisión del perfil publicado: se mantiene** (ver §4, precisión 4): pasa el umbral del jefe, no el
   listón propio del 55 %.
+- **Defectos de plataforma del sistema de IA (23/11/2026).** `IsPlayerComputer` ya no declara el asiento
+  0 como ordenador por decreto (§6.11); un perfil con vector de pesos de longitud equivocada se registra
+  y se publica en vez de caer al perfil por defecto en silencio (`BotController.ProfileWeightsRejected`
+  → `ServerBots.ReportProfileWeightsRejection`); y `Controller`/`AiType` se borraron de
+  `MapPlayerSlotConfig` —nadie los leía, escribía ni validaba— con los esquemas regenerados y
+  `verify-schemas.ps1` en verde. Compilan con 0 errores `Realm.Client`, `Realm.Ecs` y
+  `Realm.ListenServer`.
 - **Fase 1: no se abre (23/11/2026).** El encargo 2 se cierra con «ventaja pequeña»: 52,58 %
   [50,36–54,73] sobre ventana virgen, p 0,0113, que sí supera el umbral del jefe (>50 %). La Fase 1
   (vector de combate 8 → 12: `DamageTradeRatio`, `ThreatTradeRatio`, `RangeAdvantage`, `FocusValue`)
@@ -411,9 +446,12 @@ contra el 50 % no es el test del sitio.
 ### Pendiente
 
 1. **PRs.** El cierre operativo está hecho por su mitad de archivo: `.artifacts-check/runs/2026-11-23/`
-   guarda el wasm publicado, los dos perfiles y los 35 ficheros citados, con un `manifest.md` que da
-   sha256 de los 38, y el Paso 6 quedó en el commit `91187772`. Queda abrir los PRs de las dos ramas
-   (`feature/chaos-arena-teach-ai` en el motor, `feature/chaos-arena-fair-draft` en el mapa).
+   guarda el wasm publicado, los dos perfiles y los ficheros citados, con un `manifest.md` que da su
+   sha256. Queda abrir los PRs de las dos ramas (`feature/chaos-arena-teach-ai` en el motor,
+   `feature/chaos-arena-fair-draft` en el mapa). **No se empuja nada sin autorización.**
+2. **Balance del pool de héroes.** Los 5 héroes fuera de |z| > 2 de §6.1 siguen como están: el pool no
+   se toca en este cierre. La decisión (opción 1: re-ejecutar el balanceo después del rediseño de
+   héroes y habilidades) es del jefe y queda encolada para ese re-run; este informe no la abre.
 
 ### Lo que no se promete
 
@@ -445,6 +483,7 @@ Analizadores: `analyze-replication.mjs` (C3), `analyze-sites.mjs` (sitios 6 y 7)
 | Pre-registro de la réplica | `.artifacts-check/p5-sites/site6-replica-prereg.md` |
 | Wasm de control y fijo | `.artifacts-check/p5-sites/control-025.wasm`, `fixed-center.wasm` |
 | Logs de los brazos | `.artifacts-check/p5-sites/logs/site6b-*.log`, `replica-wave.log` |
+| A/B Soul Siphon con autocast | `.artifacts-check/p6-soulsiphon/` (`025-seat{1,2}.jsonl`, `000b-seat{1,2}.jsonl`, `analysis.txt`, `analyze-soulsiphon.mjs`) |
 | Réplica C3 | `.artifacts-check/p5-replication/arm-a-champion-seat1.jsonl`, `arm-b-champion-seat2.jsonl` |
 | Duelo interno | `.artifacts-check/p2-duel/duel-seat{1,2}-70001-71000.jsonl` |
 | Pool C1 | `.artifacts-check/p1b-c1/pool-66001-68000.jsonl`, `pool-68001-68010.jsonl`, `final.balance.md` |
