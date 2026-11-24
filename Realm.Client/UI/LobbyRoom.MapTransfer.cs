@@ -9,13 +9,11 @@ using NSec.Cryptography;
 using Realm.Client.Network;
 using Realm.Shared;
 using Realm.Shared.Network;
-using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
-using Realm.Shared.Accounts;
 
 namespace Realm.Client.UI;
 
@@ -49,7 +47,7 @@ public partial class LobbyRoom
 		_downloadProgress.AddThemeFontSizeOverride("font_size", 12);
 		AddChild(_downloadProgress);
 
-		bool isReady = !string.IsNullOrEmpty(Lobby.ActiveMapName) && MapAssetManager.IsMapDownloaded(Lobby.ActiveMapName);
+		bool isReady = Lobby.HoldsActiveMapPackage;
 		if (isReady)
 		{
 			_downloadProgress.Value = 100.0f;

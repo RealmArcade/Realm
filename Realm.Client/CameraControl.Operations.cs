@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -18,10 +18,78 @@ public partial class CameraControl : Camera3D
 		TargetHeight = 35.0f;
 		_isTopDown = false;
 		FollowTarget = null;
+		_pendingAttachedFollowUnitServerId = 0;
+		_attachedFollowConfigured = false;
+		_attachedViewActive = false;
+		_attachedFollowNeedsSnap = false;
 		if (IsFreeCamera)
 		{
 			SetFreeCamera(false);
 		}
+	}
+
+	public void SetScriptCameraFollowUnit(
+		int serverUnitId,
+		float distance,
+		float heightOffset,
+		float pitchDegrees,
+		float yawOffsetDegrees,
+		bool alignToUnitFacing,
+		float smoothing,
+		bool lockCameraInput)
+	{
+		IsLocked = lockCameraInput;
+		_attachedViewActive = false;
+
+		if (serverUnitId <= 0)
+		{
+			FollowTarget = null;
+			_pendingAttachedFollowUnitServerId = 0;
+			_attachedFollowConfigured = false;
+			return;
+		}
+
+		_attachedFollowDistance = Mathf.Max(0.5f, distance);
+		_attachedFollowHeightOffset = heightOffset;
+		_attachedFollowPitchDegrees = Mathf.Clamp(pitchDegrees, -89.0f, 89.0f);
+		_attachedFollowYawOffsetDegrees = yawOffsetDegrees;
+		_attachedFollowAlignToUnitFacing = alignToUnitFacing;
+		_attachedFollowSmoothing = smoothing;
+		_attachedFollowConfigured = true;
+		_attachedFollowNeedsSnap = true;
+		_targetPitch = _attachedFollowPitchDegrees;
+
+		if (GameContext.Host != null && GameContext.Host.TryGetUnit3DByServerId(serverUnitId, out Unit3D? unit3D))
+		{
+			FollowTarget = unit3D;
+			_pendingAttachedFollowUnitServerId = 0;
+		}
+		else
+		{
+			FollowTarget = null;
+			_pendingAttachedFollowUnitServerId = serverUnitId;
+		}
+	}
+
+	public void SetScriptCameraView(float yawDegrees, float pitchDegrees, float height, bool lockCameraInput)
+	{
+		FollowTarget = null;
+		_pendingAttachedFollowUnitServerId = 0;
+		_attachedFollowConfigured = false;
+		_attachedViewActive = true;
+		_targetYaw = yawDegrees;
+		_targetPitch = Mathf.Clamp(pitchDegrees, -89.0f, 89.0f);
+		TargetHeight = Mathf.Max(1.0f, height);
+		IsLocked = lockCameraInput;
+	}
+
+	public void ResetScriptCamera()
+	{
+		IsLocked = false;
+		_attachedFollowConfigured = false;
+		_attachedViewActive = false;
+		_pendingAttachedFollowUnitServerId = 0;
+		ResetCamera();
 	}
 
 	public void ToggleFreeCamera()

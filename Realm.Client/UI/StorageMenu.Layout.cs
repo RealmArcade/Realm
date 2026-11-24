@@ -229,7 +229,7 @@ public partial class StorageMenu
 
 		_selectedAuthorLabel = new Label();
 		_selectedAuthorLabel.Name = "SelectedAuthorLabel_Label";
-		_selectedAuthorLabel.Text = "Author: Unknown";
+		_selectedAuthorLabel.Text = TranslationServer.Translate("Author: Unknown");
 		_selectedAuthorLabel.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		_selectedAuthorLabel.AddThemeFontSizeOverride("font_size", 13);
 		_selectedAuthorLabel.MouseFilter = MouseFilterEnum.Ignore;
@@ -237,14 +237,14 @@ public partial class StorageMenu
 
 		_selectedGenreLabel = new Label();
 		_selectedGenreLabel.Name = "SelectedGenreLabel_Label";
-		_selectedGenreLabel.Text = "Genre: Custom Map";
+		_selectedGenreLabel.Text = TranslationServer.Translate("Genre: Custom Map");
 		_selectedGenreLabel.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
 		_selectedGenreLabel.AddThemeFontSizeOverride("font_size", 12);
 		metaVBox.AddChild(_selectedGenreLabel);
 
 		_selectedTotalSizeLabel = new Label();
 		_selectedTotalSizeLabel.Name = "SelectedTotalSizeLabel_Label";
-		_selectedTotalSizeLabel.Text = "Total Storage: 0 MB";
+		_selectedTotalSizeLabel.Text = TranslationServer.Translate("Total Storage: 0 MB");
 		_selectedTotalSizeLabel.AddThemeColorOverride("font_color", new Color(0.8f, 0.8f, 0.8f));
 		_selectedTotalSizeLabel.AddThemeFontSizeOverride("font_size", 12);
 		metaVBox.AddChild(_selectedTotalSizeLabel);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Realm.Ecs;
 using Godot;
@@ -193,7 +193,8 @@ public partial class GameHost
 
 			if (shouldDriveUnitAnimations && !unit3D.IsCulled && unit3D.Visible)
 			{
-				unit3D.PlayAnimation(DetermineUnitAnimation(item.Entity));
+				string action = DetermineUnitAnimation(item.Entity);
+				unit3D.PlayAnimation(action == "Death" || unit3D.AnimationsFrozen ? action : unit3D.ScriptAnimationLoop ?? action);
 			}
 
 			unit3D.StepManualAnimation(fDelta);

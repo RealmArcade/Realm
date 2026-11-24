@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Realm.Client.Network;
 using Realm.Client.UI;
@@ -16,12 +16,6 @@ public static class MapSelectionService
 	{
 		int requestedIndex = IndexOfMap(maps, requestedMapName);
 		if (requestedIndex >= 0) return requestedIndex;
-
-		if (BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE)
-		{
-			int festivalIndex = IndexOfMap(maps, BuildFlags.FESTIVAL_FEATURED_MAP_NAME);
-			if (festivalIndex >= 0) return festivalIndex;
-		}
 
 		int lastHostedIndex = IndexOfMap(maps, GameSettings.LastHostedMapName);
 		if (lastHostedIndex >= 0) return lastHostedIndex;
@@ -67,10 +61,27 @@ public static class MapSelectionService
 		return false;
 	}
 
-	public static bool IsBuildMismatch(string mapBuildNumber)
+	/// <summary>
+	///     Whether this build is too old for a map. A map states the engine generation it was authored for, and only a
+	///     newer generation is a refusal: an older one is played from a private copy whose data is migrated forward, so a
+	///     map's build number no longer decides whether it opens.
+	/// </summary>
+	/// <param name="mapEngineGeneration">The generation the map declares.</param>
+	/// <returns>Whether the map was made for a newer engine than this build.</returns>
+	public static bool IsEngineGenerationUnsupported(int mapEngineGeneration)
 	{
-		return !string.IsNullOrEmpty(mapBuildNumber) &&
-		       !string.Equals(mapBuildNumber, RealmVersion.GameBuildNumber, StringComparison.OrdinalIgnoreCase);
+		return mapEngineGeneration > RealmVersion.EngineGeneration;
+	}
+
+	/// <summary>
+	///     Whether a map was authored for an older generation this build still upgrades, which the map details state as a
+	///     note rather than as a warning.
+	/// </summary>
+	/// <param name="mapEngineGeneration">The generation the map declares.</param>
+	/// <returns>Whether the map predates this engine generation.</returns>
+	public static bool IsOlderEngineGeneration(int mapEngineGeneration)
+	{
+		return mapEngineGeneration < RealmVersion.EngineGeneration;
 	}
 
 	private static string NormalizeMapName(string mapName)

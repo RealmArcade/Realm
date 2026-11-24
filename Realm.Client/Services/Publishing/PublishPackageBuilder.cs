@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -119,44 +119,5 @@ public static class PublishPackageBuilder
 			pubKeyBase64,
 			manifest.Files.Values.ToList(),
 			hashToRelativePath);
-	}
-}
-
-/// <summary>The greenlight review state the registry reports for one map and author key.</summary>
-public readonly record struct GreenlightStatus(bool IsGreenlit, int VerifiedGoodReviews, int TotalReviews, double AverageRating);
-
-/// <summary>
-/// Asks the registry whether a map may be published yet. A registry that cannot answer is not a refusal, so a
-/// failed lookup returns no status and a warning line for the caller to log.
-/// </summary>
-public static class PublishGreenlightProbe
-{
-	public static async Task<(GreenlightStatus? Status, string? Warning)> CheckAsync(
-		string seedServerUrl, string mapTitle, string mapVersion, Key authorshipKey)
-	{
-		try
-		{
-			using var checkClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-			string creatorPubKey = Convert.ToBase64String(authorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
-
-			string statusKey = !string.IsNullOrEmpty(creatorPubKey)
-				? $"{Uri.EscapeDataString(mapTitle)}_{Uri.EscapeDataString(mapVersion)}_{Uri.EscapeDataString(creatorPubKey)}"
-				: $"{Uri.EscapeDataString(mapTitle)}_{Uri.EscapeDataString(mapVersion)}";
-			string statusUrl = $"{seedServerUrl.TrimEnd('/')}/api/maps/greenlight_status/{statusKey}";
-			var statusRes = await checkClient.GetAsync(statusUrl);
-			if (!statusRes.IsSuccessStatusCode) return (null, null);
-
-			string statusJson = await statusRes.Content.ReadAsStringAsync();
-			var statusNode = JsonNode.Parse(statusJson);
-			return (new GreenlightStatus(
-				statusNode?["isGreenlit"]?.GetValue<bool>() ?? false,
-				statusNode?["verifiedGoodReviewsCount"]?.GetValue<int>() ?? 0,
-				statusNode?["totalReviewsCount"]?.GetValue<int>() ?? 0,
-				statusNode?["averageRating"]?.GetValue<double>() ?? 0.0), null);
-		}
-		catch (Exception ex)
-		{
-			return (null, $"[WARN] Could not verify greenlight status: {ex.Message}");
-		}
 	}
 }

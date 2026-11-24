@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
@@ -74,6 +74,13 @@ public partial class CameraControl : Camera3D
 		float fDelta = (float)delta;
 
 		if (!HasCameraState) return;
+
+		if (_pendingAttachedFollowUnitServerId > 0 && GameContext.Host != null && GameContext.Host.TryGetUnit3DByServerId(_pendingAttachedFollowUnitServerId, out Unit3D? pendingUnit))
+		{
+			FollowTarget = pendingUnit;
+			_pendingAttachedFollowUnitServerId = 0;
+			_attachedFollowNeedsSnap = true;
+		}
 
 		// A map driving the camera owns it for as long as it says so: the player's panning, zooming, edge scrolling and
 		// rotation are not read, and the shot places the camera itself.

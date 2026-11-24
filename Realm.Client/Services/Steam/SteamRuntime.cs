@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
@@ -9,6 +9,9 @@ namespace Realm.Client.Services;
 [GlobalClass]
 public partial class SteamRuntime : Node
 {
+	/// <summary>The launch argument Steam writes when it starts this game from a friend's Join Game action.</summary>
+	private const string ConnectLobbyArgument = "+connect_lobby";
+
 	private string? _pendingInvitedLobbyId;
 	private string _pendingInviterName = string.Empty;
 
@@ -16,6 +19,7 @@ public partial class SteamRuntime : Node
 	{
 		GameContext.Steam.Start();
 		GameContext.Steam.LobbyInviteAccepted += OnLobbyInviteAccepted;
+		ReadConnectLobbyArgument();
 
 		SetProcess(true);
 	}
@@ -23,6 +27,7 @@ public partial class SteamRuntime : Node
 	public override void _Process(double delta)
 	{
 		GameContext.Steam.Pump();
+		GameContext.Steam.RefreshPresence();
 		JoinPendingInvite();
 	}
 
@@ -31,7 +36,36 @@ public partial class SteamRuntime : Node
 		if (what == NotificationWMCloseRequest || what == NotificationExitTree)
 		{
 			GameContext.Steam.LobbyInviteAccepted -= OnLobbyInviteAccepted;
+			GameContext.Steam.ClearPresence();
 			GameContext.Steam.Stop();
+		}
+	}
+
+	/// <summary>
+	///     Reads the lobby Steam was asked to start this game in, which is the launch argument a friend's Join Game action
+	///     carries. It is the same path an accepted invitation takes, so a launch and an invitation end in one join.
+	/// </summary>
+	private void ReadConnectLobbyArgument()
+	{
+		try
+		{
+			string[] arguments = OS.GetCmdlineArgs();
+			for (int index = 0; index < arguments.Length - 1; index++)
+			{
+				if (!string.Equals(arguments[index], ConnectLobbyArgument, StringComparison.OrdinalIgnoreCase)) continue;
+
+				string lobbyId = arguments[index + 1].Trim();
+				if (lobbyId.Length == 0 || !ulong.TryParse(lobbyId, out ulong steamLobbyId) || steamLobbyId == 0) return;
+
+				GameLog.LogToConsole($"[Steam] started with a request to join Steam lobby {lobbyId}");
+				_pendingInvitedLobbyId = lobbyId;
+				_pendingInviterName = string.Empty;
+				return;
+			}
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogError($"[Steam] the launch arguments could not be read: {exception.Message}");
 		}
 	}
 

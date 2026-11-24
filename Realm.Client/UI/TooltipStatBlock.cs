@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using Godot;
 using Realm.Client.Core;
 using Realm.Shared.Metadata;
 
@@ -18,7 +19,7 @@ public static class TooltipStatBlock
 		if (upgrade.MaxLevel > 1)
 		{
 			builder.Append('\n');
-			builder.Append($"Up to {upgrade.MaxLevel} times.");
+			builder.Append(string.Format(TranslationServer.Translate("Up to {0} times."), upgrade.MaxLevel));
 		}
 
 		return builder.ToString();
@@ -47,7 +48,7 @@ public static class TooltipStatBlock
 		if (stacks > 1)
 		{
 			builder.Append('\n');
-			builder.Append($"At {stacks} copies.");
+			builder.Append(string.Format(TranslationServer.Translate("At {0} copies."), stacks));
 		}
 
 		return builder.ToString();

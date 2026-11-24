@@ -13,7 +13,9 @@ namespace Realm.Client.Services;
 
 public class MetadataService
 {
-	public const string UgcLicenseUrl = "https://www.realm-game.com/RealmPlatform_UGC_License_v1.txt";
+	public const string UgcLicenseVersion = "2.0";
+
+	public const string UgcLicenseUrl = "https://www.realm-game.com/RealmPlatform_UGC_License_v2.txt";
 
 	public event Action<string>? MetadataSaved;
 
@@ -200,7 +202,6 @@ public class MetadataService
 		ValidateEntityList(metadata.Templates?.Resources, r => r.TemplateID, r => r.Scale, "Resources", result, entityIds);
 		ValidateEntityList(metadata.Templates?.Props, p => p.TemplateID, p => p.Scale, "Props", result, entityIds);
 
-		ValidateDependencies(metadata.Dependencies, result);
 		ValidatePlayerSlots(metadata.MapProperties?.PlayerSlots, result);
 		ValidatePlayablePlayerSlots(metadata.MapProperties, result);
 
@@ -228,24 +229,6 @@ public class MetadataService
 			if (scale <= 0f)
 			{
 				result.Warnings.Add($"{domainName} '{id}' has non-positive scale {scale}.");
-			}
-		}
-	}
-
-	private static void ValidateDependencies(List<MapDependencyMetadata> dependencies, MapValidationResult result)
-	{
-		if (dependencies == null) return;
-
-		var depIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		foreach (var dep in dependencies)
-		{
-			if (string.IsNullOrWhiteSpace(dep.Id))
-			{
-				result.Errors.Add("Found dependency entry with empty Id.");
-			}
-			else if (!depIds.Add(dep.Id))
-			{
-				result.Warnings.Add($"Duplicate dependency Id '{dep.Id}'.");
 			}
 		}
 	}
@@ -295,7 +278,6 @@ public class MetadataService
 		if (metadata == null) return;
 
 		metadata.MapProperties ??= new MapInfoMetadata();
-		metadata.Dependencies ??= new List<MapDependencyMetadata>();
 		metadata.Templates ??= new TemplateContainer();
 		metadata.Templates.Units ??= new List<UnitMetadata>();
 		metadata.Templates.Buildings ??= new List<UnitMetadata>();
@@ -375,25 +357,5 @@ public class MetadataService
 		if (metadata == null) return;
 		metadata.MapProperties ??= new MapInfoMetadata();
 		metadata.MapProperties.MapDescription = description;
-	}
-
-	public void AddOrUpdateDependency(MapMetadata metadata, MapDependencyMetadata dependency)
-	{
-		if (metadata == null || dependency == null || string.IsNullOrWhiteSpace(dependency.Id)) return;
-		int index = metadata.Dependencies.FindIndex(d => string.Equals(d.Id, dependency.Id, StringComparison.OrdinalIgnoreCase));
-		if (index >= 0)
-		{
-			metadata.Dependencies[index] = dependency;
-		}
-		else
-		{
-			metadata.Dependencies.Add(dependency);
-		}
-	}
-
-	public bool RemoveDependency(MapMetadata metadata, string dependencyId)
-	{
-		if (metadata?.Dependencies == null || string.IsNullOrWhiteSpace(dependencyId)) return false;
-		return metadata.Dependencies.RemoveAll(d => string.Equals(d.Id, dependencyId, StringComparison.OrdinalIgnoreCase)) > 0;
 	}
 }

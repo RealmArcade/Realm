@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3]
+﻿[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://UI/MainMenu.cs" id="1_script"]
 
@@ -102,12 +102,6 @@ size_flags_horizontal = 4
 focus_mode = 0
 
 [node name="MapDiscoveryButton" type="Button" parent="CentralPanel/VBoxContainer"]
-custom_minimumSize = Vector2(340, 50)
-layout_mode = 2
-size_flags_horizontal = 4
-focus_mode = 0
-
-[node name="CreatorDiscoveryButton" type="Button" parent="CentralPanel/VBoxContainer"]
 custom_minimumSize = Vector2(340, 50)
 layout_mode = 2
 size_flags_horizontal = 4
@@ -227,12 +221,6 @@ size_flags_horizontal = 4
 focus_mode = 0
 
 [node name="YoutubeButton" type="Button" parent="SocialPopover/MarginContainer/PopoverVBox"]
-custom_minimumSize = Vector2(270, 44)
-layout_mode = 2
-size_flags_horizontal = 4
-focus_mode = 0
-
-[node name="DonateButton" type="Button" parent="SocialPopover/MarginContainer/PopoverVBox"]
 custom_minimumSize = Vector2(270, 44)
 layout_mode = 2
 size_flags_horizontal = 4

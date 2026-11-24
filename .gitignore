@@ -1,4 +1,4 @@
-.cloud-attachments/
+﻿.cloud-attachments/
 .freebuff/
 .vs/
 .llmPrompts/
@@ -20,18 +20,15 @@ wasi_sdk_embedded/
 vscode_extensions_dist/
 GeneratedFiles/
 *.trx
-Realm.AdminServer/.data/
 *.key
 *.privatekey
 *.admin_key
 admin_private.key
-servers.json
-Realm.Clientservers.json
 steam_appid.txt
 # The build stamp scripts/sync-version.ps1 writes for the build that is currently checked out.
 version.txt
 Realm.Client/steam_api64.dll
-Realm.AdminServer/appsettings.json
+Realm.ListenServerHost/steam_api64.dll
 .godot/
 /android/
 .codegraph/

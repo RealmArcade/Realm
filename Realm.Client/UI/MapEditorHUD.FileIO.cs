@@ -17,7 +17,6 @@ using Realm.Client.UI.MapEditor;
 using Realm.Ecs.Services;
 using Realm.Shared.Distribution;
 using Environment = System.Environment;
-using HttpClient = System.Net.Http.HttpClient;
 using Key = NSec.Cryptography.Key;
 using static Godot.Control;
 using Realm.Client.Utils;
@@ -654,8 +653,7 @@ namespace Realm.Client.UI
 			}
 
 			string publicKeyBase64 = Convert.ToBase64String(authorshipKey.PublicKey.Export(KeyBlobFormat.RawPublicKey));
-			string seedServerUrl = GameContext.Host != null && GodotObject.IsInstanceValid(GameContext.Lobby) ? GameContext.Lobby.RegistryServerUrl : ServersConfigHelper.GetDefaultServerUrl();
-			bool signed = await GameContext.MapStorageService.SignMapMetadataAsync(workspace, mapTitle, mapVersion, author, authorshipKey, publicKeyBase64, seedServerUrl);
+			bool signed = await GameContext.MapStorageService.SignMapMetadataAsync(workspace, mapTitle, mapVersion, author, authorshipKey, publicKeyBase64);
 			AppendWasmConsoleLog(signed ? "[INFO] metadata.json carries its author key, its contributor list and its signature." : "[WARN] metadata.json could not be signed.");
 		}
 

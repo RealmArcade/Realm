@@ -452,7 +452,7 @@ public partial class GameHost
 		_peerIdToPlayerEntityMap[1] = playerEntities[1];
 		_peerIdToPlayerEntityMap[-1] = playerEntities[2];
 
-		string localPlayerName = GameContext.Lobby?.PlayerDisplayName ?? TranslationServer.Translate("Guest");
+		string localPlayerName = GameContext.Lobby?.PlayerDisplayName ?? TranslationServer.Translate("Player");
 		UpdateScriptPlayerState(0, "Neutral", active: true, isComputer: true, teamIndex: 0);
 		UpdateScriptPlayerState(1, localPlayerName, active: true, isComputer: false, teamIndex: 1);
 		UpdateScriptPlayerState(2, "Enemy_AI", active: true, isComputer: true, teamIndex: 2);

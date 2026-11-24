@@ -11,7 +11,16 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Realm.ListenServer\Realm.ListenServer.csproj" />
+    <PackageReference Include="Steamworks.NET" Version="2024.8.0" GeneratePathProperty="true" />
   </ItemGroup>
+  <Target Name="PlaceSteamworksNativeLibrary" AfterTargets="Build" Condition="Exists('$(MSBuildThisFileDirectory)..\ThirdPartyBinaries\steam_api64.dll')">
+    <!-- The authority initialises Steamworks for its own Steam P2P socket, so it needs the native library beside its
+         executable as well as the client does. -->
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\ThirdPartyBinaries\steam_api64.dll" DestinationFolder="$(MSBuildThisFileDirectory)" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PlaceSteamworksManagedLibrary" AfterTargets="Build">
+    <Copy SourceFiles="$(PkgSteamworks_NET)\runtimes\win-x64\lib\netstandard2.1\Steamworks.NET.dll" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+  </Target>
   <ItemGroup>
     <None Include="..\Realm.Client\locale\*.json" Link="locale\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

@@ -301,28 +301,15 @@ public partial class ReplayListPanel : Control
 		return panel;
 	}
 
-	private void ShowVersionMismatchPopup(string replayVersion, string currentVersion, string path)
+	/// <summary>
+	///     A replay is playable while the format it was recorded in stays readable, and one that is not says so in a single
+	///     line. There is no second build to run and no page to fetch one from, so this never offers to start an older game.
+	/// </summary>
+	private void ShowUnreadableReplayNotice(string replayVersion, string currentVersion)
 	{
-		bool versionExistsLocally = File.Exists(LobbyManager.GetVersionExecutablePath(replayVersion));
+		string message = $"{string.Format(Tr("Replay Version: {0}"), replayVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{Tr("This replay was recorded on an earlier version of Realm and this build cannot read it.")}";
 
-		string promptText = versionExistsLocally
-			? Tr("The running game version doesn't match the replay file. Re-launch game with correct version?")
-			: Tr("The required game version is not installed. Download it?");
-		string message = $"{string.Format(Tr("Replay Version: {0}"), replayVersion)}\n{string.Format(Tr("Current Version: {0}"), currentVersion)}\n\n{promptText}";
-
-		GameContext.UserInterface?.ShowConfirmationDialog(message, () =>
-		{
-			if (versionExistsLocally)
-			{
-				string targetExe = LobbyManager.GetVersionExecutablePath(replayVersion);
-				OS.CreateProcess(targetExe, new string[] { });
-				GetTree().Quit();
-			}
-			else
-			{
-				OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
-			}
-		}, confirmText: versionExistsLocally ? "RELAUNCH" : "DOWNLOAD", titleOverride: "VERSION MISMATCH");
+		GameContext.UserInterface?.ShowPopupMessage(Tr("REPLAY NOT PLAYABLE"), message);
 	}
 
 	private void OnPlayReplayPressed(string path)
@@ -333,7 +320,7 @@ public partial class ReplayListPanel : Control
 		var header = ReplayPlaybackManager.ReadReplayHeader(path, out totalTicks);
 		if (header != null && !string.IsNullOrEmpty(header.GameVersion) && header.GameVersion != RealmVersion.GameBinaryVersion)
 		{
-			ShowVersionMismatchPopup(header.GameVersion, RealmVersion.GameBinaryVersion, path);
+			ShowUnreadableReplayNotice(header.GameVersion, RealmVersion.GameBinaryVersion);
 			return;
 		}
 

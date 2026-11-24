@@ -89,6 +89,46 @@ public partial interface IGameAPI
 	void ResetMapCameraBoundaries(int playerIndex) => ResetPlayerCameraBounds(playerIndex);
 
 	/// <summary>
+	/// Attaches the specified player's camera to follow a target unit with configurable distance, height offset, angles, and smoothing.
+	/// Pass <see cref="UnitId.Invalid"/> to stop following while keeping current camera settings, or call <see cref="ResetPlayerCamera(int)"/> to restore defaults.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="unit">The unit to follow, or <see cref="UnitId.Invalid"/> to clear the follow target.</param>
+	/// <param name="distance">Horizontal distance away from the followed unit in world units.</param>
+	/// <param name="heightOffset">Vertical offset above the followed unit's position in world units.</param>
+	/// <param name="pitchDegrees">Camera pitch angle in degrees (negative values look downward, e.g. -25 for chase view or -55 for RTS view).</param>
+	/// <param name="yawOffsetDegrees">Horizontal yaw angle in degrees (world yaw when <paramref name="alignToUnitFacing"/> is false, or offset relative to unit facing when true).</param>
+	/// <param name="alignToUnitFacing">True to orient the camera behind the unit's facing direction; false to use a fixed world yaw.</param>
+	/// <param name="smoothing">Follow interpolation responsiveness in units per second; zero or negative snaps immediately.</param>
+	/// <param name="lockCameraInput">True to prevent manual player camera panning, zooming, and rotation while active.</param>
+	void SetPlayerCameraFollowUnit(
+		int playerIndex,
+		UnitId unit,
+		float distance = 18.0f,
+		float heightOffset = 8.0f,
+		float pitchDegrees = -30.0f,
+		float yawOffsetDegrees = 0.0f,
+		bool alignToUnitFacing = false,
+		float smoothing = 8.0f,
+		bool lockCameraInput = false);
+
+	/// <summary>
+	/// Configures the specified player's camera orientation, height, and input lock state without attaching to a unit.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	/// <param name="yawDegrees">Target horizontal yaw angle in degrees.</param>
+	/// <param name="pitchDegrees">Target vertical pitch angle in degrees.</param>
+	/// <param name="height">Target camera height in world units.</param>
+	/// <param name="lockCameraInput">True to prevent manual player camera panning, zooming, and rotation.</param>
+	void SetPlayerCameraView(int playerIndex, float yawDegrees, float pitchDegrees, float height, bool lockCameraInput = false);
+
+	/// <summary>
+	/// Resets the specified player's camera follow target, orientation, height, and input lock back to default RTS controls.
+	/// </summary>
+	/// <param name="playerIndex">Zero-based player slot index.</param>
+	void ResetPlayerCamera(int playerIndex);
+
+	/// <summary>
 	/// Sets whether a specific built-in HUD element is visible for the designated player.
 	/// Persists across HUD refreshes and reconnects.
 	/// </summary>

@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3]
+﻿[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://UI/GameOver.cs" id="1_script"]
 [ext_resource type="Script" path="res://UI/TimelineGraph.cs" id="3_graph"]
@@ -204,10 +204,4 @@ focus_mode = 0
 custom_minimum_size = Vector2(300, 60)
 layout_mode = 2
 focus_mode = 0
-
-[node name="BtnWriteReview" type="Button" parent="BottomButtons"]
-custom_minimum_size = Vector2(300, 60)
-layout_mode = 2
-focus_mode = 0
-
 

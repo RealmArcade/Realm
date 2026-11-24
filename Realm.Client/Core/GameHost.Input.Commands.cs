@@ -36,19 +36,19 @@ public partial class GameHost
 		{
 			if (mode == "attack")
 			{
-				Hud.ShowFeedbackText("Attack Command: Click enemy to attack, or ground to Attack-Move", new Color(0.9f, 0.4f, 0.1f));
+				Hud.ShowFeedbackText(TranslationServer.Translate("Attack Command: Click enemy to attack, or ground to Attack-Move"), new Color(0.9f, 0.4f, 0.1f));
 			}
 			else if (mode == "move")
 			{
-				Hud.ShowFeedbackText("Move Command: Click ground to move", new Color(0.2f, 0.9f, 0.3f));
+				Hud.ShowFeedbackText(TranslationServer.Translate("Move Command: Click ground to move"), new Color(0.2f, 0.9f, 0.3f));
 			}
 			else if (mode == "patrol")
 			{
-				Hud.ShowFeedbackText("Patrol Command: Click ground to set patrol endpoint", new Color(0.7f, 0.4f, 1.0f));
+				Hud.ShowFeedbackText(TranslationServer.Translate("Patrol Command: Click ground to set patrol endpoint"), new Color(0.7f, 0.4f, 1.0f));
 			}
 			else if (mode == "rally")
 			{
-				Hud.ShowFeedbackText("Rally Command: Click ground to set building Rally Point", new Color(1.0f, 0.85f, 0.5f));
+				Hud.ShowFeedbackText(TranslationServer.Translate("Rally Command: Click ground to set building Rally Point"), new Color(1.0f, 0.85f, 0.5f));
 			}
 		}
 	}
@@ -507,6 +507,7 @@ public partial class GameHost
 	public void CenterCameraOnPrimaryBuilding()
 	{
 		if (GameContext.PerspectiveFilter.IsSpectating) return;
+		if (MainCamera is { IsLocked: true }) return;
 		Unit3D? primaryBuilding = null;
 		Unit3D? anyOwnedBuilding = null;
 		foreach (var unit in AllUnits)

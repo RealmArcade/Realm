@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
@@ -22,7 +22,6 @@ using Realm.Client.UI;
 using Realm.Ecs.Replication;
 using Realm.Shared.Diagnostics;
 using Realm.Shared.Network;
-using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Services;
 
@@ -971,25 +970,5 @@ public class NetworkService
 		}
 
 		mapState.ClientToServerEntityMap.Remove(entityId);
-	}
-
-	public async Task CheckCreatorRegistrationAsync(string pubKeyStr, string seedServerUrl, Action<string> onNotFound)
-	{
-		try
-		{
-			using (var httpClient = new HttpClient())
-			{
-				httpClient.Timeout = TimeSpan.FromSeconds(3);
-				var res = await httpClient.GetAsync(seedServerUrl + "/api/creators/check/" + Uri.EscapeDataString(pubKeyStr));
-				if (res.StatusCode == HttpStatusCode.NotFound)
-				{
-					onNotFound?.Invoke(pubKeyStr);
-				}
-			}
-		}
-		catch (Exception ex)
-		{
-			GameLog.LogToConsole($"[NetworkService] Offline or registry server unreachable, skipping creator registration prompt: {ex.Message}");
-		}
 	}
 }

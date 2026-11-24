@@ -6,7 +6,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Realm.Ecs", "..\Realm.Ecs\R
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Realm.Client", "Realm.Client.csproj", "{98BC7BD8-E6CA-168B-C6C8-81D88A6A3B5B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Realm.AdminServer", "..\Realm.AdminServer\Realm.AdminServer.csproj", "{2D2D4490-53D1-08E7-9E5E-7539E89AE9AA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Realm.MapAPI", "..\Realm.MapAPI\Realm.MapAPI.csproj", "{76A409EF-A094-94E1-7E85-AF34091EC707}"
 EndProject

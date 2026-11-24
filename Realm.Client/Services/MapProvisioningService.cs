@@ -1,15 +1,21 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Godot;
 using Realm.Client.Network;
+using Realm.Client.Services.Steam;
 using Realm.Client.UI;
-using Realm.Shared.Distribution;
 using FileAccess = Godot.FileAccess;
 
 namespace Realm.Client.Services;
 
+/// <summary>
+///     Finds a map on this machine, or on the Workshop when it is not here yet. A map is installed when a downloaded
+///     package or a Workshop subscription carries it, and it is published by its Workshop item rather than by a Realm
+///     server.
+/// </summary>
 public static class MapProvisioningService
 {
 	public static bool IsInstalled(string mapName)
@@ -32,17 +38,23 @@ public static class MapProvisioningService
 			.FirstOrDefault();
 	}
 
-	public static async Task<DiscoveryMapDto?> FindLatestPublishedAsync(string mapName)
+	/// <summary>
+	///     Asks the Workshop for the newest published item carrying a map, which is what a lobby resolves its map name
+	///     through before it can offer a subscription.
+	/// </summary>
+	/// <param name="mapName">The map's folder name.</param>
+	/// <returns>The newest item, or null when nothing published states that map.</returns>
+	public static Task<WorkshopMapEntry?> FindLatestPublishedAsync(string mapName)
 	{
-		string normalizedMapName = NormalizeMapName(mapName);
-		var distributionClient = new DistributionClient(ResolveRegistryServerUrl());
-		List<DiscoveryMapDto> publishedMaps = await distributionClient.GetDiscoveryMapsAsync();
-		return publishedMaps
-			.Where(map => MatchesMapName(normalizedMapName, map.Title))
-			.OrderByDescending(map => map.Version, Comparer<string>.Create(AssetIndexService.CompareVersions))
-			.FirstOrDefault();
+		return SteamWorkshopService.FindByMapNameAsync(mapName, CancellationToken.None);
 	}
 
+	/// <summary>
+	///     Subscribes to the newest published item for a map and waits for Steam to install it.
+	/// </summary>
+	/// <param name="mapName">The map's folder name.</param>
+	/// <param name="progressCallback">How much of the download Steam has taken.</param>
+	/// <returns>True when the map is on this machine afterwards.</returns>
 	public static async Task<bool> DownloadLatestAsync(string mapName, Action<float>? progressCallback = null)
 	{
 		if (!MapAssetManager.Storage.CheckFreeDiskSpaceAcceptingDownloads())
@@ -50,14 +62,13 @@ public static class MapProvisioningService
 			return false;
 		}
 
-		DiscoveryMapDto? latestPublishedMap = await FindLatestPublishedAsync(mapName);
+		WorkshopMapEntry? latestPublishedMap = await FindLatestPublishedAsync(mapName);
 		if (latestPublishedMap == null)
 		{
 			return false;
 		}
 
-		var mapDistributionClient = new MapDistributionClient();
-		bool downloaded = await mapDistributionClient.DownloadMapPackageFromRegistryAsync(latestPublishedMap.MapId, ResolveRegistryServerUrl(), progressCallback);
+		bool downloaded = await SteamWorkshopService.InstallAsync(latestPublishedMap.Value.PublishedFileId, progressCallback, CancellationToken.None);
 		if (!downloaded)
 		{
 			return false;
@@ -120,12 +131,5 @@ public static class MapProvisioningService
 	public static string NormalizeMapName(string mapName)
 	{
 		return new string(mapName.Where(character => !char.IsWhiteSpace(character) && character != '_').ToArray());
-	}
-
-	private static string ResolveRegistryServerUrl()
-	{
-		return GodotObject.IsInstanceValid(GameContext.Lobby)
-			? GameContext.Lobby.RegistryServerUrl
-			: ServersConfigHelper.GetDefaultServerUrl();
 	}
 }

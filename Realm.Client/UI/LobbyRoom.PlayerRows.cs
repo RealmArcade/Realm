@@ -1,10 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using Realm.Client.Network;
 using Realm.Client.Services;
 using Realm.Client.Utils;
-using Realm.Shared.Accounts;
 using Realm.Shared.Network;
 
 namespace Realm.Client.UI;
@@ -753,7 +752,7 @@ public partial class LobbyRoom
 
 	private static string GetPlayerRowDisplayName(PlayerInfo player)
 	{
-		string name = player.AccountId == 0 && player.PeerId > 0 ? UnverifiedNameMark.Apply(player.Name) : player.Name;
+		string name = player.Name;
 
 		return player.IsDisconnected
 			? string.Format(TranslationServer.Translate("{0} (reconnecting)"), name)

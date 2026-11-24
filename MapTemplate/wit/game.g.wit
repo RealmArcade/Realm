@@ -18,12 +18,14 @@ interface game-api {
     advance-unit-construction: func(unit-id: s32, seconds: f32);
     are-players-allied: func(player-index: s32, other-player-index: s32) -> bool;
     attach-persistent-aura: func(unit-id: s32, aura-vfx-id: string, scale: f32);
+    bind-player-key-to-ability: func(player-index: s32, unit-id: s32, key: string, press-ability-id: string, release-ability-id: string);
     broadcast-message: func(message: string);
     cancel-timer: func(timer-handle: s32);
     cast-ability: func(unit-id: s32, ability-id: string, target-position-x: f32, target-position-y: f32, target-position-z: f32);
     clear-custom-bot-decisions: func(player-index: s32);
     clear-leaderboard: func();
     clear-leaderboard-board: func(board-id: string);
+    clear-player-key-bindings: func(player-index: s32);
     clear-player-selection: func(player-index: s32);
     clear-summary-table: func();
     collect-loot-item: func(loot-item-id: s32, unit-id: s32) -> bool;
@@ -102,6 +104,7 @@ interface game-api {
     get-steam-cloud-file-count: func(player-index: s32) -> s32;
     get-steam-cloud-file-name: func(player-index: s32, index: s32) -> string;
     get-string-text: func(string-id: s32) -> string;
+    get-terrain-height: func(world-x: f32, world-z: f32) -> f32;
     get-unit-by-id: func(unique-id: s32) -> s32;
     get-unit-construction-progress: func(unit-id: s32) -> f32;
     get-unit-custom-data: func(unit-id: s32, key: string) -> string;
@@ -172,6 +175,7 @@ interface game-api {
     remove-stat-modifiers: func(unit-id: s32, source-id: string);
     remove-unit-custom-data: func(unit-id: s32, key: string) -> bool;
     request-steam-cloud-files: func(player-index: s32);
+    reset-player-camera: func(player-index: s32);
     reset-player-camera-bounds: func(player-index: s32);
     reveal-building-site: func(site-id: s32, building-type-id: string, total-construction-seconds: f32) -> bool;
     schedule-repeating-timer: func(interval: f32) -> s32;
@@ -204,6 +208,8 @@ interface game-api {
     set-player-bot-profile: func(player-index: s32, profile-json: string);
     set-player-building-limit: func(player-index: s32, limit: s32);
     set-player-camera-bounds: func(player-index: s32, min-x: f32, min-z: f32, max-x: f32, max-z: f32);
+    set-player-camera-follow-unit: func(player-index: s32, unit-id: s32, distance: f32, height-offset: f32, pitch-degrees: f32, yaw-offset-degrees: f32, align-to-unit-facing: bool, smoothing: f32, lock-camera-input: bool);
+    set-player-camera-view: func(player-index: s32, yaw-degrees: f32, pitch-degrees: f32, height: f32, lock-camera-input: bool);
     set-player-computer-controlled: func(player-index: s32, is-proxy: bool);
     set-player-damage-effectiveness: func(attacking-player-index: s32, defending-player-index: s32, multiplier: f32);
     set-player-gold: func(player-index: s32, amount: f32);

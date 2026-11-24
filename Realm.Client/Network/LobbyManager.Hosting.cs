@@ -13,29 +13,26 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Godot;
+using Steamworks;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Services.Steam;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
-using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
 using Realm.Shared.Network;
-using Realm.Shared.Reachability;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 public partial class LobbyManager
 {
 	public async Task<bool> HostSinglePlayerGame(string mapPathName, string mapDisplayName, string? mapVersion = null, bool debugMapScript = false)
 	{
-		ReleaseSeedingSlot();
-
 		IsSinglePlayer = true;
 		IsHost = true;
 		ActiveMapName = mapPathName;
@@ -82,7 +79,7 @@ public partial class LobbyManager
 		{
 			PeerId = 1,
 			Slot = humanSlot,
-			AccountId = AccountId,
+			SteamId = GameContext.Steam.SteamId,
 			Name = PlayerDisplayName,
 			Faction = "HUMAN",
 			Team = $"Team {humanSlot}",
@@ -92,7 +89,6 @@ public partial class LobbyManager
 			Jitter = "0 ms",
 			PacketLoss = "0%",
 			BinaryVersion = RealmVersion.GameBinaryVersion,
-			SessionToken = LobbySessionToken
 		};
 		PlayerList.Add(hostPlayer);
 
@@ -112,8 +108,7 @@ public partial class LobbyManager
 				Latency = "0 ms",
 				Jitter = "0 ms",
 				PacketLoss = "0%",
-				BinaryVersion = RealmVersion.GameBinaryVersion,
-				SessionToken = string.Empty
+				BinaryVersion = RealmVersion.GameBinaryVersion
 			};
 			PlayerList.Add(botPlayer);
 		}
@@ -182,7 +177,8 @@ public partial class LobbyManager
 
 	/// <summary>
 	///     Opens this screen's lobby, takes its seat in it and lets the map state the defaults the lobby starts with, and then
-	///     publishes it: the port is opened, a registry node is asked to reach it, and only then is the lobby registered.
+	///     publishes it: the authority is listening and the Steam lobby carries its map, seats and join code, and only then
+	///     can Steam place a player in it.
 	/// </summary>
 	public async Task<bool> HostLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
 	{
@@ -193,36 +189,37 @@ public partial class LobbyManager
 	///     Opens the lobby this screen will host without publishing it. The authority is started, this screen takes the seat
 	///     that administers it, the map's own lobby rules have run, and the settings the match will play are the ones the
 	///     lobby state names - so a host can read them and confirm them before anybody can see the lobby. Nothing about the
-	///     machine's network is touched here: the port is opened, verified and registered by
+	///     machine's network is touched here: the authority's listener and the Steam lobby that advertises it are opened by
 	///     <see cref="PublishPreparedLobbyAsync" />.
 	/// </summary>
 	public async Task<bool> PrepareHostedLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
 	{
 		IsSinglePlayer = false;
 		InitializeHostState(mapPathName, explicitVersion);
-		LastHostFailure = null;
-		LastFirewallGrant = default;
 		LobbyPort = 0;
 		HostedMapDisplayName = mapDisplayName;
 		HostedMapVersion = string.IsNullOrWhiteSpace(explicitVersion) ? "1.0.0" : explicitVersion;
 
-		ReportHostLobbyStage(HostLobbyStage.TestingNetwork);
-		await RunNatTypeTestAsync();
-
-		// The classification is advisory: it says how hard this network usually is to reach, not whether this lobby can be
-		// reached. Whether anybody can connect is decided by the reachability probe before the lobby is published, and by
-		// the connections players make afterwards, so a symmetric NAT is recorded and hosting goes ahead.
-		if (LocalNatType == NatType.Symmetric)
-		{
-			GameLog.LogToConsole("[LobbyManager] This network reported a symmetric NAT. Hosting continues; the lobby is published only once a public node reaches it.");
-		}
-
-		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
-		if (string.IsNullOrEmpty(mapDirectory))
+		string? installedMapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
+		if (string.IsNullOrEmpty(installedMapDirectory))
 		{
 			LastHostError = $"The map folder for '{mapPathName}' could not be found.";
 			return false;
 		}
+
+		// The lobby plays the installed package itself when nothing about it has to change, rather than copying it first: what
+		// it advertises is read from the map's manifest, which the copy would carry unchanged, and every file a joiner asks
+		// for is served from the same folder either way. Two folders are still copied - one Steam owns, which it rewrites on
+		// an update under a match already running, and one an older build left behind, which has to be migrated durably.
+		string? mapDirectory = GameContext.MapSessionCopy.TryResolvePlayableDirectory(installedMapDirectory);
+		if (string.IsNullOrEmpty(mapDirectory))
+		{
+			LastHostError = GameContext.MapSessionCopy.LastRefusal;
+			GameLog.LogError($"[LobbyManager] '{mapPathName}' cannot be played: {LastHostError}");
+			return false;
+		}
+
+		ActiveMapSessionDirectory = mapDirectory;
 
 		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
 		if (channel == null)
@@ -235,8 +232,36 @@ public partial class LobbyManager
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
+
+		// The match scene reads this screen's seat from the session, so a lobby host is registered here exactly as a joiner
+		// and a direct single-player match already are. Without it the world build falls back to matching the transport's
+		// peer id against the lobby's seat list, and the two are not the same id.
+		GameContext.AttachServerSession(session);
+
+		// Steam's lobby is created before the authority is told to start, because it is what the authority admits peers
+		// against: a match that started without one would have to admit everybody or nobody.
+		if (!GameContext.Steam.IsAvailable)
+		{
+			LastHostError = GameContext.Steam.UnavailableExplanation;
+			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		SteamLobbyId = await SteamLobbyDirectory.CreateAsync(HostedVisibility, MaxPlayers, !string.IsNullOrEmpty(JoinCode));
+		if (SteamLobbyId == 0)
+		{
+			LastHostError = TranslationServer.Translate("Steam could not create this lobby. Try again in a moment.");
+			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			TeardownHostedLobby(session);
+			return false;
+		}
+
+		session.SteamLobbyId = SteamLobbyId;
+		ActiveLobbyId = SteamLobbyId.ToString();
+		AttachSteamLobbyEvents();
 
 		var start = new ServerLobbyStart(
 			ProjectSettings.GlobalizePath(mapDirectory),
@@ -244,18 +269,24 @@ public partial class LobbyManager
 			MaxPlayers,
 			Path.Combine(OS.GetUserDataDir(), "logs"),
 			OS.GetUserDataDir(),
-			LocalizationManager.GetCurrentLanguageCode());
+			LocalizationManager.GetCurrentLanguageCode(),
+			JoinCode: JoinCode);
 
 		ReportHostLobbyStage(HostLobbyStage.LoadingMap);
 
 		// The port is asked for by name first, because a lobby on a port that never changes is the only kind a player can
 		// forward once and be reachable at forever. The system's choice is the fallback for the case that makes a fixed
 		// port impossible - another instance already holding it - and it is taken only after the named port was refused.
-		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start, DefaultGamePort);
-		if (!lobbyStarted.Started)
+		// A refusal that the fallback then survives is remembered for the rest of the session, so the next lobby does not
+		// pay for a whole start it already knows will fail before it gets to the one that works.
+		MatchStartResult lobbyStarted = _preferredLobbyPort is int preferredPort
+			? await session.TryStartLobbyAsync(start, preferredPort)
+			: await session.TryStartLobbyAsync(start);
+		if (!lobbyStarted.Started && _preferredLobbyPort is int refusedPort)
 		{
-			GameLog.LogToConsole($"[LobbyManager] UDP port {DefaultGamePort} could not be taken for this lobby ({lobbyStarted.Failure}), so the socket takes the port the system chooses.");
+			GameLog.LogToConsole($"[LobbyManager] UDP port {refusedPort} could not be taken for this lobby ({lobbyStarted.Failure}), so the socket takes the port the system chooses.");
 			lobbyStarted = await session.TryStartLobbyAsync(start);
+			if (lobbyStarted.Started) _preferredLobbyPort = null;
 		}
 		LastAuthorityLogPath = lobbyStarted.LogPath;
 		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
@@ -289,38 +320,143 @@ public partial class LobbyManager
 
 		LobbyPort = session.Port;
 
-		// First, and before anything is opened or registered: this screen has to be able to play its own seat. A lobby the
-		// host cannot control its own player in is not one anybody else should be shown either. The check waits for the
-		// lobby to be described back over loopback, which is the last step of entering it as host.
-		ReportHostLobbyStage(HostLobbyStage.AdmittingHost);
-		if (!await VerifyLocalSeatBeforePublishingAsync(session))
-		{
-			TeardownHostedLobby(session);
-			return false;
-		}
-
+		// The admission wait above is the confirmation that this screen can play its own seat: the hello it resolved on came
+		// back over the loopback connection this screen opened to the authority it launched, and the seat it administers was
+		// granted with it. Waiting a second time asks for a hello that has already arrived and times out on a lobby the host
+		// is already sitting in, which is what made every hosted Steam lobby fail its own seat check on port 8999.
 		PlayerListUpdated?.Invoke();
 		return true;
 	}
 
 	/// <summary>
-	///     Publishes the lobby <see cref="PrepareHostedLobbyAsync" /> opened: the port is opened in the local firewall and on
-	///     the router, a registry node is asked to reach it, and the lobby is registered only once that node answered. The
-	///     host may have changed any setting the lobby offers in between, and the match plays the settings the lobby holds
-	///     when it starts.
+	///     Rewrites the advertisement when the map or the number of seats it states has changed, which is the only part of it
+	///     a host can change from the room. A lobby nobody has published yet has no advertisement to rewrite.
 	/// </summary>
-	public Task<bool> PublishPreparedLobbyAsync() => PublishPreparedLobbyAsync(keepLobbyOnFailure: false);
+	private void RefreshHostedLobbyAdvertisement()
+	{
+		if (!IsHost || SteamLobbyId == 0) return;
+		if (string.Equals(_publishedAdvertisementMap, ActiveMapName, StringComparison.Ordinal) && _publishedAdvertisementSeats == MaxPlayers) return;
+
+		PublishHostedLobbyMetadata(!string.IsNullOrEmpty(JoinCode));
+	}
 
 	/// <summary>
-	///     Publishes the prepared lobby without taking it away when it cannot be listed, which is what a host already sitting
-	///     in its room needs: the lobby is open and reachable by anybody who is given its address, so a registry that cannot
-	///     confirm it costs the host the listing rather than the lobby. The host is told in the room's own chat, because the
-	///     screen that asked for the lobby has already moved on to it.
+	///     Rewrites the advertisement Steam holds for this lobby. It is written when the lobby is published and again whenever
+	///     the map or the number of seats changes, so the browser never offers a lobby whose stated map or size is not the one
+	///     the host is playing. Nothing that is match state belongs here: seats, teams and settings live in the lobby protocol.
 	/// </summary>
-	/// <returns>Whether the lobby is listed on a registry node. False means it is open to players holding its address.</returns>
-	public Task<bool> PublishPreparedLobbyDirectlyOnFailureAsync() => PublishPreparedLobbyAsync(keepLobbyOnFailure: true);
+	/// <param name="requiresCode">Whether the lobby gates its seats with a join code, whose text is never published.</param>
+	private void PublishHostedLobbyMetadata(bool requiresCode)
+	{
+		_publishedAdvertisementMap = ActiveMapName;
+		_publishedAdvertisementSeats = MaxPlayers;
+		ulong steamLobbyId = SteamLobbyId;
+		if (steamLobbyId == 0) return;
 
-	private async Task<bool> PublishPreparedLobbyAsync(bool keepLobbyOnFailure)
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapKey, ActiveMapName);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapVersionKey, HostedMapVersion);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapWorkshopIdKey, DeliverableMapWorkshopId().ToString(CultureInfo.InvariantCulture));
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapHashKey, AdvertisedMapHash());
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.EngineGenerationKey, RealmVersion.EngineGeneration.ToString(CultureInfo.InvariantCulture));
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.GameBuildKey, RealmVersion.GameBuildNumber);
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.ModeKey, "Melee");
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.SeatsKey, MaxPlayers.ToString(CultureInfo.InvariantCulture));
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.RequiresCodeKey, requiresCode ? "1" : "0");
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapTrustKey, _publishedMapTrust.IsTrusted ? "1" : "0");
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.MapTrustReasonKey, ((int)_publishedMapTrust.Reason).ToString(CultureInfo.InvariantCulture));
+	}
+
+	/// <summary>
+	///     The package hash this lobby advertises, which is the hash of the manifest the host will play from. A joiner holds
+	///     the same package only when its manifest is the same file, and reading that costs one file read on either side,
+	///     so the join can decide whether it needs the host's copy before it connects. A folder with no manifest states
+	///     nothing, and the join is then settled by what is installed.
+	/// </summary>
+	/// <returns>The package hash, or an empty string when the map states none.</returns>
+	private string AdvertisedMapHash()
+	{
+		string? mapDirectory = GameHost.ResolveMapDirectory(ActiveMapName, ActiveMapVersion);
+		return string.IsNullOrEmpty(mapDirectory) ? string.Empty : MapSessionCopyService.ReadStatedPackageHash(mapDirectory);
+	}
+
+	/// <summary>
+	///     The Workshop item Steam can hand this lobby's exact map from, or zero when Steam cannot. The item is named only
+	///     while the package Steam installed for it is the package this lobby plays, so a joiner that subscribes is given the
+	///     bytes the host runs instead of something that merely calls itself the same map; every other lobby is settled the
+	///     other way round, by the host sending its own copy over the connection.
+	/// </summary>
+	/// <remarks>
+	///     Two cases answer zero. An item that is not installed here cannot be checked at all - the host may play a folder it
+	///     authored, or a package it imported from a file - and an item whose folder states a different package is a version
+	///     this lobby does not play, which is what an author's own build looks like until Steam publishes it. The package a
+	///     folder states is its manifest, which either side reads in one file read, so nothing is walked to answer this.
+	/// </remarks>
+	/// <returns>The item whose installed package is the one this lobby plays, or zero.</returns>
+	private ulong DeliverableMapWorkshopId()
+	{
+		if (_publishedMapWorkshopId == 0) return 0;
+
+		string? playedDirectory = GameHost.ResolveMapDirectory(ActiveMapName, ActiveMapVersion);
+		string? itemFolder = SteamWorkshopService.GetInstalledFolder(_publishedMapWorkshopId);
+		if (string.IsNullOrEmpty(playedDirectory) || string.IsNullOrEmpty(itemFolder) || !Directory.Exists(itemFolder))
+		{
+			GameLog.LogToConsole($"[LobbyManager] Workshop item {_publishedMapWorkshopId} for '{ActiveMapName}' is not installed on this machine, so joiners are given this lobby's copy instead of being told to subscribe.");
+			return 0;
+		}
+
+		string playedPackage = MapSessionCopyService.ReadStatedPackageHash(playedDirectory);
+		string itemPackage = MapSessionCopyService.ReadStatedPackageHash(itemFolder);
+		if (playedPackage.Length == 0 || !string.Equals(playedPackage, itemPackage, StringComparison.OrdinalIgnoreCase))
+		{
+			GameLog.LogToConsole($"[LobbyManager] Workshop item {_publishedMapWorkshopId} does not carry the package this lobby plays, so joiners are given this lobby's copy instead of being told to subscribe.");
+			return 0;
+		}
+
+		return _publishedMapWorkshopId;
+	}
+
+	/// <summary>
+	///     Reads how much Steam vouches for the map this lobby will run. The host is the side that holds the map, so it is
+	///     the side that states the mark: a joiner cannot judge a map it has not downloaded, and asking every joiner to
+	///     query the item would put a Workshop round trip in front of every join. A map that is not on the Workshop states
+	///     itself as untrusted, which is exactly what a local map is.
+	/// </summary>
+	/// <remarks>
+	///     The item this lobby names is the one this account published for the map when there is one, because that is the
+	///     item the host's own copy came from and the only one every joiner can be given. A name lookup across every
+	///     creator can answer an item somebody else published under the same map name, which no joiner could match against
+	///     the host's package.
+	/// </remarks>
+	/// <returns>The mark this lobby advertises.</returns>
+	private async Task<MapTrustState> ResolveHostedMapTrustAsync()
+	{
+		if (!SteamWorkshopService.IsAvailable) return MapTrustPolicy.EvaluateUnpublished();
+
+		try
+		{
+			WorkshopMapEntry? item = await SteamWorkshopService.FindOwnedByMapNameAsync(ActiveMapName, GameContext.Steam.SteamId, CancellationToken.None)
+				?? await MapProvisioningService.FindLatestPublishedAsync(ActiveMapName);
+			if (item == null) return MapTrustPolicy.EvaluateUnpublished();
+
+			WorkshopMapEntry published = item.Value;
+			_publishedMapWorkshopId = published.PublishedFileId;
+			return MapTrustPolicy.Evaluate(published.PublishedFileId, published.AcceptedForUse, published.VotesUp, published.VotesDown, published.TimeUpdated);
+		}
+		catch (Exception exception)
+		{
+			GameLog.LogToConsole($"[LobbyManager] the Workshop could not vouch for '{ActiveMapName}', so the lobby states it as untrusted: {exception.Message}");
+			return MapTrustPolicy.EvaluateUnpublished();
+		}
+	}
+
+	/// <summary>
+	///     Publishes the lobby <see cref="PrepareHostedLobbyAsync" /> opened by creating the Steam lobby that stands for it.
+	///     Steam owns the directory, the membership and the invites, so there is no port to open, no router to ask, no public
+	///     node to reach the lobby first and no registry to register with: the lobby exists when Steam says it does, and a
+	///     failure takes it down rather than leaving it open to an address nobody was given.
+	/// </summary>
+	/// <returns>Whether Steam now holds a lobby for this match.</returns>
+	public async Task<bool> PublishPreparedLobbyAsync()
 	{
 		ClientServerSession? prepared = _lobbySession;
 		if (prepared == null || !prepared.IsRunning || !IsHost)
@@ -330,94 +466,42 @@ public partial class LobbyManager
 			return false;
 		}
 
+		if (!SteamLobbyDirectory.IsAvailable)
+		{
+			LastHostError = GameContext.Steam.UnavailableExplanation;
+			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			TeardownHostedLobby(prepared);
+			return false;
+		}
+
 		string mapDisplayName = string.IsNullOrEmpty(HostedMapDisplayName) ? ActiveMapName : HostedMapDisplayName;
 
-		IsUnlisted = false;
-		if (keepLobbyOnFailure) NotifyHostLine(TranslationServer.Translate("Checking whether players elsewhere can reach this lobby. You can set up the match while this runs."));
-		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
-		await OpenLobbyEndpointAsync(prepared.Port);
+		bool requiresCode = !string.IsNullOrEmpty(JoinCode);
+		ulong steamLobbyId = SteamLobbyId;
 
-		Diagnostics.StartHostListener();
-
-		// The lobby is only published once a public node has reached its game port, so nobody sees a lobby that a
-		// timeout is waiting behind.
-		bool registered = await RegisterLobbyWithRegistryAsync(ActiveMapName, mapDisplayName, HostedMapVersion, prepared.Port);
-		if (!registered)
+		if (steamLobbyId == 0)
 		{
-			if (!keepLobbyOnFailure)
-			{
-				TeardownHostedLobby(prepared);
-				return false;
-			}
-
-			// The port is already open and the router's forward, if any, is already held, so the lobby is still joinable by
-			// anybody who is given its address. Losing the listing is not a reason to close it under the host's feet.
-			IsUnlisted = true;
-			ActiveLobbyId = null;
-			NotifyHostLine(TranslationServer.Translate(LobbyPublicationSentences.PublicLobbyNotCreated));
-			GameLog.LogError($"[LobbyManager] The lobby is not listed; players who are given {DirectConnectAddress} can still join it.");
-			PlayerListUpdated?.Invoke();
-			LobbyPublicationRefused?.Invoke();
-			return false;
-		}
-
-		StartHostReachabilityKeepAlive();
-
-		NotifyHostLine($"{TranslationServer.Translate("This lobby is listed now; players browsing the lobby list can join it at")} {PublicConnectAddress ?? DirectConnectAddress}");
-		PlayerListUpdated?.Invoke();
-		return true;
-	}
-
-	/// <summary>
-	///     Opens a lobby that only a player holding its address can reach, so hosting does not depend on a registry: the
-	///     lobby is prepared exactly as a listed one is, its port is opened in the local firewall and on the router, and it
-	///     is not registered anywhere. The host hands the address the lobby room shows to the players who should join.
-	/// </summary>
-	/// <param name="mapPathName">The map whose lobby is opened.</param>
-	/// <param name="mapDisplayName">The name the lobby lists the map under.</param>
-	/// <param name="explicitVersion">The map version to play, or the newest the screen holds when omitted.</param>
-	/// <returns>Whether the lobby is open, administered by this screen and waiting for players it can be told about.</returns>
-	public async Task<bool> HostDirectLobbyAsync(string mapPathName, string mapDisplayName, string? explicitVersion = null)
-	{
-		return await PrepareHostedLobbyAsync(mapPathName, mapDisplayName, explicitVersion) && await PublishDirectLobbyAsync();
-	}
-
-	/// <summary>
-	///     Opens the joining half of the lobby <see cref="PrepareHostedLobbyAsync" /> prepared without a registry: the port is
-	///     opened for players on other machines and the address they can reach is measured. Nothing can refuse a direct
-	///     lobby for reachability, because no public node was asked to reach it - the host shares the address and the players
-	///     who receive it are the check. What a router accepting a mapping does decide is whether the address outside this
-	///     network is offered at all, because an address nothing confirmed is one a host would be sending at random.
-	/// </summary>
-	/// <returns>Whether the lobby now accepts players on its address.</returns>
-	public async Task<bool> PublishDirectLobbyAsync()
-	{
-		ClientServerSession? prepared = _lobbySession;
-		if (prepared == null || !prepared.IsRunning || !IsHost)
-		{
-			LastHostError = "There is no lobby waiting to be shared.";
+			LastHostError = TranslationServer.Translate("This lobby has no Steam lobby behind it.");
 			GameLog.LogError($"[LobbyManager] {LastHostError}");
+			TeardownHostedLobby(prepared);
 			return false;
 		}
 
-		ReportHostLobbyStage(HostLobbyStage.OpeningPort);
-		await OpenLobbyEndpointAsync(prepared.Port);
+		IsUnlisted = HostedVisibility != ELobbyType.k_ELobbyTypePublic;
+		SteamLobbyDirectory.SetVisibility(steamLobbyId, HostedVisibility);
 
-		IsUnlisted = true;
-		ActiveLobbyId = null;
-		GameLog.LogToConsole($"[LobbyManager] This lobby is not listed anywhere; share {DirectConnectAddress} with the players who should join.");
-		if (PublicConnectAddress is { Length: > 0 } publicAddress)
-		{
-			GameLog.LogToConsole($"[LobbyManager] This lobby's router accepted a forward, so players outside this network join at {publicAddress}.");
-		}
-		else if (MeasuredPublicConnectAddress is { Length: > 0 } measuredAddress)
-		{
-			GameLog.LogToConsole($"[LobbyManager] Nothing confirmed this lobby is reachable from outside; {measuredAddress} is the address its router maps the port to, which works once UDP port {prepared.Port} is forwarded.");
-		}
-		else if (RouterReachability == RouterReachability.PublicAddressUnmeasured)
-		{
-			GameLog.LogToConsole($"[LobbyManager] This network measured no outside address of its own, so nothing confirmed this lobby is reachable from outside; the router's forward for UDP port {prepared.Port} is untested.");
-		}
+		// Steam metadata is the advertisement, not the lobby state: seats, teams and settings stay in the lobby protocol.
+		SteamLobbyDirectory.SetData(steamLobbyId, SteamLobbyDirectory.HostSteamIdKey, GameContext.Steam.SteamId.ToString(CultureInfo.InvariantCulture));
+		_publishedMapTrust = await ResolveHostedMapTrustAsync();
+		PublishHostedLobbyMetadata(requiresCode);
+
+		LobbyPort = prepared.Port;
+
+		NotifyHostLine(HostedVisibility == ELobbyType.k_ELobbyTypePublic
+			? TranslationServer.Translate("This lobby is listed in Steam now; your friends can also join from their Steam friends list.")
+			: TranslationServer.Translate("This lobby is open. Invite your Steam friends; they join from their friends list."));
+
+		if (requiresCode) NotifyHostLine(TranslationServer.Translate("Players standing in this lobby need the join code before they can take a seat."));
 
 		PlayerListUpdated?.Invoke();
 		return true;
@@ -425,160 +509,30 @@ public partial class LobbyManager
 
 	/// <summary>
 	///     Keeps this lobby out of the lobby browser, or offers it there again. The lobby itself does not change: the same
-	///     seat, the same host channel and the same invited players stay, and only what a browsing player is shown changes.
-	///     Offering it again runs the measurement publishing it runs, because a lobby is listed only where a registry node
-	///     reached its game port.
+	///     seat, the same Steam room and the same invited players stay, and only what a browsing player is shown changes.
+	///     Offering it again is Steam's own visibility, so a lobby that becomes public is listed as soon as Steam says so.
 	/// </summary>
 	/// <param name="unlisted">Whether this lobby should stop being offered in the browser.</param>
 	/// <returns>Whether the lobby is now in the state that was asked for.</returns>
-	public async Task<bool> SetLobbyUnlistedAsync(bool unlisted)
+	public Task<bool> SetLobbyUnlistedAsync(bool unlisted)
 	{
-		if (!IsHost || IsSinglePlayer) return false;
+		if (!IsHost || IsSinglePlayer) return Task.FromResult(false);
 
-		if (unlisted)
-		{
-			IsUnlisted = true;
-			NotifyHostLine(TranslationServer.Translate("This lobby is private now, so it is not offered in the lobby browser. Players you invite, or who have its address, can still join."));
-		}
-		else if (string.IsNullOrEmpty(ActiveLobbyId))
-		{
-			bool listed = await PublishPreparedLobbyDirectlyOnFailureAsync();
-			PlayerListUpdated?.Invoke();
-			return listed;
-		}
-		else
-		{
-			IsUnlisted = false;
-			NotifyHostLine(TranslationServer.Translate("This lobby is offered in the lobby browser again."));
-		}
+		HostedVisibility = unlisted ? ELobbyType.k_ELobbyTypePrivate : ELobbyType.k_ELobbyTypePublic;
+		if (SteamLobbyId != 0) SteamLobbyDirectory.SetVisibility(SteamLobbyId, HostedVisibility);
 
-		if (!string.IsNullOrEmpty(ActiveLobbyId)) await SendHeartbeatAsync(ActiveLobbyId, _wsCts?.Token ?? CancellationToken.None);
+		IsUnlisted = unlisted;
+		NotifyHostLine(unlisted
+			? TranslationServer.Translate("This lobby is private now, so it is not offered in the lobby browser. Players you invite can still join.")
+			: TranslationServer.Translate("This lobby is offered in the lobby browser again."));
 		PlayerListUpdated?.Invoke();
-		return IsUnlisted == unlisted;
-	}
-
-	/// <summary>
-	///     Makes a prepared lobby's game port reachable and measures the address it is reached on. A dismissed firewall prompt
-	///     is recorded rather than treated as a failure: hosting still works on this machine, and the lobby room states what
-	///     other machines will meet.
-	/// </summary>
-	/// <param name="port">The game port the lobby listens on.</param>
-	private async Task OpenLobbyEndpointAsync(int port)
-	{
-		// Asked for on every attempt, because a dismissed prompt leaves the port closed and is almost always a misclick
-		// rather than a decision to host unreachable lobbies.
-		LastFirewallGrant = await GameContext.WindowsFirewall.RequestInboundUdpForPortAsync(port);
-
-		DiscoverOfferedEndpoints(port);
-
-		// A machine that offers an IPv6 address is promising a family it has never seen its own game port answer in, and that
-		// promise rests on Godot's transport holding a socket in both families. Asking this machine's own loopback over IPv6
-		// is the cheapest way to find out it no longer does, and it costs one datagram when it does. It is asked on loopback
-		// so the answer is about the transport rather than about a firewall: no inbound rule is consulted for traffic this
-		// machine sends itself.
-		if (FirstOffer(LobbyAddressFamily.IPv6) is { } offeredIpv6)
-		{
-			bool answersOverIpv6 = await LobbyPortCheck.AnswersAsync(IPAddress.IPv6Loopback, port, cancellationToken: CancellationToken.None);
-			if (answersOverIpv6)
-			{
-				GameLog.LogToConsole($"[LobbyManager] The game port answers over IPv6 on this machine, so {offeredIpv6.Describe()} is a route players with IPv6 can take.");
-			}
-			else
-			{
-				GameLog.LogError($"[LobbyManager] This machine holds the IPv6 address {offeredIpv6.Describe()}, but its own game port did not answer over IPv6. Nothing about the router or the firewall is involved in this check, so the transport is what to look at: a build whose ENet no longer binds both address families looks exactly like this.");
-			}
-		}
-
-		// A lobby offered over IPv6 alone is a lobby with nothing for a router to do: the address it is reached at is the
-		// one this machine holds, so there is no translation to map and no public endpoint to measure. The router half is
-		// skipped entirely rather than allowed to fail, because nothing was asked of it.
-		if (!_offersIpv4)
-		{
-			_hostPublicIp = null;
-			_hostPublicPort = 0;
-			_routerReachability = RouterReachability.NoRouterForward;
-			IsRestrictedHost = false;
-
-			if (_offeredIpv6Endpoint is { } onlyEndpoint)
-			{
-				GameLog.LogToConsole($"[LobbyManager] This machine holds no IPv4 address other than loopback, so the lobby is offered over IPv6 only at {onlyEndpoint.Describe()}; that address needs no router mapping.");
-			}
-
-			return;
-		}
-
-		await ResolvePublicEndpointAsync(port);
-
-		bool upnpSuccess = await GameContext.Upnp.OpenPortAsync(port);
-
-		// A mapping is the only confirmation a lobby that is not listed anywhere can gather on its own, but accepting one is
-		// not by itself proof: the address the mapping serves traffic at is the router's own outside face, and only that
-		// face reaching the network the measurement saw makes the measured address one somebody outside can join at. A
-		// router behind another one accepts the mapping and answers with a private address of its own, and the forward it
-		// holds then carries nothing from the carrier's network inward.
-		// The port advertised is the one the mapping states rather than the one the STUN query saw the router rewrite,
-		// because a static forward sets the external port itself.
-		string routerExternalAddress = upnpSuccess ? GameContext.Upnp.QueryExternalAddress() : string.Empty;
-		string measuredAddress = _hostPublicIp ?? string.Empty;
-
-		// Recorded before the confirmed case below returns, because a lobby that was warned about on an earlier attempt has
-		// nothing else to clear the warning with: a later attempt that does secure a forward would otherwise leave the
-		// lobby room saying the router is doing nothing beside the sentence confirming that it is.
-		bool isRestrictedNat = LocalNatType is NatType.RestrictedCone or NatType.PortRestrictedCone or NatType.Symmetric;
-		IsRestrictedHost = !upnpSuccess && isRestrictedNat;
-		if (IsRestrictedHost)
-		{
-			GameLog.LogToConsole($"[LobbyManager] Warning: UPnP port mapping not available on {LocalNatType} NAT. External players may require Direct Connect.");
-		}
-
-		if (!upnpSuccess)
-		{
-			_routerReachability = RouterReachability.NoRouterForward;
-		}
-		else if (routerExternalAddress.Length == 0)
-		{
-			_routerReachability = RouterReachability.RouterAddressUnreadable;
-		}
-		else if (measuredAddress.Length == 0)
-		{
-			// The measurement is the only thing that says which network this machine sits behind, so without one there are
-			// not two addresses to compare and the router cannot be called a second network: it may well be the only one,
-			// and sending the host to look for a forward somewhere else would be a search for a machine that is not there.
-			_routerReachability = RouterReachability.PublicAddressUnmeasured;
-		}
-		else if (string.Equals(routerExternalAddress, measuredAddress, StringComparison.Ordinal))
-		{
-			_routerReachability = RouterReachability.Confirmed;
-		}
-		else
-		{
-			_routerReachability = RouterReachability.BehindAnotherNetwork;
-		}
-
-		if (_routerReachability == RouterReachability.Confirmed)
-		{
-			_hostPublicPort = port;
-			return;
-		}
-
-		if (upnpSuccess)
-		{
-			string reason = _routerReachability switch
-			{
-				RouterReachability.RouterAddressUnreadable =>
-					$"the router accepted a forward for UDP port {port} but stated no outside address of its own",
-				RouterReachability.PublicAddressUnmeasured =>
-					$"the router accepted a forward for UDP port {port} and gives its outside address as '{routerExternalAddress}', but this network measured no outside address of its own to compare it with",
-				_ => $"the router accepted a forward for UDP port {port} but gives its outside address as '{routerExternalAddress}' while this network measured '{measuredAddress}'"
-			};
-			GameLog.LogToConsole($"[LobbyManager] {reason}; nothing outside was reached through that forward, so the measured address is offered as the guess it is.");
-		}
+		return Task.FromResult(IsUnlisted == unlisted);
 	}
 
 	/// <summary>
 	///     Opens a lobby only this screen can reach, so a single player picks a map, adds the AI players they want and starts
 	///     the match from the same screen a hosted match begins in. Nothing about the machine's network is used: the authority
-	///     binds the loopback address, takes whatever port it finds free, and no registry is told the lobby exists.
+	///     binds the loopback address, takes whatever port it finds free, and no Steam lobby is opened to advertise it.
 	/// </summary>
 	/// <param name="mapPathName">The map whose lobby is opened.</param>
 	/// <param name="explicitVersion">The map version to play, or the newest the screen holds when omitted.</param>
@@ -587,17 +541,35 @@ public partial class LobbyManager
 	{
 		IsSinglePlayer = true;
 		InitializeHostState(mapPathName, explicitVersion);
-		LastHostFailure = null;
-		LastFirewallGrant = default;
 		LobbyPort = 0;
 
-		string? mapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
-		if (string.IsNullOrEmpty(mapDirectory))
+		// Nothing about this lobby is on Steam: there is no lobby to advertise, no membership and no code to compare. Clearing
+		// the id keeps every later Steam-bound call a no-op rather than pointing it at the last lobby this screen hosted.
+		SteamLobbyId = 0;
+		ActiveLobbyId = string.Empty;
+
+		string? installedMapDirectory = GameHost.ResolveMapDirectory(mapPathName, ActiveMapVersion);
+		if (string.IsNullOrEmpty(installedMapDirectory))
 		{
 			LastHostError = $"The map folder for '{mapPathName}' could not be found.";
 			GD.PushError($"[LobbyManager] {LastHostError}");
 			return false;
 		}
+
+		// A single-player lobby advertises nothing and transfers nothing, so a map of the player's own whose data this build
+		// does not migrate is read where it sits: opening the lobby then costs nothing proportional to the package, which is
+		// what the editor's own playtest has always done and why this path was slower than it. Two folders are still copied:
+		// one an older build left behind, because it has to be migrated durably, and one Steam installed as a Workshop item,
+		// because Steam rewrites that folder on its next update underneath a match already running on it.
+		string? mapDirectory = GameContext.MapSessionCopy.TryResolvePlayableDirectory(installedMapDirectory);
+		if (string.IsNullOrEmpty(mapDirectory))
+		{
+			LastHostError = GameContext.MapSessionCopy.LastRefusal;
+			GD.PushError($"[LobbyManager] {LastHostError}");
+			return false;
+		}
+
+		ActiveMapSessionDirectory = mapDirectory;
 
 		var channel = GetNodeOrNull<ClientNetworkChannel>("/root/RealmNetwork");
 		if (channel == null)
@@ -611,8 +583,13 @@ public partial class LobbyManager
 		GameContext.DetachServerSession();
 
 		var session = new ClientServerSession(channel);
-		session.ConfigureLobbyIdentity(PlayerDisplayName, LobbySessionToken, AccountId, GameContext.Steam.SteamId);
+		session.ConfigureLobbyIdentity(PlayerDisplayName, GameContext.Steam.SteamId);
 		AttachLobbySession(session);
+
+		// The match scene reads this screen's seat from the session, so a lobby host is registered here exactly as a joiner
+		// and a direct single-player match already are. Without it the world build falls back to matching the transport's
+		// peer id against the lobby's seat list, and the two are not the same id.
+		GameContext.AttachServerSession(session);
 
 		var start = new ServerLobbyStart(
 			ProjectSettings.GlobalizePath(mapDirectory),
@@ -624,6 +601,7 @@ public partial class LobbyManager
 			Cheats: true,
 			LoopbackOnly: true);
 
+		ReportHostLobbyStage(HostLobbyStage.LoadingMap);
 		MatchStartResult lobbyStarted = await session.TryStartLobbyAsync(start);
 		LastAuthorityLogPath = lobbyStarted.LogPath;
 		LastAuthorityConsoleLogPath = lobbyStarted.ConsoleLogPath;
@@ -635,7 +613,12 @@ public partial class LobbyManager
 			return false;
 		}
 
-		string? admissionFailure = await WaitForLobbyAdmissionAsync(session);
+		ReportHostLobbyStage(HostLobbyStage.AdmittingHost);
+
+		// The hello above is the confirmation: it came back over the loopback connection this screen opened to the authority
+		// it launched, which is the same seat check a hosted lobby makes before it is worth publishing. Asking a second time
+		// would wait on a hello that has already arrived and time out on a lobby that is already playable.
+		string? admissionFailure = await WaitForLobbyAdmissionAsync(session, Tr("The match did not start in time."));
 		if (admissionFailure != null)
 		{
 			LastHostError = admissionFailure;
@@ -655,32 +638,13 @@ public partial class LobbyManager
 		IsHost = true;
 		LobbyPort = session.Port;
 
-		if (!await VerifyLocalSeatBeforePublishingAsync(session))
-		{
-			TeardownHostedLobby(session);
-			return false;
-		}
-
 		PlayerListUpdated?.Invoke();
 		return true;
 	}
 
-	/// <summary>
-	///     Checks the local round trip every hosted lobby depends on, whether or not anybody else will see it. A lobby only
-	///     this machine plays still has to answer this machine, and a lobby other players can see has to answer this machine
-	///     before it is worth publishing: the host controls its own player over this path, and nothing between this screen and
-	///     the authority it launched is allowed to break that.
-	/// </summary>
-	private async Task<bool> VerifyLocalSeatBeforePublishingAsync(ClientServerSession session)
-	{
-		HostReachabilityResult loopback = await VerifyLobbyLoopbackAsync(session);
-		if (loopback.Verified) return true;
-
-		LastHostFailure = loopback;
-		LastHostError = $"this screen's own seat could not be confirmed over loopback on port {session.Port}: {loopback.Detail}";
-		GameLog.LogError($"[LobbyManager] {LastHostError}");
-		return false;
-	}
+	/// <summary>States the step a host's lobby has reached, which the create screen shows while it waits.</summary>
+	/// <param name="stage">The step that has begun.</param>
+	private void ReportHostLobbyStage(HostLobbyStage stage) => HostLobbyStageChanged?.Invoke(stage);
 
 	/// <summary>
 	///     Collects the values of the match settings the lobby's map declared, which is what a match started from this screen
@@ -700,8 +664,6 @@ public partial class LobbyManager
 
 	private void InitializeHostState(string mapPathName, string? explicitVersion)
 	{
-		ReleaseSeedingSlot();
-
 		IsUnlisted = false;
 		IsHost = true;
 		MaxPlayers = ResolvePlayablePlayerSlots(mapPathName, explicitVersion);
@@ -715,6 +677,8 @@ public partial class LobbyManager
 		PlayerList.Clear();
 		ActiveMapName = mapPathName;
 		ActiveMapVersion = !string.IsNullOrWhiteSpace(explicitVersion) ? explicitVersion : "1.0.0";
+		// A lobby states the item of the map it plays, never the item the last lobby happened to play.
+		_publishedMapWorkshopId = 0;
 	}
 
 	private static int ResolvePlayablePlayerSlots(string mapPathName, string? version)

@@ -10,7 +10,6 @@ using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Services;
 using Realm.Client.Utils;
-using Realm.Shared.Accounts;
 
 namespace Realm.Client.UI;
 
@@ -31,7 +30,6 @@ public partial class MainMenu : Control
 	private Button _playButton = null!;
 	private Button _singlePlayerButton = null!;
 	private Button _mapDiscoveryButton = null!;
-	private Button _creatorDiscoveryButton = null!;
 	private Button _mapEditorButton = null!;
 	private Button _replaysButton = null!;
 	private Button _storageButton = null!;
@@ -45,14 +43,13 @@ public partial class MainMenu : Control
 	private Button _websiteButton = null!;
 	private Button _discordButton = null!;
 	private Button _youtubeButton = null!;
-	private Button _donateButton = null!;
 	private Button _announcementsButton = null!;
 	private Button _bugReportButton = null!;
 	private PlayerProfileDialog? _profileDialog;
 	private AnnouncementsDialog _announcementsDialog = null!;
 	private DiscordCommunityDialog? _discordDialog;
-	private OptionButton _versionDropdown = null!;
-	private Label _outdatedLabel = null!;
+	private Label _steamStateLabel = null!;
+	private Button _steamRetryButton = null!;
 
 	private static Font _norseFont = null!;
 	private static Font _norseBoldFont = null!;
@@ -64,6 +61,10 @@ public partial class MainMenu : Control
 	{
 		TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
+		// A session copy left half-built by a run that ended in the middle of preparing a map is swept here, before any
+		// screen can open a lobby and mistake it for a retained copy.
+		GameContext.MapSessionCopy.SweepOrphans();
+
 		BindNodes();
 		StylePanels();
 		SetupButtons();
@@ -72,56 +73,63 @@ public partial class MainMenu : Control
 		PopulateRunicPillar(GetNode<VBoxContainer>("LeftPillar/RuneContainer"));
 		PopulateRunicPillar(GetNode<VBoxContainer>("RightPillar/RuneContainer"));
 
-		GameContext.Account.Changed += OnAccountChanged;
 		RefreshAccountPresentation();
-		RestoreAccountSession();
-	}
-
-	public override void _ExitTree()
-	{
-		GameContext.Account.Changed -= OnAccountChanged;
-	}
-
-	private void OnAccountChanged()
-	{
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
-
-		Callable.From(RefreshAccountPresentation).CallDeferred();
+		ShowCrashOfferIfAny();
 	}
 
 	/// <summary>
-	///     Adopts the session stored at the last sign-in before the player asks for anything. Nothing is asked of the authority
-	///     here, so the menu is signed in just as quickly whether or not it is reachable, and the account screen is what confirms
-	///     the session afterwards. With no session to adopt, the Steam identity this machine already has is signed in quietly in
-	///     the background, so a player who owns the game through Steam never has to find the sign-in button.
+	///     Offers, once, to export the diagnostics of a session that ended unexpectedly. It is a single non-blocking row: a
+	///     modal on the main menu would greet a player with a dialog about a failure they have already moved past, and the
+	///     offer is recorded as seen so it cannot repeat.
 	/// </summary>
-	private void RestoreAccountSession()
+	private void ShowCrashOfferIfAny()
 	{
-		GameContext.Account.Restore();
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
+		string? crashPath = DiagnosticsService.UnacknowledgedCrashReport;
+		if (crashPath == null) return;
 
-		Callable.From(RefreshAccountPresentation).CallDeferred();
+		var row = new HBoxContainer();
+		row.Name = "CrashOfferRow_HBoxContainer";
+		row.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide);
+		row.OffsetTop = -44;
+		row.OffsetBottom = -12;
+		row.OffsetLeft = 24;
+		row.OffsetRight = -24;
+		row.AddThemeConstantOverride("separation", 12);
+		row.Alignment = BoxContainer.AlignmentMode.Center;
+		AddChild(row);
 
-		if (!GameContext.Account.IsSignedIn) _ = SignInWithSteamAtLaunchAsync();
+		var label = new Label();
+		label.Name = "CrashOfferLabel_Label";
+		label.Text = TranslationServer.Translate("Realm closed unexpectedly last time. Export diagnostics?");
+		label.VerticalAlignment = VerticalAlignment.Center;
+		label.AddThemeColorOverride("font_color", new Color(0.95f, 0.7f, 0.35f));
+		label.AddThemeFontSizeOverride("font_size", 13);
+		row.AddChild(label);
+
+		var exportButton = UIStyle.CreateBareButton("CrashOfferExport_Button");
+		UIStyle.ApplyButtonText(exportButton, TranslationServer.Translate("EXPORT"), 12);
+		UIStyle.ApplyButtonStyleBoxes(exportButton);
+		exportButton.AddThemeColorOverride("font_color", UIStyle.ColorCyanGlow);
+		exportButton.Pressed += () =>
+		{
+			DiagnosticsService.ExportDiagnostics(includeSteamId: false);
+			DiagnosticsService.AcknowledgeCrashReport(crashPath);
+			row.QueueFree();
+		};
+		row.AddChild(exportButton);
+
+		var dismissButton = UIStyle.CreateBareButton("CrashOfferDismiss_Button");
+		UIStyle.ApplyButtonText(dismissButton, TranslationServer.Translate("DISMISS"), 12);
+		UIStyle.ApplyButtonStyleBoxes(dismissButton);
+		dismissButton.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
+		dismissButton.Pressed += () =>
+		{
+			DiagnosticsService.AcknowledgeCrashReport(crashPath);
+			row.QueueFree();
+		};
+		row.AddChild(dismissButton);
 	}
 
-	/// <summary>
-	///     Signs in with Steam on its own, and says nothing about how it went: the name on the profile button simply stops being
-	///     unverified, and a launch where Steamworks is absent, the authority is unreachable or the ticket is refused leaves the
-	///     screen exactly as it was. The one outcome that asks for the player is a Steam persona the authority will not register,
-	///     which opens the card already showing the username dialog, because that card is the only surface that ever asks for a name.
-	/// </summary>
-	private async Task SignInWithSteamAtLaunchAsync()
-	{
-		AccountOperationResult result = await GameContext.Account.SignInWithSteamIdentityAsync();
-		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree()) return;
-		if (result.Succeeded) return;
-		if (!AccountService.IsDisplayNameRefusal(result.ErrorCode)) return;
-
-		OpenProfileDialog();
-
-		if (_profileDialog != null && GodotObject.IsInstanceValid(_profileDialog)) _profileDialog.OpenNameConflict(result);
-	}
 
 	private void RefreshAccountPresentation()
 	{
@@ -142,18 +150,19 @@ public partial class MainMenu : Control
 
 		Label nameLabel = _profileButton.GetNodeOrNull<Label>("Nameplate/Label");
 		Label statusLabel = _profileButton.GetNodeOrNull<Label>("Badge/Label");
-		bool signedIn = GameContext.Account.IsSignedIn;
+		bool signedIn = GameContext.Steam.IsAvailable;
 
 		if (nameLabel != null)
 		{
-			nameLabel.Text = signedIn
-				? GameContext.Account.DisplayName
-				: UnverifiedNameMark.Apply(GameContext.Account.EffectiveUserName);
+			nameLabel.Text = signedIn ? GameContext.Steam.UserName : TranslationServer.Translate("Player");
 		}
 
 		if (statusLabel != null)
 		{
-			statusLabel.Text = signedIn ? string.Empty : TranslationServer.Translate("SIGNED OUT");
+			// The badge is the one thing money can buy, so it says what it is: a supporter mark, not a rank.
+			statusLabel.Text = !signedIn
+				? TranslationServer.Translate("STEAM OFFLINE")
+				: GameContext.Steam.HasSupporterFlair ? TranslationServer.Translate("SUPPORTER") : string.Empty;
 		}
 	}
 
@@ -171,7 +180,6 @@ public partial class MainMenu : Control
 			_profileDialog?.QueueFree();
 			_profileDialog = null;
 		};
-		_profileDialog.UserNameChanged = RefreshAccountPresentation;
 		AddChild(_profileDialog);
 		_profileDialog.Open();
 	}
@@ -192,7 +200,6 @@ public partial class MainMenu : Control
 		_playButton = GetNode<Button>("CentralPanel/VBoxContainer/PlayButton");
 		_singlePlayerButton = GetNodeOrNull<Button>("CentralPanel/VBoxContainer/SinglePlayerButton");
 		_mapDiscoveryButton = GetNode<Button>("CentralPanel/VBoxContainer/MapDiscoveryButton");
-		_creatorDiscoveryButton = GetNodeOrNull<Button>("CentralPanel/VBoxContainer/CreatorDiscoveryButton");
 		_mapEditorButton = GetNode<Button>("CentralPanel/VBoxContainer/MapEditorButton");
 		_replaysButton = GetNodeOrNull<Button>("CentralPanel/VBoxContainer/ReplaysButton");
 		_storageButton = GetNodeOrNull<Button>("CentralPanel/VBoxContainer/StorageButton");
@@ -206,7 +213,6 @@ public partial class MainMenu : Control
 		_websiteButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/WebsiteButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/WebsiteButton");
 		_discordButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/DiscordButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/DiscordButton");
 		_youtubeButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/YoutubeButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/YoutubeButton");
-		_donateButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/DonateButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/DonateButton");
 		_announcementsButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/AnnouncementsButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/AnnouncementsButton");
 		_bugReportButton = GetNodeOrNull<Button>("SocialPopover/MarginContainer/PopoverVBox/BugReportButton") ?? GetNodeOrNull<Button>("SocialPopover/PopoverVBox/BugReportButton");
 	}
@@ -229,6 +235,9 @@ public partial class MainMenu : Control
 			{
 				GameContext.SessionState.IsMapEditorMode = false;
 				GameContext.SessionState.IsTestMode = false;
+				// The mode is stated here, on state that exists whether or not a lobby does, so the create screen never has to
+				// infer it from the last lobby this session held.
+				GameContext.SessionState.IsSinglePlayerLobbyMode = true;
 				if (GameContext.Lobby != null) GameContext.Lobby.IsSinglePlayer = true;
 				NavigateTo(GameScreen.LobbyCreate);
 			}, "res://Assets/UI/menu_single_player_button.webp");
@@ -236,14 +245,6 @@ public partial class MainMenu : Control
 		}
 
 		SetupMenuButton(_mapDiscoveryButton, "MAP DISCOVERY", () => NavigateTo(GameScreen.MapDiscovery), "res://Assets/UI/menu_discovery_button.webp");
-		_mapDiscoveryButton.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
-		if (_creatorDiscoveryButton != null)
-		{
-			SetupMenuButton(_creatorDiscoveryButton, "CREATOR DISCOVERY", () => NavigateTo(GameScreen.CreatorDiscovery), "res://Assets/UI/menu_creator_button.webp");
-			_creatorDiscoveryButton.AddThemeConstantOverride("icon_max_width", 28);
-			_creatorDiscoveryButton.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
-		}
-
 		SetupMenuButton(_mapEditorButton, "MAP EDITOR", () => OnMapEditorPressed(), "res://Assets/UI/menu_editor_button.webp");
 		if (_replaysButton != null)
 		{
@@ -292,7 +293,6 @@ public partial class MainMenu : Control
 		SetupDiscordButton();
 		SetupSocialLinkButton(_websiteButton, "WEBSITE", "https://www.realm-game.com/", "res://Assets/UI/globe_icon.webp");
 		SetupSocialLinkButton(_youtubeButton, "YOUTUBE", "https://www.youtube.com/@Realm-Game", "res://Assets/UI/youtube_icon.webp");
-		SetupSocialLinkButton(_donateButton, "DONATE", "http://realm-game.com/#donate", "res://Assets/UI/donate_icon.webp");
 		SetupSocialLinkButton(_bugReportButton, "BUG REPORT", "https://github.com/RealmArcade/Realm/issues", "res://Assets/UI/bug_icon.webp");
 		SetupAnnouncementsButton();
 	}
@@ -390,6 +390,11 @@ public partial class MainMenu : Control
 		if (_socialPopoverOverlay != null) _socialPopoverOverlay.Visible = false;
 	}
 
+	/// <summary>
+	///     States the build this screen is running and, when Steamworks could not start, that Steam features are off, with the
+	///     one action that can change it. A build difference is a Steam update, so nothing here offers to fetch or run another
+	///     version of the game.
+	/// </summary>
 	private void CreateVersionSelector()
 	{
 		var versionBox = new HBoxContainer();
@@ -397,102 +402,69 @@ public partial class MainMenu : Control
 		versionBox.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
 		versionBox.Position = new Vector2(110, 10);
 		versionBox.AddThemeConstantOverride("separation", 10);
-		versionBox.Visible = !BuildFlags.IS_AUTOBATTLE_FESTIVAL_ACTIVE;
+		versionBox.Visible = true;
 		AddChild(versionBox);
 
 		var lbl = new Label();
 		lbl.Name = "Lbl_Label";
-		lbl.Text = TranslationServer.Translate("Version: ");
+		lbl.Text = string.Format(TranslationServer.Translate("Version: {0}"), RealmVersion.GameBinaryVersion);
 		lbl.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
 		lbl.AddThemeFontOverride("font", _norseFont);
 		lbl.AddThemeFontSizeOverride("font_size", 16);
 		lbl.VerticalAlignment = VerticalAlignment.Center;
 		versionBox.AddChild(lbl);
 
-		_versionDropdown = new OptionButton();
-		_versionDropdown.Name = "VersionDropdown_OptionButton";
-		_versionDropdown.CustomMinimumSize = new Vector2(160, 32);
-		_versionDropdown.AddThemeFontOverride("font", _norseFont);
-		_versionDropdown.AddThemeFontSizeOverride("font_size", 14);
-		_versionDropdown.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-		_versionDropdown.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		versionBox.AddChild(_versionDropdown);
+		_steamStateLabel = new Label();
+		_steamStateLabel.Name = "SteamStateLabel_Label";
+		_steamStateLabel.Text = TranslationServer.Translate("Steam features are off");
+		_steamStateLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.7f, 0.35f));
+		_steamStateLabel.AddThemeFontOverride("font", _norseFont);
+		_steamStateLabel.AddThemeFontSizeOverride("font_size", 14);
+		_steamStateLabel.VerticalAlignment = VerticalAlignment.Center;
+		_steamStateLabel.TooltipText = GameContext.Steam.UnavailableExplanation;
+		_steamStateLabel.Visible = !GameContext.Steam.IsAvailable;
+		versionBox.AddChild(_steamStateLabel);
 
-		_outdatedLabel = new Label();
-		_outdatedLabel.Name = "OutdatedLabel_Label";
-		_outdatedLabel.Text = TranslationServer.Translate("Outdated");
-		_outdatedLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.35f, 0.35f));
-		_outdatedLabel.AddThemeFontOverride("font", _norseFont);
-		_outdatedLabel.AddThemeFontSizeOverride("font_size", 14);
-		_outdatedLabel.VerticalAlignment = VerticalAlignment.Center;
-		_outdatedLabel.Visible = false;
-		versionBox.AddChild(_outdatedLabel);
-
-		var downloadBtn = new Button();
-		downloadBtn.Name = "DownloadBtn_Button";
-		downloadBtn.Text = TranslationServer.Translate("DOWNLOAD...");
-		downloadBtn.AddThemeFontOverride("font", _norseBoldFont);
-		downloadBtn.AddThemeFontSizeOverride("font_size", 12);
-		downloadBtn.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
-		downloadBtn.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
-		downloadBtn.CustomMinimumSize = new Vector2(110, 32);
-		UIStyle.ApplyButtonStyleBoxesClearingFocus(downloadBtn);
-		downloadBtn.Pressed += () => OS.ShellOpen("https://github.com/RealmArcade/Realm/releases");
-		versionBox.AddChild(downloadBtn);
-
-		PopulateVersionDropdown();
-		CheckForUpdatesAsync();
+		_steamRetryButton = UIStyle.CreateBareButton("SteamRetryButton_Button");
+		_steamRetryButton.Text = TranslationServer.Translate("RETRY STEAM");
+		_steamRetryButton.AddThemeFontOverride("font", _norseBoldFont);
+		_steamRetryButton.AddThemeFontSizeOverride("font_size", 12);
+		_steamRetryButton.AddThemeColorOverride("font_color", Color.FromHtml("#D1C4AE"));
+		_steamRetryButton.AddThemeColorOverride("font_hover_color", UIStyle.ColorGold);
+		_steamRetryButton.CustomMinimumSize = new Vector2(140, 32);
+		UIStyle.ApplyButtonStyleBoxesClearingFocus(_steamRetryButton);
+		_steamRetryButton.Visible = !GameContext.Steam.IsAvailable;
+		_steamRetryButton.Pressed += OnSteamRetryPressed;
+		versionBox.AddChild(_steamRetryButton);
 	}
 
-	private async void CheckForUpdatesAsync()
+	private void OnSteamRetryPressed()
 	{
-		if (await GameUpdateService.IsNewerReleasePublishedAsync())
+		GameContext.Steam.Retry();
+
+		bool available = GameContext.Steam.IsAvailable;
+		_steamStateLabel.Visible = !available;
+		_steamStateLabel.TooltipText = GameContext.Steam.UnavailableExplanation;
+		_steamRetryButton.Visible = !available;
+
+		if (!available)
 		{
-			_outdatedLabel.Visible = true;
-		}
-	}
-
-	private void PopulateVersionDropdown()
-	{
-		_versionDropdown.Clear();
-		_versionDropdown.AddItem(RealmVersion.GameBinaryVersion);
-		_versionDropdown.SetItemMetadata(0, "current");
-
-		if (!OS.HasFeature("editor"))
-		{
-			foreach (string version in GameUpdateService.GetOtherInstalledVersions(LobbyManager.GetBaseGameDirectory()))
-			{
-				_versionDropdown.AddItem(version);
-				_versionDropdown.SetItemMetadata(_versionDropdown.ItemCount - 1, version);
-			}
-		}
-
-		_versionDropdown.ItemSelected += OnVersionSelected;
-	}
-
-	private void OnVersionSelected(long index)
-	{
-		string meta = _versionDropdown.GetItemMetadata((int)index).AsString();
-		if (meta == "current" || string.IsNullOrEmpty(meta)) return;
-
-		string targetExe = LobbyManager.GetVersionExecutablePath(meta);
-
-		if (File.Exists(targetExe))
-		{
-			OS.CreateProcess(targetExe, new string[] { });
-			GetTree().Quit();
+			GameContext.UserInterface?.ShowPopupMessage(
+				TranslationServer.Translate("STEAM UNAVAILABLE"),
+				GameContext.Steam.UnavailableExplanation);
 		}
 	}
 
 	/// <summary>
-	///     Play opens the lobby browser without an account, because browsing lobbies and joining multiplayer matches need no
-	///     online identity; a signed-out player plays under the unverified name shown on the profile button. Only publishing a
-	///     map and submitting a verified review at the end of a match ask for a sign-in.
+	///     Play opens the lobby browser, which is Steam's directory. With no Steam client there is nothing to list and nothing to
+	///     join, so the browser states that reason and offers no lobby; single player, the editor and local maps are reached from
+	///     their own buttons and never depend on Steam.
 	/// </summary>
 	private void OnPlayPressed()
 	{
 		GameContext.SessionState.IsMapEditorMode = false;
 		GameContext.SessionState.IsTestMode = false;
+		GameContext.SessionState.IsSinglePlayerLobbyMode = false;
 		if (GameContext.Lobby is { } lobby) lobby.IsSinglePlayer = false;
 
 		NavigateTo(GameScreen.LobbyBrowser);

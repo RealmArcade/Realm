@@ -46,7 +46,7 @@ public partial class ListenServerHost : IServerTransportSink
 
 	private readonly Dictionary<int, string> _peerLanguages = new();
 
-	private readonly Dictionary<string, int> _sessionTokenSlots = new();
+	private readonly Dictionary<ulong, int> _steamIdSlots = new();
 
 	private double _lastTickSeconds;
 	private double _nextTickTime;
@@ -86,6 +86,7 @@ public partial class ListenServerHost : IServerTransportSink
 	private readonly byte[][] _publishedFrames = new byte[EcsWorld.MAX_PLAYERS][];
 	private readonly bool[] _pendingBaselineRequests = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly bool[] _pendingDescribeInFull = new bool[EcsWorld.MAX_PLAYERS];
+	private readonly bool[] _pendingStatementRefresh = new bool[EcsWorld.MAX_PLAYERS];
 	private readonly bool[] _pendingSkippedPeers = new bool[EcsWorld.MAX_PLAYERS];
 	private PublishLaneWorkers? _publishLaneWorkers;
 	private readonly Dictionary<int, SnapshotFrameRing> _frameRings = new();
@@ -229,7 +230,7 @@ public partial class ListenServerHost : IServerTransportSink
 		}
 	}
 
-	private readonly Dictionary<string, int> _lobbySessionSlots = new(StringComparer.Ordinal);
+	private readonly Dictionary<ulong, int> _lobbySessionSlots = new();
 	private long _deliveredPresentationCount;
 	private int _rateLimitedCommandCount;
 	private long _nextRateLimitReportTicks;

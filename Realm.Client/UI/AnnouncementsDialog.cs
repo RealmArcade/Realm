@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -202,8 +202,6 @@ public partial class AnnouncementsDialog : Control
 
 	private static string ResolveDefaultName()
 	{
-		if (GameContext.Account.IsSignedIn) return GameContext.Account.DisplayName;
-
 		return GameContext.Steam.UserName;
 	}
 

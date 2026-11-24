@@ -1,9 +1,13 @@
 using System;
 using System.Threading.Tasks;
-using Realm.Shared.Distribution;
+using Realm.Client.Services.Steam;
 
 namespace Realm.Client.Services;
 
+/// <summary>
+///     The editor's shared art assets, which are published as their own Workshop item so a map author downloads them
+///     once instead of carrying them in every map.
+/// </summary>
 public static class AssetPackService
 {
 	public const string AssetPackMapName = "ASSET_PACK";
@@ -13,7 +17,7 @@ public static class AssetPackService
 		return MapProvisioningService.IsInstalled(AssetPackMapName);
 	}
 
-	public static Task<DiscoveryMapDto?> FindLatestPublishedAsync()
+	public static Task<WorkshopMapEntry?> FindLatestPublishedAsync()
 	{
 		return MapProvisioningService.FindLatestPublishedAsync(AssetPackMapName);
 	}

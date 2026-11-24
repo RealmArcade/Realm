@@ -32,7 +32,7 @@ public partial class AssetManagerDialog
 			string objectListStr = string.Join("\n • ", orphanedObjects.Take(8));
 			if (orphanedObjects.Count > 8)
 			{
-				objectListStr += $"\n • ... and {orphanedObjects.Count - 8} more";
+				objectListStr += "\n • " + string.Format(TranslationServer.Translate("... and {0} more"), orphanedObjects.Count - 8);
 			}
 
 			string warningMessage = string.Format(
@@ -180,7 +180,7 @@ public partial class AssetManagerDialog
 		catch (Exception ex)
 		{
 			GameLog.LogError($"[AssetManagerDialog] ExecuteDeleteAsset error: {ex.Message}");
-			Hud?.ShowFeedback($"Error deleting asset: {ex.Message}");
+			Hud?.ShowFeedback(string.Format(TranslationServer.Translate("Error deleting asset: {0}"), ex.Message));
 		}
 	}
 }

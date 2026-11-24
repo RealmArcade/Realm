@@ -484,7 +484,10 @@ public class ServerSimulation : IDisposable
 	///     a seat is a person inside Steam rather than a computer or a screen without it.
 	/// </summary>
 	/// <param name="peerId">The connection that stated it.</param>
-	/// <param name="steamId">The SteamID64 the hello named, or zero when that screen is not running Steam.</param>
+	/// <param name="steamId">
+	///     The SteamID64 the authority seated this peer under, which is the one Steam asserted when the transport asserted
+	///     one, or zero when that screen is not running Steam.
+	/// </param>
 	public void SetPeerSteamId(int peerId, ulong steamId)
 	{
 		if (peerId <= 0) return;
@@ -627,7 +630,7 @@ public class ServerSimulation : IDisposable
 		abilities?.CompleteTick();
 	}
 
-	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline, int laneIndex, int peerSlot)
+	public void BuildSnapshotForPeerInto(ref WorldSnapshot snapshot, int peerId, int sequence, bool forceBaseline, int laneIndex, int peerSlot, bool restateStatements = false)
 	{
 		Entity viewer = TryGetPlayerEntity(peerId, out Entity playerEntity) ? playerEntity : Entity.Null;
 		List<AbilityStateDelta> preparedAbilityDeltas = (uint)peerSlot < (uint)_abilityDeltasByPeerSlot.Length
@@ -638,7 +641,7 @@ public class ServerSimulation : IDisposable
 		_snapshots.EnterPeerDescription(peerId);
 		try
 		{
-			builder.BuildInto(ref snapshot, peerId, sequence, new PlayerEntity(viewer), forceBaseline, preparedAbilityDeltas);
+			builder.BuildInto(ref snapshot, peerId, sequence, new PlayerEntity(viewer), forceBaseline, preparedAbilityDeltas, restateStatements);
 		}
 		finally
 		{
@@ -713,8 +716,39 @@ public class ServerSimulation : IDisposable
 		}
 
 		ServerCommandResult result = _commands.ExecuteServerCommand(peerId, command);
+		RaiseAcceptedUnitOrders(command, result);
 		result = PlaceBuildingOrderedBy(command, result);
 		return CastSpellOrderedBy(command, result);
+	}
+
+	private void RaiseAcceptedUnitOrders(NetworkCommand command, in ServerCommandResult result)
+	{
+		if (!IsUnitOrderCommand(command.CommandType)) return;
+		if (command.UnitEntityIds == null || command.UnitEntityIds.Count == 0) return;
+
+		var targetPosition = new Vector3(command.TargetPosition.X, command.TargetPosition.Y, command.TargetPosition.Z);
+		for (int index = 0; index < command.UnitEntityIds.Count; index++)
+		{
+			int unitId = command.UnitEntityIds[index];
+			if (result.RejectedServerEntityIds != null && result.RejectedServerEntityIds.Contains(unitId)) continue;
+
+			Entity resolved = _commands.Targets.Resolve(unitId);
+			if (resolved == Entity.Null || !_map.World.IsAlive(resolved)) continue;
+
+			_script.Api.RaiseUnitOrdered(resolved.Id, command.CommandType, targetPosition);
+		}
+	}
+
+	private static bool IsUnitOrderCommand(string? commandType)
+	{
+		return commandType switch
+		{
+			"move" or "move_queued" or "attack_move" or "attack_move_queued"
+				or "stop" or "hold" or "patrol" or "patrol_queued"
+				or "attack" or "attack_queued" or "follow" or "follow_queued"
+				or "gather" or "gather_queued" => true,
+			_ => false
+		};
 	}
 
 	public void ApplyConsoleCommand(int peerId, ScriptConsoleCommand command)

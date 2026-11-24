@@ -38,6 +38,8 @@ public static class UnicodeIcons
 	public static readonly string LINK = char.ConvertFromUtf32(0xF0C1);
 	public static readonly string SCISSORS = char.ConvertFromUtf32(0xF0C4);
 	public static readonly string COPY = char.ConvertFromUtf32(0xF0C5);
+	public static readonly string THUMBS_UP = char.ConvertFromUtf32(0xF164);
+	public static readonly string THUMBS_DOWN = char.ConvertFromUtf32(0xF165);
 	public static readonly string SAVE = char.ConvertFromUtf32(0xF0C7);
 	public static readonly string SQUARE = char.ConvertFromUtf32(0xF0C8);
 	public static readonly string LIST = char.ConvertFromUtf32(0xF0CB);

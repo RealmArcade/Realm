@@ -78,7 +78,22 @@ public class LocalAuthority : IDisposable
 				previous.Dispose();
 			}
 
-			var request = new ResidentAuthorityLaunchRequest(target, _logPath, _dataFolderPath);
+			// The authority is a process of its own, and Steamworks looks for the application id in the folder that process
+			// starts from, which is the authority's own and holds no app id file. It is handed the id Steam already gave
+			// this screen instead, so one development file in the screen's folder serves both processes.
+			uint steamAppId = GameContext.Steam.AppId;
+			if (steamAppId == 0)
+			{
+				// The process launched now is the one the whole session keeps, so an id that was not known yet cannot be
+				// added later and every host request would be refused for want of an identity. Saying it here puts the
+				// reason in the screen's log instead of only in the answer to the first lobby that tried to host.
+				GameLog.LogToConsole("[LocalAuthority] this screen has no Steam application yet, so the authority it is starting will not be able to host a networked match");
+			}
+
+			var request = new ResidentAuthorityLaunchRequest(target, _logPath, _dataFolderPath)
+			{
+				SteamAppId = steamAppId
+			};
 			ResidentAuthorityLaunchAttempt attempt = await ResidentAuthority.LaunchAsync(request).ConfigureAwait(false);
 			if (!attempt.Started || attempt.Authority == null)
 			{

@@ -18,7 +18,6 @@ using Realm.Client.Services;
 using Realm.Client.UI;
 using Realm.Client.Utils;
 using Realm.Shared;
-using Realm.Shared.Accounts;
 using Realm.Shared.Distribution;
 using Realm.Shared.Maps;
 using Realm.Shared.Metadata;
@@ -26,7 +25,6 @@ using Realm.Shared.Network;
 using Realm.Shared.Services;
 using Environment = System.Environment;
 using FileAccess = System.IO.FileAccess;
-using HttpClient = System.Net.Http.HttpClient;
 
 namespace Realm.Client.Network;
 public partial class LobbyManager
@@ -136,8 +134,6 @@ public partial class LobbyManager
 
 		try
 		{
-			GameContext.PeerSeeder.Stop();
-			GameContext.Upnp.ClosePort(BoundPort);
 			GameContext.LocalAuthority.Dispose();
 			_lobbySession?.Dispose();
 		}
@@ -145,26 +141,6 @@ public partial class LobbyManager
 		{
 		}
 
-		if (IsHost && !string.IsNullOrEmpty(ActiveLobbyId) && !string.IsNullOrEmpty(_hostToken))
-		{
-			string lobbyIdToClose = ActiveLobbyId;
-			string tokenToClose = _hostToken;
-			_hostToken = null;
-
-			try
-			{
-				GameLog.LogToConsole($"[LobbyManager] Closing lobby {lobbyIdToClose} synchronously before exit...");
-				var payload = new { LobbyId = lobbyIdToClose, HostToken = tokenToClose };
-				var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-
-				var task = Task.Run(async () => { await _httpClient.PostAsync($"{RegistryServerUrl}/lobbies/close", jsonContent); });
-				task.Wait(2000);
-			}
-			catch (Exception ex)
-			{
-				GameLog.LogError($"[LobbyManager] Failed synchronous lobby close on exit: {ex.Message}");
-			}
-		}
 	}
 
 }

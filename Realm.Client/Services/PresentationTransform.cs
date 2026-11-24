@@ -88,9 +88,6 @@ public sealed class PresentationTransform
 		SimulationService.World.Set(entity, new Position(sampledPosition));
 		SimulationService.World.SetOrAdd(entity, new Velocity(sampledVelocity));
 
-		// A unit standing still is drawn facing where the authority had it facing at the moment being rendered. The
-		// renderer smooths towards this value, so a unit that turns in place turns when it is drawn rather than one
-		// presentation delay before it. A moving unit is turned along its own movement by the renderer instead.
-		if (sampledVelocity.LengthSquared() <= StationaryVelocitySquared) target.RotationY = sampledRotationY;
+		target.RotationY = sampledRotationY;
 	}
 }

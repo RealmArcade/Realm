@@ -6,7 +6,7 @@ namespace Realm.ListenServer;
 ///     The one match a resident authority was told to hold: which map, who may join it, and where its reports go. It is
 ///     built from a control command rather than a command line, because the authority that runs it is already running.
 /// </summary>
-public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "", string RosterPath = "", string RecordAuthorityPath = "", bool Lobby = false, string AdminToken = "", string MapName = "", int MaxPlayers = 0, bool LoopbackOnly = false)
+public record ServerArguments(string MapPath, int Port, string Token, string LogPath, string DataPath, int Seed, bool Cheats = false, bool WasmDebug = false, string WorkspacePath = "", string RosterPath = "", string RecordAuthorityPath = "", bool Lobby = false, string AdminToken = "", string MapName = "", int MaxPlayers = 0, bool LoopbackOnly = false, ulong SteamLobbyId = 0, string JoinCode = "")
 {
 	public static ServerArguments From(ServerControlCommand command, string logPath, string dataPath)
 	{
@@ -28,6 +28,8 @@ public record ServerArguments(string MapPath, int Port, string Token, string Log
 			command.AdminToken,
 			command.MapName,
 			command.MaxPlayers,
-			command.LoopbackOnly);
+			command.LoopbackOnly,
+			command.SteamLobbyId,
+			command.JoinCode);
 	}
 }

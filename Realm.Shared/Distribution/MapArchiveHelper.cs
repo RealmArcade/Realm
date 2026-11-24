@@ -31,6 +31,28 @@ public static class MapArchiveHelper
 		return AppendContentHashToRmapFileName(destinationRmapPath);
 	}
 
+	/// <summary>
+	///     Writes the canonical copy of a map folder into another folder: exactly the files an exported package carries,
+	///     laid out the way the map folder has them, in place of an archive. Steam Workshop takes a folder rather than a
+	///     package, and handing it the workspace itself would ship the author's build output, history and editor settings.
+	/// </summary>
+	/// <param name="sourceDirectory">The map workspace.</param>
+	/// <param name="destinationDirectory">The folder to write the copy into, which is emptied first.</param>
+	public static void StageCanonicalCopy(string sourceDirectory, string destinationDirectory)
+	{
+		if (Directory.Exists(destinationDirectory)) Directory.Delete(destinationDirectory, true);
+		Directory.CreateDirectory(destinationDirectory);
+
+		var filesToCopy = GetFilesToArchive(sourceDirectory, fullExport: true, excludedRelativePaths: null);
+		foreach (string file in filesToCopy)
+		{
+			string relativePath = Path.GetRelativePath(sourceDirectory, file).Replace('\\', '/');
+			string targetPath = Path.Combine(destinationDirectory, relativePath);
+			Directory.CreateDirectory(Path.GetDirectoryName(targetPath) ?? destinationDirectory);
+			File.Copy(file, targetPath, overwrite: true);
+		}
+	}
+
 	private static string AppendContentHashToRmapFileName(string rmapPath)
 	{
 		string blake3 = ComputeFileBlake3(rmapPath);

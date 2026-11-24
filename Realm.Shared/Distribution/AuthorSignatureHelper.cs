@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using NSec.Cryptography;
@@ -88,63 +88,78 @@ public static class AuthorSignatureHelper
 
 	public static string MergeMetadataHeaders(string? existingMetadataJson, string incomingMetadataJson, bool isAuthorizedOverwrite)
 	{
-		if (string.IsNullOrWhiteSpace(existingMetadataJson) || isAuthorizedOverwrite)
+		if (string.IsNullOrWhiteSpace(existingMetadataJson))
 		{
-			var incoming = MapFileService.LoadMetadataFromJson(incomingMetadataJson);
-			return MapFileService.SaveMetadataToJson(incoming);
+			return CanonicalizeJson(incomingMetadataJson);
 		}
+
+		if (isAuthorizedOverwrite)
+		{
+			return CanonicalizeJson(incomingMetadataJson);
+		}
+
+		JsonNode? existingNode;
+		JsonNode? incomingNode;
 
 		try
 		{
-			var existing = MapFileService.LoadMetadataFromJson(existingMetadataJson);
-			var incoming = MapFileService.LoadMetadataFromJson(incomingMetadataJson);
-
-			MergeMapProperties(existing, incoming);
-
-			if (!string.IsNullOrEmpty(incoming.GameBuildNumber))
-			{
-				existing.GameBuildNumber = incoming.GameBuildNumber;
-			}
-
-			MergeDependencies(existing, incoming);
-
-			return MapFileService.SaveMetadataToJson(existing);
+			existingNode = JsonNode.Parse(existingMetadataJson);
+			incomingNode = JsonNode.Parse(incomingMetadataJson);
 		}
 		catch
 		{
-			return MapFileService.SaveMetadataToJson(MapFileService.LoadMetadataFromJson(existingMetadataJson));
-		}
-	}
-
-	private static void MergeMapProperties(MapMetadata existing, MapMetadata incoming)
-	{
-		if (incoming.MapProperties == null)
-		{
-			return;
+			return CanonicalizeJson(existingMetadataJson);
 		}
 
-		existing.MapProperties ??= new MapInfoMetadata();
-		if (!string.IsNullOrEmpty(incoming.MapProperties.MapName)) existing.MapProperties.MapName = incoming.MapProperties.MapName;
-		if (!string.IsNullOrEmpty(incoming.MapProperties.MapDescription)) existing.MapProperties.MapDescription = incoming.MapProperties.MapDescription;
-		if (!string.IsNullOrEmpty(incoming.MapProperties.Author)) existing.MapProperties.Author = incoming.MapProperties.Author;
-		if (!string.IsNullOrEmpty(incoming.MapProperties.Version)) existing.MapProperties.Version = incoming.MapProperties.Version;
-	}
-
-	private static void MergeDependencies(MapMetadata existing, MapMetadata incoming)
-	{
-		if (incoming.Dependencies == null)
+		if (existingNode is not JsonObject existingObject || incomingNode is not JsonObject incomingObject)
 		{
-			return;
+			return CanonicalizeJson(existingMetadataJson);
 		}
 
-		existing.Dependencies ??= new List<MapDependencyMetadata>();
-		foreach (var dep in incoming.Dependencies)
+		foreach (var property in incomingObject)
 		{
-			if (!existing.Dependencies.Any(d => string.Equals(d.Id, dep.Id, StringComparison.OrdinalIgnoreCase)))
+			string propertyName = property.Key;
+			JsonNode? incomingValue = property.Value;
+
+			if (incomingValue == null)
 			{
-				existing.Dependencies.Add(dep);
+				continue;
+			}
+
+			if (!existingObject.ContainsKey(propertyName) || existingObject[propertyName] == null)
+			{
+				existingObject[propertyName] = incomingValue.DeepClone();
+				continue;
+			}
+
+			JsonNode? existingValue = existingObject[propertyName];
+
+			if (existingValue is JsonArray existingArray && incomingValue is JsonArray incomingArray)
+			{
+				var existingItemsSet = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+				foreach (var item in existingArray)
+				{
+					if (item != null)
+					{
+						existingItemsSet.Add(item.ToJsonString());
+					}
+				}
+
+				foreach (var item in incomingArray)
+				{
+					if (item != null)
+					{
+						string itemString = item.ToJsonString();
+						if (existingItemsSet.Add(itemString))
+						{
+                            existingArray.Add(item.DeepClone());
+						}
+					}
+				}
 			}
 		}
+
+		return CanonicalizeJson(existingObject.ToJsonString());
 	}
 
 	public static string CanonicalizeJson(string? json)

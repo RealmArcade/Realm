@@ -26,7 +26,19 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	private Texture2D? _trashIconTexture;
 
 	private double _refreshCheckTimer = 0.0;
+	private static readonly string[] CategoryKeysByFilterId = { "", "Units", "Buildings", "Resources", "Props", "Decals", "VFX / Effects", "Coordinates", "Spawn Anchors" };
+
 	private int _lastUnitsCount = -1;
+
+	private string SelectedCategoryKey
+	{
+		get
+		{
+			if (_typeFilterOpt == null) return string.Empty;
+			int filterId = _typeFilterOpt.GetSelectedId();
+			return filterId >= 0 && filterId < CategoryKeysByFilterId.Length ? CategoryKeysByFilterId[filterId] : string.Empty;
+		}
+	}
 	private int _lastPropsCount = -1;
 	private int _lastDecalsCount = -1;
 	private int _lastCoordinatesCount = -1;
@@ -172,15 +184,15 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	{
 		if (_typeFilterOpt != null && !string.IsNullOrEmpty(initialTypeFilter))
 		{
-			for (int i = 0; i < _typeFilterOpt.ItemCount; i++)
+			for (int filterId = 0; filterId < CategoryKeysByFilterId.Length; filterId++)
 			{
-				string itemText = _typeFilterOpt.GetItemText(i);
-				if (itemText.IndexOf(initialTypeFilter, StringComparison.OrdinalIgnoreCase) >= 0 ||
-				    initialTypeFilter.IndexOf(itemText, StringComparison.OrdinalIgnoreCase) >= 0)
-				{
-					_typeFilterOpt.Selected = i;
-					break;
-				}
+				string categoryKey = CategoryKeysByFilterId[filterId];
+				if (categoryKey.Length == 0) continue;
+				if (categoryKey.IndexOf(initialTypeFilter, StringComparison.OrdinalIgnoreCase) < 0 &&
+				    initialTypeFilter.IndexOf(categoryKey, StringComparison.OrdinalIgnoreCase) < 0) continue;
+				int filterIndex = _typeFilterOpt.GetItemIndex(filterId);
+				if (filterIndex >= 0) _typeFilterOpt.Selected = filterIndex;
+				break;
 			}
 		}
 
@@ -217,9 +229,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 		var groupedObjects = GroupPlacedObjectsByAssetType(placedObjects);
 
-		string selectedType = _typeFilterOpt != null && _typeFilterOpt.Selected > 0
-			? _typeFilterOpt.GetItemText(_typeFilterOpt.Selected)
-			: string.Empty;
+		string selectedType = SelectedCategoryKey;
 
 		int matchedObjectCount = 0;
 		foreach (var categoryGroup in groupedObjects)
@@ -248,9 +258,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 
 	private void UpdateSummaryLabel(int totalCount, int matchedCount)
 	{
-		string selectedType = _typeFilterOpt != null && _typeFilterOpt.Selected > 0
-			? _typeFilterOpt.GetItemText(_typeFilterOpt.Selected)
-			: string.Empty;
+		string selectedType = SelectedCategoryKey;
 
 		if (string.IsNullOrEmpty(_filterText) && string.IsNullOrEmpty(selectedType))
 		{
@@ -266,12 +274,14 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 	{
 		int matchedCount = 0;
 		TreeItem? categoryNode = null;
+		string displayCategoryName = TranslationServer.Translate(categoryName);
 
 		foreach (var (displayTitle, node, posText, coordName, spawnAnchorSlot) in objectsInCategory)
 		{
 			if (!string.IsNullOrEmpty(_filterText) &&
 			    displayTitle.IndexOf(_filterText, StringComparison.OrdinalIgnoreCase) < 0 &&
-			    categoryName.IndexOf(_filterText, StringComparison.OrdinalIgnoreCase) < 0)
+			    categoryName.IndexOf(_filterText, StringComparison.OrdinalIgnoreCase) < 0 &&
+			    displayCategoryName.IndexOf(_filterText, StringComparison.OrdinalIgnoreCase) < 0)
 			{
 				continue;
 			}
@@ -279,7 +289,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 			if (categoryNode == null)
 			{
 				categoryNode = _objectTree.CreateItem(rootNode);
-				categoryNode.SetText(0, $"{categoryName} ({objectsInCategory.Count})");
+				categoryNode.SetText(0, $"{displayCategoryName} ({objectsInCategory.Count})");
 				categoryNode.SetSelectable(0, false);
 				categoryNode.SetSelectable(1, false);
 				categoryNode.SetCustomColor(0, UIStyle.ColorGold);
@@ -362,7 +372,7 @@ public partial class InstanceManagerDialog : FloatingDialogBase
 				resolvedName = GetResourceRegistryName(unit.UnitId);
 			}
 
-			string displayTitle = $"{resolvedName} [Player {unit.Player}]";
+			string displayTitle = string.Format(TranslationServer.Translate("{0} [Player {1}]"), resolvedName, unit.Player);
 			result.Add((displayTitle, assetType, unit, null, null, 0));
 		}
 	}

@@ -9,13 +9,11 @@ using NSec.Cryptography;
 using Realm.Client.Network;
 using Realm.Shared;
 using Realm.Shared.Network;
-using HttpClient = System.Net.Http.HttpClient;
 using static Godot.Control;
 using static Godot.CanvasItem;
 using Realm.Client.Utils;
 using Realm.Client.UI.InGame;
 using Realm.Client.Services;
-using Realm.Shared.Accounts;
 
 namespace Realm.Client.UI;
 
@@ -101,8 +99,7 @@ public partial class LobbyRoom
 
 	private void ApplyClientStartButtonState()
 	{
-		string activeMap = Lobby.ActiveMapName ?? "";
-		bool isMapReady = !string.IsNullOrEmpty(activeMap) && MapAssetManager.IsMapDownloaded(activeMap);
+		bool isMapReady = Lobby.HoldsActiveMapPackage;
 		if (!isMapReady)
 		{
 			int downloadPercent = Math.Clamp(GetLocalPlayer()?.MapDownloadPercent ?? 0, 0, 100);
@@ -233,9 +230,16 @@ public partial class LobbyRoom
 		}
 	}
 
+	/// <summary>
+	///     Says what to do when the host and this screen run different builds. Both are Steam installs of the same game, so
+	///     the remedy is the Steam update this screen has not taken yet; there is no second build to install and nothing to
+	///     relaunch by hand.
+	/// </summary>
+	/// <param name="hostVersion">The build the host runs.</param>
+	/// <param name="clientVersion">The build this screen runs.</param>
 	private void ShowVersionMismatchPopup(string hostVersion, string clientVersion)
 	{
-		string msg = $"{string.Format(Tr("Host Version: {0}"), hostVersion)}\n{string.Format(Tr("Client Version: {0}"), clientVersion)}\n\n{Tr("Connection aborted.")}";
+		string msg = $"{string.Format(Tr("Host Version: {0}"), hostVersion)}\n{string.Format(Tr("Client Version: {0}"), clientVersion)}\n\n{Tr("Restart Realm through Steam to update the game, then join again.")}";
 		GameContext.UserInterface?.ShowPopupMessage(Tr("VERSION MISMATCH"), msg, ReturnFromLobby);
 	}
 

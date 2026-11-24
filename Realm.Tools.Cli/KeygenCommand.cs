@@ -46,10 +46,8 @@ public static class KeygenCommand
 		Console.WriteLine("Open the map editor and register the key from the publish dialog to lock this name to your Steam account.");
 
 		Console.WriteLine();
-		Console.WriteLine("To graduate this key pair to an Admin Key:");
-		Console.WriteLine("1. Keep your Private Key secret.");
-		Console.WriteLine("2. Add the Public Key to Realm.AdminServer/appsettings.json under 'AdminPublicKeys':");
-		Console.WriteLine($"   \"AdminPublicKeys\": [\n     \"{publicKeyBase64}\"\n   ]");
+		Console.WriteLine("Back up the .rkey file: it signs every map you publish, and an update signed with a key you lost can no longer be shown as yours.");
+		Console.WriteLine($"The public key ({publicKeyBase64}) is carried inside each map you sign, so anyone can check the map came from you. Share it freely; it cannot sign anything.");
 		Console.WriteLine("=================================================");
 		return 0;
 	}

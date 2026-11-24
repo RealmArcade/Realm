@@ -5,6 +5,7 @@ using Realm.Client.ReplaySystem;
 using Realm.Client.UI;
 using Realm.Client.Services.MapHistory;
 using Realm.Client.Services.ModelOptimization;
+using Realm.Client.Services.Playtest;
 using Realm.Ecs;
 using Realm.Ecs.Services;
 using Realm.EditorAPI;
@@ -19,7 +20,6 @@ namespace Realm.Client.Services
 		private static ServiceScope? _screenScope;
 
 		private static ReplayPlaybackManager? _replayPlayback;
-		private static PeerSeederManager? _peerSeeder;
 		private static VSCodeManager? _vscode;
 		private static WasmConsoleWindow? _wasmConsole;
 
@@ -70,22 +70,19 @@ namespace Realm.Client.Services
 		public static SettingsMenu? Settings { get; private set; }
 		public static PropMultiMeshManager? PropMultiMesh { get; private set; }
 
-		private static AccountService? _account;
-
-		public static AccountService Account => _account ??= new AccountService();
-
 		private static SteamService? _steam;
 
 		public static SteamService Steam => _steam ??= new SteamService();
 
 		public static ReplayPlaybackManager ReplayPlayback => _replayPlayback ??= new ReplayPlaybackManager();
-		public static PeerSeederManager PeerSeeder => _peerSeeder ??= new PeerSeederManager();
 
 		private static LocalAuthority? _localAuthority;
+		private static PlaytestLedgerService? _playtest;
 
 		public static LocalAuthority LocalAuthority => _localAuthority ??= new LocalAuthority();
-		public static UpnpService Upnp { get; } = new();
-		public static WindowsFirewallService WindowsFirewall { get; } = new();
+
+		/// <summary>The playtest ledger and the greenlight record this machine keeps for the maps it plays and publishes.</summary>
+		public static PlaytestLedgerService Playtest => _playtest ??= new PlaytestLedgerService();
 
 		[SupportedOSPlatform("windows")]
 		public static VSCodeManager VSCode => _vscode ??= new VSCodeManager();
@@ -158,6 +155,7 @@ namespace Realm.Client.Services
 		public static MetadataService MetadataService => GlobalScope.Get<MetadataService>();
 		public static MapUpgradeService MapUpgradeService => GlobalScope.Get<MapUpgradeService>();
 		public static MapStorageService MapStorageService => GlobalScope.Get<MapStorageService>();
+		public static MapSessionCopyService MapSessionCopy => GlobalScope.Get<MapSessionCopyService>();
 		public static MapReferenceService MapReferenceService => GlobalScope.Get<MapReferenceService>();
 		public static MapAssetImportService MapAssetImportService => GlobalScope.Get<MapAssetImportService>();
 		public static MapTemplateImportService MapTemplateImportService => GlobalScope.Get<MapTemplateImportService>();

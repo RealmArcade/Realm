@@ -74,6 +74,15 @@ offset_right = 470.0
 offset_bottom = 85.0
 focus_mode = 0
 
+[node name="JoinCodeButton" type="Button" parent="."]
+custom_minimumSize = Vector2(190, 45)
+layout_mode = 0
+offset_left = 480.0
+offset_top = 40.0
+offset_right = 670.0
+offset_bottom = 85.0
+focus_mode = 0
+
 [node name="UnlistedLobbyHint" type="Label" parent="."]
 custom_minimumSize = Vector2(600, 0)
 layout_mode = 0
@@ -87,7 +96,6 @@ theme_override_font_sizes/font_size = 12
 autowrap_mode = 3
 vertical_alignment = 1
 
-[node name="LobbyFamiliesHint" type="Label" parent="."]
 custom_minimumSize = Vector2(600, 0)
 layout_mode = 0
 offset_left = 280.0

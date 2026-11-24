@@ -1,4 +1,4 @@
-using CommandLine;
+﻿using CommandLine;
 using Realm.Shared;
 
 namespace Realm.Tools.Cli;
@@ -21,13 +21,6 @@ public static class Program
 		}
 
 		string[] originalArgs = unhandledArgs.ToArray();
-		if (originalArgs.Length > 0 && string.Equals(originalArgs[0], "join-lobby", StringComparison.OrdinalIgnoreCase))
-		{
-			return Parser.Default.ParseArguments<JoinLobbyOptions>(originalArgs[1..])
-				.MapResult(
-					(JoinLobbyOptions options) => JoinLobbyCommand.Execute(options),
-					_ => 2);
-		}
 		string[] sanitizedArgs = CommandLineArgsHelper.SanitizeArgs(
 			originalArgs,
 			typeof(MeshConvertOptions),

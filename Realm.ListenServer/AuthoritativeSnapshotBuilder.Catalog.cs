@@ -57,10 +57,16 @@ public partial class AuthoritativeSnapshotBuilder
 
 	private const string TextChannel = "string";
 
-	private void AppendTextEntries(SnapshotPeerState state, List<CatalogEntry> entries)
+	/// <summary>
+	///     Appends the text this peer has not been given yet. The cursor is what makes this a statement rather than a
+	///     report: a description that never arrives takes the strings it carried with it, and the cursor has already moved
+	///     past them. A description that states everything therefore starts from the beginning of the table, which is why
+	///     forgetting the cursor is all that a refresh has to do here.
+	/// </summary>
+	private void AppendTextEntries(SnapshotPeerState state, List<CatalogEntry> entries, bool statesEverything)
 	{
 		int entryCount = StringRegistry.EntryCount;
-		int cursor = state.StringTableCursor > entryCount ? 0 : state.StringTableCursor;
+		int cursor = statesEverything || state.StringTableCursor > entryCount ? 0 : state.StringTableCursor;
 
 		_stringTableEntries.Clear();
 		state.StringTableCursor = StringRegistry.GetEntriesSince(cursor, _stringTableEntries);

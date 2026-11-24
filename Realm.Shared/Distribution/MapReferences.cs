@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -18,6 +18,19 @@ public class MapReference
 	///     reference was written against inside the content-addressable store.
 	/// </summary>
 	public string ManifestBlake3 { get; set; } = string.Empty;
+
+	/// <summary>
+	///     The SteamID64 the referenced package credits, or zero when it credits nobody. It is recorded when the reference is
+	///     written and travels with the package, so a composed map can name the author whose units, art and scripts it carries
+	///     without the referenced map being installed on the machine reading the credits.
+	/// </summary>
+	public ulong SourceAuthorSteamId { get; set; }
+
+	/// <summary>
+	///     The Workshop item the referenced map was published as, or zero when it was never published. It is a link in the
+	///     credits, never a dependency to resolve: composition copies the content into the referencing map.
+	/// </summary>
+	public ulong SourceWorkshopId { get; set; }
 
 	/// <summary>
 	///     A folder on this machine holding the referenced map while it is still being authored. It is searched before the
@@ -143,6 +156,8 @@ public class MapReferences
 				MapName = reference.MapName,
 				Version = reference.Version,
 				ManifestBlake3 = reference.ManifestBlake3,
+				SourceAuthorSteamId = reference.SourceAuthorSteamId,
+				SourceWorkshopId = reference.SourceWorkshopId,
 				FolderPath = string.Empty
 			});
 		}
