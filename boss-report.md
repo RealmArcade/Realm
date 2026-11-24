@@ -491,3 +491,11 @@ Analizadores: `analyze-replication.mjs` (C3), `analyze-sites.mjs` (sitios 6 y 7)
 | Cuatro asientos y determinismo | `.artifacts-check/p5-four-seat/` |
 | Pipeline y perfil publicado | `.artifacts-check/p4-publish/`, `ugc-ChaosArena/Chaos Arena_bot.json` |
 | Compuerta corregida | `.artifacts-check/gate-blocked-report/`, `.artifacts-check/gate-disjoint-window/` |
+
+## 11. Addendum — fusión con origin/main (24/11)
+
+- Motor: merge commit `69415ad5` de `origin/main` (`566847a4`, reestructuración Steam-first y Chariot Racer); los 8 proyectos compilan sin errores y `verify-schemas.ps1` pasa. Mapa: merge commit `6aedf04` de `origin/main` (`1d19581`, formato de mapa v0.0.7 e identidad de Workshop).
+- El mapa fusionado declara `GameBuildNumber` v0.0.7 y `EngineGeneration: 1` (la compuerta es la generación, no el número de build), licencia v2 y sin `Dependencies`; `lib/` y `wit/` salen del motor fusionado y `lib/Realm.EditorAPI.dll` desaparece.
+- La resolución conserva **90 valores de gameplay de la rama**: 68 stats de héroe, 18 coeficientes de escalado y 4 bloques `AutoCast`. Comparar contra `main` solo mostraría el bug de escala ×10 (`0/12/14/15/10`) y los cuatro autocasts apagados que esta ronda corrigió; partir de main y re-aplicar solo los stats habría cambiado el mundo simulado sin que ninguna compuerta lo dijera.
+- Humo cruzado post-merge: semillas 92001–92010 idénticas **10/10** a `.artifacts-check/p5-four-seat/two-seat-control.jsonl` (mismo wasm publicado y mismo campeón en ambos asientos), sin avisos de pesos por defecto ni de desajuste de rasgos del mapa.
+- Trazabilidad: `MapScript.wasm` nuevo con blake3 `ab0993ab…` y `manifest.json` refrescado en metadata, libs, wit y wasm; los `.jsonl` del A/B y del informe no cambian y la conclusión de §4 se mantiene.
