@@ -503,3 +503,18 @@ Analizadores: `analyze-replication.mjs` (C3), `analyze-sites.mjs` (sitios 6 y 7)
 - La resolución conserva **90 valores de gameplay de la rama**: 68 stats de héroe, 18 coeficientes de escalado y 4 bloques `AutoCast`. Comparar contra `main` solo mostraría el bug de escala ×10 (`0/12/14/15/10`) y los cuatro autocasts apagados que esta ronda corrigió; partir de main y re-aplicar solo los stats habría cambiado el mundo simulado sin que ninguna compuerta lo dijera.
 - Humo cruzado post-merge: semillas 92001–92010 idénticas **10/10** a `.artifacts-check/p5-four-seat/two-seat-control.jsonl` (mismo wasm publicado y mismo campeón en ambos asientos), sin avisos de pesos por defecto ni de desajuste de rasgos del mapa.
 - Trazabilidad: `MapScript.wasm` nuevo con blake3 `ab0993ab…` y `manifest.json` refrescado en metadata, libs, wit y wasm; los `.jsonl` del A/B y del informe no cambian y la conclusión de §4 se mantiene.
+
+## 12. Addendum — segunda fusión con origin/main y mensaje difundido (24/11)
+
+- Motor: merge commit `f4bd4acb` de `origin/main` (`ca3320f3`), que trae el template de mapa en blanco al
+  formato v0.0.7 (`5b8b5aae`), la variable `recent_map_dir.txt` duplicada eliminada (`4d50ff2e`) y el
+  umbral de testers para aprobar un mapa (`ca3320f3`). Sin conflictos.
+- Verificación del merge: `dotnet build Realm.slnx` con 0 errores y las 188 advertencias de siempre,
+  `verify-schemas.ps1` en verde en `Realm.MapEditorExtension` y `MapTemplate/.vscode`, y humo de
+  semillas 92001–92010 idéntico **10/10** a `.artifacts-check/p5-four-seat/two-seat-control.jsonl`
+  (mismo ganador, duración y `perSeat`; salida en
+  `.artifacts-check/merge-map/smoke-after-main-merge.jsonl`).
+- Mensaje difundido por el mapa: `BroadcastMessage` seguía mostrando el texto con la retención de
+  feedback (0,5 s más 1,5 s de desvanecido) mientras `SendMessage` ya usaba la retención de mensaje de
+  mapa; ahora los dos usan los 6 s (`caaae6ec`).
+- El HEAD del PR queda al día con `main`; lo que falta sigue siendo la revisión y la fusión (§8).
