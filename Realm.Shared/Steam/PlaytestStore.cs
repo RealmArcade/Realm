@@ -92,5 +92,5 @@ public static class PlaytestStore
 public static class PlaytestGreenlightRules
 {
 	/// <summary>The number of distinct testers every map needs before it may be published.</summary>
-	public const int TesterThreshold = 25;
+	public const int TesterThreshold = 5;
 }
