@@ -90,6 +90,7 @@ public class ServerBots
 
 		BotController bot = GetOrCreateController(playerIndex, profile);
 		bot.LoadProfile(profile);
+		ReportProfileWeightsRejection(playerIndex, bot);
 		if (!_injectedPolicyPlayers.Contains(playerIndex))
 		{
 			bot.DecisionPolicy = new LinearUtilityDecisionPolicy();
@@ -205,6 +206,13 @@ public class ServerBots
 		_reportedMapCandidateMismatch.RemoveWhere(reported => reported.Player == playerIndex);
 	}
 
+	private void ReportProfileWeightsRejection(int playerIndex, BotController bot)
+	{
+		if (!bot.ProfileWeightsRejected) return;
+
+		_log.Write($"player {playerIndex} carries a profile that does not cover the '{bot.GenreProvider.GenreName}' genre's {bot.GenreProvider.FeatureCount} features, so it plays the genre's default weights");
+	}
+
 	private void ReportMapCandidateWeightsMismatch(int playerIndex, BotController? bot = null)
 	{
 		if (!_mapCandidateFeatureCountByPlayer.TryGetValue(playerIndex, out int registeredFeatures)) return;
@@ -240,6 +248,7 @@ public class ServerBots
 			}
 
 			bot.LoadProfile(profile);
+			ReportProfileWeightsRejection(playerIndex, bot);
 			bot.DecisionPolicy = new LinearUtilityDecisionPolicy();
 			ApplyHandicap(playerIndex, bot);
 			_log.Write($"player {playerIndex} plays the profile saved as '{path}'");

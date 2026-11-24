@@ -59,6 +59,8 @@ public class BotController
 	/// </summary>
 	public Func<List<GenericAffordance>?>? MapCandidateSource { get; set; }
 
+	public bool ProfileWeightsRejected { get; private set; }
+
 	public BotController(int playerIndex = 0, BotProfile? profile = null, IAiGenreProvider? genreProvider = null)
 	{
 		_playerIndex = playerIndex;
@@ -98,10 +100,12 @@ public class BotController
 		if (profile.Weights != null && profile.Weights.Length >= requiredFeatures)
 		{
 			_weights = (float[])profile.Weights.Clone();
+			ProfileWeightsRejected = false;
 		}
 		else
 		{
 			_weights = _genreProvider.GetDefaultWeights();
+			ProfileWeightsRejected = profile.Weights != null && profile.Weights.Length > 0;
 		}
 
 		_mapCandidateWeights = profile.MapCandidateWeights != null && profile.MapCandidateWeights.Length > 0
