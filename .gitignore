@@ -18,6 +18,7 @@ node_modules/
 vscode_embedded/
 wasi_sdk_embedded/
 vscode_extensions_dist/
+Realm.Godot/
 GeneratedFiles/
 *.trx
 *.key
