@@ -4,11 +4,13 @@
   "Units": [],
   "Props": [],
   "Decals": [],
+  "Items": [],
   "Vfx": [],
-  "CameraBoundsLeft": -95,
-  "CameraBoundsRight": 95,
-  "CameraBoundsTop": -95,
-  "CameraBoundsBottom": 125,
+  "CameraBoundsLeft": -128,
+  "CameraBoundsRight": 128,
+  "CameraBoundsTop": -128,
+  "CameraBoundsBottom": 128,
   "SkyboxPath": "",
-  "Coordinates": []
+  "Coordinates": [],
+  "SpawnAnchors": []
 }
