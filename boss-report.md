@@ -445,10 +445,14 @@ contra el 50 % no es el test del sitio.
 
 ### Pendiente
 
-1. **PRs.** El cierre operativo está hecho por su mitad de archivo: `.artifacts-check/runs/2026-11-23/`
-   guarda el wasm publicado, los dos perfiles y los ficheros citados, con un `manifest.md` que da su
-   sha256. Queda abrir los PRs de las dos ramas (`feature/chaos-arena-teach-ai` en el motor,
-   `feature/chaos-arena-fair-draft` en el mapa). **No se empuja nada sin autorización.**
+1. **PRs: abiertos, pendientes de revisión.** El cierre operativo está hecho por su mitad de archivo:
+   `.artifacts-check/runs/2026-11-23/` guarda el wasm publicado, los dos perfiles y los ficheros
+   citados, con un `manifest.md` que da su sha256. Los dos PRs están abiertos y mergeables desde el
+   11/11/2026: [RealmArcade/Realm#89](https://github.com/RealmArcade/Realm/pull/89) para el motor
+   (`feature/chaos-arena-teach-ai`) y
+   [RealmArcade/ugc-ChaosArena#4](https://github.com/RealmArcade/ugc-ChaosArena/pull/4) para el mapa
+   (`feature/chaos-arena-fair-draft`). Ninguno es draft, el HEAD local coincide con el del PR y no
+   queda ningún commit sin empujar. Lo que falta es la revisión y la fusión, no trabajo de esta rama.
 2. **Balance del pool de héroes.** Los 5 héroes fuera de |z| > 2 de §6.1 siguen como están: el pool no
    se toca en este cierre. La decisión (opción 1: re-ejecutar el balanceo después del rediseño de
    héroes y habilidades) es del jefe y queda encolada para ese re-run; este informe no la abre.
