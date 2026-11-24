@@ -110,8 +110,13 @@ public class BalanceOptimizer
 			population.Add(candidate);
 		}
 
-		if (!string.IsNullOrWhiteSpace(options.SeedGenomePath) && File.Exists(options.SeedGenomePath))
+		if (!string.IsNullOrWhiteSpace(options.SeedGenomePath))
 		{
+			if (!File.Exists(options.SeedGenomePath))
+			{
+				throw new FileNotFoundException($"the seed genome '{options.SeedGenomePath}' does not exist");
+			}
+
 			population.Insert(1, BalanceGenome.FromJson(File.ReadAllText(options.SeedGenomePath), catalog.Count));
 			log.WriteLine($"seeded the genome at {options.SeedGenomePath} as candidate 2");
 		}

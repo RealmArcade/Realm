@@ -46,7 +46,7 @@ public sealed class PlayerBotDirector
 		if (!_controllers.TryGetValue(playerIndex, out var bot))
 		{
 			bot = new BotController(playerIndex, profile);
-			bot.CustomActionCallback = (pIdx, actId, pos, intent, payload) => _customAction(pIdx, actId, intent, pos, payload);
+			bot.CustomActionCallback = DispatchCustomAction;
 			AttachMapCandidates(playerIndex, bot);
 			_controllers[playerIndex] = bot;
 		}
@@ -98,7 +98,7 @@ public sealed class PlayerBotDirector
 		{
 			var profile = genreProvider.CreateDefaultProfile(GameContext.Simulation.ActiveMapName ?? "GenericMap");
 			bot = new BotController(playerIndex, profile, genreProvider);
-			bot.CustomActionCallback = (pIdx, actId, pos, intent, payload) => _customAction(pIdx, actId, intent, pos, payload);
+			bot.CustomActionCallback = DispatchCustomAction;
 			AttachMapCandidates(playerIndex, bot);
 			_controllers[playerIndex] = bot;
 		}
@@ -108,6 +108,12 @@ public sealed class PlayerBotDirector
 			var profile = genreProvider.CreateDefaultProfile(bot.Profile.MapName);
 			bot.LoadProfile(profile);
 		}
+	}
+
+	private void DispatchCustomAction(int playerIndex, string actionId, Vector3 position, string intent, string payload)
+	{
+		_customAction(playerIndex, actionId, intent, position, payload);
+		ClearCustomBotDecisions(playerIndex);
 	}
 
 	private void AttachMapCandidates(int playerIndex, BotController bot)

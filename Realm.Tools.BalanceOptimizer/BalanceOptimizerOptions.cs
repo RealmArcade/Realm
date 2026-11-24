@@ -86,10 +86,10 @@ public class BalanceOptimizerOptions
 					options.Seed = ReadInt(args, ref index, argument, minimum: 0);
 					break;
 				case "--profile":
+					options.ProfilePath = ReadValue(args, ref index, argument);
+					break;
 				case "--seed-genome":
 					options.SeedGenomePath = ReadValue(args, ref index, argument);
-					break;
-					options.ProfilePath = ReadValue(args, ref index, argument);
 					break;
 				case "--output":
 					options.OutputPath = ReadValue(args, ref index, argument);
