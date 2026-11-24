@@ -176,7 +176,13 @@ public class ClientRpcService
 			return;
 
 		GameLog.LogToConsole($"[MAP BROADCAST] {message}");
-		BroadcastFeedbackText(message, new Vector3(0.9f, 0.9f, 0.9f));
+
+		if (GameContext.InGameHud != null)
+		{
+			var textColor = new Color(0.9f, 0.9f, 0.9f);
+			Callable.From(() => GameContext.InGameHud?.ShowMapMessageText(message, textColor)).CallDeferred();
+		}
+
 		GameContext.NetworkService?.BroadcastMessageDomainLogic(message);
 	}
 
