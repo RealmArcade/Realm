@@ -21,6 +21,11 @@ public static class Program
 		}
 
 		string[] originalArgs = unhandledArgs.ToArray();
+		if (MapGenerationCommands.IsMapGenerationInvocation(originalArgs))
+		{
+			return MapGenerationCommands.ExecuteFromArguments(originalArgs);
+		}
+
 		string[] sanitizedArgs = CommandLineArgsHelper.SanitizeArgs(
 			originalArgs,
 			typeof(MeshConvertOptions),
