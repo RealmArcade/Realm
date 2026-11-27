@@ -8,7 +8,7 @@ namespace Realm.Tools.Cli;
 
 public static class MapGenerationCommands
 {
-	private static readonly string[] Commands = { "render", "reconstruct", "compare", "benchmark", "inspect" };
+	private static readonly string[] Commands = { "render", "reconstruct", "compare", "benchmark", "inspect", "correlate" };
 
 	public static bool IsMapGenerationInvocation(string[] arguments)
 	{
@@ -19,7 +19,7 @@ public static class MapGenerationCommands
 	{
 		if (arguments.Length < 2 || !Commands.Contains(arguments[1].ToLowerInvariant()))
 		{
-			Console.Error.WriteLine("Usage: mapgen <render|reconstruct|compare|benchmark|inspect> <input> [-o output] [-w width] [-d depth] [-r resolution] [-t template] [-s seed] [--maps a,b] [--map-directory dir] [--report file] [--use-thumbnails]");
+			Console.Error.WriteLine("Usage: mapgen <render|reconstruct|compare|benchmark|inspect|correlate> <input> [-o output] [-w width] [-d depth] [-r resolution] [-t template] [-s seed] [--maps a,b] [--map-directory dir] [--report file] [--use-thumbnails]");
 			return 1;
 		}
 
@@ -123,6 +123,8 @@ public static class MapGenerationCommands
 					return ExecuteRender(options);
 				case "inspect":
 					return ExecuteInspect(options);
+				case "correlate":
+					return ExecuteCorrelate(options);
 				case "reconstruct":
 					return ExecuteReconstruct(options);
 				case "compare":
@@ -259,6 +261,48 @@ public static class MapGenerationCommands
 		string reportPath = options.Report ?? Path.Combine(outputDirectory, "report.json");
 		MapGenerationWorkflow.WriteReport(reportPath, reports, aggregate);
 		Console.WriteLine($"Report written to {reportPath}");
+		return 0;
+	}
+
+	private static int ExecuteCorrelate(MapGenerationOptions options)
+	{
+		string mapDirectory = options.MapDirectory ?? Path.Combine(Directory.GetCurrentDirectory(), "..");
+		string[] names = (options.Maps ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+		var folders = new List<string>();
+		if (names.Length > 0)
+		{
+			foreach (string name in names)
+			{
+				folders.Add(Path.Combine(mapDirectory, name));
+			}
+		}
+		else if (!string.IsNullOrWhiteSpace(options.Input))
+		{
+			folders.Add(options.Input);
+		}
+
+		if (folders.Count == 0)
+		{
+			Console.Error.WriteLine("correlate needs a map folder, or --maps with --map-directory.");
+			return 1;
+		}
+
+		string outputDirectory = options.Output ?? Path.GetTempPath();
+		Console.WriteLine("map: land cells | luminance saturation contrast detail horizon greenRed");
+		foreach (string folder in folders)
+		{
+			if (!Directory.Exists(folder))
+			{
+				Console.Error.WriteLine($"Skipping '{folder}': folder not found.");
+				continue;
+			}
+
+			MapFolderTerrain terrain = MapFolderTerrainReader.Read(folder);
+			string minimapPath = MapGenerationWorkflow.ResolveMinimap(folder, options.UseThumbnails, options.Resolution, outputDirectory);
+			HeightSignalReport report = MapHeightSignal.Analyse(terrain, MinimapImage.FromFile(minimapPath));
+			Console.WriteLine($"{Path.GetFileName(Path.TrimEndingDirectorySeparator(folder))}: {report.CellCount:F0} | {report.Luminance:F3} {report.Saturation:F3} {report.LocalContrast:F3} {report.TextureDetail:F3} {report.HorizonBrightness:F3} {report.GreenOverRed:F3}");
+		}
+
 		return 0;
 	}
 

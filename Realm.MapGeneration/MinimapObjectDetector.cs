@@ -81,7 +81,7 @@ public static class MinimapObjectDetector
 		for (int componentIndex = 0; componentIndex < components.Count; componentIndex++)
 		{
 			Component component = components[componentIndex];
-			if (IsElongated(component))
+			if (IsElongated(component) || IsRough(image, component, imageWidth))
 			{
 				continue;
 			}
@@ -276,6 +276,40 @@ public static class MinimapObjectDetector
 		}
 
 		return PropCategory.Other;
+	}
+
+	private static bool IsRough(MinimapImage image, Component component, int imageWidth)
+	{
+		if (component.PixelCount < 8 || component.PixelCount > 400)
+		{
+			return false;
+		}
+
+		float total = 0f;
+		int samples = 0;
+		for (int y = component.MinimumY + 1; y < component.MaximumY; y++)
+		{
+			for (int x = component.MinimumX + 1; x < component.MaximumX; x++)
+			{
+				if (!component.Contains(x, y, imageWidth))
+				{
+					continue;
+				}
+
+				int centre = y * imageWidth + x;
+				float luminance = Luminance(image, centre);
+				float neighbourLuminance = (Luminance(image, centre - 1) + Luminance(image, centre + 1) + Luminance(image, centre - imageWidth) + Luminance(image, centre + imageWidth)) * 0.25f;
+				total += MathF.Abs(luminance - neighbourLuminance);
+				samples++;
+			}
+		}
+
+		return samples > 0 && total / samples > 0.055f;
+	}
+
+	private static float Luminance(MinimapImage image, int index)
+	{
+		return image.Red[index] * 0.2126f + image.Green[index] * 0.7152f + image.Blue[index] * 0.0722f;
 	}
 
 	private static bool IsElongated(Component component)
@@ -513,11 +547,18 @@ public static class MinimapObjectDetector
 
 		public int MaximumY { get; private set; } = int.MinValue;
 
+		public bool Contains(int x, int y, int imageWidth)
+		{
+			return _pixels.Contains(y * 65536 + x);
+		}
+
 		public float MeanRed => PixelCount > 0 ? _sumRed / PixelCount : 0f;
 
 		public float MeanGreen => PixelCount > 0 ? _sumGreen / PixelCount : 0f;
 
 		public float MeanBlue => PixelCount > 0 ? _sumBlue / PixelCount : 0f;
+
+		private readonly List<int> _pixels = new();
 
 		private float _sumX;
 		private float _sumY;
@@ -538,6 +579,7 @@ public static class MinimapObjectDetector
 			MaximumX = Math.Max(MaximumX, x);
 			MinimumY = Math.Min(MinimumY, y);
 			MaximumY = Math.Max(MaximumY, y);
+			_pixels.Add(y * 65536 + x);
 			CentreX = _sumX / PixelCount;
 			CentreY = _sumY / PixelCount;
 		}
