@@ -294,6 +294,22 @@ public static class MinimapTerrainReconstructor
 			}
 		}
 
+		if (!options.QuantizeHeights)
+		{
+			return heights;
+		}
+
+		for (int index = 0; index < heights.Length; index++)
+		{
+			if (waterMask[index])
+			{
+				continue;
+			}
+
+			float tierOffset = MathF.Round((heights[index] - landBase) / (options.TierHeight * 0.5f)) * 0.5f;
+			heights[index] = landBase + tierOffset * options.TierHeight;
+		}
+
 		return heights;
 	}
 
@@ -586,120 +602,4 @@ public static class MinimapTerrainReconstructor
 		return cellZ * width + cellX;
 	}
 
-	private static void PlaceProps(ReconstructedTerrain terrain, MinimapFeatureGrid grid, PropCatalog catalog, TerrainReconstructionOptions options)
-	{
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		float quadSize = terrain.QuadSize;
-
-		var forestCells = new List<int>();
-		var rockCells = new List<int>();
-		var structureCells = new List<int>();
-		for (int index = 0; index < terrain.WaterMask.Length; index++)
-		{
-			if (terrain.WaterMask[index])
-			{
-				continue;
-			}
-
-			if (terrain.ForestMask[index])
-			{
-				forestCells.Add(index);
-			}
-			else if (terrain.CellKinds[index] == TerrainSurfaceKind.Rock)
-			{
-				rockCells.Add(index);
-			}
-
-			MinimapCellFeatures cell = grid.Cells[index];
-			bool accent = cell.Saturation > 0.40f && cell.Value > 0.22f &&
-			              (cell.Hue > 280f || cell.Hue < 22f || (cell.Hue > 40f && cell.Hue < 62f && cell.Value > 0.72f));
-			if (accent && !terrain.ForestMask[index])
-			{
-				structureCells.Add(index);
-			}
-		}
-
-		var scatteredTrees = SelectScatteredCells(forestCells, width, depth, options.TreeDensity, options.Seed + 1);
-		var scatteredRocks = SelectIsolatedCells(rockCells, width, depth, options.RockDensity, options.Seed + 2, 10);
-		var scatteredStructures = SelectIsolatedCells(structureCells, width, depth, options.StructureDensity, options.Seed + 3, 12);
-
-		AddPropsForCells(terrain, scatteredTrees, PropCategory.Tree, catalog, options, width, depth, quadSize, options.Seed + 11);
-		AddPropsForCells(terrain, scatteredRocks, PropCategory.Rock, catalog, options, width, depth, quadSize, options.Seed + 12);
-		AddPropsForCells(terrain, scatteredStructures, PropCategory.Structure, catalog, options, width, depth, quadSize, options.Seed + 13);
-	}
-
-	private static List<int> SelectScatteredCells(List<int> cells, int width, int depth, float density, int seed)
-	{
-		var selected = new List<int>();
-		for (int index = 0; index < cells.Count; index++)
-		{
-			int cell = cells[index];
-			if (DeterministicHash.Unit(cell % width, cell / width, seed) <= density)
-			{
-				selected.Add(cell);
-			}
-		}
-
-		return selected;
-	}
-
-	private static List<int> SelectIsolatedCells(List<int> cells, int width, int depth, float density, int seed, int maximumComponentSize)
-	{
-		var mask = new bool[width * depth];
-		for (int index = 0; index < cells.Count; index++)
-		{
-			mask[cells[index]] = true;
-		}
-
-		List<List<int>> components = MinimapMaskOperations.LabelComponents(mask, width, depth, 1);
-		var selected = new List<int>();
-		foreach (List<int> component in components)
-		{
-			if (component.Count > maximumComponentSize)
-			{
-				continue;
-			}
-
-			int representative = component[0];
-			int cellX = representative % width;
-			int cellZ = representative / width;
-			if (DeterministicHash.Unit(cellX, cellZ, seed) <= density)
-			{
-				selected.Add(representative);
-			}
-		}
-
-		return selected;
-	}
-
-	private static void AddPropsForCells(ReconstructedTerrain terrain, List<int> cells, PropCategory category, PropCatalog catalog, TerrainReconstructionOptions options, int width, int depth, float quadSize, int seed)
-	{
-		if (cells.Count == 0)
-		{
-			return;
-		}
-
-		for (int index = 0; index < cells.Count; index++)
-		{
-			int cell = cells[index];
-			int cellX = cell % width;
-			int cellZ = cell / width;
-			float jitterX = DeterministicHash.Jitter(cellX, cellZ, seed, 1);
-			float jitterZ = DeterministicHash.Jitter(cellX, cellZ, seed, 2);
-			float rotation = DeterministicHash.Jitter(cellX, cellZ, seed, 3) * 360f;
-			float scaleJitter = 0.8f + DeterministicHash.Jitter(cellX, cellZ, seed, 4) * 0.45f;
-
-			PropCatalogEntry entry = catalog.FindForCategory(category, (int)DeterministicHash.Combine(cellX, cellZ, seed));
-			if (string.IsNullOrWhiteSpace(entry.TemplateId))
-			{
-				continue;
-			}
-
-			float worldX = (cellX + jitterX - width * 0.5f) * quadSize;
-			float worldZ = (cellZ + jitterZ - depth * 0.5f) * quadSize;
-			float worldY = terrain.CellHeights[cell];
-			terrain.Props.Add(new GeneratedProp(entry.TemplateId, category, worldX, worldY, worldZ, rotation, scaleJitter));
-		}
-	}
 }

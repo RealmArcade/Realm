@@ -144,6 +144,35 @@ public interface IEditorAPI
 	bool ApplyGeneratedTerrain(int width, int depth, ReadOnlySpan<sbyte> tiers, ReadOnlySpan<int> groundMaterials, int cliffMaterialIndex);
 
 	/// <summary>
+	/// Replaces the whole terrain with reconstructed data that already carries its own heights, per-node
+	/// texture swatches, water bodies and pathing: the shape an image-to-map reconstructor produces, rather
+	/// than the coarse tier bands <see cref="ApplyGeneratedTerrain"/> accepts.
+	/// </summary>
+	/// <remarks>
+	/// Every node height is written as authored, so a reconstruction keeps its relief instead of snapping to
+	/// whole tiers; the cell's macro tier follows from the corner heights exactly as it does when a height is
+	/// painted by hand. Water is written per cell with its own surface, and pathing codes are derived from the
+	/// water mode the same way the water tool derives them.
+	/// </remarks>
+	/// <param name="width">Grid width in cells; must match <see cref="GetTerrainGridInfo"/>.</param>
+	/// <param name="depth">Grid depth in cells; must match <see cref="GetTerrainGridInfo"/>.</param>
+	/// <param name="nodeHeights">Row-major world-space height per grid node, (width + 1) * (depth + 1) values, X fastest.</param>
+	/// <param name="groundMaterials">Row-major ground swatch index per grid node, matching the node height layout.</param>
+	/// <param name="cliffMaterials">Row-major cliff swatch index per grid node, matching the node height layout.</param>
+	/// <param name="waterModes">Row-major water mode per cell (0 none, 1 shallow, 2 deep), matching the cell layout.</param>
+	/// <param name="waterSurfaces">Row-major world-space water surface per cell; ignored where the mode is none.</param>
+	/// <param name="waterProfileIndex">Water profile every reconstructed body uses.</param>
+	/// <returns>True when the layout matched the live grid and was committed; otherwise false.</returns>
+	bool ApplyReconstructedTerrain(int width, int depth, ReadOnlySpan<float> nodeHeights, ReadOnlySpan<int> groundMaterials, ReadOnlySpan<int> cliffMaterials, ReadOnlySpan<byte> waterModes, ReadOnlySpan<float> waterSurfaces, int waterProfileIndex);
+
+	/// <summary>
+	/// Reports every terrain texture swatch slot of the open workspace, including the ones left empty, so an
+	/// image-to-map reconstructor can match an image colour against the textures this map can be painted with.
+	/// </summary>
+	/// <returns>One entry per swatch slot, in splat index order.</returns>
+	TerrainTextureInfo[] GetTerrainTextureInfo();
+
+	/// <summary>
 	/// Rebuilds the terrain mesh and collision from the authoritative terrain state.
 	/// </summary>
 	void RebuildTerrain();
