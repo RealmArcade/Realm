@@ -139,6 +139,7 @@ public partial class RuntimeTerrain
 
 		_swatchAlbedoParamsCache[targetIndex] = new Vector4(currentTint.R * effectiveMultiplier, currentTint.G * effectiveMultiplier, currentTint.B * effectiveMultiplier, rs);
 		_material.SetShaderParameter("swatch_albedo_params", _swatchAlbedoParamsCache);
+		_grassMaterial?.SetShaderParameter("swatch_albedo_params", _swatchAlbedoParamsCache);
 	}
 
 	private float GetResolvedBrightness(string cleanName, float? brightness)
@@ -431,10 +432,12 @@ public partial class RuntimeTerrain
 		if (!forceReload && _cachedAlbedoTextureArray != null && _cachedNormalRoughnessTextureArray != null && _cachedMapDir == mapDir)
 		{
 			RestoreCachedTextureArrays();
+			UpdateGrassPalette(swatchSlots);
 			return;
 		}
 
 		RegenerateTextureArrays(swatchSlots, mapDir);
+		UpdateGrassPalette(swatchSlots);
 	}
 
 	private void ProcessSwatchSlot(int index, SwatchSlotInfo slot, string mapDir, List<string> textureList, Vector4[] swatchParams, Vector4[] swatchHeightParams, Vector4[] swatchAlbedoParams)

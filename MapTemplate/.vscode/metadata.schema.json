@@ -6920,6 +6920,14 @@
             "title": "NormalScale",
             "description": "How strongly the texture's normal map bends the light on the ground."
           },
+          "GrassBladeHeight": {
+            "type": "number",
+            "title": "GrassBladeHeight",
+            "description": "Maximum height of grass tufts drawn above this swatch. Zero leaves the surface bare.",
+            "minimum": 0,
+            "maximum": 1.5,
+            "x-realm-unit": "m"
+          },
           "HeightScale": {
             "type": "number",
             "title": "HeightScale",

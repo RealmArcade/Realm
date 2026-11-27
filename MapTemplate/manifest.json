@@ -57,6 +57,7 @@
     },
     "Shader": {},
     "Skybox": {
+      "atlantic_evening.rtex": "2c25c11fb5b0e804d07c5681c953aa2d8a0a2935b6c2127d66e9f98ae8154f7e",
       "jade_shrine.rtex": "128fbaed7adbb0d6fd54edb36808fcc3991b478a927e144323d7896cae71c93e",
       "star_reach.rtex": "9c7fb6d80ea74d61b11cfc9ccddf072aa187c80cd4ac46b3d16ff3a83c1e2790"
     },
@@ -69,22 +70,22 @@
       "blaze_streak_sheet.rtex": "2aac286280e299ebfe6521548cfd3d8e02690252b1993bfcb557bb188c21a630"
     },
     "Terrain": {
-      "abyssal_trench_void_clay.rtex": "064401b38722dc19bb221dd752669264307817843d994c563b23df744dc79574",
-      "ancient_jungle_mossy_stone.rtex": "ae03d453928fbc21692b825a56c46055d2ebad7ac20976fdddbff00021c31e1d",
-      "ancient_jungle_overgrown_path.rtex": "fb435a844e25897385139b550782eef607376867383c37a40b561f5441b8bf16",
-      "deep_trench_dense_mud.rtex": "0056c30011d6c77b5ce99f02b66242ad3ad61387dabd835e968761166cfc26c0",
-      "dusty_canyon_granite_basin.rtex": "8d9ee0f675da18c163203195dadae03e4e977c44f4f92d40a5e2307c99e3bc2b",
-      "dusty_canyon_scarce_soil.rtex": "0cc6ae7bb5673aef49a72e8184a65cf49b8e3738467bfca3f473e8cecd17fa9a",
-      "frozen_tundra_mud.rtex": "0933fd0245f9e5b04e6a1a3c42293b1b7f4e4be6017bd3c61a9542787fc4e5cd",
-      "magma_chambers_burning_ember.rtex": "681df5309e33a5b2a6381e3cce04400319c168c6cfcd284973d5d7cfc4979ead",
-      "mangrove_swamp_bog_grass.rtex": "173d0f2adaf4eca95e8bb6d42e607ef1760569508e6eff699295be22ba3028c9",
-      "petrified_forest_gray_granite.rtex": "3c1a5ecf5a101afc84c0d2f13637e0be1ecf2686cdd94ea505957c9c020afdcd",
-      "submerged_city_hydro_glass.rtex": "d67a54f6ae66a154762a02d45ea1aeacdafca10acf1baa7665a3122959fd6071",
-      "sunken_reef_acid_pool.rtex": "9c5e913254eea652c018f317d8b611363aa9c892463ec555e9111334ea71a78e",
-      "sunken_ruins_crushed_granite.rtex": "3ad4acf903ce22ac4f0e63292a54eab33d41925397dd583ddc6b031c6120af09",
-      "sunken_ruins_mossy_stone.rtex": "49d9eede5248d1d943fdf5a53a946030257674ae8340778b7ea361c71fe8f98f",
-      "sunken_ruins_reef_stone.rtex": "ddfb7e71368f597e4681c81fbf51d02960dd509cf5f701e8937f7c326f88cd53",
-      "whispering_woods_soft_grass.rtex": "1d10489a5786a9309e187a1515ad53d3a8e2dd1dc00555aadf004e0c2ae502b9"
+      "abyssal_trench_void_clay.rtex": "a2783046b6dd57a709d701c3f4caaf74ceece552c57e23a78f92b9870d345c5c",
+      "ancient_jungle_mossy_stone.rtex": "02dc2df1338fb892fd9896c44030a627b8c9b849967b9d3dc2e60a607583055b",
+      "ancient_jungle_overgrown_path.rtex": "ea24228431b406262773474d29060a5d2db32f023938786b3d418bcb29622408",
+      "deep_trench_dense_mud.rtex": "6dfe026bde5b92bf54524ba2add1a5a90d8dfa2332c63d923dc7c8c1963c52c7",
+      "dusty_canyon_granite_basin.rtex": "04b18bc724a02524ad122b2b6dd2d80da9a0047233d2cfba4b62a7d7f4906cdc",
+      "dusty_canyon_scarce_soil.rtex": "b364a3510fc973405fd3b286845a468284e9f7c41966dce4692e8892f9be9adf",
+      "frozen_tundra_mud.rtex": "69384fb3e22377bc33d216afe0eb3d60f03ba25b80897994c03b33f671f5f7de",
+      "magma_chambers_burning_ember.rtex": "10284fa5aed728763753a8b564ed7bef650124233604248774d5cfcbda8101fa",
+      "mangrove_swamp_bog_grass.rtex": "a3743fd9dc41f8a68977037643f944c592d6fd3895a23aed0a6014f5af62495d",
+      "petrified_forest_gray_granite.rtex": "302686f20962bc3e2a2090fb20fe073f7fcc06a842cca4cd3decdadc78b2e936",
+      "submerged_city_hydro_glass.rtex": "74dcd05d0443c72ec2d2425d4f51407637c4626b5d9fb64702be9569c4679cf6",
+      "sunken_reef_acid_pool.rtex": "7e24e1cac927cd803c9c7eab1914f21f6c03934896376d6cfebde9a109750b00",
+      "sunken_ruins_crushed_granite.rtex": "f0292670c4a05afc751d44aaa6859650f9db3a71ce9a0b155496629b07113f3a",
+      "sunken_ruins_mossy_stone.rtex": "d06fdb6a6b9912a2ba1704a21c318d5871157b87abde16efbbc99258e2fc9935",
+      "sunken_ruins_reef_stone.rtex": "4e91eccec08070286c41487a3480ea86eca0c9afc7a3f9a51b902cba9d9a6f51",
+      "whispering_woods_soft_grass.rtex": "b3ab4f7ccd608085043b860a26317afa9a1ee168e1a1f45619c3484d51023260"
     },
     "vfx_radial": {
       "mineral_geology_prism_dust.rtex": "a33d49399d4efe50d75cc6f0ec346a2220e44391dd89ebeef5bdbe057db1acd0",

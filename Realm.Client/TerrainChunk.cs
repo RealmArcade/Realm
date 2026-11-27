@@ -8,6 +8,7 @@ public class TerrainChunk
 {
 	public MeshInstance3D MeshInstance = null!;
 	public ArrayMesh ArrayMesh = null!;
+	public MultiMeshInstance3D? Grass;
 	public Dictionary<byte, (MeshInstance3D MeshInstance, ArrayMesh ArrayMesh)> ProfileWaterMeshes = new();
 	public int StartX;
 	public int StartZ;

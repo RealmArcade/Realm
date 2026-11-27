@@ -553,7 +553,6 @@ public static class GameSettings
 		env.SsilEnabled = quality >= GraphicsQuality.High;
 		env.SsrEnabled = quality == GraphicsQuality.Ultra;
 		env.SdfgiEnabled = quality == GraphicsQuality.Ultra;
-		env.FogEnabled = true;
 		env.GlowEnabled = quality > GraphicsQuality.Low;
 	}
 

@@ -19,7 +19,7 @@ uniform float texture_scale = 0.5;
 uniform float macro_scale = 0.035;
 
 uniform float uv_warp_strength = 0.8;
-uniform float macro_albedo_contrast = 0.10;
+uniform float macro_albedo_contrast = 0.22;
 uniform float macro_roughness_contrast = 0.08;
 uniform float macro_normal_strength = 0.15;
 uniform float macro_lacunarity = 2.0;
@@ -30,6 +30,7 @@ uniform bool enable_height_blend = true;
 uniform bool enable_normal_mapping = true;
 uniform float specular_amt = 0.2;
 
+uniform float swatch_grass_height[256];
 uniform vec4 swatch_params[256];
 uniform vec4 swatch_height_params[256];
 uniform vec4 swatch_albedo_params[256];
@@ -382,6 +383,7 @@ void fragment() {
 	vec3 blended_world_normal = geom_normal;
 	float blended_ao = 1.0;
 	float blended_roughness = 0.85;
+	float surface_relief = 0.0;
 
 	if (slope_cliff_factor < 0.5) {
 		vec2 uv_y = pos_warped.xz * texture_scale;
@@ -422,15 +424,15 @@ void fragment() {
 		vec4 c2 = raw_weights.z > 0.001 ? sample_planar_layer(terrain_textures, round(v_tex_indices.z), uv_y, dx_y, dy_y, false) : vec4(0.0);
 		vec4 c3 = raw_weights.w > 0.001 ? sample_planar_layer(terrain_textures, round(v_tex_indices.w), uv_y, dx_y, dy_y, false) : vec4(0.0);
 
-		int idx0 = int(clamp(round(v_tex_indices.x), 0.0, 31.0));
-		int idx1 = int(clamp(round(v_tex_indices.y), 0.0, 31.0));
-		int idx2 = int(clamp(round(v_tex_indices.z), 0.0, 31.0));
-		int idx3 = int(clamp(round(v_tex_indices.w), 0.0, 31.0));
+		int idx0 = int(clamp(round(v_tex_indices.x), 0.0, 255.0));
+		int idx1 = int(clamp(round(v_tex_indices.y), 0.0, 255.0));
+		int idx2 = int(clamp(round(v_tex_indices.z), 0.0, 255.0));
+		int idx3 = int(clamp(round(v_tex_indices.w), 0.0, 255.0));
 
-		vec3 col0 = (c0.rgb * c0.rgb) * swatch_albedo_params[idx0].rgb;
-		vec3 col1 = (c1.rgb * c1.rgb) * swatch_albedo_params[idx1].rgb;
-		vec3 col2 = (c2.rgb * c2.rgb) * swatch_albedo_params[idx2].rgb;
-		vec3 col3 = (c3.rgb * c3.rgb) * swatch_albedo_params[idx3].rgb;
+		vec3 col0 = c0.rgb * mix(vec3(0.18), c0.rgb, 0.74) * swatch_albedo_params[idx0].rgb;
+		vec3 col1 = c1.rgb * mix(vec3(0.18), c1.rgb, 0.74) * swatch_albedo_params[idx1].rgb;
+		vec3 col2 = c2.rgb * mix(vec3(0.18), c2.rgb, 0.74) * swatch_albedo_params[idx2].rgb;
+		vec3 col3 = c3.rgb * mix(vec3(0.18), c3.rgb, 0.74) * swatch_albedo_params[idx3].rgb;
 
 		vec4 blend_layer_weights = norm_weights;
 		vec3 ground_albedo = vec3(0.0);
@@ -549,36 +551,27 @@ void fragment() {
 			                    gn2.a * swatch_albedo_params[idx2].w * gw2 +
 			                    gn3.a * swatch_albedo_params[idx3].w * gw3);
 		} else {
-			float max_gw = max(max(gw0, gw1), max(gw2, gw3));
-			float dom_layer = round(v_tex_indices.x);
-			if (gw1 >= max_gw) dom_layer = round(v_tex_indices.y);
-			else if (gw2 >= max_gw) dom_layer = round(v_tex_indices.z);
-			else if (gw3 >= max_gw) dom_layer = round(v_tex_indices.w);
-
-			int dom_idx = int(clamp(dom_layer, 0.0, 255.0));
-			float uv_scale = swatch_params[dom_idx].y > 0.001 ? swatch_params[dom_idx].y : 1.0;
-			vec2 dom_uv = uv_y * uv_scale;
-			vec2 dom_dx = dx_y * uv_scale;
-			vec2 dom_dy = dy_y * uv_scale;
-
-			vec4 gn = textureGrad(terrain_normals_pbr, vec3(dom_uv, dom_layer), dom_dx, dom_dy);
-			vec2 dom_t = unpack_normal_xy(gn.rg) * swatch_height_params[dom_idx].w;
-			ground_normal = unpack_triplanar_normal(gn, vec3(0.0, 1.0, 0.0), geom_normal, swatch_height_params[dom_idx].w);
-			float dom_tz = sqrt(max(0.0, 1.0 - dot(dom_t, dom_t)));
-			ground_ao = clamp((0.35 + 0.65 * dom_tz) * (0.55 + 0.45 * gn.b), 0.05, 1.0);
-			ground_roughness = gn.a * swatch_albedo_params[dom_idx].w;
+			ground_ao = dot(vec4(ao0, ao1, ao2, ao3), blend_layer_weights);
+			ground_roughness = dot(vec4(gn0.a * swatch_albedo_params[idx0].w,
+			                            gn1.a * swatch_albedo_params[idx1].w,
+			                            gn2.a * swatch_albedo_params[idx2].w,
+			                            gn3.a * swatch_albedo_params[idx3].w), blend_layer_weights);
 		}
 
-		if (enable_macro_noise && macro_normal_strength > 0.0) {
-			float n_noise_y_x = (macro_fbm((v_world_pos.xz + vec2(0.1, 0.0)) * macro_scale) - macro_fbm((v_world_pos.xz - vec2(0.1, 0.0)) * macro_scale));
-			float n_noise_y_z = (macro_fbm((v_world_pos.xz + vec2(0.0, 0.1)) * macro_scale) - macro_fbm((v_world_pos.xz - vec2(0.0, 0.1)) * macro_scale));
-			vec3 noise_norm_y = vec3(n_noise_y_x, 0.0, n_noise_y_z);
-			ground_normal = normalize(ground_normal + noise_norm_y * macro_normal_strength);
-		}
-
-		terrain_color = ground_albedo;
-		blended_world_normal = ground_normal;
-		blended_ao = ground_ao;
+		surface_relief = dot(vec4(gn0.b * swatch_height_params[idx0].w, gn1.b * swatch_height_params[idx1].w,
+		                          gn2.b * swatch_height_params[idx2].w, gn3.b * swatch_height_params[idx3].w), blend_layer_weights);
+		float living_cover = dot(step(vec4(0.001), vec4(swatch_grass_height[idx0], swatch_grass_height[idx1],
+		                                                swatch_grass_height[idx2], swatch_grass_height[idx3])), blend_layer_weights);
+		float footprint = max(length(dFdx(v_world_pos.xz)), length(dFdy(v_world_pos.xz)));
+		float distant_grass = living_cover * smoothstep(0.025, 0.20, footprint);
+		float meadow_patch = macro_noise(v_world_pos.xz * 0.052);
+		float grass_luminance = dot(ground_albedo, vec3(0.2126, 0.7152, 0.0722));
+		vec3 turf = mix(vec3(0.081, 0.124, 0.048), vec3(0.150, 0.184, 0.074), meadow_patch)
+		            * (0.90 + 0.45 * grass_luminance);
+		terrain_color = mix(ground_albedo, turf, distant_grass * 0.36);
+		blended_world_normal = normalize(mix(ground_normal, geom_normal, distant_grass * 0.75));
+		blended_ao = mix(ground_ao, 1.0, distant_grass * 0.80);
+		surface_relief *= 1.0 - distant_grass * 0.75;
 		blended_roughness = ground_roughness;
 	} else {
 		vec3 cliff_geom_normal = geom_normal;
@@ -632,15 +625,29 @@ void fragment() {
 		TriplanarPbrData cp2 = raw_c_weights.z > 0.001 ? sample_triplanar_pbr(terrain_normals_pbr, round(v_cliff_tex_indices.z), uv_x, uv_y, uv_z, dx_x, dy_x, dx_y, dy_y, dx_z, dy_z, blend_weights, cliff_geom_normal, swatch_height_params[c_idx2].w, swatch_albedo_params[c_idx2].w) : TriplanarPbrData(cliff_geom_normal, 1.0, 0.85, 0.5);
 		TriplanarPbrData cp3 = raw_c_weights.w > 0.001 ? sample_triplanar_pbr(terrain_normals_pbr, round(v_cliff_tex_indices.w), uv_x, uv_y, uv_z, dx_x, dy_x, dx_y, dy_y, dx_z, dy_z, blend_weights, cliff_geom_normal, swatch_height_params[c_idx3].w, swatch_albedo_params[c_idx3].w) : TriplanarPbrData(cliff_geom_normal, 1.0, 0.85, 0.5);
 
+		float near_relief = 1.0 - smoothstep(12.0, 38.0, length(CAMERA_POSITION_WORLD - v_world_pos));
+		if (enable_normal_mapping && near_relief > 0.0) {
+			vec3 eye = normalize(CAMERA_POSITION_WORLD - v_world_pos);
+			float incidence = dot(eye, cliff_geom_normal);
+			vec3 tangent_view = eye - cliff_geom_normal * incidence;
+			float depth = dot((vec4(cp0.height, cp1.height, cp2.height, cp3.height) - 0.5)
+			                  * vec4(swatch_height_params[c_idx0].w, swatch_height_params[c_idx1].w,
+			                         swatch_height_params[c_idx2].w, swatch_height_params[c_idx3].w), norm_c_weights);
+			vec3 offset = tangent_view * (near_relief * depth * texture_scale * 0.14 / max(0.35, incidence));
+			uv_x += offset.zy;
+			uv_y += offset.xz;
+			uv_z += offset.xy;
+		}
+
 		vec4 cliff0 = raw_c_weights.x > 0.001 ? sample_triplanar_layer(terrain_textures, round(v_cliff_tex_indices.x), uv_x, uv_y, uv_z, dx_x, dy_x, dx_y, dy_y, dx_z, dy_z, blend_weights, false) : vec4(0.0);
 		vec4 cliff1 = raw_c_weights.y > 0.001 ? sample_triplanar_layer(terrain_textures, round(v_cliff_tex_indices.y), uv_x, uv_y, uv_z, dx_x, dy_x, dx_y, dy_y, dx_z, dy_z, blend_weights, false) : vec4(0.0);
 		vec4 cliff2 = raw_c_weights.z > 0.001 ? sample_triplanar_layer(terrain_textures, round(v_cliff_tex_indices.z), uv_x, uv_y, uv_z, dx_x, dy_x, dx_y, dy_y, dx_z, dy_z, blend_weights, false) : vec4(0.0);
 		vec4 cliff3 = raw_c_weights.w > 0.001 ? sample_triplanar_layer(terrain_textures, round(v_cliff_tex_indices.w), uv_x, uv_y, uv_z, dx_x, dy_x, dx_y, dy_y, dx_z, dy_z, blend_weights, false) : vec4(0.0);
 
-		vec3 c_col0 = (cliff0.rgb * cliff0.rgb) * swatch_albedo_params[c_idx0].rgb;
-		vec3 c_col1 = (cliff1.rgb * cliff1.rgb) * swatch_albedo_params[c_idx1].rgb;
-		vec3 c_col2 = (cliff2.rgb * cliff2.rgb) * swatch_albedo_params[c_idx2].rgb;
-		vec3 c_col3 = (cliff3.rgb * cliff3.rgb) * swatch_albedo_params[c_idx3].rgb;
+		vec3 c_col0 = cliff0.rgb * mix(vec3(0.18), cliff0.rgb, 0.74) * swatch_albedo_params[c_idx0].rgb;
+		vec3 c_col1 = cliff1.rgb * mix(vec3(0.18), cliff1.rgb, 0.74) * swatch_albedo_params[c_idx1].rgb;
+		vec3 c_col2 = cliff2.rgb * mix(vec3(0.18), cliff2.rgb, 0.74) * swatch_albedo_params[c_idx2].rgb;
+		vec3 c_col3 = cliff3.rgb * mix(vec3(0.18), cliff3.rgb, 0.74) * swatch_albedo_params[c_idx3].rgb;
 
 		vec4 cliff_blend_weights = norm_c_weights;
 		vec3 cliff_albedo = vec3(0.0);
@@ -742,26 +749,28 @@ void fragment() {
 		}
 
 		if (enable_macro_noise && macro_normal_strength > 0.0) {
-			float n_noise_y_x = (macro_fbm((v_world_pos.xz + vec2(0.1, 0.0)) * macro_scale) - macro_fbm((v_world_pos.xz - vec2(0.1, 0.0)) * macro_scale));
-			float n_noise_y_z = (macro_fbm((v_world_pos.xz + vec2(0.0, 0.1)) * macro_scale) - macro_fbm((v_world_pos.xz - vec2(0.0, 0.1)) * macro_scale));
-			vec3 noise_norm_y = vec3(n_noise_y_x, 0.0, n_noise_y_z);
-
-			float n_noise_x_y = (macro_fbm((v_world_pos.zy + vec2(0.1, 0.0)) * macro_scale) - macro_fbm((v_world_pos.zy - vec2(0.1, 0.0)) * macro_scale));
-			float n_noise_x_z = (macro_fbm((v_world_pos.zy + vec2(0.0, 0.1)) * macro_scale) - macro_fbm((v_world_pos.zy - vec2(0.0, 0.1)) * macro_scale));
-			vec3 noise_norm_x = vec3(0.0, n_noise_x_y, n_noise_x_z);
-
-			float n_noise_z_x = (macro_fbm((v_world_pos.xy + vec2(0.1, 0.0)) * macro_scale) - macro_fbm((v_world_pos.xy - vec2(0.1, 0.0)) * macro_scale));
-			float n_noise_z_y = (macro_fbm((v_world_pos.xy + vec2(0.0, 0.1)) * macro_scale) - macro_fbm((v_world_pos.xy - vec2(0.0, 0.1)) * macro_scale));
-			vec3 noise_norm_z = vec3(n_noise_z_x, n_noise_z_y, 0.0);
-
-			vec3 triplanar_cliff_noise = noise_norm_x * blend_weights.x + noise_norm_y * blend_weights.y + noise_norm_z * blend_weights.z;
-			cliff_normal = normalize(cliff_normal + triplanar_cliff_noise * macro_normal_strength);
+			base_fbm_val = dot(blend_weights, vec3(macro_fbm(v_world_pos.zy * macro_scale),
+			                                       base_fbm_val, macro_fbm(v_world_pos.xy * macro_scale)));
 		}
 
-		terrain_color = cliff_albedo;
+		surface_relief = dot(vec4(cp0.height * swatch_height_params[c_idx0].w, cp1.height * swatch_height_params[c_idx1].w,
+		                          cp2.height * swatch_height_params[c_idx2].w, cp3.height * swatch_height_params[c_idx3].w), cliff_blend_weights);
+		terrain_color = cliff_albedo * mix(0.80, 1.10, smoothstep(0.23, 0.79, dot(vec4(cp0.height, cp1.height, cp2.height, cp3.height), cliff_blend_weights)));
 		blended_world_normal = cliff_normal;
 		blended_ao = cliff_ao;
 		blended_roughness = cliff_roughness;
+	}
+
+	if (enable_normal_mapping || (enable_macro_noise && macro_normal_strength > 0.0)) {
+		float bump_height = (enable_normal_mapping ? surface_relief * 0.11 : 0.0) + (enable_macro_noise ? base_fbm_val * macro_normal_strength : 0.0);
+		vec3 across = dFdx(v_world_pos);
+		vec3 down = dFdy(v_world_pos);
+		vec3 tangent_across = cross(down, geom_normal);
+		vec3 tangent_down = cross(geom_normal, across);
+		float determinant_value = dot(across, tangent_across);
+		vec3 gradient = tangent_across * dFdx(bump_height) + tangent_down * dFdy(bump_height);
+		blended_world_normal = normalize(blended_world_normal - gradient * sign(determinant_value)
+		                                 / max(abs(determinant_value), 0.0000001));
 	}
 
 	float macro_var = 1.0;
@@ -771,7 +780,9 @@ void fragment() {
 
 	vec3 final_albedo = terrain_color * macro_var * v_color.rgb;
 	float terrain_lum = dot(final_albedo, vec3(0.2126, 0.7152, 0.0722));
-	final_albedo = mix(vec3(terrain_lum), final_albedo, 0.82);
+	float surface_exposure = smoothstep(0.22, 0.72, base_fbm_val);
+	float pigment = enable_macro_noise ? mix(0.74, 0.98, surface_exposure) : 0.90;
+	final_albedo = mix(vec3(terrain_lum), final_albedo, pigment);
 	vec3 emission_color = vec3(0.0);
 	
 	if (pathing_visible) {

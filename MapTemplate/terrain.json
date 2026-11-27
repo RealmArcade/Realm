@@ -10,7 +10,7 @@
   "CameraBoundsRight": 128,
   "CameraBoundsTop": -128,
   "CameraBoundsBottom": 128,
-  "SkyboxPath": "",
+  "SkyboxPath": "Assets/skyboxes/atlantic_evening.rtex",
   "Coordinates": [],
   "SpawnAnchors": []
 }

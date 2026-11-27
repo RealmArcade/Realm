@@ -37,6 +37,11 @@ public class TextureMetadata
 	[SchemaDescription("How strongly the texture's normal map bends the light on the ground.")]
 	public float NormalScale { get; set; } = 1.0f;
 
+	[SchemaDescription("Maximum height of grass tufts drawn above this swatch. Zero leaves the surface bare.")]
+	[SchemaRange(0, 1.5)]
+	[SchemaUnit("m")]
+	public float GrassBladeHeight { get; set; }
+
 	[SchemaDescription("How much the texture's height map displaces the ground.")]
 	public float HeightScale { get; set; } = 1.0f;
 
