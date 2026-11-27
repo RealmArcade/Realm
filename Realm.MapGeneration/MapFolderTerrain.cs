@@ -38,7 +38,13 @@ public class MapFolderTerrain
 			if (textureLibrary != null)
 			{
 				MinimapTexture sampled = textureLibrary.Get(texture);
-				palette.Add(texture.SwatchIndex, texture.Name, texture.DefaultPathingCode, sampled.AverageRed, sampled.AverageGreen, sampled.AverageBlue);
+				palette.Add(
+					texture.SwatchIndex,
+					texture.Name,
+					texture.DefaultPathingCode,
+					Math.Clamp(sampled.AverageRed * texture.Brightness * texture.TintRed, 0f, 1f),
+					Math.Clamp(sampled.AverageGreen * texture.Brightness * texture.TintGreen, 0f, 1f),
+					Math.Clamp(sampled.AverageBlue * texture.Brightness * texture.TintBlue, 0f, 1f));
 				continue;
 			}
 

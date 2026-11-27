@@ -57,7 +57,10 @@ public static class MinimapObjectDetector
 				hueDelta = 360f - hueDelta;
 			}
 
-			if (hue >= 65f && hue <= 170f && saturation >= 0.27f && value < coarseValue - 0.09f)
+			float pixelNoise = MathF.Max(
+				MathF.Abs(image.Red[index] - red),
+				MathF.Max(MathF.Abs(image.Green[index] - green), MathF.Abs(image.Blue[index] - blue)));
+			if (hue >= 65f && hue <= 170f && saturation >= 0.27f && value < coarseValue - 0.09f && pixelNoise < 0.06f)
 			{
 				treeMask[index] = true;
 				continue;
