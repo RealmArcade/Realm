@@ -12,6 +12,7 @@ public static class MinimapObjectDetector
 		MinimapImage image,
 		MinimapCellFeatures[] cells,
 		bool[] waterMask,
+		bool[] voidCells,
 		int width,
 		int depth,
 		float quadSize,
@@ -92,7 +93,7 @@ public static class MinimapObjectDetector
 			PropCategory category = ClassifyComponent(component);
 			float worldX = (component.CentreX / imageWidth - 0.5f) * width * quadSize;
 			float worldZ = (component.CentreY / imageHeight - 0.5f) * depth * quadSize;
-			if (IsWaterWorldPoint(waterMask, width, depth, quadSize, worldX, worldZ))
+			if (IsWaterWorldPoint(waterMask, width, depth, quadSize, worldX, worldZ) || IsVoidWorldPoint(voidCells, width, depth, quadSize, worldX, worldZ))
 			{
 				continue;
 			}
@@ -117,7 +118,7 @@ public static class MinimapObjectDetector
 			props.Add(new GeneratedProp(entry.TemplateId, category, worldX, 0f, worldZ, rotation, scale));
 		}
 
-		PlaceTrees(treeMask, smoothGreen, coarseGreen, props, catalog, options, width, depth, quadSize, imageWidth, imageHeight);
+		PlaceTrees(treeMask, smoothGreen, coarseGreen, voidCells, props, catalog, options, width, depth, quadSize, imageWidth, imageHeight);
 		return props;
 	}
 
@@ -125,6 +126,7 @@ public static class MinimapObjectDetector
 		bool[] treeMask,
 		float[] smoothedGreen,
 		float[] coarseGreen,
+		bool[] voidCells,
 		List<GeneratedProp> props,
 		PropCatalog catalog,
 		TerrainReconstructionOptions options,
@@ -182,6 +184,10 @@ public static class MinimapObjectDetector
 
 				float worldX = ((x / (float)imageWidth) - 0.5f) * width * quadSize + jitterX * quadSize;
 				float worldZ = ((y / (float)imageHeight) - 0.5f) * depth * quadSize + jitterZ * quadSize;
+				if (IsVoidWorldPoint(voidCells, width, depth, quadSize, worldX, worldZ))
+				{
+					continue;
+				}
 				props.Add(new GeneratedProp(entry.TemplateId, PropCategory.Tree, worldX, 0f, worldZ, rotation, scale));
 				treeCount++;
 				for (int offsetY = -treeSpacingPixels; offsetY <= treeSpacingPixels; offsetY++)
@@ -365,6 +371,23 @@ public static class MinimapObjectDetector
 		{
 			hue += 360f;
 		}
+	}
+
+	private static bool IsVoidWorldPoint(bool[] voidCells, int width, int depth, float quadSize, float worldX, float worldZ)
+	{
+		if (voidCells.Length != width * depth)
+		{
+			return false;
+		}
+
+		int cellX = (int)(worldX / quadSize + width * 0.5f);
+		int cellZ = (int)(worldZ / quadSize + depth * 0.5f);
+		if (cellX < 0 || cellX >= width || cellZ < 0 || cellZ >= depth)
+		{
+			return true;
+		}
+
+		return voidCells[cellZ * width + cellX];
 	}
 
 	private static bool IsWaterWorldPoint(bool[] waterMask, int width, int depth, float quadSize, float worldX, float worldZ)

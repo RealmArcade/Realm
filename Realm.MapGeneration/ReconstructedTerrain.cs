@@ -31,6 +31,10 @@ public class ReconstructedTerrain
 
 	public bool[] WaterMask { get; set; } = Array.Empty<bool>();
 
+	public bool[] VoidMask { get; set; } = Array.Empty<bool>();
+
+	public float[] RegionColours { get; set; } = Array.Empty<float>();
+
 	public bool[] ForestMask { get; set; } = Array.Empty<bool>();
 
 	public float[] FeatureColours { get; set; } = Array.Empty<float>();

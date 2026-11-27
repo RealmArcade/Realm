@@ -40,6 +40,51 @@ public static class MinimapMaskOperations
 		return current;
 	}
 
+	public static TerrainSurfaceKind[] MajorityFilterKinds(TerrainSurfaceKind[] kinds, int width, int depth, int passes)
+	{
+		var current = (TerrainSurfaceKind[])kinds.Clone();
+		var next = new TerrainSurfaceKind[kinds.Length];
+		int kindCount = Enum.GetValues<TerrainSurfaceKind>().Length;
+		for (int pass = 0; pass < passes; pass++)
+		{
+			for (int z = 0; z < depth; z++)
+			{
+				for (int x = 0; x < width; x++)
+				{
+					int bestKind = (int)current[z * width + x];
+					int bestVotes = 0;
+					for (int candidate = 0; candidate < kindCount; candidate++)
+					{
+						int votes = 0;
+						for (int offsetZ = -1; offsetZ <= 1; offsetZ++)
+						{
+							int sampleZ = z + offsetZ;
+							if (sampleZ < 0 || sampleZ >= depth) continue;
+							for (int offsetX = -1; offsetX <= 1; offsetX++)
+							{
+								int sampleX = x + offsetX;
+								if (sampleX < 0 || sampleX >= width) continue;
+								if ((int)current[sampleZ * width + sampleX] == candidate) votes++;
+							}
+						}
+
+						if (votes > bestVotes)
+						{
+							bestVotes = votes;
+							bestKind = candidate;
+						}
+					}
+
+					next[z * width + x] = (TerrainSurfaceKind)bestKind;
+				}
+			}
+
+			(current, next) = (next, current);
+		}
+
+		return current;
+	}
+
 	public static List<List<int>> LabelComponents(bool[] mask, int width, int depth, int minimumSize)
 	{
 		var labels = new int[mask.Length];

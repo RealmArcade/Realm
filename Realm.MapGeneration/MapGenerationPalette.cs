@@ -70,9 +70,16 @@ public class MapGenerationPalette
 		}
 
 		const float kindMatchBonus = 0.06f;
+		const float tieTolerance = 0.02f;
 		var ranked = new List<TerrainSwatch>(_swatches);
 		ranked.Sort((left, right) => Score(left).CompareTo(Score(right)));
-		int candidateCount = Math.Min(3, ranked.Count);
+		float best = Score(ranked[0]);
+		int candidateCount = 1;
+		while (candidateCount < Math.Min(3, ranked.Count) && Score(ranked[candidateCount]) <= best + tieTolerance)
+		{
+			candidateCount++;
+		}
+
 		return ranked[(int)((uint)variation % (uint)candidateCount)];
 
 		float Score(TerrainSwatch swatch)
