@@ -289,11 +289,74 @@ public static class MapReconstructionMetrics
 		}
 
 		report.TextureKindAccuracy = total > 0 ? matches / (float)total : 0f;
+		report.TextureColourError = ColourError(original, generated, originalKinds, width, depth);
 		foreach (KeyValuePair<TerrainSurfaceKind, int> pair in perKindTotal)
 		{
 			perKindMatches.TryGetValue(pair.Key, out int matched);
 			report.TextureKindAgreement[pair.Key] = pair.Value > 0 ? matched / (float)pair.Value : 0f;
 		}
+	}
+
+	private static float ColourError(MapFolderTerrain original, MapFolderTerrain generated, Dictionary<int, TerrainSurfaceKind> originalKinds, int width, int depth)
+	{
+		var library = new MinimapTextureLibrary();
+		Dictionary<int, (float Red, float Green, float Blue)> originalColours = SwatchColours(original, originalKinds, library);
+		Dictionary<int, TerrainSurfaceKind> generatedKinds = SwatchKinds(generated);
+		Dictionary<int, (float Red, float Green, float Blue)> generatedColours = SwatchColours(generated, generatedKinds, library);
+
+		float sum = 0f;
+		int count = 0;
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				originalColours.TryGetValue(SwatchAt(original, x, z), out (float Red, float Green, float Blue) originalColour);
+				generatedColours.TryGetValue(SwatchAt(generated, x, z), out (float Red, float Green, float Blue) generatedColour);
+				float deltaRed = originalColour.Red - generatedColour.Red;
+				float deltaGreen = originalColour.Green - generatedColour.Green;
+				float deltaBlue = originalColour.Blue - generatedColour.Blue;
+				sum += MathF.Sqrt(deltaRed * deltaRed + deltaGreen * deltaGreen + deltaBlue * deltaBlue);
+				count++;
+			}
+		}
+
+		return count > 0 ? sum / count : 0f;
+	}
+
+	private static Dictionary<int, (float Red, float Green, float Blue)> SwatchColours(MapFolderTerrain terrain, Dictionary<int, TerrainSurfaceKind> kinds, MinimapTextureLibrary library)
+	{
+		var colours = new Dictionary<int, (float Red, float Green, float Blue)>();
+		for (int index = 0; index < terrain.Textures.Count; index++)
+		{
+			MapTextureSource texture = terrain.Textures[index];
+			MinimapTexture sampled = library.Get(texture);
+			colours[texture.SwatchIndex] = (sampled.AverageRed, sampled.AverageGreen, sampled.AverageBlue);
+		}
+
+		foreach (KeyValuePair<int, TerrainSurfaceKind> pair in kinds)
+		{
+			if (colours.ContainsKey(pair.Key))
+			{
+				continue;
+			}
+
+			MinimapTexture fallback = library.GetFallback(pair.Value);
+			colours[pair.Key] = (fallback.AverageRed, fallback.AverageGreen, fallback.AverageBlue);
+		}
+
+		return colours;
+	}
+
+	private static int SwatchAt(MapFolderTerrain terrain, int x, int z)
+	{
+		if (terrain.SplatIndices.Length == 0)
+		{
+			return -1;
+		}
+
+		int nodeX = Math.Min(x, terrain.Width);
+		int nodeZ = Math.Min(z, terrain.Depth);
+		return terrain.SplatIndices[nodeZ * (terrain.Width + 1) + nodeX];
 	}
 
 	private static Dictionary<int, TerrainSurfaceKind> SwatchKinds(MapFolderTerrain terrain)

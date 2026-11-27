@@ -13,13 +13,6 @@ public class TerrainReconstructionOptions
 	public float QuadSize { get; set; } = 2f;
 
 	public int Seed { get; set; }
-
-	public float TreeDensity { get; set; } = 0.06f;
-
-	public float RockDensity { get; set; } = 0.35f;
-
-	public float StructureDensity { get; set; } = 0.5f;
-
 	public float WaterSurfaceDrop { get; set; } = 0.35f;
 
 	public float MinimumLakeFraction { get; set; } = 0.0006f;

@@ -40,6 +40,8 @@ public class MapAccuracyReport
 
 	public float TextureKindAccuracy { get; set; }
 
+	public float TextureColourError { get; set; }
+
 	public float AssetCategoryCoverage { get; set; }
 
 	public int GeneratedDistinctAssets { get; set; }
@@ -56,6 +58,6 @@ public class MapAccuracyReport
 
 	public override string ToString()
 	{
-		return $"{MapName}: height r={HeightCorrelation:F3} rmse={HeightRmse:F2} band={HeightBandAccuracy:P1} | water IoU={WaterIou:P1} P={WaterPrecision:P1} R={WaterRecall:P1} | props F1={PropF1:P1} P={PropPrecision:P1} R={PropRecall:P1} ({GeneratedPropCount}/{OriginalPropCount}) | textures={TextureKindAccuracy:P1} | assets={AssetCategoryCoverage:P1} ({GeneratedDistinctAssets}) | render={RenderSimilarity:F3}";
+		return $"{MapName}: height r={HeightCorrelation:F3} rmse={HeightRmse:F2} band={HeightBandAccuracy:P1} | water IoU={WaterIou:P1} P={WaterPrecision:P1} R={WaterRecall:P1} | props F1={PropF1:P1} P={PropPrecision:P1} R={PropRecall:P1} ({GeneratedPropCount}/{OriginalPropCount}) | textures kind={TextureKindAccuracy:P1} colour={TextureColourError:F3} | assets={AssetCategoryCoverage:P1} ({GeneratedDistinctAssets}) | render={RenderSimilarity:F3}";
 	}
 }

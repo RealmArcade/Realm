@@ -120,6 +120,7 @@ public static class MapGenerationWorkflow
 			aggregate.PropPrecision += report.PropPrecision;
 			aggregate.PropRecall += report.PropRecall;
 			aggregate.TextureKindAccuracy += report.TextureKindAccuracy;
+			aggregate.TextureColourError += report.TextureColourError;
 			aggregate.AssetCategoryCoverage += report.AssetCategoryCoverage;
 			aggregate.RenderSimilarity += report.RenderSimilarity;
 			aggregate.RenderColourError += report.RenderColourError;
@@ -139,6 +140,7 @@ public static class MapGenerationWorkflow
 		aggregate.PropPrecision /= count;
 		aggregate.PropRecall /= count;
 		aggregate.TextureKindAccuracy /= count;
+		aggregate.TextureColourError /= count;
 		aggregate.AssetCategoryCoverage /= count;
 		aggregate.RenderSimilarity /= count;
 		aggregate.RenderColourError /= count;
