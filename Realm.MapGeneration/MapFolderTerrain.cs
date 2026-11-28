@@ -19,6 +19,8 @@ public class MapFolderTerrain
 
 	public int[] SplatIndices { get; set; } = Array.Empty<int>();
 
+	public int[] CliffSplatIndices { get; set; } = Array.Empty<int>();
+
 	public byte[] PathingCodes { get; set; } = Array.Empty<byte>();
 
 	public List<MapPlacedProp> Props { get; } = new();

@@ -18,6 +18,7 @@ public static class MapFolderTerrainConverter
 			WaterSurfaceHeights = (float[])terrain.WaterSurfaceHeights.Clone(),
 			WaterModes = (byte[])terrain.WaterModes.Clone(),
 			SplatIndices = (int[])terrain.SplatIndices.Clone(),
+			CliffSplatIndices = (int[])terrain.CliffSplatIndices.Clone(),
 			PathingCodes = (byte[])terrain.PathingCodes.Clone()
 		};
 

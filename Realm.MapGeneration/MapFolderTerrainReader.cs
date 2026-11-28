@@ -217,20 +217,23 @@ public static class MapFolderTerrainReader
 
 	private static void ReadSplat(string folderPath, int width, int depth, MapFolderTerrain terrain)
 	{
-		terrain.SplatIndices = new int[(width + 1) * (depth + 1)];
+		terrain.SplatIndices = ReadSplatMap(width, depth, MapTerrainFiles.SplatIndicesPath(folderPath), MapTerrainFiles.SplatWeightsPath(folderPath));
+		terrain.CliffSplatIndices = ReadSplatMap(width, depth, MapTerrainFiles.SplatIndicesPath(folderPath, MapTerrainFiles.CliffSplatPrefix), MapTerrainFiles.SplatWeightsPath(folderPath, MapTerrainFiles.CliffSplatPrefix));
+	}
 
-		string indicesPath = MapTerrainFiles.SplatIndicesPath(folderPath);
-		string weightsPath = MapTerrainFiles.SplatWeightsPath(folderPath);
+	private static int[] ReadSplatMap(int width, int depth, string indicesPath, string weightsPath)
+	{
+		var result = new int[(width + 1) * (depth + 1)];
 		if (!File.Exists(indicesPath) || !File.Exists(weightsPath))
 		{
-			return;
+			return result;
 		}
 
 		float[] indices = ExrImageCodec.DecodeRgbaFloat(indicesPath, out int indicesWidth, out int indicesHeight);
 		float[] weights = ExrImageCodec.DecodeRgbaFloat(weightsPath, out int weightsWidth, out int weightsHeight);
 		if (indicesWidth != weightsWidth || indicesHeight != weightsHeight)
 		{
-			return;
+			return result;
 		}
 
 		for (int z = 0; z <= depth; z++)
@@ -251,9 +254,11 @@ public static class MapFolderTerrainReader
 					}
 				}
 
-				terrain.SplatIndices[z * (width + 1) + x] = (int)MathF.Round(indices[source + bestChannel]);
+				result[z * (width + 1) + x] = (int)MathF.Round(indices[source + bestChannel]);
 			}
 		}
+
+		return result;
 	}
 
 	private static void ReadPathing(string folderPath, int width, int depth, MapFolderTerrain terrain)

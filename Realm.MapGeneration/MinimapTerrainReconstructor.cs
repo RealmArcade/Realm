@@ -5,6 +5,9 @@ namespace Realm.MapGeneration;
 
 public static class MinimapTerrainReconstructor
 {
+	private const int CliffColourWindow = 5;
+	private const int CliffColourWindowCells = (CliffColourWindow * 2 + 1) * (CliffColourWindow * 2 + 1);
+
 	public static ReconstructedTerrain Reconstruct(MinimapImage image, MapGenerationPalette palette, PropCatalog catalog, TerrainReconstructionOptions options)
 	{
 		int width = Math.Max(8, options.Width);
@@ -541,12 +544,88 @@ public static class MinimapTerrainReconstructor
 				TerrainSwatch swatch = terrain.WaterMask[cellIndex]
 					? palette.FindForKind(kind, (int)hash, cell.Red, cell.Green, cell.Blue, true)
 					: palette.FindClosest(kind, cell.Red, cell.Green, cell.Blue, (int)hash);
-				TerrainSwatch cliff = palette.FindForKind(TerrainSurfaceKind.Rock, (int)(hash >> 8));
+				float cliffRed = cell.Red;
+				float cliffGreen = cell.Green;
+				float cliffBlue = cell.Blue;
+				if (regionColours != null)
+				{
+					DominantRegionColour(terrain, regionColours, width, depth, cellX, cellZ, ref cliffRed, ref cliffGreen, ref cliffBlue);
+				}
+
+				TerrainSwatch cliff = palette.FindForKind(TerrainSurfaceKind.Rock, 0, cliffRed, cliffGreen, cliffBlue, true);
 				int nodeIndex = z * (width + 1) + x;
 				terrain.SplatIndices[nodeIndex] = swatch.Index;
 				terrain.CliffSplatIndices[nodeIndex] = cliff.Index;
 			}
 		}
+	}
+
+	private static void DominantRegionColour(ReconstructedTerrain terrain, float[] regionColours, int width, int depth, int cellX, int cellZ, ref float red, ref float green, ref float blue)
+	{
+		Span<float> colours = stackalloc float[CliffColourWindowCells * 3];
+		Span<int> counts = stackalloc int[CliffColourWindowCells];
+		int distinct = 0;
+		for (int deltaZ = -CliffColourWindow; deltaZ <= CliffColourWindow; deltaZ++)
+		{
+			for (int deltaX = -CliffColourWindow; deltaX <= CliffColourWindow; deltaX++)
+			{
+				int x = cellX + deltaX;
+				int z = cellZ + deltaZ;
+				if (x < 0 || x >= width || z < 0 || z >= depth)
+				{
+					continue;
+				}
+
+				int index = z * width + x;
+				if (terrain.WaterMask[index])
+				{
+					continue;
+				}
+
+				float candidateRed = regionColours[index * 3];
+				float candidateGreen = regionColours[index * 3 + 1];
+				float candidateBlue = regionColours[index * 3 + 2];
+				int slot = -1;
+				for (int existing = 0; existing < distinct; existing++)
+				{
+					if (colours[existing * 3] == candidateRed &&
+					    colours[existing * 3 + 1] == candidateGreen &&
+					    colours[existing * 3 + 2] == candidateBlue)
+					{
+						slot = existing;
+						break;
+					}
+				}
+
+				if (slot < 0)
+				{
+					slot = distinct++;
+					colours[slot * 3] = candidateRed;
+					colours[slot * 3 + 1] = candidateGreen;
+					colours[slot * 3 + 2] = candidateBlue;
+				}
+
+				counts[slot]++;
+			}
+		}
+
+		if (distinct == 0)
+		{
+			return;
+		}
+
+		int best = 0;
+		for (int slot = 1; slot < distinct; slot++)
+		{
+			if (counts[slot] > counts[best])
+			{
+				best = slot;
+			}
+		}
+
+		red = colours[best * 3];
+		green = colours[best * 3 + 1];
+		blue = colours[best * 3 + 2];
 	}
 
 	private static MinimapCellFeatures CellFeaturesAt(ReconstructedTerrain terrain, int cellIndex, float[]? regionColours)

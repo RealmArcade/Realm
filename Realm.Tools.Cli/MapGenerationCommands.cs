@@ -344,6 +344,42 @@ public static class MapGenerationCommands
 		}
 
 		Console.WriteLine($"  placed by category: trees {categories[(int)PropCategory.Tree]}, rocks {categories[(int)PropCategory.Rock]}, structures {categories[(int)PropCategory.Structure]}, nature {categories[(int)PropCategory.Nature]}, other {categories[(int)PropCategory.Other]}");
+		Console.WriteLine($"  cliff splat: {DescribeSplat(terrain, terrain.CliffSplatIndices)}");
+		Console.WriteLine($"  ground splat: {DescribeSplat(terrain, terrain.SplatIndices)}");
 		return 0;
+	}
+
+	private static string DescribeSplat(MapFolderTerrain terrain, int[] values)
+	{
+		if (values.Length == 0)
+		{
+			return "not stored in this folder";
+		}
+
+		var distinct = new HashSet<int>();
+		int pairs = 0;
+		int equalPairs = 0;
+		for (int z = 0; z <= terrain.Depth; z++)
+		{
+			for (int x = 0; x <= terrain.Width; x++)
+			{
+				int index = terrain.VertexIndex(x, z);
+				distinct.Add(values[index]);
+				if (x < terrain.Width)
+				{
+					pairs++;
+					if (values[index + 1] == values[index]) equalPairs++;
+				}
+
+				if (z < terrain.Depth)
+				{
+					pairs++;
+					if (values[index + terrain.Width + 1] == values[index]) equalPairs++;
+				}
+			}
+		}
+
+		float agreement = pairs > 0 ? equalPairs * 100f / pairs : 0f;
+		return $"{distinct.Count} swatches, {agreement:F1}% neighbour agreement";
 	}
 }
