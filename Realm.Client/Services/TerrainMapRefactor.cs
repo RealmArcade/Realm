@@ -12,23 +12,17 @@ public static class TerrainMapRefactor
 	public const float PlaneHeightStep = 1.0f;
 	public const int TextureIndicesPerHeightStep = 2;
 
-	private readonly struct WaterBody
+	private readonly struct WaterCell
 	{
-		public readonly int SeedX;
-		public readonly int SeedZ;
 		public readonly WaterType WaterMode;
 		public readonly byte WaterProfileIndex;
-		public readonly float WaterHeight;
-		public readonly List<(int X, int Z)> Cells;
+		public readonly float SurfaceHeight;
 
-		public WaterBody(int seedX, int seedZ, WaterType waterMode, byte waterProfileIndex, float waterHeight, List<(int X, int Z)> cells)
+		public WaterCell(TerrainCell cell)
 		{
-			SeedX = seedX;
-			SeedZ = seedZ;
-			WaterMode = waterMode;
-			WaterProfileIndex = waterProfileIndex;
-			WaterHeight = waterHeight;
-			Cells = cells;
+			WaterMode = cell.WaterMode;
+			WaterProfileIndex = cell.WaterProfileIndex;
+			SurfaceHeight = cell.MacroTier * TerrainCell.TIER_HEIGHT + (cell.WaterHeight > HeightRangeTolerance ? cell.WaterHeight : RuntimeTerrain.WATER_DELTA);
 		}
 	}
 
@@ -66,10 +60,18 @@ public static class TerrainMapRefactor
 
 		float ratio = targetRange / originalRange;
 
-		List<WaterBody> waterBodies = ExtractWaterBodies(cells);
-
 		int width = cells.GetLength(0);
 		int depth = cells.GetLength(1);
+
+		var waterCells = new WaterCell[width, depth];
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				waterCells[x, z] = new WaterCell(cells[x, z]);
+			}
+		}
+
 		for (int z = 0; z < depth; z++)
 		{
 			for (int x = 0; x < width; x++)
@@ -83,7 +85,13 @@ public static class TerrainMapRefactor
 			}
 		}
 
-		RestoreWaterBodies(cells, waterBodies, lowest, ratio);
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				RestoreScaledWater(ref cells[x, z], waterCells[x, z], lowest, ratio);
+			}
+		}
 	}
 
 	public static void ResetTexturesByHeight(TerrainCell[,] cells, TerrainSplatWeights[,] ground, TerrainSplatWeights[,]? cliff, IReadOnlyList<int> swatchOrder)
@@ -180,117 +188,16 @@ public static class TerrainMapRefactor
 		return ranks;
 	}
 
-	private static List<WaterBody> ExtractWaterBodies(TerrainCell[,] cells)
+	private static void RestoreScaledWater(ref TerrainCell cell, in WaterCell water, float lowest, float ratio)
 	{
-		int width = cells.GetLength(0);
-		int depth = cells.GetLength(1);
+		if (water.WaterMode == WaterType.None) return;
 
-		var liquidCells = new List<(int X, int Z, float Height)>();
-		for (int z = 0; z < depth; z++)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				if (cells[x, z].WaterMode != WaterType.None)
-				{
-					liquidCells.Add((x, z, cells[x, z].CenterHeight));
-				}
-			}
-		}
+		float surfaceHeight = ScaleHeight(water.SurfaceHeight, lowest, ratio);
+		float tierFloor = cell.MacroTier * TerrainCell.TIER_HEIGHT;
 
-		liquidCells.Sort((left, right) => left.Height.CompareTo(right.Height));
-
-		var removed = new bool[width, depth];
-		var bodies = new List<WaterBody>();
-		var pending = new Queue<(int X, int Z)>();
-
-		for (int index = 0; index < liquidCells.Count; index++)
-		{
-			(int seedX, int seedZ, float _) = liquidCells[index];
-			if (removed[seedX, seedZ]) continue;
-
-			TerrainCell seed = cells[seedX, seedZ];
-			var members = new List<(int X, int Z)>();
-
-			removed[seedX, seedZ] = true;
-			pending.Enqueue((seedX, seedZ));
-
-			while (pending.Count > 0)
-			{
-				(int x, int z) = pending.Dequeue();
-				members.Add((x, z));
-				RemoveWater(ref cells[x, z]);
-
-				if (x > 0) QueueWaterCell(x - 1, z, cells, removed, pending);
-				if (x + 1 < width) QueueWaterCell(x + 1, z, cells, removed, pending);
-				if (z > 0) QueueWaterCell(x, z - 1, cells, removed, pending);
-				if (z + 1 < depth) QueueWaterCell(x, z + 1, cells, removed, pending);
-			}
-
-			bodies.Add(new WaterBody(seedX, seedZ, seed.WaterMode, seed.WaterProfileIndex, seed.WaterHeight, members));
-		}
-
-		return bodies;
-	}
-
-	private static void QueueWaterCell(int nextX, int nextZ, TerrainCell[,] cells, bool[,] removed, Queue<(int X, int Z)> pending)
-	{
-		if (removed[nextX, nextZ]) return;
-		if (cells[nextX, nextZ].WaterMode == WaterType.None) return;
-
-		removed[nextX, nextZ] = true;
-		pending.Enqueue((nextX, nextZ));
-	}
-
-	private static void RestoreWaterBodies(TerrainCell[,] cells, List<WaterBody> waterBodies, float lowest, float ratio)
-	{
-		int width = cells.GetLength(0);
-		int depth = cells.GetLength(1);
-		var pending = new Queue<(int X, int Z)>();
-
-		foreach (WaterBody body in waterBodies)
-		{
-			if (body.Cells.Count == 0) continue;
-
-			float waterHeight = ScaleHeight(body.WaterHeight, lowest, ratio);
-			var unvisited = new HashSet<(int X, int Z)>(body.Cells);
-
-			if (!unvisited.Remove((body.SeedX, body.SeedZ))) continue;
-
-			ApplyWater(ref cells[body.SeedX, body.SeedZ], body, waterHeight);
-			pending.Enqueue((body.SeedX, body.SeedZ));
-
-			while (pending.Count > 0)
-			{
-				(int x, int z) = pending.Dequeue();
-
-				if (x > 0) QueueWaterMember(x - 1, z, cells, unvisited, body, waterHeight, pending);
-				if (x + 1 < width) QueueWaterMember(x + 1, z, cells, unvisited, body, waterHeight, pending);
-				if (z > 0) QueueWaterMember(x, z - 1, cells, unvisited, body, waterHeight, pending);
-				if (z + 1 < depth) QueueWaterMember(x, z + 1, cells, unvisited, body, waterHeight, pending);
-			}
-		}
-	}
-
-	private static void QueueWaterMember(int nextX, int nextZ, TerrainCell[,] cells, HashSet<(int X, int Z)> unvisited, in WaterBody body, float waterHeight, Queue<(int X, int Z)> pending)
-	{
-		if (!unvisited.Remove((nextX, nextZ))) return;
-
-		ApplyWater(ref cells[nextX, nextZ], body, waterHeight);
-		pending.Enqueue((nextX, nextZ));
-	}
-
-	private static void RemoveWater(ref TerrainCell cell)
-	{
-		cell.WaterMode = WaterType.None;
-		cell.WaterProfileIndex = 0;
-		cell.WaterHeight = 0f;
-	}
-
-	private static void ApplyWater(ref TerrainCell cell, in WaterBody body, float waterHeight)
-	{
-		cell.WaterMode = body.WaterMode;
-		cell.WaterProfileIndex = body.WaterProfileIndex;
-		cell.WaterHeight = waterHeight;
+		cell.WaterMode = water.WaterMode;
+		cell.WaterProfileIndex = water.WaterProfileIndex;
+		cell.WaterHeight = surfaceHeight > tierFloor + HeightRangeTolerance ? surfaceHeight - tierFloor : RuntimeTerrain.WATER_DELTA;
 	}
 
 	private static int[,] BuildHeightPlanes(TerrainCell[,] cells, int width, int depth)
