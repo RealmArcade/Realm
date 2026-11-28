@@ -259,7 +259,7 @@ public static class MinimapTerrainReconstructor
 		for (int index = 0; index < heights.Length; index++)
 		{
 			MinimapCellFeatures cell = grid.Cells[index];
-			float relief = Math.Clamp(cell.LocalContrast * 0.6f, 0f, 0.25f);
+			float relief = Math.Clamp(cell.LocalContrast / 0.05f, 0f, 1f) * options.TierHeight * 0.5f;
 			heights[index] = landBase + offsets[index] * 0.35f + broad[index] * 0.25f + relief;
 		}
 
