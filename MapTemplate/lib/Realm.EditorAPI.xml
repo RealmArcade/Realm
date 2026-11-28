@@ -334,6 +334,43 @@
             <param name="cliffMaterialIndex">Swatch index written as a solid weight across the cliff splat map.</param>
             <returns>True when the layout matched the live grid and was committed; otherwise false.</returns>
         </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.ApplyReconstructedTerrain(System.Int32,System.Int32,System.ReadOnlySpan{System.Single},System.ReadOnlySpan{System.Int32},System.ReadOnlySpan{System.Int32},System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Single},System.Int32)">
+            <summary>
+            Replaces the whole terrain with reconstructed data that already carries its own heights, per-node
+            texture swatches, water bodies and pathing: the shape an image-to-map reconstructor produces, rather
+            than the coarse tier bands <see cref="M:Realm.EditorAPI.IEditorAPI.ApplyGeneratedTerrain(System.Int32,System.Int32,System.ReadOnlySpan{System.SByte},System.ReadOnlySpan{System.Int32},System.Int32)"/> accepts.
+            </summary>
+            <remarks>
+            Every node height is written as authored, so a reconstruction keeps its relief instead of snapping to
+            whole tiers; the cell's macro tier follows from the corner heights exactly as it does when a height is
+            painted by hand. Water is written per cell with its own surface, and pathing codes are derived from the
+            water mode the same way the water tool derives them.
+            </remarks>
+            <param name="width">Grid width in cells; must match <see cref="M:Realm.EditorAPI.IEditorAPI.GetTerrainGridInfo"/>.</param>
+            <param name="depth">Grid depth in cells; must match <see cref="M:Realm.EditorAPI.IEditorAPI.GetTerrainGridInfo"/>.</param>
+            <param name="nodeHeights">Row-major world-space height per grid node, (width + 1) * (depth + 1) values, X fastest.</param>
+            <param name="groundMaterials">Row-major ground swatch index per grid node, matching the node height layout.</param>
+            <param name="cliffMaterials">Row-major cliff swatch index per grid node, matching the node height layout.</param>
+            <param name="waterModes">Row-major water mode per cell (0 none, 1 shallow, 2 deep), matching the cell layout.</param>
+            <param name="waterSurfaces">Row-major world-space water surface per cell; ignored where the mode is none.</param>
+            <param name="waterProfileIndex">Water profile every reconstructed body uses.</param>
+            <returns>True when the layout matched the live grid and was committed; otherwise false.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.ApplyAutomaticPathing">
+            <summary>
+            Derives every cell's pathing code from its water state in one pass, so terrain a generator produced carries
+            the default traversal set: a dry cell allows ground, buildings and flying, while a liquid cell allows shallow
+            water, deep water and flying. Any pathing painted by hand is overwritten.
+            </summary>
+            <returns>Success, or a refusal when the editor has no terrain to derive pathing from.</returns>
+        </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.GetTerrainTextureInfo">
+            <summary>
+            Reports every terrain texture swatch slot of the open workspace, including the ones left empty, so an
+            image-to-map reconstructor can match an image colour against the textures this map can be painted with.
+            </summary>
+            <returns>One entry per swatch slot, in splat index order.</returns>
+        </member>
         <member name="M:Realm.EditorAPI.IEditorAPI.RebuildTerrain">
             <summary>
             Rebuilds the terrain mesh and collision from the authoritative terrain state.
@@ -692,6 +729,33 @@
         </member>
         <member name="P:Realm.EditorAPI.TerrainMaterialPalette.Cliff">
             <summary>Swatch index applied to high cliff bands and to the cliff splat map.</summary>
+        </member>
+        <member name="T:Realm.EditorAPI.TerrainTextureInfo">
+            <summary>
+            Describes one terrain texture swatch slot of the open workspace, so a generator can compare an
+            image colour against the textures the map can actually be painted with.
+            </summary>
+            <param name="SwatchIndex">Index the splat maps and painting tools use for this texture.</param>
+            <param name="Name">Display name of the swatch, which still follows the source file name.</param>
+            <param name="TexturePath">Absolute path of the swatch texture on disk, or an empty string for an empty slot.</param>
+        </member>
+        <member name="M:Realm.EditorAPI.TerrainTextureInfo.#ctor(System.Int32,System.String,System.String)">
+            <summary>
+            Describes one terrain texture swatch slot of the open workspace, so a generator can compare an
+            image colour against the textures the map can actually be painted with.
+            </summary>
+            <param name="SwatchIndex">Index the splat maps and painting tools use for this texture.</param>
+            <param name="Name">Display name of the swatch, which still follows the source file name.</param>
+            <param name="TexturePath">Absolute path of the swatch texture on disk, or an empty string for an empty slot.</param>
+        </member>
+        <member name="P:Realm.EditorAPI.TerrainTextureInfo.SwatchIndex">
+            <summary>Index the splat maps and painting tools use for this texture.</summary>
+        </member>
+        <member name="P:Realm.EditorAPI.TerrainTextureInfo.Name">
+            <summary>Display name of the swatch, which still follows the source file name.</summary>
+        </member>
+        <member name="P:Realm.EditorAPI.TerrainTextureInfo.TexturePath">
+            <summary>Absolute path of the swatch texture on disk, or an empty string for an empty slot.</summary>
         </member>
     </members>
 </doc>

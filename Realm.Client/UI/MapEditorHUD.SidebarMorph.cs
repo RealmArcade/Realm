@@ -92,6 +92,7 @@ namespace Realm.Client.UI
 			                tool == EditorTool.Noise ||
 			                tool == EditorTool.PaintPathing ||
 			                tool == EditorTool.FloodFillPathing ||
+			                tool == EditorTool.HeightFill ||
 			                tool == EditorTool.PlacePropClump ||
 			                ((tool == EditorTool.PlaceUnit || tool == EditorTool.PlaceProp || tool == EditorTool.PlaceDecal) && isClumpActive))
 			               && tool != EditorTool.Water;
@@ -111,8 +112,9 @@ namespace Realm.Client.UI
 					                         tool != EditorTool.Smooth &&
 					                         tool != EditorTool.Noise &&
 					                         tool != EditorTool.Ramp &&
-					                         tool != EditorTool.PlacePropClump &&
-					                         tool != EditorTool.Height &&
+					                         						                         tool != EditorTool.PlacePropClump &&
+						                         tool != EditorTool.Height &&
+						                         tool != EditorTool.HeightFill &&
 					                         !isClumpActive);
 				}
 
@@ -126,7 +128,8 @@ namespace Realm.Client.UI
 
 			bool isBlockModeActive = (_brushPanel?.BlockModeCheck != null && _brushPanel.BlockModeCheck.Visible && _brushPanel.BlockModeCheck.ButtonPressed) || (GameContext.Host != null && GameContext.Host.EditorBlockMode);
 			bool isPaintTool = tool == EditorTool.PaintTexture ||
-			                   tool == EditorTool.FloodFill;
+			                   tool == EditorTool.FloodFill ||
+			                   tool == EditorTool.HeightFill;
 			bool isBlockHeightTool = (isBlockModeActive && (
 				                         tool == EditorTool.Raise ||
 				                         tool == EditorTool.Lower ||

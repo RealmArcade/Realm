@@ -688,6 +688,11 @@ public partial class GameHost
 				GameContext.EditorService.FloodFillWaterAt(hitPos.X, hitPos.Y, hitPos.Z, isRemove);
 				GetViewport().SetInputAsHandled();
 			}
+			else if (ActiveEditorTool == EditorTool.HeightFill)
+			{
+				GameContext.EditorService.HeightFillAt(hitPos.X, hitPos.Y, hitPos.Z);
+				GetViewport().SetInputAsHandled();
+			}
 			else if (ActiveEditorTool == EditorTool.SelectArea)
 			{
 				if (GroundTerrain != null)

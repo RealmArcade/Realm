@@ -1,6 +1,7 @@
 using System.IO;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.Services.MapGeneration;
 using Realm.Client.UI.MapEditor;
 using Realm.Client.Utils;
 
@@ -11,17 +12,20 @@ public partial class MapEditorHUD
 	private Button _btnRandomGen { get; set; } = null!;
 	private PopupMenu _popupRandomGen { get; set; } = null!;
 	private MapGenerationDialog _mapGenerationDialog { get; set; } = null!;
+	private MapRefactorDialog _mapRefactorDialog { get; set; } = null!;
 
 	private void SetupRandomGenerationMenu()
 	{
 		_btnRandomGen = GetNode<Button>("LeftSlidePanel/LeftScroll/LeftVBox/FileAccordion/ContentFile/BoxGenOps/FileGrid2_GridContainer/BtnRandomGen");
-		SetupOptionButton(_btnRandomGen, $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Random Gen"), ShowRandomGenerationPopup, 13, "Generate a new map from a seed, or import terrain from a reference image");
+		SetupOptionButton(_btnRandomGen, $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Random Gen"), ShowRandomGenerationPopup, 13, "Generate a new map from a seed, import terrain from a reference image, or reshape the open map's terrain with filters");
 
 		_popupRandomGen = new PopupMenu { Name = "PopupRandomGen" };
 		_popupRandomGen.AddItem($"{UnicodeIcons.DICE} " + TranslationServer.Translate("Procedural"), 0);
 		_popupRandomGen.SetItemTooltip(0, TranslationServer.Translate("Generate a new map from a seed and terrain sliders"));
 		_popupRandomGen.AddItem($"{UnicodeIcons.MAP_IMAGE} " + TranslationServer.Translate("From Image"), 1);
 		_popupRandomGen.SetItemTooltip(1, TranslationServer.Translate("Replace the map with terrain classified from a reference image"));
+		_popupRandomGen.AddItem($"{UnicodeIcons.WAND_SPARKLES} " + TranslationServer.Translate("Map Filters"), 2);
+		_popupRandomGen.SetItemTooltip(2, TranslationServer.Translate("Reshape the existing terrain's heights and textures"));
 		StylePopupMenu(_popupRandomGen);
 		_popupRandomGen.IdPressed += OnRandomGenerationMenuItemPressed;
 		AddChild(_popupRandomGen);
@@ -42,19 +46,30 @@ public partial class MapEditorHUD
 	{
 		_popupRandomGen.Hide();
 
-		if (itemId == 0)
+		switch (itemId)
 		{
-			OpenMapGenerationDialog();
-			return;
+			case 0:
+				OpenMapGenerationDialog();
+				break;
+			case 1:
+				ImportTerrainFromImageAction();
+				break;
+			case 2:
+				OpenMapRefactorDialog();
+				break;
 		}
-
-		ImportTerrainFromImageAction();
 	}
 
 	public void OpenMapGenerationDialog()
 	{
 		_mapGenerationDialog ??= new MapGenerationDialog(this);
 		_mapGenerationDialog.OpenDialog();
+	}
+
+	public void OpenMapRefactorDialog()
+	{
+		_mapRefactorDialog ??= new MapRefactorDialog(this);
+		_mapRefactorDialog.OpenDialog();
 	}
 
 	private void ImportTerrainFromImageAction()
@@ -110,6 +125,11 @@ public partial class MapEditorHUD
 		string imagePath = selectedPaths[0];
 		string? directory = Path.GetDirectoryName(imagePath);
 		GameContext.MapGenerationService.LastTerrainImageFolder = !string.IsNullOrWhiteSpace(directory) ? directory : fallbackFolder;
-		GameContext.MapGenerationService.ImportTerrainFromImage(imagePath);
+
+		TerrainImageImportResult result = GameContext.MapGenerationService.ImportTerrainFromImage(imagePath);
+		if (result.Success)
+		{
+			OpenMapRefactorDialog();
+		}
 	}
 }

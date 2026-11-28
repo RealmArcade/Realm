@@ -7,105 +7,73 @@ using Realm.Client.Utils;
 namespace Realm.Client.UI.MapEditor;
 
 [GlobalClass]
-public partial class MapGenerationDialog : Control
+public partial class MapGenerationDialog : FloatingDialogBase
 {
 	private const int FrameBudgetMilliseconds = 8;
 
-	private MapEditorHUD _hud = null!;
 	private readonly HSlider[] _sliders = new HSlider[8];
-	private readonly Label[] _sliderValueLabels = new Label[8];
 
 	private LineEdit _seedField = null!;
-	private Button _rollButton = null!;
-	private Button _randomizeSlidersButton = null!;
-	private Button _generateButton = null!;
-	private Button _closeButton = null!;
 	private Label _statusLabel = null!;
 	private ProgressBar _progressBar = null!;
-	private Timer _progressPollTimer = null!;
-	private bool _isRunning;
+	private bool _suppressLiveUpdate;
 
-	public MapGenerationDialog()
+	public MapGenerationDialog() : base()
 	{
-		Name = "MapGenerationDialog";
-		SetAnchorsPreset(LayoutPreset.FullRect);
-		MouseFilter = MouseFilterEnum.Stop;
-		ZIndex = 1150;
-		Visible = false;
 	}
 
-	public MapGenerationDialog(MapEditorHUD hud) : this()
+	public MapGenerationDialog(MapEditorHUD hud) : base(hud, TranslationServer.Translate("Random Map Generator"), new Vector2(510f, 500f))
 	{
-		_hud = hud;
 		BuildUi();
 	}
 
-	public void OpenDialog()
+	public override void OpenDialog()
 	{
-		if (GetParent() == null)
+		if (IsOpen && GameContext.MapGenerationService.IsPreviewActive)
 		{
-			_hud.AddChild(this);
+			BringToFront();
+			return;
 		}
 
+		_suppressLiveUpdate = true;
 		RollNewSeed();
-		_statusLabel.Visible = false;
-		_progressBar.Visible = false;
+		_suppressLiveUpdate = false;
+
+		base.OpenDialog();
+
+		if (!GameContext.MapGenerationService.StartPreview(_seedField.Text, ReadParameters()))
+		{
+			_statusLabel.Visible = true;
+			_progressBar.Visible = false;
+			_statusLabel.Text = GameContext.MapGenerationService.Progress.FailureMessage
+				?? TranslationServer.Translate("Map generation failed.");
+			return;
+		}
+
+		_statusLabel.Visible = true;
+		_progressBar.Visible = true;
 		_progressBar.Value = 0;
-		_isRunning = false;
-		UpdateRunningUi(false);
-		Visible = true;
-		MoveToFront();
-		_progressPollTimer.Start();
+		UpdateLiveUi(true);
 	}
 
-	private void CloseDialog()
+	protected override void OnCancel()
 	{
-		_progressPollTimer.Stop();
-		Visible = false;
+		GameContext.MapGenerationService.CancelPreview();
+	}
+
+	protected override void OnApply()
+	{
+		GameContext.MapGenerationService.ApplyPreview();
 	}
 
 	private void BuildUi()
 	{
-		var scrim = new ColorRect { Name = "GenerationScrim", Color = new Color(0f, 0f, 0f, 0.65f), MouseFilter = MouseFilterEnum.Stop };
-		scrim.SetAnchorsPreset(LayoutPreset.FullRect);
-		AddChild(scrim);
+		SetUncompressedPanelTexture("res://Assets/UI/map_editor_test.webp", 30, 24, 44, 44);
 
-		var center = new CenterContainer { Name = "GenerationCenterContainer" };
-		center.SetAnchorsPreset(LayoutPreset.FullRect);
-		AddChild(center);
+		CancelButton.TooltipText = TranslationServer.Translate("Put the map back the way it was when the dialog opened.");
+		ApplyButton.TooltipText = TranslationServer.Translate("Keep the live preview as one undo step.");
 
-		var panel = new PanelContainer { Name = "GenerationPanel", CustomMinimumSize = new Vector2(510f, 490f) };
-		UIStyle.ClearPanelBackground(panel);
-		center.AddChild(panel);
-
-		var background = new TextureRect
-		{
-			Name = "GenerationBackgroundTexture",
-			Texture = TrimmedTextureLoader.LoadTrimmedTexture("res://Assets/UI/map_editor_test.webp"),
-			ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-			StretchMode = TextureRect.StretchModeEnum.Scale
-		};
-		background.SetAnchorsPreset(LayoutPreset.FullRect);
-		panel.AddChild(background);
-
-		var margin = new MarginContainer { Name = "GenerationMargin" };
-		margin.SetAnchorsPreset(LayoutPreset.FullRect);
-		margin.AddThemeConstantOverride("margin_top", 30);
-		margin.AddThemeConstantOverride("margin_bottom", 24);
-		margin.AddThemeConstantOverride("margin_left", 44);
-		margin.AddThemeConstantOverride("margin_right", 44);
-		panel.AddChild(margin);
-
-		var content = new VBoxContainer { Name = "GenerationContent" };
-		content.AddThemeConstantOverride("separation", 4);
-		margin.AddChild(content);
-
-		var title = new Label { Name = "GenerationTitle", HorizontalAlignment = HorizontalAlignment.Center };
-		UIStyle.ApplyTitle(title, TranslationServer.Translate("Random Map Generator"), 18);
-		title.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		content.AddChild(title);
-
-		content.AddChild(BuildSeedRow());
+		BodyContainer.AddChild(BuildSeedRow());
 
 		var sliderLabels = new[]
 		{
@@ -133,17 +101,26 @@ public partial class MapGenerationDialog : Control
 
 		for (int sliderIndex = 0; sliderIndex < _sliders.Length; sliderIndex++)
 		{
-			content.AddChild(BuildSliderRow(sliderIndex, sliderLabels[sliderIndex], sliderTooltips[sliderIndex]));
+			(HSlider slider, _) = AddSlider(
+				BodyContainer,
+				sliderLabels[sliderIndex],
+				MapGenerationParameters.MinimumSliderValue,
+				MapGenerationParameters.MaximumSliderValue,
+				1f,
+				MapGenerationParameters.DefaultSliderValue,
+				_ => ApplyLiveParameters(),
+				"0",
+				150f);
+			slider.TooltipText = sliderTooltips[sliderIndex];
+			_sliders[sliderIndex] = slider;
 		}
 
-		_randomizeSlidersButton = new Button { Name = "RandomizeSlidersButton", Text = $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Randomize Sliders") };
-		_randomizeSlidersButton.Set("icon_max_width", 0);
-		_randomizeSlidersButton.CustomMinimumSize = new Vector2(0f, 26f);
-		_randomizeSlidersButton.FocusMode = FocusModeEnum.None;
-		_randomizeSlidersButton.TooltipText = TranslationServer.Translate("Sets every slider to a random value from one to ten.");
-		StyleActionButton(_randomizeSlidersButton);
-		_randomizeSlidersButton.Pressed += RandomizeSliders;
-		content.AddChild(_randomizeSlidersButton);
+		CreateActionButton(
+			BodyContainer,
+			$"{UnicodeIcons.DICE} " + TranslationServer.Translate("Randomize Sliders"),
+			RandomizeSliders,
+			TranslationServer.Translate("Sets every slider to a random value from one to ten."),
+			new Vector2(0f, 26f));
 
 		_statusLabel = new Label
 		{
@@ -155,33 +132,13 @@ public partial class MapGenerationDialog : Control
 		};
 		_statusLabel.AddThemeFontSizeOverride("font_size", 11);
 		_statusLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		content.AddChild(_statusLabel);
+		BodyContainer.AddChild(_statusLabel);
 
 		_progressBar = new ProgressBar { Name = "GenerationProgressBar", Visible = false, ShowPercentage = false, MinValue = 0, MaxValue = 100, CustomMinimumSize = new Vector2(0f, 10f) };
-		content.AddChild(_progressBar);
+		BodyContainer.AddChild(_progressBar);
 
 		var spacer = new Control { Name = "GenerationSpacer", SizeFlagsVertical = SizeFlags.ExpandFill };
-		content.AddChild(spacer);
-
-		var actions = new HBoxContainer { Name = "GenerationActions", Alignment = BoxContainer.AlignmentMode.Center };
-		actions.AddThemeConstantOverride("separation", 18);
-		content.AddChild(actions);
-
-		_generateButton = new Button { Name = "GenerateButton", Text = TranslationServer.Translate("Generate"), CustomMinimumSize = new Vector2(120f, 32f), FocusMode = FocusModeEnum.None };
-		_generateButton.Set("icon_max_width", 0);
-		StyleActionButton(_generateButton);
-		_generateButton.Pressed += GenerateMap;
-		actions.AddChild(_generateButton);
-
-		_closeButton = new Button { Name = "CloseButton", Text = TranslationServer.Translate("Close"), CustomMinimumSize = new Vector2(120f, 32f), FocusMode = FocusModeEnum.None };
-		_closeButton.Set("icon_max_width", 0);
-		StyleActionButton(_closeButton);
-		_closeButton.Pressed += OnClosePressed;
-		actions.AddChild(_closeButton);
-
-		_progressPollTimer = new Timer { Name = "GenerationProgressTimer", WaitTime = 0.1, OneShot = false };
-		_progressPollTimer.Timeout += UpdateProgressUi;
-		AddChild(_progressPollTimer);
+		BodyContainer.AddChild(spacer);
 	}
 
 	private HBoxContainer BuildSeedRow()
@@ -189,74 +146,47 @@ public partial class MapGenerationDialog : Control
 		var row = new HBoxContainer { Name = "SeedRow" };
 		row.AddThemeConstantOverride("separation", 6);
 
-		var label = new Label { Name = "SeedLabel", Text = TranslationServer.Translate("Seed"), CustomMinimumSize = new Vector2(110f, 0f) };
+		var label = new Label { Name = "SeedLabel", Text = TranslationServer.Translate("Seed"), CustomMinimumSize = new Vector2(150f, 0f) };
 		label.AddThemeFontSizeOverride("font_size", 11);
 		row.AddChild(label);
 
 		_seedField = new LineEdit { Name = "SeedField", SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		_seedField.AddThemeFontSizeOverride("font_size", 11);
-		_seedField.TooltipText = TranslationServer.Translate("Any text is accepted; non-numeric seeds are hashed to a stable number.");
+		UIStyle.ApplyTextInput(_seedField, 11);
+		_seedField.TooltipText = TranslationServer.Translate("Any text is accepted; pressing Enter regenerates the whole map from that seed.");
+		_seedField.TextSubmitted += _ => RebuildFromSeed();
+		_seedField.FocusExited += RebuildFromSeed;
 		row.AddChild(_seedField);
 
-		_rollButton = new Button { Name = "RollSeedButton", Text = $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Roll"), CustomMinimumSize = new Vector2(74f, 26f), FocusMode = FocusModeEnum.None };
-		_rollButton.Set("icon_max_width", 0);
-		_rollButton.TooltipText = TranslationServer.Translate("Rolls a fresh six digit seed.");
-		StyleActionButton(_rollButton);
-		_rollButton.Pressed += RollNewSeed;
-		row.AddChild(_rollButton);
+		CreateActionButton(
+			row,
+			$"{UnicodeIcons.DICE} " + TranslationServer.Translate("Roll"),
+			OnRollPressed,
+			TranslationServer.Translate("Rolls a fresh six digit seed and regenerates the map."),
+			new Vector2(74f, 26f));
 
 		return row;
 	}
 
-	private HBoxContainer BuildSliderRow(int sliderIndex, string labelText, string tooltipText)
+	private Button CreateActionButton(Control parent, string text, Action onPressed, string tooltipText, Vector2 minSize)
 	{
-		var row = new HBoxContainer { Name = $"SliderRow{sliderIndex}" };
-		row.AddThemeConstantOverride("separation", 6);
+		Button button = CreateDialogButton();
+		button.Text = text;
+		button.TooltipText = tooltipText;
+		button.CustomMinimumSize = minSize;
+		button.FocusMode = FocusModeEnum.None;
 
-		var label = new Label { Name = "SliderLabel", Text = labelText, CustomMinimumSize = new Vector2(150f, 0f) };
-		label.AddThemeFontSizeOverride("font_size", 11);
-		label.TooltipText = tooltipText;
-		row.AddChild(label);
-
-		var slider = new HSlider
-		{
-			Name = "Slider",
-			MinValue = MapGenerationParameters.MinimumSliderValue,
-			MaxValue = MapGenerationParameters.MaximumSliderValue,
-			Step = 1,
-			Value = MapGenerationParameters.DefaultSliderValue,
-			SizeFlagsHorizontal = SizeFlags.ExpandFill,
-			CustomMinimumSize = new Vector2(0f, 18f)
-		};
-		slider.TooltipText = tooltipText;
-		row.AddChild(slider);
-
-		var valueLabel = new Label { Name = "SliderValue", Text = MapGenerationParameters.DefaultSliderValue.ToString(), CustomMinimumSize = new Vector2(24f, 0f), HorizontalAlignment = HorizontalAlignment.Right };
-		valueLabel.AddThemeFontSizeOverride("font_size", 11);
-		valueLabel.AddThemeColorOverride("font_color", UIStyle.ColorGold);
-		row.AddChild(valueLabel);
-
-		slider.ValueChanged += value =>
-		{
-			valueLabel.Text = ((int)value).ToString();
-		};
-
-		_sliders[sliderIndex] = slider;
-		_sliderValueLabels[sliderIndex] = valueLabel;
-		return row;
-	}
-
-	private void StyleActionButton(Button button)
-	{
-		var fontAwesomeFont = _hud?.GetFontAwesomeFont();
+		var fontAwesomeFont = Hud?.GetFontAwesomeFont();
 		if (fontAwesomeFont != null)
 		{
 			button.AddThemeFontOverride("font", fontAwesomeFont);
 		}
 
-		button.AddThemeFontSizeOverride("font_size", 12);
+		button.AddThemeFontSizeOverride("font_size", 11);
 		UIStyle.ApplyButtonStyleBoxes(button);
 		button.AddThemeColorOverride("font_color", UIStyle.ColorGold);
+		button.Pressed += onPressed;
+		parent.AddChild(button);
+		return button;
 	}
 
 	private void RollNewSeed()
@@ -264,14 +194,22 @@ public partial class MapGenerationDialog : Control
 		_seedField.Text = (100000 + (int)(GD.Randi() % 900000)).ToString();
 	}
 
+	private void OnRollPressed()
+	{
+		RollNewSeed();
+		RebuildFromSeed();
+	}
+
 	private void RandomizeSliders()
 	{
+		_suppressLiveUpdate = true;
 		for (int sliderIndex = 0; sliderIndex < _sliders.Length; sliderIndex++)
 		{
-			int value = MapGenerationParameters.MinimumSliderValue + (int)(GD.Randi() % MapGenerationParameters.MaximumSliderValue);
-			_sliders[sliderIndex].Value = value;
-			_sliderValueLabels[sliderIndex].Text = value.ToString();
+			_sliders[sliderIndex].Value = MapGenerationParameters.MinimumSliderValue + (int)(GD.Randi() % MapGenerationParameters.MaximumSliderValue);
 		}
+
+		_suppressLiveUpdate = false;
+		ApplyLiveParameters();
 	}
 
 	private MapGenerationParameters ReadParameters()
@@ -287,105 +225,71 @@ public partial class MapGenerationDialog : Control
 			(int)_sliders[7].Value);
 	}
 
-	private void GenerateMap()
+	private void ApplyLiveParameters()
 	{
-		if (_isRunning)
+		if (_suppressLiveUpdate || !IsOpen || !GameContext.MapGenerationService.IsPreviewActive)
 		{
 			return;
 		}
 
-		_hud.ShowConfirmationDialog(
-			TranslationServer.Translate("Are you sure you want to replace the entire map with procedurally generated terrain? This will delete all placed entities and overwrite the terrain."),
-			StartGeneration);
-
-		if (_hud.GetNodeOrNull<Control>("ConfirmationOverlay") is Control confirmationOverlay)
-		{
-			confirmationOverlay.ZIndex = 1200;
-		}
+		GameContext.MapGenerationService.UpdateParameters(ReadParameters());
+		UpdateLiveUi(true);
 	}
 
-	private void StartGeneration()
+	private void RebuildFromSeed()
 	{
-		bool started = GameContext.MapGenerationService.StartProcedural(_seedField.Text, ReadParameters());
-		if (!started)
+		if (_suppressLiveUpdate || !IsOpen || !GameContext.MapGenerationService.IsPreviewActive)
 		{
-			MapGenerationProgress failedProgress = GameContext.MapGenerationService.Progress;
-			_statusLabel.Visible = true;
-			_progressBar.Visible = true;
-			_statusLabel.Text = failedProgress.FailureMessage ?? TranslationServer.Translate("Map generation failed.");
-			_progressBar.Value = 0;
 			return;
 		}
 
-		_isRunning = true;
+		GameContext.MapGenerationService.UpdateParameters(ReadParameters());
+		GameContext.MapGenerationService.UpdateSeed(_seedField.Text);
+		UpdateLiveUi(true);
+	}
+
+	private void UpdateLiveUi(bool running)
+	{
+		ApplyButton.Disabled = running;
+		_progressBar.Visible = running;
 		_statusLabel.Visible = true;
-		_progressBar.Visible = true;
-		_progressBar.Value = 0;
-		UpdateStatusLabel(MapGenerationStage.Preparing);
-		UpdateRunningUi(true);
-	}
-
-	private void OnClosePressed()
-	{
-		if (_isRunning)
-		{
-			GameContext.MapGenerationService.Cancel();
-			_isRunning = false;
-			UpdateRunningUi(false);
-			CloseDialog();
-			return;
-		}
-
-		CloseDialog();
-	}
-
-	private void UpdateRunningUi(bool running)
-	{
-		_generateButton.Disabled = running;
-		_closeButton.Text = running ? TranslationServer.Translate("Cancel") : TranslationServer.Translate("Close");
+		_statusLabel.Text = running
+			? string.Format(TranslationServer.Translate("{0}… {1:F0}%"), TranslateStage(GameContext.MapGenerationService.Progress.Stage), GameContext.MapGenerationService.Progress.Percent)
+			: TranslationServer.Translate("Live preview. Adjust the seed or sliders, then Apply or Cancel.");
 	}
 
 	public override void _Process(double delta)
 	{
-		if (!Visible || !_isRunning)
+		if (!Visible || !GameContext.MapGenerationService.IsPreviewActive)
 		{
 			return;
 		}
 
 		MapGenerationProgress progress = GameContext.MapGenerationService.Advance(FrameBudgetMilliseconds);
-		if (progress.IsComplete)
-		{
-			_isRunning = false;
-			_progressBar.Value = 100;
-			UpdateRunningUi(false);
-			CloseDialog();
-			return;
-		}
-
 		if (progress.HasFailed)
 		{
-			_isRunning = false;
-			UpdateRunningUi(false);
+			_progressBar.Visible = false;
+			ApplyButton.Disabled = true;
 			_statusLabel.Text = progress.FailureMessage ?? TranslationServer.Translate("Map generation failed.");
-			_progressBar.Value = 0;
-		}
-	}
-
-	private void UpdateProgressUi()
-	{
-		if (!_isRunning)
-		{
 			return;
 		}
 
-		MapGenerationProgress progress = GameContext.MapGenerationService.Progress;
-		_progressBar.Value = progress.Percent;
-		UpdateStatusLabel(progress.Stage);
-	}
+		if (progress.IsRunning)
+		{
+			if (!_progressBar.Visible || ApplyButton.Disabled == false)
+			{
+				UpdateLiveUi(true);
+			}
 
-	private void UpdateStatusLabel(MapGenerationStage stage)
-	{
-		_statusLabel.Text = string.Format(TranslationServer.Translate("{0}… {1:F0}%"), TranslateStage(stage), GameContext.MapGenerationService.Progress.Percent);
+			_progressBar.Value = progress.Percent;
+			_statusLabel.Text = string.Format(TranslationServer.Translate("{0}… {1:F0}%"), TranslateStage(progress.Stage), progress.Percent);
+			return;
+		}
+
+		if (_progressBar.Visible || ApplyButton.Disabled)
+		{
+			UpdateLiveUi(false);
+		}
 	}
 
 	private static string TranslateStage(MapGenerationStage stage)
@@ -403,6 +307,7 @@ public partial class MapGenerationDialog : Control
 			MapGenerationStage.PaintingMaterials => TranslationServer.Translate("Painting materials"),
 			MapGenerationStage.UploadingTerrain => TranslationServer.Translate("Uploading terrain"),
 			MapGenerationStage.FillingWater => TranslationServer.Translate("Filling water basins"),
+			MapGenerationStage.ApplyingPathing => TranslationServer.Translate("Applying pathing"),
 			MapGenerationStage.MeasuringDistanceToPaths => TranslationServer.Translate("Measuring distance to paths"),
 			MapGenerationStage.ScatteringTrees => TranslationServer.Translate("Scattering trees"),
 			MapGenerationStage.PlantingTrees => TranslationServer.Translate("Planting trees"),

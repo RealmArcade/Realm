@@ -14,6 +14,7 @@
     <ProjectReference Include="..\Realm.Shared\Realm.Shared.csproj" />
     <ProjectReference Include="..\Realm.Ecs\Realm.Ecs.csproj" />
     <ProjectReference Include="..\Realm.EditorAPI\Realm.EditorAPI.csproj" />
+    <ProjectReference Include="..\Realm.MapGeneration\Realm.MapGeneration.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="vscode_embedded\**" />

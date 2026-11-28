@@ -25,7 +25,8 @@ public sealed record ToolAccordionHooks(
 	Action<string> ShowFeedback,
 	Action RefreshCoordinateList,
 	Action<string> OpenInstanceManager,
-	Action OpenSpawnAnchors);
+	Action OpenSpawnAnchors,
+	Action OpenReplaceObjectDialog);
 
 /// <summary>
 /// The tool accordion in the editor's right panel: the per-module card grids (terrain, texture, pathing, objects,
@@ -55,6 +56,7 @@ public sealed class ToolAccordionPanel
 	public Button RampButton { get; private set; } = null!;
 	public Button NoiseButton { get; private set; } = null!;
 	public Button WaterButton { get; private set; } = null!;
+	public Button HeightFillButton { get; private set; } = null!;
 	public Button TextureBrushButton { get; private set; } = null!;
 	public Button FloodFillButton { get; private set; } = null!;
 	public Button SelectAreaButton { get; private set; } = null!;
@@ -137,6 +139,8 @@ public sealed class ToolAccordionPanel
 		NoiseButton = CreateToolCard(hooks, terrainGrid, "BtnNoise", UnicodeIcons.NOISE, "Noise", () => hooks.SelectTool(EditorTool.Noise, NoiseButton), "Add random height variations/noise to terrain (7)");
 
 		WaterButton = CreateToolCard(hooks, terrainGrid, "BtnWater", UnicodeIcons.WATER, "Water", () => hooks.SelectTool(EditorTool.Water, WaterButton), "Flood fill water mesh bounded by cliff walls (0)");
+
+		HeightFillButton = CreateToolCard(hooks, terrainGrid, "BtnHeightFill", UnicodeIcons.FILL_DRIP, "Height Fill", () => hooks.SelectTool(EditorTool.HeightFill, HeightFillButton), "Flood fill one height and texture across an area sharing the same texture");
 	}
 
 	private void BuildAreaAndPathingToolCards(ToolAccordionHooks hooks, GridContainer clipGrid, GridContainer pathGrid)
@@ -161,6 +165,8 @@ public sealed class ToolAccordionPanel
 			else
 				hooks.SelectTool(EditorTool.DeleteObject, DeleteObjectButton);
 		}, "Erase units, props, or decals");
+
+		CreateToolCard(hooks, objGrid, "BtnReplaceObject", UnicodeIcons.REFRESH, TranslationServer.Translate("Swap / Replace"), () => hooks.OpenReplaceObjectDialog(), TranslationServer.Translate("Swap or replace every instance of one object with another"));
 	}
 
 	private void BuildCoordinatePanel(ToolAccordionHooks hooks)

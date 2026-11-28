@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Realm.Shared\Realm.Shared.csproj" />
+    <ProjectReference Include="..\Realm.MapGeneration\Realm.MapGeneration.csproj" />
   </ItemGroup>
 
 
