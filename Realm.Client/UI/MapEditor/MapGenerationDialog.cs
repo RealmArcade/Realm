@@ -18,12 +18,11 @@ public partial class MapGenerationDialog : Control
 	private LineEdit _seedField = null!;
 	private Button _rollButton = null!;
 	private Button _randomizeSlidersButton = null!;
-	private Button _generateButton = null!;
-	private Button _closeButton = null!;
+	private Button _applyButton = null!;
+	private Button _cancelButton = null!;
 	private Label _statusLabel = null!;
 	private ProgressBar _progressBar = null!;
-	private Timer _progressPollTimer = null!;
-	private bool _isRunning;
+	private bool _suppressLiveUpdate;
 
 	public MapGenerationDialog()
 	{
@@ -47,20 +46,36 @@ public partial class MapGenerationDialog : Control
 			_hud.AddChild(this);
 		}
 
+		if (Visible && GameContext.MapGenerationService.IsPreviewActive)
+		{
+			MoveToFront();
+			return;
+		}
+
+		_suppressLiveUpdate = true;
 		RollNewSeed();
-		_statusLabel.Visible = false;
-		_progressBar.Visible = false;
-		_progressBar.Value = 0;
-		_isRunning = false;
-		UpdateRunningUi(false);
+		_suppressLiveUpdate = false;
+
 		Visible = true;
 		MoveToFront();
-		_progressPollTimer.Start();
+
+		if (!GameContext.MapGenerationService.StartPreview(_seedField.Text, ReadParameters()))
+		{
+			_statusLabel.Visible = true;
+			_progressBar.Visible = false;
+			_statusLabel.Text = GameContext.MapGenerationService.Progress.FailureMessage
+				?? TranslationServer.Translate("Map generation failed.");
+			return;
+		}
+
+		_statusLabel.Visible = true;
+		_progressBar.Visible = true;
+		_progressBar.Value = 0;
+		UpdateLiveUi(true);
 	}
 
 	private void CloseDialog()
 	{
-		_progressPollTimer.Stop();
 		Visible = false;
 	}
 
@@ -167,21 +182,19 @@ public partial class MapGenerationDialog : Control
 		actions.AddThemeConstantOverride("separation", 18);
 		content.AddChild(actions);
 
-		_generateButton = new Button { Name = "GenerateButton", Text = TranslationServer.Translate("Generate"), CustomMinimumSize = new Vector2(120f, 32f), FocusMode = FocusModeEnum.None };
-		_generateButton.Set("icon_max_width", 0);
-		StyleActionButton(_generateButton);
-		_generateButton.Pressed += GenerateMap;
-		actions.AddChild(_generateButton);
+		_applyButton = new Button { Name = "ApplyButton", Text = TranslationServer.Translate("Apply"), CustomMinimumSize = new Vector2(120f, 32f), FocusMode = FocusModeEnum.None };
+		_applyButton.Set("icon_max_width", 0);
+		_applyButton.TooltipText = TranslationServer.Translate("Keep the live preview as one undo step.");
+		StyleActionButton(_applyButton);
+		_applyButton.Pressed += OnApplyPressed;
+		actions.AddChild(_applyButton);
 
-		_closeButton = new Button { Name = "CloseButton", Text = TranslationServer.Translate("Close"), CustomMinimumSize = new Vector2(120f, 32f), FocusMode = FocusModeEnum.None };
-		_closeButton.Set("icon_max_width", 0);
-		StyleActionButton(_closeButton);
-		_closeButton.Pressed += OnClosePressed;
-		actions.AddChild(_closeButton);
-
-		_progressPollTimer = new Timer { Name = "GenerationProgressTimer", WaitTime = 0.1, OneShot = false };
-		_progressPollTimer.Timeout += UpdateProgressUi;
-		AddChild(_progressPollTimer);
+		_cancelButton = new Button { Name = "CancelButton", Text = TranslationServer.Translate("Cancel"), CustomMinimumSize = new Vector2(120f, 32f), FocusMode = FocusModeEnum.None };
+		_cancelButton.Set("icon_max_width", 0);
+		_cancelButton.TooltipText = TranslationServer.Translate("Put the map back the way it was when the dialog opened.");
+		StyleActionButton(_cancelButton);
+		_cancelButton.Pressed += OnCancelPressed;
+		actions.AddChild(_cancelButton);
 	}
 
 	private HBoxContainer BuildSeedRow()
@@ -195,14 +208,16 @@ public partial class MapGenerationDialog : Control
 
 		_seedField = new LineEdit { Name = "SeedField", SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		_seedField.AddThemeFontSizeOverride("font_size", 11);
-		_seedField.TooltipText = TranslationServer.Translate("Any text is accepted; non-numeric seeds are hashed to a stable number.");
+		_seedField.TooltipText = TranslationServer.Translate("Any text is accepted; pressing Enter regenerates the whole map from that seed.");
+		_seedField.TextSubmitted += _ => RebuildFromSeed();
+		_seedField.FocusExited += RebuildFromSeed;
 		row.AddChild(_seedField);
 
 		_rollButton = new Button { Name = "RollSeedButton", Text = $"{UnicodeIcons.DICE} " + TranslationServer.Translate("Roll"), CustomMinimumSize = new Vector2(74f, 26f), FocusMode = FocusModeEnum.None };
 		_rollButton.Set("icon_max_width", 0);
-		_rollButton.TooltipText = TranslationServer.Translate("Rolls a fresh six digit seed.");
+		_rollButton.TooltipText = TranslationServer.Translate("Rolls a fresh six digit seed and regenerates the map.");
 		StyleActionButton(_rollButton);
-		_rollButton.Pressed += RollNewSeed;
+		_rollButton.Pressed += OnRollPressed;
 		row.AddChild(_rollButton);
 
 		return row;
@@ -239,6 +254,7 @@ public partial class MapGenerationDialog : Control
 		slider.ValueChanged += value =>
 		{
 			valueLabel.Text = ((int)value).ToString();
+			ApplyLiveParameters();
 		};
 
 		_sliders[sliderIndex] = slider;
@@ -264,14 +280,24 @@ public partial class MapGenerationDialog : Control
 		_seedField.Text = (100000 + (int)(GD.Randi() % 900000)).ToString();
 	}
 
+	private void OnRollPressed()
+	{
+		RollNewSeed();
+		RebuildFromSeed();
+	}
+
 	private void RandomizeSliders()
 	{
+		_suppressLiveUpdate = true;
 		for (int sliderIndex = 0; sliderIndex < _sliders.Length; sliderIndex++)
 		{
 			int value = MapGenerationParameters.MinimumSliderValue + (int)(GD.Randi() % MapGenerationParameters.MaximumSliderValue);
 			_sliders[sliderIndex].Value = value;
 			_sliderValueLabels[sliderIndex].Text = value.ToString();
 		}
+
+		_suppressLiveUpdate = false;
+		ApplyLiveParameters();
 	}
 
 	private MapGenerationParameters ReadParameters()
@@ -287,105 +313,88 @@ public partial class MapGenerationDialog : Control
 			(int)_sliders[7].Value);
 	}
 
-	private void GenerateMap()
+	private void ApplyLiveParameters()
 	{
-		if (_isRunning)
+		if (_suppressLiveUpdate || !Visible || !GameContext.MapGenerationService.IsPreviewActive)
 		{
 			return;
 		}
 
-		_hud.ShowConfirmationDialog(
-			TranslationServer.Translate("Are you sure you want to replace the entire map with procedurally generated terrain? This will delete all placed entities and overwrite the terrain."),
-			StartGeneration);
-
-		if (_hud.GetNodeOrNull<Control>("ConfirmationOverlay") is Control confirmationOverlay)
-		{
-			confirmationOverlay.ZIndex = 1200;
-		}
+		GameContext.MapGenerationService.UpdateParameters(ReadParameters());
+		UpdateLiveUi(true);
 	}
 
-	private void StartGeneration()
+	private void RebuildFromSeed()
 	{
-		bool started = GameContext.MapGenerationService.StartProcedural(_seedField.Text, ReadParameters());
-		if (!started)
+		if (_suppressLiveUpdate || !Visible || !GameContext.MapGenerationService.IsPreviewActive)
 		{
-			MapGenerationProgress failedProgress = GameContext.MapGenerationService.Progress;
-			_statusLabel.Visible = true;
-			_progressBar.Visible = true;
-			_statusLabel.Text = failedProgress.FailureMessage ?? TranslationServer.Translate("Map generation failed.");
-			_progressBar.Value = 0;
 			return;
 		}
 
-		_isRunning = true;
-		_statusLabel.Visible = true;
-		_progressBar.Visible = true;
-		_progressBar.Value = 0;
-		UpdateStatusLabel(MapGenerationStage.Preparing);
-		UpdateRunningUi(true);
+		GameContext.MapGenerationService.UpdateParameters(ReadParameters());
+		GameContext.MapGenerationService.UpdateSeed(_seedField.Text);
+		UpdateLiveUi(true);
 	}
 
-	private void OnClosePressed()
+	private void OnApplyPressed()
 	{
-		if (_isRunning)
+		if (GameContext.MapGenerationService.IsRunning)
 		{
-			GameContext.MapGenerationService.Cancel();
-			_isRunning = false;
-			UpdateRunningUi(false);
-			CloseDialog();
 			return;
 		}
 
+		GameContext.MapGenerationService.ApplyPreview();
 		CloseDialog();
 	}
 
-	private void UpdateRunningUi(bool running)
+	private void OnCancelPressed()
 	{
-		_generateButton.Disabled = running;
-		_closeButton.Text = running ? TranslationServer.Translate("Cancel") : TranslationServer.Translate("Close");
+		GameContext.MapGenerationService.CancelPreview();
+		CloseDialog();
+	}
+
+	private void UpdateLiveUi(bool running)
+	{
+		_applyButton.Disabled = running;
+		_progressBar.Visible = running;
+		_statusLabel.Visible = true;
+		_statusLabel.Text = running
+			? string.Format(TranslationServer.Translate("{0}… {1:F0}%"), TranslateStage(GameContext.MapGenerationService.Progress.Stage), GameContext.MapGenerationService.Progress.Percent)
+			: TranslationServer.Translate("Live preview. Adjust the seed or sliders, then Apply or Cancel.");
 	}
 
 	public override void _Process(double delta)
 	{
-		if (!Visible || !_isRunning)
+		if (!Visible || !GameContext.MapGenerationService.IsPreviewActive)
 		{
 			return;
 		}
 
 		MapGenerationProgress progress = GameContext.MapGenerationService.Advance(FrameBudgetMilliseconds);
-		if (progress.IsComplete)
-		{
-			_isRunning = false;
-			_progressBar.Value = 100;
-			UpdateRunningUi(false);
-			CloseDialog();
-			return;
-		}
-
 		if (progress.HasFailed)
 		{
-			_isRunning = false;
-			UpdateRunningUi(false);
+			_progressBar.Visible = false;
+			_applyButton.Disabled = true;
 			_statusLabel.Text = progress.FailureMessage ?? TranslationServer.Translate("Map generation failed.");
-			_progressBar.Value = 0;
-		}
-	}
-
-	private void UpdateProgressUi()
-	{
-		if (!_isRunning)
-		{
 			return;
 		}
 
-		MapGenerationProgress progress = GameContext.MapGenerationService.Progress;
-		_progressBar.Value = progress.Percent;
-		UpdateStatusLabel(progress.Stage);
-	}
+		if (progress.IsRunning)
+		{
+			if (!_progressBar.Visible || _applyButton.Disabled == false)
+			{
+				UpdateLiveUi(true);
+			}
 
-	private void UpdateStatusLabel(MapGenerationStage stage)
-	{
-		_statusLabel.Text = string.Format(TranslationServer.Translate("{0}… {1:F0}%"), TranslateStage(stage), GameContext.MapGenerationService.Progress.Percent);
+			_progressBar.Value = progress.Percent;
+			_statusLabel.Text = string.Format(TranslationServer.Translate("{0}… {1:F0}%"), TranslateStage(progress.Stage), progress.Percent);
+			return;
+		}
+
+		if (_progressBar.Visible || _applyButton.Disabled)
+		{
+			UpdateLiveUi(false);
+		}
 	}
 
 	private static string TranslateStage(MapGenerationStage stage)

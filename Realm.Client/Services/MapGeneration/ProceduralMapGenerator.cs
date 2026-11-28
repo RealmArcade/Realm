@@ -10,6 +10,7 @@ public class ProceduralMapGenerator
 {
 	public const int AnchorCount = 9;
 	private const int MaximumScatterPoints = 20000;
+	private const int PropStageIndex = (int)MapGenerationStage.ScatteringTrees;
 
 	private static readonly float[] StageWeights = { 2f, 10f, 3f, 14f, 4f, 8f, 3f, 3f, 5f, 9f, 4f, 2f, 4f, 10f, 8f, 6f, 5f, 2f };
 	private static readonly float[] StageStartPercents = BuildStageStartPercents();
@@ -23,8 +24,11 @@ public class ProceduralMapGenerator
 	private readonly int _depth;
 	private readonly float _quadSize;
 	private readonly int _seed;
-	private readonly MapGenerationParameters _parameters;
-	private SeededRandom _random;
+	private readonly Action? _clearPlacedProps;
+	private MapGenerationParameters _parameters;
+	private SeededRandom _landRandom;
+	private SeededRandom _treeRandom;
+	private SeededRandom _decorationRandom;
 	private readonly SeededValueNoise _coarseNoise;
 	private readonly SeededValueNoise _detailNoise;
 	private readonly AnchorCell[] _anchors = new AnchorCell[AnchorCount];
@@ -44,15 +48,15 @@ public class ProceduralMapGenerator
 	private readonly sbyte[] _flatTiers;
 	private readonly int[] _flatMaterials;
 
-	private readonly float _landFillChance;
-	private readonly float _waterNoiseCutoff;
-	private readonly float _maximumMountainTiers;
-	private readonly float _primaryNoiseFrequency;
-	private readonly float _detailNoiseFrequency;
-	private readonly float _hillIslandThreshold;
-	private readonly int _pathBrushRadius;
-	private readonly float _treeScatterRadius;
-	private readonly float _decorationScatterRadius;
+	private float _landFillChance;
+	private float _waterNoiseCutoff;
+	private float _maximumMountainTiers;
+	private float _primaryNoiseFrequency;
+	private float _detailNoiseFrequency;
+	private float _hillIslandThreshold;
+	private int _pathBrushRadius;
+	private float _treeScatterRadius;
+	private float _decorationScatterRadius;
 
 	private int _stageIndex;
 	private float _stageProgress;
@@ -67,6 +71,7 @@ public class ProceduralMapGenerator
 	private PoissonScatter? _decorationScatter;
 	private int _treePlantIndex;
 	private int _decorationPlantIndex;
+	private bool _placedPropsCleared;
 	private readonly bool[] _waterScanned;
 	private readonly List<int> _waterRegionCells = new();
 	private readonly List<WaterPoolSelection> _waterPools = new();
@@ -78,11 +83,12 @@ public class ProceduralMapGenerator
 		int width,
 		int depth,
 		float quadSize,
-		string seedText,
+		string? seedText,
 		MapGenerationParameters parameters,
 		TerrainMaterialPalette palette,
 		string[] treePropIds,
-		string[] decorationPropIds)
+		string[] decorationPropIds,
+		Action? clearPlacedProps = null)
 	{
 		_editorApi = editorApi;
 		_width = Math.Max(1, width);
@@ -92,9 +98,12 @@ public class ProceduralMapGenerator
 		_palette = palette;
 		_treePropIds = treePropIds ?? Array.Empty<string>();
 		_decorationPropIds = decorationPropIds ?? Array.Empty<string>();
+		_clearPlacedProps = clearPlacedProps;
 		_seed = DeterministicSeed.HashText(seedText);
 		Seed = seedText ?? string.Empty;
-		_random = new SeededRandom(_seed);
+		_landRandom = new SeededRandom(_seed);
+		_treeRandom = new SeededRandom(unchecked(_seed ^ 0x2545f491));
+		_decorationRandom = new SeededRandom(unchecked(_seed ^ 0x6a09e667));
 		_coarseNoise = new SeededValueNoise(_seed);
 		_detailNoise = new SeededValueNoise(unchecked(_seed ^ 0x5f3759df));
 
@@ -111,30 +120,12 @@ public class ProceduralMapGenerator
 		_flatMaterials = new int[_width * _depth];
 		_waterScanned = new bool[_width * _depth];
 
-		float hills = _parameters.HillsDensity;
-		float roughness = _parameters.TerrainRoughness;
-		float mountain = _parameters.MountainHeight;
-		float choke = _parameters.ChokePointWidth;
-		float water = _parameters.WaterLevel;
-
-		_landFillChance = 0.25f + hills / 10f * 0.40f;
-		_waterNoiseCutoff = 0.15f + water / 10f * 0.25f;
-		_maximumMountainTiers = 2f + mountain / 10f * 6f;
-		_primaryNoiseFrequency = 0.01f + roughness / 10f * 0.04f;
-		_detailNoiseFrequency = 0.11f;
-		_hillIslandThreshold = 0.62f - (hills - 1f) * 0.03f;
-		_pathBrushRadius = 1 + (int)MathF.Round((choke - 1f) / 9f * 3f);
-
-		float mapScale = Math.Clamp(MathF.Sqrt(_width * _depth / 16384f), 1f, 2f);
-		float abundanceMultiplier = 0.6f + _parameters.ResourceAbundance * 0.1f;
-		float effectiveTreeDensity = Math.Clamp(_parameters.TreeClumpDensity * abundanceMultiplier / 10f, 0.05f, 1.6f);
-		_treeScatterRadius = Math.Clamp(6f - 4.5f * effectiveTreeDensity, 1.5f, 6f) * mapScale;
-
-		float decorationDensity = (_parameters.DecorativePropDensity - 1f) / 9f;
-		_decorationScatterRadius = (15f - decorationDensity * 10f) * mapScale;
+		ApplyParameterDerived();
 	}
 
 	public string Seed { get; }
+
+	public MapGenerationParameters Parameters => _parameters;
 
 	public bool HasFailed { get; private set; }
 
@@ -145,6 +136,52 @@ public class ProceduralMapGenerator
 	public MapGenerationStage Stage => (MapGenerationStage)Math.Min(_stageIndex, StageWeights.Length - 1);
 
 	public float Percent => IsComplete ? 100f : Math.Clamp(_reportedPercent, 0f, 99.9f);
+
+	public bool SetParameters(MapGenerationParameters parameters)
+	{
+		MapGenerationParameters clamped = parameters.Clamped();
+		if (clamped == _parameters)
+		{
+			return false;
+		}
+
+		MapGenerationParameters previous = _parameters;
+		_parameters = clamped;
+		ApplyParameterDerived();
+
+		int restartStage = StageWeights.Length;
+		if (clamped.HillsDensity != previous.HillsDensity)
+		{
+			restartStage = Math.Min(restartStage, (int)MapGenerationStage.ShapingLandMasses);
+		}
+
+		if (clamped.ChokePointWidth != previous.ChokePointWidth)
+		{
+			restartStage = Math.Min(restartStage, (int)MapGenerationStage.CarvingPaths);
+		}
+
+		if (clamped.TerrainRoughness != previous.TerrainRoughness ||
+		    clamped.MountainHeight != previous.MountainHeight ||
+		    clamped.WaterLevel != previous.WaterLevel)
+		{
+			restartStage = Math.Min(restartStage, (int)MapGenerationStage.RaisingMountainsAndWater);
+		}
+
+		if (clamped.TreeClumpDensity != previous.TreeClumpDensity ||
+		    clamped.ResourceAbundance != previous.ResourceAbundance ||
+		    clamped.DecorativePropDensity != previous.DecorativePropDensity)
+		{
+			restartStage = Math.Min(restartStage, PropStageIndex);
+		}
+
+		if (restartStage >= StageWeights.Length)
+		{
+			return false;
+		}
+
+		RestartFrom(restartStage);
+		return true;
+	}
 
 	public bool Advance(int budgetMilliseconds)
 	{
@@ -179,6 +216,78 @@ public class ProceduralMapGenerator
 		while (!IsComplete && stopwatch.ElapsedMilliseconds < budgetMilliseconds);
 
 		return IsComplete;
+	}
+
+	private void ApplyParameterDerived()
+	{
+		float hills = _parameters.HillsDensity;
+		float roughness = _parameters.TerrainRoughness;
+		float mountain = _parameters.MountainHeight;
+		float choke = _parameters.ChokePointWidth;
+		float water = _parameters.WaterLevel;
+
+		_landFillChance = 0.25f + hills / 10f * 0.40f;
+		_waterNoiseCutoff = 0.15f + water / 10f * 0.25f;
+		_maximumMountainTiers = 2f + mountain / 10f * 6f;
+		_primaryNoiseFrequency = 0.01f + roughness / 10f * 0.04f;
+		_detailNoiseFrequency = 0.11f;
+		_hillIslandThreshold = 0.62f - (hills - 1f) * 0.03f;
+		_pathBrushRadius = 1 + (int)MathF.Round((choke - 1f) / 9f * 3f);
+
+		float mapScale = Math.Clamp(MathF.Sqrt(_width * _depth / 16384f), 1f, 2f);
+		float abundanceMultiplier = 0.6f + _parameters.ResourceAbundance * 0.1f;
+		float effectiveTreeDensity = Math.Clamp(_parameters.TreeClumpDensity * abundanceMultiplier / 10f, 0.05f, 1.6f);
+		_treeScatterRadius = Math.Clamp(6f - 4.5f * effectiveTreeDensity, 1.5f, 6f) * mapScale;
+
+		float decorationDensity = (_parameters.DecorativePropDensity - 1f) / 9f;
+		_decorationScatterRadius = (15f - decorationDensity * 10f) * mapScale;
+	}
+
+	private void RestartFrom(int stageIndex)
+	{
+		_stageIndex = stageIndex;
+		IsComplete = false;
+		HasFailed = false;
+		FailureMessage = null;
+		_stageProgress = 0f;
+		_reportedPercent = StageStartPercents[stageIndex];
+
+		_row = 0;
+		_pass = 0;
+		_passPrepared = false;
+		_anchorIndex = 0;
+		_pathCarver = null;
+		_pathDistance = null;
+		_treePlantIndex = 0;
+		_decorationPlantIndex = 0;
+
+		if (stageIndex <= (int)MapGenerationStage.CarvingPaths)
+		{
+			Array.Clear(_path);
+			Array.Clear(_walkable);
+		}
+
+		if (stageIndex <= PropStageIndex)
+		{
+			_treeScatter = null;
+			_placedPropsCleared = false;
+			_landRandom = new SeededRandom(_seed);
+			_treeRandom = new SeededRandom(unchecked(_seed ^ 0x2545f491));
+		}
+
+		if (stageIndex <= (int)MapGenerationStage.ScatteringDecorations)
+		{
+			_decorationScatter = null;
+			_decorationRandom = new SeededRandom(unchecked(_seed ^ 0x6a09e667));
+		}
+
+		if (stageIndex <= (int)MapGenerationStage.FillingWater)
+		{
+			Array.Clear(_waterScanned);
+			_waterPools.Clear();
+			_waterScanIndex = 0;
+			_waterPoolIndex = 0;
+		}
 	}
 
 	private void AdvanceStage()
@@ -237,7 +346,7 @@ public class ProceduralMapGenerator
 			MapGenerationStage.Preparing => RunPreparing(),
 			MapGenerationStage.ShapingLandMasses => RunLandmass(),
 			MapGenerationStage.ClearingStartAreas => RunClearStartAreas(),
-			MapGenerationStage.CarvingPaths => RunPaths(remainingBudgetMilliseconds),
+			MapGenerationStage.CarvingPaths => RunPaths(),
 			MapGenerationStage.MeasuringDensity => RunDensity(),
 			MapGenerationStage.RaisingMountainsAndWater => RunHeightTiers(),
 			MapGenerationStage.SmoothingTiers => RunSmoothing(),
@@ -300,7 +409,7 @@ public class ProceduralMapGenerator
 		{
 			for (int x = 0; x < _width; x++)
 			{
-				_land[x, _row] = _random.NextFloat() < _landFillChance;
+				_land[x, _row] = _landRandom.NextFloat() < _landFillChance;
 			}
 
 			_stageProgress = _row / (float)_depth * 0.2f;
@@ -360,7 +469,7 @@ public class ProceduralMapGenerator
 		return _anchorIndex >= AnchorCount;
 	}
 
-	private bool RunPaths(int remainingBudgetMilliseconds)
+	private bool RunPaths()
 	{
 		_pathCarver ??= new MapPathCarver(_land, _path, _walkable, _width, _depth, _anchors, _pathBrushRadius);
 
@@ -652,10 +761,14 @@ public class ProceduralMapGenerator
 		return done;
 	}
 
-
-
 	private bool RunScatterTrees(int remainingBudgetMilliseconds)
 	{
+		if (!_placedPropsCleared)
+		{
+			_placedPropsCleared = true;
+			_clearPlacedProps?.Invoke();
+		}
+
 		if (_treePropIds.Length == 0)
 		{
 			_stageProgress = 1f;
@@ -693,11 +806,11 @@ public class ProceduralMapGenerator
 				continue;
 			}
 
-			string treeId = _treePropIds[_random.NextInt(_treePropIds.Length)];
+			string treeId = _treePropIds[_treeRandom.NextInt(_treePropIds.Length)];
 			float worldX = (point.X - _width * 0.5f) * _quadSize;
 			float worldZ = (point.Z - _depth * 0.5f) * _quadSize;
-			float yaw = _random.NextFloat(0f, 360f);
-			float scale = _random.NextFloat(0.8f, 1.2f);
+			float yaw = _treeRandom.NextFloat(0f, 360f);
+			float scale = _treeRandom.NextFloat(0.8f, 1.2f);
 			_editorApi.PlaceProp(treeId, worldX, 0f, worldZ, yaw, scale);
 		}
 
@@ -707,6 +820,12 @@ public class ProceduralMapGenerator
 
 	private bool RunScatterDecorations(int remainingBudgetMilliseconds)
 	{
+		if (!_placedPropsCleared)
+		{
+			_placedPropsCleared = true;
+			_clearPlacedProps?.Invoke();
+		}
+
 		if (_decorationPropIds.Length == 0)
 		{
 			_stageProgress = 1f;
@@ -743,11 +862,11 @@ public class ProceduralMapGenerator
 				continue;
 			}
 
-			string decorationId = _decorationPropIds[_random.NextInt(_decorationPropIds.Length)];
+			string decorationId = _decorationPropIds[_decorationRandom.NextInt(_decorationPropIds.Length)];
 			float worldX = (point.X - _width * 0.5f) * _quadSize;
 			float worldZ = (point.Z - _depth * 0.5f) * _quadSize;
-			float yaw = _random.NextFloat(0f, 360f);
-			float scale = _random.NextFloat(0.7f, 1.3f);
+			float yaw = _decorationRandom.NextFloat(0f, 360f);
+			float scale = _decorationRandom.NextFloat(0.7f, 1.3f);
 			_editorApi.PlaceProp(decorationId, worldX, 0f, worldZ, yaw, scale);
 		}
 
