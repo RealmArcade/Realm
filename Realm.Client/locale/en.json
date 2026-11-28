@@ -1841,7 +1841,7 @@
   "Replaced {0} objects of {1} with {2}": "Replaced {0} objects of {1} with {2}",
   "Replaced {0} with {1}": "Replaced {0} with {1}",
   "Replay Version: {0}": "Replay Version: {0}",
-  "Rescale the height difference between the lowest and the highest terrain point, leaving the lowest point where it is": "Rescale the height difference between the lowest and the highest terrain point, leaving the lowest point where it is",
+  "Rescale the height difference between the lowest and the highest terrain point by this multiplier, leaving the lowest point where it is; 1.00x leaves the terrain unchanged": "Rescale the height difference between the lowest and the highest terrain point by this multiplier, leaving the lowest point where it is; 1.00x leaves the terrain unchanged",
   "Rescan": "Rescan",
   "Rescan all indexed folders for new or modified files": "Rescan all indexed folders for new or modified files",
   "Rescanned all indexed directories.": "Rescanned all indexed directories.",

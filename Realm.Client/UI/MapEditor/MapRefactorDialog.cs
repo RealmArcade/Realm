@@ -14,8 +14,8 @@ public partial class MapRefactorDialog : FloatingDialogBase
 {
 	public MapRefactorDialog() { }
 
-	private HSlider _sldHeightRange = null!;
-	private Label _lblHeightRange = null!;
+	private HSlider _sldHeightScale = null!;
+	private Label _lblHeightScale = null!;
 	private CheckBox _chkResetTextures = null!;
 	private HSlider _sldQuantize = null!;
 
@@ -46,8 +46,8 @@ public partial class MapRefactorDialog : FloatingDialogBase
 		lblInfo.AddThemeColorOverride("font_color", UIStyle.ColorGoldDull);
 		contentVBox.AddChild(lblInfo);
 
-		(_sldHeightRange, _lblHeightRange) = AddSlider(contentVBox, TranslationServer.Translate("Scale height"), 1f, 16f, 0.25f, 1f, _ => ApplyLiveFilters(), "0.0#", 120f);
-		_sldHeightRange.TooltipText = TranslationServer.Translate("Rescale the height difference between the lowest and the highest terrain point, leaving the lowest point where it is");
+		(_sldHeightScale, _lblHeightScale) = AddSlider(contentVBox, TranslationServer.Translate("Scale height"), 0.25f, 4f, 0.05f, 1f, _ => ApplyLiveFilters(), "0.00'x'", 120f);
+		_sldHeightScale.TooltipText = TranslationServer.Translate("Rescale the height difference between the lowest and the highest terrain point by this multiplier, leaving the lowest point where it is; 1.00x leaves the terrain unchanged");
 
 		_chkResetTextures = AddCheckBox(
 			contentVBox,
@@ -73,16 +73,12 @@ public partial class MapRefactorDialog : FloatingDialogBase
 			return;
 		}
 
-		(float lowest, float highest) = TerrainMapRefactor.MeasureHeightSpan(_snapshotCells!);
-		float heightRange = highest - lowest;
-		float sliderMaximum = MathF.Max(heightRange * 2f, 8f);
-
 		_suppressLiveUpdate = true;
 
-		_sldHeightRange.MinValue = 1f;
-		_sldHeightRange.MaxValue = sliderMaximum;
-		_sldHeightRange.Value = Math.Clamp(heightRange, 1f, sliderMaximum);
-		_lblHeightRange.Text = heightRange.ToString("0.0#", CultureInfo.InvariantCulture);
+		_sldHeightScale.MinValue = 0.25f;
+		_sldHeightScale.MaxValue = 4f;
+		_sldHeightScale.Value = 1f;
+		_lblHeightScale.Text = 1f.ToString("0.00'x'", CultureInfo.InvariantCulture);
 
 		_chkResetTextures.ButtonPressed = false;
 		_sldQuantize.Value = 0f;
@@ -140,7 +136,8 @@ public partial class MapRefactorDialog : FloatingDialogBase
 		TerrainSplatWeights[,] ground = terrain.SplatMap;
 		TerrainSplatWeights[,]? cliff = terrain.CliffSplatMap;
 
-		TerrainMapRefactor.ScaleHeights(cells, (float)_sldHeightRange.Value);
+		(float lowest, float highest) = TerrainMapRefactor.MeasureHeightSpan(cells);
+		TerrainMapRefactor.ScaleHeights(cells, (highest - lowest) * (float)_sldHeightScale.Value);
 
 		if (_chkResetTextures.ButtonPressed)
 		{

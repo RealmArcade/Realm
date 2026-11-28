@@ -1,6 +1,7 @@
 using System.IO;
 using Godot;
 using Realm.Client.Services;
+using Realm.Client.Services.MapGeneration;
 using Realm.Client.UI.MapEditor;
 using Realm.Client.Utils;
 
@@ -124,6 +125,11 @@ public partial class MapEditorHUD
 		string imagePath = selectedPaths[0];
 		string? directory = Path.GetDirectoryName(imagePath);
 		GameContext.MapGenerationService.LastTerrainImageFolder = !string.IsNullOrWhiteSpace(directory) ? directory : fallbackFolder;
-		GameContext.MapGenerationService.ImportTerrainFromImage(imagePath);
+
+		TerrainImageImportResult result = GameContext.MapGenerationService.ImportTerrainFromImage(imagePath);
+		if (result.Success)
+		{
+			OpenMapRefactorDialog();
+		}
 	}
 }
