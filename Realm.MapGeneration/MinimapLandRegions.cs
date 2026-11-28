@@ -12,20 +12,13 @@ public static class MinimapLandRegions
 
 	public readonly record struct Result(TerrainSurfaceKind[] Kinds, float[] RegionColours);
 
-	public static Result Classify(MinimapFeatureGrid grid, bool[] waterMask, bool[] voidCells, int width, int depth)
+	public static Result Classify(MinimapFeatureGrid grid, bool[] waterMask, int width, int depth)
 	{
 		var kinds = new TerrainSurfaceKind[width * depth];
 		var regionColours = new float[width * depth * 3];
 		var land = new List<int>();
 		for (int index = 0; index < kinds.Length; index++)
 		{
-			if (voidCells[index])
-			{
-				kinds[index] = TerrainSurfaceKind.Rock;
-				CopyColour(grid, index, regionColours);
-				continue;
-			}
-
 			if (waterMask[index])
 			{
 				kinds[index] = TerrainSurfaceKind.Water;

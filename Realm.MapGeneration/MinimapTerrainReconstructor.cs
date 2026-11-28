@@ -11,13 +11,11 @@ public static class MinimapTerrainReconstructor
 		int depth = Math.Max(8, options.Depth);
 		int cellCount = width * depth;
 
-		MinimapImage source = options.DetectViewport ? MinimapViewport.Crop(image) : image;
-		bool[] voidCells = MinimapBackgroundMask.BuildCells(source, width, depth);
-		var grid = new MinimapFeatureGrid(source, width, depth);
-		bool[] waterMask = BuildWaterMask(grid, voidCells, width, depth, options);
-		MinimapLandRegions.Result regions = MinimapLandRegions.Classify(grid, waterMask, voidCells, width, depth);
+		var grid = new MinimapFeatureGrid(image, width, depth);
+		bool[] waterMask = BuildWaterMask(grid, width, depth, options);
+		MinimapLandRegions.Result regions = MinimapLandRegions.Classify(grid, waterMask, width, depth);
 		TerrainSurfaceKind[] kinds = regions.Kinds;
-		float[] cellHeights = BuildCellHeights(grid, kinds, waterMask, voidCells, width, depth, options);
+		float[] cellHeights = BuildCellHeights(grid, kinds, waterMask, width, depth, options);
 		(float[] waterSurface, byte[] waterModes) = BuildWater(cellHeights, waterMask, width, depth, options);
 		float[] vertexHeights = BuildVertexHeights(cellHeights, width, depth);
 		float[] forestMask = BuildForestMask(grid, kinds, waterMask, width, depth);
@@ -36,7 +34,6 @@ public static class MinimapTerrainReconstructor
 			CliffSplatIndices = new int[(width + 1) * (depth + 1)],
 			PathingCodes = new byte[cellCount],
 			CellKinds = kinds,
-			VoidMask = voidCells,
 			WaterMask = waterMask,
 			ForestMask = new bool[cellCount],
 			FeatureColours = BuildFeatureColours(grid),
@@ -53,7 +50,7 @@ public static class MinimapTerrainReconstructor
 		AssignPathing(terrain, palette);
 		if (options.PlaceProps)
 		{
-			List<GeneratedProp> detectedProps = MinimapObjectDetector.Detect(source, grid.Cells, waterMask, voidCells, width, depth, options.QuadSize, catalog, options);
+			List<GeneratedProp> detectedProps = MinimapObjectDetector.Detect(image, grid.Cells, waterMask, width, depth, options.QuadSize, catalog, options);
 			for (int propIndex = 0; propIndex < detectedProps.Count; propIndex++)
 			{
 				GeneratedProp prop = detectedProps[propIndex];
@@ -78,12 +75,12 @@ public static class MinimapTerrainReconstructor
 		return colours;
 	}
 
-	private static bool[] BuildWaterMask(MinimapFeatureGrid grid, bool[] voidCells, int width, int depth, TerrainReconstructionOptions options)
+	private static bool[] BuildWaterMask(MinimapFeatureGrid grid, int width, int depth, TerrainReconstructionOptions options)
 	{
 		var raw = new bool[width * depth];
 		for (int index = 0; index < raw.Length; index++)
 		{
-			raw[index] = !voidCells[index] && IsWaterColor(grid.Cells[index]);
+			raw[index] = IsWaterColor(grid.Cells[index]);
 		}
 
 		bool[] filtered = MinimapMaskOperations.MajorityFilter(raw, width, depth, 2);
@@ -122,10 +119,7 @@ public static class MinimapTerrainReconstructor
 
 			for (int cellIndex = 0; cellIndex < cells.Count; cellIndex++)
 			{
-				if (!voidCells[cells[cellIndex]])
-				{
-					mask[cells[cellIndex]] = true;
-				}
+				mask[cells[cellIndex]] = true;
 			}
 		}
 
@@ -165,30 +159,6 @@ public static class MinimapTerrainReconstructor
 		}
 
 		return false;
-	}
-
-	private static TerrainSurfaceKind[] ClassifyCells(MinimapFeatureGrid grid, bool[] waterMask, bool[] voidCells, int width, int depth)
-	{
-		var kinds = new TerrainSurfaceKind[width * depth];
-		for (int index = 0; index < kinds.Length; index++)
-		{
-			if (voidCells[index])
-			{
-				kinds[index] = TerrainSurfaceKind.Rock;
-				continue;
-			}
-
-			if (waterMask[index])
-			{
-				kinds[index] = TerrainSurfaceKind.Water;
-				continue;
-			}
-
-			MinimapCellFeatures cell = grid.Cells[index];
-			kinds[index] = ClassifyLandCell(cell);
-		}
-
-		return kinds;
 	}
 
 	internal static TerrainSurfaceKind ClassifyLandCell(MinimapCellFeatures cell)
@@ -274,7 +244,7 @@ public static class MinimapTerrainReconstructor
 		return result;
 	}
 
-	private static float[] BuildCellHeights(MinimapFeatureGrid grid, TerrainSurfaceKind[] kinds, bool[] waterMask, bool[] voidCells, int width, int depth, TerrainReconstructionOptions options)
+	private static float[] BuildCellHeights(MinimapFeatureGrid grid, TerrainSurfaceKind[] kinds, bool[] waterMask, int width, int depth, TerrainReconstructionOptions options)
 	{
 		var heights = new float[width * depth];
 		float landBase = options.BaseHeightTier * options.TierHeight;
@@ -296,12 +266,6 @@ public static class MinimapTerrainReconstructor
 		int landShoreFalloff = Math.Max(1, Math.Min(width, depth) / 24);
 		for (int index = 0; index < heights.Length; index++)
 		{
-			if (voidCells[index])
-			{
-				heights[index] = landBase;
-				continue;
-			}
-
 			if (waterMask[index])
 			{
 				heights[index] = 0f;
@@ -321,7 +285,7 @@ public static class MinimapTerrainReconstructor
 
 		for (int index = 0; index < heights.Length; index++)
 		{
-			if (waterMask[index] || voidCells[index])
+			if (waterMask[index])
 			{
 				continue;
 			}
