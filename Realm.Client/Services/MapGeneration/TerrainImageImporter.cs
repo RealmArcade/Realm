@@ -24,14 +24,6 @@ public class TerrainImageImporter
 
 	public TerrainImageImportResult Import(IEditorAPI editorApi, string imagePath)
 	{
-		editorApi.ResetMapToBlank();
-
-		TerrainGridInfo gridInfo = editorApi.GetTerrainGridInfo();
-		if (gridInfo.Width <= 0 || gridInfo.Depth <= 0)
-		{
-			return new TerrainImageImportResult { Success = false, Message = TranslationServer.Translate("The editor has no terrain grid to import into.") };
-		}
-
 		if (!TryLoadImage(imagePath, out MinimapImage? image, out string decodeError))
 		{
 			return new TerrainImageImportResult { Success = false, Message = decodeError };
@@ -41,6 +33,14 @@ public class TerrainImageImporter
 		if (palette.IsEmpty)
 		{
 			return new TerrainImageImportResult { Success = false, Message = TranslationServer.Translate("The workspace has no terrain textures to paint with.") };
+		}
+
+		editorApi.ResetMapToBlank();
+
+		TerrainGridInfo gridInfo = editorApi.GetTerrainGridInfo();
+		if (gridInfo.Width <= 0 || gridInfo.Depth <= 0)
+		{
+			return new TerrainImageImportResult { Success = false, Message = TranslationServer.Translate("The editor has no terrain grid to import into.") };
 		}
 
 		PropCatalog catalog = BuildCatalog(editorApi);
