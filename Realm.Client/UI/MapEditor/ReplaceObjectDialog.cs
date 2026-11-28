@@ -4,6 +4,7 @@ using System.Linq;
 using Godot;
 using Realm.Client.Core;
 using Realm.Client.Services;
+using Realm.Client.Utils;
 using Realm.Client.VFX;
 using Realm.Shared.Metadata;
 
@@ -153,14 +154,14 @@ public partial class ReplaceObjectDialog : FloatingDialogBase
 
 	private static void AddMetadataIds(HashSet<string> objectIds, MapMetadata metadata)
 	{
-		foreach (UnitMetadata unit in metadata.Templates.Units) AddId(objectIds, unit.TemplateID);
-		foreach (UnitMetadata building in metadata.Templates.Buildings) AddId(objectIds, building.TemplateID);
-		foreach (ResourceMetadata resource in metadata.Templates.Resources) AddId(objectIds, resource.TemplateID);
-		foreach (PropMetadata prop in metadata.Templates.Props) AddId(objectIds, prop.TemplateID);
-		foreach (ItemMetadata item in metadata.Templates.Items) AddId(objectIds, item.TemplateID);
-		foreach (ItemMetadata consumable in metadata.Templates.Consumables) AddId(objectIds, consumable.TemplateID);
-		foreach (VfxAttachmentConfig vfx in metadata.Templates.Vfx) AddId(objectIds, vfx.VfxId);
-		foreach (string decalId in metadata.Decals.Keys) AddId(objectIds, decalId);
+		foreach (UnitMetadata unit in metadata.Templates.Units) AddTemplateId(objectIds, unit.TemplateID, "unit");
+		foreach (UnitMetadata building in metadata.Templates.Buildings) AddTemplateId(objectIds, building.TemplateID, "building");
+		foreach (ResourceMetadata resource in metadata.Templates.Resources) AddTemplateId(objectIds, resource.TemplateID, "resource");
+		foreach (PropMetadata prop in metadata.Templates.Props) AddTemplateId(objectIds, prop.TemplateID, "prop");
+		foreach (ItemMetadata item in metadata.Templates.Items) AddTemplateId(objectIds, item.TemplateID, "item");
+		foreach (ItemMetadata consumable in metadata.Templates.Consumables) AddTemplateId(objectIds, consumable.TemplateID, "consumable");
+		foreach (VfxAttachmentConfig vfx in metadata.Templates.Vfx) AddTemplateId(objectIds, vfx.VfxId, "vfx");
+		foreach (string decalId in metadata.Decals.Keys) AddTemplateId(objectIds, decalId, "decal");
 	}
 
 	private static void AddPlacedIds(HashSet<string> objectIds)
@@ -170,34 +171,42 @@ public partial class ReplaceObjectDialog : FloatingDialogBase
 
 		foreach (Unit3D unit in host.AllUnits)
 		{
-			if (GodotObject.IsInstanceValid(unit)) AddId(objectIds, unit.UnitId);
+			if (GodotObject.IsInstanceValid(unit)) AddTemplateId(objectIds, unit.UnitId, ResolvePlacedUnitType(unit.UnitId));
 		}
 
 		foreach (Prop3D prop in host.AllProps)
 		{
-			if (GodotObject.IsInstanceValid(prop)) AddId(objectIds, prop.PropId);
+			if (GodotObject.IsInstanceValid(prop)) AddTemplateId(objectIds, prop.PropId, "prop");
 		}
 
 		foreach (Decal decal in host.AllDecals)
 		{
-			if (GodotObject.IsInstanceValid(decal)) AddId(objectIds, decal is Decal3D decal3D ? decal3D.DecalId : "logo");
+			if (GodotObject.IsInstanceValid(decal)) AddTemplateId(objectIds, decal is Decal3D decal3D ? decal3D.DecalId : "logo", "decal");
 		}
 
 		foreach (LootItem3D item in host.AllLootItems)
 		{
-			if (GodotObject.IsInstanceValid(item)) AddId(objectIds, item.ItemTypeId);
+			if (GodotObject.IsInstanceValid(item)) AddTemplateId(objectIds, item.ItemTypeId, "item");
 		}
 
 		foreach (ProceduralVfxInstance3D vfx in host.AllVfx)
 		{
-			if (GodotObject.IsInstanceValid(vfx)) AddId(objectIds, vfx.Config?.VfxId);
+			if (GodotObject.IsInstanceValid(vfx)) AddTemplateId(objectIds, vfx.Config?.VfxId, "vfx");
 		}
 	}
 
-	private static void AddId(HashSet<string> objectIds, string? objectId)
+	private static string ResolvePlacedUnitType(string unitId)
 	{
-		if (string.IsNullOrWhiteSpace(objectId)) return;
-		objectIds.Add(objectId);
+		if (unitId.Contains('/')) return "unit";
+		if (GameHost.UnitRegistry.ContainsKey(unitId)) return "unit";
+		if (GameHost.BuildingRegistry.ContainsKey(unitId)) return "building";
+		return "unit";
+	}
+
+	private static void AddTemplateId(HashSet<string> objectIds, string? templateId, string objectType)
+	{
+		if (string.IsNullOrWhiteSpace(templateId)) return;
+		objectIds.Add(TemplateIDHelper.NormalizeTemplateID(objectType, templateId));
 	}
 
 	private static string TypeOf(string objectId)
