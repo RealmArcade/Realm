@@ -98,6 +98,121 @@ public partial class EditorService
 		return ClampMaterialIndex(Tools.CliffPaintTextureIndex);
 	}
 
+	public TerrainTextureInfo[] GetTerrainTextureInfo()
+	{
+		int swatchCount = Swatches.DisplayNames.Count;
+		var textures = new TerrainTextureInfo[swatchCount];
+		for (int swatchIndex = 0; swatchIndex < swatchCount; swatchIndex++)
+		{
+			string name = Swatches.DisplayNames[swatchIndex] ?? string.Empty;
+			string path = swatchIndex < Swatches.Paths.Count ? Swatches.Paths[swatchIndex] ?? string.Empty : string.Empty;
+			textures[swatchIndex] = new TerrainTextureInfo(swatchIndex, name, path);
+		}
+
+		return textures;
+	}
+
+	public bool ApplyReconstructedTerrain(int width, int depth, ReadOnlySpan<float> nodeHeights, ReadOnlySpan<int> groundMaterials, ReadOnlySpan<int> cliffMaterials, ReadOnlySpan<byte> waterModes, ReadOnlySpan<float> waterSurfaces, int waterProfileIndex)
+	{
+		RuntimeTerrain? terrain = GameContext.Host?.GroundTerrain;
+		if (terrain == null || width <= 0 || depth <= 0)
+		{
+			return false;
+		}
+
+		if (terrain.Width != width || terrain.Depth != depth)
+		{
+			GameLog.LogError($"[EditorService] Reconstructed terrain grid {width}x{depth} does not match the live grid {terrain.Width}x{terrain.Depth}.");
+			return false;
+		}
+
+		int nodeCount = (width + 1) * (depth + 1);
+		int cellCount = width * depth;
+		if (nodeHeights.Length != nodeCount || groundMaterials.Length != nodeCount || cliffMaterials.Length != nodeCount ||
+		    waterModes.Length != cellCount || waterSurfaces.Length != cellCount)
+		{
+			GameLog.LogError("[EditorService] Reconstructed terrain arrays do not match the live grid layout.");
+			return false;
+		}
+
+		var cells = new TerrainCell[width, depth];
+		var pathingCodes = new int[width, depth];
+		var splatMap = new TerrainSplatWeights[width + 1, depth + 1];
+		var cliffSplatMap = new TerrainSplatWeights[width + 1, depth + 1];
+		byte profileIndex = (byte)Math.Clamp(waterProfileIndex, 0, 255);
+
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				var cell = new TerrainCell(
+					nodeHeights[z * (width + 1) + x],
+					nodeHeights[z * (width + 1) + x + 1],
+					nodeHeights[(z + 1) * (width + 1) + x + 1],
+					nodeHeights[(z + 1) * (width + 1) + x]);
+
+				byte waterMode = waterModes[z * width + x];
+				if (waterMode > 0)
+				{
+					float waterHeightAboveTier = waterSurfaces[z * width + x] - cell.MacroTier * TerrainCell.TIER_HEIGHT;
+					if (waterHeightAboveTier > 0.001f)
+					{
+						cell.WaterMode = (WaterType)waterMode;
+						cell.WaterProfileIndex = profileIndex;
+						cell.WaterHeight = waterHeightAboveTier;
+					}
+				}
+
+				cells[x, z] = cell;
+				pathingCodes[x, z] = RuntimeTerrain.GetDefaultPathingCode(cell.WaterMode);
+			}
+		}
+
+		for (int nodeZ = 0; nodeZ <= depth; nodeZ++)
+		{
+			for (int nodeX = 0; nodeX <= width; nodeX++)
+			{
+				int nodeIndex = nodeZ * (width + 1) + nodeX;
+				splatMap[nodeX, nodeZ] = TerrainSplatWeights.CreateSolid(ClampMaterialIndex(groundMaterials[nodeIndex]));
+				cliffSplatMap[nodeX, nodeZ] = TerrainSplatWeights.CreateSolid(ClampMaterialIndex(cliffMaterials[nodeIndex]));
+			}
+		}
+
+		terrain.Cells = cells;
+		terrain.PathingCodes = pathingCodes;
+		terrain.SplatMap = splatMap;
+		terrain.CliffSplatMap = cliffSplatMap;
+		Surface.AttachSplatMaps(splatMap, cliffSplatMap);
+
+		terrain.UpdateMeshAndPhysics(true, true);
+		terrain.UpdatePathingTexture();
+		GameContext.Host?.UpdatePathingOverlay();
+		EditorWorkspaceWatcher.UpdateWatchedFileTimestamps();
+		return true;
+	}
+
+	public EditorOperationResult ApplyAutomaticPathing()
+	{
+		RuntimeTerrain? terrain = GameContext.Host?.GroundTerrain;
+		if (terrain?.Cells == null || terrain.PathingCodes == null)
+		{
+			return EditorOperationResult.Failed("The editor has no terrain to derive pathing from.");
+		}
+
+		for (int z = 0; z < terrain.Depth; z++)
+		{
+			for (int x = 0; x < terrain.Width; x++)
+			{
+				terrain.PathingCodes[x, z] = TerrainPathing.AutomaticPathingCode(terrain.Cells[x, z].WaterMode);
+			}
+		}
+
+		terrain.UpdatePathingTexture();
+		GameContext.Host?.UpdatePathingOverlay();
+		EditorWorkspaceWatcher.UpdateWatchedFileTimestamps();
+		return EditorOperationResult.Succeeded();
+	}
+
 	public void ResetMapToBlank()
 	{
 		ResetToBlankMapDomain();

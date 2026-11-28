@@ -13,6 +13,7 @@
   <Project Path="Realm.ListenServerHost/Realm.ListenServerHost.csproj" />
   <Project Path="Realm.EditorAPI/Realm.EditorAPI.csproj" />
   <Project Path="Realm.MapAPI/Realm.MapAPI.csproj" />
+  <Project Path="Realm.MapGeneration/Realm.MapGeneration.csproj" />
   <Project Path="Realm.MapEditorExtension/Realm.MapEditorExtension.csproj" />
   <Project Path="Realm.ReplicationVerifier/Realm.ReplicationVerifier.csproj" />
   <Project Path="Realm.Tools.MatchRunner/Realm.Tools.MatchRunner.csproj" />

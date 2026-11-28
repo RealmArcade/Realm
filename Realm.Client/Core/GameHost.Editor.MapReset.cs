@@ -78,7 +78,25 @@ public partial class GameHost
 		}
 	}
 
+	public void ClearPlacedEntitiesExternal()
+	{
+		if (GroundTerrain == null) return;
+
+		ClearAllEntities();
+		ClearPlacedNodes();
+	}
+
 	private void ClearAllNodesAndTerrain()
+	{
+		ClearPlacedNodes();
+
+		if (GroundTerrain != null)
+		{
+			ResetTerrainData();
+		}
+	}
+
+	private void ClearPlacedNodes()
 	{
 		var childrenCopy = new List<Node>(GetChildren());
 		foreach (var child in childrenCopy)
@@ -89,11 +107,6 @@ public partial class GameHost
 			{
 				DeleteNodeExternal(child);
 			}
-		}
-
-		if (GroundTerrain != null)
-		{
-			ResetTerrainData();
 		}
 	}
 

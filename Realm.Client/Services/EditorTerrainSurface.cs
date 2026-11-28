@@ -585,6 +585,36 @@ public sealed class EditorTerrainSurface
 		return resultCells;
 	}
 
+	private static float FitWaterLevelToBasin(float waterSurfaceY, List<Vector2I> filledCells, TerrainCell[,] cells)
+	{
+		float highestTierFloor = float.MinValue;
+
+		foreach (Vector2I cellPos in filledCells)
+		{
+			TerrainCell cell = cells[cellPos.X, cellPos.Y];
+			if (cell.CenterHeight >= waterSurfaceY - 0.001f) continue;
+
+			float tierFloor = cell.MacroTier * TerrainCell.TIER_HEIGHT;
+			if (tierFloor > highestTierFloor) highestTierFloor = tierFloor;
+		}
+
+		if (highestTierFloor == float.MinValue) return waterSurfaceY;
+
+		return MathF.Max(waterSurfaceY, highestTierFloor + RuntimeTerrain.WATER_DELTA);
+	}
+
+	private static void TrimWaterToSubmergedCells(List<Vector2I> filledCells, TerrainCell[,] cells, float waterSurfaceY)
+	{
+		filledCells.RemoveAll(cellPos => !CanHoldWaterAt(cells[cellPos.X, cellPos.Y], waterSurfaceY));
+	}
+
+	private static bool CanHoldWaterAt(TerrainCell cell, float waterSurfaceY)
+	{
+		if (cell.CenterHeight >= waterSurfaceY - 0.001f) return false;
+
+		return cell.MacroTier * TerrainCell.TIER_HEIGHT < waterSurfaceY - 0.001f;
+	}
+
 	public static float CalculateBaseWaterLevel(Godot.Vector3 clickPos, TerrainCell startCell, float waterHeight)
 	{
 		float effectiveWaterHeight = waterHeight > 0.001f ? waterHeight : 0.9f;
@@ -766,6 +796,76 @@ public sealed class EditorTerrainSurface
 		return (null, (TerrainSplatWeights[,])targetSplatMap.Clone(), isCliff);
 	}
 
+	public (TerrainCell[,]? BeforeCells, TerrainCell[,]? AfterCells, TerrainSplatWeights[,]? BeforeSplatMap, TerrainSplatWeights[,]? AfterSplatMap, TerrainSplatWeights[,]? BeforeCliffSplatMap, TerrainSplatWeights[,]? AfterCliffSplatMap) PerformHeightFill(
+		Godot.Vector3 clickPos,
+		float targetHeight,
+		int groundTextureIndex,
+		int cliffTextureIndex,
+		MirrorMode mirrorMode,
+		Vector2 symmetryPivot,
+		int symmetryFolds)
+	{
+		ref var terrain = ref EditorService.GetTerrainState();
+		if (terrain.Cells == null) return (null, null, null, null, null, null);
+
+		if (SplatMap == null && GameContext.Host?.GroundTerrain != null)
+		{
+			SplatMap = GameContext.Host.GroundTerrain.SplatMap;
+		}
+
+		if (SplatMap == null) return (null, null, null, null, null, null);
+
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		float quadSize = terrain.QuadSize;
+		int splatWidth = SplatMap.GetLength(0);
+		int splatDepth = SplatMap.GetLength(1);
+
+		var splatBefore = (TerrainSplatWeights[,])SplatMap.Clone();
+		var cellsBefore = (TerrainCell[,])terrain.Cells.Clone();
+		var cliffBefore = CliffSplatMap != null ? (TerrainSplatWeights[,])CliffSplatMap.Clone() : null;
+
+		var visited = new bool[splatWidth, splatDepth];
+		var nodes = GetFloodFillArea(clickPos, splatBefore, width, depth, quadSize, visited, mirrorMode, true, (x, z) => true, symmetryPivot, symmetryFolds);
+		if (nodes.Count == 0) return (null, null, null, null, null, null);
+
+		var filledNodes = new bool[splatWidth, splatDepth];
+		foreach (var node in nodes)
+		{
+			filledNodes[node.X, node.Y] = true;
+		}
+
+		float height = Math.Clamp(targetHeight, TerrainCell.MIN_Y, TerrainCell.MAX_Y);
+		foreach (var node in nodes)
+		{
+			EditorTerrainGeometry.SetGridNodeHeight(ref terrain, node.X, node.Y, height);
+			SplatMap[node.X, node.Y] = TerrainSplatWeights.CreateSolid(groundTextureIndex);
+
+			if (CliffSplatMap != null && node.X < CliffSplatMap.GetLength(0) && node.Y < CliffSplatMap.GetLength(1))
+			{
+				CliffSplatMap[node.X, node.Y] = TerrainSplatWeights.CreateSolid(cliffTextureIndex);
+			}
+		}
+
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				if (!filledNodes[x, z] || !filledNodes[x + 1, z] || !filledNodes[x, z + 1] || !filledNodes[x + 1, z + 1])
+				{
+					continue;
+				}
+
+				ref var cell = ref terrain.Cells![x, z];
+				cell.WaterMode = WaterType.None;
+				cell.WaterProfileIndex = 0;
+				cell.WaterHeight = 0f;
+			}
+		}
+
+		return (cellsBefore, (TerrainCell[,])terrain.Cells!.Clone(), splatBefore, (TerrainSplatWeights[,])SplatMap.Clone(), cliffBefore, CliffSplatMap != null ? (TerrainSplatWeights[,])CliffSplatMap.Clone() : null);
+	}
+
 	public (int[,]? Before, int[,]? After) PerformPathingFloodFill(Godot.Vector3 clickPos, int pathingMask, bool pathingAdd, MirrorMode mirrorMode, Vector2 symmetryPivot, int symmetryFolds)
 	{
 		ref var terrain = ref EditorService.GetTerrainState();
@@ -837,11 +937,25 @@ public sealed class EditorTerrainSurface
 		var beforeCells = (TerrainCell[,])cells.Clone();
 		var beforePathing = (int[,])terrain.PathingCodes.Clone();
 
-		var visited = new bool[width, depth];
 		int clickX = Mathf.Clamp((int)Math.Floor(clickPos.X / quadSize + width / 2.0f), 0, width - 1);
 		int clickZ = Mathf.Clamp((int)Math.Floor(clickPos.Z / quadSize + depth / 2.0f), 0, depth - 1);
 		float waterSurfaceY = CalculateBaseWaterLevel(clickPos, beforeCells[clickX, clickZ], waterHeight);
+
+		var visited = new bool[width, depth];
 		var filledCells = GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, visited, mirrorMode, waterSurfaceY, isRemoveAction, symmetryPivot, symmetryFolds);
+
+		if (!isRemoving && filledCells.Count > 0)
+		{
+			float fittedSurfaceY = FitWaterLevelToBasin(waterSurfaceY, filledCells, beforeCells);
+			if (fittedSurfaceY > waterSurfaceY)
+			{
+				waterSurfaceY = fittedSurfaceY;
+				var refittedVisited = new bool[width, depth];
+				filledCells = GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, refittedVisited, mirrorMode, waterSurfaceY, isRemoveAction, symmetryPivot, symmetryFolds);
+			}
+
+			TrimWaterToSubmergedCells(filledCells, beforeCells, waterSurfaceY);
+		}
 
 		if (filledCells.Count == 0) return (null, null, null, null, false);
 

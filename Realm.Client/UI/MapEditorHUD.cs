@@ -140,6 +140,7 @@ public partial class MapEditorHUD : Control
 	private AuthorSignatureDialog _authorSignatureDialog { get; set; } = null!;
 	private string _publishAuthorshipKeyPath { get; set; } = string.Empty;
 	private ReplaceTextureDialog _replaceTextureDialog { get; set; } = null!;
+	private ReplaceObjectDialog _replaceObjectDialog { get; set; } = null!;
 	private UtilitiesDialog _utilitiesDialog { get; set; } = null!;
 	private TestSettingsDialog _testSettingsDialog { get; set; } = null!;
 	private MapVersionsDialog _mapVersionsDialog { get; set; } = null!;
@@ -302,7 +303,7 @@ public partial class MapEditorHUD : Control
 	{
 		return tool switch
 		{
-			EditorTool.Raise or EditorTool.Lower or EditorTool.Smooth or EditorTool.Plateau or EditorTool.Ramp or EditorTool.Noise or EditorTool.Water => EditorModule.Terrain,
+			EditorTool.Raise or EditorTool.Lower or EditorTool.Smooth or EditorTool.Plateau or EditorTool.Ramp or EditorTool.Noise or EditorTool.Water or EditorTool.HeightFill => EditorModule.Terrain,
 			EditorTool.PaintTexture or EditorTool.FloodFill => EditorModule.TextureDeco,
 			EditorTool.DrawCoordinate => EditorModule.Coordinates,
 			EditorTool.PaintPathing or EditorTool.FloodFillPathing => EditorModule.Pathing,

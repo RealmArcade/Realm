@@ -430,6 +430,33 @@ namespace Realm.Client.Core
 			}
 		}
 
+		public void PerformHeightFill(Vector3 clickPos)
+		{
+			if (GroundTerrain == null || GroundTerrain.Cells == null || GroundTerrain.SplatMap == null) return;
+
+			if (GroundTerrain.CliffSplatMap == null)
+			{
+				GroundTerrain.CliffSplatMap = new TerrainSplatWeights[GroundTerrain.Width + 1, GroundTerrain.Depth + 1];
+			}
+
+			var result = GameContext.EditorService.PerformHeightFill(
+				clickPos,
+				EditorExactHeight,
+				GameContext.EditorService.Tools.PaintTextureIndex,
+				GameContext.EditorService.Tools.CliffPaintTextureIndex,
+				EditorMirrorMode);
+
+			if (result.AfterCells == null) return;
+
+			GroundTerrain.UpdateMeshAndPhysics(rebuildPhysics: false, rebuildNavMesh: false, affectedRegions: null, rebuildWater: true);
+			AlignAllEntitiesToTerrainExternal();
+
+			var action = new TerrainModifyAction(result.BeforeCells, result.AfterCells, result.BeforeSplatMap, result.AfterSplatMap, null, null, result.BeforeCliffSplatMap, result.AfterCliffSplatMap);
+			EditorHistoryManager.RecordAction(action);
+			EditorHasUnsavedChanges = true;
+			GameContext.MapEditorHud?.ShowFeedbackExternal("Height filled texture area");
+		}
+
 		public void PerformWaterFloodFill(Vector3 clickPos, bool isRemoveAction = false)
 		{
 			if (GroundTerrain == null || GroundTerrain.Cells == null) return;

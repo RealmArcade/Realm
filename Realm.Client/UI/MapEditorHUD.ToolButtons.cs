@@ -73,7 +73,7 @@ namespace Realm.Client.UI
 			if (_brushPanel?.SizeBox == null || GameContext.Host == null) return;
 
 			var tool = GameContext.Host.ActiveEditorTool;
-			_brushPanel.SizeBox.Visible = tool != EditorTool.FloodFill && tool != EditorTool.FloodFillPathing;
+			_brushPanel.SizeBox.Visible = tool != EditorTool.FloodFill && tool != EditorTool.FloodFillPathing && tool != EditorTool.HeightFill;
 		}
 
 		private void UpdateBrushShapeVisibility()
@@ -81,7 +81,7 @@ namespace Realm.Client.UI
 			if (_brushPanel?.ShapeButton == null || GameContext.Host == null) return;
 
 			var tool = GameContext.Host.ActiveEditorTool;
-			_brushPanel.ShapeButton.Visible = tool != EditorTool.FloodFill && tool != EditorTool.FloodFillPathing;
+			_brushPanel.ShapeButton.Visible = tool != EditorTool.FloodFill && tool != EditorTool.FloodFillPathing && tool != EditorTool.HeightFill;
 		}
 
 		private void UpdateBrushStrengthVisibility()
@@ -100,7 +100,7 @@ namespace Realm.Client.UI
 				{
 					strengthParent.Visible = !blockModeEnabled;
 				}
-				else if (tool == EditorTool.Height)
+				else if (tool == EditorTool.Height || tool == EditorTool.HeightFill)
 				{
 					strengthParent.Visible = false;
 				}
