@@ -51,7 +51,7 @@ public class CustomGenreProvider : IAiGenreProvider
 		CustomScanner?.Invoke(world, playerIndex, destinationList, customContext);
 	}
 
-	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string, string>? customActionCallback = null)
 	{
 		if (CustomExecutor != null)
 		{
@@ -59,7 +59,7 @@ public class CustomGenreProvider : IAiGenreProvider
 		}
 		else
 		{
-			customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, aff.Intent.ToString());
+			customActionCallback?.Invoke(playerIndex, aff.ActionId, aff.TargetPosition, aff.Intent.ToString(), aff.PayloadId);
 		}
 	}
 }

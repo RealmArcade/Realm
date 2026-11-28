@@ -33,14 +33,16 @@ public partial interface IGameAPI
 	string GetPlayerBotGenre(int playerIndex);
 
 	/// <summary>
-	/// Registers a map-defined custom candidate action for evaluation by the bot utility decision loop.
+	/// Registers a map-defined custom candidate action for evaluation by the bot utility decision loop. While a seat
+	/// holds at least one registered candidate the bot scores only those, because they carry their own feature vector
+	/// and its own weights; the genre scan resumes once the map clears them.
 	/// </summary>
 	/// <param name="playerIndex">The zero-based player slot index.</param>
-	/// <param name="actionId">The unique action identifier.</param>
+	/// <param name="actionId">The unique action identifier, reported back to <see cref="OnBotCustomActionExecuted"/> when the candidate executes.</param>
 	/// <param name="intent">The action intent category (e.g., "Build", "Cast", "Transact", "Interact").</param>
 	/// <param name="featureVector">The normalized feature vector scored against the AI weights.</param>
 	/// <param name="position">The target world coordinate for the action.</param>
-	/// <param name="payload">Optional metadata or argument string passed when the action executes.</param>
+	/// <param name="payload">The identifier a decision policy pins this candidate by, so a tool can force the candidate named <c>unit/tidecaller</c> with <c>fixed-once:unit/tidecaller</c>. It is reported back to <see cref="OnBotCustomActionExecuted"/> beside the action id.</param>
 	void RegisterCustomBotDecision(int playerIndex, string actionId, string intent, float[] featureVector, Vector3 position, string payload = "");
 
 	/// <summary>

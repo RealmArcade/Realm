@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Text.Json;
 using Realm.Ecs.AI.Affordances;
 using Realm.Ecs.AI.Policy;
@@ -276,11 +276,11 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 		destinationList.Add(new GenericAffordance(Entity.Null, CommandIntent.Transact, Entity.Null, _laneTarget, "send_mercenary_wave", waveVec));
 	}
 
-	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string, string>? customActionCallback = null)
 	{
 		if (aff.Intent == CommandIntent.Build || aff.Intent == CommandIntent.Transact || aff.Intent == CommandIntent.Interact)
 		{
-			customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, aff.Intent.ToString());
+			customActionCallback?.Invoke(playerIndex, aff.ActionId, aff.TargetPosition, aff.Intent.ToString(), aff.PayloadId);
 			return;
 		}
 
@@ -295,7 +295,7 @@ public class TugOfWarGenreProvider : IAiGenreProvider
 				}
 			}
 
-			customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, "Upgrade");
+			customActionCallback?.Invoke(playerIndex, aff.ActionId, aff.TargetPosition, "Upgrade", aff.PayloadId);
 		}
 	}
 

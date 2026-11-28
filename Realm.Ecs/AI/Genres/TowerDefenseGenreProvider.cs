@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Text.Json;
 using Realm.Ecs.AI.Genres.Common;
 using Realm.Ecs.AI.Affordances;
@@ -295,8 +295,8 @@ public class TowerDefenseGenreProvider : IAiGenreProvider
 		destinationList.Add(new GenericAffordance(tower, CommandIntent.Transact, Entity.Null, towerPos, "sell_tower", fVec));
 	}
 
-	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string, string>? customActionCallback = null)
 	{
-		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, aff.Intent.ToString());
+		customActionCallback?.Invoke(playerIndex, aff.ActionId, aff.TargetPosition, aff.Intent.ToString(), aff.PayloadId);
 	}
 }

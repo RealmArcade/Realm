@@ -361,11 +361,11 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 		}
 	}
 
-	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string, string>? customActionCallback = null)
 	{
 		if (IsCustomAction(aff.Intent))
 		{
-			customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, aff.Intent.ToString());
+			customActionCallback?.Invoke(playerIndex, aff.ActionId, aff.TargetPosition, aff.Intent.ToString(), aff.PayloadId);
 			return;
 		}
 
@@ -383,7 +383,7 @@ public class HeroArenaGenreProvider : IAiGenreProvider
 				AiGenreUtils.HandleCastIntent(world, playerIndex, aff, customActionCallback);
 				break;
 			default:
-				customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, aff.Intent.ToString());
+				customActionCallback?.Invoke(playerIndex, aff.ActionId, aff.TargetPosition, aff.Intent.ToString(), aff.PayloadId);
 				break;
 		}
 	}

@@ -452,9 +452,14 @@ public partial class GameHost
 		}
 	}
 
+	/// <summary>
+	///     Reports whether a player index is computer-controlled, as the map itself published it: the answer is read
+	///     from <see cref="ScriptPlayersState" /> when the map maintains it, and otherwise from the lobby roster, where a
+	///     player without a peer (a negative <c>PeerId</c>) is a bot. No seat is special-cased; seat 0 is answered like
+	///     any other, so a map script that asks about it gets the same state every RPC caller sees.
+	/// </summary>
 	public bool IsPlayerComputer(int playerIndex)
 	{
-		if (playerIndex == 0) return true;
 		if (GameContext.World != null && GameContext.World.IsAlive(GameContext.Simulation.WorldEntity) && GameContext.World.Has<ScriptPlayersState>(GameContext.Simulation.WorldEntity))
 		{
 			ref var playersState = ref GameContext.World.Get<ScriptPlayersState>(GameContext.Simulation.WorldEntity);

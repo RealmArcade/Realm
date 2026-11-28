@@ -166,7 +166,7 @@ public class ClientRpcService
 	{
 		GameLog.LogToConsole($"[MAP MESSAGE P{playerIndex}] {message}");
 
-		ShowFeedbackText(playerIndex, message, new Vector3(0.9f, 0.9f, 0.9f));
+		ShowPlayerText(playerIndex, message, new Vector3(0.9f, 0.9f, 0.9f), isMapMessage: true);
 	}
 
 	public void BroadcastMessage(string message)
@@ -176,11 +176,22 @@ public class ClientRpcService
 			return;
 
 		GameLog.LogToConsole($"[MAP BROADCAST] {message}");
-		BroadcastFeedbackText(message, new Vector3(0.9f, 0.9f, 0.9f));
+
+		if (GameContext.InGameHud != null)
+		{
+			var textColor = new Color(0.9f, 0.9f, 0.9f);
+			Callable.From(() => GameContext.InGameHud?.ShowMapMessageText(message, textColor)).CallDeferred();
+		}
+
 		GameContext.NetworkService?.BroadcastMessageDomainLogic(message);
 	}
 
 	public void ShowFeedbackText(int playerIndex, string text, Vector3 color)
+	{
+		ShowPlayerText(playerIndex, text, color, isMapMessage: false);
+	}
+
+	private static void ShowPlayerText(int playerIndex, string text, Vector3 color, bool isMapMessage)
 	{
 		if (!TryResolveLocalPlayer(playerIndex, out _))
 			return;
@@ -189,7 +200,10 @@ public class ClientRpcService
 			return;
 
 		var textColor = new Color(color.X, color.Y, color.Z);
-		Callable.From(() => GameContext.InGameHud?.ShowFeedbackText(text, textColor)).CallDeferred();
+		if (isMapMessage)
+			Callable.From(() => GameContext.InGameHud?.ShowMapMessageText(text, textColor)).CallDeferred();
+		else
+			Callable.From(() => GameContext.InGameHud?.ShowFeedbackText(text, textColor)).CallDeferred();
 	}
 
 	public void BroadcastFeedbackText(string text, Vector3 color)

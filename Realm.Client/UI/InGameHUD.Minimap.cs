@@ -42,6 +42,8 @@ public partial class InGameHUD
 
 	private const float FeedbackFadeSeconds = 1.5f;
 
+	private const float MapMessageHoldSeconds = 6f;
+
 	private const int FeedbackWarningOutlineSize = 6;
 
 	/// <summary>
@@ -59,6 +61,11 @@ public partial class InGameHUD
 		ShowFeedbackMessage(text, color, isWarning: false);
 	}
 
+	public void ShowMapMessageText(string text, Color color)
+	{
+		ShowFeedbackMessage(text, color, isWarning: false, MapMessageHoldSeconds);
+	}
+
 	/// <summary>
 	///     States why something the player just asked for did not happen - an unaffordable price, a full queue, an order the
 	///     match refused. It is drawn in the warning red with an outline that keeps it readable over any battlefield, and the
@@ -71,7 +78,7 @@ public partial class InGameHUD
 		GameContext.UserInterface?.PlayWarningSound();
 	}
 
-	private void ShowFeedbackMessage(string text, Color color, bool isWarning)
+	private void ShowFeedbackMessage(string text, Color color, bool isWarning, float holdSeconds = FeedbackHoldSeconds)
 	{
 		// One message is on screen at a time, so the fade the previous one is running is ended first. A player who presses an
 		// unaffordable button twice was otherwise told the second time by a message already on its way out.
@@ -88,7 +95,7 @@ public partial class InGameHUD
 		_feedbackLabel.Modulate = Colors.White;
 
 		_feedbackTween = CreateTween();
-		_feedbackTween.TweenProperty(_feedbackLabel, "modulate:a", 0.0f, FeedbackFadeSeconds).SetDelay(FeedbackHoldSeconds);
+		_feedbackTween.TweenProperty(_feedbackLabel, "modulate:a", 0.0f, FeedbackFadeSeconds).SetDelay(holdSeconds);
 	}
 
 	public void ToggleMinimapTerrain()

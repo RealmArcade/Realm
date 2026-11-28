@@ -273,8 +273,8 @@ public class AutoBattlerGenreProvider : IAiGenreProvider
 		));
 	}
 
-	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback = null)
+	public void ExecuteAction(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string, string>? customActionCallback = null)
 	{
-		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, aff.Intent.ToString());
+		customActionCallback?.Invoke(playerIndex, aff.ActionId, aff.TargetPosition, aff.Intent.ToString(), aff.PayloadId);
 	}
 }

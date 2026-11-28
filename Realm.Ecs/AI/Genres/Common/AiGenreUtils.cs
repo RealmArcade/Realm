@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using Realm.Ecs.Common;
 using Realm.Ecs.Components.Core;
@@ -56,15 +56,15 @@ public static class AiGenreUtils
 		return fallback;
 	}
 
-	public static void HandleCastIntent(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string>? customActionCallback)
+	public static void HandleCastIntent(EcsWorld world, int playerIndex, in GenericAffordance aff, Action<int, string, Vector3, string, string>? customActionCallback)
 	{
-		if (!string.IsNullOrEmpty(aff.PayloadId) && world.Has<SpellCooldowns>(aff.SourceEntity))
+		if (!string.IsNullOrEmpty(aff.ActionId) && world.Has<SpellCooldowns>(aff.SourceEntity))
 		{
 			ref var cooldowns = ref world.Get<SpellCooldowns>(aff.SourceEntity);
-			cooldowns.Set(aff.PayloadId, 5.0f, 5.0f);
+			cooldowns.Set(aff.ActionId, 5.0f, 5.0f);
 		}
 
-		customActionCallback?.Invoke(playerIndex, aff.PayloadId, aff.TargetPosition, "Cast");
+		customActionCallback?.Invoke(playerIndex, aff.ActionId, aff.TargetPosition, "Cast", aff.PayloadId);
 	}
 
 	public static float[] CreateFeatureVector(float f0, float f1, float f2, float f3, float f4, float f5, float f6, float f7, int featureCount = 8)

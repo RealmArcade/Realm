@@ -18,12 +18,6 @@ public class MapPlayerSlotConfig
 	[SchemaDescription("The faction the slot plays, which decides which templates it may train.")]
 	public string Faction { get; set; } = string.Empty;
 
-	[SchemaDescription("Whether the slot is taken by a person or played by the computer.")]
-	public string Controller { get; set; } = "HumanPlayer";
-
-	[SchemaDescription("Which computer player personality fills the slot when it is played by the computer.")]
-	public string? AiType { get; set; }
-
 	[SchemaDescription("The named coordinate the slot's starting units are placed at.")]
 	public string? StartLocation { get; set; }
 

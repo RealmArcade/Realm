@@ -21,9 +21,9 @@ public sealed class PlayerBotDirector
 {
 	private readonly Dictionary<int, BotController> _controllers = new();
 	private readonly Dictionary<int, List<GenericAffordance>> _customDecisions = new();
-	private readonly Action<int, string, string, Vector3> _customAction;
+	private readonly Action<int, string, string, Vector3, string> _customAction;
 
-	public PlayerBotDirector(Action<int, string, string, Vector3> customAction)
+	public PlayerBotDirector(Action<int, string, string, Vector3, string> customAction)
 	{
 		_customAction = customAction;
 	}
@@ -46,7 +46,8 @@ public sealed class PlayerBotDirector
 		if (!_controllers.TryGetValue(playerIndex, out var bot))
 		{
 			bot = new BotController(playerIndex, profile);
-			bot.CustomActionCallback = (pIdx, actId, pos, intent) => _customAction(pIdx, actId, intent, pos);
+			bot.CustomActionCallback = DispatchCustomAction;
+			AttachMapCandidates(playerIndex, bot);
 			_controllers[playerIndex] = bot;
 		}
 		else
@@ -75,7 +76,6 @@ public sealed class PlayerBotDirector
 	{
 		var genreProvider = AiGenreRegistry.Get(genreName);
 		ConfigureGenreProvider(genreProvider, configJson);
-		ConfigureCustomProvider(genreName, genreProvider);
 		UpdateOrCreateBotController(playerIndex, genreProvider);
 	}
 
@@ -92,24 +92,14 @@ public sealed class PlayerBotDirector
 		}
 	}
 
-	private void ConfigureCustomProvider(string genreName, IAiGenreProvider genreProvider)
-	{
-		if (!string.Equals(genreName, "custom", StringComparison.OrdinalIgnoreCase)) return;
-		if (genreProvider is not CustomGenreProvider customProvider) return;
-
-		customProvider.CustomScanner = (world, pIdx, dest, ctx) =>
-		{
-			if (_customDecisions.TryGetValue(pIdx, out var list) && list != null) dest.AddRange(list);
-		};
-	}
-
 	private void UpdateOrCreateBotController(int playerIndex, IAiGenreProvider genreProvider)
 	{
 		if (!_controllers.TryGetValue(playerIndex, out var bot))
 		{
 			var profile = genreProvider.CreateDefaultProfile(GameContext.Simulation.ActiveMapName ?? "GenericMap");
 			bot = new BotController(playerIndex, profile, genreProvider);
-			bot.CustomActionCallback = (pIdx, actId, pos, intent) => _customAction(pIdx, actId, intent, pos);
+			bot.CustomActionCallback = DispatchCustomAction;
+			AttachMapCandidates(playerIndex, bot);
 			_controllers[playerIndex] = bot;
 		}
 		else
@@ -118,6 +108,22 @@ public sealed class PlayerBotDirector
 			var profile = genreProvider.CreateDefaultProfile(bot.Profile.MapName);
 			bot.LoadProfile(profile);
 		}
+	}
+
+	private void DispatchCustomAction(int playerIndex, string actionId, Vector3 position, string intent, string payload)
+	{
+		_customAction(playerIndex, actionId, intent, position, payload);
+		ClearCustomBotDecisions(playerIndex);
+	}
+
+	private void AttachMapCandidates(int playerIndex, BotController bot)
+	{
+		bot.MapCandidateSource = () => GetCustomDecisions(playerIndex);
+	}
+
+	private List<GenericAffordance>? GetCustomDecisions(int playerIndex)
+	{
+		return _customDecisions.TryGetValue(playerIndex, out var decisions) ? decisions : null;
 	}
 
 	public string GetPlayerBotGenreDomain(int playerIndex)
@@ -155,6 +161,7 @@ public sealed class PlayerBotDirector
 			Entity.Null,
 			position,
 			actionId,
+			payload,
 			featureVector
 		));
 	}
