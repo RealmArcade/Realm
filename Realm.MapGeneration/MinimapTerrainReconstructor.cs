@@ -6,9 +6,6 @@ namespace Realm.MapGeneration;
 
 public static class MinimapTerrainReconstructor
 {
-	private const int CliffColourWindow = 5;
-	private const int CliffColourWindowCells = (CliffColourWindow * 2 + 1) * (CliffColourWindow * 2 + 1);
-
 	public static ReconstructedTerrain Reconstruct(MinimapImage image, MapGenerationPalette palette, PropCatalog catalog, TerrainReconstructionOptions options)
 	{
 		int width = Math.Max(8, options.Width);
@@ -17,12 +14,13 @@ public static class MinimapTerrainReconstructor
 
 		var grid = new MinimapFeatureGrid(image, width, depth);
 		bool[] waterMask = BuildWaterMask(grid, width, depth, options);
-		MinimapLandRegions.Result regions = MinimapLandRegions.Classify(grid, waterMask, width, depth);
-		TerrainSurfaceKind[] kinds = regions.Kinds;
-		float[] cellHeights = BuildCellHeights(grid, kinds, waterMask, width, depth, options);
+		MinimapTerrainSegments segments = MinimapTerrainSegmenter.Build(grid, waterMask, width, depth);
+		int[] groundSwatches = ChooseGroundSwatches(grid, segments, palette);
+		TerrainSurfaceKind[] kinds = BuildCellKinds(segments, waterMask);
+		float[] cellHeights = BuildCellHeights(segments.Cells, kinds, waterMask, width, depth, options);
 		(float[] waterSurface, byte[] waterModes) = BuildWater(cellHeights, waterMask, width, depth, options);
 		float[] vertexHeights = BuildVertexHeights(cellHeights, width, depth);
-		float[] forestMask = BuildForestMask(grid, kinds, waterMask, width, depth);
+		float[] forestMask = BuildForestMask(segments.Cells, kinds, waterMask, width, depth);
 
 		var terrain = new ReconstructedTerrain
 		{
@@ -41,7 +39,8 @@ public static class MinimapTerrainReconstructor
 			WaterMask = waterMask,
 			ForestMask = new bool[cellCount],
 			FeatureColours = BuildFeatureColours(grid),
-			RegionColours = regions.RegionColours,
+			RegionColours = BuildRegionColours(grid, segments),
+			SegmentLabels = segments.Labels,
 			WaterProfileIndex = palette.WaterProfileIndex
 		};
 
@@ -50,11 +49,11 @@ public static class MinimapTerrainReconstructor
 			terrain.ForestMask[index] = forestMask[index] > 0.5f;
 		}
 
-		AssignSplats(terrain, palette, options);
+		AssignSplats(terrain, segments.Labels, groundSwatches, palette, options);
 		AssignPathing(terrain);
 		if (options.PlaceProps)
 		{
-			List<GeneratedProp> detectedProps = MinimapObjectDetector.Detect(image, grid.Cells, waterMask, width, depth, options.QuadSize, catalog, options);
+			List<GeneratedProp> detectedProps = MinimapObjectDetector.Detect(image, segments.Cells, waterMask, width, depth, options.QuadSize, catalog, options);
 			for (int propIndex = 0; propIndex < detectedProps.Count; propIndex++)
 			{
 				GeneratedProp prop = detectedProps[propIndex];
@@ -64,6 +63,34 @@ public static class MinimapTerrainReconstructor
 		}
 
 		return terrain;
+	}
+
+	private static TerrainSurfaceKind[] BuildCellKinds(MinimapTerrainSegments segments, bool[] waterMask)
+	{
+		var kinds = new TerrainSurfaceKind[segments.Labels.Length];
+		for (int index = 0; index < kinds.Length; index++)
+		{
+			int label = segments.Labels[index];
+			kinds[index] = waterMask[index]
+				? TerrainSurfaceKind.Water
+				: label > 0 ? segments.Kinds[label] : TerrainSurfaceClassifier.ClassifyCell(segments.Cells[index]);
+		}
+
+		return kinds;
+	}
+
+	private static float[] BuildRegionColours(MinimapFeatureGrid grid, MinimapTerrainSegments segments)
+	{
+		var colours = new float[grid.Cells.Length * 3];
+		for (int index = 0; index < grid.Cells.Length; index++)
+		{
+			MinimapCellFeatures cell = segments.Labels[index] > 0 ? segments.Cells[index] : grid.Cells[index];
+			colours[index * 3] = cell.Red;
+			colours[index * 3 + 1] = cell.Green;
+			colours[index * 3 + 2] = cell.Blue;
+		}
+
+		return colours;
 	}
 
 	private static float[] BuildFeatureColours(MinimapFeatureGrid grid)
@@ -165,45 +192,7 @@ public static class MinimapTerrainReconstructor
 		return false;
 	}
 
-	internal static TerrainSurfaceKind ClassifyLandCell(MinimapCellFeatures cell)
-	{
-		bool greenDominant = cell.Green >= cell.Red * 1.03f && cell.Green >= cell.Blue * 0.97f;
-		if (greenDominant)
-		{
-			bool dark = cell.Value < 0.40f;
-			bool textured = cell.LocalContrast > 0.055f;
-			return dark || textured ? TerrainSurfaceKind.Forest : TerrainSurfaceKind.Grass;
-		}
-
-		if (cell.Saturation < 0.12f)
-		{
-			return cell.Value > 0.80f ? TerrainSurfaceKind.Snow : TerrainSurfaceKind.Rock;
-		}
-
-		if (cell.Hue >= 18f && cell.Hue <= 68f)
-		{
-			if (cell.Value > 0.60f && cell.Saturation < 0.52f)
-			{
-				return TerrainSurfaceKind.Sand;
-			}
-
-			return TerrainSurfaceKind.Soil;
-		}
-
-		if (cell.Hue >= 68f && cell.Hue <= 165f)
-		{
-			return TerrainSurfaceKind.Grass;
-		}
-
-		if (cell.Value < 0.30f)
-		{
-			return TerrainSurfaceKind.Rock;
-		}
-
-		return TerrainSurfaceKind.Soil;
-	}
-
-	private static float[] BuildForestMask(MinimapFeatureGrid grid, TerrainSurfaceKind[] kinds, bool[] waterMask, int width, int depth)
+	private static float[] BuildForestMask(MinimapCellFeatures[] cells, TerrainSurfaceKind[] kinds, bool[] waterMask, int width, int depth)
 	{
 		var forest = new float[width * depth];
 		for (int index = 0; index < forest.Length; index++)
@@ -213,7 +202,7 @@ public static class MinimapTerrainReconstructor
 				continue;
 			}
 
-			MinimapCellFeatures cell = grid.Cells[index];
+			MinimapCellFeatures cell = cells[index];
 			bool greenDominant = cell.Green >= cell.Red * 1.02f && cell.Green > cell.Blue * 0.97f;
 			if (!greenDominant)
 			{
@@ -248,7 +237,7 @@ public static class MinimapTerrainReconstructor
 		return result;
 	}
 
-	private static float[] BuildCellHeights(MinimapFeatureGrid grid, TerrainSurfaceKind[] kinds, bool[] waterMask, int width, int depth, TerrainReconstructionOptions options)
+	private static float[] BuildCellHeights(MinimapCellFeatures[] cells, TerrainSurfaceKind[] kinds, bool[] waterMask, int width, int depth, TerrainReconstructionOptions options)
 	{
 		var heights = new float[width * depth];
 		float landBase = options.BaseHeightTier * options.TierHeight;
@@ -262,7 +251,7 @@ public static class MinimapTerrainReconstructor
 		float[] broad = BoxBlur(offsets, width, depth, Math.Max(2, Math.Min(width, depth) / 14) | 1);
 		for (int index = 0; index < heights.Length; index++)
 		{
-			MinimapCellFeatures cell = grid.Cells[index];
+			MinimapCellFeatures cell = cells[index];
 			float relief = Math.Clamp(cell.LocalContrast / 0.05f, 0f, 1f) * options.TierHeight * 0.5f;
 			heights[index] = landBase + offsets[index] * 0.35f + broad[index] * 0.25f + relief;
 		}
@@ -521,57 +510,249 @@ public static class MinimapTerrainReconstructor
 		return result;
 	}
 
-	private static void AssignSplats(ReconstructedTerrain terrain, MapGenerationPalette palette, TerrainReconstructionOptions options)
+	private static void AssignSplats(ReconstructedTerrain terrain, int[] segmentLabels, int[] groundSwatches, MapGenerationPalette palette, TerrainReconstructionOptions options)
 	{
 		int width = terrain.Width;
 		int depth = terrain.Depth;
-		float[]? regionColours = terrain.RegionColours.Length == width * depth * 3 && !options.UseCellColourSplats ? terrain.RegionColours : null;
+		int[] cliffSwatches = ChooseCliffSwatches(terrain, segmentLabels, palette);
 		for (int z = 0; z <= depth; z++)
 		{
 			for (int x = 0; x <= width; x++)
 			{
-				int cellX = Math.Min(x, width - 1);
-				int cellZ = Math.Min(z, depth - 1);
-				int cellIndex = cellZ * width + cellX;
-				TerrainSurfaceKind kind = terrain.CellKinds[cellIndex];
+				int cellIndex = DominantVertexCell(terrain, x, z);
+				int nodeIndex = z * (width + 1) + x;
 				if (terrain.WaterMask[cellIndex])
 				{
 					float depthValue = terrain.WaterSurfaceHeights[cellIndex] - terrain.CellHeights[cellIndex];
-					kind = depthValue < options.TierHeight * 0.6f ? TerrainSurfaceKind.Sand : TerrainSurfaceKind.Rock;
+					TerrainSurfaceKind kind = depthValue < options.TierHeight * 0.6f ? TerrainSurfaceKind.Sand : TerrainSurfaceKind.Rock;
+					float red = terrain.RegionColours[cellIndex * 3];
+					float green = terrain.RegionColours[cellIndex * 3 + 1];
+					float blue = terrain.RegionColours[cellIndex * 3 + 2];
+					TerrainSwatch swatch = palette.FindForKind(kind, 0, red, green, blue, true);
+					terrain.SplatIndices[nodeIndex] = swatch.Index;
+					terrain.CliffSplatIndices[nodeIndex] = swatch.Index;
+					continue;
 				}
 
-				MinimapCellFeatures cell = CellFeaturesAt(terrain, cellIndex, regionColours);
-				uint hash = DeterministicHash.Combine(x, z, options.Seed);
-				TerrainSwatch swatch = terrain.WaterMask[cellIndex]
-					? palette.FindForKind(kind, (int)hash, cell.Red, cell.Green, cell.Blue, true)
-					: palette.FindClosest(kind, cell.Red, cell.Green, cell.Blue, (int)hash);
-				float cliffRed = cell.Red;
-				float cliffGreen = cell.Green;
-				float cliffBlue = cell.Blue;
-				if (regionColours != null)
+				int label = segmentLabels[cellIndex];
+				if (label > 0 && label < groundSwatches.Length && groundSwatches[label] >= 0)
 				{
-					DominantRegionColour(terrain, regionColours, width, depth, cellX, cellZ, ref cliffRed, ref cliffGreen, ref cliffBlue);
+					terrain.SplatIndices[nodeIndex] = groundSwatches[label];
+					terrain.CliffSplatIndices[nodeIndex] = cliffSwatches[label] >= 0 ? cliffSwatches[label] : groundSwatches[label];
+					continue;
 				}
 
-				TerrainSwatch cliff = palette.FindForKind(TerrainSurfaceKind.Rock, 0, cliffRed, cliffGreen, cliffBlue, true);
-				int nodeIndex = z * (width + 1) + x;
-				terrain.SplatIndices[nodeIndex] = swatch.Index;
-				terrain.CliffSplatIndices[nodeIndex] = cliff.Index;
+				float fallbackRed = terrain.RegionColours[cellIndex * 3];
+				float fallbackGreen = terrain.RegionColours[cellIndex * 3 + 1];
+				float fallbackBlue = terrain.RegionColours[cellIndex * 3 + 2];
+				TerrainSwatch fallback = palette.FindClosest(terrain.CellKinds[cellIndex], fallbackRed, fallbackGreen, fallbackBlue, 0);
+				terrain.SplatIndices[nodeIndex] = fallback.Index;
+				terrain.CliffSplatIndices[nodeIndex] = fallback.Index;
 			}
 		}
 	}
 
-	private static void DominantRegionColour(ReconstructedTerrain terrain, float[] regionColours, int width, int depth, int cellX, int cellZ, ref float red, ref float green, ref float blue)
+	private static int[] ChooseGroundSwatches(MinimapFeatureGrid grid, MinimapTerrainSegments segments, MapGenerationPalette palette)
 	{
-		Span<float> colours = stackalloc float[CliffColourWindowCells * 3];
-		Span<int> counts = stackalloc int[CliffColourWindowCells];
-		int distinct = 0;
-		for (int deltaZ = -CliffColourWindow; deltaZ <= CliffColourWindow; deltaZ++)
+		int segmentCount = segments.SegmentCount;
+		var chosen = new int[segmentCount + 1];
+		Array.Fill(chosen, -1);
+		if (segmentCount == 0 || palette.Swatches.Count == 0)
 		{
-			for (int deltaX = -CliffColourWindow; deltaX <= CliffColourWindow; deltaX++)
+			return chosen;
+		}
+
+		List<int>[] segmentCells = BuildSegmentCellLists(segments);
+		List<int>[] neighbours = BuildSegmentNeighbours(segments.Labels, segments.Width, segments.Depth, segmentCount);
+		var order = new int[segmentCount];
+		int orderCount = 0;
+		for (int label = 1; label <= segmentCount; label++)
+		{
+			if (segmentCells[label].Count > 0)
 			{
-				int x = cellX + deltaX;
-				int z = cellZ + deltaZ;
+				order[orderCount++] = label;
+			}
+		}
+
+		Array.Sort(order, 0, orderCount, Comparer<int>.Create((left, right) => segmentCells[right].Count.CompareTo(segmentCells[left].Count)));
+		for (int orderIndex = 0; orderIndex < orderCount; orderIndex++)
+		{
+			int label = order[orderIndex];
+			List<int> cells = segmentCells[label];
+			var votes = new Dictionary<int, int>();
+			for (int cellIndex = 0; cellIndex < cells.Count; cellIndex++)
+			{
+				MinimapCellFeatures cell = grid.Cells[cells[cellIndex]];
+				TerrainSwatch nearest = palette.FindNearestColourOfKind(segments.Kinds[label], cell.Red, cell.Green, cell.Blue);
+				votes.TryGetValue(nearest.Index, out int count);
+				votes[nearest.Index] = count + 1;
+			}
+
+			List<TerrainSwatch> candidates = OrderByVotes(votes, palette);
+			chosen[label] = SelectDistinctSwatch(candidates, chosen, neighbours[label], palette);
+		}
+
+		return chosen;
+	}
+
+	private static List<int>[] BuildSegmentCellLists(MinimapTerrainSegments segments)
+	{
+		var cells = new List<int>[segments.SegmentCount + 1];
+		for (int label = 1; label <= segments.SegmentCount; label++)
+		{
+			cells[label] = new List<int>();
+		}
+
+		for (int index = 0; index < segments.Labels.Length; index++)
+		{
+			int label = segments.Labels[index];
+			if (label > 0)
+			{
+				cells[label].Add(index);
+			}
+		}
+
+		return cells;
+	}
+
+	private static List<TerrainSwatch> OrderByVotes(Dictionary<int, int> votes, MapGenerationPalette palette)
+	{
+		var candidates = new List<TerrainSwatch>(votes.Count);
+		foreach (KeyValuePair<int, int> vote in votes)
+		{
+			candidates.Add(palette.FindByIndex(vote.Key));
+		}
+
+		candidates.Sort((left, right) => votes[right.Index].CompareTo(votes[left.Index]));
+		return candidates;
+	}
+
+	private static int SelectDistinctSwatch(List<TerrainSwatch> candidates, int[] chosen, List<int> neighbours, MapGenerationPalette palette)
+	{
+		for (int candidateIndex = 0; candidateIndex < candidates.Count; candidateIndex++)
+		{
+			TerrainSwatch candidate = candidates[candidateIndex];
+			bool taken = false;
+			for (int neighbourIndex = 0; neighbourIndex < neighbours.Count; neighbourIndex++)
+			{
+				int neighbourSwatch = chosen[neighbours[neighbourIndex]];
+				if (neighbourSwatch < 0 || neighbourSwatch != candidate.Index)
+				{
+					continue;
+				}
+
+				if (palette.FindByIndex(neighbourSwatch).Kind == candidate.Kind)
+				{
+					taken = true;
+					break;
+				}
+			}
+
+			if (!taken)
+			{
+				return candidate.Index;
+			}
+		}
+
+		return candidates.Count > 0 ? candidates[0].Index : -1;
+	}
+
+	private static int[] ChooseCliffSwatches(ReconstructedTerrain terrain, int[] segmentLabels, MapGenerationPalette palette)
+	{
+		int segmentCount = 0;
+		for (int index = 0; index < segmentLabels.Length; index++)
+		{
+			segmentCount = Math.Max(segmentCount, segmentLabels[index]);
+		}
+
+		var chosen = new int[segmentCount + 1];
+		Array.Fill(chosen, -1);
+		var seen = new bool[segmentCount + 1];
+		for (int index = 0; index < segmentLabels.Length; index++)
+		{
+			int label = segmentLabels[index];
+			if (label <= 0 || seen[label])
+			{
+				continue;
+			}
+
+			seen[label] = true;
+			float red = terrain.RegionColours[index * 3];
+			float green = terrain.RegionColours[index * 3 + 1];
+			float blue = terrain.RegionColours[index * 3 + 2];
+			IReadOnlyList<TerrainSwatch> ranked = palette.RankForKind(TerrainSurfaceKind.Rock, red, green, blue);
+			if (ranked.Count > 0)
+			{
+				chosen[label] = ranked[0].Index;
+			}
+		}
+
+		return chosen;
+	}
+
+	private static List<int>[] BuildSegmentNeighbours(int[] segmentLabels, int width, int depth, int segmentCount)
+	{
+		var neighbours = new List<int>[segmentCount + 1];
+		for (int label = 1; label <= segmentCount; label++)
+		{
+			neighbours[label] = new List<int>();
+		}
+
+		for (int z = 0; z < depth; z++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				int label = segmentLabels[z * width + x];
+				if (label <= 0)
+				{
+					continue;
+				}
+
+				if (x + 1 < width)
+				{
+					LinkNeighbours(neighbours, label, segmentLabels[z * width + x + 1]);
+				}
+
+				if (z + 1 < depth)
+				{
+					LinkNeighbours(neighbours, label, segmentLabels[(z + 1) * width + x]);
+				}
+			}
+		}
+
+		return neighbours;
+	}
+
+	private static void LinkNeighbours(List<int>[] neighbours, int label, int otherLabel)
+	{
+		if (otherLabel <= 0 || otherLabel == label || otherLabel >= neighbours.Length)
+		{
+			return;
+		}
+
+		if (!neighbours[label].Contains(otherLabel))
+		{
+			neighbours[label].Add(otherLabel);
+		}
+
+		if (!neighbours[otherLabel].Contains(label))
+		{
+			neighbours[otherLabel].Add(label);
+		}
+	}
+
+	private static int DominantVertexCell(ReconstructedTerrain terrain, int vertexX, int vertexZ)
+	{
+		int width = terrain.Width;
+		int depth = terrain.Depth;
+		Span<int> candidates = stackalloc int[4];
+		int count = 0;
+		for (int offsetZ = -1; offsetZ <= 0; offsetZ++)
+		{
+			for (int offsetX = -1; offsetX <= 0; offsetX++)
+			{
+				int x = vertexX + offsetX;
+				int z = vertexZ + offsetZ;
 				if (x < 0 || x >= width || z < 0 || z >= depth)
 				{
 					continue;
@@ -583,60 +764,38 @@ public static class MinimapTerrainReconstructor
 					continue;
 				}
 
-				float candidateRed = regionColours[index * 3];
-				float candidateGreen = regionColours[index * 3 + 1];
-				float candidateBlue = regionColours[index * 3 + 2];
-				int slot = -1;
-				for (int existing = 0; existing < distinct; existing++)
-				{
-					if (colours[existing * 3] == candidateRed &&
-					    colours[existing * 3 + 1] == candidateGreen &&
-					    colours[existing * 3 + 2] == candidateBlue)
-					{
-						slot = existing;
-						break;
-					}
-				}
-
-				if (slot < 0)
-				{
-					slot = distinct++;
-					colours[slot * 3] = candidateRed;
-					colours[slot * 3 + 1] = candidateGreen;
-					colours[slot * 3 + 2] = candidateBlue;
-				}
-
-				counts[slot]++;
+				candidates[count++] = index;
 			}
 		}
 
-		if (distinct == 0)
+		if (count == 0)
 		{
-			return;
+			int fallbackX = Math.Min(vertexX, width - 1);
+			int fallbackZ = Math.Min(vertexZ, depth - 1);
+			return fallbackZ * width + fallbackX;
 		}
 
-		int best = 0;
-		for (int slot = 1; slot < distinct; slot++)
+		int best = candidates[0];
+		int bestVotes = 0;
+		for (int candidateIndex = 0; candidateIndex < count; candidateIndex++)
 		{
-			if (counts[slot] > counts[best])
+			int votes = 0;
+			for (int otherIndex = 0; otherIndex < count; otherIndex++)
 			{
-				best = slot;
+				if (candidates[otherIndex] == candidates[candidateIndex])
+				{
+					votes++;
+				}
+			}
+
+			if (votes > bestVotes)
+			{
+				bestVotes = votes;
+				best = candidates[candidateIndex];
 			}
 		}
 
-		red = colours[best * 3];
-		green = colours[best * 3 + 1];
-		blue = colours[best * 3 + 2];
-	}
-
-	private static MinimapCellFeatures CellFeaturesAt(ReconstructedTerrain terrain, int cellIndex, float[]? regionColours)
-	{
-		float[] colours = regionColours ?? terrain.FeatureColours;
-		return colours.Length > cellIndex * 3 ? new MinimapCellFeatures(
-			colours[cellIndex * 3],
-			colours[cellIndex * 3 + 1],
-			colours[cellIndex * 3 + 2],
-			0f, 0f, 0f, 0f, 0f) : default;
+		return best;
 	}
 
 	private static void AssignPathing(ReconstructedTerrain terrain)

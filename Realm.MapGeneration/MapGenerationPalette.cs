@@ -5,6 +5,8 @@ namespace Realm.MapGeneration;
 
 public class MapGenerationPalette
 {
+	private const float KindMatchBonus = 0.06f;
+
 	private readonly List<TerrainSwatch> _swatches = new();
 
 	public IReadOnlyList<TerrainSwatch> Swatches => _swatches;
@@ -69,7 +71,6 @@ public class MapGenerationPalette
 			return TerrainSwatch.Empty(0);
 		}
 
-		const float kindMatchBonus = 0.06f;
 		const float tieTolerance = 0.02f;
 		var ranked = new List<TerrainSwatch>(_swatches);
 		ranked.Sort((left, right) => Score(left).CompareTo(Score(right)));
@@ -85,8 +86,91 @@ public class MapGenerationPalette
 		float Score(TerrainSwatch swatch)
 		{
 			float distance = swatch.ColourDistance(red, green, blue);
-			return swatch.Kind == kind ? distance - kindMatchBonus : distance;
+			return swatch.Kind == kind ? distance - KindMatchBonus : distance;
 		}
+	}
+
+	public IReadOnlyList<TerrainSwatch> RankForKind(TerrainSurfaceKind kind, float red, float green, float blue)
+	{
+		var ranked = new List<TerrainSwatch>(_swatches);
+		ranked.Sort((left, right) => Score(left).CompareTo(Score(right)));
+		return ranked;
+
+		float Score(TerrainSwatch swatch)
+		{
+			float distance = swatch.ColourDistance(red, green, blue);
+			return swatch.Kind == kind ? distance - KindMatchBonus : distance;
+		}
+	}
+
+	public TerrainSwatch FindByIndex(int index)
+	{
+		for (int swatchIndex = 0; swatchIndex < _swatches.Count; swatchIndex++)
+		{
+			if (_swatches[swatchIndex].Index == index)
+			{
+				return _swatches[swatchIndex];
+			}
+		}
+
+		return TerrainSwatch.Empty(index);
+	}
+
+	public TerrainSwatch FindNearestColour(float red, float green, float blue)
+	{
+		if (_swatches.Count == 0)
+		{
+			return TerrainSwatch.Empty(0);
+		}
+
+		TerrainSwatch best = _swatches[0];
+		float bestDistance = best.ColourDistance(red, green, blue);
+		for (int index = 1; index < _swatches.Count; index++)
+		{
+			float distance = _swatches[index].ColourDistance(red, green, blue);
+			if (distance < bestDistance)
+			{
+				bestDistance = distance;
+				best = _swatches[index];
+			}
+		}
+
+		return best;
+	}
+
+	public TerrainSwatch FindNearestColourOfKind(TerrainSurfaceKind kind, float red, float green, float blue)
+	{
+		TerrainSwatch best = TerrainSwatch.Empty(-1);
+		float bestDistance = float.MaxValue;
+		for (int index = 0; index < _swatches.Count; index++)
+		{
+			TerrainSwatch swatch = _swatches[index];
+			if (!IsMaterialKindMatch(swatch.Kind, kind))
+			{
+				continue;
+			}
+
+			float distance = swatch.ColourDistance(red, green, blue);
+			if (distance >= bestDistance)
+			{
+				continue;
+			}
+
+			bestDistance = distance;
+			best = swatch;
+		}
+
+		return bestDistance < float.MaxValue ? best : FindNearestColour(red, green, blue);
+	}
+
+	private static bool IsMaterialKindMatch(TerrainSurfaceKind swatchKind, TerrainSurfaceKind requestedKind)
+	{
+		if (swatchKind == requestedKind)
+		{
+			return true;
+		}
+
+		return requestedKind == TerrainSurfaceKind.Forest && swatchKind == TerrainSurfaceKind.Grass;
 	}
 
 	public int CountForKind(TerrainSurfaceKind kind)

@@ -21,7 +21,5 @@ public class TerrainReconstructionOptions
 
 	public bool PlaceProps { get; set; } = true;
 
-	public bool UseCellColourSplats { get; set; }
-
 	public bool QuantizeHeights { get; set; } = true;
 }

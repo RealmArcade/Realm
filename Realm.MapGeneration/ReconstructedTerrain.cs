@@ -33,6 +33,8 @@ public class ReconstructedTerrain
 
 	public float[] RegionColours { get; set; } = Array.Empty<float>();
 
+	public int[] SegmentLabels { get; set; } = Array.Empty<int>();
+
 	public bool[] ForestMask { get; set; } = Array.Empty<bool>();
 
 	public float[] FeatureColours { get; set; } = Array.Empty<float>();

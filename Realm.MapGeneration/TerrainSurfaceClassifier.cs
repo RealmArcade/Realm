@@ -27,6 +27,44 @@ public static class TerrainSurfaceClassifier
 		return TerrainSurfaceKind.Unknown;
 	}
 
+	public static TerrainSurfaceKind ClassifyCell(MinimapCellFeatures cell)
+	{
+		bool greenDominant = cell.Green >= cell.Red * 1.03f && cell.Green >= cell.Blue * 0.97f;
+		if (greenDominant)
+		{
+			bool dark = cell.Value < 0.40f;
+			bool textured = cell.LocalContrast > 0.055f;
+			return dark || textured ? TerrainSurfaceKind.Forest : TerrainSurfaceKind.Grass;
+		}
+
+		if (cell.Saturation < 0.12f)
+		{
+			return cell.Value > 0.80f ? TerrainSurfaceKind.Snow : TerrainSurfaceKind.Rock;
+		}
+
+		if (cell.Hue >= 18f && cell.Hue <= 68f)
+		{
+			if (cell.Value > 0.60f && cell.Saturation < 0.52f)
+			{
+				return TerrainSurfaceKind.Sand;
+			}
+
+			return TerrainSurfaceKind.Soil;
+		}
+
+		if (cell.Hue >= 68f && cell.Hue <= 165f)
+		{
+			return TerrainSurfaceKind.Grass;
+		}
+
+		if (cell.Value < 0.30f)
+		{
+			return TerrainSurfaceKind.Rock;
+		}
+
+		return TerrainSurfaceKind.Soil;
+	}
+
 	public static TerrainSurfaceKind ClassifyColor(float red, float green, float blue)
 	{
 		float maximum = MathF.Max(red, MathF.Max(green, blue));
