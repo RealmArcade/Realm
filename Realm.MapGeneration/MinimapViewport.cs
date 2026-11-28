@@ -101,7 +101,7 @@ public static class MinimapViewport
 		return bestLength == 0 ? (0, coverage.Length - 1) : (bestStart, bestEnd);
 	}
 
-	internal static MinimapImage Create(MinimapImage source, int originX, int originY, int width, int height)
+	public static MinimapImage Create(MinimapImage source, int originX, int originY, int width, int height)
 	{
 		var cropped = new MinimapImage(width, height);
 		for (int y = 0; y < height; y++)

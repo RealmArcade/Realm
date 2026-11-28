@@ -144,7 +144,7 @@ public static class MinimapBackgroundMask
 		return samples > 0 && roughness / samples < 0.012;
 	}
 
-	internal static float[]? BorderColour(MinimapImage image, float maximumSaturation = 0.30f)
+	public static float[]? BorderColour(MinimapImage image, float maximumSaturation = 0.30f)
 	{
 		var reds = new List<float>();
 		var greens = new List<float>();

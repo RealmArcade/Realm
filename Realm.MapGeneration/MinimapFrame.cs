@@ -2,17 +2,11 @@
 
 namespace Realm.MapGeneration;
 
-/// <summary>
-/// Peels a thin decorative frame off the outer edge of a minimap image. Frames are a flat, desaturated
-/// colour for the full span of the line, so a coastline or a lake can never be mistaken for one.
-/// </summary>
 public static class MinimapFrame
 {
 	private const float ColourTolerance = 0.055f;
 	private const float LineMatchFraction = 0.92f;
 	private const float MaximumPeelFraction = 0.08f;
-
-	// Frames are neutral greys; a tinted border is a shoreline seen edge-on and is left to the map.
 	private const float MaximumFrameSaturation = 0.20f;
 
 	public static MinimapImage Trim(MinimapImage image)
