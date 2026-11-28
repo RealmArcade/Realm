@@ -49,6 +49,7 @@ public partial class RuntimeTerrain
 		BuildMeshArraysFromCache(chunk, vertexIndex, indexIndex);
 		UpdateChunkBoundsAndPhysics(chunk, w, d, quadSize, vertexIndex, rebuildPhysics);
 
+		UpdateGrassChunk(chunk);
 		if (IsRuntimeOnly) ClearChunkCaches(chunk);
 	}
 

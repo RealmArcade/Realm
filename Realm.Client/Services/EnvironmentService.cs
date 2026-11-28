@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Realm.Ecs;
@@ -291,7 +291,7 @@ public class EnvironmentService
 		env.AdjustmentSaturation = state.AdjustmentSaturation;
 
 		string weather = state.WeatherType ?? "clear";
-		bool isFogActive = state.FogEnabled && (state.FogDensity > 0f || weather != "clear" || GetBaseFogDensity() > 0f);
+		bool isFogActive = !GameSettings.DisableWeatherEffects && state.FogEnabled && (state.FogDensity > 0f || weather != "clear" || GetBaseFogDensity() > 0f);
 		env.FogEnabled = isFogActive;
 		env.FogLightColor = state.FogColor;
 		env.FogDensity = isFogActive ? state.FogDensity : 0f;
@@ -328,6 +328,7 @@ public class EnvironmentService
 		var fillLight = _cachedFillLight;
 		if (fillLight == null || !GodotObject.IsInstanceValid(fillLight)) return;
 
+		fillLight.LightColor = state.AmbientColor.Lerp(Colors.White, 0.45f);
 		fillLight.LightEnergy = state.CharacterFillEnergy;
 	}
 
@@ -442,7 +443,7 @@ public class EnvironmentService
 
 		if (_currentState.FogDensity > 0f)
 		{
-			return _currentState.FogDensity + scaledDensity;
+			return Mathf.Max(_currentState.FogDensity * scale, scaledDensity);
 		}
 
 		return scaledDensity;
@@ -542,13 +543,13 @@ public class EnvironmentService
 
 	public bool OverrideDayNightVisuals { get; set; } = false;
 
-	public static readonly float[] SunPitches = { -58.0f, -45.0f, -50.0f, -45.0f };
-	public static readonly float[] SunYaws = { 29.0f, -115.0f, 155.0f, 95.0f };
+	public static readonly float[] SunPitches = { -38.0f, -45.0f, -50.0f, -45.0f };
+	public static readonly float[] SunYaws = { 150.0f, -115.0f, 155.0f, 95.0f };
 	public static readonly float[] SunEnergies = { 1.65f, 1.35f, 0.45f, 1.70f };
 
 	public static readonly Color[] SunColors =
 	{
-		new Color(1.000f, 0.980f, 0.940f),
+		new Color(1.000f, 0.946f, 0.86f),
 		new Color(1.000f, 0.700f, 0.380f),
 		new Color(0.700f, 0.880f, 1.000f),
 		new Color(1.000f, 0.880f, 0.720f)
@@ -582,7 +583,7 @@ public class EnvironmentService
 	public static readonly float[] Saturations = { 1.06f, 1.00f, 1.08f, 1.06f };
 
 	public static readonly float[] GlowIntensities = { 0.15f, 0.30f, 0.25f, 0.20f };
-	public static readonly float[] GlowBlooms = { 0.14f, 0.14f, 0.08f, 0.10f };
+	public static readonly float[] GlowBlooms = { 0.0f, 0.025f, 0.0f, 0.015f };
 
 	public (bool UpdateVisuals, float Progress) UpdateClientWorldStateDomain(float fDelta, bool isMapEditorMode, bool advanceSimulationClock)
 	{

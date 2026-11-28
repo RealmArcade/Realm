@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -219,7 +219,10 @@ public partial class GameHost
 
 		if (skyTexture != null)
 		{
-			worldEnv.Environment.Sky = new Sky { SkyMaterial = new PanoramaSkyMaterial { Panorama = skyTexture } };
+			var material = new ShaderMaterial { Shader = GD.Load<Shader>("res://Assets/shaders/map_panorama.gdshader") };
+			material.SetShaderParameter("panorama", skyTexture);
+			material.SetShaderParameter("use_panorama", true);
+			worldEnv.Environment.Sky = new Sky { SkyMaterial = material, RadianceSize = Sky.RadianceSizeEnum.Size64, ProcessMode = Sky.ProcessModeEnum.Incremental };
 			worldEnv.Environment.BackgroundMode = Environment.BGMode.Sky;
 			EditorSkyboxPath = path;
 		}
@@ -228,6 +231,13 @@ public partial class GameHost
 	private string GetSkyboxFullPath(string path)
 	{
 		if (path.StartsWith("res://") || File.Exists(path)) return path;
+
+		string? mapDirectory = GameContext.MapStorageService.CurrentMapDirectory;
+		if (!string.IsNullOrEmpty(mapDirectory))
+		{
+			string mapSky = Path.Combine(mapDirectory, path);
+			if (File.Exists(mapSky)) return mapSky;
+		}
 
 		string wsPath = MapWorkspaceService.GetActiveWorkspacePath();
 		string fullPath = Path.Combine(wsPath, path.Replace('/', Path.DirectorySeparatorChar));

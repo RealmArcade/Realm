@@ -27,6 +27,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 	private float _heightScale = 1.0f;
 	private float _heightOffset = 0.0f;
 	private float _crevicePower = 1.0f;
+	private float _grassBladeHeight;
 	private float _normalScale = 1.0f;
 	private float _roughnessScale = 1.0f;
 	private string _tileMode = "Stochastic";
@@ -444,6 +445,7 @@ public partial class TerrainTextureEditDialog : FloatingDialogBase
 		_brightness = 1.0f;
 		_tint = Colors.White;
 		_roughnessScale = 1.0f;
+		_grassBladeHeight = 0f;
 		_normalScale = 1.0f;
 		_heightScale = 1.0f;
 		_heightOffset = 0.0f;

@@ -6057,6 +6057,11 @@
             "title": "SubsurfaceStrength",
             "description": "How strongly light takes on the subsurface colour as it passes through the water."
           },
+          "UsePaintedOcean": {
+            "type": "boolean",
+            "title": "UsePaintedOcean",
+            "description": "Whether the water is drawn with the painted ocean texture over its surface, which gives a calm sea its swell, colour and sheen instead of the plain wave function alone."
+          },
           "UseDetailTexture": {
             "type": "boolean",
             "title": "UseDetailTexture",
@@ -6919,6 +6924,14 @@
             "type": "number",
             "title": "NormalScale",
             "description": "How strongly the texture's normal map bends the light on the ground."
+          },
+          "GrassBladeHeight": {
+            "type": "number",
+            "title": "GrassBladeHeight",
+            "description": "Maximum height of grass tufts drawn above this swatch. Zero leaves the surface bare.",
+            "minimum": 0,
+            "maximum": 1.5,
+            "x-realm-unit": "m"
           },
           "HeightScale": {
             "type": "number",

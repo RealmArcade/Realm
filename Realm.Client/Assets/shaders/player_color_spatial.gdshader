@@ -170,6 +170,7 @@ void vertex() {
 
 vec3 perturb_normal_cotangent(vec3 view_normal, vec3 view_pos, vec2 uv, vec3 normal_sample, float scale) {
 	vec3 map_n = normal_sample * 2.0 - 1.0;
+	map_n.z = sqrt(max(0.0, 1.0 - dot(map_n.xy, map_n.xy)));
 	map_n.xy *= scale;
 	
 	vec3 dp1 = dFdx(view_pos);
@@ -183,9 +184,12 @@ vec3 perturb_normal_cotangent(vec3 view_normal, vec3 view_pos, vec2 uv, vec3 nor
 	vec3 t = dp2perp * duv1.x + dp1perp * duv2.x;
 	vec3 b = dp2perp * duv1.y + dp1perp * duv2.y;
 	
-	float invmax = inversesqrt(max(dot(t, t), dot(b, b)));
+	float basis_length_squared = max(dot(t, t), dot(b, b));
+	if (basis_length_squared < 1e-20 || scale == 0.0) return view_normal;
+	float invmax = inversesqrt(basis_length_squared);
 	mat3 tbn = mat3(t * invmax, b * invmax, view_normal);
-	return normalize(tbn * map_n);
+	vec3 perturbed_normal = tbn * map_n;
+	return dot(perturbed_normal, perturbed_normal) > 1e-10 ? normalize(perturbed_normal) : view_normal;
 }
 
 float calculate_cube_root(float value) {
@@ -267,16 +271,16 @@ void fragment() {
 
 	if (player_mask > 0.005) {
 		float luminance = dot(base_albedo, vec3(0.2126, 0.7152, 0.0722));
-		vec3 grayscale_oklab = convert_rgb_to_oklab(vec3(luminance));
+		float mask_lightness = calculate_cube_root(luminance);
 		vec3 target_oklab = convert_rgb_to_oklab(player_color.rgb);
 
-		float shadow_falloff = smoothstep(0.0, 0.15, grayscale_oklab.x);
+		float shadow_falloff = smoothstep(0.0, 0.15, mask_lightness);
 
-		float lightness = grayscale_oklab.x <= target_oklab.x
-			? grayscale_oklab.x
-			: mix(target_oklab.x, grayscale_oklab.x, 0.25);
+		float lightness = mask_lightness <= target_oklab.x
+			? mask_lightness
+			: mix(target_oklab.x, mask_lightness, 0.25);
 
-		float chroma_boost = mix(1.0, 1.4, smoothstep(target_oklab.x, 0.8, grayscale_oklab.x));
+		float chroma_boost = mix(1.0, 1.4, smoothstep(target_oklab.x, max(0.8, target_oklab.x + 0.001), mask_lightness));
 
 		vec3 reconstructed_color = convert_oklab_to_rgb(vec3(
 			lightness,
@@ -321,7 +325,9 @@ void fragment() {
 
 	float n_dot_v = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
 	float fresnel = pow(1.0 - n_dot_v, unit_rim_power);
-	vec3 rim_glow = final_color * fresnel * unit_rim_intensity;
+	float sky_facing = clamp(world_normal.y * 0.5 + 0.5, 0.0, 1.0);
+	vec3 rim_glow = mix(final_color, player_color.rgb * model_brightness, player_mask * 0.25)
+	                * fresnel * unit_rim_intensity * mix(0.35, 1.65, sky_facing);
 
 	vec3 base_emission = vec3(0.0);
 	if (has_emission_texture) {

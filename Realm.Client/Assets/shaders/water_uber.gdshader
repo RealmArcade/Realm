@@ -31,6 +31,8 @@ uniform float core_threshold : hint_range(0.0, 1.0) = 0.8;
 uniform vec4 subsurface_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform float subsurface_strength : hint_range(0.0, 5.0) = 0.0;
 
+uniform bool use_painted_ocean = false;
+uniform sampler2D painted_ocean : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform bool use_detail_texture = false;
 uniform sampler2D detail_texture : source_color, filter_linear_mipmap, repeat_enable;
 uniform int detail_tile_mode : hint_range(0, 1) = 1;
@@ -42,7 +44,7 @@ uniform float detail_alpha : hint_range(0.0, 1.0) = 0.5;
 uniform int detail_blend_mode : hint_range(0, 2) = 0;
 
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear;
-uniform sampler2D screen_texture : hint_screen_texture, filter_linear_mipmap;
+uniform sampler2D screen_texture : hint_screen_texture, filter_linear;
 
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
@@ -144,6 +146,10 @@ vec4 sample_triplanar_tiled_2d(sampler2D tex, vec3 world_pos, vec3 world_norm, v
 	vec2 uv_y = world_pos.xz * uv_scale * 0.12;
 	vec2 uv_z = world_pos.xy * uv_scale * 0.12;
 
+	if (blend_weights.y > 0.999) {
+		return sample_tiled_2d(tex, uv_y, uv_scroll, tile_mode, stoch_tile_size, cross_fade);
+	}
+
 	vec4 col_x = sample_tiled_2d(tex, uv_x, uv_scroll, tile_mode, stoch_tile_size, cross_fade);
 	vec4 col_y = sample_tiled_2d(tex, uv_y, uv_scroll, tile_mode, stoch_tile_size, cross_fade);
 	vec4 col_z = sample_tiled_2d(tex, uv_z, uv_scroll, tile_mode, stoch_tile_size, cross_fade);
@@ -167,14 +173,40 @@ float voronoi_caustic(vec2 p) {
 	return sqrt(m);
 }
 
+varying float shore_packet;
+
+float coastal_noise(vec2 position) {
+	vec2 cell = floor(position);
+	vec2 fraction = fract(position);
+	vec2 blend = fraction * fraction * (3.0 - 2.0 * fraction);
+	return mix(mix(hash22(cell).x, hash22(cell + vec2(1.0, 0.0)).x, blend.x),
+	           mix(hash22(cell + vec2(0.0, 1.0)).x, hash22(cell + vec2(1.0)).x, blend.x), blend.y);
+}
+
+float shore_phase(vec2 position, float distance_to_land) {
+	vec2 heading = flow_direction / max(length(flow_direction), 0.001);
+	return distance_to_land * 0.86 + TIME * wave_speed * 1.65 + dot(position, heading) * 0.27
+	       + 1.8 * sin(dot(position, vec2(0.078, -0.063)));
+}
+
+float breaker_height(float phase) {
+	float crest = 0.5 + 0.5 * cos(phase);
+	return crest * crest * crest;
+}
+
 void vertex() {
 	v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
-
 	float is_flat = smoothstep(0.4, 0.8, abs(v_world_normal.y));
-	float w1 = sin(v_world_pos.x * 0.4 + TIME * wave_speed * 1.8);
-	float w2 = cos(v_world_pos.z * 0.4 + TIME * wave_speed * 1.4);
-	VERTEX.y += (w1 + w2) * wave_strength * is_flat;
+	float swell = sin(dot(v_world_pos.xz, vec2(0.24, 0.17)) + TIME * wave_speed)
+	            + 0.55 * sin(dot(v_world_pos.xz, vec2(-0.14, 0.31)) + TIME * wave_speed * 1.27);
+	float reach = step(0.001, foam_depth) * (1.0 - smoothstep(0.0, max(0.01, sqrt(max(foam_depth, 0.0)) * 16.0), UV.x));
+	float phase = shore_phase(v_world_pos.xz, UV.x);
+	shore_packet = smoothstep(0.30, 0.74, coastal_noise(v_world_pos.xz * 0.094 + vec2(0.055, -0.032) * TIME * wave_speed));
+	float rebound = cos(phase - UV.x * 1.72 - 0.72);
+	float surface_height = (wave_strength * (use_painted_ocean ? 2.0 : 1.0) * swell + sqrt(max(wave_strength, 0.0)) * reach * shore_packet * (2.4 * breaker_height(phase) - 0.48 + 0.49 * rebound)) * is_flat;
+	VERTEX.y += surface_height;
+	v_world_pos.y += surface_height;
 }
 
 void fragment() {
@@ -187,9 +219,11 @@ void fragment() {
 		flow_vec = flow_sample * flow_speed;
 	}
 
-	vec2 p_w1 = v_world_pos.xz * 0.45 + flow_vec * TIME * wave_speed * 0.25;
-	vec2 p_w2 = v_world_pos.xz * 0.85 - vec2(flow_vec.y, -flow_vec.x) * TIME * wave_speed * 0.18 + vec2(1.2, 3.4);
-	vec2 p_w3 = v_world_pos.xz * 1.60 + vec2(flow_vec.y, flow_vec.x) * TIME * wave_speed * 0.15 + vec2(5.6, 2.1);
+	vec2 ripple_position = v_world_pos.xz + 2.7 * sin(vec2(dot(v_world_pos.xz, vec2(0.081, -0.053)),
+	                                                       dot(v_world_pos.xz, vec2(0.034, 0.068))) + TIME * wave_speed * 0.14);
+	vec2 p_w1 = ripple_position * 0.45 + flow_vec * TIME * wave_speed * 0.25;
+	vec2 p_w2 = ripple_position * 0.85 - vec2(flow_vec.y, -flow_vec.x) * TIME * wave_speed * 0.18 + vec2(1.2, 3.4);
+	vec2 p_w3 = ripple_position * 1.60 + vec2(flow_vec.y, flow_vec.x) * TIME * wave_speed * 0.15 + vec2(5.6, 2.1);
 
 	float w1 = sin(p_w1.x * 1.4 + sin(p_w1.y * 1.6 + TIME * wave_speed * 0.4));
 	float w2 = cos(p_w2.y * 1.5 + cos(p_w2.x * 1.8 - TIME * wave_speed * 0.3));
@@ -203,7 +237,7 @@ void fragment() {
 	float d_w2_x = -sin(p_w2.y * 1.5 + cos(p_w2.x * 1.8 - TIME * wave_speed * 0.3)) * (-sin(p_w2.x * 1.8 - TIME * wave_speed * 0.3)) * 1.8;
 	float d_w2_y = -sin(p_w2.y * 1.5 + cos(p_w2.x * 1.8 - TIME * wave_speed * 0.3)) * 1.5;
 
-	vec2 wave_grad = vec2(d_w1_x + d_w2_x, d_w1_y + d_w2_y) * 0.35;
+	vec2 wave_grad = (vec2(d_w1_x, d_w1_y) * 0.45 + vec2(d_w2_x, d_w2_y) * 0.85) * 0.28;
 
 	vec3 flat_perturbed_normal;
 	if (use_normal_texture) {
@@ -226,7 +260,25 @@ void fragment() {
 
 	vec3 wf_normal = normalize(vec3((streak1 - 0.5) * 0.08, (streak2 - 0.5) * 0.08, 1.0));
 	vec3 local_normal = mix(wf_normal, flat_perturbed_normal, flat_factor);
-	NORMAL = normalize(TANGENT * local_normal.x + BINORMAL * local_normal.y + NORMAL * local_normal.z);
+	vec3 surface_normal = normalize(v_world_normal);
+	vec3 reference_axis = abs(surface_normal.y) > 0.8 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+	vec3 surface_tangent = normalize(cross(surface_normal, reference_axis));
+	vec3 surface_bitangent = cross(surface_tangent, surface_normal);
+	vec2 swell_slope = wave_strength * (use_painted_ocean ? 2.0 : 1.0) * (vec2(0.24, 0.17) * cos(dot(v_world_pos.xz, vec2(0.24, 0.17)) + TIME * wave_speed)
+	                  + vec2(-0.14, 0.31) * 0.55 * cos(dot(v_world_pos.xz, vec2(-0.14, 0.31)) + TIME * wave_speed * 1.27));
+	vec2 across = dFdx(v_world_pos.xz);
+	vec2 down = dFdy(v_world_pos.xz);
+	float area = across.x * down.y - down.x * across.y;
+	vec2 shore_direction = (vec2(down.y, -down.x) * dFdx(UV.x) + vec2(-across.y, across.x) * dFdy(UV.x))
+	                       * sign(area) / max(abs(area), 0.000001);
+	float reach = step(0.001, foam_depth) * (1.0 - smoothstep(0.0, max(0.01, sqrt(max(foam_depth, 0.0)) * 16.0), UV.x));
+	float phase = shore_phase(v_world_pos.xz, UV.x);
+	float crest = 0.5 + 0.5 * cos(phase);
+	float return_phase = phase - UV.x * 1.72 - 0.72;
+	float breaker_slope = -4.128 * crest * crest * sin(phase) + 0.559 * sin(return_phase);
+	swell_slope += shore_direction * (0.75 * sqrt(max(wave_strength, 0.0))) * reach * shore_packet * breaker_slope;
+	vec3 ripple_normal = normalize(surface_tangent * local_normal.x + surface_bitangent * local_normal.y + surface_normal * local_normal.z - vec3(swell_slope.x, 0.0, swell_slope.y) * flat_factor);
+	NORMAL = mat3(VIEW_MATRIX) * ripple_normal;
 
 	vec2 refr_offset = (refraction_strength > 0.0) ? local_normal.xy * refraction_strength * 0.05 : vec2(0.0);
 	vec2 screen_uv_sampled = clamp(SCREEN_UV + refr_offset, 0.0, 1.0);
@@ -243,14 +295,28 @@ void fragment() {
 	float shore_fade = mix(1.0, smoothstep(0.001, 0.02, water_depth), flat_factor);
 	float shore_proximity = (1.0 - smoothstep(0.0, max(0.001, foam_depth), water_depth)) * shore_fade;
 
-	float pulse = sin(water_depth * 18.0 - TIME * wave_speed * 3.5 + wave_height_sample * 2.0) * 0.5 + 0.5;
-	float flat_foam_mask = smoothstep(0.35, 0.85, shore_proximity * 0.7 + pulse * shore_proximity * 0.3);
+	float flat_foam_mask = 0.0;
+	float contact = max(reach * reach, shore_proximity);
+	if (contact > 0.001 && foam_depth > 0.0 && wave_strength > 0.0 && flat_factor > 0.0) {
+		vec2 wash_uv = v_world_pos.xz * 1.35 + vec2(w1, w2) * 0.44
+		             - shore_direction * (0.43 * sin(phase) + 0.31 * sin(return_phase));
+		float eddy = coastal_noise(wash_uv);
+		float pockets = smoothstep(0.25, 0.68, eddy + w3 * 0.17);
+		float breaking = smoothstep(0.66, 0.97, crest + (eddy - 0.5) * 0.47);
+		float receding = smoothstep(0.2, 0.92, cos(return_phase));
+		float threads = 1.0 - smoothstep(0.035, 0.17, abs(eddy - 0.48 + w2 * 0.12));
+		float impact = breaking * pockets;
+		float residue = receding * threads * (0.3 + 0.7 * pockets);
+		flat_foam_mask = contact * shore_packet * smoothstep(0.0, 0.035, wave_strength)
+		               * (0.87 * impact + 0.26 * residue * (1.0 - breaking));
+	}
+
 	float final_foam_mask = mix(waterfall_foam, flat_foam_mask, flat_factor);
 
 	vec3 screen_color = (refraction_strength > 0.0) ? texture(screen_texture, screen_uv_sampled).rgb : vec3(0.0);
 
 	float caustic_val = 0.0;
-	if (caustic_strength > 0.001) {
+	if (caustic_strength > 0.001 && depth_factor < 1.0) {
 		vec2 c_uv1 = (v_world_pos.xz + flow_vec * TIME * caustic_speed * 0.5) * caustic_scale * 0.8;
 		vec2 c_uv2 = (v_world_pos.xz - flow_vec * TIME * caustic_speed * 0.3) * caustic_scale * 1.2;
 		float c1 = voronoi_caustic(c_uv1);
@@ -259,14 +325,14 @@ void fragment() {
 		caustic_val = pow(caustic_raw, 2.0) * caustic_strength * (1.0 - depth_factor) * 0.5;
 	}
 
-	vec3 base_liquid_rgb = mix(water_col.rgb, foam_color.rgb, final_foam_mask * foam_color.a);
+	vec3 base_liquid_rgb = water_col.rgb;
 	float final_alpha = mix(water_col.a, 0.85, final_foam_mask) * shore_fade;
 
 	if (refraction_strength > 0.0) {
 		base_liquid_rgb = mix(screen_color, base_liquid_rgb, clamp(water_col.a + final_foam_mask * 0.5, 0.0, 1.0));
 		final_alpha = mix(water_col.a, 1.0, final_foam_mask) * shore_fade;
 	}
-	base_liquid_rgb += vec3(caustic_val);
+	base_liquid_rgb += water_col.rgb * caustic_val;
 
 	vec4 det_sample = vec4(1.0);
 	if (use_detail_texture) {
@@ -280,6 +346,17 @@ void fragment() {
 		}
 	}
 
+	if (use_painted_ocean) {
+		vec2 surface_uv = ripple_position * 0.039;
+		vec2 drift = flow_vec * TIME * wave_speed * 0.018;
+		vec3 swell_color = texture(painted_ocean, surface_uv + drift).rgb;
+		vec2 cross_uv = mat2(vec2(0.80, 0.60), vec2(-0.60, 0.80)) * surface_uv * 1.37;
+		vec3 ripple_color = texture(painted_ocean, cross_uv - drift * 0.64).rgb;
+		vec3 painted_color = mix(swell_color, ripple_color, 0.31) * mix(1.05, 0.76, depth_factor);
+		base_liquid_rgb = mix(base_liquid_rgb, painted_color, flat_factor * 0.76);
+		final_alpha = mix(final_alpha, 0.94 * shore_fade, flat_factor * 0.72);
+	}
+	base_liquid_rgb = mix(base_liquid_rgb, foam_color.rgb, clamp(final_foam_mask * foam_color.a, 0.0, 1.0));
 	vec2 shroud_state = rts_shroud_sample(v_world_pos.xz);
 	float shroud_light = rts_shroud_light_from_state(shroud_state);
 	float shroud_explored_mask = rts_shroud_explored_mask(shroud_state);
@@ -306,7 +383,8 @@ void fragment() {
 	ALPHA = final_alpha;
 	EMISSION = emissive_out;
 
-	ROUGHNESS = mix(mix(0.08, 0.25, waterfall_factor), 0.8, shroud_explored_mask);
+	float water_roughness = use_painted_ocean ? mix(0.20, 0.30, 0.5 + 0.5 * w2) : 0.23;
+	ROUGHNESS = mix(mix(water_roughness, 0.66, final_foam_mask), 0.8, shroud_explored_mask);
 	METALLIC = 0.0;
-	SPECULAR = mix(0.45, 0.30, waterfall_factor) * shroud_light;
+	SPECULAR = mix(use_painted_ocean ? 0.43 : 0.45, 0.30, waterfall_factor) * shroud_light;
 }

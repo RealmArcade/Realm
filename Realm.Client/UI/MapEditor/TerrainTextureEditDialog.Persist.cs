@@ -82,6 +82,7 @@ public partial class TerrainTextureEditDialog
 		return new JsonObject
 		{
 			["TemplateID"] = newTemplateID,
+			["GrassBladeHeight"] = _grassBladeHeight,
 			["SwatchIndex"] = _swatchIndex,
 			["TexturePath"] = _rtexAsset,
 			["Brightness"] = _brightness,
@@ -122,6 +123,7 @@ public partial class TerrainTextureEditDialog
 		var texMeta = new TextureMetadata
 		{
 			TexturePath = _rtexAsset,
+			GrassBladeHeight = _grassBladeHeight,
 			SwatchIndex = _swatchIndex,
 			Brightness = _brightness,
 			Tint = $"#{_tint.ToHtml(false)}",

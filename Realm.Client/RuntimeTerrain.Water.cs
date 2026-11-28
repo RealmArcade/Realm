@@ -1,4 +1,4 @@
-﻿using Realm.Shared.Maps;
+using Realm.Shared.Maps;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -36,6 +36,7 @@ public partial class RuntimeTerrain
 	protected System.Collections.Generic.Dictionary<byte, WaterProfileSaveData> _waterProfiles = new();
 	protected System.Collections.Generic.Dictionary<byte, ShaderMaterial> _waterMaterials = new();
 	protected Shader _waterUberShader = null!;
+	private Texture2D? _paintedOceanTexture;
 
 	public System.Collections.Generic.Dictionary<byte, WaterProfileSaveData> WaterProfiles => _waterProfiles;
 	public System.Collections.Generic.Dictionary<byte, ShaderMaterial> WaterMaterials => _waterMaterials;
@@ -211,6 +212,13 @@ public partial class RuntimeTerrain
 
 	private void ApplyWaterDetail(ShaderMaterial mat, WaterProfileSaveData profile)
 	{
+		bool usePaintedOcean = profile.UsePaintedOcean;
+		mat.SetShaderParameter("use_painted_ocean", usePaintedOcean);
+		if (usePaintedOcean)
+		{
+			_paintedOceanTexture ??= GD.Load<Texture2D>("res://Assets/textures/painted_ocean.webp");
+			mat.SetShaderParameter("painted_ocean", _paintedOceanTexture);
+		}
 		mat.SetShaderParameter("use_detail_texture", profile.UseDetailTexture && !string.IsNullOrEmpty(profile.DetailTexturePath));
 		if (profile.UseDetailTexture && !string.IsNullOrEmpty(profile.DetailTexturePath))
 		{
@@ -400,6 +408,56 @@ public partial class RuntimeTerrain
 		};
 	}
 
+	private float[] _shoreDistance = System.Array.Empty<float>();
+	private int _shoreStride;
+
+	private void BuildShoreDistance(TerrainCell[,] cells, int width, int depth, float spacing)
+	{
+		_shoreStride = width + 1;
+		int count = _shoreStride * (depth + 1);
+		if (_shoreDistance.Length != count) _shoreDistance = new float[count];
+		System.Array.Fill(_shoreDistance, 64f);
+		for (int z = 0; z < depth; z++)
+		for (int x = 0; x < width; x++)
+		{
+			var cell = cells[x, z];
+			var (waterHeight, mode, _) = GetCellWaterInfo(x, z, cells, width, depth);
+			int corner = z * _shoreStride + x;
+			if (mode == WaterType.None) waterHeight = float.NegativeInfinity;
+			if (cell.Y_NW >= waterHeight) _shoreDistance[corner] = 0f;
+			if (cell.Y_NE >= waterHeight) _shoreDistance[corner + 1] = 0f;
+			if (cell.Y_SW >= waterHeight) _shoreDistance[corner + _shoreStride] = 0f;
+			if (cell.Y_SE >= waterHeight) _shoreDistance[corner + _shoreStride + 1] = 0f;
+		}
+
+		SweepShoreDistance(width, depth, spacing, 1);
+		SweepShoreDistance(width, depth, spacing, -1);
+	}
+
+	private void SweepShoreDistance(int width, int depth, float spacing, int direction)
+	{
+		float diagonal = spacing * 1.41421356f;
+		int previousRow = direction * _shoreStride;
+		for (int row = 0; row <= depth; row++)
+		for (int column = 0; column <= width; column++)
+		{
+			int x = direction > 0 ? column : width - column;
+			int z = direction > 0 ? row : depth - row;
+			int index = z * _shoreStride + x;
+			float distance = _shoreDistance[index];
+			if (distance == 0f) continue;
+			if (column > 0) distance = Math.Min(distance, _shoreDistance[index - direction] + spacing);
+			if (row > 0)
+			{
+				int previous = index - previousRow;
+				distance = Math.Min(distance, _shoreDistance[previous] + spacing);
+				if (column > 0) distance = Math.Min(distance, _shoreDistance[previous - direction] + diagonal);
+				if (column < width) distance = Math.Min(distance, _shoreDistance[previous + direction] + diagonal);
+			}
+			_shoreDistance[index] = distance;
+		}
+	}
+
 	public void RegenerateWaterMesh()
 	{
 		EnsureWaterUberShader();
@@ -413,6 +471,8 @@ public partial class RuntimeTerrain
 		float quadSize = QuadSize;
 		float halfWQuadSize = (w / 2.0f) * quadSize;
 		float halfDQuadSize = (d / 2.0f) * quadSize;
+
+		BuildShoreDistance(cells, w, d, quadSize);
 
 		var profileVerts = new System.Collections.Generic.Dictionary<byte, List<Vector3>>();
 		var profileNorms = new System.Collections.Generic.Dictionary<byte, List<Vector3>>();
@@ -482,10 +542,11 @@ public partial class RuntimeTerrain
 		geom.norms.Add(normal);
 		geom.norms.Add(normal);
 		geom.norms.Add(normal);
-		geom.uvs.Add(new Vector2(0, 0));
-		geom.uvs.Add(new Vector2(1, 0));
-		geom.uvs.Add(new Vector2(1, 1));
-		geom.uvs.Add(new Vector2(0, 1));
+		int shore = z * _shoreStride + x;
+		geom.uvs.Add(new Vector2(_shoreDistance[shore], 0f));
+		geom.uvs.Add(new Vector2(_shoreDistance[shore + 1], 0f));
+		geom.uvs.Add(new Vector2(_shoreDistance[shore + _shoreStride + 1], 0f));
+		geom.uvs.Add(new Vector2(_shoreDistance[shore + _shoreStride], 0f));
 
 		geom.indices.Add(baseIdx + 0);
 		geom.indices.Add(baseIdx + 1);

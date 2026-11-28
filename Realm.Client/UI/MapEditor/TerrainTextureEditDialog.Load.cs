@@ -47,6 +47,7 @@ public partial class TerrainTextureEditDialog
 		if (existingTex.RoughnessScale > 0.0001f) _roughnessScale = existingTex.RoughnessScale;
 		if (existingTex.NormalScale >= 0.0f) _normalScale = existingTex.NormalScale;
 		if (existingTex.HeightScale > 0.0001f) _heightScale = existingTex.HeightScale;
+		_grassBladeHeight = existingTex.GrassBladeHeight;
 		_heightOffset = existingTex.HeightOffset;
 		if (existingTex.CrevicePower > 0.0001f) _crevicePower = existingTex.CrevicePower;
 	}
@@ -96,6 +97,7 @@ public partial class TerrainTextureEditDialog
 		if (TryParseFloat(textureData, "RoughnessScale", out float rs) && rs > 0.0001f) _roughnessScale = rs;
 		if (TryParseFloat(textureData, "NormalScale", out float ns) && ns >= 0.0f) _normalScale = ns;
 		if (TryParseFloat(textureData, "HeightScale", out float hs) && hs > 0.0001f) _heightScale = hs;
+		if (TryParseFloat(textureData, "GrassBladeHeight", out float bladeHeight)) _grassBladeHeight = bladeHeight;
 		if (TryParseFloat(textureData, "HeightOffset", out float ho)) _heightOffset = ho;
 		if (TryParseFloat(textureData, "CrevicePower", out float cp) && cp > 0.0001f) _crevicePower = cp;
 	}
