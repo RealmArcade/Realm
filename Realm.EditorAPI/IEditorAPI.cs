@@ -166,6 +166,14 @@ public interface IEditorAPI
 	bool ApplyReconstructedTerrain(int width, int depth, ReadOnlySpan<float> nodeHeights, ReadOnlySpan<int> groundMaterials, ReadOnlySpan<int> cliffMaterials, ReadOnlySpan<byte> waterModes, ReadOnlySpan<float> waterSurfaces, int waterProfileIndex);
 
 	/// <summary>
+	/// Derives every cell's pathing code from its water state in one pass, so terrain a generator produced carries
+	/// the default traversal set: a dry cell allows ground, buildings and flying, while a liquid cell allows shallow
+	/// water, deep water and flying. Any pathing painted by hand is overwritten.
+	/// </summary>
+	/// <returns>Success, or a refusal when the editor has no terrain to derive pathing from.</returns>
+	EditorOperationResult ApplyAutomaticPathing();
+
+	/// <summary>
 	/// Reports every terrain texture swatch slot of the open workspace, including the ones left empty, so an
 	/// image-to-map reconstructor can match an image colour against the textures this map can be painted with.
 	/// </summary>

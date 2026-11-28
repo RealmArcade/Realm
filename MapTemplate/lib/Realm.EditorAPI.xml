@@ -356,6 +356,14 @@
             <param name="waterProfileIndex">Water profile every reconstructed body uses.</param>
             <returns>True when the layout matched the live grid and was committed; otherwise false.</returns>
         </member>
+        <member name="M:Realm.EditorAPI.IEditorAPI.ApplyAutomaticPathing">
+            <summary>
+            Derives every cell's pathing code from its water state in one pass, so terrain a generator produced carries
+            the default traversal set: a dry cell allows ground, buildings and flying, while a liquid cell allows shallow
+            water, deep water and flying. Any pathing painted by hand is overwritten.
+            </summary>
+            <returns>Success, or a refusal when the editor has no terrain to derive pathing from.</returns>
+        </member>
         <member name="M:Realm.EditorAPI.IEditorAPI.GetTerrainTextureInfo">
             <summary>
             Reports every terrain texture swatch slot of the open workspace, including the ones left empty, so an

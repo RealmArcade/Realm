@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Realm.Ecs.Components.Terrain;
 
 namespace Realm.MapGeneration;
 
@@ -50,7 +51,7 @@ public static class MinimapTerrainReconstructor
 		}
 
 		AssignSplats(terrain, palette, options);
-		AssignPathing(terrain, palette);
+		AssignPathing(terrain);
 		if (options.PlaceProps)
 		{
 			List<GeneratedProp> detectedProps = MinimapObjectDetector.Detect(image, grid.Cells, waterMask, width, depth, options.QuadSize, catalog, options);
@@ -638,25 +639,11 @@ public static class MinimapTerrainReconstructor
 			0f, 0f, 0f, 0f, 0f) : default;
 	}
 
-	private static void AssignPathing(ReconstructedTerrain terrain, MapGenerationPalette palette)
+	private static void AssignPathing(ReconstructedTerrain terrain)
 	{
-		int width = terrain.Width;
-		int depth = terrain.Depth;
-		for (int z = 0; z < depth; z++)
+		for (int index = 0; index < terrain.PathingCodes.Length; index++)
 		{
-			for (int x = 0; x < width; x++)
-			{
-				int index = z * width + x;
-				if (terrain.WaterMask[index])
-				{
-					terrain.PathingCodes[index] = terrain.WaterModes[index] == 2 ? TerrainPathingCodes.DeepWater : TerrainPathingCodes.ShallowWater;
-					continue;
-				}
-
-				TerrainSwatch swatch = palette.FindForKind(terrain.CellKinds[index], (int)DeterministicHash.Combine(x, z, 7));
-				int code = swatch.DefaultPathingCode;
-				terrain.PathingCodes[index] = code <= 0 || code == 44 ? TerrainPathingCodes.Ground : (byte)code;
-			}
+			terrain.PathingCodes[index] = (byte)TerrainPathing.AutomaticPathingCode(terrain.WaterMask[index]);
 		}
 	}
 

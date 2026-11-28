@@ -11,6 +11,20 @@ public static class TerrainPathing
 	public static readonly int DefaultPathingCode_DeepWater = (int)TerrainPathingFlags.DeepWater | (int)TerrainPathingFlags.Flying;
 	public static readonly int DefaultPathingCode_Ground = (int)TerrainPathingFlags.Ground | (int)TerrainPathingFlags.Buildable | (int)TerrainPathingFlags.Flying;
 
+	public static readonly int AutomaticPathingCode_Land = (int)TerrainPathingFlags.Ground | (int)TerrainPathingFlags.Buildable | (int)TerrainPathingFlags.Flying;
+
+	public static readonly int AutomaticPathingCode_Water = (int)TerrainPathingFlags.ShallowWater | (int)TerrainPathingFlags.DeepWater | (int)TerrainPathingFlags.Flying;
+
+	public static int AutomaticPathingCode(bool isWater)
+	{
+		return isWater ? AutomaticPathingCode_Water : AutomaticPathingCode_Land;
+	}
+
+	public static int AutomaticPathingCode(WaterType waterMode)
+	{
+		return AutomaticPathingCode(waterMode != WaterType.None);
+	}
+
 	public static int DefaultPathingCodeByWaterType(WaterType waterMode)
 	{
 		return waterMode switch

@@ -13,6 +13,7 @@ public enum MapGenerationStage
 	PaintingMaterials,
 	UploadingTerrain,
 	FillingWater,
+	ApplyingPathing,
 	MeasuringDistanceToPaths,
 	ScatteringTrees,
 	PlantingTrees,

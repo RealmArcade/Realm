@@ -403,6 +403,7 @@ public partial class MapGenerationDialog : Control
 			MapGenerationStage.PaintingMaterials => TranslationServer.Translate("Painting materials"),
 			MapGenerationStage.UploadingTerrain => TranslationServer.Translate("Uploading terrain"),
 			MapGenerationStage.FillingWater => TranslationServer.Translate("Filling water basins"),
+			MapGenerationStage.ApplyingPathing => TranslationServer.Translate("Applying pathing"),
 			MapGenerationStage.MeasuringDistanceToPaths => TranslationServer.Translate("Measuring distance to paths"),
 			MapGenerationStage.ScatteringTrees => TranslationServer.Translate("Scattering trees"),
 			MapGenerationStage.PlantingTrees => TranslationServer.Translate("Planting trees"),

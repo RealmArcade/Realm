@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
+using Realm.Ecs.Components.Terrain;
 using Realm.MapGeneration;
 
 namespace Realm.Tools.Cli;
@@ -346,7 +347,35 @@ public static class MapGenerationCommands
 		Console.WriteLine($"  placed by category: trees {categories[(int)PropCategory.Tree]}, rocks {categories[(int)PropCategory.Rock]}, structures {categories[(int)PropCategory.Structure]}, nature {categories[(int)PropCategory.Nature]}, other {categories[(int)PropCategory.Other]}");
 		Console.WriteLine($"  cliff splat: {DescribeSplat(terrain, terrain.CliffSplatIndices)}");
 		Console.WriteLine($"  ground splat: {DescribeSplat(terrain, terrain.SplatIndices)}");
+		Console.WriteLine($"  pathing: {DescribePathing(terrain)}");
 		return 0;
+	}
+
+	private static string DescribePathing(MapFolderTerrain terrain)
+	{
+		if (terrain.PathingCodes.Length == 0)
+		{
+			return "not stored in this folder";
+		}
+
+		int landCode = TerrainPathing.AutomaticPathingCode(false);
+		int waterCode = TerrainPathing.AutomaticPathingCode(true);
+		int landCells = 0;
+		int waterCells = 0;
+		for (int index = 0; index < terrain.PathingCodes.Length; index++)
+		{
+			if (terrain.PathingCodes[index] == landCode)
+			{
+				landCells++;
+			}
+			else if (terrain.PathingCodes[index] == waterCode)
+			{
+				waterCells++;
+			}
+		}
+
+		int otherCells = terrain.PathingCodes.Length - landCells - waterCells;
+		return $"{landCells} land-union, {waterCells} water-union, {otherCells} other";
 	}
 
 	private static string DescribeSplat(MapFolderTerrain terrain, int[] values)

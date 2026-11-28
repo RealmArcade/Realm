@@ -191,6 +191,28 @@ public partial class EditorService
 		return true;
 	}
 
+	public EditorOperationResult ApplyAutomaticPathing()
+	{
+		RuntimeTerrain? terrain = GameContext.Host?.GroundTerrain;
+		if (terrain?.Cells == null || terrain.PathingCodes == null)
+		{
+			return EditorOperationResult.Failed("The editor has no terrain to derive pathing from.");
+		}
+
+		for (int z = 0; z < terrain.Depth; z++)
+		{
+			for (int x = 0; x < terrain.Width; x++)
+			{
+				terrain.PathingCodes[x, z] = TerrainPathing.AutomaticPathingCode(terrain.Cells[x, z].WaterMode);
+			}
+		}
+
+		terrain.UpdatePathingTexture();
+		GameContext.Host?.UpdatePathingOverlay();
+		EditorWorkspaceWatcher.UpdateWatchedFileTimestamps();
+		return EditorOperationResult.Succeeded();
+	}
+
 	public void ResetMapToBlank()
 	{
 		ResetToBlankMapDomain();

@@ -68,6 +68,12 @@ public class TerrainImageImporter
 		}
 
 		int propCount = PlaceProps(editorApi, terrain);
+		EditorOperationResult pathing = editorApi.ApplyAutomaticPathing();
+		if (!pathing.Success)
+		{
+			return new TerrainImageImportResult { Success = false, Message = pathing.Error };
+		}
+
 		editorApi.ResetWorkspaceFileWatchTimestamps();
 		editorApi.RefreshEditorAfterTerrainChange(true);
 		editorApi.MarkDocumentModified();

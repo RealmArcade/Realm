@@ -11,7 +11,7 @@ public class ProceduralMapGenerator
 	public const int AnchorCount = 9;
 	private const int MaximumScatterPoints = 20000;
 
-	private static readonly float[] StageWeights = { 2f, 10f, 3f, 14f, 4f, 8f, 3f, 3f, 5f, 9f, 4f, 4f, 10f, 8f, 6f, 5f, 2f };
+	private static readonly float[] StageWeights = { 2f, 10f, 3f, 14f, 4f, 8f, 3f, 3f, 5f, 9f, 4f, 2f, 4f, 10f, 8f, 6f, 5f, 2f };
 	private static readonly float[] StageStartPercents = BuildStageStartPercents();
 	private static readonly float[] AnchorFractions = { 1f / 6f, 0.5f, 5f / 6f };
 
@@ -245,6 +245,7 @@ public class ProceduralMapGenerator
 			MapGenerationStage.PaintingMaterials => RunPaintMaterials(),
 			MapGenerationStage.UploadingTerrain => RunUploadTerrain(),
 			MapGenerationStage.FillingWater => RunFillWater(),
+			MapGenerationStage.ApplyingPathing => RunApplyAutomaticPathing(),
 			MapGenerationStage.MeasuringDistanceToPaths => RunDistanceToPaths(remainingBudgetMilliseconds),
 			MapGenerationStage.ScatteringTrees => RunScatterTrees(remainingBudgetMilliseconds),
 			MapGenerationStage.PlantingTrees => RunPlantTrees(),
@@ -624,6 +625,18 @@ public class ProceduralMapGenerator
 		if (_waterPools.Count > 0)
 		{
 			_editorApi.RebuildTerrain();
+		}
+
+		_stageProgress = 1f;
+		return true;
+	}
+
+	private bool RunApplyAutomaticPathing()
+	{
+		EditorOperationResult result = _editorApi.ApplyAutomaticPathing();
+		if (!result.Success)
+		{
+			throw new InvalidOperationException(result.Error);
 		}
 
 		_stageProgress = 1f;
