@@ -25,7 +25,8 @@ public sealed record ToolAccordionHooks(
 	Action<string> ShowFeedback,
 	Action RefreshCoordinateList,
 	Action<string> OpenInstanceManager,
-	Action OpenSpawnAnchors);
+	Action OpenSpawnAnchors,
+	Action OpenReplaceObjectDialog);
 
 /// <summary>
 /// The tool accordion in the editor's right panel: the per-module card grids (terrain, texture, pathing, objects,
@@ -161,6 +162,8 @@ public sealed class ToolAccordionPanel
 			else
 				hooks.SelectTool(EditorTool.DeleteObject, DeleteObjectButton);
 		}, "Erase units, props, or decals");
+
+		CreateToolCard(hooks, objGrid, "BtnReplaceObject", UnicodeIcons.REFRESH, TranslationServer.Translate("Swap / Replace"), () => hooks.OpenReplaceObjectDialog(), TranslationServer.Translate("Swap or replace every instance of one object with another"));
 	}
 
 	private void BuildCoordinatePanel(ToolAccordionHooks hooks)

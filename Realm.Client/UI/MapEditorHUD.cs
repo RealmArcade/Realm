@@ -140,6 +140,7 @@ public partial class MapEditorHUD : Control
 	private AuthorSignatureDialog _authorSignatureDialog { get; set; } = null!;
 	private string _publishAuthorshipKeyPath { get; set; } = string.Empty;
 	private ReplaceTextureDialog _replaceTextureDialog { get; set; } = null!;
+	private ReplaceObjectDialog _replaceObjectDialog { get; set; } = null!;
 	private UtilitiesDialog _utilitiesDialog { get; set; } = null!;
 	private TestSettingsDialog _testSettingsDialog { get; set; } = null!;
 	private MapVersionsDialog _mapVersionsDialog { get; set; } = null!;
