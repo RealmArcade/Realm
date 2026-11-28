@@ -585,6 +585,36 @@ public sealed class EditorTerrainSurface
 		return resultCells;
 	}
 
+	private static float FitWaterLevelToBasin(float waterSurfaceY, List<Vector2I> filledCells, TerrainCell[,] cells)
+	{
+		float highestTierFloor = float.MinValue;
+
+		foreach (Vector2I cellPos in filledCells)
+		{
+			TerrainCell cell = cells[cellPos.X, cellPos.Y];
+			if (cell.CenterHeight >= waterSurfaceY - 0.001f) continue;
+
+			float tierFloor = cell.MacroTier * TerrainCell.TIER_HEIGHT;
+			if (tierFloor > highestTierFloor) highestTierFloor = tierFloor;
+		}
+
+		if (highestTierFloor == float.MinValue) return waterSurfaceY;
+
+		return MathF.Max(waterSurfaceY, highestTierFloor + RuntimeTerrain.WATER_DELTA);
+	}
+
+	private static void TrimWaterToSubmergedCells(List<Vector2I> filledCells, TerrainCell[,] cells, float waterSurfaceY)
+	{
+		filledCells.RemoveAll(cellPos => !CanHoldWaterAt(cells[cellPos.X, cellPos.Y], waterSurfaceY));
+	}
+
+	private static bool CanHoldWaterAt(TerrainCell cell, float waterSurfaceY)
+	{
+		if (cell.CenterHeight >= waterSurfaceY - 0.001f) return false;
+
+		return cell.MacroTier * TerrainCell.TIER_HEIGHT < waterSurfaceY - 0.001f;
+	}
+
 	public static float CalculateBaseWaterLevel(Godot.Vector3 clickPos, TerrainCell startCell, float waterHeight)
 	{
 		float effectiveWaterHeight = waterHeight > 0.001f ? waterHeight : 0.9f;
@@ -837,11 +867,25 @@ public sealed class EditorTerrainSurface
 		var beforeCells = (TerrainCell[,])cells.Clone();
 		var beforePathing = (int[,])terrain.PathingCodes.Clone();
 
-		var visited = new bool[width, depth];
 		int clickX = Mathf.Clamp((int)Math.Floor(clickPos.X / quadSize + width / 2.0f), 0, width - 1);
 		int clickZ = Mathf.Clamp((int)Math.Floor(clickPos.Z / quadSize + depth / 2.0f), 0, depth - 1);
 		float waterSurfaceY = CalculateBaseWaterLevel(clickPos, beforeCells[clickX, clickZ], waterHeight);
+
+		var visited = new bool[width, depth];
 		var filledCells = GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, visited, mirrorMode, waterSurfaceY, isRemoveAction, symmetryPivot, symmetryFolds);
+
+		if (!isRemoving && filledCells.Count > 0)
+		{
+			float fittedSurfaceY = FitWaterLevelToBasin(waterSurfaceY, filledCells, beforeCells);
+			if (fittedSurfaceY > waterSurfaceY)
+			{
+				waterSurfaceY = fittedSurfaceY;
+				var refittedVisited = new bool[width, depth];
+				filledCells = GetWaterFloodFillArea(clickPos, beforeCells, width, depth, quadSize, refittedVisited, mirrorMode, waterSurfaceY, isRemoveAction, symmetryPivot, symmetryFolds);
+			}
+
+			TrimWaterToSubmergedCells(filledCells, beforeCells, waterSurfaceY);
+		}
 
 		if (filledCells.Count == 0) return (null, null, null, null, false);
 
