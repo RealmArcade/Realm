@@ -192,12 +192,14 @@ public static class TerrainMapRefactor
 	{
 		if (water.WaterMode == WaterType.None) return;
 
-		float surfaceHeight = ScaleHeight(water.SurfaceHeight, lowest, ratio);
-		float tierFloor = cell.MacroTier * TerrainCell.TIER_HEIGHT;
+		float surfaceHeight = Math.Clamp(ScaleHeight(water.SurfaceHeight, lowest, ratio), TerrainCell.MIN_Y, TerrainCell.MAX_Y);
+		float waterHeight = surfaceHeight - cell.MacroTier * TerrainCell.TIER_HEIGHT;
+
+		if (waterHeight <= HeightRangeTolerance) return;
 
 		cell.WaterMode = water.WaterMode;
 		cell.WaterProfileIndex = water.WaterProfileIndex;
-		cell.WaterHeight = surfaceHeight > tierFloor + HeightRangeTolerance ? surfaceHeight - tierFloor : RuntimeTerrain.WATER_DELTA;
+		cell.WaterHeight = waterHeight;
 	}
 
 	private static int[,] BuildHeightPlanes(TerrainCell[,] cells, int width, int depth)
