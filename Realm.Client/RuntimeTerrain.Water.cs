@@ -212,7 +212,7 @@ public partial class RuntimeTerrain
 
 	private void ApplyWaterDetail(ShaderMaterial mat, WaterProfileSaveData profile)
 	{
-		bool usePaintedOcean = !profile.UseDetailTexture && profile.Id is ("water_shallow" or "water_deep");
+		bool usePaintedOcean = profile.UsePaintedOcean;
 		mat.SetShaderParameter("use_painted_ocean", usePaintedOcean);
 		if (usePaintedOcean)
 		{

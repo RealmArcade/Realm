@@ -103,6 +103,9 @@ public class WaterProfileSaveData
 	[SchemaDescription("How strongly light takes on the subsurface colour as it passes through the water.")]
 	public float SubsurfaceStrength { get; set; } = 0.0f;
 
+	[SchemaDescription("Whether the water is drawn with the painted ocean texture over its surface, which gives a calm sea its swell, colour and sheen instead of the plain wave function alone.")]
+	public bool UsePaintedOcean { get; set; } = false;
+
 	[SchemaDescription("Whether a detail texture is blended over the water's surface.")]
 	public bool UseDetailTexture { get; set; } = false;
 
@@ -185,6 +188,7 @@ public class WaterProfileSaveData
 			CoreThreshold = this.CoreThreshold,
 			SubsurfaceColorHex = this.SubsurfaceColorHex,
 			SubsurfaceStrength = this.SubsurfaceStrength,
+			UsePaintedOcean = this.UsePaintedOcean,
 			UseDetailTexture = this.UseDetailTexture,
 			DetailTexturePath = this.DetailTexturePath,
 			DetailTileMode = this.DetailTileMode,

@@ -6057,6 +6057,11 @@
             "title": "SubsurfaceStrength",
             "description": "How strongly light takes on the subsurface colour as it passes through the water."
           },
+          "UsePaintedOcean": {
+            "type": "boolean",
+            "title": "UsePaintedOcean",
+            "description": "Whether the water is drawn with the painted ocean texture over its surface, which gives a calm sea its swell, colour and sheen instead of the plain wave function alone."
+          },
           "UseDetailTexture": {
             "type": "boolean",
             "title": "UseDetailTexture",
