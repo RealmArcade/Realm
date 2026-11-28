@@ -311,6 +311,7 @@ namespace Realm.Client.UI
 				case EditorTool.Ramp: targetBtn = _toolPanel.RampButton; break;
 				case EditorTool.Noise: targetBtn = _toolPanel.NoiseButton; break;
 				case EditorTool.Water: targetBtn = _toolPanel.WaterButton; break;
+				case EditorTool.HeightFill: targetBtn = _toolPanel.HeightFillButton; break;
 				case EditorTool.PaintTexture: targetBtn = _toolPanel.TextureBrushButton; break;
 				case EditorTool.FloodFill: targetBtn = _toolPanel.FloodFillButton; break;
 				case EditorTool.PaintPathing: targetBtn = _toolPanel.PathingBrushButton; break;
@@ -348,6 +349,7 @@ namespace Realm.Client.UI
 				EditorTool.Ramp => _toolPanel.RampButton,
 				EditorTool.Noise => _toolPanel.NoiseButton,
 				EditorTool.Water => _toolPanel.WaterButton,
+				EditorTool.HeightFill => _toolPanel.HeightFillButton,
 				EditorTool.PaintPathing => _toolPanel.PathingBrushButton,
 				EditorTool.FloodFillPathing => _toolPanel.FloodFillPathingButton,
 				EditorTool.DrawCoordinate => _toolPanel.DrawCoordinateButton,

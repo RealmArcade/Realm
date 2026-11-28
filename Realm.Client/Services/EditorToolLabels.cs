@@ -42,6 +42,7 @@ public static class EditorToolLabels
 			EditorTool.FloodFillPathing => TranslationServer.Translate("FLOOD FILL PATHING"),
 			EditorTool.DrawCoordinate => TranslationServer.Translate("DRAW COORD"),
 			EditorTool.Water => TranslationServer.Translate("WATER"),
+			EditorTool.HeightFill => TranslationServer.Translate("HEIGHT FILL"),
 			EditorTool.Measure => TranslationServer.Translate("MEASURE"),
 			_ => tool.ToString()
 		};

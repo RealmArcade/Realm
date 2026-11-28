@@ -608,6 +608,14 @@ public partial class EditorService : IEditorAPI
 		bool isCliff = false) =>
 		_surface.PerformTextureFloodFill(clickPos, fillTextureIndex, cliffTextureIndex, mirrorMode, isCliff, Symmetry.Pivot, Symmetry.Folds);
 
+	public (TerrainCell[,]? BeforeCells, TerrainCell[,]? AfterCells, TerrainSplatWeights[,]? BeforeSplatMap, TerrainSplatWeights[,]? AfterSplatMap, TerrainSplatWeights[,]? BeforeCliffSplatMap, TerrainSplatWeights[,]? AfterCliffSplatMap) PerformHeightFill(
+		Godot.Vector3 clickPos,
+		float targetHeight,
+		int groundTextureIndex,
+		int cliffTextureIndex,
+		MirrorMode mirrorMode) =>
+		_surface.PerformHeightFill(clickPos, targetHeight, groundTextureIndex, cliffTextureIndex, mirrorMode, Symmetry.Pivot, Symmetry.Folds);
+
 	public (int[,]? Before, int[,]? After) PerformFloodFillPathing(Godot.Vector3 clickPos, int pathingMask, bool pathingAdd, MirrorMode mirrorMode) =>
 		_surface.PerformPathingFloodFill(clickPos, pathingMask, pathingAdd, mirrorMode, Symmetry.Pivot, Symmetry.Folds);
 

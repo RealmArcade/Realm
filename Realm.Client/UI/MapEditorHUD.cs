@@ -303,7 +303,7 @@ public partial class MapEditorHUD : Control
 	{
 		return tool switch
 		{
-			EditorTool.Raise or EditorTool.Lower or EditorTool.Smooth or EditorTool.Plateau or EditorTool.Ramp or EditorTool.Noise or EditorTool.Water => EditorModule.Terrain,
+			EditorTool.Raise or EditorTool.Lower or EditorTool.Smooth or EditorTool.Plateau or EditorTool.Ramp or EditorTool.Noise or EditorTool.Water or EditorTool.HeightFill => EditorModule.Terrain,
 			EditorTool.PaintTexture or EditorTool.FloodFill => EditorModule.TextureDeco,
 			EditorTool.DrawCoordinate => EditorModule.Coordinates,
 			EditorTool.PaintPathing or EditorTool.FloodFillPathing => EditorModule.Pathing,

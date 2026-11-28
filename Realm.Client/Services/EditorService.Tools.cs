@@ -161,6 +161,9 @@ public partial class EditorService
 	public void FloodFillWaterAt(float worldX, float worldY, float worldZ, bool removeWater) =>
 		EditorToolOperations.FloodFillWaterAt(worldX, worldY, worldZ, removeWater);
 
+	public void HeightFillAt(float worldX, float worldY, float worldZ) =>
+		EditorToolOperations.HeightFillAt(worldX, worldY, worldZ);
+
 	public void CopySelectedArea() => EditorToolOperations.CopySelectedArea();
 
 	public void CutSelectedArea() => EditorToolOperations.CutSelectedArea();

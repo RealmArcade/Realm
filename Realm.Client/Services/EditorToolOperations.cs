@@ -28,6 +28,11 @@ public static class EditorToolOperations
 		GameContext.Host?.PerformWaterFloodFill(new Vector3(worldX, worldY, worldZ), removeWater);
 	}
 
+	public static void HeightFillAt(float worldX, float worldY, float worldZ)
+	{
+		GameContext.Host?.PerformHeightFill(new Vector3(worldX, worldY, worldZ));
+	}
+
 	public static void CopySelectedArea()
 	{
 		GameContext.Host?.PerformCopyAreaExternal();

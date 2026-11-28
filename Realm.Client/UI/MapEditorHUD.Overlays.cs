@@ -736,7 +736,7 @@ namespace Realm.Client.UI
 
 			if (_brushPanel?.HeightBox != null)
 			{
-				_brushPanel.HeightBox.Visible = (tool == EditorTool.Height);
+				_brushPanel.HeightBox.Visible = (tool == EditorTool.Height || tool == EditorTool.HeightFill);
 			}
 		}
 
